@@ -7,7 +7,7 @@ behavior that allows all operations.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,6 @@ class ConfigResolver:
             user_identity: Identifier for the user (username, email, ID, etc.)
             gateway_context: Context information from the gateway (gateway_id, etc.)
             base_config: Base configuration to start with
-            user:
 
         Returns:
             Dict containing user-specific configuration. Default implementation

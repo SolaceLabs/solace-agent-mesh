@@ -30,7 +30,9 @@ async def test_resolve_user_config():
     }
 
     # Resolve user config
-    resolved_config = await ConfigResolver.resolve_user_config(valid_user_identity, valid_gateway_context, valid_base_config)
+    resolved_config = await ConfigResolver.resolve_user_config(
+        valid_user_identity, valid_gateway_context, valid_base_config
+    )
 
     assert resolved_config["test_key"] == valid_base_config["test_key"]
 
