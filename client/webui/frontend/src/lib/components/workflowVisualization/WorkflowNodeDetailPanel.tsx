@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import yaml from "js-yaml";
 import { Bot, Workflow, GitBranch, Repeat2, RefreshCw, Play, CheckCircle, Copy, Check, Code, ExternalLink, FileText } from "lucide-react";
 
@@ -35,7 +34,6 @@ interface WorkflowNodeDetailPanelProps {
 const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig: _workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode, currentWorkflowName, parentPath = [] }) => {
     // workflowConfig is available for future use (e.g., accessing workflow-level output_mapping)
     void _workflowConfig;
-    const navigate = useNavigate();
     const [showCodeView, setShowCodeView] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
     const [activeTab, setActiveTab] = useState<"input" | "output">("input");
@@ -83,9 +81,9 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
         if (node?.data.workflowName) {
             // Build new parent path: current workflow becomes closest parent
             const newParentPath = currentWorkflowName ? [currentWorkflowName, ...parentPath] : parentPath;
-            navigate(buildWorkflowNavigationUrl(node.data.workflowName, newParentPath));
+            window.open("/#" + buildWorkflowNavigationUrl(node.data.workflowName, newParentPath), "_blank");
         }
-    }, [navigate, node?.data.workflowName, currentWorkflowName, parentPath]);
+    }, [node?.data.workflowName, currentWorkflowName, parentPath]);
 
     if (!node) {
         return null;
@@ -149,7 +147,9 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
 
     // Render YAML code view
     const renderCodeView = () => {
-        if (!nodeConfig) return null;
+        if (!nodeConfig) {
+            return <div className="bg-card-background flex h-full items-center justify-center">There is no code associated with this node.</div>;
+        }
         try {
             const yamlStr = yaml.dump(nodeConfig, { indent: 2, lineWidth: -1 });
             return (
@@ -202,14 +202,16 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     return (
         <div className="bg-background flex h-full flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-                <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-between border-b p-4">
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
                     {getNodeIcon()}
-                    <span className="text-[20px] font-semibold">{title}</span>
+                    <span className="truncate pr-2 text-[20px] font-semibold" title={title}>
+                        {title}
+                    </span>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* View toggle */}
-                    <div className="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600">
+                    <div className="flex overflow-hidden rounded-md border">
                         <button
                             onClick={handleShowDetails}
                             className={`flex items-center justify-center px-3 py-1.5 ${

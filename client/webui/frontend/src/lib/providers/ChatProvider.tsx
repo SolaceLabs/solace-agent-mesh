@@ -787,8 +787,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     status === "in-progress" && artifact_chunk
                                                         ? (existingArtifact.accumulatedContent || "") + artifact_chunk
                                                         : status === "completed" && !isDisplayed
-                                                            ? undefined // Clear accumulated content when completed if NOT displayed
-                                                            : existingArtifact.accumulatedContent, // Keep for displayed artifacts
+                                                          ? undefined // Clear accumulated content when completed if NOT displayed
+                                                          : existingArtifact.accumulatedContent, // Keep for displayed artifacts
                                                 // Mark that streaming content is plain text (not base64)
                                                 isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : existingArtifact.isAccumulatedContentPlainText,
                                                 // Update mime_type when completed
@@ -1237,7 +1237,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // For failed tasks, always create a message bubble even if there are no content parts
                     // For other cases, only create a new bubble if there is visible content to render.
                     // Include deep_research_progress data parts as visible content
-                    const hasVisibleContent = isTaskFailed || newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress"));
+                    const hasVisibleContent =
+                        isTaskFailed || newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress"));
                     if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
@@ -2273,7 +2274,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Pre-register the task in the task monitor so it's available for visualization immediately
                 // This prevents race conditions where the side panel tries to visualize before SSE events arrive
                 const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
-                const initialRequestText = textParts.map(p => p.text).join(" ").trim() || "Task started...";
+                const initialRequestText =
+                    textParts
+                        .map(p => p.text)
+                        .join(" ")
+                        .trim() || "Task started...";
                 registerTaskEarly(taskId, initialRequestText);
 
                 // Check if this should be a background task (enabled via gateway config)
