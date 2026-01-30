@@ -81,7 +81,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
         if (node?.data.workflowName) {
             // Build new parent path: current workflow becomes closest parent
             const newParentPath = currentWorkflowName ? [currentWorkflowName, ...parentPath] : parentPath;
-            window.open(buildWorkflowNavigationUrl(node.data.workflowName, newParentPath), "_blank");
+            window.open("/#" + buildWorkflowNavigationUrl(node.data.workflowName, newParentPath), "_blank");
         }
     }, [node?.data.workflowName, currentWorkflowName, parentPath]);
 
