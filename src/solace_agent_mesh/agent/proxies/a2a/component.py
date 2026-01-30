@@ -546,7 +546,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 log.debug("%s Fetching agent card without authentication", log_identifier)
 
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
-            async with httpx.AsyncClient(headers=headers) as client:
+            async with httpx.AsyncClient(headers=headers, follow_redirects=True) as client:
                 resolver = A2ACardResolver(httpx_client=client, base_url=agent_url, agent_card_path=agent_card_path)
                 agent_card = await resolver.get_agent_card()
                 return agent_card
@@ -1207,6 +1207,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 pool=agent_timeout,
             ),
             headers=task_headers if task_headers else None,
+            follow_redirects=True,  # Enable redirect following for 307 redirects
         )
 
         if task_headers:

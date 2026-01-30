@@ -212,7 +212,7 @@ class OAuth2Client:
             "Accept": "application/json",
         }
 
-        async with httpx.AsyncClient(verify=verify) as client:
+        async with httpx.AsyncClient(verify=verify, follow_redirects=True) as client:
             response = await client.post(
                 token_url,
                 data=payload,

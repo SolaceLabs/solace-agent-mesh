@@ -412,7 +412,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         log.info(
             "%s Performing initial synchronous agent discovery...", self.log_identifier
         )
-        with httpx.Client() as client:
+        with httpx.Client(follow_redirects=True) as client:
             for agent_config in self.proxied_agents_config:
                 agent_alias = agent_config["name"]
 
