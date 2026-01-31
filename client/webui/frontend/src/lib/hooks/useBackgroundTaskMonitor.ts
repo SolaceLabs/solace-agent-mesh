@@ -135,7 +135,8 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
 
                 if (taskStatus === "failed" || taskStatus === "error") {
                     notificationType = "failed";
-                    message = `Background task failed`;
+                    // Use the actual error message from backend, fallback to generic message
+                    message = status.error_message || `Background task failed`;
                 } else if (taskStatus === "timeout") {
                     notificationType = "timeout";
                     message = `Background task timed out`;

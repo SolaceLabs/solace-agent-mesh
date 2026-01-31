@@ -65,6 +65,7 @@ class TaskStatusResponse(BaseModel):
     is_running: bool
     is_background: bool
     can_reconnect: bool
+    error_message: str | None = None
 
 
 @router.get("/tasks/{task_id}/status", response_model=TaskStatusResponse, tags=["Tasks"])
@@ -84,35 +85,65 @@ async def get_task_status(
     """
     log_prefix = f"[GET /api/v1/tasks/{task_id}/status] "
     log.debug("%sQuerying task status", log_prefix)
-    
+
     repo = TaskRepository()
     task = repo.find_by_id(db, task_id)
-    
+
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
+
     # Determine if task is still running
     is_running = task.status in [None, "running", "pending"] and task.end_time is None
-    
+
     # Check if it's a background task
     is_background = task.background_execution_enabled or False
-    
+
     # Can reconnect if it's a background task and still running
     can_reconnect = is_background and is_running
-    
-    log.debug(
-        "%sTask status: running=%s, background=%s, can_reconnect=%s",
+
+    # Extract error message if task failed
+    error_message = None
+    if task.status in ["failed", "error", "timeout"]:
+        # Get task with events to extract error message
+        result = repo.find_by_id_with_events(db, task_id)
+        if result:
+            _, events = result
+            # Look for error message in the last event (events are ordered by created_time asc)
+            if events:
+                # Iterate in reverse to find the last event with an error message
+                for event in reversed(events):
+                    payload = event.payload
+                    # Check if this is a final response or error
+                    if "result" in payload:
+                        result_data = payload["result"]
+                        if isinstance(result_data, dict):
+                            # Check for status message in final task
+                            if "status" in result_data and "message" in result_data["status"]:
+                                msg_obj = result_data["status"]["message"]
+                                if isinstance(msg_obj, dict) and "text" in msg_obj:
+                                    error_message = msg_obj["text"]
+                                    break
+                    # Also check for JSON-RPC error messages
+                    if "error" in payload and isinstance(payload["error"], dict):
+                        if "message" in payload["error"]:
+                            error_message = payload["error"]["message"]
+                            break
+
+    log.info(
+        "%sTask status: running=%s, background=%s, can_reconnect=%s, has_error=%s",
         log_prefix,
         is_running,
         is_background,
         can_reconnect,
+        error_message is not None,
     )
-    
+
     return TaskStatusResponse(
         task=task,
         is_running=is_running,
         is_background=is_background,
-        can_reconnect=can_reconnect
+        can_reconnect=can_reconnect,
+        error_message=error_message
     )
 
 
