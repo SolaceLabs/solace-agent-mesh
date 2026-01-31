@@ -55,7 +55,9 @@ RUN apt-get update && \
     build-essential \
     curl \
     ffmpeg=7:7.1.3-0+deb13u1  \
-    git && \
+    git \
+    libssl3t64=3.5.4-1~deb13u2 \
+    openssl=3.5.4-1~deb13u2 && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* && \
@@ -126,7 +128,9 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
     ffmpeg=7:7.1.3-0+deb13u1 \
-    git && \
+    git \
+    libssl3t64=3.5.4-1~deb13u2 \
+    openssl=3.5.4-1~deb13u2 && \
     python3 -m pip install --upgrade "pip>=25.3" && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
