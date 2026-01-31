@@ -4,6 +4,7 @@ Manages the asynchronous execution of the ADK Runner.
 
 import logging
 import asyncio
+import os
 
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from litellm.exceptions import BadRequestError
@@ -18,18 +19,301 @@ class TaskCancelledError(Exception):
 from typing import TYPE_CHECKING, Any
 
 from google.adk.agents import RunConfig
+from google.adk.agents.run_config import StreamingMode
 from google.adk.events import Event as ADKEvent
 from google.adk.events.event_actions import EventActions
 from google.adk.sessions import Session as ADKSession
+from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.genai import types as adk_types
+from a2a.types import TaskState
 
 from ...common import a2a
 
 log = logging.getLogger(__name__)
 
+# System-wide auto-summarization (configurable via env var)
+# Set SAM_ENABLE_AUTO_SUMMARIZATION=false to disable
+ENABLE_AUTO_SUMMARIZATION = os.getenv("SAM_ENABLE_AUTO_SUMMARIZATION", "true").lower() == "true"
+
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
     from ..sac.task_execution_context import TaskExecutionContext
+
+
+def _is_context_limit_error(error: BadRequestError) -> bool:
+    """
+    Check if a BadRequestError is due to context/token limit being exceeded.
+
+    Args:
+        error: The BadRequestError exception
+
+    Returns:
+        True if this is a context limit error, False otherwise
+    """
+    error_message = str(error.message).lower() if hasattr(error, 'message') else str(error).lower()
+    context_limit_indicators = [
+        "too many tokens",
+        "maximum context length",
+        "context length exceeded",
+        "input is too long",
+        "prompt is too long",
+        "context_length_exceeded",
+        "token limit",
+    ]
+    return any(indicator in error_message for indicator in context_limit_indicators)
+
+
+def _is_background_task(a2a_context: dict) -> bool:
+    """
+    Determine if this is a background task or interactive session.
+
+    Background tasks are:
+    - Scheduled/cron jobs
+    - Agent-to-agent calls without human in loop
+    - Tasks with backgroundExecutionEnabled=True in metadata
+
+    Interactive tasks are:
+    - Direct user requests from HTTP/SSE gateway
+    - Tasks initiated via web UI
+    - Have a user-specific client_id
+
+    Args:
+        a2a_context: The A2A context dictionary
+
+    Returns:
+        True if this is a background task, False if interactive
+    """
+    # Check metadata for explicit background flag
+    metadata = a2a_context.get("metadata", {})
+    if metadata.get("backgroundExecutionEnabled", False):
+        return True
+
+    # Check if there's a reply topic indicating peer-to-peer (no user)
+    reply_topic = a2a_context.get("replyToTopic")
+    client_id = a2a_context.get("client_id")
+
+    # If there's a peer reply topic but no client, it's likely background
+    if reply_topic and not client_id:
+        return True
+
+    return False
+
+
+async def _summarize_and_replace_oldest_turns(
+    component: "SamAgentComponent",
+    session: ADKSession,
+    num_turns_to_summarize: int = 2,
+    log_identifier: str = ""
+) -> tuple[int, str, ADKSession]:
+    """
+    Summarize the oldest N user turns using ADK's compaction mechanism.
+
+    Uses LlmEventSummarizer to create properly formatted compaction events that:
+    1. Get persisted to DB via session_service.append_event()
+    2. Contain timestamp ranges to identify which events they replace
+    3. Are understood by ADK's prompt builder to skip compacted events
+    4. Reload session from DB to get fresh state with compaction included
+
+    This dramatically reduces token count while preserving conversation context.
+    Typically achieves 50:1 to 100:1 compression ratio.
+
+    Args:
+        component: The SamAgentComponent instance
+        session: The ADK session to truncate
+        num_turns_to_summarize: Number of oldest user turns to summarize (default: 2)
+        log_identifier: Logging prefix
+
+    Returns:
+        Tuple of (events_removed_count, summary_text, fresh_session)
+    """
+    if not session or not session.events:
+        return 0, "", session
+
+    # 1. Filter out existing compaction events and separate by author
+    non_compaction_events = [
+        e for e in session.events
+        if not (e.actions and e.actions.compaction)
+    ]
+
+    system_events = [e for e in non_compaction_events if e.author == "system"]
+    conversation_events = [e for e in non_compaction_events if e.author != "system"]
+
+    # 2. Find user turn boundaries
+    user_indices = [i for i, e in enumerate(conversation_events) if e.author == "user"]
+
+    if len(user_indices) <= num_turns_to_summarize:
+        log.warning(
+            "%s Not enough user turns to summarize (%d available, %d requested)",
+            log_identifier,
+            len(user_indices),
+            num_turns_to_summarize
+        )
+        return 0, "", session
+
+    # 3. Extract turns to summarize (from start to Nth user turn)
+    cutoff_idx = user_indices[num_turns_to_summarize]
+    events_to_compact = conversation_events[:cutoff_idx]
+    remaining_events = conversation_events[cutoff_idx:]
+
+    if not events_to_compact:
+        return 0, "", session
+
+    log.info(
+        "%s Compacting %d events (first %d user turns) using LlmEventSummarizer...",
+        log_identifier,
+        len(events_to_compact),
+        num_turns_to_summarize
+    )
+
+    # 4. Use ADK's LlmEventSummarizer to create compaction event
+    try:
+        summarizer = LlmEventSummarizer(llm=component.adk_agent.model)
+        compaction_event = await summarizer.maybe_summarize_events(events=events_to_compact)
+
+        if not compaction_event:
+            log.error("%s LlmEventSummarizer returned no compaction event", log_identifier)
+            return 0, "", session
+
+        # Extract summary text from compaction event for notification
+        summary_text = ""
+        if compaction_event.actions and compaction_event.actions.compaction:
+            compacted_content = compaction_event.actions.compaction.compacted_content
+            if compacted_content and compacted_content.parts:
+                for part in compacted_content.parts:
+                    if part.text:
+                        summary_text = part.text
+                        break
+
+        if not summary_text:
+            log.warning("%s No text found in compaction event", log_identifier)
+            summary_text = "[Summary generated but no text available]"
+
+    except Exception as e:
+        log.error("%s Failed to create compaction event: %s", log_identifier, e, exc_info=True)
+        return 0, "", session
+
+    # 5. Persist compaction event to database
+    try:
+        await component.session_service.append_event(session=session, event=compaction_event)
+        log.info(
+            "%s Persisted compaction event for timestamp range [%s → %s]",
+            log_identifier,
+            compaction_event.actions.compaction.start_timestamp,
+            compaction_event.actions.compaction.end_timestamp
+        )
+    except Exception as e:
+        log.error(
+            "%s Failed to persist compaction event: %s",
+            log_identifier,
+            e,
+            exc_info=True
+        )
+        raise  # Fail retry if we can't persist
+
+    # 6. Reload session from DB to get fresh state with compaction included
+    #    This ensures ADK's prompt builder can properly handle the compaction event
+    try:
+        fresh_session = await component.session_service.get_session(
+            app_name=session.app_name,
+            user_id=session.user_id,
+            session_id=session.id
+        )
+        if not fresh_session:
+            raise RuntimeError(f"Failed to reload session {session.id} after compaction")
+
+        log.debug(
+            "%s Reloaded session from DB: %d events (including compaction)",
+            log_identifier,
+            len(fresh_session.events) if fresh_session.events else 0
+        )
+
+    except Exception as e:
+        log.error("%s Failed to reload session: %s", log_identifier, e, exc_info=True)
+        raise
+
+    # Log compression stats
+    log.info(
+        "%s Compacted %d events into summary (%d tokens → ~%d tokens, ~%dx compression)",
+        log_identifier,
+        len(events_to_compact),
+        sum(len(str(e.content)) for e in events_to_compact if e.content) // 4,  # Rough estimate
+        len(summary_text) // 4,
+        max(1, sum(len(str(e.content)) for e in events_to_compact if e.content) // max(1, len(summary_text)))
+    )
+
+    return len(events_to_compact), summary_text, fresh_session
+
+
+async def _send_truncation_notification(
+    component: "SamAgentComponent",
+    a2a_context: dict,
+    summary: str,
+    is_background: bool = False,
+    log_identifier: str = ""
+):
+    """
+    Send a status update to the user notifying them that conversation was summarized.
+
+    Args:
+        component: The SamAgentComponent instance
+        a2a_context: The A2A context dictionary
+        summary: The summary text that replaced the old turns
+        is_background: True if this is a background task, False if interactive
+        log_identifier: Logging prefix
+    """
+    try:
+        logical_task_id = a2a_context.get("logical_task_id", "unknown")
+
+        # Different messages for background vs interactive tasks
+        if is_background:
+            notification_text = (
+                f"ℹ️ Note: Conversation history was automatically summarized to stay within token limits.\n\n"
+                f"Summary of earlier messages:\n{summary}"
+            )
+        else:
+            notification_text = (
+                f"⚠️ Your conversation history reached the token limit!\n\n"
+                f"We've automatically summarized older messages to continue. "
+                f"Alternatively, you can start a new chat for a fresh conversation.\n\n"
+                f"Summary of earlier messages:\n{summary}"
+            )
+
+        status_update = a2a.create_task_status_update(
+            task_id=logical_task_id,
+            state=TaskState.running,
+            message=a2a.create_agent_text_message(text=notification_text)
+        )
+
+        response = a2a.create_success_response(
+            result=status_update,
+            request_id=a2a_context.get("jsonrpc_request_id")
+        )
+
+        # Publish to appropriate topic
+        namespace = component.get_config("namespace")
+        client_id = a2a_context.get("client_id")
+        peer_reply_topic = a2a_context.get("replyToTopic")
+
+        target_topic = peer_reply_topic or a2a.get_client_response_topic(namespace, client_id)
+
+        component._publish_a2a_event(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            a2a_context
+        )
+
+        log.info(
+            "%s Sent truncation notification to user for task %s",
+            log_identifier,
+            logical_task_id
+        )
+
+    except Exception as e:
+        log.warning(
+            "%s Failed to send truncation notification: %s",
+            log_identifier,
+            e
+        )
 
 
 async def run_adk_async_task_thread_wrapper(
@@ -128,14 +412,116 @@ async def run_adk_async_task_thread_wrapper(
                     logical_task_id,
                 )
 
-        is_paused = await run_adk_async_task(
-            component,
-            task_context,
-            adk_session,
-            adk_content,
-            run_config,
-            a2a_context,
-        )
+        # =================================================================
+        # Retry loop with automatic summarization on context limit errors
+        # System-wide configuration via SAM_ENABLE_AUTO_SUMMARIZATION env var
+        # =================================================================
+        max_retries = 3
+        retry_count = 0
+        is_paused = False
+
+        while retry_count <= max_retries:
+            try:
+                is_paused = await run_adk_async_task(
+                    component,
+                    task_context,
+                    adk_session,
+                    adk_content,
+                    run_config,
+                    a2a_context,
+                )
+                # Success! Break out of retry loop
+                break
+
+            except BadRequestError as e:
+                # Check if this is a context limit error AND auto-summarization is enabled
+                if _is_context_limit_error(e) and ENABLE_AUTO_SUMMARIZATION:
+                    retry_count += 1
+
+                    if retry_count > max_retries:
+                        # Exceeded max retries, give up
+                        log.error(
+                            "%s Context limit exceeded after %d summarization attempts for task %s. Giving up.",
+                            component.log_identifier,
+                            max_retries,
+                            logical_task_id,
+                        )
+                        raise
+
+                    # Summarize oldest 2 turns and retry
+                    log.warning(
+                        "%s Context limit exceeded for task %s. Attempting automatic summarization (attempt %d/%d)...",
+                        component.log_identifier,
+                        logical_task_id,
+                        retry_count,
+                        max_retries,
+                    )
+
+                    # Store original events for audit logging
+                    original_event_count = len(adk_session.events) if adk_session.events else 0
+
+                    events_removed, summary, adk_session = await _summarize_and_replace_oldest_turns(
+                        component=component,
+                        session=adk_session,
+                        num_turns_to_summarize=2,
+                        log_identifier=component.log_identifier
+                    )
+
+                    if events_removed == 0:
+                        # Can't summarize any more (not enough turns)
+                        log.error(
+                            "%s Cannot summarize further - insufficient conversation history for task %s.",
+                            component.log_identifier,
+                            logical_task_id,
+                        )
+                        raise
+
+                    # Audit log: Now using fresh session reloaded from DB
+                    new_event_count = len(adk_session.events) if adk_session.events else 0
+                    log.warning(
+                        "%s AUDIT: Summarized session %s for task %s. "
+                        "Removed %d events (%d → %d total). "
+                        "Summary: '%s'",
+                        component.log_identifier,
+                        adk_session.id,
+                        logical_task_id,
+                        events_removed,
+                        original_event_count,
+                        new_event_count,
+                        summary[:200] + "..." if len(summary) > 200 else summary
+                    )
+
+                    # Detect if this is a background task for different notification messaging
+                    is_background = _is_background_task(a2a_context)
+
+                    # Send notification to user about summarization
+                    await _send_truncation_notification(
+                        component=component,
+                        a2a_context=a2a_context,
+                        summary=summary,
+                        is_background=is_background,
+                        log_identifier=component.log_identifier
+                    )
+
+                    log.info(
+                        "%s Summarization complete. Retrying task %s with reduced context...",
+                        component.log_identifier,
+                        logical_task_id
+                    )
+
+                    # Continue to next retry iteration
+                    continue
+                else:
+                    # Either not a context limit error, or auto-summarization is disabled
+                    if _is_context_limit_error(e) and not ENABLE_AUTO_SUMMARIZATION:
+                        log.error(
+                            "%s Context limit exceeded for task %s, but auto-summarization is disabled. "
+                            "Set SAM_ENABLE_AUTO_SUMMARIZATION=true to enable.",
+                            component.log_identifier,
+                            logical_task_id
+                        )
+                    # Re-raise the original error
+                    raise
 
         # Mark task as paused if it's waiting for peer response or user input
         if task_context and is_paused:
