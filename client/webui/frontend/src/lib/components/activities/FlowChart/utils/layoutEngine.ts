@@ -50,6 +50,8 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         parallelPeerGroupMap: new Map(),
         parallelBlockMap: new Map(),
         subWorkflowParentMap: new Map(),
+        workflowFunctionCallIdMap: new Map(),
+        workflowParentTaskFunctionCallIds: new Map(),
     };
 
     // Process all steps to build tree structure
@@ -328,8 +330,25 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
     const toolName = step.data.toolInvocationStart?.toolName || target;
     const parallelGroupId = step.data.toolInvocationStart?.parallelGroupId;
 
-    // Skip workflow tools (handled separately)
+    // For workflow tools, don't create a node but store the functionCallId mapping
+    // so handleWorkflowStart can use it to find the parallel block
     if (target.includes("workflow_") || toolName.includes("workflow_")) {
+        const functionCallId = step.data.toolInvocationStart?.functionCallId || step.functionCallId;
+        const subTaskId = step.delegationInfo?.[0]?.subTaskId;
+        const parentTaskId = step.owningTaskId; // The parent task that invoked this workflow
+
+        // Store by subTaskId if available (legacy approach)
+        if (subTaskId && functionCallId) {
+            context.workflowFunctionCallIdMap.set(subTaskId, functionCallId);
+        }
+
+        // Also store by parentTaskId for workflows where subTaskId isn't available
+        if (parentTaskId && functionCallId) {
+            if (!context.workflowParentTaskFunctionCallIds.has(parentTaskId)) {
+                context.workflowParentTaskFunctionCallIds.set(parentTaskId, new Set());
+            }
+            context.workflowParentTaskFunctionCallIds.get(parentTaskId)!.add(functionCallId);
+        }
         return;
     }
 
@@ -569,8 +588,33 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
     groupNode.children.push(startNode);
 
     // Check if this workflow is part of a parallel group
-    const functionCallId = step.functionCallId;
+    // Try multiple approaches to find the functionCallId:
+    // 1. Direct lookup by owningTaskId or executionId (when subTaskId was available)
+    // 2. Lookup by parentTaskId (for workflows where subTaskId wasn't available)
+    // 3. Fall back to step.functionCallId
+    let functionCallId: string | undefined = context.workflowFunctionCallIdMap.get(step.owningTaskId || "") ||
+                                             context.workflowFunctionCallIdMap.get(executionId || "") ||
+                                             step.functionCallId;
     let addedToParallelBlock = false;
+
+    // If not found directly, try to find via parentTaskId
+    if (!functionCallId && step.parentTaskId) {
+        const parentFunctionCallIds = context.workflowParentTaskFunctionCallIds.get(step.parentTaskId);
+        if (parentFunctionCallIds) {
+            // Try each functionCallId to find one that's in a parallel group
+            for (const fcId of parentFunctionCallIds) {
+                for (const [, groupFunctionCallIds] of context.parallelPeerGroupMap.entries()) {
+                    if (groupFunctionCallIds.has(fcId)) {
+                        functionCallId = fcId;
+                        // Remove this functionCallId so it's not used again for another workflow
+                        parentFunctionCallIds.delete(fcId);
+                        break;
+                    }
+                }
+                if (functionCallId) break;
+            }
+        }
+    }
 
     if (functionCallId) {
         // Search through all parallel groups to find if this functionCallId belongs to one
