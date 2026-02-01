@@ -191,6 +191,7 @@ class MiddlewareRegistry:
                     e,
                 )
                 log.exception("%s Full traceback:", LOG_IDENTIFIER)
+                raise
 
     @classmethod
     def reset_bindings(cls):
