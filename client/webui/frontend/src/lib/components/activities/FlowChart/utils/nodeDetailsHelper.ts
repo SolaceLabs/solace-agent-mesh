@@ -265,10 +265,11 @@ function findToolNodeDetails(
     const requestStep = primaryStep.type === 'AGENT_TOOL_INVOCATION_START' ? primaryStep : undefined;
 
     // Find the result by matching functionCallId
-    // Check both the step's functionCallId and the data's functionCallId
+    // Use the tool's actual functionCallId from the data (preferred) for matching with tool_result
+    // The step.functionCallId is the parent tracking ID for sub-task relationships
     let resultStep: VisualizerStep | undefined;
 
-    const functionCallId = requestStep?.functionCallId || requestStep?.data.toolInvocationStart?.functionCallId;
+    const functionCallId = requestStep?.data.toolInvocationStart?.functionCallId || requestStep?.functionCallId;
 
     if (functionCallId) {
         resultStep = allSteps.find(
