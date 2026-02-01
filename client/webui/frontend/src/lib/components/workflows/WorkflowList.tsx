@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { WorkflowIllustration } from "@/lib/assets";
 import type { AgentCardInfo } from "@/lib/types";
 import { EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/lib/components/ui/pagination";
 import { WorkflowDetailPanel } from "./WorkflowDetailPanel";
 import { SearchInput } from "..";
-import { Workflow } from "lucide-react";
 
 const WORKFLOW_STORAGE_KEY = "sam-workflow-onboarding-dismissed";
 const WORKFLOW_URL = "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/workflows";
@@ -138,7 +138,7 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
     };
 
     if (workflows.length === 0) {
-        return <OnboardingView title={WORKFLOW_HEADER} description={WORKFLOW_DESCRIPTION} learnMoreText={WORKFLOW_LEARN_MORE_TEXT} learnMoreHref={WORKFLOW_URL} image={<Workflow className={"text-(--color-brand-wMain)"} size={128} />} />;
+        return <OnboardingView title={WORKFLOW_HEADER} description={WORKFLOW_DESCRIPTION} learnMoreText={WORKFLOW_LEARN_MORE_TEXT} learnMoreHref={WORKFLOW_URL} image={<WorkflowIllustration />} />;
     }
 
     // Pagination controls component
