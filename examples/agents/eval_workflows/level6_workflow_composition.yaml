@@ -133,7 +133,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "DataProcessingSubWorkflow"
+      name: "DataProcessingSubWorkflow"
       display_name: "Data Processing Sub-Workflow"
 
       # Timeout configurations
