@@ -1,0 +1,311 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: level7_error_handling.log
+
+!include ../../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # LEVEL 7: ERROR HANDLING WORKFLOW
+  # ============================================================================
+  # Tests error handling, exit handlers, and workflow completion paths
+  # Complexity: High
+  # Node types: agent (4)
+  # Features: Exit handlers (on_success, on_failure, always), error propagation
+  # ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Operation Executor
+  # Executes an operation that can succeed or fail based on input
+  # ----------------------------------------------------------------------------
+  - name: operation_executor_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "OperationExecutor"
+      model: *planning_model
+
+      instruction: |
+        You execute operations that can succeed or fail based on input mode.
+        1. Read 'mode' from input (values: "success" or "failure")
+        2. If mode == "success": Create artifact with {"result": "operation completed", "status": "success"}
+        3. If mode == "failure": Create artifact with {"error": "simulated failure", "status": "failed"}
+        4. End with: «result:artifact=<artifact_name> status=<success/failed>»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+        IMPORTANT: When mode is "failure", you MUST end with status=failed to simulate an error.
+
+      input_schema:
+        type: object
+        properties:
+          mode: {type: string, enum: ["success", "failure"]}
+        required: [mode]
+
+      output_schema:
+        type: object
+        properties:
+          result: {type: string}
+          status: {type: string}
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Executes operations with success/failure modes"
+        skills: [{id: "execute_operation", name: "Execute Operation", description: "Runs operations", tags: ["execution"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Success Notifier
+  # Handles successful workflow completion
+  # ----------------------------------------------------------------------------
+  - name: success_notifier_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SuccessNotifier"
+      model: *planning_model
+
+      instruction: |
+        You notify about successful workflow completion.
+        1. Create a JSON artifact with: {"notification": "Workflow completed successfully", "type": "success"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties: {}
+
+      output_schema:
+        type: object
+        properties:
+          notification: {type: string}
+          type: {type: string}
+        required: [notification, type]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Sends success notifications"
+        skills: [{id: "notify_success", name: "Notify Success", description: "Success notifications", tags: ["notification"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Failure Alerter
+  # Handles workflow failures
+  # ----------------------------------------------------------------------------
+  - name: failure_alerter_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "FailureAlerter"
+      model: *planning_model
+
+      instruction: |
+        You send alerts for workflow failures.
+        1. Create a JSON artifact with: {"alert": "Workflow failed - check logs", "type": "failure", "severity": "high"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties: {}
+
+      output_schema:
+        type: object
+        properties:
+          alert: {type: string}
+          type: {type: string}
+          severity: {type: string}
+        required: [alert, type, severity]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Sends failure alerts"
+        skills: [{id: "alert_failure", name: "Alert Failure", description: "Failure alerts", tags: ["alert"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Cleanup Service
+  # Performs cleanup regardless of workflow outcome
+  # ----------------------------------------------------------------------------
+  - name: cleanup_service_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "CleanupService"
+      model: *planning_model
+
+      instruction: |
+        You perform cleanup operations.
+        1. Create a JSON artifact with: {"cleanup": "Resources cleaned up", "timestamp": "<current_time>"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties: {}
+
+      output_schema:
+        type: object
+        properties:
+          cleanup: {type: string}
+          timestamp: {type: string}
+        required: [cleanup]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Performs cleanup operations"
+        skills: [{id: "cleanup", name: "Cleanup", description: "Resource cleanup", tags: ["cleanup"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ============================================================================
+  # WORKFLOW: Error Handling
+  # ============================================================================
+  - name: error_handling_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ErrorHandlingWorkflow"
+      display_name: "Error Handling Workflow"
+
+      # Timeout configurations
+      max_workflow_execution_time_seconds: 300  # 5 minutes
+      default_node_timeout_seconds: 60          # 1 minute
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          An error handling workflow for evaluation testing.
+
+          This workflow:
+          1. Executes an operation that can succeed or fail
+          2. Triggers appropriate exit handlers based on outcome:
+             - on_success: Sends success notification
+             - on_failure: Sends failure alert
+             - always: Performs cleanup
+
+          Tests: Exit handlers, on_success/on_failure/always, error propagation
+
+        input_schema:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum: ["success", "failure"]
+              description: "Execution mode (success or failure)"
+          required: [mode]
+
+        output_schema:
+          type: object
+          properties:
+            result: {type: string}
+            status: {type: string}
+
+        # Exit handlers configuration
+        on_exit:
+          on_success: success_handler
+          on_failure: failure_handler
+          always: cleanup_handler
+
+        nodes:
+          # Main operation
+          - id: execute_operation
+            type: agent
+            agent_name: "OperationExecutor"
+            instruction: "Execute the operation in the specified mode (success or failure)."
+            input:
+              mode: "{{workflow.input.mode}}"
+
+          # Exit handler: Success
+          - id: success_handler
+            type: agent
+            agent_name: "SuccessNotifier"
+            instruction: "Send success notification."
+
+          # Exit handler: Failure
+          - id: failure_handler
+            type: agent
+            agent_name: "FailureAlerter"
+            instruction: "Send failure alert."
+
+          # Exit handler: Always
+          - id: cleanup_handler
+            type: agent
+            agent_name: "CleanupService"
+            instruction: "Perform cleanup operations."
+
+        output_mapping:
+          result: "{{execute_operation.output.result}}"
+          status: "{{execute_operation.output.status}}"
+
+        skills:
+          - id: "error_handling"
+            name: "Error Handling"
+            description: "Demonstrates exit handlers and error handling"
+            tags: ["eval", "level7", "error", "exit-handlers"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
