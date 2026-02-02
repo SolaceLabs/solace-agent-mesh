@@ -209,6 +209,11 @@ class IProjectRepository(ABC):
         pass
 
     @abstractmethod
+    def get_user_projects(self, user_id: str) -> list[Project]:
+        """Get all projects owned by a specific user."""
+        pass
+
+    @abstractmethod
     def get_filtered_projects(self, project_filter: ProjectFilter) -> list[Project]:
         """Get projects based on filter criteria."""
         pass
