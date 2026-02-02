@@ -4,7 +4,7 @@ import { Info, Settings, Type, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useConfigContext } from "@/lib/hooks";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
 import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
@@ -16,13 +16,19 @@ interface SidebarItemProps {
     label: string;
     active: boolean;
     onClick: () => void;
+    badge?: string;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick }) => {
+const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick, badge }) => {
     return (
         <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "dark:bg-accent bg-[var(--color-brand-w10)]" : "text-muted-foreground hover:bg-accent/50")}>
             {icon}
             <span>{label}</span>
+            {badge && (
+                <Badge variant="outline" className="ml-auto h-4 bg-(--color-secondary-w80) pt-1 text-[8px] leading-none text-(--color-secondary-text-w10) uppercase">
+                    {badge}
+                </Badge>
+            )}
         </button>
     );
 };
@@ -115,7 +121,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             {/* Top items, scrollable */}
                             <div className="flex-1 space-y-1 overflow-y-auto">
                                 <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
-                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
+                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} badge="Experimental" />}
                             </div>
                             {/* Bottom items, static */}
                             <div className="space-y-1 pb-2">

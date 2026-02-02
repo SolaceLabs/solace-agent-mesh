@@ -71,8 +71,8 @@ apps:
       # --- Frontend Feature Flags ---
       # Uncomment to control speech features in the UI
       frontend_feature_enablement:
-      #   speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
-      #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
+        speechToText: false   # Set to true to enable Speech-to-Text settings & microphone
+        textToSpeech: false   # Set to true to enable Text-to-Speech settings & speaker button
       #   projects: true
       #   promptLibrary: true
         background_tasks: true  # NOTE: task_logging must also be enabled for background tasks to work
