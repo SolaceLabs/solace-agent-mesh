@@ -1,5 +1,5 @@
 from typing import List, Optional
-from ...services.resource_sharing_service import ResourceSharingService, ResourceType, SharingRole
+from ...services.resource_sharing_service import ResourceSharingService, ResourceType
 
 
 class DefaultResourceSharingService(ResourceSharingService):
@@ -20,7 +20,7 @@ class DefaultResourceSharingService(ResourceSharingService):
         resource_id: str,
         resource_type: ResourceType,
         user_email: str
-    ) -> Optional[SharingRole]:
+    ) -> Optional[str]:
         """Community has no sharing - return None (no access via sharing)."""
         return None
 

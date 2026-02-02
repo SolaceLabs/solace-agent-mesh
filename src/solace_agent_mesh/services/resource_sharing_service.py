@@ -1,16 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional
+from typing import List, Optional
 from enum import Enum
 
 
 class ResourceType(Enum):
     PROJECT = "project"
-
-
-class SharingRole(Enum):
-    RESOURCE_VIEWER = "resource_viewer"
-    RESOURCE_EDITOR = "resource_editor"
-    RESOURCE_ADMINISTRATOR = "resource_administrator"
 
 
 class ResourceSharingService(ABC):
@@ -43,12 +37,12 @@ class ResourceSharingService(ABC):
         resource_id: str,
         resource_type: ResourceType,
         user_email: str
-    ) -> Optional[SharingRole]:
+    ) -> Optional[str]:
         """
         Check if user has access to a specific resource.
 
         Returns:
-            SharingRole if user has access, None otherwise.
+            Access level string (e.g., "RESOURCE_VIEWER") if user has access, None otherwise.
         """
         pass
 

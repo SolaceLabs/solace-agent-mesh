@@ -3,10 +3,7 @@ from unittest.mock import Mock
 from solace_agent_mesh.common.services.default_resource_sharing_service import (
     DefaultResourceSharingService,
 )
-from solace_agent_mesh.services.resource_sharing_service import (
-    ResourceType,
-    SharingRole,
-)
+from solace_agent_mesh.services.resource_sharing_service import ResourceType
 
 
 class TestDefaultResourceSharingService:
@@ -20,7 +17,7 @@ class TestDefaultResourceSharingService:
         self.resource_type = ResourceType.PROJECT
         self.user_email = "test@example.com"
         self.shared_by_email = "owner@example.com"
-        self.access_level = SharingRole.RESOURCE_VIEWER
+        self.access_level = "RESOURCE_VIEWER"
 
     def test_share_resource_returns_false(self):
         """Test that share_resource returns False since community edition does not support sharing.
