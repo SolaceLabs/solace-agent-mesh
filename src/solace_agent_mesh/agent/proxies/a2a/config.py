@@ -223,6 +223,11 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         "to AgentProgressUpdateData (shown as status updates in the UI). If false, passes TextPart "
         "messages through unchanged."
     )
+    ssl_verify: bool = Field(
+        default=True,
+        description="SSL certificate verification. Set to False to disable "
+        "verification for self-signed certificates.",
+    )
 
 
 class A2AProxyAppConfig(BaseProxyAppConfig):
