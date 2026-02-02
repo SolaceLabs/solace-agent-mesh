@@ -198,7 +198,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "WorkflowCompositionParent"
+      name: "WorkflowCompositionParent"
       display_name: "Workflow Composition Parent"
 
       # Timeout configurations
