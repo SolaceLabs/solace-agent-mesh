@@ -5,7 +5,7 @@ import { useConfigContext, useDownload } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
-import { formatRelativeTime, validateFileSizes, validateTotalUploadSize } from "@/lib/utils";
+import { formatRelativeTime, validateFileSizes, validateTotalUploadSize, calculateTotalFileSize } from "@/lib/utils";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
@@ -48,30 +48,25 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         });
     }, [artifacts]);
 
-    // Calculate current project size from artifacts
-    const currentProjectSize = React.useMemo(() => {
-        return artifacts.reduce((sum, artifact) => sum + (artifact.size || 0), 0);
+    const currentProjectArtifactSizeBytes = React.useMemo(() => {
+        return calculateTotalFileSize(artifacts);
     }, [artifacts]);
 
-    // Validate file sizes and total upload limit before showing upload dialog
-    // if validation limits are not configured, validation is skipped and backend handles it
     const handleValidateFileSizes = useCallback(
         (files: FileList) => {
-            // 1. Validate individual file sizes
             const fileSizeResult = validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
             if (!fileSizeResult.valid) {
                 return fileSizeResult;
             }
 
-            // 2. Validate total upload limit
-            const totalUploadSizeResult = validateTotalUploadSize(currentProjectSize, files, maxTotalUploadSizeBytes);
+            const totalUploadSizeResult = validateTotalUploadSize(currentProjectArtifactSizeBytes, files, maxTotalUploadSizeBytes);
             if (!totalUploadSizeResult.valid) {
                 return { valid: false, error: totalUploadSizeResult.error };
             }
 
             return { valid: true };
         },
-        [maxUploadSizeBytes, maxTotalUploadSizeBytes, currentProjectSize]
+        [maxUploadSizeBytes, maxTotalUploadSizeBytes, currentProjectArtifactSizeBytes]
     );
 
     const handleFileUploadChange = (files: FileList | null) => {

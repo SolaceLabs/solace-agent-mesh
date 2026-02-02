@@ -18,7 +18,7 @@ from ...constants import (
     DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES,
     ARTIFACTS_PREFIX
 )
-from ..utils.helpers import bytes_to_mb, sanitize_log_input
+from ..utils.helpers import sanitize_log_input
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -34,6 +34,11 @@ from ..repository.entities.project import Project
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
+
+
+def bytes_to_mb(size_bytes: int) -> float:
+    """Convert bytes to megabytes."""
+    return size_bytes / (1024 * 1024)
 
 
 class ProjectService:
