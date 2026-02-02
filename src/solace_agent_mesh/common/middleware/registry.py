@@ -7,7 +7,7 @@ and other middleware functions.
 """
 
 import logging
-from typing import Optional, Type, Dict, Any, List
+from typing import Optional, Type, Dict, Any, List, Callable
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ class MiddlewareRegistry:
     _config_resolver: Optional[Type] = None
     _resource_sharing_service: Optional[Type] = None
     _initialization_callbacks: List[callable] = []
+    _post_migration_hooks: List[Callable[[str], None]] = []
 
     @classmethod
     def bind_config_resolver(cls, resolver_class: Type):
@@ -102,6 +103,62 @@ class MiddlewareRegistry:
         )
 
     @classmethod
+    def register_post_migration_hook(cls, hook: Callable[[str], None]):
+        """
+        Register a hook to be called after community database migrations complete.
+
+        This allows enterprise/plugin packages to run their own migrations without
+        the community code being aware of them. Hooks receive the database URL
+        as a parameter.
+
+        Args:
+            hook: Callable that takes database_url (str) and runs migrations
+        """
+        cls._post_migration_hooks.append(hook)
+        log.info(
+            "%s Registered post-migration hook: %s",
+            LOG_IDENTIFIER,
+            getattr(hook, '__name__', repr(hook)),
+        )
+
+    @classmethod
+    def run_post_migration_hooks(cls, database_url: str):
+        """
+        Execute all registered post-migration hooks.
+
+        Called by community code after its migrations complete. Enterprise/plugin
+        packages can register hooks to run their own migrations.
+
+        Args:
+            database_url: Database URL to pass to hooks
+        """
+        if not cls._post_migration_hooks:
+            log.debug("%s No post-migration hooks registered", LOG_IDENTIFIER)
+            return
+
+        log.info(
+            "%s Running %d post-migration hook(s)...",
+            LOG_IDENTIFIER,
+            len(cls._post_migration_hooks),
+        )
+
+        for hook in cls._post_migration_hooks:
+            hook_name = getattr(hook, '__name__', repr(hook))
+            try:
+                log.info("%s Executing post-migration hook: %s", LOG_IDENTIFIER, hook_name)
+                hook(database_url)
+                log.info("%s Post-migration hook completed: %s", LOG_IDENTIFIER, hook_name)
+            except Exception as e:
+                log.error(
+                    "%s Error executing post-migration hook %s: %s",
+                    LOG_IDENTIFIER,
+                    hook_name,
+                    e,
+                )
+                log.exception("%s Full traceback:", LOG_IDENTIFIER)
+                raise
+
+    @classmethod
     def initialize_middleware(cls):
         """
         Initialize all registered middleware components.
@@ -140,6 +197,7 @@ class MiddlewareRegistry:
         cls._config_resolver = None
         cls._resource_sharing_service = None
         cls._initialization_callbacks = []
+        cls._post_migration_hooks = []
         log.info("%s Reset all middleware bindings", LOG_IDENTIFIER)
 
     @classmethod
@@ -158,5 +216,6 @@ class MiddlewareRegistry:
                 cls._resource_sharing_service.__name__ if cls._resource_sharing_service else "default"
             ),
             "initialization_callbacks": len(cls._initialization_callbacks),
+            "post_migration_hooks": len(cls._post_migration_hooks),
             "has_custom_bindings": cls._config_resolver is not None or cls._resource_sharing_service is not None,
         }

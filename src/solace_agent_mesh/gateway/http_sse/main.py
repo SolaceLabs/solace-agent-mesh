@@ -105,31 +105,18 @@ def _run_community_migrations(database_url: str) -> None:
 
 
 
-def _run_enterprise_migrations(database_url: str) -> None:
-    """Run enterprise gateway migrations if package is available."""
-    try:
-        log.info("[WebUI Gateway] Attempting to import enterprise migration runner...")
-        from solace_agent_mesh_enterprise.gateway.migration_runner import run_migrations
-
-        log.info("[WebUI Gateway] Starting enterprise migrations...")
-        run_migrations(database_url)
-        log.info("[WebUI Gateway] Enterprise migrations completed successfully")
-    except ImportError as e:
-        log.debug("[WebUI Gateway] Enterprise module not found - skipping enterprise migrations: %s", e)
-    except Exception as e:
-        log.error("[WebUI Gateway] Enterprise migration failed: %s", e)
-        log.error("[WebUI Gateway] Enterprise features may be unavailable")
-        log.exception("[WebUI Gateway] Full enterprise migration traceback:")
-
-
 def _setup_database(database_url: str) -> None:
     """Initialize database and run migrations."""
+    from ...common.middleware.registry import MiddlewareRegistry
+
     dependencies.init_database(database_url)
-    log.info("[WebUI Gateway] Running database migrations...")
+    log.info("[WebUI Gateway] Running community database migrations...")
     _run_community_migrations(database_url)
-    log.info("[WebUI Gateway] About to run enterprise migrations...")
-    _run_enterprise_migrations(database_url)
-    log.info("[WebUI Gateway] Finished all migrations")
+    log.info("[WebUI Gateway] Community migrations completed")
+
+    # Run any registered post-migration hooks (e.g., enterprise migrations)
+    MiddlewareRegistry.run_post_migration_hooks(database_url)
+    log.info("[WebUI Gateway] Database setup complete")
 
 
 def _get_app_config(component: "WebUIBackendComponent") -> dict:
