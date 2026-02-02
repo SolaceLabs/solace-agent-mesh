@@ -31,9 +31,27 @@ const SPACING = {
 };
 
 /**
+ * Helper to resolve agent display name and notify on failure
+ */
+function resolveAgentName(context: BuildContext, agentName: string): string {
+    const displayName = context.agentNameMap[agentName] || agentName;
+
+    // Trigger refetch callback if agent not found in map
+    if (!context.agentNameMap[agentName] && context.onUnknownAgent) {
+        context.onUnknownAgent(agentName);
+    }
+
+    return displayName;
+}
+
+/**
  * Main entry point: Process VisualizerSteps into layout tree
  */
-export function processSteps(steps: VisualizerStep[], agentNameMap: Record<string, string> = {}): LayoutResult {
+export function processSteps(
+    steps: VisualizerStep[],
+    agentNameMap: Record<string, string> = {},
+    onUnknownAgent?: (agentName: string) => void
+): LayoutResult {
     const context: BuildContext = {
         steps,
         stepIndex: 0,
@@ -43,6 +61,7 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         currentAgentNode: null,
         rootNodes: [],
         agentNameMap,
+        onUnknownAgent,
         parallelContainerMap: new Map(),
         currentBranchMap: new Map(),
         hasTopUserNode: false,
@@ -168,7 +187,7 @@ function handleUserRequest(step: VisualizerStep, context: BuildContext): void {
 
     // Create Agent node
     const agentName = step.target || "Agent";
-    const displayName = context.agentNameMap[agentName] || agentName;
+    const displayName = resolveAgentName(context, agentName);
 
     const agentNode = createNode(
         context,
@@ -358,7 +377,7 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
     if (isPeer) {
         // Create nested agent node
         const peerName = target.startsWith("peer_") ? target.substring(5) : target;
-        const displayName = context.agentNameMap[peerName] || peerName;
+        const displayName = resolveAgentName(context, peerName);
 
         const subAgentNode = createNode(
             context,
@@ -537,7 +556,7 @@ function handleAgentResponse(step: VisualizerStep, context: BuildContext): void 
  */
 function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void {
     const workflowName = step.data.workflowExecutionStart?.workflowName || "Workflow";
-    const displayName = context.agentNameMap[workflowName] || workflowName;
+    const displayName = resolveAgentName(context, workflowName);
     const executionId = step.data.workflowExecutionStart?.executionId;
 
     console.log("[handleWorkflowStart] workflowName=", workflowName, "executionId=", executionId, "owningTaskId=", step.owningTaskId, "parentTaskId=", step.parentTaskId);
