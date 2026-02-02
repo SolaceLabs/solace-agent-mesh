@@ -2,7 +2,7 @@
 Business service for project-related operations.
 """
 
-from typing import List, Optional, TYPE_CHECKING, Dict
+from typing import List, Optional, TYPE_CHECKING
 import logging
 import json
 import zipfile
@@ -27,7 +27,7 @@ except ImportError:
 
 from ....common.a2a.types import ArtifactInfo
 from ....common.middleware.registry import MiddlewareRegistry
-from ....services.resource_sharing_service import ResourceSharingService, ResourceType, SharingRole
+from ....services.resource_sharing_service import ResourceSharingService, ResourceType
 from ..repository.interfaces import IProjectRepository
 from ..repository.entities.project import Project
 
@@ -273,7 +273,7 @@ class ProjectService:
             return None
 
         # Check if user has access (owner OR shared access via resource sharing service)
-        if not self._can_view_project(db, project_id, user_id):
+        if not self._has_view_access(db, project_id, user_id):
             return None
 
         # Convert to domain entity
@@ -416,8 +416,8 @@ class ProjectService:
         if not project:
             raise ValueError("Project not found or access denied")
 
-        # Check edit artifacts permission (Owner + Administrator + Editor)
-        if not self._can_edit_artifacts(db, project_id, user_id):
+        # Only owners can modify artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
             raise ValueError("Permission denied: insufficient access to modify artifacts")
 
         if not self.artifact_service:
@@ -487,8 +487,8 @@ class ProjectService:
         if not project:
             return False
 
-        # Check edit artifacts permission (Owner + Administrator + Editor)
-        if not self._can_edit_artifacts(db, project_id, user_id):
+        # Only owners can edit artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
             raise ValueError("Permission denied: insufficient access to edit artifacts")
 
         if not self.artifact_service:
@@ -557,8 +557,8 @@ class ProjectService:
         if not project:
             return False
 
-        # Check delete artifacts permission (Owner + Administrator only)
-        if not self._can_delete_artifacts(db, project_id, user_id):
+        # Only owners can delete artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
             raise ValueError("Permission denied: insufficient access to delete artifacts")
 
         if not self.artifact_service:
@@ -615,11 +615,11 @@ class ProjectService:
             return self.get_project(db, project_id, user_id)
 
         # First check if user can view the project (404 if not)
-        if not self._can_view_project(db, project_id, user_id):
+        if not self._has_view_access(db, project_id, user_id):
             return None
 
-        # Then check edit permission (403 if can view but cannot edit)
-        if not self._can_edit_project(db, project_id, user_id):
+        # Only owners can edit projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
             raise ValueError("Permission denied: insufficient access to edit project")
 
         project_repository = self._get_repositories(db)
@@ -642,8 +642,8 @@ class ProjectService:
         Returns:
             bool: True if deleted successfully, False otherwise
         """
-        # Check delete permission (Owner + Administrator only)
-        if not self._can_delete_project(db, project_id, user_id):
+        # Only owners can delete projects
+        if not self._is_project_owner(db, project_id, user_id):
             return False
 
         # Delete all shares for this project (cascade)
@@ -678,11 +678,11 @@ class ProjectService:
             ValueError: If user lacks permission to delete
         """
         # First check if user can view the project (404 if not)
-        if not self._can_view_project(db, project_id, user_id):
+        if not self._has_view_access(db, project_id, user_id):
             return False
 
-        # Then check delete permission (403 if can view but cannot delete)
-        if not self._can_delete_project(db, project_id, user_id):
+        # Only owners can delete projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
             raise ValueError("Permission denied: insufficient access to delete project")
 
         self.logger.info(f"Soft deleting project {project_id} and its associated sessions for user {user_id}")
@@ -724,8 +724,8 @@ class ProjectService:
         if not project:
             raise ValueError("Project not found or access denied")
 
-        # Verify user can export (Owner + Administrator only)
-        if not self._can_export_project(db, project_id, user_id):
+        # Only owners can export projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
             raise ValueError("Permission denied: insufficient access to export project")
         
         # Get artifacts
@@ -1007,74 +1007,44 @@ class ProjectService:
         Args:
             db: Database session
             project_id: The project ID
-            user_id: The user ID
+            user_id: The user ID (email)
 
         Returns:
             bool: True if user is the project owner, False otherwise
         """
         from ..repository.models import ProjectModel
 
-        # Check if user is the owner
         project = db.query(ProjectModel).filter_by(
             id=project_id, user_id=user_id, deleted_at=None
         ).first()
         return project is not None
 
-    def _get_shared_access_role(self, db, project_id: str, user_email: str) -> Optional[str]:
-        """Get user's shared access role for the project. Single query (no N+1)."""
-        sharing_role = self._resource_sharing_service.check_user_access(
+    def _has_view_access(self, db, project_id: str, user_id: str) -> bool:
+        """
+        Check if user can view the project.
+
+        Returns True if user is owner OR has any shared access level (viewer).
+        Since we only support "viewer" access level for sharing:
+        - Owner = full access (edit, delete, share, export, artifacts)
+        - Shared viewer = view only
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID (email)
+
+        Returns:
+            bool: True if user can view the project, False otherwise
+        """
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+
+        # Check for shared access (viewer level)
+        access_level = self._resource_sharing_service.check_user_access(
             session=db,
             resource_id=project_id,
             resource_type=ResourceType.PROJECT,
-            user_email=user_email
+            user_email=user_id
         )
-        return sharing_role.value if sharing_role else None
-
-    def _get_user_role(self, db, project_id: str, user_id: str) -> Optional[str]:
-        """Get user's role on a project."""
-        if self._is_project_owner(db, project_id, user_id):
-            return "owner"
-        return self._get_shared_access_role(db, project_id, user_id)
-
-    def _can_view_project(self, db, project_id: str, user_id: str) -> bool:
-        return (
-            self._is_project_owner(db, project_id, user_id) or
-            self._get_shared_access_role(db, project_id, user_id) is not None
-        )
-
-    def _can_edit_project(self, db, project_id: str, user_id: str) -> bool:
-        if self._is_project_owner(db, project_id, user_id):
-            return True
-        role = self._get_shared_access_role(db, project_id, user_id)
-        return role in ["resource_administrator", "resource_editor"]
-
-    def _can_delete_project(self, db, project_id: str, user_id: str) -> bool:
-        if self._is_project_owner(db, project_id, user_id):
-            return True
-        role = self._get_shared_access_role(db, project_id, user_id)
-        return role == "resource_administrator"
-
-    def _can_share_project(self, db, project_id: str, user_id: str) -> bool:
-        if self._is_project_owner(db, project_id, user_id):
-            return True
-        role = self._get_shared_access_role(db, project_id, user_id)
-        return role == "resource_administrator"
-
-    def _can_edit_artifacts(self, db, project_id: str, user_id: str) -> bool:
-        if self._is_project_owner(db, project_id, user_id):
-            return True
-        role = self._get_shared_access_role(db, project_id, user_id)
-        return role in ["resource_administrator", "resource_editor"]
-
-    def _can_delete_artifacts(self, db, project_id: str, user_id: str) -> bool:
-        if self._is_project_owner(db, project_id, user_id):
-            return True
-        role = self._get_shared_access_role(db, project_id, user_id)
-        return role == "resource_administrator"
-
-    def _can_export_project(self, db, project_id: str, user_id: str) -> bool:
-        if self._is_project_owner(db, project_id, user_id):
-            return True
-        role = self._get_shared_access_role(db, project_id, user_id)
-        return role == "resource_administrator"
+        return access_level is not None
 
