@@ -36,7 +36,7 @@ const SPACING = {
 function resolveAgentName(context: BuildContext, agentName: string): string {
     const displayName = context.agentNameMap[agentName] || agentName;
 
-    // Notify if lookup failed
+    // Trigger refetch callback if agent not found in map
     if (!context.agentNameMap[agentName] && context.onUnknownAgent) {
         context.onUnknownAgent(agentName);
     }
