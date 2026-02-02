@@ -16,7 +16,7 @@ import { classForIconButton, classForEmptyMessage } from "@/lib/components/commo
 import { useProjectShares, useCreateProjectShares, useDeleteProjectShares } from "@/lib/api/projects/hooks";
 import { createShareProjectFormSchema, type ShareProjectFormData } from "@/lib/schemas";
 import type { Project } from "@/lib/types/projects";
-import { useConfigContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 
 const getRowPosition = (index: number, total: number): "only" | "first" | "middle" | "last" => {
     if (total === 0) return "only";
@@ -32,6 +32,8 @@ interface ShareProjectDialogProps {
 
 export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, onClose, project }) => {
     const { identityServiceType } = useConfigContext();
+    const { addNotification } = useChatContext();
+
     const [error, setError] = useState<string | null>(null);
 
     const schema = useMemo(() => createShareProjectFormSchema(identityServiceType), [identityServiceType]);
