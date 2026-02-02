@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useCallback, useEffect, useContext } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen } from "lucide-react";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, Loader2, X } from "lucide-react";
 import {
     Button,
     Input,
@@ -23,9 +23,13 @@ import {
 import { useAllArtifacts, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn } from "@/lib/utils";
+import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
 import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
+import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
+import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
+import type { FileAttachment } from "@/lib/types";
 
 // Cache for document content to avoid re-fetching on subsequent renders
 const documentContentCache = new Map<string, string>();
@@ -494,12 +498,197 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
     );
 };
 
+/**
+ * Standalone preview panel for artifacts page
+ * Fetches and displays artifact content directly without requiring chat context
+ */
+interface StandalonePreviewPanelProps {
+    artifact: ArtifactWithSession;
+    onClose: () => void;
+    onDownload: (artifact: ArtifactWithSession) => void;
+    onGoToChat: (artifact: ArtifactWithSession) => void;
+    onGoToProject: (artifact: ArtifactWithSession) => void;
+}
+
+const StandalonePreviewPanel: React.FC<StandalonePreviewPanelProps> = ({ artifact, onClose, onDownload, onGoToChat, onGoToProject }) => {
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [fileContent, setFileContent] = useState<FileAttachment | null>(null);
+    const isFetchingRef = useRef(false);
+    const lastFetchedFilenameRef = useRef<string | null>(null);
+
+    // Check if preview is supported
+    const preview = useMemo(() => canPreviewArtifact(artifact), [artifact]);
+
+    // Fetch artifact content
+    useEffect(() => {
+        async function fetchContent() {
+            // Prevent duplicate fetches
+            if (isFetchingRef.current && lastFetchedFilenameRef.current === artifact.filename) {
+                return;
+            }
+
+            isFetchingRef.current = true;
+            lastFetchedFilenameRef.current = artifact.filename;
+
+            setIsLoading(true);
+            setError(null);
+
+            try {
+                const apiUrl = getArtifactApiUrl(artifact);
+                const response = await api.webui.get(apiUrl, { fullResponse: true });
+                const blob = await response.blob();
+
+                // Convert blob to base64
+                const base64data = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        if (typeof reader.result === "string") {
+                            resolve(reader.result.split(",")[1]);
+                        } else {
+                            reject(new Error("Failed to read content as data URL"));
+                        }
+                    };
+                    reader.onerror = () => {
+                        reject(reader.error || new Error("Unknown error reading file"));
+                    };
+                    reader.readAsDataURL(blob);
+                });
+
+                // Create file attachment object
+                const file: FileAttachment = {
+                    name: artifact.filename,
+                    mime_type: artifact.mime_type,
+                    content: base64data,
+                    last_modified: artifact.last_modified,
+                    url: api.webui.getFullUrl(apiUrl),
+                };
+
+                setFileContent(file);
+            } catch (err) {
+                console.error("Error fetching artifact content:", err);
+                setError(err instanceof Error ? err.message : "Failed to load artifact content");
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        if (preview?.canPreview) {
+            fetchContent();
+        } else {
+            setIsLoading(false);
+        }
+    }, [artifact.filename, artifact.sessionId, artifact.projectId, artifact.mime_type, artifact.last_modified, preview]);
+
+    // Get renderer type and content
+    const rendererType = getRenderType(artifact.filename, artifact.mime_type);
+    const content = getFileContent(fileContent);
+    const effectiveUrl = fileContent?.url;
+
+    return (
+        <div className="flex h-full flex-col border-l">
+            {/* Compact Header - filename, metadata, actions, and close button in one bar */}
+            <div className="flex items-center gap-3 border-b px-3 py-2">
+                {/* Left side: filename and metadata */}
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        <h3 className="truncate text-sm font-semibold" title={artifact.filename}>
+                            {artifact.filename}
+                        </h3>
+                        {artifact.projectName && <ProjectBadge text={artifact.projectName} className="flex-shrink-0" />}
+                    </div>
+                    <div className="text-muted-foreground mt-0.5 flex items-center gap-2 text-xs">
+                        <span>{formatBytes(artifact.size)}</span>
+                        <span>•</span>
+                        <span>{artifact.mime_type}</span>
+                        <span>•</span>
+                        <span>{formatTimestamp(artifact.last_modified)}</span>
+                    </div>
+                </div>
+
+                {/* Right side: action buttons and close */}
+                <div className="flex items-center gap-1">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => onDownload(artifact)} className="h-8 w-8">
+                                <Download className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Download</TooltipContent>
+                    </Tooltip>
+                    {isProjectArtifact(artifact) ? (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => onGoToProject(artifact)} className="h-8 w-8">
+                                    <FolderOpen className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Go to Project</TooltipContent>
+                        </Tooltip>
+                    ) : (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => onGoToChat(artifact)} className="h-8 w-8">
+                                    <MessageCircle className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Go to Chat</TooltipContent>
+                        </Tooltip>
+                    )}
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Close</TooltipContent>
+                    </Tooltip>
+                </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="min-h-0 flex-1 overflow-auto">
+                {isLoading && (
+                    <div className="flex h-full items-center justify-center">
+                        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+                    </div>
+                )}
+
+                {error && (
+                    <div className="flex h-full flex-col items-center justify-center p-4">
+                        <div className="text-destructive mb-2 text-sm">Error loading preview</div>
+                        <div className="text-muted-foreground text-xs">{error}</div>
+                    </div>
+                )}
+
+                {!isLoading && !error && !preview?.canPreview && (
+                    <div className="flex h-full flex-col items-center justify-center p-4">
+                        <File className="text-muted-foreground mb-4 h-12 w-12" />
+                        <div className="text-muted-foreground text-sm">{preview?.reason || "Preview not available"}</div>
+                        <Button variant="default" className="mt-4" onClick={() => onDownload(artifact)}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Download File
+                        </Button>
+                    </div>
+                )}
+
+                {!isLoading && !error && preview?.canPreview && rendererType && content && (
+                    <div className="h-full w-full">
+                        <ContentRenderer content={content} rendererType={rendererType} mime_type={artifact.mime_type} url={effectiveUrl} filename={artifact.filename} setRenderError={setError} />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export const ArtifactsPage: React.FC = () => {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
     const { artifacts, isLoading, refetch } = useAllArtifacts();
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedProject, setSelectedProject] = useState<string>("all");
+    const [previewArtifact, setPreviewArtifact] = useState<ArtifactWithSession | null>(null);
 
     // Get unique project names from artifacts, sorted alphabetically
     const projectNames = useMemo(() => {
@@ -607,57 +796,10 @@ export const ArtifactsPage: React.FC = () => {
         [addNotification, displayError, refetch]
     );
 
-    const handlePreview = useCallback(
-        async (artifact: ArtifactWithSession) => {
-            // For project artifacts, navigate to the project page instead
-            if (isProjectArtifact(artifact) && artifact.projectId) {
-                navigate(`/projects/${artifact.projectId}`);
-                return;
-            }
-
-            // Switch to the artifact's session first, then navigate
-            await handleSwitchSession(artifact.sessionId);
-            navigate("/chat");
-
-            // Robust event-driven coordination:
-            // 1. Set up a one-time listener for session-loaded event
-            // 2. Dispatch the preview request with the artifact data
-            // 3. ChatProvider will emit session-loaded when ready, then we open preview
-            // 4. Fallback timeout ensures we don't wait forever
-            if (typeof window !== "undefined") {
-                const timeoutMs = 3000; // Max wait time
-                let resolved = false;
-
-                const openPreviewNow = () => {
-                    if (resolved) return;
-                    resolved = true;
-                    window.dispatchEvent(
-                        new CustomEvent("open-artifact-preview", {
-                            detail: { artifact },
-                        })
-                    );
-                };
-
-                // Listen for session-loaded event (emitted by ChatProvider after loadSessionTasks)
-                const handleSessionLoaded = (event: Event) => {
-                    const customEvent = event as CustomEvent;
-                    if (customEvent.detail?.sessionId === artifact.sessionId) {
-                        window.removeEventListener("session-loaded", handleSessionLoaded);
-                        openPreviewNow();
-                    }
-                };
-
-                window.addEventListener("session-loaded", handleSessionLoaded);
-
-                // Fallback: if session-loaded doesn't fire within timeout, try anyway
-                setTimeout(() => {
-                    window.removeEventListener("session-loaded", handleSessionLoaded);
-                    openPreviewNow();
-                }, timeoutMs);
-            }
-        },
-        [navigate, handleSwitchSession]
-    );
+    const handlePreview = useCallback((artifact: ArtifactWithSession) => {
+        // Open the preview panel directly on this page
+        setPreviewArtifact(artifact);
+    }, []);
 
     const handleGoToChat = useCallback(
         async (artifact: ArtifactWithSession) => {
@@ -680,6 +822,7 @@ export const ArtifactsPage: React.FC = () => {
 
     return (
         <div className="flex h-full flex-col">
+            {/* Page Header - spans full width */}
             <div className="flex items-center justify-between border-b px-6 py-4">
                 <div>
                     <h1 className="text-foreground text-xl font-semibold">Artifacts</h1>
@@ -687,81 +830,95 @@ export const ArtifactsPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex h-full flex-col gap-4 py-6 pl-6">
-                {/* Search and Project Filter on same line */}
-                <div className="flex items-center gap-4 pr-4">
-                    {/* Search Input */}
-                    <div className="relative w-64">
-                        <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-                        <Input type="text" placeholder="Search artifacts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
-                    </div>
+            {/* Content area with optional preview panel */}
+            <div className="flex min-h-0 flex-1">
+                {/* Main content area */}
+                <div className={cn("flex min-h-0 flex-col transition-all", previewArtifact ? "w-1/2" : "w-full")}>
+                    <div className="flex h-full flex-col gap-4 py-6 pl-6">
+                        {/* Search and Project Filter on same line */}
+                        <div className="flex items-center gap-4 pr-4">
+                            {/* Search Input */}
+                            <div className="relative w-64">
+                                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                                <Input type="text" placeholder="Search artifacts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
+                            </div>
 
-                    {/* Project Filter - Only show when there are projects */}
-                    {projectNames.length > 0 && (
-                        <div className="flex items-center gap-2">
-                            <label className="text-sm font-medium whitespace-nowrap">Project:</label>
-                            <Select value={selectedProject} onValueChange={setSelectedProject}>
-                                <SelectTrigger className="w-40 rounded-md">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Artifacts</SelectItem>
-                                    {projectNames.map(projectName => (
-                                        <SelectItem key={projectName} value={projectName}>
-                                            {projectName}
-                                        </SelectItem>
+                            {/* Project Filter - Only show when there are projects */}
+                            {projectNames.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-medium whitespace-nowrap">Project:</label>
+                                    <Select value={selectedProject} onValueChange={setSelectedProject}>
+                                        <SelectTrigger className="w-40 rounded-md">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Artifacts</SelectItem>
+                                            {projectNames.map(projectName => (
+                                                <SelectItem key={projectName} value={projectName}>
+                                                    {projectName}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {!isLoading && artifacts.length > 0 && (
+                                <span className="text-muted-foreground text-sm">
+                                    {filteredArtifacts.length} artifact{filteredArtifacts.length !== 1 ? "s" : ""}
+                                    {(searchQuery || selectedProject !== "all") && filteredArtifacts.length !== artifacts.length && ` (of ${artifacts.length})`}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto pr-4">
+                            {isLoading && (
+                                <div className="flex h-full items-center justify-center">
+                                    <Spinner size="large" variant="muted" />
+                                </div>
+                            )}
+
+                            {!isLoading && filteredArtifacts.length > 0 && (
+                                <div className="flex flex-wrap gap-4">
+                                    {filteredArtifacts.map(artifact => (
+                                        <ArtifactGridCard
+                                            key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`}
+                                            artifact={artifact}
+                                            onDownload={handleDownload}
+                                            onDelete={handleDelete}
+                                            onPreview={handlePreview}
+                                            onGoToChat={handleGoToChat}
+                                            onGoToProject={handleGoToProject}
+                                            isSelected={previewArtifact?.filename === artifact.filename && previewArtifact?.sessionId === artifact.sessionId}
+                                        />
                                     ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    )}
+                                </div>
+                            )}
 
-                    {!isLoading && artifacts.length > 0 && (
-                        <span className="text-muted-foreground text-sm">
-                            {filteredArtifacts.length} artifact{filteredArtifacts.length !== 1 ? "s" : ""}
-                            {(searchQuery || selectedProject !== "all") && filteredArtifacts.length !== artifacts.length && ` (of ${artifacts.length})`}
-                        </span>
-                    )}
+                            {!isLoading && filteredArtifacts.length === 0 && artifacts.length > 0 && (
+                                <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                                    <File className="mx-auto mb-4 h-12 w-12" />
+                                    No artifacts found matching your {searchQuery && selectedProject !== "all" ? "search and filter" : searchQuery ? "search" : "filter"}
+                                </div>
+                            )}
+
+                            {!isLoading && artifacts.length === 0 && (
+                                <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                                    <File className="mx-auto mb-4 h-12 w-12" />
+                                    <p>No artifacts available</p>
+                                    <p className="mt-2 text-xs">Upload files in chat or generate artifacts with AI</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto pr-4">
-                    {isLoading && (
-                        <div className="flex h-full items-center justify-center">
-                            <Spinner size="large" variant="muted" />
-                        </div>
-                    )}
-
-                    {!isLoading && filteredArtifacts.length > 0 && (
-                        <div className="flex flex-wrap gap-4">
-                            {filteredArtifacts.map(artifact => (
-                                <ArtifactGridCard
-                                    key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`}
-                                    artifact={artifact}
-                                    onDownload={handleDownload}
-                                    onDelete={handleDelete}
-                                    onPreview={handlePreview}
-                                    onGoToChat={handleGoToChat}
-                                    onGoToProject={handleGoToProject}
-                                />
-                            ))}
-                        </div>
-                    )}
-
-                    {!isLoading && filteredArtifacts.length === 0 && artifacts.length > 0 && (
-                        <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
-                            <File className="mx-auto mb-4 h-12 w-12" />
-                            No artifacts found matching your {searchQuery && selectedProject !== "all" ? "search and filter" : searchQuery ? "search" : "filter"}
-                        </div>
-                    )}
-
-                    {!isLoading && artifacts.length === 0 && (
-                        <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
-                            <File className="mx-auto mb-4 h-12 w-12" />
-                            <p>No artifacts available</p>
-                            <p className="mt-2 text-xs">Upload files in chat or generate artifacts with AI</p>
-                        </div>
-                    )}
-                </div>
+                {/* Preview Panel */}
+                {previewArtifact && (
+                    <div className="w-1/2">
+                        <StandalonePreviewPanel artifact={previewArtifact} onClose={() => setPreviewArtifact(null)} onDownload={handleDownload} onGoToChat={handleGoToChat} onGoToProject={handleGoToProject} />
+                    </div>
+                )}
             </div>
         </div>
     );
