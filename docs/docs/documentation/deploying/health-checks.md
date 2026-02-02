@@ -23,7 +23,7 @@ All endpoints return:
 - **HTTP 200** when healthy
 - **HTTP 503** when unhealthy
 
-:::tip Understanding the Three Probes
+:::note Understanding the Three Probes
 - **Startup probe**: Runs during initialization. Once it succeeds, Kubernetes stops checking it. This prevents liveness probes from killing slow-starting applications.
 - **Readiness probe**: Runs continuously. When it fails, Kubernetes removes the pod from service endpoints but keeps it running. When it recovers, traffic resumes.
 - **Liveness probe**: Runs continuously. When it fails repeatedly, Kubernetes restarts the container.
@@ -53,7 +53,7 @@ When running in **dev mode** (using the DevBroker for local development), broker
 
 ### Database Connectivity
 
-For components using SQL-based session services, Agent Mesh verifies database connectivity against each configured database. The health check fails if any database is unreachable or the query times out.
+For components using SQL-based session services, Agent Mesh verifies database connectivity against each configured database. The health check fails if any database is unreachable or the query times out (configurable via `database_timeout_seconds`).
 
 You can configure the database health check timeout in your app configuration:
 
@@ -96,14 +96,13 @@ The format is `module.path:function_name`, where:
 Custom health check functions receive the application instance and must return a boolean:
 
 ```python
-import requests
 import logging
 
 log = logging.getLogger(__name__)
 
 def check_startup(app) -> bool:
     """
-    Custom startup check - verify ML model service is available.
+    Custom startup check - verify external ML service is available.
 
     Args:
         app: The application instance, providing access to:
@@ -114,31 +113,29 @@ def check_startup(app) -> bool:
         True if healthy, False if unhealthy
     """
     try:
-        response = requests.get(
-            "http://model-service:8000/health",
-            timeout=5
-        )
-        return response.status_code == 200
+        # Example: Check if an external ML service SDK can connect
+        from my_ml_service import MLServiceClient
+        client = MLServiceClient()
+        return client.is_healthy()
     except Exception as e:
-        log.warning("Model service health check failed: %s", e)
+        log.warning("ML service health check failed: %s", e)
         return False
 
 
 def check_ready(app) -> bool:
     """
-    Custom readiness check - verify external API is reachable.
+    Custom readiness check - verify external payment service is reachable.
 
     Returns:
         True if healthy, False if unhealthy
     """
     try:
-        response = requests.get(
-            "http://external-api.example.com/status",
-            timeout=2
-        )
-        return response.status_code == 200
+        # Example: Check if an external payment service SDK can connect
+        from my_payment_service import PaymentClient
+        client = PaymentClient()
+        return client.ping()
     except Exception as e:
-        log.warning("External API health check failed: %s", e)
+        log.warning("Payment service health check failed: %s", e)
         return False
 ```
 
