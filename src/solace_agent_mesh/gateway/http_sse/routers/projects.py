@@ -400,7 +400,8 @@ async def add_project_artifacts(
             project_id=project_id,
             user_id=user_id,
             files=files,
-            file_metadata=parsed_file_metadata
+            file_metadata=parsed_file_metadata,
+            indexing_enabled=indexing_enabled
         )
         return results
     except ValueError as e:
@@ -483,6 +484,7 @@ async def delete_project_artifact(
     project_service: ProjectService = Depends(get_project_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
+    indexing_enabled: bool = Depends(check_project_indexing_enabled)
 ):
     """
     Delete an artifact from a project.
@@ -496,6 +498,7 @@ async def delete_project_artifact(
             project_id=project_id,
             user_id=user_id,
             filename=filename,
+            indexing_enabled=indexing_enabled
         )
         if not success:
             raise HTTPException(
@@ -723,6 +726,7 @@ async def import_project(
     project_service: ProjectService = Depends(get_project_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
+    indexing_enabled: bool = Depends(check_project_indexing_enabled)
 ):
     """
     Import project from ZIP file.
@@ -755,6 +759,7 @@ async def import_project(
             user_id=user_id,
             preserve_name=import_options.preserve_name,
             custom_name=import_options.custom_name,
+            indexing_enabled=indexing_enabled
         )
         
         log.info(
