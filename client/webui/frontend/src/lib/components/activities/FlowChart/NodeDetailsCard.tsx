@@ -99,7 +99,7 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
             try {
                 const parsed = JSON.parse(content);
                 return (
-                    <div className="max-h-64 overflow-y-auto">
+                    <div className="my-1 max-h-64 overflow-y-auto">
                         <JSONViewer data={parsed} />
                     </div>
                 );
@@ -236,7 +236,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         <div>
             <h4 className="mb-2 text-sm font-semibold">User Input</h4>
             {step.data.text && (
-                <div className="prose prose-sm dark:prose-invert bg-muted max-h-96 max-w-none overflow-y-auto rounded-md p-3">
+                <div className="prose prose-sm dark:prose-invert bg-muted/50 max-h-96 max-w-none overflow-y-auto rounded-md p-3">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
@@ -286,7 +286,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.inputText && !data.inputArtifactRef && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Input:</div>
-                            <div className="prose prose-sm dark:prose-invert bg-muted max-w-none overflow-y-auto rounded-md p-3">
+                            <div className="prose prose-sm dark:prose-invert bg-muted/50 max-w-none overflow-y-auto rounded-md p-3">
                                 <MarkdownHTMLConverter>{data.inputText}</MarkdownHTMLConverter>
                             </div>
                         </div>
@@ -296,7 +296,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.inputSchema && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Input Schema:</div>
-                            <div className="max-h-48 overflow-y-auto py-2">
+                            <div className="my-1 max-h-48 overflow-y-auto py-2">
                                 <JSONViewer data={data.inputSchema} maxDepth={0} />
                             </div>
                         </div>
@@ -306,7 +306,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.outputSchema && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Output Schema:</div>
-                            <div className="max-h-48 overflow-y-auto py-2">
+                            <div className="my-1 max-h-48 overflow-y-auto py-2">
                                 <JSONViewer data={data.outputSchema} maxDepth={0} />
                             </div>
                         </div>
@@ -323,7 +323,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         <div>
             <h4 className="mb-2 text-sm font-semibold">Agent Response</h4>
             {step.data.text && (
-                <div className="prose prose-sm dark:prose-invert bg-muted max-w-none overflow-y-auto rounded-md p-3">
+                <div className="prose prose-sm dark:prose-invert bg-muted/50 max-w-none overflow-y-auto rounded-md p-3">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
@@ -343,7 +343,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     </div>
                     <div>
                         <div className="mb-1 text-xs font-semibold">Prompt:</div>
-                        <pre className="bg-muted max-h-80 overflow-auto rounded-md p-2 text-xs break-words whitespace-pre-wrap">{data.promptPreview}</pre>
+                        <pre className="bg-muted/50 max-h-80 overflow-auto rounded-md p-2 text-xs break-words whitespace-pre-wrap">{data.promptPreview}</pre>
                     </div>
                 </div>
             </div>
@@ -364,7 +364,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         </div>
                     )}
                     <div>
-                        <pre className="bg-muted max-h-80 overflow-auto rounded-md p-2 text-xs break-words whitespace-pre-wrap">{data.response || data.responsePreview}</pre>
+                        <pre className="bg-muted/50 max-h-80 overflow-auto rounded-md p-2 text-xs break-words whitespace-pre-wrap">{data.response || data.responsePreview}</pre>
                     </div>
                     {data.isFinalResponse !== undefined && (
                         <div className="text-xs">
@@ -485,7 +485,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             }
             // For complex arrays, use JSONViewer
             return (
-                <div className="mt-1">
+                <div className="my-1">
                     <JSONViewer data={value} maxDepth={0} />
                 </div>
             );
@@ -512,7 +512,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
             // For complex objects, use JSONViewer
             return (
-                <div className="mt-1">
+                <div className="my-1">
                     <JSONViewer data={value as JSONValue} maxDepth={0} />
                 </div>
             );
@@ -538,7 +538,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         {typeof data.resultData === "object" && data.resultData !== null ? (
                             renderFormattedArguments(data.resultData)
                         ) : (
-                            <div className="bg-muted overflow-hidden rounded-md border p-2">
+                            <div className="bg-muted/50 overflow-hidden rounded-md border p-2">
                                 <div className="max-h-60 overflow-auto text-xs">{renderArgumentValue(data.resultData)}</div>
                             </div>
                         )}
@@ -568,7 +568,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.inputArtifactRef && (
                         <div className="mt-2">
                             <div className="mb-1 text-xs font-semibold">Input:</div>
-                            <div className="bg-muted rounded-md border p-2">
+                            <div className="bg-muted/50 rounded-md border p-2">
                                 <div className="text-xs">
                                     <div className="mb-1 font-semibold text-(--color-info-wMain)">Artifact Reference</div>
                                     <div className="space-y-1">
@@ -615,7 +615,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                 <div className="mb-2 text-xs font-semibold">Cases:</div>
                                 <div className="space-y-2">
                                     {data.cases.map((caseItem, index) => (
-                                        <div key={index} className="bg-muted rounded-md border p-2">
+                                        <div key={index} className="bg-muted/50 rounded-md border p-2">
                                             <div className="mb-1 flex items-center gap-2">
                                                 <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">Case {index + 1}</span>
                                                 <ArrowRight className="text-secondary-foreground h-3 w-3" />
@@ -630,7 +630,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
                         {/* Default branch */}
                         {data.defaultBranch && (
-                            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-700 dark:bg-amber-900/30">
+                            <div className="rounded-md border border-(--color-warning-w100) p-2">
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs font-semibold text-(--color-warning-wMain)">Default</span>
                                     <ArrowRight className="text-secondary-foreground h-3 w-3" />
@@ -655,7 +655,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         {data.condition && (
                             <div>
                                 <div className="mb-1 text-xs font-semibold">Condition:</div>
-                                <code className="bg-muted block rounded-md p-2 text-xs break-all">{data.condition}</code>
+                                <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.condition}</code>
                             </div>
                         )}
                         {data.maxIterations !== undefined && (
@@ -692,7 +692,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.condition && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Condition:</div>
-                            <code className="bg-muted block rounded-md p-2 text-xs break-all">{data.condition}</code>
+                            <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.condition}</code>
                         </div>
                     )}
                     {data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === "number" && (
@@ -722,14 +722,14 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
                     {/* Switch node result - selected branch */}
                     {selectedBranch !== undefined && (
-                        <div className="mt-2 rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-700 dark:bg-green-900/30">
+                        <div className="mt-2 rounded-md border border-(--color-success-wMain) p-2">
                             <div className="flex items-center gap-2">
                                 <CheckCircle className="h-4 w-4 text-(--color-success-wMain)" />
-                                <span className="text-xs font-semibold text-green-700 dark:text-green-300">Selected Branch:</span>
-                                <span className="text-xs font-bold text-green-800 dark:text-green-200">{selectedBranch}</span>
+                                <span className="text-xs font-semibold text-(--color-success-wMain)">Selected Branch:</span>
+                                <span className="text-xs font-bold text-(--color-success-wMain)">{selectedBranch}</span>
                             </div>
                             {selectedCaseIndex !== undefined && selectedCaseIndex !== null && <div className="mt-1 text-xs text-(--color-success-wMain)">Matched Case #{selectedCaseIndex + 1}</div>}
-                            {selectedCaseIndex === null && <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">(Default branch - no case matched)</div>}
+                            {selectedCaseIndex === null && <div className="mt-1 text-xs text-(--color-warning-wMain)">(Default branch - no case matched)</div>}
                         </div>
                     )}
 
@@ -742,7 +742,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.metadata?.condition && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Condition:</div>
-                            <code className="bg-muted block rounded-md p-2 text-xs break-all">{data.metadata.condition}</code>
+                            <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.metadata.condition}</code>
                         </div>
                     )}
                     {data.errorMessage && (
@@ -821,7 +821,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     </span>
                     {outputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600 dark:text-purple-400">v{outputArtifactRef.version}</span>}
                 </div>
-                <div className="bg-muted rounded-md border p-2">
+                <div className="rounded-md border p-2">
                     <ArtifactContentViewer name={outputArtifactRef.name} version={outputArtifactRef.version} />
                 </div>
             </div>
