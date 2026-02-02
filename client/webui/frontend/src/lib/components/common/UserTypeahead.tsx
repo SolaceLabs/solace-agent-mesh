@@ -5,11 +5,12 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { cva } from "class-variance-authority";
-import { X, Loader2 } from "lucide-react";
+import { X } from "lucide-react";
 import { Input } from "@/lib/components/ui/input";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { Popover, PopoverContent, PopoverAnchor } from "@/lib/components/ui/popover";
+import { Spinner } from "@/lib/components/ui/spinner";
 import { usePeopleSearch } from "@/lib/api/people";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { classForIconButton, classForEmptyMessage } from "./projectShareVariants";
@@ -121,7 +122,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                             onFocus={() => setIsOpen(true)}
                             className={classForTypeaheadInput({ error })}
                         />
-                        {isLoading && <Loader2 className={classForInputSpinner()} />}
+                        {isLoading && <Spinner size="small" variant="muted" className="absolute top-1/2 right-3 -translate-y-1/2" />}
                     </div>
                 </PopoverAnchor>
 
@@ -179,8 +180,6 @@ const classForTypeaheadItem = cva(["w-full", "px-3", "py-2", "text-left", "trans
     },
     defaultVariants: { active: false, hoverEnabled: true },
 });
-
-const classForInputSpinner = cva(["absolute", "top-1/2", "right-3", "size-4", "-translate-y-1/2", "animate-spin", "text-[var(--muted-foreground)]"]);
 
 const classForTypeaheadInput = cva(["h-9", "pr-9"], {
     variants: {

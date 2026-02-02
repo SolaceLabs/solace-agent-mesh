@@ -4,6 +4,7 @@ import { Bot, Pencil } from "lucide-react";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
 import { useChatContext } from "@/lib/hooks";
+import { MessageBanner } from "../common";
 
 interface DefaultAgentSectionProps {
     project: Project;
@@ -44,6 +45,11 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ projec
                         </Button>
                     )}
                 </div>
+                {agentNameDisplayNameMap[project.defaultAgentId ?? ""] === undefined && project.defaultAgentId !== null && (
+                    <div className="mb-3 px-4">
+                        <MessageBanner variant="warning" message="The Default Agent for this project has either been removed or renamed." />
+                    </div>
+                )}
 
                 <div className="px-4">
                     <div className="text-muted-foreground bg-muted flex items-center rounded-md p-2.5 text-sm">

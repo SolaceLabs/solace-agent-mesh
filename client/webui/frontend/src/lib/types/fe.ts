@@ -60,6 +60,7 @@ export interface AgentCardInfo extends AgentInfo {
     displayName?: string;
     peerAgents?: string[];
     tools?: AgentSkill[];
+    isWorkflow?: boolean;
 }
 
 // This is a UI-specific type for managing artifacts in the side panel.
