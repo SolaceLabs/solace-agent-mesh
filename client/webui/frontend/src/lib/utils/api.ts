@@ -11,7 +11,7 @@ export const getApiBearerToken = (): string | null => {
     }
     // Fallback to general access token
     return getAccessToken();
-}
+};
 
 export const getErrorMessage = (error: unknown, fallbackMessage: string = "An unknown error occurred"): string => {
     if (error instanceof Error) {

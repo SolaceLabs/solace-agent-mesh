@@ -94,12 +94,8 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
                 <div className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
                     <div className="flex items-center p-4">
-                        <div className="flex min-w-0 items-center flex-1">
-                            {isWorkflow ? (
-                                <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                            ) : (
-                                <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                            )}
+                        <div className="flex min-w-0 flex-1 items-center">
+                            {isWorkflow ? <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" /> : <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />}
                             <div className="min-w-0">
                                 <h2 className="truncate text-xl font-semibold" title={agent.name}>
                                     {agent.displayName || agent.name}

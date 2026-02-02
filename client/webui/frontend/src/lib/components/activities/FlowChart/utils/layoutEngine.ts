@@ -592,9 +592,7 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
     // 1. Direct lookup by owningTaskId or executionId (when subTaskId was available)
     // 2. Lookup by parentTaskId (for workflows where subTaskId wasn't available)
     // 3. Fall back to step.functionCallId
-    let functionCallId: string | undefined = context.workflowFunctionCallIdMap.get(step.owningTaskId || "") ||
-                                             context.workflowFunctionCallIdMap.get(executionId || "") ||
-                                             step.functionCallId;
+    let functionCallId: string | undefined = context.workflowFunctionCallIdMap.get(step.owningTaskId || "") || context.workflowFunctionCallIdMap.get(executionId || "") || step.functionCallId;
     let addedToParallelBlock = false;
 
     // If not found directly, try to find via parentTaskId
