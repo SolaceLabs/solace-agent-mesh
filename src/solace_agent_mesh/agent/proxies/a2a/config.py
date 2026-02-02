@@ -235,6 +235,11 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         "takes precedence over the 'authentication' field for task requests. "
         "Supports all authentication types: static_bearer, static_apikey, oauth2_client_credentials, oauth2_authorization_code.",
     )
+    display_name: Optional[str] = Field(
+        default=None,
+        description="Display name for this agent shown in UI. If not provided, uses fetched card's name. "
+        "Stored in agent card's display-name extension (https://solace.com/a2a/extensions/display-name).",
+    )
 
     @model_validator(mode="after")
     def validate_auth_configuration(self) -> "A2AProxiedAgentConfig":
