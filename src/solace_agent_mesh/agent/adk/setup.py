@@ -496,7 +496,16 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
     loaded_tools: List[Union[BaseTool, Callable]] = []
     enabled_builtin_tools: List[BuiltinTool] = []
     for tool_def in tools_in_group:
+        # Try to get tool-specific config, but fall back to the entire tool_config
+        # This allows both patterns:
+        # 1. tool_config with keys at top level (e.g., api_key: "xxx")
+        # 2. tool_config with nested configs per tool (e.g., tool_name: {api_key: "xxx"})
         specific_tool_config = tool_config_model.tool_config.get(tool_def.name)
+        if specific_tool_config is None:
+            # No tool-specific config found, use the entire tool_config
+            # This is the common case for groups where all tools share the same config
+            specific_tool_config = tool_config_model.tool_config
+        
         tool_callable = ADKToolWrapper(
             tool_def.implementation,
             specific_tool_config,
@@ -757,6 +766,23 @@ async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) 
                 tool_config=tool_config,
             )
             openapi_toolset.origin = "openapi"
+
+            # Set origin on individual tools within the toolset for audit logging
+            try:
+                individual_tools = await openapi_toolset.get_tools()
+                for tool in individual_tools:
+                    tool.origin = "openapi"
+                    log.debug(
+                        "%s Set origin='openapi' on tool: %s",
+                        component.log_identifier,
+                        tool.name if hasattr(tool, 'name') else 'unknown',
+                    )
+            except Exception as e:
+                log.warning(
+                    "%s Failed to set origin on individual OpenAPI tools: %s",
+                    component.log_identifier,
+                    e,
+                )
 
             log.info(
                 "%s Loaded OpenAPI toolset via enterprise configurator",
@@ -1158,13 +1184,31 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
+        # Prepare callback partials with component injected
         tool_invocation_start_cb_with_component = functools.partial(
             adk_callbacks.notify_tool_invocation_start_callback,
             host_component=component,
         )
-        agent.before_tool_callback = tool_invocation_start_cb_with_component
+
+        openapi_audit_start_cb_with_component = functools.partial(
+            adk_callbacks.audit_log_openapi_tool_invocation_start,
+            host_component=component,
+        )
+
+        # Chain both callbacks: notify + audit
+        def chained_before_tool_callback(
+            tool: BaseTool,
+            args: Dict,
+            tool_context: ToolContext,
+        ) -> None:
+            # First: Notify UI about tool invocation
+            tool_invocation_start_cb_with_component(tool, args, tool_context)
+            # Second: Log OpenAPI audit (if OpenAPI tool and enabled)
+            openapi_audit_start_cb_with_component(tool, args, tool_context)
+
+        agent.before_tool_callback = chained_before_tool_callback
         log.debug(
-            "%s Assigned notify_tool_invocation_start_callback as before_tool_callback.",
+            "%s Assigned chained before_tool_callback (notify + OpenAPI audit).",
             component.log_identifier,
         )
 
@@ -1180,6 +1224,10 @@ def initialize_adk_agent(
         )
         notify_tool_result_cb_with_component = functools.partial(
             adk_callbacks.notify_tool_execution_result_callback,
+            host_component=component,
+        )
+        openapi_audit_result_cb_with_component = functools.partial(
+            adk_callbacks.audit_log_openapi_tool_execution_result,
             host_component=component,
         )
 
@@ -1200,6 +1248,12 @@ def initialize_adk_agent(
                 # First, notify the UI about the raw result.
                 # This is a fire-and-forget notification that does not modify the response.
                 notify_tool_result_cb_with_component(
+                    tool, args, tool_context, tool_response
+                )
+
+                # Log OpenAPI audit on RAW response (before any processing).
+                # This ensures audit logs reflect the actual API response.
+                await openapi_audit_result_cb_with_component(
                     tool, args, tool_context, tool_response
                 )
 
@@ -1268,7 +1322,18 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # 2. Fenced Artifact Block Processing (must run before auto-continue)
+        # 2. Sanitize tool names (catch hallucinated placeholders like $FUNCTION_NAME)
+        # Must run early to prevent invalid tool names from reaching the provider
+        sanitize_tool_names_cb = functools.partial(
+            adk_callbacks.sanitize_tool_names_callback, host_component=component
+        )
+        callbacks_in_order_for_after_model.append(sanitize_tool_names_cb)
+        log.debug(
+            "%s Added sanitize_tool_names_callback to after_model chain.",
+            component.log_identifier,
+        )
+
+        # 3. Fenced Artifact Block Processing (must run before auto-continue)
         artifact_block_cb = functools.partial(
             adk_callbacks.process_artifact_blocks_callback, host_component=component
         )

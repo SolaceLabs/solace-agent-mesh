@@ -3,6 +3,7 @@ import React, { useState, useEffect, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
+import { EmptyState } from "../components";
 
 interface AuthProviderProps {
     children: ReactNode;
@@ -16,6 +17,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [userInfo, setUserInfo] = useState<Record<string, unknown> | null>(null);
 
     useEffect(() => {
+        // Clean up any stale logout flags from previous sessions
+        sessionStorage.removeItem("logout_in_progress");
         let isMounted = true;
 
         const checkAuthStatus = async () => {
@@ -53,7 +56,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         checkAuthStatus();
 
         const handleStorageChange = (event: StorageEvent) => {
-            if (event.key === "access_token") {
+            if (event.key === "access_token" || event.key === "sam_access_token") {
                 checkAuthStatus();
             }
         };
@@ -73,26 +76,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const logout = async () => {
         try {
             if (configUseAuthorization) {
+                // Set flag to prevent automatic token refresh during logout
+                sessionStorage.setItem("logout_in_progress", "true");
+
+                // Call logout while we have an access token
                 await api.webui.post("/api/v1/auth/logout");
             }
         } catch (error) {
-            console.error("Error calling logout endpoint:", error);
+            console.warn("Error during logout:", error);
         } finally {
+            // Clear tokens from localStorage
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("sam_access_token");
+            localStorage.removeItem("refresh_token");
+
+            // Clear local state
             setIsAuthenticated(false);
             setUserInfo(null);
             clearCsrfToken();
+
+            // Clean up logout flag
+            sessionStorage.removeItem("logout_in_progress");
+
+            // Redirect to home page
+            window.location.href = "/";
         }
     };
 
     if (isLoading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-                <div className="text-center">
-                    <div className="border-solace-green mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2"></div>
-                    <h1 className="text-2xl text-black dark:text-white">Checking Authentication...</h1>
-                </div>
-            </div>
-        );
+        return <EmptyState variant="loading" title="Checking Authentication..." className="h-screen w-screen" />;
     }
 
     return (

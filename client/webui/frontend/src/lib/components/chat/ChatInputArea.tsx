@@ -4,19 +4,23 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ban, Paperclip, Send, MessageSquarePlus, X } from "lucide-react";
 
-import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
+import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
-import type { AgentCardInfo } from "@/lib/types";
+import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
+import { detectMentionTrigger, insertMention, buildMessageFromDOM } from "@/lib/utils/mentionUtils";
+import { addRecentMention } from "@/lib/utils/recentMentions";
 
 import { FileBadge } from "./file/FileBadge";
 import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
+import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -56,6 +60,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
+    const mentionsEnabled = configFeatureEnablement?.mentions ?? false;
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -70,12 +75,19 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [contextText, setContextText] = useState<string | null>(null);
     const [showContextBadge, setShowContextBadge] = useState(false);
 
-    const chatInputRef = useRef<HTMLTextAreaElement>(null);
+    const chatInputRef = useRef<HTMLDivElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
 
     const [inputValue, setInputValue] = useState<string>("");
+    const [desiredCursorPosition, setDesiredCursorPosition] = useState<number | undefined>(undefined);
 
     const [showPromptsCommand, setShowPromptsCommand] = useState(false);
+    const [showMentionsCommand, setShowMentionsCommand] = useState(false);
+    const [mentionSearchQuery, setMentionSearchQuery] = useState("");
+    // mentionMap is keyed by person.id for unique identification
+    const [mentionMap, setMentionMap] = useState<Map<string, Person>>(new Map());
+    // Track which person IDs need disambiguation (when multiple people share the same name)
+    const [disambiguatedIds, setDisambiguatedIds] = useState<Set<string>>(new Set());
 
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
@@ -196,7 +208,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 if (autoSubmit) {
                     // Small delay to ensure state is updated
                     setTimeout(async () => {
-                        const fullMessage = `${prompt}\n\nContext: "${text}"`;
+                        const fullMessage = `${prompt}\n\nContext: "${escapeMarkdown(text)}"`;
                         const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
@@ -249,7 +261,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }, 100);
     };
 
-    const handlePaste = async (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const handlePaste = async (event: ClipboardEvent<Element>) => {
         if (isResponding) return;
 
         const clipboardData = event.clipboardData;
@@ -325,9 +337,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
-            let fullMessage = inputValue.trim();
+            let fullMessage = chatInputRef.current ? buildMessageFromDOM(chatInputRef.current).trim() : inputValue.trim();
+
+            // Capture the display HTML for showing in user's message bubble
+            const displayHtml = chatInputRef.current?.innerHTML || null;
+
             if (contextText && showContextBadge) {
-                fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
+                fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
 
             // Upload all pending pasted text items as artifacts, then create references
@@ -425,10 +441,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
             // as the uploaded artifacts (avoids React state timing issues)
-            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null);
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml);
             setSelectedFiles([]);
             setPendingPastedTextItems([]);
             setInputValue("");
+            setMentionMap(new Map()); // Clear mention map after submit
             setContextText(null);
             setShowContextBadge(false);
             scrollToBottom?.();
@@ -451,28 +468,93 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         disabled: isResponding,
     });
 
-    // Handle input change with "/" detection
-    const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-        const value = event.target.value;
+    // Get cursor position in terms of internal format length
+    // This accounts for mention chips which have different display vs internal lengths
+    const getCursorPosition = (): number => {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return 0;
+        if (!chatInputRef.current) return 0;
+
+        const range = selection.getRangeAt(0);
+        let position = 0;
+        let found = false;
+
+        // Walk through all nodes to calculate position in internal format
+        const walker = document.createTreeWalker(chatInputRef.current, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+            acceptNode: (node: Node) => {
+                // Skip text nodes inside mention chips (we handle the chip as a whole)
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const parent = node.parentElement;
+                    if (parent && parent.classList.contains("mention-chip")) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            },
+        });
+
+        let node: Node | null;
+        while ((node = walker.nextNode()) && !found) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                if (node === range.startContainer) {
+                    position += range.startOffset;
+                    found = true;
+                } else {
+                    position += node.textContent?.length || 0;
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                const el = node as HTMLElement;
+                if (el.classList.contains("mention-chip")) {
+                    // Add full internal format length
+                    const internal = el.getAttribute("data-internal") || "";
+                    position += internal.length;
+                    // Check if cursor is inside this chip
+                    if (range.startContainer === el || el.contains(range.startContainer)) {
+                        found = true;
+                    }
+                } else if (el.tagName === "BR") {
+                    position += 1; // Newline
+                }
+            }
+        }
+
+        return position;
+    };
+
+    // Handle input change with "/" and "@" detection
+    const handleInputChange = (value: string) => {
         setInputValue(value);
 
-        // Check if "/" is typed at start or after space
-        const cursorPosition = event.target.selectionStart;
+        const cursorPosition = getCursorPosition();
         const textBeforeCursor = value.substring(0, cursorPosition);
-        const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
-        const charBeforeLast = textBeforeCursor[textBeforeCursor.length - 2];
 
-        if (lastChar === "/" && (!charBeforeLast || charBeforeLast === " " || charBeforeLast === "\n")) {
+        // Check if "/" is typed as the first character (position 0)
+        // Only trigger prompt popover when "/" is at the very start of the input
+        if (textBeforeCursor === "/") {
             setShowPromptsCommand(true);
-        } else if (showPromptsCommand && !textBeforeCursor.includes("/")) {
+            setShowMentionsCommand(false); // Close mentions if open
+        } else if (showPromptsCommand && !textBeforeCursor.startsWith("/")) {
             setShowPromptsCommand(false);
+        }
+
+        // Check for "@" mention trigger
+        if (mentionsEnabled) {
+            const mentionQuery = detectMentionTrigger(value, cursorPosition);
+            if (mentionQuery !== null) {
+                setMentionSearchQuery(mentionQuery);
+                setShowMentionsCommand(true);
+                setShowPromptsCommand(false); // Close prompts if open
+            } else if (showMentionsCommand) {
+                setShowMentionsCommand(false);
+                setMentionSearchQuery("");
+            }
         }
     };
 
     // Handle prompt selection
     const handlePromptSelect = (promptText: string) => {
         // Remove the "/" trigger and insert the prompt
-        const cursorPosition = chatInputRef.current?.selectionStart || 0;
+        const cursorPosition = getCursorPosition();
         const textBeforeCursor = inputValue.substring(0, cursorPosition);
         const textAfterCursor = inputValue.substring(cursorPosition);
 
@@ -487,6 +569,57 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setTimeout(() => {
             chatInputRef.current?.focus();
         }, 100);
+    };
+
+    // Handle person selection for mentions
+    const handlePersonSelect = (person: Person) => {
+        const cursorPosition = getCursorPosition();
+
+        // Insert the mention using internal format @[Name](id)
+        const { newText, newCursorPosition } = insertMention(inputValue, cursorPosition, person);
+
+        // Check if there's already a person with the same name but different ID
+        // If so, both need disambiguation
+        let needsDisambiguation = false;
+        let existingPersonId: string | undefined;
+
+        for (const [id, existingPerson] of mentionMap.entries()) {
+            if (existingPerson.displayName === person.displayName && id !== person.id) {
+                needsDisambiguation = true;
+                existingPersonId = id;
+                break;
+            }
+        }
+
+        // Update mentionMap (keyed by ID)
+        setMentionMap(prev => {
+            const updated = new Map(prev);
+            updated.set(person.id, person);
+            return updated;
+        });
+
+        // Update disambiguation tracking
+        if (needsDisambiguation && existingPersonId) {
+            setDisambiguatedIds(prev => {
+                const updated = new Set(prev);
+                updated.add(existingPersonId!);
+                updated.add(person.id);
+                return updated;
+            });
+        }
+
+        // Add to recent mentions
+        addRecentMention(person);
+
+        setInputValue(newText);
+        setDesiredCursorPosition(newCursorPosition); // Set cursor after the mention
+        setShowMentionsCommand(false);
+        setMentionSearchQuery("");
+
+        // Clear cursor position state after it's been applied - bit of a hack, but really struggled to make this work
+        setTimeout(() => {
+            setDesiredCursorPosition(undefined);
+        }, 10);
     };
 
     // Handle chat command
@@ -567,10 +700,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
-                <div className="mb-2">
-                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                <div className="mb-2 overflow-hidden">
+                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
                         <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                        <span className="text-muted-foreground truncate italic">"{contextText}"</span>
+                        <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
                             className="h-5 w-5 shrink-0"
@@ -769,7 +902,29 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onPromptSelect={handlePromptSelect}
                 messages={messages}
                 onReservedCommand={handleChatCommand}
+                onBackspaceClose={() => {
+                    // Remove the "/" trigger character from the input
+                    // Since "/" only triggers at position 0, we just remove the first character
+                    if (inputValue.startsWith("/")) {
+                        setInputValue(inputValue.substring(1));
+                    }
+                    setShowPromptsCommand(false);
+                }}
             />
+
+            {/* Mentions Command Popover */}
+            {mentionsEnabled && (
+                <MentionsCommand
+                    isOpen={showMentionsCommand}
+                    onClose={() => {
+                        setShowMentionsCommand(false);
+                        setMentionSearchQuery("");
+                    }}
+                    textAreaRef={chatInputRef}
+                    onPersonSelect={handlePersonSelect}
+                    searchQuery={mentionSearchQuery}
+                />
+            )}
 
             {/* Variable Dialog for "Use in Chat" */}
             {showVariableDialog && pendingPromptGroup && (
@@ -783,17 +938,24 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 />
             )}
 
-            {/* Chat Input */}
-            <ChatInput
+            {/* Chat Input with Mention Chips */}
+            <MentionContentEditable
                 ref={chatInputRef}
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder={isRecording ? "Recording..." : "How can I help you today? (Type '/' to insert a prompt)"}
-                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none"
-                rows={1}
+                cursorPosition={desiredCursorPosition}
+                mentionMap={mentionMap}
+                disambiguatedIds={disambiguatedIds}
+                placeholder={isRecording ? "Recording..." : mentionsEnabled ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)" : "How can I help you today? (Type '/' to insert a prompt)"}
+                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
                 onPaste={handlePaste}
                 disabled={isRecording}
                 onKeyDown={event => {
+                    // Don't handle Enter if mentions or prompts popup is open
+                    if (showMentionsCommand || showPromptsCommand) {
+                        return;
+                    }
+
                     if (event.key === "Enter" && !event.shiftKey && isSubmittingEnabled) {
                         onSubmit(event);
                     }
@@ -801,22 +963,30 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             />
 
             {/* Buttons */}
-            <div className="m-2 flex items-center gap-2">
+            <div className="relative m-2 flex items-center gap-2">
                 <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
                     <Paperclip className="size-4" />
                 </Button>
 
                 <div>Agent: </div>
-                <Select value={selectedAgentName} onValueChange={handleAgentSelection} disabled={isResponding || agents.length === 0}>
+                <Select
+                    value={selectedAgentName}
+                    onValueChange={agentName => {
+                        handleAgentSelection(agentName);
+                    }}
+                    disabled={isResponding || agents.length === 0}
+                >
                     <SelectTrigger className="w-[250px]">
                         <SelectValue placeholder="Select an agent..." />
                     </SelectTrigger>
                     <SelectContent>
-                        {agents.map(agent => (
-                            <SelectItem key={agent.name} value={agent.name}>
-                                {agent.displayName || agent.name}
-                            </SelectItem>
-                        ))}
+                        {agents
+                            .filter(agent => !agent.isWorkflow)
+                            .map(agent => (
+                                <SelectItem key={agent.name} value={agent.name}>
+                                    {agent.displayName || agent.name}
+                                </SelectItem>
+                            ))}
                     </SelectContent>
                 </Select>
 
@@ -827,7 +997,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 {sttEnabled && settings.speechToText && <AudioRecorder disabled={isResponding} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} />}
 
                 {isResponding && !isCancelling ? (
-                    <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Cancel">
+                    <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling}>
                         <Ban className="size-4" />
                         Stop
                     </Button>

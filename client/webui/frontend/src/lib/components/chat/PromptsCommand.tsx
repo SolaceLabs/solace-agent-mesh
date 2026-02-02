@@ -32,13 +32,14 @@ const RESERVED_COMMANDS: ReservedCommand[] = [
 interface PromptsCommandProps {
     isOpen: boolean;
     onClose: () => void;
-    textAreaRef: React.RefObject<HTMLTextAreaElement | null>;
+    textAreaRef: React.RefObject<HTMLDivElement | HTMLTextAreaElement | null>;
     onPromptSelect: (promptText: string) => void;
     messages?: MessageFE[];
     onReservedCommand?: (command: ChatCommand, context?: string) => void;
+    onBackspaceClose?: () => void; // Called when backspace closes the popover (to remove the "/" trigger)
 }
 
-export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand }) => {
+export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand, onBackspaceClose }) => {
     const navigate = useNavigate();
     const [searchValue, setSearchValue] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
@@ -102,11 +103,13 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
             .filter(m => !m.isStatusBubble && !m.isError && !m.authenticationLink)
             .map(m => {
                 const role = m.isUser ? "User" : "Assistant";
+                // Join text parts with empty string to preserve streaming text continuity
+                // (streaming text is stored as multiple text parts, one per chunk)
                 const text =
                     m.parts
                         ?.filter(p => p.kind === "text")
                         .map(p => (p as { text: string }).text)
-                        .join("\n") || "";
+                        .join("") || "";
                 return `${role}: ${text}`;
             })
             .join("\n\n");
@@ -201,11 +204,17 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                     handleSelect(allItems[activeIndex]);
                 }
             } else if (e.key === "Backspace" && searchValue === "") {
-                onClose();
+                // Call onBackspaceClose to remove the "/" trigger character
+                if (onBackspaceClose) {
+                    onBackspaceClose();
+                } else {
+                    onClose();
+                }
+                setSearchValue("");
                 textAreaRef.current?.focus();
             }
         },
-        [allItems, activeIndex, searchValue, handleSelect, onClose, textAreaRef]
+        [allItems, activeIndex, searchValue, handleSelect, onClose, onBackspaceClose, textAreaRef]
     );
 
     // Auto-focus input when opened

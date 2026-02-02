@@ -1,11 +1,15 @@
 import React, { useState } from "react";
 import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 
-import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
+import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from "@/lib/components/ui";
+import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
+import { useConfigContext } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
+import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
+
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
@@ -21,6 +25,7 @@ interface ProjectDetailViewProps {
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
     const { updateProject, projects, deleteProject } = useProjectContext();
+    const { validationLimits } = useConfigContext();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -29,6 +34,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [nameError, setNameError] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_MAX_DESCRIPTION_LENGTH;
+    const isDescriptionOverLimit = editedDescription.length > MAX_DESCRIPTION_LENGTH;
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
@@ -124,7 +132,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
+                    <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
                         <Pencil className="h-4 w-4" />
                         Edit Details
                     </Button>,
@@ -158,7 +166,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 </div>
 
                 {/* Right Panel - Metadata Sidebar */}
-                <div className="w-[40%] overflow-y-auto">
+                <div className="flex min-h-0 w-[40%] flex-col">
                     <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
@@ -188,8 +196,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
-                            <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={1000} />
-                            <div className="text-muted-foreground text-right text-xs">{editedDescription.length}/1000</div>
+                            <Textarea
+                                value={editedDescription}
+                                onChange={e => setEditedDescription(e.target.value)}
+                                placeholder="Project description"
+                                rows={4}
+                                disabled={isSaving}
+                                maxLength={MAX_DESCRIPTION_LENGTH + 1}
+                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
+                            />
+                            <FieldFooter hasError={isDescriptionOverLimit} message={`${editedDescription.length} / ${MAX_DESCRIPTION_LENGTH}`} error={`Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`} />
                         </div>
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>
@@ -197,7 +213,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
                             Discard Changes
                         </Button>
-                        <Button onClick={handleSave} disabled={isSaving}>
+                        <Button onClick={handleSave} disabled={isSaving || isDescriptionOverLimit}>
                             Save
                         </Button>
                     </DialogFooter>

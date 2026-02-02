@@ -47,6 +47,7 @@ from a2a.types import (
     JSONRPCResponse,
     Task,
     TaskArtifactUpdateEvent,
+    TaskState,
     TaskStatusUpdateEvent,
 )
 
@@ -690,6 +691,22 @@ class WebUIBackendComponent(BaseGatewayComponent):
             "Using default memory session configuration for Web UI (backward compatibility)"
         )
         return default_config
+
+    def get_db_engine(self):
+        """
+        Get the SQLAlchemy database engine for health checks.
+
+        Returns the engine bound to SessionLocal if database is configured,
+        otherwise returns None.
+
+        Returns:
+            Engine or None: The SQLAlchemy engine if available.
+        """
+        from . import dependencies
+
+        if dependencies.SessionLocal is not None:
+            return dependencies.SessionLocal.kw.get("bind")
+        return None
 
     async def _visualization_message_processor_loop(self) -> None:
         """
@@ -1723,6 +1740,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if result.metadata
                             else None
                         )
+                        task_status = a2a.get_task_status(result)
+                        # Guard against task_status being an Enum (TaskState) instead of TaskStatus object
+                        if (
+                            task_status
+                            and not isinstance(task_status, TaskState)
+                            and hasattr(task_status, "message")
+                        ):
+                            data_parts = a2a.get_data_parts_from_message(
+                                task_status.message
+                            )
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "task_result"
+                                )
                     elif isinstance(result, TaskArtifactUpdateEvent):
                         artifact = a2a.get_artifact_from_artifact_update(result)
                         if artifact:
@@ -1758,6 +1789,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if message.metadata
                             else None
                         )
+                        data_parts = a2a.get_data_parts_from_message(message)
+                        if data_parts:
+                            details["debug_type"] = data_parts[0].data.get(
+                                "type", method
+                            )
                 elif method == "tasks/cancel":
                     details["task_id"] = a2a.get_task_id_from_cancel_request(
                         rpc_request

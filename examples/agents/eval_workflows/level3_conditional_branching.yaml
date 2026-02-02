@@ -1,0 +1,348 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: level3_conditional_branching.log
+
+!include ../../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # LEVEL 3: CONDITIONAL BRANCHING WORKFLOW
+  # ============================================================================
+  # Tests switch node with multiple branches and condition evaluation
+  # Complexity: Medium
+  # Node types: agent (4), switch (1)
+  # Features: Conditional branching, switch cases, coalesce output
+  # ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Value Classifier
+  # Classifies a value as small, medium, or large
+  # ----------------------------------------------------------------------------
+  - name: value_classifier_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ValueClassifier"
+      model: *planning_model
+
+      instruction: |
+        You classify numeric values into categories.
+        1. Read 'value' from input
+        2. Classify:
+           - If value < 10: category = "small"
+           - If 10 <= value < 100: category = "medium"
+           - If value >= 100: category = "large"
+        3. Create a JSON artifact with: {"category": <category>, "value": <value>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          value: {type: number}
+        required: [value]
+
+      output_schema:
+        type: object
+        properties:
+          category: {type: string}
+          value: {type: number}
+        required: [category, value]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Classifies numeric values"
+        skills: [{id: "classify_value", name: "Classify Value", description: "Classifies a number", tags: ["classification"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Small Value Handler
+  # Handles small values
+  # ----------------------------------------------------------------------------
+  - name: small_value_handler_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SmallValueHandler"
+      model: *planning_model
+
+      instruction: |
+        You handle small values by multiplying them by 10.
+        1. Read 'value' from input
+        2. Calculate: result = value * 10
+        3. Create a JSON artifact with: {"result": <result>, "handler": "small"}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          value: {type: number}
+        required: [value]
+
+      output_schema:
+        type: object
+        properties:
+          result: {type: number}
+          handler: {type: string}
+        required: [result, handler]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles small values"
+        skills: [{id: "handle_small", name: "Handle Small", description: "Processes small values", tags: ["handler"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Medium Value Handler
+  # Handles medium values
+  # ----------------------------------------------------------------------------
+  - name: medium_value_handler_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "MediumValueHandler"
+      model: *planning_model
+
+      instruction: |
+        You handle medium values by doubling them.
+        1. Read 'value' from input
+        2. Calculate: result = value * 2
+        3. Create a JSON artifact with: {"result": <result>, "handler": "medium"}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          value: {type: number}
+        required: [value]
+
+      output_schema:
+        type: object
+        properties:
+          result: {type: number}
+          handler: {type: string}
+        required: [result, handler]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles medium values"
+        skills: [{id: "handle_medium", name: "Handle Medium", description: "Processes medium values", tags: ["handler"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Large Value Handler
+  # Handles large values
+  # ----------------------------------------------------------------------------
+  - name: large_value_handler_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "LargeValueHandler"
+      model: *planning_model
+
+      instruction: |
+        You handle large values by halving them.
+        1. Read 'value' from input
+        2. Calculate: result = value / 2
+        3. Create a JSON artifact with: {"result": <result>, "handler": "large"}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          value: {type: number}
+        required: [value]
+
+      output_schema:
+        type: object
+        properties:
+          result: {type: number}
+          handler: {type: string}
+        required: [result, handler]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles large values"
+        skills: [{id: "handle_large", name: "Handle Large", description: "Processes large values", tags: ["handler"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ============================================================================
+  # WORKFLOW: Conditional Branching
+  # ============================================================================
+  - name: conditional_branching_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ConditionalBranchingWorkflow"
+      display_name: "Conditional Branching Workflow"
+
+      # Timeout configurations
+      max_workflow_execution_time_seconds: 300  # 5 minutes
+      default_node_timeout_seconds: 60          # 1 minute
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A conditional branching workflow for evaluation testing.
+
+          This workflow:
+          1. Classifies a value (small, medium, large)
+          2. Routes to appropriate handler based on classification
+          3. Coalesces output from the selected branch
+
+          Tests: Switch node, conditional branching, coalesce operator
+
+        input_schema:
+          type: object
+          properties:
+            value:
+              type: number
+              description: "The value to process"
+          required: [value]
+
+        output_schema:
+          type: object
+          properties:
+            result: {type: number}
+            handler: {type: string}
+            category: {type: string}
+          required: [result, handler, category]
+
+        nodes:
+          # Step 1: Classify the value
+          - id: classify
+            type: agent
+            agent_name: "ValueClassifier"
+            instruction: "Classify the input value as small, medium, or large."
+            input:
+              value: "{{workflow.input.value}}"
+
+          # Step 2: Route based on classification
+          - id: route_by_category
+            type: switch
+            depends_on: [classify]
+            cases:
+              - condition: "'{{classify.output.category}}' == 'small'"
+                node: handle_small
+              - condition: "'{{classify.output.category}}' == 'medium'"
+                node: handle_medium
+              - condition: "'{{classify.output.category}}' == 'large'"
+                node: handle_large
+
+          # Branch: Handle small value
+          - id: handle_small
+            type: agent
+            agent_name: "SmallValueHandler"
+            depends_on: [route_by_category]
+            instruction: "Process the small value."
+            input:
+              value: "{{workflow.input.value}}"
+
+          # Branch: Handle medium value
+          - id: handle_medium
+            type: agent
+            agent_name: "MediumValueHandler"
+            depends_on: [route_by_category]
+            instruction: "Process the medium value."
+            input:
+              value: "{{workflow.input.value}}"
+
+          # Branch: Handle large value
+          - id: handle_large
+            type: agent
+            agent_name: "LargeValueHandler"
+            depends_on: [route_by_category]
+            instruction: "Process the large value."
+            input:
+              value: "{{workflow.input.value}}"
+
+        output_mapping:
+          result:
+            coalesce:
+              - "{{handle_small.output.result}}"
+              - "{{handle_medium.output.result}}"
+              - "{{handle_large.output.result}}"
+          handler:
+            coalesce:
+              - "{{handle_small.output.handler}}"
+              - "{{handle_medium.output.handler}}"
+              - "{{handle_large.output.handler}}"
+          category: "{{classify.output.category}}"
+
+        skills:
+          - id: "conditional_processing"
+            name: "Conditional Processing"
+            description: "Routes and processes values based on classification"
+            tags: ["eval", "level3", "conditional", "switch"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }

@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
-import { PanelRightIcon, FileText, Network, RefreshCw } from "lucide-react";
+import { PanelRightIcon, FileText, Network, RefreshCw, Link2 } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
 import { useTaskContext, useChatContext } from "@/lib/hooks";
 import { FlowChartPanel, processTaskForVisualization } from "@/lib/components/activities";
 import type { VisualizedTask } from "@/lib/types";
+import { hasSourcesWithUrls } from "@/lib/utils";
 
 import { ArtifactPanel } from "./artifact/ArtifactPanel";
 import { FlowChartDetails } from "../activities/FlowChartDetails";
+import { RAGInfoPanel } from "./rag/RAGInfoPanel";
 
 interface ChatSidePanelProps {
     onCollapsedToggle: (isSidePanelCollapsed: boolean) => void;
@@ -18,7 +20,7 @@ interface ChatSidePanelProps {
 }
 
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
-    const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel } = useChatContext();
+    const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel, ragData, ragEnabled } = useChatContext();
     const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
     const [isLoadingTask, setIsLoadingTask] = useState<boolean>(false);
@@ -26,7 +28,10 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     // Track which task IDs we've already attempted to load to prevent duplicate loads
     const loadAttemptedRef = React.useRef<Set<string>>(new Set());
 
-    // Process task data for visualization when the selected workflow task ID changes
+    // Check if there are any sources in the current session (web sources or deep research sources)
+    const hasSourcesInSession = useMemo(() => hasSourcesWithUrls(ragData), [ragData]);
+
+    // Process task data for visualization when the selected activity task ID changes
     // or when monitoredTasks is updated with new data
     useEffect(() => {
         if (!taskIdInSidePanel) {
@@ -96,11 +101,11 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         }
     }, [taskIdInSidePanel]);
 
-    // Helper function to determine what to display in the workflow panel
-    const getWorkflowPanelContent = () => {
+    // Helper function to determine what to display in the activity panel
+    const getActivityPanelContent = () => {
         if (isLoadingTask) {
             return {
-                message: "Loading workflow data...",
+                message: "Loading activity data...",
                 showButton: false,
             };
         }
@@ -130,7 +135,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
         if (!visualizedTask) {
             return {
-                message: "No workflow data available for the selected task",
+                message: "No activity data available for the selected task",
                 showButton: false,
             };
         }
@@ -144,7 +149,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         onCollapsedToggle(newCollapsed);
     };
 
-    const handleTabClick = (tab: "files" | "workflow") => {
+    const handleTabClick = (tab: "files" | "activity" | "rag") => {
         if (tab === "files") {
             setPreviewArtifact(null);
         }
@@ -152,7 +157,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         setActiveSidePanelTab(tab);
     };
 
-    const handleIconClick = (tab: "files" | "workflow") => {
+    const handleIconClick = (tab: "files" | "activity" | "rag") => {
         if (isSidePanelCollapsed) {
             setIsSidePanelCollapsed(false);
             onCollapsedToggle?.(false);
@@ -175,9 +180,15 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                     <FileText className="size-5" />
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => handleIconClick("workflow")} className="h-10 w-10 p-0" tooltip="Workflow">
+                <Button variant="ghost" size="sm" onClick={() => handleIconClick("activity")} className={hasSourcesInSession ? "mb-2 h-10 w-10 p-0" : "h-10 w-10 p-0"} tooltip="Activity">
                     <Network className="size-5" />
                 </Button>
+
+                {hasSourcesInSession && (
+                    <Button variant="ghost" size="sm" onClick={() => handleIconClick("rag")} className="h-10 w-10 p-0" tooltip="Sources">
+                        <Link2 className="size-5" />
+                    </Button>
+                )}
             </div>
         );
     }
@@ -186,29 +197,39 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     return (
         <div className="bg-background flex h-full flex-col border-l">
             <div className="m-1 min-h-0 flex-1">
-                <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "workflow")} className="flex h-full flex-col">
-                    <div className="flex gap-2 p-2">
-                        <Button data-testid="collapsePanel" variant="ghost" onClick={toggleCollapsed} className="p-1" tooltip="Collapse Panel">
+                <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "activity" | "rag")} className="flex h-full flex-col">
+                    <div className="@container flex gap-2 p-2">
+                        <Button data-testid="collapsePanel" variant="ghost" onClick={toggleCollapsed} className="shrink-0 p-1" tooltip="Collapse Panel">
                             <PanelRightIcon className="size-5" />
                         </Button>
-                        <TabsList className="grid w-full grid-cols-2 bg-transparent p-0">
+                        <TabsList className="flex min-w-0 flex-1 bg-transparent p-0">
                             <TabsTrigger
                                 value="files"
                                 title="Files"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10 data-[state=active]:border-r-0"
+                                className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 px-2 data-[state=active]:z-10 data-[state=active]:border-r-0"
                                 onClick={() => setPreviewArtifact(null)}
                             >
-                                <FileText className="mr-2 h-4 w-4" />
-                                Files
+                                <FileText className="h-4 w-4 shrink-0" />
+                                <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
                             </TabsTrigger>
                             <TabsTrigger
-                                value="workflow"
-                                title="Workflow"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10 data-[state=active]:border-l-0"
+                                value="activity"
+                                title="Activity"
+                                className={`border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}
                             >
-                                <Network className="mr-2 h-4 w-4" />
-                                Workflow
+                                <Network className="h-4 w-4 shrink-0" />
+                                <span className="ml-1.5 hidden truncate @[240px]:inline">Activity</span>
                             </TabsTrigger>
+                            {hasSourcesInSession && (
+                                <TabsTrigger
+                                    value="rag"
+                                    title="Sources"
+                                    className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border border-l-0 px-2 data-[state=active]:z-10"
+                                >
+                                    <Link2 className="h-4 w-4 shrink-0" />
+                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
+                                </TabsTrigger>
+                            )}
                         </TabsList>
                     </div>
                     <div className="min-h-0 flex-1">
@@ -218,10 +239,10 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="workflow" className="m-0 h-full">
+                        <TabsContent value="activity" className="m-0 h-full">
                             <div className="h-full">
                                 {(() => {
-                                    const emptyStateContent = getWorkflowPanelContent();
+                                    const emptyStateContent = getActivityPanelContent();
 
                                     if (!emptyStateContent && visualizedTask) {
                                         return (
@@ -236,7 +257,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                         <div className="flex h-full items-center justify-center p-4">
                                             <div className="text-muted-foreground text-center">
                                                 <Network className="mx-auto mb-4 h-12 w-12" />
-                                                <div className="text-lg font-medium">Workflow</div>
+                                                <div className="text-lg font-medium">Activity</div>
                                                 <div className="mt-2 text-sm">{emptyStateContent?.message}</div>
                                                 {emptyStateContent?.showButton && (
                                                     <div className="mt-4">
@@ -256,6 +277,14 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                 })()}
                             </div>
                         </TabsContent>
+
+                        {hasSourcesInSession && (
+                            <TabsContent value="rag" className="m-0 h-full">
+                                <div className="h-full">
+                                    <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
+                                </div>
+                            </TabsContent>
+                        )}
                     </div>
                 </Tabs>
             </div>

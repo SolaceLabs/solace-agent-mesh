@@ -14,11 +14,11 @@ patch_adk()
 
 from typing import Any, Dict, List, Optional, Union, Literal
 from pydantic import Field, ValidationError, model_validator
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 
 from ...common.a2a import (
     get_agent_request_topic,
-    get_discovery_topic,
+    get_discovery_subscription_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
@@ -230,32 +230,32 @@ class ArtifactServiceConfig(SamConfigBase):
             )
         return self
 
+
 class AgentIdentityConfig(SamConfigBase):
     """Configuration for agent identity and key management."""
+
     key_mode: Literal["auto", "manual"] = Field(
         default="auto",
-        description="Key mode for agent identity: 'auto' for automatic generation, 'manual' for user-provided."
+        description="Key mode for agent identity: 'auto' for automatic generation, 'manual' for user-provided.",
     )
     key_identity: Optional[str] = Field(
-        default=None,
-        description="Actual key value when key_mode is 'manual'."
+        default=None, description="Actual key value when key_mode is 'manual'."
     )
     key_persistence: Optional[str] = Field(
         default=None,
-        description="Path to the key file, e.g. '/path/to/keys/agent_{name}.key'."
+        description="Path to the key file, e.g. '/path/to/keys/agent_{name}.key'.",
     )
 
     @model_validator(mode="after")
     def check_key_mode_and_identity(self) -> "AgentIdentityConfig":
         if self.key_mode == "manual" and not self.key_identity:
-            raise ValueError(
-                "'key_identity' is required when 'key_mode' is 'manual'."
-            )
+            raise ValueError("'key_identity' is required when 'key_mode' is 'manual'.")
         if self.key_mode == "auto" and self.key_identity:
             log.warning(
                 "Configuration Warning: 'key_identity' is ignored when 'key_mode' is 'auto'."
             )
         return self
+
 
 class SessionServiceConfig(SamConfigBase):
     """Configuration for the ADK Session Service."""
@@ -285,6 +285,10 @@ class SamAgentAppConfig(SamConfigBase):
         description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
+    agent_type: Literal["standard", "workflow"] = Field(
+        default="standard",
+        description="Type of agent: 'standard' (default) or 'workflow'.",
+    )
     display_name: str = Field(
         default=None,
         description="Human-friendly display name for this ADK agent instance.",
@@ -298,7 +302,7 @@ class SamAgentAppConfig(SamConfigBase):
     )
     agent_identity: Optional[AgentIdentityConfig] = Field(
         default_factory=lambda: AgentIdentityConfig(key_mode="auto"),
-        description="Configuration for agent identity and key management."
+        description="Configuration for agent identity and key management.",
     )
     trust_manager: Optional[Union[TrustManagerConfig, Dict[str, Any]]] = Field(
         default=None,
@@ -375,6 +379,12 @@ class SamAgentAppConfig(SamConfigBase):
         ge=0,
         description="Maximum number of dictionary keys to inspect during schema inference.",
     )
+    schema_inference_depth: int = Field(
+        default=4,
+        ge=1,
+        le=10,
+        description="Maximum depth for schema inference on nested structures. Higher values reveal more nested field names but increase metadata size.",
+    )
     enable_embed_resolution: bool = Field(
         default=True,
         description="Enable early-stage processing of dynamic embeds and inject related instructions.",
@@ -384,7 +394,7 @@ class SamAgentAppConfig(SamConfigBase):
         description="If true, automatically attempts to continue LLM generation if it is interrupted by a token limit.",
     )
     stream_batching_threshold_bytes: int = Field(
-        default=0,
+        default=100,
         description="Minimum size in bytes for accumulated text from LLM stream before sending a status update.",
     )
     max_message_size_bytes: int = Field(
@@ -394,6 +404,14 @@ class SamAgentAppConfig(SamConfigBase):
     enable_artifact_content_instruction: bool = Field(
         default=True,
         description="Inject instructions about the 'artifact_content' embed type.",
+    )
+    input_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent input when used as a workflow node.",
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent output when used as a workflow node.",
     )
     agent_card: AgentCardConfig = Field(
         ..., description="Static definition of this agent's capabilities for discovery."
@@ -439,6 +457,14 @@ class SamAgentAppConfig(SamConfigBase):
         default=20,
         description="Maximum number of LLM calls allowed for a single A2A task.",
     )
+    max_call_depth: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Maximum allowed call depth for incoming requests. "
+            "Prevents infinite recursion in agent-to-agent or workflow-to-agent calls."
+        ),
+    )
     data_tools_config: DataToolsConfig = Field(
         default_factory=DataToolsConfig,
         description="Runtime configuration parameters for built-in data analysis tools.",
@@ -453,7 +479,7 @@ class SamAgentAppConfig(SamConfigBase):
     )
 
 
-class SamAgentApp(App):
+class SamAgentApp(SamAppBase):
     """
     Custom App class for SAM Agent Host that automatically generates
     the required Solace subscriptions based on namespace and agent name,
@@ -476,7 +502,9 @@ class SamAgentApp(App):
             # Overwrite the raw dict with the validated object for downstream use
             app_info["app_config"] = app_config
         except ValidationError as e:
-            message = SamAgentAppConfig.format_validation_error_message(e, app_info['name'], app_config_dict.get('agent_name'))
+            message = SamAgentAppConfig.format_validation_error_message(
+                e, app_info["name"], app_config_dict.get("agent_name")
+            )
             log.error("Invalid Agent configuration:\n%s", message)
             raise
 
@@ -494,7 +522,7 @@ class SamAgentApp(App):
 
         required_topics = [
             get_agent_request_topic(namespace, agent_name),
-            get_discovery_topic(namespace),
+            get_discovery_subscription_topic(namespace),
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
@@ -565,20 +593,17 @@ class SamAgentApp(App):
             super().run()
         except Exception as e:
             log.critical(
-                "Failed to start agent application '%s': %s",
-                self.name,
-                e,
-                exc_info=e
+                "Failed to start agent application '%s': %s", self.name, e, exc_info=e
             )
             raise
 
     def get_component(self, component_name: str = None) -> "SamAgentComponent":
         """
         Retrieves the running SamAgentComponent instance from the app's flow.
-        
+
         Args:
             component_name: Optional component name (for compatibility, but ignored since there's only one component)
-            
+
         Returns:
             The SamAgentComponent instance or None if not found
         """

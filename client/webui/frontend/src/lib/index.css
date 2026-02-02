@@ -3,6 +3,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Custom animation for title generation pulse */
+@keyframes pulse-generating {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.animate-pulse-slow {
+    animation: pulse-generating 1.5s ease-in-out infinite;
+}
+
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
@@ -21,6 +35,7 @@
     --color-secondary-foreground: var(--secondary-foreground);
     --color-muted: var(--muted);
     --color-muted-foreground: var(--muted-foreground);
+    --color-placeholder: var(--placeholder);
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
@@ -121,10 +136,84 @@
     box-shadow: var(--tw-shadow);
 }
 
+/* Shimmer animation for processing nodes */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.animate-shimmer {
+    /* Use a blue-ish highlight that works on light backgrounds */
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(59, 130, 246, 0.4) 50%,
+            transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.75s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.dark .animate-shimmer {
+    /* Use white highlight for dark mode */
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.35) 50%,
+            transparent 100%);
+    background-size: 200% 100%;
+}
+
+/* Pulsing halo glow effect for processing nodes */
+@keyframes halo-pulse {
+    0% {
+        box-shadow: 0 0 4px 1px rgba(59, 130, 246, 0.3);
+        transform: scale(1);
+    }
+
+    50% {
+        box-shadow: 0 0 12px 4px rgba(59, 130, 246, 0.6);
+        transform: scale(1.03);
+    }
+
+    100% {
+        box-shadow: 0 0 4px 1px rgba(59, 130, 246, 0.3);
+        transform: scale(1);
+    }
+}
+
+@keyframes halo-pulse-dark {
+    0% {
+        box-shadow: 0 0 4px 1px rgba(96, 165, 250, 0.2);
+        transform: scale(1);
+    }
+
+    50% {
+        box-shadow: 0 0 12px 4px rgba(96, 165, 250, 0.5);
+        transform: scale(1.03);
+    }
+
+    100% {
+        box-shadow: 0 0 4px 1px rgba(96, 165, 250, 0.2);
+        transform: scale(1);
+    }
+}
+
+.processing-halo {
+    animation: halo-pulse 2s ease-in-out infinite;
+}
+
+.dark .processing-halo {
+    animation: halo-pulse-dark 2s ease-in-out infinite;
+}
+
 @layer base {
     * {
         @apply border-border focus-visible:outline-ring focus-visible:border-0 focus-visible:ring-0 focus-visible:outline-1;
     }
+
     body {
         @apply bg-background text-foreground;
         font-family: "Rubik", sans-serif;
@@ -178,9 +267,11 @@
     .dark * {
         scrollbar-color: var(--color-primary-wMain) var(--color-background-w100);
     }
+
     /* Webkit browsers (Chrome, Safari, Edge) */
     *::-webkit-scrollbar {
-        width: 8px; /* equivalent to w-2 */
+        width: 8px;
+        /* equivalent to w-2 */
     }
 
     *::-webkit-scrollbar-track {
@@ -193,7 +284,8 @@
 
     *::-webkit-scrollbar-thumb {
         background-color: var(--color-primary-w20);
-        border-radius: 9999px; /* rounded-full */
+        border-radius: 9999px;
+        /* rounded-full */
         border: 2px solid var(--color-primary-w20);
     }
 
@@ -201,4 +293,21 @@
         background-color: var(--color-primary-wMain);
         border-color: var(--color-primary-wMain);
     }
+}
+
+/* Mention chip styles */
+.mention-chip {
+    display: inline-block;
+    background-color: rgb(219, 234, 254);
+    color: rgb(30, 64, 175);
+    border-radius: 3px;
+    padding: 1px 4px;
+    margin: 0 1px;
+    font-weight: 500;
+    user-select: all;
+}
+
+.dark .mention-chip {
+    background-color: rgb(30, 58, 138);
+    color: rgb(191, 219, 254);
 }

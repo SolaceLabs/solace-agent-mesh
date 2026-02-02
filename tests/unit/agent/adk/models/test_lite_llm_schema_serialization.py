@@ -263,6 +263,45 @@ class TestSchemaToDict:
         assert result["properties"]["name"]["type"] == "string"
         assert result["properties"]["email"]["type"] == "string"
 
+    def test_mcp_tool_with_integer_enums(self):
+        """Test MCP tool schema with integer enums are properly handled.
+
+        MCP servers can provide integer enums which is valid per JSON Schema spec.
+        This test ensures the schema normalization handles this without Pydantic errors.
+        """
+        from solace_agent_mesh.agent.adk.models.lite_llm import _normalize_schema_dict
+
+        # Simulate MCP tool schema with integer enums in nested structure
+        mcp_tool_params = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "priority": types.Schema.model_validate(
+                    _normalize_schema_dict({"type": "integer", "enum": [3, 7, 14]})
+                ),
+                "filters": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "status_codes": types.Schema.model_validate(
+                            _normalize_schema_dict({"type": "array", "items": {"type": "integer", "enum": [200, 404, 500]}})
+                        )
+                    }
+                )
+            }
+        )
+
+        func = types.FunctionDeclaration(
+            name="mcp_test_tool",
+            description="Test MCP tool with integer enums",
+            parameters=mcp_tool_params
+        )
+
+        # This should not raise Pydantic validation errors
+        result = _function_declaration_to_tool_param(func)
+
+        # Verify enum values are stringified
+        assert result["function"]["parameters"]["properties"]["priority"]["enum"] == ["3", "7", "14"]
+        assert result["function"]["parameters"]["properties"]["filters"]["properties"]["status_codes"]["items"]["enum"] == ["200", "404", "500"]
+
 
 class TestFunctionDeclarationToToolParam:
     """Test _function_declaration_to_tool_param function."""

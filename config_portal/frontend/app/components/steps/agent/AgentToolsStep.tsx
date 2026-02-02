@@ -44,10 +44,13 @@ export interface Tool {
   mcp_timeout?: number;
 
   // MCP auth fields
-  auth_type?: "none" | "api_key" | "bearer" | "";
+  auth_type?: "none" | "api_key" | "bearer" | "oauth2" | "";
   // api_key / bearer fields
   auth_token?: string;
   auth_header_name?: string; // For api_key (e.g., "X-API-Key")
+  // oauth2 fields
+  oauth_client_id?: string;
+  oauth_client_secret?: string;
 }
 
 const initialToolState: Tool = {
@@ -74,6 +77,8 @@ const initialToolState: Tool = {
   auth_type: "",
   auth_token: "",
   auth_header_name: "",
+  oauth_client_id: "",
+  oauth_client_secret: "",
 };
 
 
@@ -249,6 +254,33 @@ const AgentToolsStep: React.FC<StepProps> = ({
     return Object.keys(errors).length === 0;
   };
 
+  const buildMcpAuth = (): { auth?: Record<string, string>; headers?: Record<string, string> } => {
+    const result: { auth?: Record<string, string>; headers?: Record<string, string> } = {};
+
+    if (currentTool.auth_type === "oauth2") {
+      const mcp_auth: Record<string, string> = { type: "oauth2" };
+      if (currentTool.oauth_client_id) {
+        mcp_auth.client_id = currentTool.oauth_client_id;
+      }
+      if (currentTool.oauth_client_secret) {
+        mcp_auth.client_secret = currentTool.oauth_client_secret;
+      }
+      result.auth = mcp_auth;
+    } else if (currentTool.auth_type === "bearer" || currentTool.auth_type === "api_key") {
+      const headers: Record<string, string> = {};
+      if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
+        headers.Authorization = `Bearer ${currentTool.auth_token}`;
+      } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
+        headers[currentTool.auth_header_name] = currentTool.auth_token;
+      }
+      if (Object.keys(headers).length > 0) {
+        result.headers = headers;
+      }
+    }
+
+    return result;
+  };
+
   const handleSaveTool = () => {
     if (!validateToolForm()) return;
 
@@ -283,6 +315,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
       case "mcp": {
         // Build connection_params from transport-specific fields
         let connection_params: Record<string, unknown> = {};
+        let mcp_auth: Record<string, string> | undefined;
 
         if (currentTool.transport_type === "stdio") {
           connection_params = {
@@ -297,15 +330,14 @@ const AgentToolsStep: React.FC<StepProps> = ({
             url: currentTool.sse_url,
             timeout: currentTool.mcp_timeout || 30,
           };
-          // Build headers with authentication
-          const headers: Record<string, string> = {};
-          if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
-            headers.Authorization = `Bearer ${currentTool.auth_token}`;
-          } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
-            headers[currentTool.auth_header_name] = currentTool.auth_token;
+
+          // Build authentication
+          const authResult = buildMcpAuth();
+          if (authResult.auth) {
+            mcp_auth = authResult.auth;
           }
-          if (Object.keys(headers).length > 0) {
-            connection_params.headers = headers;
+          if (authResult.headers) {
+            connection_params.headers = authResult.headers;
           }
         } else if (currentTool.transport_type === "streamable-http") {
           connection_params = {
@@ -313,15 +345,14 @@ const AgentToolsStep: React.FC<StepProps> = ({
             url: currentTool.streamable_http_url,
             timeout: currentTool.mcp_timeout || 30,
           };
-          // Build headers with authentication
-          const headers: Record<string, string> = {};
-          if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
-            headers.Authorization = `Bearer ${currentTool.auth_token}`;
-          } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
-            headers[currentTool.auth_header_name] = currentTool.auth_token;
+
+          // Build authentication
+          const authResult = buildMcpAuth();
+          if (authResult.auth) {
+            mcp_auth = authResult.auth;
           }
-          if (Object.keys(headers).length > 0) {
-            connection_params.headers = headers;
+          if (authResult.headers) {
+            connection_params.headers = authResult.headers;
           }
         }
 
@@ -345,6 +376,9 @@ const AgentToolsStep: React.FC<StepProps> = ({
           toolAsRecord.tool_name = currentTool.tool_name;
         }
         toolAsRecord.connection_params = connection_params;
+        if (mcp_auth) {
+          toolAsRecord.auth = mcp_auth;
+        }
         if (environment_variables) {
           toolAsRecord.environment_variables = environment_variables;
         }
@@ -358,11 +392,21 @@ const AgentToolsStep: React.FC<StepProps> = ({
         // Store auth fields separately for easy re-editing
         if (currentTool.auth_type && currentTool.auth_type !== "none") {
           toolAsRecord.auth_type = currentTool.auth_type;
-          if (currentTool.auth_token) {
-            toolAsRecord.auth_token = currentTool.auth_token;
-          }
-          if (currentTool.auth_type === "api_key" && currentTool.auth_header_name) {
-            toolAsRecord.auth_header_name = currentTool.auth_header_name;
+
+          if (currentTool.auth_type === "oauth2") {
+            if (currentTool.oauth_client_id) {
+              toolAsRecord.oauth_client_id = currentTool.oauth_client_id;
+            }
+            if (currentTool.oauth_client_secret) {
+              toolAsRecord.oauth_client_secret = currentTool.oauth_client_secret;
+            }
+          } else if (currentTool.auth_type === "bearer" || currentTool.auth_type === "api_key") {
+            if (currentTool.auth_token) {
+              toolAsRecord.auth_token = currentTool.auth_token;
+            }
+            if (currentTool.auth_type === "api_key" && currentTool.auth_header_name) {
+              toolAsRecord.auth_header_name = currentTool.auth_header_name;
+            }
           }
         }
 
@@ -856,7 +900,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
                       <FormField
                         label="Authentication Type (Optional)"
                         htmlFor="auth_type"
-                        helpText="Configure authentication for the MCP server (added as headers)"
+                        helpText="Configure authentication for the MCP server"
                       >
                         <Select
                           id="auth_type"
@@ -867,6 +911,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
                             { value: "", label: "No authentication" },
                             { value: "api_key", label: "API Key" },
                             { value: "bearer", label: "Bearer Token" },
+                            { value: "oauth2", label: "OAuth 2.0 (Requires Enterprise License)" },
                           ]}
                         />
                       </FormField>
@@ -923,6 +968,69 @@ const AgentToolsStep: React.FC<StepProps> = ({
                           placeholder="e.g., ${MCP_BEARER_TOKEN}"
                         />
                       </FormField>
+                    )}
+
+                    {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && currentTool.auth_type === "oauth2" && (
+                      <>
+                        <InfoBox>
+                          <strong>⚠️ Enterprise Feature</strong>
+                          <br />
+                          OAuth 2.0 authentication requires a Solace Agent Mesh Enterprise license.
+                          <br />
+                          <br />
+                          <strong>Note:</strong> After generating the agent YAML, you will need to manually add a manifest section to define the tools. Example:
+                          <br />
+                          <br />
+                          <code style={{ display: 'block', whiteSpace: 'pre', fontSize: '0.85em', background: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+{`tools:
+  - tool_type: mcp
+    connection_params:
+      type: sse
+      url: https://mcp.example.com/v1/sse
+    auth:
+      type: oauth2
+    manifest:
+      - id: searchDocuments
+        name: searchDocuments
+        description: Search through documents
+        inputSchema:
+          type: object
+          properties:
+            query:
+              type: string
+            maxResults:
+              type: number
+          required: [query]`}</code>
+                        </InfoBox>
+                        <FormField
+                          label="Client ID (Optional)"
+                          htmlFor="oauth_client_id"
+                          error={formErrors.oauth_client_id}
+                          helpText="OAuth 2.0 client ID (can use environment variables like ${OAUTH_CLIENT_ID})"
+                        >
+                          <Input
+                            id="oauth_client_id"
+                            name="oauth_client_id"
+                            value={currentTool.oauth_client_id || ""}
+                            onChange={handleModalChange}
+                            placeholder="e.g., ${OAUTH_CLIENT_ID}"
+                          />
+                        </FormField>
+                        <FormField
+                          label="Client Secret (Optional)"
+                          htmlFor="oauth_client_secret"
+                          error={formErrors.oauth_client_secret}
+                          helpText="OAuth 2.0 client secret (can use environment variables like ${OAUTH_CLIENT_SECRET})"
+                        >
+                          <Input
+                            id="oauth_client_secret"
+                            name="oauth_client_secret"
+                            value={currentTool.oauth_client_secret || ""}
+                            onChange={handleModalChange}
+                            placeholder="e.g., ${OAUTH_CLIENT_SECRET}"
+                          />
+                        </FormField>
+                      </>
                     )}
 
                     <FormField
