@@ -60,7 +60,8 @@ const isProjectArtifact = (artifact: ArtifactWithSession): boolean => {
 // Helper to get the correct API URL for an artifact
 const getArtifactApiUrl = (artifact: ArtifactWithSession): string => {
     if (isProjectArtifact(artifact) && artifact.projectId) {
-        return `/api/v1/projects/${artifact.projectId}/artifacts/${encodeURIComponent(artifact.filename)}`;
+        // Project artifacts use the artifacts endpoint with project_id query param
+        return `/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${encodeURIComponent(artifact.projectId)}`;
     }
     return `/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
 };
@@ -399,16 +400,19 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                             <Download size={14} className="mr-2" />
                             Download
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onClick={e => {
-                                e.stopPropagation();
-                                setDropdownOpen(false);
-                                onDelete(artifact);
-                            }}
-                        >
-                            <Trash2 size={14} className="mr-2" />
-                            Delete
-                        </DropdownMenuItem>
+                        {/* Don't allow deleting project artifacts from here - they should be managed in the project */}
+                        {!isProjectArtifact(artifact) && (
+                            <DropdownMenuItem
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    setDropdownOpen(false);
+                                    onDelete(artifact);
+                                }}
+                            >
+                                <Trash2 size={14} className="mr-2" />
+                                Delete
+                            </DropdownMenuItem>
+                        )}
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -550,8 +554,10 @@ export const ArtifactsPage: React.FC = () => {
     const handleDownload = useCallback(
         async (artifact: ArtifactWithSession) => {
             try {
+                // Use the correct API URL for project vs session artifacts
+                const apiUrl = getArtifactApiUrl(artifact);
                 // Fetch the artifact content using full response
-                const response = await api.webui.get(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`, { fullResponse: true });
+                const response = await api.webui.get(apiUrl, { fullResponse: true });
                 const blob = await response.blob();
 
                 // Create download link
@@ -578,6 +584,14 @@ export const ArtifactsPage: React.FC = () => {
 
     const handleDelete = useCallback(
         async (artifact: ArtifactWithSession) => {
+            // Don't allow deleting project artifacts from here
+            if (isProjectArtifact(artifact)) {
+                displayError?.({
+                    title: "Cannot Delete",
+                    error: "Project artifacts must be deleted from the project page",
+                });
+                return;
+            }
             try {
                 await api.webui.delete(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`);
                 addNotification?.(`Deleted ${artifact.filename}`, "success");
@@ -595,6 +609,12 @@ export const ArtifactsPage: React.FC = () => {
 
     const handlePreview = useCallback(
         async (artifact: ArtifactWithSession) => {
+            // For project artifacts, navigate to the project page instead
+            if (isProjectArtifact(artifact) && artifact.projectId) {
+                navigate(`/projects/${artifact.projectId}`);
+                return;
+            }
+
             // Switch to the artifact's session first, then navigate
             await handleSwitchSession(artifact.sessionId);
             navigate("/chat");

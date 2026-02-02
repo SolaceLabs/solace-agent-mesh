@@ -91,9 +91,10 @@ export const useAllArtifacts = (): UseAllArtifactsReturn => {
                         batch.map(async session => {
                             try {
                                 const sessionArtifacts: ArtifactInfo[] = await api.webui.get(`/api/v1/artifacts/${session.id}`);
-                                // Filter out intermediate artifacts and add session info
+                                // Filter out intermediate artifacts and project artifact copies (source === "project")
+                                // Project artifacts are shown separately from the canonical project source
                                 return sessionArtifacts
-                                    .filter(artifact => !isIntermediateWebContentArtifact(artifact.filename))
+                                    .filter(artifact => !isIntermediateWebContentArtifact(artifact.filename) && artifact.source !== "project")
                                     .map(artifact => ({
                                         ...artifact,
                                         sessionId: session.id,
