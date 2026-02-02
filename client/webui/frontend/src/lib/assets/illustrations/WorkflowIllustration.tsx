@@ -1,6 +1,6 @@
 import { useThemeContext } from "@/lib/hooks/useThemeContext";
-import workflowDark from "../images/workflowDark.svg";
-import workflowLight from "../images/workflowLight.svg";
+import workflowDark from "@/lib/assets/images/workflowDark.svg";
+import workflowLight from "@/lib/assets/images/workflowLight.svg";
 
 interface WorkflowIllustrationProps {
     width?: number;
