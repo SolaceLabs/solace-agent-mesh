@@ -107,7 +107,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        {project.artifactCount !== undefined && project.artifactCount !== null && (
+                        {project.artifactCount !== undefined && project.artifactCount !== null && isOwner && (
                             <Badge variant="secondary" className="flex h-6 items-center gap-1" title={`${project.artifactCount} ${project.artifactCount === 1 ? "file" : "files"}`}>
                                 <FileText className="h-3.5 w-3.5" />
                                 <span>{project.artifactCount}</span>
