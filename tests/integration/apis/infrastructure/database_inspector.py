@@ -188,3 +188,32 @@ class DatabaseInspector:
                 continue
 
         return stats
+
+    def get_sessions_for_project(
+        self, project_id: str, include_deleted: bool = False
+    ) -> list[dict]:
+        """Get all sessions for a project.
+
+        Args:
+            project_id: The project ID to get sessions for
+            include_deleted: Whether to include soft-deleted sessions
+
+        Returns:
+            List of session dictionaries
+        """
+        with self.db_manager.get_gateway_connection() as conn:
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            sessions_table = metadata.tables["sessions"]
+
+            query = sa.select(sessions_table).where(
+                sessions_table.c.project_id == project_id
+            )
+
+            if not include_deleted:
+                # Filter out soft-deleted sessions (deleted_at is NULL)
+                query = query.where(sessions_table.c.deleted_at.is_(None))
+
+            rows = conn.execute(query).fetchall()
+
+        return [row._asdict() for row in rows]

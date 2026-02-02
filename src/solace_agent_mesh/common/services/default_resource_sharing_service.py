@@ -32,3 +32,12 @@ class DefaultResourceSharingService(ResourceSharingService):
     ) -> bool:
         """Community has no shares to delete - return True (no-op success)."""
         return True
+
+    def get_shared_users(
+        self,
+        session,
+        resource_id: str,
+        resource_type: ResourceType
+    ) -> List[str]:
+        """Community has no sharing - return empty list."""
+        return []

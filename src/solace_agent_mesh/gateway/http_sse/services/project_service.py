@@ -696,8 +696,27 @@ class ProjectService:
         # Cascade to sessions
         from ..repository.session_repository import SessionRepository
         session_repo = SessionRepository()
-        deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
-        self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+
+        # Delete owner's sessions
+        owner_deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
+
+        # Delete shared users' sessions (enterprise feature)
+        shared_users = self._resource_sharing_service.get_shared_users(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT
+        )
+        shared_deleted_count = 0
+        for shared_user_email in shared_users:
+            shared_deleted_count += session_repo.soft_delete_by_project(
+                db, project_id, shared_user_email
+            )
+
+        total_deleted = owner_deleted_count + shared_deleted_count
+        self.logger.info(
+            f"Successfully soft deleted project {project_id} and {total_deleted} associated sessions "
+            f"(owner: {owner_deleted_count}, shared users: {shared_deleted_count})"
+        )
 
         return True
 

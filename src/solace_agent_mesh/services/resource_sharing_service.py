@@ -60,3 +60,21 @@ class ResourceSharingService(ABC):
             True if successful, False otherwise.
         """
         pass
+
+    @abstractmethod
+    def get_shared_users(
+        self,
+        session,
+        resource_id: str,
+        resource_type: ResourceType
+    ) -> List[str]:
+        """
+        Get list of user emails with shared access to a resource.
+
+        This is used when deleting resources to ensure sessions created by
+        shared users are also cleaned up.
+
+        Returns:
+            List of user emails. Empty list for community, actual emails for enterprise.
+        """
+        pass
