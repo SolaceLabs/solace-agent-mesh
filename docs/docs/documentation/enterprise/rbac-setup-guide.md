@@ -1,5 +1,5 @@
 ---
-title: Setting Up RBAC
+title: Role-Based Access Control (RBAC)
 sidebar_position: 10
 ---
 
@@ -7,21 +7,35 @@ sidebar_position: 10
 **Agent Mesh Enterprise now uses secure-by-default authorization.** If you do not configure an authorization service, the system will **deny all access** by default. You must explicitly configure RBAC or another authorization type to grant access to users.
 :::
 
-This guide walks you through configuring Role-Based Access Control (RBAC) in a Docker installation for Agent Mesh. You will learn how to control access to Agent Mesh Enterprise features and resources based on user roles and permissions.
+This guide walks you through configuring Role-Based Access Control (RBAC) for Agent Mesh Enterprise. You will learn how to control access to Agent Mesh Enterprise features and resources based on user roles and permissions. This guide covers RBAC configuration for both Docker and Helm deployments.
 
-## Table of Contents
 
-- [Understanding RBAC in Agent Mesh Enterprise](#understanding-rbac-in-agent-mesh-enterprise)
-- [Planning Your RBAC Configuration](#planning-your-rbac-configuration)
-- [Setting Up RBAC in Docker](#setting-up-rbac-in-docker)
-- [Understanding Configuration Files](#understanding-configuration-files)
-- [Advanced Configuration Options](#advanced-configuration-options)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
-
-## Understanding RBAC in Agent Mesh Enterprise
+## Overview
 
 Before you configure RBAC, you need to understand how the system works. Agent Mesh Enterprise uses a three-tier authorization model that separates identity, roles, and permissions.
+
+### RBAC Concepts
+
+RBAC in Agent Mesh Enterprise uses three connected concepts:
+
+**Users** represent identities in your system. Each user has a unique identifier, typically an email address. When a user attempts to access a feature or resource, Agent Mesh Enterprise checks their assigned roles to determine what they can do.
+
+**Roles** are collections of permissions that you assign to users. Instead of granting permissions directly to individual users, you create roles that represent job functions or responsibilities. For example, you might create a "data_analyst" role for users who need to work with data tools and artifacts. This approach simplifies administration because you can modify a role's permissions once and affect all users assigned to that role.
+
+**Scopes** are the actual permissions that grant access to specific features or resources. Each scope follows a pattern that identifies what it controls. For example, the scope `tool:data:read` grants permission to read data tools, while `artifact:create` allows creating artifacts. Scopes use wildcards to grant broader permissions. For example, the scope `tool:data:*` grants all permissions for data tools.
+
+### How Authorization Works
+
+When a user attempts an action in Agent Mesh Enterprise, the system follows this authorization flow:
+
+1. The system identifies the user based on their authentication credentials
+2. It retrieves all roles assigned to that user
+3. For each role, it collects all associated scopes (permissions)
+4. It checks if any of the user's scopes match the permission required for the requested action
+5. If a matching scope exists, the system allows the action; otherwise, it denies access
+
+This model implements the principle of least privilege: users receive only the permissions they need to perform their job functions.
+
 
 ### Authorization Types
 
@@ -43,28 +57,6 @@ When this type is active, all user requests are denied and logged with WARNING m
 :::danger Development Only
 The `type: none` authorization configuration grants full access to all users and should **never** be used in production environments. It is intended only for local development and testing.
 :::
-
-### The Three Components
-
-RBAC in Agent Mesh Enterprise consists of three interconnected components:
-
-**Users** represent identities in your system. Each user has a unique identifier, typically an email address. When a user attempts to access a feature or resource, Agent Mesh Enterprise checks their assigned roles to determine what they can do.
-
-**Roles** are collections of permissions that you assign to users. Instead of granting permissions directly to individual users, you create roles that represent job functions or responsibilities. For example, you might create a "data_analyst" role for users who need to work with data tools and artifacts. This approach simplifies administration because you can modify a role's permissions once and affect all users assigned to that role.
-
-**Scopes** are the actual permissions that grant access to specific features or resources. Each scope follows a pattern that identifies what it controls. For example, the scope `tool:data:read` grants permission to read data tools, while `artifact:create` allows creating artifacts. Scopes use wildcards to grant broader permissions. For example, the scope `tool:data:*` grants all permissions for data tools.
-
-### How Authorization Works
-
-When a user attempts an action in Agent Mesh Enterprise, the system follows this authorization flow:
-
-1. The system identifies the user based on their authentication credentials
-2. It retrieves all roles assigned to that user
-3. For each role, it collects all associated scopes (permissions)
-4. It checks if any of the user's scopes match the permission required for the requested action
-5. If a matching scope exists, the system allows the action; otherwise, it denies access
-
-This model implements the principle of least privilege: users receive only the permissions they need to perform their job functions.
 
 ## Planning Your RBAC Configuration
 
@@ -90,15 +82,193 @@ Consider creating a role hierarchy where some roles inherit permissions from oth
 
 ### Mapping Scopes to Features
 
-Understanding available scopes helps you design effective roles. Agent Mesh Enterprise uses a hierarchical scope naming convention:
+Understanding available scopes helps you design effective roles. Agent Mesh Enterprise uses a hierarchical scope naming convention. This section describes the different types of scopes and how they control access to specific features.
 
-Tool scopes control access to tools and follow the pattern `tool:<category>:<action>`. For example, `tool:basic:read` grants permission to read basic tools, while `tool:data:*` grants all permissions for data tools.
+#### Tool Scopes
 
-Artifact scopes control access to artifacts (files and data created by the system) and use the pattern `artifact:<action>`. Common artifact scopes include `artifact:read`, `artifact:create`, and `artifact:delete`.
+Tool scopes control access to tools and follow the pattern `tool:<category>:<action>`. The `<category>` identifies the type of tool, and the `<action>` specifies what operation is permitted (e.g., `read`, `execute`, `create`, `delete`).
+
+Common tool scopes include:
+- `tool:basic:read` - Permission to read/view basic tools
+- `tool:basic:*` - All permissions for basic tools
+- `tool:data:*` - All permissions for data-related tools
+- `tool:advanced:read` - Permission to read advanced tools
+
+**Custom Tool Scopes with `required_scope`:**
+
+When you create a custom tool in Agent Mesh Enterprise, you can specify a `required_scope` field in the tool's configuration that defines what permission a user needs to access that tool. This allows you to create fine-grained access controls for specific tools.
+
+For example, if you create a custom database query tool in your agent configuration, you would set the `required_scope` in the tool's component definition:
+
+```yaml
+# In your agent flow configuration (e.g., flows_config.yaml)
+components:
+  - component_name: query_customer_database
+    component_module: my_custom_tools
+    component_config:
+      tool_name: "customer_database_query"
+      description: "Query the customer database for analysis"
+      required_scope: "tool:database:query"  # RBAC scope required to use this tool
+      # ... other tool configuration ...
+      database_connection:
+        host: "db.example.com"
+        port: 5432
+```
+
+Alternatively, if you're defining tools in a tool registry or catalog file:
+
+```yaml
+# In a tool catalog/registry configuration
+tools:
+  - name: "customer_database_query"
+    description: "Query the customer database for analysis"
+    required_scope: "tool:database:query"  # RBAC scope required to use this tool
+    implementation: "my_custom_tools.DatabaseQueryTool"
+    parameters:
+      database_connection:
+        host: "db.example.com"
+        port: 5432
+```
+
+Then, in your role configuration, you would grant access to users who need this tool:
+
+```yaml
+# In role-to-scope-definitions.yaml
+roles:
+  data_analyst:
+    description: "Analyst with database access"
+    scopes:
+      - "tool:database:query"  # Grants access to the customer_database_query tool
+      - "artifact:read"
+      - "artifact:create"
+```
+
+Only users with the `data_analyst` role (or any role containing the `tool:database:query` scope) can access the `customer_database_query` tool. Users without this scope receive an authorization error when attempting to use the tool.
+
+You can use wildcards in role scopes to grant broader access:
+
+```yaml
+roles:
+  database_admin:
+    description: "Database administrator with full database tool access"
+    scopes:
+      - "tool:database:*"  # Grants access to all tools with required_scope starting with "tool:database:"
+```
+
+This role would have access to any tool with `required_scope` set to `tool:database:query`, `tool:database:admin`, `tool:database:backup`, etc.
+
+#### Agent Scopes
+
+Agent scopes control access to specific agents and follow the pattern `agent:<agent_name>:delegate`. These scopes allow you to control which users can interact with which agents in your Agent Mesh Enterprise deployment.
+
+**How Agent Scopes Work:**
+
+Unlike tools (which use an explicit `required_scopes` field), agent scopes are **automatically derived from the agent's `agent_name` configuration field**. When you define an agent, the system automatically enforces the scope `agent:<agent_name>:delegate` for access control.
+
+For example, if you configure an agent like this:
+
+```yaml
+# In your agent configuration file (e.g., customer_support_agent.yaml)
+apps:
+  - name: customer_support_app
+    app_config:
+      agent_name: "customer_support_agent"  # This determines the required scope
+      display_name: "Customer Support"
+      instruction: |
+        You are a customer support agent...
+      # ... other agent configuration ...
+```
+
+The system automatically requires users to have the scope `agent:customer_support_agent:delegate` to interact with this agent. You don't need to explicitly configure this scope on the agent itself—it's derived from the `agent_name` field.
+
+When a user attempts to send a message to an agent or invoke an agent's capabilities, the system checks whether the user has the appropriate agent scope. The `<agent_name>` in the scope must match the name of the agent being accessed.
+
+**Example: Controlling Access to Specific Agents**
+
+Suppose you have three agents in your system:
+- `customer_support_agent` - Handles customer inquiries
+- `data_analysis_agent` - Performs data analytics
+- `admin_agent` - Performs administrative tasks
+
+You can create roles that grant access to specific agents:
+
+```yaml
+# In role-to-scope-definitions.yaml
+roles:
+  customer_support_rep:
+    description: "Customer support representative"
+    scopes:
+      - "agent:customer_support_agent:delegate"  # Can only access customer support agent
+      - "artifact:read"
+
+  data_analyst:
+    description: "Data analyst"
+    scopes:
+      - "agent:data_analysis_agent:delegate"  # Can only access data analysis agent
+      - "tool:data:*"
+      - "artifact:read"
+      - "artifact:create"
+
+  system_admin:
+    description: "System administrator"
+    scopes:
+      - "agent:*:delegate"  # Can access all agents (wildcard)
+      - "*"  # Full access to all features
+```
+
+With this configuration:
+- A user with the `customer_support_rep` role can only interact with `customer_support_agent`
+- A user with the `data_analyst` role can only interact with `data_analysis_agent`
+- A user with the `system_admin` role can interact with any agent
+
+**Using Wildcards for Agent Access:**
+
+You can use wildcards to grant access to multiple agents:
+
+```yaml
+roles:
+  agent_operator:
+    description: "Can access all non-admin agents"
+    scopes:
+      - "agent:customer_*:delegate"  # Access to all agents starting with "customer_"
+      - "agent:data_*:delegate"      # Access to all agents starting with "data_"
+      - "artifact:read"
+```
+
+This role would grant access to agents like `customer_support_agent`, `customer_feedback_agent`, `data_analysis_agent`, `data_processing_agent`, etc., but not `admin_agent`.
+
+#### Artifact Scopes
+
+Artifact scopes control access to files and data created by agents during task execution, using the pattern `artifact:<action>`:
+
+- `artifact:read` - Permission to view and download artifacts
+- `artifact:create` - Permission to create new artifacts
+- `artifact:delete` - Permission to delete artifacts
+- `artifact:update` - Permission to modify existing artifacts
+- `artifact:*` - All artifact permissions
+
+Example role configuration:
+```yaml
+roles:
+  data_analyst:
+    description: "Data analyst with artifact access"
+    scopes:
+      - "artifact:read"
+      - "artifact:create"
+      - "tool:data:*"
+```
+
+#### Monitoring Scopes
 
 Monitoring scopes control access to system monitoring features and follow the pattern `monitor/namespace/<namespace>:a2a_messages:subscribe`. These scopes allow users to observe message traffic in specific namespaces.
 
-The wildcard scope `*` grants all permissions and should only be used for administrator roles.
+Examples:
+- `monitor/namespace/production:a2a_messages:subscribe` - Monitor the "production" namespace
+- `monitor/namespace/*:a2a_messages:subscribe` - Monitor all namespaces (wildcard)
+
+#### The Wildcard Scope
+
+The wildcard scope `*` grants all permissions and should only be used for administrator roles. This scope provides unrestricted access to all features, tools, agents, and resources in the system.
 
 ## Setting Up RBAC in Docker
 
@@ -117,7 +287,7 @@ Before you begin, ensure you have:
 
 You need to create a directory structure on your host system to store RBAC configuration files. The Docker container will mount this directory to access your configurations.
 
-Create the directory structure as follows:
+Create the directory structure as follows (note that `sam-enterprise` is just an example directory name - you can use any name you prefer):
 
 ```bash
 mkdir -p sam-enterprise/config/auth
@@ -295,6 +465,12 @@ DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'standard_user' loaded 
 
 These messages confirm that Agent Mesh Enterprise found and parsed your configuration files correctly.
 
+## Setting Up RBAC with Helm
+
+For production deployments, Solace recommends using Helm to deploy Agent Mesh Enterprise on Kubernetes. The RBAC concepts (roles, scopes, and user assignments) are identical to Docker deployments, but the configuration is managed through Kubernetes ConfigMaps.
+
+For complete instructions on configuring RBAC in Helm deployments, including ConfigMap setup, role definitions, and user assignments, please refer to the [Solace Agent Mesh Helm Quickstart Guide - RBAC section](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs/#role-based-access-control-rbac).
+
 ## Understanding Configuration Files
 
 Now that you have a working RBAC configuration, you should understand the full structure and capabilities of each configuration file. This knowledge helps you customize the configuration to meet your specific needs.
@@ -376,8 +552,7 @@ After you have a basic RBAC configuration working, you might want to explore adv
 
 ### Production-Ready Role Configuration
 
-A production environment typically needs more sophisticated role definitions than the basic examples
-. Here is a comprehensive configuration that demonstrates best practices:
+A production environment typically needs more sophisticated role definitions than the basic examples. Here is a comprehensive configuration that demonstrates best practices:
 
 ```yaml
 # role-to-scope-definitions.yaml

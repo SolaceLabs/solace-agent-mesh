@@ -217,6 +217,12 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         "task_headers cannot override authentication headers. For custom authentication, "
         "omit the 'authentication' config and use task_headers to set auth headers directly.",
     )
+    convert_progress_updates: bool = Field(
+        default=True,
+        description="If true, converts TextPart messages in intermediate TaskStatusUpdateEvents "
+        "to AgentProgressUpdateData (shown as status updates in the UI). If false, passes TextPart "
+        "messages through unchanged."
+    )
 
 
 class A2AProxyAppConfig(BaseProxyAppConfig):
