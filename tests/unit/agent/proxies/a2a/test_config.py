@@ -410,3 +410,51 @@ class TestEdgeCases:
         assert config.agent_card_authentication.authorization_url == "https://auth.example.com/authorize"
         assert config.agent_card_authentication.scopes == ["read", "write", "profile"]
         assert config.agent_card_authentication.client_secret == "optional-secret"
+
+
+class TestDisplayNameField:
+    """Tests for display_name field in A2AProxiedAgentConfig."""
+
+    def test_display_name_provided(self):
+        """Test display_name field is accepted and stored."""
+        config = A2AProxiedAgentConfig(
+            name="test-agent",
+            url="https://example.com",
+            display_name="My Custom Agent",
+        )
+        assert config.display_name == "My Custom Agent"
+
+    def test_display_name_none_default(self):
+        """Test display_name defaults to None when not provided."""
+        config = A2AProxiedAgentConfig(
+            name="test-agent",
+            url="https://example.com",
+        )
+        assert config.display_name is None
+
+    def test_display_name_empty_string(self):
+        """Test display_name accepts empty string."""
+        config = A2AProxiedAgentConfig(
+            name="test-agent",
+            url="https://example.com",
+            display_name="",
+        )
+        assert config.display_name == ""
+
+    def test_display_name_with_special_characters(self):
+        """Test display_name accepts special characters (for UI display)."""
+        config = A2AProxiedAgentConfig(
+            name="test-agent",
+            url="https://example.com",
+            display_name="Agent™ (Beta) - v2.0 🚀",
+        )
+        assert config.display_name == "Agent™ (Beta) - v2.0 🚀"
+
+    def test_display_name_with_whitespace(self):
+        """Test display_name accepts whitespace (will be stripped at usage)."""
+        config = A2AProxiedAgentConfig(
+            name="test-agent",
+            url="https://example.com",
+            display_name="   My Agent   ",
+        )
+        assert config.display_name == "   My Agent   "
