@@ -16,17 +16,17 @@ interface SidebarItemProps {
     label: string;
     active: boolean;
     onClick: () => void;
-    badge?: string;
+    badgeLabel?: string;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick, badge }) => {
+const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick, badgeLabel }) => {
     return (
         <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "dark:bg-accent bg-[var(--color-brand-w10)]" : "text-muted-foreground hover:bg-accent/50")}>
             {icon}
             <span>{label}</span>
-            {badge && (
-                <Badge variant="outline" className="ml-auto h-4 bg-(--color-secondary-w80) pt-1 text-[8px] leading-none text-(--color-secondary-text-w10) uppercase">
-                    {badge}
+            {badgeLabel && (
+                <Badge variant="outline" className="ml-auto h-4 pt-1 text-[8px] leading-none uppercase dark:bg-(--color-secondary-w80) dark:text-(--color-secondary-text-w10)">
+                    {badgeLabel}
                 </Badge>
             )}
         </button>
@@ -121,7 +121,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             {/* Top items, scrollable */}
                             <div className="flex-1 space-y-1 overflow-y-auto">
                                 <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
-                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} badge="Experimental" />}
+                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} badgeLabel="Experimental" />}
                             </div>
                             {/* Bottom items, static */}
                             <div className="space-y-1 pb-2">
