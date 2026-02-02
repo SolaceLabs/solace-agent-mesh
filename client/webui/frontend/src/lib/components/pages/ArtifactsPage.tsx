@@ -608,41 +608,24 @@ const StandalonePreviewPanel: React.FC<StandalonePreviewPanelProps> = ({ artifac
 
                 {/* Right side: action buttons and close */}
                 <div className="flex items-center gap-1">
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => onDownload(artifact)} className="h-8 w-8">
-                                <Download className="h-4 w-4" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Download</TooltipContent>
-                    </Tooltip>
+                    <Button variant="ghost" size="sm" onClick={() => onDownload(artifact)}>
+                        <Download className="mr-1 h-4 w-4" />
+                        Download
+                    </Button>
                     {isProjectArtifact(artifact) ? (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => onGoToProject(artifact)} className="h-8 w-8">
-                                    <FolderOpen className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Go to Project</TooltipContent>
-                        </Tooltip>
+                        <Button variant="ghost" size="sm" onClick={() => onGoToProject(artifact)}>
+                            <FolderOpen className="mr-1 h-4 w-4" />
+                            Go to Project
+                        </Button>
                     ) : (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => onGoToChat(artifact)} className="h-8 w-8">
-                                    <MessageCircle className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Go to Chat</TooltipContent>
-                        </Tooltip>
+                        <Button variant="ghost" size="sm" onClick={() => onGoToChat(artifact)}>
+                            <MessageCircle className="mr-1 h-4 w-4" />
+                            Go to Chat
+                        </Button>
                     )}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-                                <X className="h-4 w-4" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Close</TooltipContent>
-                    </Tooltip>
+                    <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+                        <X className="h-4 w-4" />
+                    </Button>
                 </div>
             </div>
 
