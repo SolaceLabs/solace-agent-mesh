@@ -13,3 +13,4 @@ export * from "./MarkdownWrapper";
 export { MessageBanner } from "./MessageBanner";
 export * from "./messageColourVariants";
 export * from "./StreamingMarkdown";
+export { UserTypeahead } from "./UserTypeahead";

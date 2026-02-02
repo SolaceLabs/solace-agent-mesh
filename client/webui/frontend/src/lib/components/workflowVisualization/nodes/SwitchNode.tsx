@@ -14,9 +14,7 @@ const SwitchNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick })
 
     return (
         <div
-            className={`${NODE_BASE_STYLES.SWITCH} ${
-                isSelected ? NODE_SELECTED_CLASS : ""
-            } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
+            className={`${NODE_BASE_STYLES.SWITCH} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,
             }}
@@ -38,15 +36,15 @@ const SwitchNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick })
 
             {/* Case rows */}
             {totalCases > 0 && (
-                <div className="px-4 pb-3 pt-0">
+                <div className="px-4 pt-0 pb-3">
                     <div className="flex flex-col gap-1.5">
                         {cases.map((caseItem: { condition?: string }, index: number) => (
-                            <div key={index} className="flex items-center gap-2 ">
-                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-(--color-secondary-w20) text-xs font-medium text-secondary-foreground dark:border dark:border-(--color-secondary-w80)">
+                            <div key={index} className="flex items-center gap-2">
+                                <span className="text-secondary-foreground flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-(--color-secondary-w20) text-xs font-medium dark:border dark:border-(--color-secondary-w80)">
                                     {index + 1}
                                 </span>
                                 <span
-                                className="block truncate rounded bg-(--color-secondary-w10) dark:bg-(--color-secondary-w80) px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-(--color-secondary-w80)"
+                                    className="text-secondary-foreground block truncate rounded bg-(--color-secondary-w10) px-2 py-1 text-sm dark:border dark:border-(--color-secondary-w80) dark:bg-(--color-secondary-w80)"
                                     title={caseItem.condition}
                                 >
                                     {caseItem.condition || ""}
@@ -55,12 +53,8 @@ const SwitchNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick })
                         ))}
                         {hasDefault && (
                             <div className="flex items-center gap-2">
-                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-(--color-secondary-w20) text-xs font-medium dark:border-(--color-secondary-w80)">
-                                    {cases.length + 1}
-                                </span>
-                                <span className="flex-1 rounded bg-(--color-secondary-w10) dark:bg-(--color-secondary-w80) px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-(--color-secondary-w80)">
-                                    default
-                                </span>
+                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-(--color-secondary-w20) text-xs font-medium dark:border-(--color-secondary-w80)">{cases.length + 1}</span>
+                                <span className="text-secondary-foreground flex-1 rounded bg-(--color-secondary-w10) px-2 py-1 text-sm dark:border dark:border-(--color-secondary-w80) dark:bg-(--color-secondary-w80)">default</span>
                             </div>
                         )}
                     </div>

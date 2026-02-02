@@ -34,7 +34,7 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
         <div
             className={`${NODE_BASE_STYLES.CONDITION_PILL} border border-(--color-secondary-w20) bg-(--color-background-w10) text-(--color-secondary-text-wMain) ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
             style={{
-                width: isDefault ? 'auto' : `${node.width}px`,
+                width: isDefault ? "auto" : `${node.width}px`,
                 height: `${node.height}px`,
             }}
             onClick={e => {
@@ -51,9 +51,7 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
                     <div className="h-4 w-px bg-(--color-secondary-w20) dark:bg-(--color-secondary-w80)" />
                 </>
             )}
-            <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-secondary-foreground">
-                {displayText}
-            </span>
+            <span className="text-secondary-foreground block flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{displayText}</span>
         </div>
     );
 };

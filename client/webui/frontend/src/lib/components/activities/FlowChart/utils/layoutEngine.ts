@@ -31,9 +31,27 @@ const SPACING = {
 };
 
 /**
+ * Helper to resolve agent display name and notify on failure
+ */
+function resolveAgentName(context: BuildContext, agentName: string): string {
+    const displayName = context.agentNameMap[agentName] || agentName;
+
+    // Trigger refetch callback if agent not found in map
+    if (!context.agentNameMap[agentName] && context.onUnknownAgent) {
+        context.onUnknownAgent(agentName);
+    }
+
+    return displayName;
+}
+
+/**
  * Main entry point: Process VisualizerSteps into layout tree
  */
-export function processSteps(steps: VisualizerStep[], agentNameMap: Record<string, string> = {}): LayoutResult {
+export function processSteps(
+    steps: VisualizerStep[],
+    agentNameMap: Record<string, string> = {},
+    onUnknownAgent?: (agentName: string) => void
+): LayoutResult {
     const context: BuildContext = {
         steps,
         stepIndex: 0,
@@ -43,6 +61,7 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         currentAgentNode: null,
         rootNodes: [],
         agentNameMap,
+        onUnknownAgent,
         parallelContainerMap: new Map(),
         currentBranchMap: new Map(),
         hasTopUserNode: false,
@@ -50,6 +69,8 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         parallelPeerGroupMap: new Map(),
         parallelBlockMap: new Map(),
         subWorkflowParentMap: new Map(),
+        workflowFunctionCallIdMap: new Map(),
+        workflowParentTaskFunctionCallIds: new Map(),
     };
 
     // Process all steps to build tree structure
@@ -166,7 +187,7 @@ function handleUserRequest(step: VisualizerStep, context: BuildContext): void {
 
     // Create Agent node
     const agentName = step.target || "Agent";
-    const displayName = context.agentNameMap[agentName] || agentName;
+    const displayName = resolveAgentName(context, agentName);
 
     const agentNode = createNode(
         context,
@@ -328,8 +349,25 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
     const toolName = step.data.toolInvocationStart?.toolName || target;
     const parallelGroupId = step.data.toolInvocationStart?.parallelGroupId;
 
-    // Skip workflow tools (handled separately)
+    // For workflow tools, don't create a node but store the functionCallId mapping
+    // so handleWorkflowStart can use it to find the parallel block
     if (target.includes("workflow_") || toolName.includes("workflow_")) {
+        const functionCallId = step.data.toolInvocationStart?.functionCallId || step.functionCallId;
+        const subTaskId = step.delegationInfo?.[0]?.subTaskId;
+        const parentTaskId = step.owningTaskId; // The parent task that invoked this workflow
+
+        // Store by subTaskId if available (legacy approach)
+        if (subTaskId && functionCallId) {
+            context.workflowFunctionCallIdMap.set(subTaskId, functionCallId);
+        }
+
+        // Also store by parentTaskId for workflows where subTaskId isn't available
+        if (parentTaskId && functionCallId) {
+            if (!context.workflowParentTaskFunctionCallIds.has(parentTaskId)) {
+                context.workflowParentTaskFunctionCallIds.set(parentTaskId, new Set());
+            }
+            context.workflowParentTaskFunctionCallIds.get(parentTaskId)!.add(functionCallId);
+        }
         return;
     }
 
@@ -339,7 +377,7 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
     if (isPeer) {
         // Create nested agent node
         const peerName = target.startsWith("peer_") ? target.substring(5) : target;
-        const displayName = context.agentNameMap[peerName] || peerName;
+        const displayName = resolveAgentName(context, peerName);
 
         const subAgentNode = createNode(
             context,
@@ -518,7 +556,7 @@ function handleAgentResponse(step: VisualizerStep, context: BuildContext): void 
  */
 function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void {
     const workflowName = step.data.workflowExecutionStart?.workflowName || "Workflow";
-    const displayName = context.agentNameMap[workflowName] || workflowName;
+    const displayName = resolveAgentName(context, workflowName);
     const executionId = step.data.workflowExecutionStart?.executionId;
 
     console.log("[handleWorkflowStart] workflowName=", workflowName, "executionId=", executionId, "owningTaskId=", step.owningTaskId, "parentTaskId=", step.parentTaskId);
@@ -569,8 +607,31 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
     groupNode.children.push(startNode);
 
     // Check if this workflow is part of a parallel group
-    const functionCallId = step.functionCallId;
+    // Try multiple approaches to find the functionCallId:
+    // 1. Direct lookup by owningTaskId or executionId (when subTaskId was available)
+    // 2. Lookup by parentTaskId (for workflows where subTaskId wasn't available)
+    // 3. Fall back to step.functionCallId
+    let functionCallId: string | undefined = context.workflowFunctionCallIdMap.get(step.owningTaskId || "") || context.workflowFunctionCallIdMap.get(executionId || "") || step.functionCallId;
     let addedToParallelBlock = false;
+
+    // If not found directly, try to find via parentTaskId
+    if (!functionCallId && step.parentTaskId) {
+        const parentFunctionCallIds = context.workflowParentTaskFunctionCallIds.get(step.parentTaskId);
+        if (parentFunctionCallIds) {
+            // Try each functionCallId to find one that's in a parallel group
+            for (const fcId of parentFunctionCallIds) {
+                for (const [, groupFunctionCallIds] of context.parallelPeerGroupMap.entries()) {
+                    if (groupFunctionCallIds.has(fcId)) {
+                        functionCallId = fcId;
+                        // Remove this functionCallId so it's not used again for another workflow
+                        parentFunctionCallIds.delete(fcId);
+                        break;
+                    }
+                }
+                if (functionCallId) break;
+            }
+        }
+    }
 
     if (functionCallId) {
         // Search through all parallel groups to find if this functionCallId belongs to one

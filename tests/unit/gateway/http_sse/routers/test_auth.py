@@ -349,9 +349,12 @@ class TestInitiateLoginEndpoint:
         """Test that initiate_login uses default config values when not provided"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import initiate_login
 
-        # Arrange: Empty config to use defaults
+        # Arrange: Minimal config with required external_auth_service_url
         mock_request = MagicMock()
-        mock_config = {}
+        mock_config = {
+            'external_auth_service_url': 'http://localhost:8080',
+            'external_auth_callback_uri': 'http://localhost:8000/callback'
+        }
 
         # Act: Call initiate_login
         result = await initiate_login(mock_request, mock_config)
@@ -392,6 +395,7 @@ class TestInitiateLoginEndpoint:
         # Arrange
         mock_request = MagicMock()
         mock_config = {
+            'external_auth_service_url': 'http://localhost:8080',
             'external_auth_callback_uri': 'https://app.example.com/auth/callback?test=1'
         }
 
@@ -413,7 +417,11 @@ class TestInitiateLoginEndpoint:
         providers = ['azure', 'google', 'okta', 'auth0']
 
         for provider in providers:
-            mock_config = {'external_auth_provider': provider}
+            mock_config = {
+                'external_auth_service_url': 'http://localhost:8080',
+                'external_auth_callback_uri': 'http://localhost:8000/callback',
+                'external_auth_provider': provider
+            }
 
             # Act
             result = await initiate_login(mock_request, mock_config)

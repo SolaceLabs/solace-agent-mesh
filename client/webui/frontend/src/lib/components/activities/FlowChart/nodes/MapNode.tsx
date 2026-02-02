@@ -43,7 +43,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
     }, [node]);
 
     const hasChildren = branches.length > 0;
-    const label = 'Map';
+    const label = "Map";
     const colorClass = "border-indigo-400 bg-indigo-50/30 dark:border-indigo-600 dark:bg-indigo-900/20";
     const labelColorClass = "text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50";
     const connectorColor = "bg-indigo-400 dark:bg-indigo-600";
@@ -59,7 +59,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
         };
 
         switch (child.type) {
-            case 'agent':
+            case "agent":
                 return <AgentNode key={child.id} {...childProps} />;
             default:
                 return null;
@@ -70,9 +70,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
     if (hasChildren) {
         return (
             <div
-                className={`relative rounded-lg border-2 border-dashed ${colorClass} ${
-                    isSelected ? "ring-2 ring-blue-500" : ""
-                }`}
+                className={`relative rounded-lg border-2 border-dashed ${colorClass} ${isSelected ? "ring-2 ring-blue-500" : ""}`}
                 style={{
                     minWidth: "200px",
                     position: "relative",
@@ -82,25 +80,15 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <div
-                            className={`absolute -top-3 left-4 px-2 text-xs font-bold bg-gray-50 dark:bg-gray-900 rounded-md border flex items-center gap-1.5 cursor-pointer transition-colors ${labelColorClass}`}
-                            onClick={(e) => {
+                            className={`absolute -top-3 left-4 flex cursor-pointer items-center gap-1.5 rounded-md border bg-gray-50 px-2 text-xs font-bold transition-colors dark:bg-gray-900 ${labelColorClass}`}
+                            onClick={e => {
                                 e.stopPropagation();
                                 onClick?.(node);
                             }}
                         >
                             {/* Parallel/Branch Icon */}
-                            <svg
-                                className="w-3 h-3"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                                />
+                            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                             </svg>
                             {node.data.label || label}
                         </div>
@@ -109,7 +97,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                 </Tooltip>
 
                 {/* Parallel branches displayed side-by-side */}
-                <div className="p-4 pt-3 flex flex-row items-start gap-4">
+                <div className="flex flex-row items-start gap-4 p-4 pt-3">
                     {branches.map((branch, branchIndex) => (
                         <div key={`branch-${branchIndex}`} className="flex flex-col items-center">
                             {/* Branch children */}
@@ -117,9 +105,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                                 <Fragment key={child.id}>
                                     {renderChild(child)}
                                     {/* Connector line to next child in same branch */}
-                                    {childIndex < branch.length - 1 && (
-                                        <div className={`w-0.5 h-4 ${connectorColor} my-1`} />
-                                    )}
+                                    {childIndex < branch.length - 1 && <div className={`h-4 w-0.5 ${connectorColor} my-1`} />}
                                 </Fragment>
                             ))}
                         </div>
@@ -136,39 +122,27 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
         <Tooltip>
             <TooltipTrigger asChild>
                 <div
-                    className="relative flex items-center justify-center cursor-pointer"
+                    className="relative flex cursor-pointer items-center justify-center"
                     style={{ width: `${node.width}px`, height: `${node.height}px` }}
-                    onClick={(e) => {
+                    onClick={e => {
                         e.stopPropagation();
                         onClick?.(node);
                     }}
                 >
                     {/* Stadium/Pill shape */}
                     <div
-                        className={`relative w-20 h-10 rounded-full border-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md flex items-center justify-center ${getStatusColor()} ${
+                        className={`relative flex h-10 w-20 items-center justify-center rounded-full border-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${getStatusColor()} ${
                             isSelected ? "ring-2 ring-blue-500" : ""
                         }`}
                     >
                         {/* Parallel Icon */}
-                        <svg
-                            className="absolute -top-1 -right-1 w-4 h-4 text-indigo-600 dark:text-indigo-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                            />
+                        <svg className="absolute -top-1 -right-1 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                         </svg>
 
                         {/* Content */}
-                        <div className="flex flex-col items-center justify-center text-center pointer-events-none">
-                            <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200">
-                                {node.data.label || label}
-                            </div>
+                        <div className="pointer-events-none flex flex-col items-center justify-center text-center">
+                            <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200">{node.data.label || label}</div>
                         </div>
                     </div>
                 </div>

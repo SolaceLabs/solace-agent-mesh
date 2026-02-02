@@ -100,6 +100,9 @@ export interface BuildContext {
     // Agent name display map
     agentNameMap: Record<string, string>;
 
+    // Callback when agent display name lookup fails
+    onUnknownAgent?: (agentName: string) => void;
+
     // Map workflow nodeId to Map/Fork node for parallel branch tracking
     parallelContainerMap: Map<string, LayoutNode>;
 
@@ -120,6 +123,14 @@ export interface BuildContext {
     // Track sub-workflow -> parent group relationships (for workflow node types)
     // Maps subTaskId -> parent workflow group node
     subWorkflowParentMap: Map<string, LayoutNode>;
+
+    // Track workflow tool invocations to their functionCallIds
+    // Maps subTaskId -> functionCallId (for finding parallel blocks)
+    workflowFunctionCallIdMap: Map<string, string>;
+
+    // Track workflow functionCallIds by their parent task
+    // Maps parentTaskId -> Set of workflow functionCallIds
+    workflowParentTaskFunctionCallIds: Map<string, Set<string>>;
 }
 
 /**
