@@ -11,9 +11,7 @@ const AgentNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) 
 
     return (
         <div
-            className={`${NODE_BASE_STYLES.RECTANGULAR} ${
-                isSelected ? NODE_SELECTED_CLASS : ""
-            } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
+            className={`${NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,
                 height: `${node.height}px`,
@@ -27,9 +25,7 @@ const AgentNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) 
                 <Bot className="h-5 w-5 flex-shrink-0 text-(--color-brand-wMain)" />
                 <span className="truncate text-sm font-semibold">{agentName}</span>
             </div>
-            <span className="ml-2 flex-shrink-0 rounded px-2 py-0.5 text-sm font-medium text-secondary-foreground">
-                Agent
-            </span>
+            <span className="text-secondary-foreground ml-2 flex-shrink-0 rounded px-2 py-0.5 text-sm font-medium">Agent</span>
         </div>
     );
 };

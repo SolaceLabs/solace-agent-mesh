@@ -419,7 +419,7 @@ const getChatBubble = (
 
     // Debug logging for error messages
     if (message.isError) {
-        console.log('[ChatMessage] Error message debug:', {
+        console.log("[ChatMessage] Error message debug:", {
             isUser: message.isUser,
             isComplete: message.isComplete,
             taskId: message.taskId,

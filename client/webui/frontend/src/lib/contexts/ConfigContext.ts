@@ -65,6 +65,12 @@ export interface ConfigContextValue {
      * Requires persistence to be enabled.
      */
     autoTitleGenerationEnabled?: boolean;
+
+    /**
+     * Whether Identity Service is configured.
+     * When null, Identity Service is not configured.
+     */
+    identityServiceType: string | null;
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);

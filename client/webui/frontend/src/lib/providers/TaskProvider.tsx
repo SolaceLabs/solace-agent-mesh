@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 // Helper to strip gateway timestamp prefix from request text
 const stripGatewayTimestamp = (text: string): string => {
     const gatewayTimestampPattern = /^Request received by gateway at:[^\n]*\n?/;
-    return text.replace(gatewayTimestampPattern, '').trim();
+    return text.replace(gatewayTimestampPattern, "").trim();
 };
 
 interface SubscriptionResponse {

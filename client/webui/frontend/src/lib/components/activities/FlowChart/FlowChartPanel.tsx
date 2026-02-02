@@ -13,6 +13,9 @@ import PanZoomCanvas, { type PanZoomCanvasRef } from "./PanZoomCanvas";
 // Approximate width of the right side panel when visible
 const RIGHT_PANEL_WIDTH = 400;
 
+// Track which agents we've already refetched to avoid redundant calls
+const refetchedAgents = new Set<string>();
+
 interface FlowChartPanelProps {
     processedSteps: VisualizerStep[];
     isRightPanelVisible?: boolean;
@@ -21,7 +24,19 @@ interface FlowChartPanelProps {
 
 const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowChartPanelProps) => {
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
-    const { agentNameMap } = useAgentCards();
+    const { agentNameMap, refetch: refetchAgents } = useAgentCards();
+
+    // Callback for when agent name resolution fails
+    const handleUnknownAgent = useCallback(
+        (agentName: string) => {
+            if (!refetchedAgents.has(agentName)) {
+                console.log("[FlowChart] Unknown agent detected, triggering refetch:", agentName);
+                refetchedAgents.add(agentName);
+                refetchAgents();
+            }
+        },
+        [refetchAgents]
+    );
 
     // Dialog state
     const [selectedNodeDetails, setSelectedNodeDetails] = useState<NodeDetails | null>(null);
@@ -225,7 +240,15 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
                     onClick={handlePaneClick}
                 >
                     <div ref={contentRef} style={{ width: "fit-content" }}>
-                        <WorkflowRenderer processedSteps={processedSteps} agentNameMap={agentNameMap} selectedStepId={highlightedStepId} onNodeClick={handleNodeClick} onEdgeClick={handleEdgeClick} showDetail={showDetail} />
+                        <WorkflowRenderer
+                            processedSteps={processedSteps}
+                            agentNameMap={agentNameMap}
+                            selectedStepId={highlightedStepId}
+                            onNodeClick={handleNodeClick}
+                            onEdgeClick={handleEdgeClick}
+                            showDetail={showDetail}
+                            onUnknownAgent={handleUnknownAgent}
+                        />
                     </div>
                 </div>
             </PanZoomCanvas>
