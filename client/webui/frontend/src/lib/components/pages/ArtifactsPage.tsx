@@ -1,12 +1,39 @@
 import React, { useState, useMemo, useCallback, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation } from "lucide-react";
-import { Button, Input, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Spinner, Card, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen } from "lucide-react";
+import {
+    Button,
+    Input,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+    Spinner,
+    Card,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/lib/components/ui";
 import { useAllArtifacts, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn } from "@/lib/utils";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
+import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
+
+// Cache for document content to avoid re-fetching on subsequent renders
+const documentContentCache = new Map<string, string>();
+
+// Generate cache key for document content
+const getDocumentCacheKey = (sessionId: string, filename: string): string => {
+    return `${sessionId}:${filename}`;
+};
 
 // Extended artifact type with session info
 interface ArtifactWithSession {
@@ -21,7 +48,22 @@ interface ArtifactWithSession {
     source?: string;
     sessionId: string;
     sessionName: string | null;
+    projectId?: string;
+    projectName?: string | null;
 }
+
+// Helper to check if artifact is a project artifact
+const isProjectArtifact = (artifact: ArtifactWithSession): boolean => {
+    return artifact.sessionId.startsWith("project:") || artifact.source === "project";
+};
+
+// Helper to get the correct API URL for an artifact
+const getArtifactApiUrl = (artifact: ArtifactWithSession): string => {
+    if (isProjectArtifact(artifact) && artifact.projectId) {
+        return `/api/v1/projects/${artifact.projectId}/artifacts/${encodeURIComponent(artifact.filename)}`;
+    }
+    return `/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
+};
 
 /**
  * Format file size in human-readable format
@@ -166,10 +208,11 @@ interface ArtifactGridCardProps {
     onDelete: (artifact: ArtifactWithSession) => void;
     onPreview: (artifact: ArtifactWithSession) => void;
     onGoToChat: (artifact: ArtifactWithSession) => void;
+    onGoToProject: (artifact: ArtifactWithSession) => void;
     isSelected?: boolean;
 }
 
-const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownload, onDelete, onPreview, onGoToChat, isSelected }) => {
+const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected }) => {
     const origin = getArtifactOrigin(artifact);
     const config = useContext(ConfigContext);
     const [contentPreview, setContentPreview] = useState<string | null>(null);
@@ -192,19 +235,31 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
     // Load content preview for text files, image thumbnail, or document thumbnail
     useEffect(() => {
         const loadPreview = async () => {
+            // Get the correct API URL for this artifact (handles both session and project artifacts)
+            const artifactApiUrl = getArtifactApiUrl(artifact);
+
             if (isImageType(artifact.mime_type)) {
                 // For images, create a thumbnail URL
                 try {
-                    const url = api.webui.getFullUrl(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`);
+                    const url = api.webui.getFullUrl(artifactApiUrl);
                     setImagePreviewUrl(url);
                 } catch (error) {
                     console.error("Error creating image preview URL:", error);
                 }
             } else if (canAttemptDocumentThumbnail && !documentThumbnailFailed) {
-                // For PDF, DOCX, PPTX, etc. - fetch content for thumbnail
+                // For PDF, DOCX, PPTX, etc. - check cache first, then fetch content for thumbnail
+                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+                const cachedContent = documentContentCache.get(cacheKey);
+
+                if (cachedContent) {
+                    // Use cached content
+                    setDocumentContent(cachedContent);
+                    return;
+                }
+
                 setIsLoadingPreview(true);
                 try {
-                    const response = await api.webui.get(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`, { fullResponse: true });
+                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
                     const blob = await response.blob();
                     const base64data = await new Promise<string>((resolve, reject) => {
                         const reader = new FileReader();
@@ -220,6 +275,8 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                         };
                         reader.readAsDataURL(blob);
                     });
+                    // Cache the content for future renders
+                    documentContentCache.set(cacheKey, base64data);
                     setDocumentContent(base64data);
                 } catch (error) {
                     console.error("Error loading document content for thumbnail:", error);
@@ -231,7 +288,7 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                 // Only load preview for text files under 50KB
                 setIsLoadingPreview(true);
                 try {
-                    const response = await api.webui.get(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`, { fullResponse: true });
+                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
                     const text = await response.text();
                     // Get first 8 lines for preview (increased from 4), max 60 chars per line
                     const lines = text.split("\n").slice(0, 8);
@@ -252,7 +309,7 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
         };
 
         loadPreview();
-    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.size, canAttemptDocumentThumbnail, documentThumbnailFailed]);
+    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.size, artifact.projectId, canAttemptDocumentThumbnail, documentThumbnailFailed]);
 
     // Handle document thumbnail error - fall back to icon
     const handleDocumentThumbnailError = useCallback(() => {
@@ -285,11 +342,14 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
             tabIndex={0}
             noPadding
         >
-            {/* Header with filename and menu */}
+            {/* Header with filename, project badge, and menu */}
             <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
-                <h3 className="min-w-0 flex-1 truncate text-sm font-semibold" title={artifact.filename}>
-                    {artifact.filename}
-                </h3>
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <h3 className="min-w-0 flex-1 truncate text-sm font-semibold" title={artifact.filename}>
+                        {artifact.filename}
+                    </h3>
+                    {artifact.projectName && <ProjectBadge text={artifact.projectName} className="flex-shrink-0" />}
+                </div>
                 <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                     <DropdownMenuTrigger asChild>
                         <Button
@@ -305,16 +365,29 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48" onClick={e => e.stopPropagation()}>
-                        <DropdownMenuItem
-                            onClick={e => {
-                                e.stopPropagation();
-                                setDropdownOpen(false);
-                                onGoToChat(artifact);
-                            }}
-                        >
-                            <MessageCircle size={14} className="mr-2" />
-                            Go to Chat
-                        </DropdownMenuItem>
+                        {isProjectArtifact(artifact) ? (
+                            <DropdownMenuItem
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    setDropdownOpen(false);
+                                    onGoToProject(artifact);
+                                }}
+                            >
+                                <FolderOpen size={14} className="mr-2" />
+                                Go to Project
+                            </DropdownMenuItem>
+                        ) : (
+                            <DropdownMenuItem
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    setDropdownOpen(false);
+                                    onGoToChat(artifact);
+                                }}
+                            >
+                                <MessageCircle size={14} className="mr-2" />
+                                Go to Chat
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             onClick={e => {
@@ -332,7 +405,6 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                                 setDropdownOpen(false);
                                 onDelete(artifact);
                             }}
-                            className="text-red-600 focus:text-red-600 dark:text-red-500 dark:focus:text-red-500"
                         >
                             <Trash2 size={14} className="mr-2" />
                             Delete
@@ -406,7 +478,8 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                     <span className="text-muted-foreground text-xs">{formatFileSize(artifact.size)}</span>
                     <span className="text-muted-foreground text-xs">•</span>
                     <span className="text-muted-foreground text-xs">{formatTimestamp(artifact.last_modified)}</span>
-                    {origin && <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${origin.color}`}>{origin.label}</span>}
+                    {/* Only show origin badge for non-project artifacts (project badge is shown in header) */}
+                    {origin && origin.label !== "Project" && <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${origin.color}`}>{origin.label}</span>}
                 </div>
                 {/* Extension badge */}
                 <span className={cn("rounded px-2 py-0.5 text-[10px] font-bold", getExtensionBadgeStyle(artifact.filename))}>
@@ -422,20 +495,57 @@ export const ArtifactsPage: React.FC = () => {
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
     const { artifacts, isLoading, refetch } = useAllArtifacts();
     const [searchQuery, setSearchQuery] = useState<string>("");
+    const [selectedProject, setSelectedProject] = useState<string>("all");
 
-    // Filter artifacts by search query
-    const filteredArtifacts = useMemo(() => {
-        if (!searchQuery.trim()) {
-            return artifacts;
-        }
-        const query = searchQuery.toLowerCase().trim();
-        return artifacts.filter(artifact => {
-            const filename = artifact.filename.toLowerCase();
-            const mimeType = artifact.mime_type.toLowerCase();
-            const sessionName = artifact.sessionName?.toLowerCase() || "";
-            return filename.includes(query) || mimeType.includes(query) || sessionName.includes(query);
+    // Get unique project names from artifacts, sorted alphabetically
+    const projectNames = useMemo(() => {
+        const uniqueProjectNames = new Set<string>();
+        let hasUnassignedArtifacts = false;
+
+        artifacts.forEach(artifact => {
+            if (artifact.projectName) {
+                uniqueProjectNames.add(artifact.projectName);
+            } else {
+                hasUnassignedArtifacts = true;
+            }
         });
-    }, [artifacts, searchQuery]);
+
+        const sortedNames = Array.from(uniqueProjectNames).sort((a, b) => a.localeCompare(b));
+
+        if (hasUnassignedArtifacts) {
+            sortedNames.unshift("(No Project)");
+        }
+
+        return sortedNames;
+    }, [artifacts]);
+
+    // Filter artifacts by project and search query
+    const filteredArtifacts = useMemo(() => {
+        let filtered = artifacts;
+
+        // Filter by project
+        if (selectedProject !== "all") {
+            if (selectedProject === "(No Project)") {
+                filtered = filtered.filter(artifact => !artifact.projectName);
+            } else {
+                filtered = filtered.filter(artifact => artifact.projectName === selectedProject);
+            }
+        }
+
+        // Filter by search query
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(artifact => {
+                const filename = artifact.filename.toLowerCase();
+                const mimeType = artifact.mime_type.toLowerCase();
+                const sessionName = artifact.sessionName?.toLowerCase() || "";
+                const projectName = artifact.projectName?.toLowerCase() || "";
+                return filename.includes(query) || mimeType.includes(query) || sessionName.includes(query) || projectName.includes(query);
+            });
+        }
+
+        return filtered;
+    }, [artifacts, selectedProject, searchQuery]);
 
     const handleDownload = useCallback(
         async (artifact: ArtifactWithSession) => {
@@ -538,26 +648,58 @@ export const ArtifactsPage: React.FC = () => {
         [navigate, handleSwitchSession]
     );
 
+    const handleGoToProject = useCallback(
+        (artifact: ArtifactWithSession) => {
+            // Navigate to the project page
+            if (artifact.projectId) {
+                navigate(`/projects/${artifact.projectId}`);
+            }
+        },
+        [navigate]
+    );
+
     return (
         <div className="flex h-full flex-col">
             <div className="flex items-center justify-between border-b px-6 py-4">
                 <div>
                     <h1 className="text-foreground text-xl font-semibold">Artifacts</h1>
-                    <p className="text-muted-foreground mt-1 text-sm">View and manage all your files and artifacts across all chat sessions</p>
+                    <p className="text-muted-foreground mt-1 text-sm">View and manage all your files and artifacts across chat sessions and projects</p>
                 </div>
             </div>
 
             <div className="flex h-full flex-col gap-4 py-6 pl-6">
-                {/* Search Input */}
+                {/* Search and Project Filter on same line */}
                 <div className="flex items-center gap-4 pr-4">
+                    {/* Search Input */}
                     <div className="relative w-64">
                         <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
                         <Input type="text" placeholder="Search artifacts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
                     </div>
+
+                    {/* Project Filter - Only show when there are projects */}
+                    {projectNames.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-medium whitespace-nowrap">Project:</label>
+                            <Select value={selectedProject} onValueChange={setSelectedProject}>
+                                <SelectTrigger className="w-40 rounded-md">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Artifacts</SelectItem>
+                                    {projectNames.map(projectName => (
+                                        <SelectItem key={projectName} value={projectName}>
+                                            {projectName}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
                     {!isLoading && artifacts.length > 0 && (
                         <span className="text-muted-foreground text-sm">
                             {filteredArtifacts.length} artifact{filteredArtifacts.length !== 1 ? "s" : ""}
-                            {searchQuery && filteredArtifacts.length !== artifacts.length && ` (of ${artifacts.length})`}
+                            {(searchQuery || selectedProject !== "all") && filteredArtifacts.length !== artifacts.length && ` (of ${artifacts.length})`}
                         </span>
                     )}
                 </div>
@@ -579,6 +721,7 @@ export const ArtifactsPage: React.FC = () => {
                                     onDelete={handleDelete}
                                     onPreview={handlePreview}
                                     onGoToChat={handleGoToChat}
+                                    onGoToProject={handleGoToProject}
                                 />
                             ))}
                         </div>
@@ -587,7 +730,7 @@ export const ArtifactsPage: React.FC = () => {
                     {!isLoading && filteredArtifacts.length === 0 && artifacts.length > 0 && (
                         <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
                             <File className="mx-auto mb-4 h-12 w-12" />
-                            No artifacts found matching your search
+                            No artifacts found matching your {searchQuery && selectedProject !== "all" ? "search and filter" : searchQuery ? "search" : "filter"}
                         </div>
                     )}
 

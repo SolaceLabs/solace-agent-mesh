@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
-import type { ArtifactInfo, Session } from "@/lib/types";
+import type { ArtifactInfo, Session, Project } from "@/lib/types";
 
 interface ArtifactWithSession extends ArtifactInfo {
     sessionId: string;
     sessionName: string | null;
+    projectId?: string;
+    projectName?: string | null;
 }
 
 interface UseAllArtifactsReturn {
@@ -36,9 +38,14 @@ const isIntermediateWebContentArtifact = (filename: string | undefined): boolean
     return filename.startsWith("web_content_");
 };
 
+interface ProjectsResponse {
+    projects: Project[];
+    total: number;
+}
+
 /**
- * Hook to fetch all artifacts across all sessions.
- * This aggregates artifacts from multiple sessions into a single list.
+ * Hook to fetch all artifacts across all sessions and projects.
+ * This aggregates artifacts from multiple sessions and projects into a single list.
  */
 export const useAllArtifacts = (): UseAllArtifactsReturn => {
     const [artifacts, setArtifacts] = useState<ArtifactWithSession[]>([]);
@@ -50,51 +57,110 @@ export const useAllArtifacts = (): UseAllArtifactsReturn => {
         setError(null);
 
         try {
-            // First, fetch all sessions (paginated)
-            const allSessions: Session[] = [];
-            let pageNumber = 1;
-            let hasMore = true;
-
-            while (hasMore) {
-                const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=50`);
-                allSessions.push(...result.data);
-                hasMore = result.meta.pagination.nextPage !== null;
-                pageNumber++;
-
-                // Safety limit to prevent infinite loops
-                if (pageNumber > 100) break;
-            }
-
-            // Now fetch artifacts for each session in parallel (with concurrency limit)
             const allArtifacts: ArtifactWithSession[] = [];
             const concurrencyLimit = 5;
 
-            for (let i = 0; i < allSessions.length; i += concurrencyLimit) {
-                const batch = allSessions.slice(i, i + concurrencyLimit);
-                const batchResults = await Promise.allSettled(
-                    batch.map(async session => {
-                        try {
-                            const sessionArtifacts: ArtifactInfo[] = await api.webui.get(`/api/v1/artifacts/${session.id}`);
-                            // Filter out intermediate artifacts and add session info
-                            return sessionArtifacts
-                                .filter(artifact => !isIntermediateWebContentArtifact(artifact.filename))
-                                .map(artifact => ({
-                                    ...artifact,
-                                    sessionId: session.id,
-                                    sessionName: session.name,
-                                    uri: artifact.uri || `artifact://${session.id}/${artifact.filename}`,
-                                }));
-                        } catch {
-                            // Session might not have artifacts or might have been deleted
-                            return [];
-                        }
-                    })
-                );
+            // Fetch all sessions (paginated) and all projects in parallel
+            const [sessionsPromise, projectsPromise] = await Promise.allSettled([
+                (async () => {
+                    const allSessions: Session[] = [];
+                    let pageNumber = 1;
+                    let hasMore = true;
 
-                // Collect successful results
-                for (const result of batchResults) {
-                    if (result.status === "fulfilled") {
-                        allArtifacts.push(...result.value);
+                    while (hasMore) {
+                        const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=50`);
+                        allSessions.push(...result.data);
+                        hasMore = result.meta.pagination.nextPage !== null;
+                        pageNumber++;
+
+                        // Safety limit to prevent infinite loops
+                        if (pageNumber > 100) break;
+                    }
+                    return allSessions;
+                })(),
+                api.webui.get<ProjectsResponse>("/api/v1/projects?include_artifact_count=true"),
+            ]);
+
+            // Process session artifacts
+            if (sessionsPromise.status === "fulfilled") {
+                const allSessions = sessionsPromise.value;
+
+                for (let i = 0; i < allSessions.length; i += concurrencyLimit) {
+                    const batch = allSessions.slice(i, i + concurrencyLimit);
+                    const batchResults = await Promise.allSettled(
+                        batch.map(async session => {
+                            try {
+                                const sessionArtifacts: ArtifactInfo[] = await api.webui.get(`/api/v1/artifacts/${session.id}`);
+                                // Filter out intermediate artifacts and add session info
+                                return sessionArtifacts
+                                    .filter(artifact => !isIntermediateWebContentArtifact(artifact.filename))
+                                    .map(artifact => ({
+                                        ...artifact,
+                                        sessionId: session.id,
+                                        sessionName: session.name,
+                                        uri: artifact.uri || `artifact://${session.id}/${artifact.filename}`,
+                                    }));
+                            } catch {
+                                // Session might not have artifacts or might have been deleted
+                                return [];
+                            }
+                        })
+                    );
+
+                    // Collect successful results
+                    for (const result of batchResults) {
+                        if (result.status === "fulfilled") {
+                            allArtifacts.push(...result.value);
+                        }
+                    }
+                }
+            }
+
+            // Process project artifacts
+            if (projectsPromise.status === "fulfilled") {
+                const allProjects = projectsPromise.value.projects;
+
+                // Track which artifacts we've already added from sessions to avoid duplicates
+                const sessionArtifactKeys = new Set(allArtifacts.map(a => `${a.sessionId}:${a.filename}`));
+
+                for (let i = 0; i < allProjects.length; i += concurrencyLimit) {
+                    const batch = allProjects.slice(i, i + concurrencyLimit);
+                    const batchResults = await Promise.allSettled(
+                        batch.map(async project => {
+                            try {
+                                const projectArtifacts: ArtifactInfo[] = await api.webui.get(`/api/v1/projects/${project.id}/artifacts`);
+                                // Filter out intermediate artifacts and add project info
+                                return projectArtifacts
+                                    .filter(artifact => !isIntermediateWebContentArtifact(artifact.filename))
+                                    .map(artifact => ({
+                                        ...artifact,
+                                        // Project artifacts don't have a session, use project ID as a pseudo-session
+                                        sessionId: `project:${project.id}`,
+                                        sessionName: null,
+                                        projectId: project.id,
+                                        projectName: project.name,
+                                        source: artifact.source || "project",
+                                        uri: artifact.uri || `artifact://project:${project.id}/${artifact.filename}`,
+                                    }));
+                            } catch {
+                                // Project might not have artifacts or might have been deleted
+                                return [];
+                            }
+                        })
+                    );
+
+                    // Collect successful results, avoiding duplicates
+                    for (const result of batchResults) {
+                        if (result.status === "fulfilled") {
+                            for (const artifact of result.value) {
+                                // Only add if not already present from a session
+                                const key = `${artifact.sessionId}:${artifact.filename}`;
+                                if (!sessionArtifactKeys.has(key)) {
+                                    allArtifacts.push(artifact);
+                                    sessionArtifactKeys.add(key);
+                                }
+                            }
+                        }
                     }
                 }
             }
