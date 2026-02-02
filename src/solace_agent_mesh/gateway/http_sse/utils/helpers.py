@@ -2,20 +2,6 @@
 Common helper utilities for the HTTP SSE Gateway.
 """
 
-
-def bytes_to_mb(size_bytes: int) -> float:
-    """
-    Convert bytes to megabytes.
-
-    Args:
-        size_bytes: Size in bytes
-
-    Returns:
-        Size in megabytes (MB)
-    """
-    return size_bytes / (1024 * 1024)
-
-
 def sanitize_log_input(value: str) -> str:
     """
     Sanitize user input for logging to prevent log injection (CWE-117).

@@ -97,12 +97,12 @@ export function validateFileSizes(files: FileList | File[], options: FileSizeVal
 /**
  * Calculates the total size of multiple files in bytes.
  *
- * @param files - FileList or array of Files
+ * @param files - Some list of Files, or Array of objects with size property
  * @returns Total size in bytes
  */
-export function calculateTotalFileSize(files: FileList | File[] | Array<{ size?: number }>): number {
-    const fileArray = Array.isArray(files) ? files : Array.from(files);
-    return fileArray.reduce((sum, file) => sum + (file.size || 0), 0);
+export function calculateTotalFileSize(files: FileList | File[] | Array<{ size: number }>): number {
+    const fileArray: Array<{ size: number }> = Array.isArray(files) ? files : Array.from(files);
+    return fileArray.reduce((sum, file) => sum + file.size, 0);
 }
 
 /**
