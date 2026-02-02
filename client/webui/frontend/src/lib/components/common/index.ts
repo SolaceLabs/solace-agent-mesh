@@ -1,5 +1,7 @@
 export { ConfirmationDialog } from "./ConfirmationDialog";
 export { EmptyState } from "./EmptyState";
+export { OnboardingBanner } from "./OnboardingBanner";
+export { OnboardingView } from "./OnboardingView";
 export { ErrorDialog } from "./ErrorDialog";
 export { ErrorLabel } from "./ErrorLabel";
 export { FileUpload } from "./FileUpload";
@@ -11,3 +13,4 @@ export * from "./MarkdownWrapper";
 export { MessageBanner } from "./MessageBanner";
 export * from "./messageColourVariants";
 export * from "./StreamingMarkdown";
+export { UserTypeahead } from "./UserTypeahead";

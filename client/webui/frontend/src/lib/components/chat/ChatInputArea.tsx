@@ -980,11 +980,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         <SelectValue placeholder="Select an agent..." />
                     </SelectTrigger>
                     <SelectContent>
-                        {agents.map(agent => (
-                            <SelectItem key={agent.name} value={agent.name}>
-                                {agent.displayName || agent.name}
-                            </SelectItem>
-                        ))}
+                        {agents
+                            .filter(agent => !agent.isWorkflow)
+                            .map(agent => (
+                                <SelectItem key={agent.name} value={agent.name}>
+                                    {agent.displayName || agent.name}
+                                </SelectItem>
+                            ))}
                     </SelectContent>
                 </Select>
 

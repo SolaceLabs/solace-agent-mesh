@@ -38,7 +38,7 @@ export interface ChatState {
     ragEnabled: boolean;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "workflow" | "rag";
+    activeSidePanelTab: "files" | "activity" | "rag";
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -78,8 +78,8 @@ export interface ChatActions {
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow" | "rag">>;
-    openSidePanelTab: (tab: "files" | "workflow" | "rag") => void;
+    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "activity" | "rag">>;
+    openSidePanelTab: (tab: "files" | "activity" | "rag") => void;
 
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;

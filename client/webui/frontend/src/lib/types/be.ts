@@ -3,6 +3,7 @@
 
 import type {
     AgentCard,
+    AgentCapabilities,
     AgentExtension,
     AgentProvider,
     AgentSkill,
@@ -31,6 +32,7 @@ import type {
 // Re-export all the necessary types from the SDK.
 export type {
     AgentCard,
+    AgentCapabilities,
     AgentExtension,
     AgentProvider,
     AgentSkill,
