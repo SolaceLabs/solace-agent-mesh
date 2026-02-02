@@ -658,6 +658,10 @@ If artifacts are not flowing correctly:
 3. Ensure that the artifact URIs are correctly formatted.
 4. Check the proxy logs for artifact save/load errors.
 
+### Strands SDK Streaming Issues
+
+If streaming responses from Strands SDK agents appear as status updates instead of chat content, the agent may be using legacy streaming mode. Strands agents require the `enable_a2a_compliant_streaming` option to be enabled on their `A2AServer` instance to properly send streaming content. See the [Strands A2AServer documentation](https://strandsagents.com/latest/documentation/docs/api-reference/python/multiagent/a2a/server/?h=enable_a2a_compliant_streaming#strands.multiagent.a2a.server.A2AServer.__init__) for details.
+
 ### Issues Running A2A Samples with `Containerfile`
 
 If you encounter a `ValueError: Invalid context_id: ... is not a valid UUID.` when running A2A samples using a `Containerfile`, it may be due to outdated dependencies in the `uv.lock` file. This can happen if the sample is pinned to an older version of the `a2a-sdk` package. For more details, see [this GitHub issue](https://github.com/a2aproject/a2a-samples/issues/399).

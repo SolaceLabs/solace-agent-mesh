@@ -178,7 +178,15 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     )
     agent_card_path: str = Field(
         default="/.well-known/agent-card.json",
-        description="Path to the agent card endpoint (relative to the base URL).",
+        description="Path to the agent card endpoint (relative to the base URL). "
+        "Only used when agent_card_data is not provided.",
+    )
+    agent_card_data: Optional[dict] = Field(
+        default=None,
+        description="Static agent card data embedded directly in configuration. "
+        "If provided, the agent card will be constructed from this data instead of "
+        "being fetched from the agent card endpoint. This allows proxying agents without "
+        "agent card endpoints.",
     )
     authentication: Optional[AuthenticationConfig] = Field(
         default=None,
@@ -208,6 +216,12 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         "the middleware level using the security scheme name from the agent card, so "
         "task_headers cannot override authentication headers. For custom authentication, "
         "omit the 'authentication' config and use task_headers to set auth headers directly.",
+    )
+    convert_progress_updates: bool = Field(
+        default=True,
+        description="If true, converts TextPart messages in intermediate TaskStatusUpdateEvents "
+        "to AgentProgressUpdateData (shown as status updates in the UI). If false, passes TextPart "
+        "messages through unchanged."
     )
 
 
