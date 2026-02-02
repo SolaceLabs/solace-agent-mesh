@@ -25,7 +25,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick,
             {icon}
             <span>{label}</span>
             {badgeLabel && (
-                <Badge variant="outline" className="ml-auto h-4 pt-1 text-[8px] leading-none uppercase dark:bg-(--color-secondary-w80) dark:text-(--color-secondary-text-w10)">
+                <Badge variant="outline" className="bg-secondary text-secondary-foreground ml-auto h-4 pt-1 text-[8px] leading-none uppercase">
                     {badgeLabel}
                 </Badge>
             )}
