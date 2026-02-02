@@ -172,7 +172,7 @@ export const SpeechSettingsPanel: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-10">
             {/* Speech-to-Text Section */}
             {sttEnabled && (
                 <div className="space-y-4">
