@@ -238,7 +238,7 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     display_name: Optional[str] = Field(
         default=None,
         description="Display name for this agent shown in UI. If not provided, uses fetched card's name. "
-        "Stored in agent card's display-name extension (https://solace.com/a2a/extensions/display-name).",
+                    "Stored in agent card's display-name extension (https://solace.com/a2a/extensions/display-name).",
     )
 
     @model_validator(mode="after")
