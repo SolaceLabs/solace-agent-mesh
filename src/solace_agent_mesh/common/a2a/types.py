@@ -2,7 +2,7 @@
 Custom type aliases for the A2A helper layer.
 """
 
-from typing import Union, Optional, Dict, Any
+from typing import Union, Optional, Dict, Any, List
 from a2a.types import TextPart, DataPart, FilePart, AgentSkill
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
@@ -45,6 +45,7 @@ class ArtifactInfo(BaseModel):
     version: Optional[Union[int, str]] = None
     version_count: Optional[int] = None
     source: Optional[str] = None  # Optional: Source of the artifact (e.g., "project")
+    tags: Optional[List[str]] = None  # Optional: Tags for categorization (e.g., ["__internal"])
 
     model_config = ConfigDict(populate_by_name=True)
 

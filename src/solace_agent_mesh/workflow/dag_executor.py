@@ -31,6 +31,7 @@ from ..common.data_parts import (
     ArtifactRef,
 )
 from ..agent.utils.artifact_helpers import save_artifact_with_metadata
+from ..common.constants import ARTIFACT_TAG_INTERNAL
 
 if TYPE_CHECKING:
     from .component import WorkflowExecutorComponent
@@ -1316,6 +1317,7 @@ class DAGExecutor:
                 "node_id": map_node_id,
             },
             timestamp=datetime.now(timezone.utc),
+            tags=[ARTIFACT_TAG_INTERNAL],
         )
 
         # Publish result event

@@ -29,9 +29,13 @@ export interface ChatState {
     agentNameDisplayNameMap: Record<string, string>;
     // Chat Side Panel State
     artifacts: ArtifactInfo[];
+    allArtifacts: ArtifactInfo[];
     artifactsLoading: boolean;
     artifactsRefetch: () => Promise<void>;
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
+    showInternalArtifacts: boolean;
+    toggleShowInternalArtifacts: () => void;
+    internalArtifactCount: number;
     taskIdInSidePanel: string | null;
     // RAG State
     ragData: RAGSearchResult[];

@@ -176,14 +176,16 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     const restingShadow = isDarkMode ? "0px 1px 4px 0px var(--color-primary-w90)" : "0px 1px 4px 0px var(--color-secondary-w8040)";
     const hoverShadow = isDarkMode ? "0px 2px 8px 0px var(--color-primary-w90)" : "0px 2px 8px 0px var(--color-secondary-w8040)";
 
-    // Determine if this artifact is clickable
+    // Determine if this artifact is clickable (not deleted - hidden artifacts are still clickable)
     const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
-    // Show shadow for all artifacts in chat context (not deleted), but only enable hover for clickable ones
+    // Show shadow for all artifacts in chat context (not deleted), hidden artifacts still get shadow
     const showShadow = context === "chat" && !isDeleted;
+    // Whether to show in disabled/dimmed state (only deleted, not hidden - hidden are still interactive)
+    const isDisabled = isDeleted;
 
     return (
         <div
-            className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
+            className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDisabled ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
             style={{
                 backgroundColor,
                 boxShadow: showShadow ? restingShadow : undefined,
@@ -199,7 +201,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     e.currentTarget.style.boxShadow = restingShadow;
                 }
             }}
-            onClick={isDeleted ? undefined : handleBarClick}
+            onClick={isDisabled ? undefined : handleBarClick}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">
                 {/* File Icon */}
@@ -227,6 +229,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             <>
                                 {status === "in-progress" && <Spinner size="small" variant="primary" />}
                                 <span className={statusDisplay.className}>{statusDisplay.text}</span>
+                                {version !== undefined && context === "chat" && <span className="ml-1.5">(v{version})</span>}
                             </>
                         )}
                     </div>
@@ -242,7 +245,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
 
                 {/* Actions Section */}
                 <div className="flex flex-shrink-0 items-center gap-1">
-                    {status === "completed" && actions?.onInfo && !isDeleted && (
+                    {status === "completed" && actions?.onInfo && !isDisabled && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -260,7 +263,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onDownload && !isDeleted && (
+                    {status === "completed" && actions?.onDownload && !isDisabled && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -278,7 +281,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onExpand && !isDeleted && (
+                    {status === "completed" && actions?.onExpand && !isDisabled && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -296,7 +299,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onEdit && !isDeleted && (
+                    {status === "completed" && actions?.onEdit && !isDisabled && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -314,7 +317,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onDelete && !isDeleted && (
+                    {status === "completed" && actions?.onDelete && !isDisabled && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -341,7 +344,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 </div>
 
                 {/* Expand/Collapse Toggle */}
-                {expandable && onToggleExpand && !isDeleted && (
+                {expandable && onToggleExpand && !isDisabled && (
                     <Button
                         variant="ghost"
                         size="icon"

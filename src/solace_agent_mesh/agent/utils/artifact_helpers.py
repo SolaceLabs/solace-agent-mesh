@@ -23,6 +23,7 @@ from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_
 from ...common.constants import (
     TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
     TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
+    ARTIFACT_TAG_USER_UPLOADED,
 )
 from ...agent.utils.context_helpers import get_original_session_id
 
@@ -327,6 +328,7 @@ async def save_artifact_with_metadata(
     explicit_schema: Optional[Dict] = None,
     schema_inference_depth: Optional[int] = None,
     schema_max_keys: int = DEFAULT_SCHEMA_MAX_KEYS,
+    tags: Optional[List[str]] = None,
     tool_context: Optional["ToolContext"] = None,
     suppress_visualization_signal: bool = False,
 ) -> Dict[str, Any]:
@@ -459,6 +461,7 @@ async def save_artifact_with_metadata(
                         size=len(content_bytes),
                         description=metadata_dict.get("description") if metadata_dict else None,
                         version_count=None,  # Count not available in save context
+                        tags=tags,
                     )
 
                     # Publish artifact saved notification via component method
@@ -486,6 +489,8 @@ async def save_artifact_with_metadata(
             ),
             **(metadata_dict or {}),
         }
+        if tags:
+            final_metadata["tags"] = tags
         if explicit_schema:
             final_metadata["schema"] = {
                 "type": mime_type,
@@ -646,6 +651,7 @@ async def process_artifact_upload(
             schema_max_keys=component.get_config(
                 "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
             ),
+            tags=[ARTIFACT_TAG_USER_UPLOADED],  # Mark artifacts uploaded by user
         )
 
         if save_result["status"] == "success":
@@ -1099,9 +1105,10 @@ async def get_artifact_info_list(
                     else None
                 )
 
-                # Extract source from metadata
+                # Extract source and tags from metadata
                 source = metadata.get("source")
-                
+                tags = metadata.get("tags")
+
                 artifact_info_list.append(
                     ArtifactInfo(
                         filename=filename,
@@ -1113,6 +1120,7 @@ async def get_artifact_info_list(
                         version=loaded_version_num,
                         version_count=version_count,
                         source=source,
+                        tags=tags,
                     )
                 )
                 log.debug(

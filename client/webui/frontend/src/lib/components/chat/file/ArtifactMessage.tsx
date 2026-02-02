@@ -39,7 +39,7 @@ type ArtifactMessageProps = (
 };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
-    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion, ragData } = useChatContext();
+    const { artifacts, allArtifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion, ragData } = useChatContext();
     const { activeProject } = useProjectContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -70,10 +70,13 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const fileName = fileAttachment?.name || props.name;
     const fileMimeType = fileAttachment?.mime_type;
 
-    // Detect if artifact has been deleted: completed but not in artifacts list
+    // Check if artifact exists in allArtifacts (exists but may be hidden due to internal tag)
+    const artifactInAll = useMemo(() => allArtifacts.find(art => art.filename === props.name), [allArtifacts, props.name]);
+
+    // Detect if artifact has been deleted: completed but not in allArtifacts list
     const isDeleted = useMemo(() => {
-        return props.status === "completed" && !artifact;
-    }, [props.status, artifact]);
+        return props.status === "completed" && !artifactInAll;
+    }, [props.status, artifactInAll]);
 
     // Determine if this should auto-expand based on context
     const shouldAutoExpand = useMemo(() => {
@@ -107,32 +110,36 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     });
 
     const handlePreviewClick = useCallback(async () => {
-        if (artifact) {
+        // Use artifact if available, otherwise use artifactInAll for hidden artifacts
+        const artifactToPreview = artifact || artifactInAll;
+        if (artifactToPreview) {
             openSidePanelTab("files");
-            setPreviewArtifact(artifact);
+            setPreviewArtifact(artifactToPreview);
 
             // If this artifact has a specific version from the chat message, navigate to it
             if (version !== undefined) {
                 // Wait a bit for the preview to open, then navigate to the specific version
                 setTimeout(async () => {
-                    await navigateArtifactVersion(artifact.filename, version);
+                    await navigateArtifactVersion(artifactToPreview.filename, version);
                 }, 100);
             }
         }
-    }, [artifact, openSidePanelTab, setPreviewArtifact, version, navigateArtifactVersion]);
+    }, [artifact, artifactInAll, openSidePanelTab, setPreviewArtifact, version, navigateArtifactVersion]);
 
     const handleDownloadClick = useCallback(() => {
         // Build the file to download from available sources
         let fileToDownload: FileAttachment | null = null;
 
         // Try to use artifact from global state (has URI) or fileAttachment prop (might have content)
-        if (artifact) {
+        // For hidden artifacts, use artifactInAll as fallback
+        const artifactSource = artifact || artifactInAll;
+        if (artifactSource) {
             fileToDownload = {
-                name: artifact.filename,
-                mime_type: artifact.mime_type,
-                uri: artifact.uri,
-                size: artifact.size,
-                last_modified: artifact.last_modified,
+                name: artifactSource.filename,
+                mime_type: artifactSource.mime_type,
+                uri: artifactSource.uri,
+                size: artifactSource.size,
+                last_modified: artifactSource.last_modified,
             };
             // If artifact doesn't have URI, try to use content from fileAttachment
             if (!fileToDownload.uri && fileAttachment?.content) {
@@ -147,7 +154,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         } else {
             console.error(`No file to download for artifact: ${props.name}`);
         }
-    }, [artifact, fileAttachment, sessionId, activeProject?.id, props.name]);
+    }, [artifact, artifactInAll, fileAttachment, sessionId, activeProject?.id, props.name]);
 
     const handleDeleteClick = useCallback(() => {
         if (artifact) {
@@ -340,10 +347,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
     }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isProjectArtifact]);
 
-    // Get description from global artifacts instead of message parts
-    const artifactFromGlobal = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
-
-    const description = artifactFromGlobal?.description;
+    // Get description from allArtifacts (unfiltered) so hidden artifacts still show their description
+    const description = artifactInAll?.description;
 
     // For rendering content, we need the actual content
     const contentToRender = fetchedContent || fileAttachment?.content;
@@ -432,11 +437,13 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const shouldShowContent = shouldRender && isExpanded;
 
     // Prepare info content for expansion
+    // Use artifactInAll to get info even for hidden artifacts
     const infoContent = useMemo(() => {
-        if (!isInfoExpanded || !artifact) return null;
+        const artifactData = artifactInAll || artifact;
+        if (!isInfoExpanded || !artifactData) return null;
 
-        return <FileDetails description={artifact.description ?? undefined} size={artifact.size} lastModified={artifact.last_modified} mimeType={artifact.mime_type} />;
-    }, [isInfoExpanded, artifact]);
+        return <FileDetails description={artifactData.description ?? undefined} size={artifactData.size} lastModified={artifactData.last_modified} mimeType={artifactData.mime_type} />;
+    }, [isInfoExpanded, artifact, artifactInAll]);
 
     // Determine what content to show in expanded area - can show both info and content
     const finalExpandedContent = useMemo(() => {
@@ -482,7 +489,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             context={context}
             isDeleted={isDeleted}
             version={version}
-            source={artifact?.source}
+            source={artifactInAll?.source}
         />
     );
 };

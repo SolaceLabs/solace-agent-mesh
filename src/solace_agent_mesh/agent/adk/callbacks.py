@@ -51,6 +51,7 @@ from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
 from ...common.a2a.types import ArtifactInfo
+from ...common.constants import ARTIFACT_TAG_INTERNAL
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -255,6 +256,9 @@ async def process_artifact_blocks_callback(
                                 "%s Fenced artifact block started without a 'filename' parameter.",
                                 log_identifier,
                             )
+                        # Extract tags from params (comma-separated string to list)
+                        tags_str = event.params.get("tags", "")
+                        tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
                         if a2a_context:
                             status_text = f"Receiving artifact `{filename}`..."
                             if description:
@@ -274,6 +278,7 @@ async def process_artifact_blocks_callback(
                                 status="in-progress",
                                 bytes_transferred=0,
                                 artifact_chunk=None,
+                                tags=tags,
                             )
 
                             await _publish_data_part_status_update(
@@ -306,6 +311,9 @@ async def process_artifact_blocks_callback(
                                 host_component=host_component,
                                 log_identifier=f"{log_identifier}[ResolveChunk]",
                             )
+                            # Extract tags from params (comma-separated string to list)
+                            tags_str = params.get("tags", "")
+                            tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
 
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
@@ -313,6 +321,7 @@ async def process_artifact_blocks_callback(
                                 status="in-progress",
                                 bytes_transferred=event.buffered_size,
                                 artifact_chunk=resolved_chunk,  # Resolved chunk
+                                tags=tags,
                             )
 
                             # Track the cumulative character count of what we've sent
@@ -395,6 +404,21 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     params["schema_max_keys"],
                                 )
+                        # Extract tags from params (comma-separated string to list)
+                        tags_str = params.get("tags", "")
+                        tags_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+
+                        # Auto-tag artifacts as internal when created during structured invocation
+                        logical_task_id_for_tags = a2a_context.get("logical_task_id")
+                        if logical_task_id_for_tags:
+                            with host_component.active_tasks_lock:
+                                task_ctx = host_component.active_tasks.get(logical_task_id_for_tags)
+                            if task_ctx and task_ctx.get_flag("is_structured_invocation"):
+                                if ARTIFACT_TAG_INTERNAL not in tags_list:
+                                    tags_list.append(ARTIFACT_TAG_INTERNAL)
+
+                        if tags_list:
+                            kwargs_for_call["tags"] = tags_list
                         wrapped_creator = ADKToolWrapper(
                             original_func=_internal_create_artifact,
                             tool_config=None,  # No specific config for this internal tool
@@ -478,6 +502,8 @@ async def process_artifact_blocks_callback(
 
                             # Publish completion status immediately via SSE
                             if a2a_context:
+                                # Get tags (already parsed above as kwargs_for_call["tags"])
+                                completion_tags = kwargs_for_call.get("tags")
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
                                     description=params.get("description"),
@@ -485,6 +511,7 @@ async def process_artifact_blocks_callback(
                                     bytes_transferred=len(event.content),
                                     mime_type=params.get("mime_type"),
                                     version=version_for_tool,
+                                    tags=completion_tags,
                                 )
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
@@ -494,11 +521,14 @@ async def process_artifact_blocks_callback(
                             version_for_tool = 0
                             # Publish failure status immediately via SSE
                             if a2a_context:
+                                # Get tags (already parsed above as kwargs_for_call["tags"])
+                                failure_tags = kwargs_for_call.get("tags")
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
                                     description=params.get("description"),
                                     status="failed",
                                     bytes_transferred=len(event.content),
+                                    tags=failure_tags,
                                 )
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
@@ -513,6 +543,7 @@ async def process_artifact_blocks_callback(
                                 "mime_type": params.get("mime_type"),
                                 "bytes_transferred": len(event.content),
                                 "original_text": original_text,
+                                "tags": kwargs_for_call.get("tags"),
                             }
                         )
 
@@ -1188,6 +1219,7 @@ Parameters for `{open_delim}save_artifact: ...`:
 - `filename="your_filename.ext"` (REQUIRED)
 - `mime_type="text/plain"` (optional, defaults to text/plain)
 - `description="A brief description."` (optional)
+- `tags="tag1,tag2"` (optional, comma-separated list of tags for categorization)
 
 The system will automatically save the content and confirm it in the next turn.
 """

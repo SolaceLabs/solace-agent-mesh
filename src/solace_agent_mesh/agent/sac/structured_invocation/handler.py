@@ -34,6 +34,7 @@ from a2a.types import (
 )
 
 from ....common import a2a
+from ....common.constants import ARTIFACT_TAG_INTERNAL
 from ....common.data_parts import (
     ArtifactRef,
     StructuredInvocationRequest,
@@ -343,6 +344,7 @@ class StructuredInvocationHandler:
             mime_type=mime_type,
             metadata_dict={"source": "workflow_input"},
             timestamp=datetime.now(timezone.utc),
+            tags=[ARTIFACT_TAG_INTERNAL],
         )
 
         log.info(f"{log_id} Saved input data to artifact: {artifact_name}")
@@ -479,6 +481,8 @@ class StructuredInvocationHandler:
         task_context = TaskExecutionContext(
             task_id=logical_task_id, a2a_context=a2a_context
         )
+        # Mark this task as a structured invocation so artifacts are auto-tagged as internal
+        task_context.set_flag("is_structured_invocation", True)
 
         # Store the original Solace message if provided
         # Note: original_solace_message is passed as a parameter, not stored in a2a_context,
