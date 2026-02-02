@@ -1,25 +1,27 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Workflow } from "lucide-react";
 
 import type { AgentCardInfo } from "@/lib/types";
-import { getWorkflowConfig } from "@/lib/utils/agentUtils";
-import { EmptyState } from "@/lib/components/common";
-import { Button } from "@/lib/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui/table";
+import { EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/lib/components/ui/pagination";
 import { WorkflowDetailPanel } from "./WorkflowDetailPanel";
-import { WorkflowOnboardingBanner } from "./WorkflowOnboardingBanner";
+import { SearchInput } from "..";
+import { Workflow } from "lucide-react";
 
-const WorkflowImage = <Workflow className="text-muted-foreground" size={64} />;
+const WORKFLOW_STORAGE_KEY = "sam-workflow-onboarding-dismissed";
+const WORKFLOW_URL = "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/workflows";
+const WORKFLOW_HEADER = "Workflows give enterprises production-ready, best-practice agent patterns that are predictable and reliable.";
+const WORKFLOW_DESCRIPTION =
+    "Turn complex multi-agent tasks into streamlined workflows. Define the sequence in YAML, deploy to Agent Mesh, and watch your workflow handle the coordination automatically. Great for building repeatable processes that need multiple agents working together in a specific order.";
+const WORKFLOW_LEARN_MORE_TEXT = "Learn how to create workflows";
 
 interface WorkflowListProps {
     workflows: AgentCardInfo[];
-    /** Optional className to apply to the container (e.g., for background color) */
     className?: string;
 }
 
-export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className }) => {
+export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -46,9 +48,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
     const filteredWorkflows = useMemo(() => {
         if (!workflows || workflows.length === 0) return [];
 
-        let result = searchTerm.trim()
-            ? workflows.filter(workflow => (workflow.displayName || workflow.name)?.toLowerCase().includes(searchTerm.toLowerCase()))
-            : workflows;
+        const result = searchTerm.trim() ? workflows.filter(workflow => (workflow.displayName || workflow.name)?.toLowerCase().includes(searchTerm.toLowerCase())) : workflows;
 
         return result.slice().sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name));
     }, [workflows, searchTerm]);
@@ -82,23 +82,24 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
 
     const handleSelectWorkflow = (workflow: AgentCardInfo | null) => {
         if (workflow) {
-            setSelectedWorkflow(workflow);
-            setIsSidePanelOpen(true);
+            // If clicking the same workflow, close the panel
+            if (selectedWorkflow?.name === workflow.name && isSidePanelOpen) {
+                handleCloseSidePanel();
+            } else {
+                // Open panel for new workflow
+                setSelectedWorkflow(workflow);
+                setIsSidePanelOpen(true);
+            }
         }
     };
 
     const handleCloseSidePanel = () => {
-        setSelectedWorkflow(null);
         setIsSidePanelOpen(false);
+        setSelectedWorkflow(null);
     };
 
     const handleViewWorkflow = (workflow: AgentCardInfo) => {
         navigate(`/agents/workflows/${encodeURIComponent(workflow.name)}`);
-    };
-
-    const getWorkflowDescription = (workflow: AgentCardInfo): string => {
-        const config = getWorkflowConfig(workflow);
-        return config?.description || workflow.description || "No description";
     };
 
     const getPageNumbers = () => {
@@ -137,7 +138,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
     };
 
     if (workflows.length === 0) {
-        return <EmptyState image={WorkflowImage} title="No workflows found" subtitle="No workflows discovered in the current namespace." />;
+        return <OnboardingView title={WORKFLOW_HEADER} description={WORKFLOW_DESCRIPTION} learnMoreText={WORKFLOW_LEARN_MORE_TEXT} learnMoreHref={WORKFLOW_URL} image={<Workflow className={"text-(--color-brand-wMain)"} size={128} />} />;
     }
 
     // Pagination controls component
@@ -149,10 +150,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                 <Pagination>
                     <PaginationContent>
                         <PaginationItem>
-                            <PaginationPrevious
-                                onClick={() => handlePageChange(effectiveCurrentPage - 1)}
-                                className={effectiveCurrentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                            />
+                            <PaginationPrevious onClick={() => handlePageChange(effectiveCurrentPage - 1)} className={effectiveCurrentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                         </PaginationItem>
 
                         {getPageNumbers().map((page, index) => (
@@ -160,11 +158,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                                 {page === "ellipsis" ? (
                                     <PaginationEllipsis />
                                 ) : (
-                                    <PaginationLink
-                                        onClick={() => handlePageChange(page as number)}
-                                        isActive={effectiveCurrentPage === page}
-                                        className="cursor-pointer"
-                                    >
+                                    <PaginationLink onClick={() => handlePageChange(page as number)} isActive={effectiveCurrentPage === page} className="cursor-pointer">
                                         {page}
                                     </PaginationLink>
                                 )}
@@ -172,10 +166,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                         ))}
 
                         <PaginationItem>
-                            <PaginationNext
-                                onClick={() => handlePageChange(effectiveCurrentPage + 1)}
-                                className={effectiveCurrentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                            />
+                            <PaginationNext onClick={() => handlePageChange(effectiveCurrentPage + 1)} className={effectiveCurrentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                         </PaginationItem>
                     </PaginationContent>
                 </Pagination>
@@ -184,29 +175,13 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
     };
 
     return (
-        <div className={`flex h-full w-full overflow-hidden ${className ?? ""}`}>
+        <div className={`flex h-full w-full ${className ?? ""}`}>
             {/* Main content container */}
-            <div className="flex flex-1 flex-col">
-                <WorkflowOnboardingBanner />
-                {/* Search Bar */}
-                <div className="mb-4 flex items-center justify-between p-6">
-                    <div className="flex w-full max-w-md flex-shrink-0 items-center gap-4">
-                        <div className="relative flex-1">
-                            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Filter by name..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                data-testid="workflowSearchInput"
-                                className="border-input bg-background placeholder:text-muted-foreground focus:border-ring w-full rounded-sm border px-10 py-2 text-sm focus:outline-none"
-                            />
-                        </div>
-                    </div>
-                </div>
+            <div className="flex flex-1 flex-col py-6 pl-6">
+                <OnboardingBanner storageKey={WORKFLOW_STORAGE_KEY} header={WORKFLOW_HEADER} description={WORKFLOW_DESCRIPTION} learnMoreText={WORKFLOW_LEARN_MORE_TEXT} learnMoreUrl={WORKFLOW_URL} className="mr-6 mb-6" />
+                <SearchInput value={searchTerm} onChange={value => setSearchTerm(value)} />
 
-                {/* Workflows table area */}
-                <div className="min-h-0 flex-1 overflow-y-auto pr-2 pl-6">
+                <div className="min-h-0 flex-1 overflow-y-auto pt-6 pr-6">
                     <div className="h-full">
                         {currentWorkflows.length > 0 ? (
                             <div className="rounded-xs border">
@@ -216,19 +191,13 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                                             <TableHead className="font-semibold">
                                                 <div className="pl-4">Name</div>
                                             </TableHead>
-                                            <TableHead className="w-[100px] font-semibold">Version</TableHead>
-                                            <TableHead className="w-[100px] font-semibold">Status</TableHead>
-                                            <TableHead className="font-semibold">Description</TableHead>
+                                            <TableHead className="w-1/4 font-semibold">Version</TableHead>
+                                            <TableHead className="w-1/4 font-semibold">Status</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {currentWorkflows.map(workflow => (
-                                            <TableRow
-                                                key={workflow.name}
-                                                onClick={() => handleSelectWorkflow(workflow)}
-                                                className="hover:bg-muted/50 cursor-pointer"
-                                                data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}
-                                            >
+                                            <TableRow key={workflow.name} onClick={() => handleSelectWorkflow(workflow)} className="hover:bg-muted/50 cursor-pointer" data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}>
                                                 <TableCell>
                                                     <Button
                                                         testid={`workflow-name-${workflow.name}`}
@@ -249,7 +218,6 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                                                         <span>Running</span>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="max-w-md truncate">{getWorkflowDescription(workflow)}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -257,12 +225,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                             </div>
                         ) : (
                             <div className="flex h-full min-h-[300px] items-center justify-center">
-                                <EmptyState
-                                    variant="notFound"
-                                    title="No workflows found"
-                                    subtitle="Try adjusting your search terms"
-                                    buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchTerm("") }]}
-                                />
+                                <EmptyState variant="notFound" title="No workflows found" subtitle="Try adjusting your search terms" buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchTerm("") }]} />
                             </div>
                         )}
                     </div>
@@ -272,8 +235,8 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
 
             {/* Side panel wrapper */}
             {selectedWorkflow && (
-                <div className={`h-full overflow-hidden transition-all duration-500 ease-in-out ${isSidePanelOpen ? "w-1/4 min-w-[400px]" : "w-0"}`}>
-                    <div className={`h-full transition-opacity duration-500 ${isSidePanelOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+                <div className={`h-full overflow-hidden transition-[width] duration-300 ease-in-out ${isSidePanelOpen ? "w-[400px]" : "w-0"}`}>
+                    <div className={`h-full transition-opacity duration-300 ${isSidePanelOpen ? "opacity-100 delay-100" : "pointer-events-none opacity-0"}`}>
                         <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleCloseSidePanel} />
                     </div>
                 </div>

@@ -1,5 +1,3 @@
-import type { FC } from "react";
-
 import type { AgentCardInfo } from "@/lib/types";
 import type { WorkflowConfig } from "@/lib/utils/agentUtils";
 import { WorkflowDetailPanel } from "@/lib/components/workflows/WorkflowDetailPanel";
@@ -18,13 +16,7 @@ interface WorkflowDetailsSidePanelProps {
  * Side panel for showing workflow-level details on the workflow diagram page.
  * Wraps WorkflowDetailPanel with diagram-specific props.
  */
-const WorkflowDetailsSidePanel: FC<WorkflowDetailsSidePanelProps> = ({
-    workflow,
-    config,
-    view: _view,
-    onClose,
-    onViewChange: _onViewChange,
-}) => {
+const WorkflowDetailsSidePanel = ({ workflow, config, view: _view, onClose, onViewChange: _onViewChange }: WorkflowDetailsSidePanelProps) => {
     // The view and onViewChange props are kept for backwards compatibility
     // but the WorkflowDetailPanel now manages its own view state internally
     void _view;
@@ -34,14 +26,7 @@ const WorkflowDetailsSidePanel: FC<WorkflowDetailsSidePanelProps> = ({
         return null;
     }
 
-    return (
-        <WorkflowDetailPanel
-            workflow={workflow}
-            config={config}
-            onClose={onClose}
-            showOpenButton={false}
-        />
-    );
+    return <WorkflowDetailPanel workflow={workflow} config={config} onClose={onClose} showOpenButton={false} />;
 };
 
 export default WorkflowDetailsSidePanel;

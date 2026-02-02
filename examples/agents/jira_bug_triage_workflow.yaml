@@ -434,7 +434,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      name: "JiraBugTriageWorkflow"
+      agent_name: "JiraBugTriageWorkflow"
       display_name: "Jira Bug Triage Workflow"
 
       # Workflow execution timeouts

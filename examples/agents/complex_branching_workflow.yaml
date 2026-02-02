@@ -299,7 +299,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      name: "ComplexBranchingWorkflow"
+      agent_name: "ComplexBranchingWorkflow"
       display_name: "Complex Branching Test Workflow"
 
       workflow:

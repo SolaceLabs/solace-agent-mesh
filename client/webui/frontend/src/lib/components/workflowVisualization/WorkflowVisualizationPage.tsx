@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Workflow } from "lucide-react";
 
-import { EmptyState } from "@/lib/components";
+import { Button, EmptyState } from "@/lib/components";
 import { Header, type BreadcrumbItem } from "@/lib/components/header";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
@@ -108,9 +108,7 @@ export function WorkflowVisualizationPage() {
     // Find the workflow and extract config
     const { workflow, config, knownWorkflows } = useMemo(() => {
         const workflowAgents = agents.filter(isWorkflowAgent);
-        const foundWorkflow = workflowAgents.find(
-            agent => agent.name === workflowName || agent.displayName === workflowName
-        );
+        const foundWorkflow = workflowAgents.find(agent => agent.name === workflowName || agent.displayName === workflowName);
         const workflowConfig = foundWorkflow ? getWorkflowConfig(foundWorkflow) : null;
 
         // Build set of known workflow names for detecting nested workflow references
@@ -138,11 +136,6 @@ export function WorkflowVisualizationPage() {
     const handleNodeSelect = useCallback((node: LayoutNode | null) => {
         setWorkflowPanelView(null); // Close workflow panel if open
         setSelectedNode(node);
-    }, []);
-
-    // Handle detail panel close
-    const handleCloseDetail = useCallback(() => {
-        setSelectedNode(null);
     }, []);
 
     // Handle opening workflow details panel
@@ -185,32 +178,35 @@ export function WorkflowVisualizationPage() {
     }, []);
 
     // Handle navigation to a node (pan to center it in view)
-    const handleNavigateToNode = useCallback((nodeId: string) => {
-        if (!config) return;
+    const handleNavigateToNode = useCallback(
+        (nodeId: string) => {
+            if (!config) return;
 
-        // Compute layout to find node position
-        const layout = processWorkflowConfig(config, new Set(), knownWorkflows);
+            // Compute layout to find node position
+            const layout = processWorkflowConfig(config, new Set(), knownWorkflows);
 
-        // Find the node in the layout (search recursively)
-        const findNode = (nodes: LayoutNode[]): LayoutNode | null => {
-            for (const node of nodes) {
-                if (node.id === nodeId) return node;
-                if (node.children) {
-                    const found = findNode(node.children);
-                    if (found) return found;
+            // Find the node in the layout (search recursively)
+            const findNode = (nodes: LayoutNode[]): LayoutNode | null => {
+                for (const node of nodes) {
+                    if (node.id === nodeId) return node;
+                    if (node.children) {
+                        const found = findNode(node.children);
+                        if (found) return found;
+                    }
                 }
-            }
-            return null;
-        };
+                return null;
+            };
 
-        const targetNode = findNode(layout.nodes);
-        if (targetNode) {
-            // Pan to center the node (use center of the node)
-            const centerX = targetNode.x + targetNode.width / 2;
-            const centerY = targetNode.y + targetNode.height / 2;
-            canvasRef.current?.panToPoint(centerX, centerY, { animated: true });
-        }
-    }, [config, knownWorkflows]);
+            const targetNode = findNode(layout.nodes);
+            if (targetNode) {
+                // Pan to center the node (use center of the node)
+                const centerX = targetNode.x + targetNode.width / 2;
+                const centerY = targetNode.y + targetNode.height / 2;
+                canvasRef.current?.panToPoint(centerX, centerY, { animated: true });
+            }
+        },
+        [config, knownWorkflows]
+    );
 
     // Build breadcrumbs for navigation
     // Include parent workflows from the navigation path
@@ -224,9 +220,7 @@ export function WorkflowVisualizationPage() {
         parentPath.forEach((parentName, index) => {
             // Find the parent workflow to get display name
             const workflowAgents = agents.filter(isWorkflowAgent);
-            const parentWorkflow = workflowAgents.find(
-                agent => agent.name === parentName || agent.displayName === parentName
-            );
+            const parentWorkflow = workflowAgents.find(agent => agent.name === parentName || agent.displayName === parentName);
             const displayLabel = parentWorkflow?.displayName || parentWorkflow?.name || parentName;
 
             // When clicking a parent, navigate to it with its own parent path
@@ -253,7 +247,7 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
@@ -271,7 +265,7 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
@@ -289,17 +283,13 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
                     breadcrumbs={breadcrumbs}
                 />
-                <EmptyState
-                    variant="error"
-                    title="Workflow not found"
-                    subtitle={`Could not find a workflow named "${workflowName}"`}
-                />
+                <EmptyState variant="error" title="Workflow not found" subtitle={`Could not find a workflow named "${workflowName}"`} />
             </div>
         );
     }
@@ -309,36 +299,21 @@ export function WorkflowVisualizationPage() {
             <Header
                 title={
                     <div className="flex items-center gap-2">
-                        <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                        <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                         <span>{workflow.displayName || workflow.name}</span>
-                        {config.version && (
-                            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                                v{config.version}
-                            </span>
-                        )}
+                        {config.version && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">v{config.version}</span>}
                     </div>
                 }
                 breadcrumbs={breadcrumbs}
                 buttons={[
-                    <button
-                        key="details"
-                        onClick={handleOpenWorkflowDetails}
-                        className="text-sm text-[var(--color-brand-wMain)] hover:underline"
-                    >
+                    <Button variant="ghost" key="details" onClick={handleOpenWorkflowDetails}>
                         Open Workflow Details
-                    </button>,
+                    </Button>,
                 ]}
             />
 
             {/* Canvas controls bar */}
-            <CanvasControls
-                zoomLevel={currentZoom}
-                onZoomIn={handleZoomIn}
-                onZoomOut={handleZoomOut}
-                onFitToView={handleFitToView}
-                minZoom={0.25}
-                maxZoom={2}
-            />
+            <CanvasControls zoomLevel={currentZoom} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFitToView={handleFitToView} minZoom={0.25} maxZoom={2} />
 
             {/* Body container - panels overlay this area only */}
             <div ref={containerRef} className="relative min-h-0 flex-1">
@@ -358,15 +333,11 @@ export function WorkflowVisualizationPage() {
 
                 {/* Floating node detail popover (shown when node selected) */}
                 {selectedNode && (
-                    <div
-                        className={`absolute top-4 right-4 z-10 max-h-[calc(100%-32px)] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
-                        style={{ width: panelWidth }}
-                    >
+                    <div className={`absolute top-4 right-4 bottom-4 z-10 overflow-hidden rounded-lg border shadow-lg ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`} style={{ width: panelWidth }}>
                         <WorkflowNodeDetailPanel
                             node={selectedNode}
                             workflowConfig={config}
                             agents={agents}
-                            onClose={handleCloseDetail}
                             onHighlightNodes={handleHighlightNodes}
                             knownNodeIds={knownNodeIds}
                             onNavigateToNode={handleNavigateToNode}
@@ -378,24 +349,12 @@ export function WorkflowVisualizationPage() {
 
                 {/* Workflow Details / Raw Code Side Panel */}
                 {workflowPanelView && (
-                    <div
-                        className={`absolute top-0 right-0 bottom-0 z-10 flex ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
-                        style={{ width: panelWidth }}
-                    >
+                    <div className={`absolute top-0 right-0 bottom-0 z-10 flex ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`} style={{ width: panelWidth }}>
                         {/* Resize handle - matches ResizableHandle styling */}
-                        <div
-                            className="bg-border relative flex w-px cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2"
-                            onMouseDown={handleResizeStart}
-                        />
+                        <div className="bg-border relative flex w-px cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2" onMouseDown={handleResizeStart} />
                         {/* Panel content */}
                         <div className="bg-background min-w-0 flex-1">
-                            <WorkflowDetailsSidePanel
-                                workflow={workflow}
-                                config={config}
-                                view={workflowPanelView}
-                                onClose={handleCloseWorkflowPanel}
-                                onViewChange={handleSwitchPanelView}
-                            />
+                            <WorkflowDetailsSidePanel workflow={workflow} config={config} view={workflowPanelView} onClose={handleCloseWorkflowPanel} onViewChange={handleSwitchPanelView} />
                         </div>
                     </div>
                 )}

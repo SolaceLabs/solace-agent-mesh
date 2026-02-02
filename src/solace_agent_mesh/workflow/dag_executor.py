@@ -371,6 +371,11 @@ class DAGExecutor:
         """Execute a single workflow node."""
         log_id = f"{self.host.log_identifier}[Node:{node_id}]"
 
+        # Check for cancellation before executing node
+        if workflow_context.is_cancelled():
+            log.info(f"{log_id} Workflow cancelled, not executing node")
+            return
+
         try:
             node = self.nodes[node_id]
 
@@ -634,6 +639,11 @@ class DAGExecutor:
         """Execute loop node for while-loop iteration."""
         log_id = f"{self.host.log_identifier}[Loop:{node.id}]"
 
+        # Check for cancellation before starting loop iteration
+        if workflow_context.is_cancelled():
+            log.info(f"{log_id} Workflow cancelled, not starting loop iteration")
+            return
+
         from .flow_control.conditional import evaluate_condition
         from .utils import parse_duration
 
@@ -721,12 +731,15 @@ class DAGExecutor:
         # Generate sub-task ID
         sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
+        # Handle both AgentInvokeNode (has agent_name) and WorkflowInvokeNode (has workflow_name)
+        target_name = getattr(iter_node, "agent_name", getattr(iter_node, "workflow_name", None))
+
         # Emit start event for loop iteration child
         start_data = WorkflowNodeExecutionStartData(
             type="workflow_node_execution_start",
             node_id=iter_node.id,
             node_type="agent",
-            agent_name=getattr(iter_node, "agent_name", None),
+            agent_name=target_name,
             iteration_index=iteration,
             sub_task_id=sub_task_id,
             parent_node_id=node.id,
@@ -743,9 +756,14 @@ class DAGExecutor:
         ]
 
         # Execute the inner node
-        await self.host.agent_caller.call_agent(
-            iter_node, workflow_state, workflow_context, sub_task_id=sub_task_id
-        )
+        if iter_node.type == "workflow":
+            await self.host.agent_caller.call_workflow(
+                iter_node, workflow_state, workflow_context, sub_task_id=sub_task_id
+            )
+        else:
+            await self.host.agent_caller.call_agent(
+                iter_node, workflow_state, workflow_context, sub_task_id=sub_task_id
+            )
 
     async def _skip_branch(
         self, node_id: str, workflow_state: WorkflowExecutionState
@@ -843,6 +861,11 @@ class DAGExecutor:
         workflow_context: WorkflowExecutionContext,
     ):
         """Launch pending map iterations up to concurrency limit."""
+        # Check for cancellation before launching new iterations
+        if workflow_context.is_cancelled():
+            log.info(f"{self.host.log_identifier}[Map:{map_node_id}] Workflow cancelled, not launching new iterations")
+            return
+
         map_state = workflow_state.metadata.get(f"map_state_{map_node_id}")
         if not map_state:
             return
@@ -880,11 +903,12 @@ class DAGExecutor:
             sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
             # Emit start event for iteration BEFORE execution
+            target_name = getattr(iter_node, "agent_name", getattr(iter_node, "workflow_name", None))            
             start_data = WorkflowNodeExecutionStartData(
                 type="workflow_node_execution_start",
                 node_id=iter_node.id,
                 node_type="agent",
-                agent_name=iter_node.agent_name,
+                agent_name=target_name,
                 iteration_index=index,
                 sub_task_id=sub_task_id,
                 parent_node_id=map_node_id,
@@ -893,9 +917,14 @@ class DAGExecutor:
             await self.host.publish_workflow_event(workflow_context, start_data)
 
             # Execute
-            await self.host.agent_caller.call_agent(
-                iter_node, iteration_state, workflow_context, sub_task_id=sub_task_id
-            )
+            if iter_node.type == "workflow":
+                await self.host.agent_caller.call_workflow(
+                    iter_node, iteration_state, workflow_context, sub_task_id=sub_task_id
+                )
+            else:
+                await self.host.agent_caller.call_agent(
+                    iter_node, iteration_state, workflow_context, sub_task_id=sub_task_id
+                )
 
             # Track active sub-task
             workflow_state.active_branches[map_node_id].append(
@@ -1138,6 +1167,12 @@ class DAGExecutor:
     ):
         """Handle completion of a child task within a Fork or Map."""
         log_id = f"{self.host.log_identifier}[ControlNode:{control_node_id}]"
+
+        # Check for cancellation - don't continue processing if workflow is cancelled
+        if workflow_context.is_cancelled():
+            log.info(f"{log_id} Workflow cancelled, not processing child completion for sub-task {sub_task_id}")
+            return
+
         branches = workflow_state.active_branches.get(control_node_id, [])
 
         # Find the specific branch/iteration

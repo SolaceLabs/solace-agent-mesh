@@ -787,7 +787,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      name: "CompleteOrderWorkflow"
+      agent_name: "CompleteOrderWorkflow"
       display_name: "Complete Order Processing Workflow"
 
       workflow:

@@ -80,6 +80,8 @@ async def run_adk_async_task_thread_wrapper(
         if adk_session and component.session_service and append_context_event:
             context_setting_invocation_id = logical_task_id
             try:
+                from .services import append_event_with_retry
+
                 context_setting_event = ADKEvent(
                     invocation_id=context_setting_invocation_id,
                     author="A2A_Host_System",
@@ -94,8 +96,15 @@ async def run_adk_async_task_thread_wrapper(
                     actions=EventActions(state_delta={"a2a_context": a2a_context}),
                     branch=None,
                 )
-                await component.session_service.append_event(
-                    session=adk_session, event=context_setting_event
+                # Use retry helper to handle stale session race conditions
+                await append_event_with_retry(
+                    session_service=component.session_service,
+                    session=adk_session,
+                    event=context_setting_event,
+                    app_name=component.agent_name,
+                    user_id=adk_session.user_id,
+                    session_id=adk_session.id,
+                    log_identifier=f"{component.log_identifier}[ContextEvent:{logical_task_id}]",
                 )
                 log.debug(
                     "%s Appended context-setting event to ADK session %s (via component.session_service) for task %s.",

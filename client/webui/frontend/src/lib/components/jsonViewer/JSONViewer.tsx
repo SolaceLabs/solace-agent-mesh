@@ -22,9 +22,9 @@ const createJsonEditorTheme = (isDark: boolean): JerTheme => {
             property: isDark ? "var(--color-primary-text-w10)" : "var(--color-primary-text-wMain)",
             bracket: "var(--color-secondary-text-w50)",
             itemCount: { color: "var(--color-secondary-text-w50)", fontStyle: "italic" },
-            string: isDark ? "var(--color-success-w70)" : "var(--color-success-wMain)",
-            number: "var(--color-accent-n0-wMain)",
-            boolean: isDark ? "var(--color-warning-w70)" : "var(--color-warning-wMain)",
+            string: "var(--color-error-w100)",
+            number: "var(--color-brand-w100)",
+            boolean: isDark ? "var(--color-info-w70)" : "var(--color-info-wMain)",
             null: { color: "var(--color-secondary-text-w50)", fontStyle: "italic" },
             // In view-only mode, we only need the collection and copy icons.
             iconCollection: "var(--color-secondary-text-w50)",
@@ -33,7 +33,7 @@ const createJsonEditorTheme = (isDark: boolean): JerTheme => {
     };
 };
 
-type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
+export type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
 type JSONObject = { [key: string]: JSONValue };
 type JSONArray = JSONValue[];
 

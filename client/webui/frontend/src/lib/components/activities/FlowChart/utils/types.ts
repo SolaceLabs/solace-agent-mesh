@@ -6,13 +6,13 @@ import type { VisualizerStep } from "@/lib/types";
  */
 export interface LayoutNode {
     id: string;
-    type: 'agent' | 'tool' | 'llm' | 'user' | 'switch' | 'loop' | 'map' | 'group' | 'workflow' | 'parallelBlock';
+    type: "agent" | "tool" | "llm" | "user" | "switch" | "loop" | "map" | "group" | "workflow" | "parallelBlock";
     data: {
         label: string;
         visualizerStepId?: string;
         description?: string;
         status?: string;
-        variant?: 'default' | 'pill';
+        variant?: "default" | "pill";
         // Switch node fields
         condition?: string;
         cases?: { condition: string; node: string }[];
@@ -40,6 +40,7 @@ export interface LayoutNode {
         isTopNode?: boolean;
         isBottomNode?: boolean;
         isSkipped?: boolean;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         [key: string]: any;
     };
 
@@ -119,6 +120,14 @@ export interface BuildContext {
     // Track sub-workflow -> parent group relationships (for workflow node types)
     // Maps subTaskId -> parent workflow group node
     subWorkflowParentMap: Map<string, LayoutNode>;
+
+    // Track workflow tool invocations to their functionCallIds
+    // Maps subTaskId -> functionCallId (for finding parallel blocks)
+    workflowFunctionCallIdMap: Map<string, string>;
+
+    // Track workflow functionCallIds by their parent task
+    // Maps parentTaskId -> Set of workflow functionCallIds
+    workflowParentTaskFunctionCallIds: Map<string, Set<string>>;
 }
 
 /**

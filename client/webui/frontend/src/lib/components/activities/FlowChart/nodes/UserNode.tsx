@@ -18,12 +18,12 @@ const UserNode: FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
                 minWidth: "120px",
                 textAlign: "center",
             }}
-            onClick={(e) => {
+            onClick={e => {
                 e.stopPropagation();
                 onClick?.(node);
             }}
         >
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2" data-testid="userNode">
                 <User className="h-4 w-4 flex-shrink-0 text-purple-600 dark:text-purple-400" />
                 <div className="text-sm font-bold">{node.data.label}</div>
             </div>

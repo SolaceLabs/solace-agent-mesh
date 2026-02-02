@@ -20,14 +20,7 @@ export interface CanvasControlsProps {
  * CanvasControls - Control bar for pan/zoom canvas operations
  * Displays zoom level and provides zoom in/out and fit-to-view buttons
  */
-export const CanvasControls: FC<CanvasControlsProps> = ({
-    zoomLevel,
-    onZoomIn,
-    onZoomOut,
-    onFitToView,
-    minZoom = 0.25,
-    maxZoom = 2,
-}) => {
+export const CanvasControls: FC<CanvasControlsProps> = ({ zoomLevel, onZoomIn, onZoomOut, onFitToView, minZoom = 0.25, maxZoom = 2 }) => {
     // Format zoom level as percentage
     const zoomPercentage = Math.round(zoomLevel * 100);
 
@@ -36,7 +29,7 @@ export const CanvasControls: FC<CanvasControlsProps> = ({
     const isAtMaxZoom = zoomLevel >= maxZoom;
 
     return (
-        <div className="flex items-center justify-end gap-2 border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex items-center justify-end gap-2 border-b px-4 py-2">
             {/* Fit to view / Center button */}
             <button
                 onClick={onFitToView}
@@ -62,9 +55,7 @@ export const CanvasControls: FC<CanvasControlsProps> = ({
                 </button>
 
                 {/* Zoom level display */}
-                <span className="min-w-[3.5rem] text-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {zoomPercentage}%
-                </span>
+                <span className="min-w-[3.5rem] text-center text-sm font-medium text-gray-700 dark:text-gray-300">{zoomPercentage}%</span>
 
                 {/* Zoom in button */}
                 <button

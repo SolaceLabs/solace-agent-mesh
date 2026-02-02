@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { Home } from "lucide-react";
 import type { VisualizerStep } from "@/lib/types";
 import { Dialog, DialogContent, DialogFooter, VisuallyHidden, DialogTitle, DialogDescription, Button, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
@@ -19,10 +19,7 @@ interface FlowChartPanelProps {
     isSidePanelTransitioning?: boolean;
 }
 
-const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
-    processedSteps,
-    isRightPanelVisible = false
-}) => {
+const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowChartPanelProps) => {
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
     const { agentNameMap } = useAgentCards();
 
@@ -174,11 +171,6 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
         setIsDialogExpanded(false);
     }, []);
 
-    // Handle dialog width change from NodeDetailsCard (NP-3)
-    const handleDialogWidthChange = useCallback((isExpanded: boolean) => {
-        setIsDialogExpanded(isExpanded);
-    }, []);
-
     // Handle pane click (clear selection)
     const handlePaneClick = useCallback(
         (event: React.MouseEvent) => {
@@ -199,52 +191,31 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
     return (
         <div style={{ height: "100%", width: "100%" }} className="relative">
             {/* Controls bar - Show Detail toggle and Re-center button */}
-            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
+            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 rounded-md border border-gray-200 bg-white px-4 py-2 shadow-md dark:border-gray-700 dark:bg-gray-800">
                 {/* Re-center button (D-6) */}
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <button
-                            onClick={handleRecenter}
-                            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
+                        <button onClick={handleRecenter} className="rounded p-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">
                             <Home className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                         </button>
                     </TooltipTrigger>
                     <TooltipContent>Re-center diagram</TooltipContent>
                 </Tooltip>
 
-                <div className="w-px h-6 bg-gray-200 dark:bg-gray-600" />
+                <div className="h-6 w-px bg-gray-200 dark:bg-gray-600" />
 
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Show Detail
-                </span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show Detail</span>
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <button
-                            onClick={() => setShowDetail(!showDetail)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                showDetail ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
-                            }`}
-                        >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    showDetail ? "translate-x-6" : "translate-x-1"
-                                }`}
-                            />
+                        <button onClick={() => setShowDetail(!showDetail)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showDetail ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"}`}>
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showDetail ? "translate-x-6" : "translate-x-1"}`} />
                         </button>
                     </TooltipTrigger>
                     <TooltipContent>{showDetail ? "Hide nested agent details" : "Show nested agent details"}</TooltipContent>
                 </Tooltip>
             </div>
 
-            <PanZoomCanvas
-                ref={canvasRef}
-                initialScale={1}
-                minScale={0.1}
-                maxScale={4}
-                onUserInteraction={handleUserInteraction}
-                sidePanelWidth={sidePanelWidth}
-            >
+            <PanZoomCanvas ref={canvasRef} initialScale={1} minScale={0.1} maxScale={4} onUserInteraction={handleUserInteraction} sidePanelWidth={sidePanelWidth}>
                 <div
                     style={{
                         minWidth: "100%",
@@ -254,14 +225,7 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
                     onClick={handlePaneClick}
                 >
                     <div ref={contentRef} style={{ width: "fit-content" }}>
-                        <WorkflowRenderer
-                            processedSteps={processedSteps}
-                            agentNameMap={agentNameMap}
-                            selectedStepId={highlightedStepId}
-                            onNodeClick={handleNodeClick}
-                            onEdgeClick={handleEdgeClick}
-                            showDetail={showDetail}
-                        />
+                        <WorkflowRenderer processedSteps={processedSteps} agentNameMap={agentNameMap} selectedStepId={highlightedStepId} onNodeClick={handleNodeClick} onEdgeClick={handleEdgeClick} showDetail={showDetail} />
                     </div>
                 </div>
             </PanZoomCanvas>
@@ -269,24 +233,20 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
             {/* Node Details Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent
-                    className={`w-[90vw] ${isDialogExpanded ? '!max-w-[1600px]' : '!max-w-[1200px]'} max-h-[85vh] p-0 transition-all duration-200 flex flex-col`}
-                    onPointerDownOutside={(e) => e.preventDefault()}
-                    onInteractOutside={(e) => e.preventDefault()}
+                    className={`w-[90vw] ${isDialogExpanded ? "!max-w-[1600px]" : "!max-w-[1200px]"} flex max-h-[85vh] flex-col p-0 transition-all duration-200`}
+                    onPointerDownOutside={e => e.preventDefault()}
+                    onInteractOutside={e => e.preventDefault()}
                 >
                     <VisuallyHidden>
                         <DialogTitle>Node Details</DialogTitle>
                         <DialogDescription>Details for the selected node</DialogDescription>
                     </VisuallyHidden>
                     {selectedNodeDetails && (
-                        <div className="flex-1 min-h-0 overflow-hidden">
-                            <NodeDetailsCard
-                                nodeDetails={selectedNodeDetails}
-                                onClose={handleDialogClose}
-                                onWidthChange={handleDialogWidthChange}
-                            />
+                        <div className="min-h-0 flex-1 overflow-hidden">
+                            <NodeDetailsCard nodeDetails={selectedNodeDetails} onClose={handleDialogClose} />
                         </div>
                     )}
-                    <DialogFooter className="border-t border-gray-200 dark:border-gray-700 p-4 mt-0 flex-shrink-0">
+                    <DialogFooter className="mt-0 flex-shrink-0 border-t border-gray-200 p-4 dark:border-gray-700">
                         <Button variant="outline" onClick={handleDialogClose}>
                             Close
                         </Button>
