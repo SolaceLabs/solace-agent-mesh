@@ -90,6 +90,20 @@ if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
 
 
+def _parse_tags_param(tags_str: Optional[str]) -> List[str]:
+    """Parse comma-separated tags string into a list.
+
+    Args:
+        tags_str: Comma-separated string of tags, or None/empty string
+
+    Returns:
+        List of trimmed, non-empty tag strings (empty list if no valid tags)
+    """
+    if not tags_str:
+        return []
+    return [t.strip() for t in tags_str.split(",") if t.strip()]
+
+
 async def _publish_data_part_status_update(
     host_component: "SamAgentComponent",
     a2a_context: Dict[str, Any],
@@ -312,8 +326,7 @@ async def process_artifact_blocks_callback(
                                 log_identifier=f"{log_identifier}[ResolveChunk]",
                             )
                             # Extract tags from params (comma-separated string to list)
-                            tags_str = params.get("tags", "")
-                            tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
+                            tags = _parse_tags_param(params.get("tags")) or None
 
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
@@ -405,8 +418,7 @@ async def process_artifact_blocks_callback(
                                     params["schema_max_keys"],
                                 )
                         # Extract tags from params (comma-separated string to list)
-                        tags_str = params.get("tags", "")
-                        tags_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+                        tags_list = _parse_tags_param(params.get("tags"))
 
                         # Auto-tag artifacts as internal when created during structured invocation
                         logical_task_id_for_tags = a2a_context.get("logical_task_id")
