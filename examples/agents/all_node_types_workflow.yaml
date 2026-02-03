@@ -1195,7 +1195,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "SimpleLoopWorkflow"
+      name: "SimpleLoopWorkflow"
       display_name: "Simple Loop Workflow"
 
       workflow:

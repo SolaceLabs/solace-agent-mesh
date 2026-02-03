@@ -80,7 +80,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "MapIterationWorkflow"
+      name: "MapIterationWorkflow"
       display_name: "Map Iteration Workflow"
 
       # Timeout configurations

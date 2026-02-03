@@ -309,6 +309,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        # Initialize system (including any installed plugins/enterprise features)
+        # This must happen before migrations so plugins can register migration hooks
+        from ...common.utils.initializer import initialize
+        initialize()
+        log.info("%s System initialization completed", self.log_identifier)
+
+        # Run database migrations (any registered hooks will execute automatically)
         if self.database_url:
             log.info("%s Running database migrations...", self.log_identifier)
             self._run_database_migrations()
