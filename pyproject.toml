@@ -145,7 +145,7 @@ quote-style = "double"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio --ignore=tests/system"
+addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio --ignore=tests/system --ignore=tests/stress"
 testpaths = ["tests"]
 pythonpath = [".", "src", "tests/sam-test-infrastructure/src"]
 python_files = ["test_*.py", "*_test.py", "tests.py"]
@@ -183,6 +183,10 @@ markers = [
     "proxy: marks tests related to the A2A proxy functionality",
     "streaming: marks tests related to streaming messages",
     "artifacts: marks tests related to artifact handling and services",
+    "workflows: marks tests related to workflow execution",
+    "map: marks tests for map (parallel iteration) workflows",
+    "switch: marks tests for switch (multi-way) workflow branching",
+    "loop: marks tests for loop workflow iteration",
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
     "builtin_artifact_embeds: marks tests related to the builtin_artifact_embeds",

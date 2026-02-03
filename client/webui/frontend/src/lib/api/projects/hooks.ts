@@ -149,3 +149,35 @@ export function useImportProject() {
         },
     });
 }
+
+// Project Sharing Hooks
+
+export function useProjectShares(projectId: string) {
+    return useQuery({
+        queryKey: projectKeys.shares(projectId),
+        queryFn: () => projectService.getProjectShares(projectId),
+        enabled: !!projectId,
+    });
+}
+
+export function useCreateProjectShares() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ projectId, data }: { projectId: string; data: { shares: { userEmail: string; accessLevel: "RESOURCE_VIEWER" }[] } }) => projectService.createProjectShares(projectId, data),
+        onSuccess: (_, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.shares(projectId) });
+        },
+    });
+}
+
+export function useDeleteProjectShares() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ projectId, data }: { projectId: string; data: { userEmails: string[] } }) => projectService.deleteProjectShares(projectId, data),
+        onSuccess: (_, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.shares(projectId) });
+        },
+    });
+}

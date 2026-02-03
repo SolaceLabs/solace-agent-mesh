@@ -1,0 +1,59 @@
+{
+  "agents": [
+    "examples/agents/orchestrator_example.yaml",
+    "examples/agents/eval_workflows/level1_simple_sequential.yaml",
+    "examples/agents/eval_workflows/level2_parallel_execution.yaml",
+    "examples/agents/eval_workflows/level3_conditional_branching.yaml",
+    "examples/agents/eval_workflows/level4_map_iteration.yaml",
+    "examples/agents/eval_workflows/level5_loop_polling.yaml",
+    "examples/agents/eval_workflows/level6_workflow_composition.yaml",
+    "examples/agents/eval_workflows/level7_error_handling.yaml"
+  ],
+  "broker": {
+    "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
+    "SOLACE_BROKER_USERNAME_VAR": "SOLACE_BROKER_USERNAME",
+    "SOLACE_BROKER_PASSWORD_VAR": "SOLACE_BROKER_PASSWORD",
+    "SOLACE_BROKER_VPN_VAR": "SOLACE_BROKER_VPN"
+  },
+  "llm_models": [
+    {
+      "name": "claude-4-sonnet",
+      "env": {
+        "LLM_SERVICE_PLANNING_MODEL_NAME_VAR": "LLM_SERVICE_PLANNING_MODEL_NAME",
+        "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
+        "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
+      }
+    }
+  ],
+  "results_dir_name": "workflow-eval",
+  "runs": 1,
+  "workers": 2,
+  "test_cases": [
+    "tests/evaluation/test_cases/workflows/level1_simple_sequential.test.json",
+    "tests/evaluation/test_cases/workflows/level2_parallel_execution.test.json",
+    "tests/evaluation/test_cases/workflows/level3_conditional_small.test.json",
+    "tests/evaluation/test_cases/workflows/level3_conditional_medium.test.json",
+    "tests/evaluation/test_cases/workflows/level3_conditional_large.test.json",
+    "tests/evaluation/test_cases/workflows/level4_map_iteration.test.json",
+    "tests/evaluation/test_cases/workflows/level5_loop_polling.test.json",
+    "tests/evaluation/test_cases/workflows/level6_workflow_composition.test.json",
+    "tests/evaluation/test_cases/workflows/level7_success_path.test.json",
+    "tests/evaluation/test_cases/workflows/level7_failure_path.test.json"
+  ],
+  "evaluation_settings": {
+    "tool_match": {
+      "enabled": true
+    },
+    "response_match": {
+      "enabled": true
+    },
+    "llm_evaluator": {
+      "enabled": true,
+      "env": {
+        "LLM_SERVICE_PLANNING_MODEL_NAME_VAR": "LLM_SERVICE_PLANNING_MODEL_NAME",
+        "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
+        "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
+      }
+    }
+  }
+}
