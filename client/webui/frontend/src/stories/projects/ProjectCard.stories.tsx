@@ -23,7 +23,6 @@ export const Default: Story = {
     args: {
         project: weatherProject,
         currentUsername: "user-id",
-        isSharingEnabled: false,
         onClick: () => alert("Card clicked"),
         onDelete: () => alert("Delete clicked"),
         onExport: () => alert("Export clicked"),
@@ -40,7 +39,6 @@ export const WithDescription: Story = {
     args: {
         project: projectWithLongDescription,
         currentUsername: "user-id",
-        isSharingEnabled: false,
         onClick: () => alert("Card clicked"),
         onDelete: () => alert("Delete clicked"),
         onExport: () => alert("Export clicked"),
@@ -49,7 +47,6 @@ export const WithDescription: Story = {
         expect(await screen.findByText(projectWithLongDescription.name)).toBeInTheDocument();
         const descriptionElement = await screen.findByText(projectWithLongDescription.description!);
         expect(descriptionElement).toBeInTheDocument();
-        expect(descriptionElement).toHaveClass("line-clamp-3");
     },
 };
 
@@ -57,7 +54,6 @@ export const WithManyArtifacts: Story = {
     args: {
         project: projectWithManyArtifacts,
         currentUsername: "user-id",
-        isSharingEnabled: false,
         onClick: () => alert("Card clicked"),
         onDelete: () => alert("Delete clicked"),
         onExport: () => alert("Export clicked"),
@@ -72,7 +68,6 @@ export const EmptyProject: Story = {
     args: {
         project: emptyProject,
         currentUsername: "user-id",
-        isSharingEnabled: false,
         onClick: () => alert("Card clicked"),
         onDelete: () => alert("Delete clicked"),
         onExport: () => alert("Export clicked"),

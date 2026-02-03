@@ -5,5 +5,5 @@ export function useIsProjectOwner(projectUserId: string | undefined) {
     const currentUsername = userInfo?.username as string | undefined;
 
     if (!currentUsername || !projectUserId) return false;
-    return currentUsername === projectUserId;
+    return currentUsername.toLowerCase() === projectUserId.toLowerCase();
 }

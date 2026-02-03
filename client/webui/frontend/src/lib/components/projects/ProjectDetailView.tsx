@@ -22,11 +22,10 @@ interface ProjectDetailViewProps {
     onStartNewChat?: () => void;
     onChatClick?: (sessionId: string) => void;
     isOwner?: boolean;
-    isSharingEnabled?: boolean;
     onShare?: () => void;
 }
 
-export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, isOwner = true, isSharingEnabled = false, onShare }) => {
+export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, isOwner = false, onShare }) => {
     const { updateProject, projects, deleteProject } = useProjectContext();
     const { validationLimits } = useConfigContext();
     const [isSaving, setIsSaving] = useState(false);
@@ -141,7 +140,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                                   <Pencil className="h-4 w-4" />
                                   Edit Details
                               </Button>,
-                              ...(isSharingEnabled && onShare
+                              ...(onShare
                                   ? [
                                         <Button key="share" variant="ghost" size="sm" onClick={onShare} testid="shareButton" className="gap-2">
                                             <Share2 className="h-4 w-4" />

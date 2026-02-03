@@ -168,11 +168,9 @@ export const ProjectsPage: React.FC = () => {
         setProjectToShare(null);
     };
 
-    // Determine if we should show list or detail view
     const showDetailView = selectedProject !== null;
 
-    // Compute isOwner for the selected project
-    const isSelectedProjectOwner = selectedProject && currentUsername ? selectedProject.userId === currentUsername : true;
+    const isSelectedProjectOwner = selectedProject && currentUsername ? selectedProject.userId.toLowerCase() === currentUsername.toLowerCase() : true;
 
     return (
         <div className="flex h-full w-full flex-col">
@@ -200,8 +198,7 @@ export const ProjectsPage: React.FC = () => {
                         onStartNewChat={handleStartNewChat}
                         onChatClick={handleChatClick}
                         isOwner={isSelectedProjectOwner}
-                        isSharingEnabled={isSharingEnabled}
-                        onShare={() => handleShareClick(selectedProject)}
+                        onShare={isSharingEnabled ? () => handleShareClick(selectedProject) : undefined}
                     />
                 ) : (
                     <ProjectCards
@@ -214,8 +211,7 @@ export const ProjectsPage: React.FC = () => {
                         onExport={handleExport}
                         isLoading={isLoading}
                         currentUsername={currentUsername}
-                        isSharingEnabled={isSharingEnabled}
-                        onShare={handleShareClick}
+                        onShare={isSharingEnabled ? handleShareClick : undefined}
                     />
                 )}
             </div>

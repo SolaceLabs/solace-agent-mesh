@@ -13,7 +13,7 @@ interface DefaultAgentSectionProps {
     isOwner?: boolean;
 }
 
-export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving, isOwner = true }) => {
+export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving, isOwner = false }) => {
     const { agents, agentsLoading, agentNameDisplayNameMap } = useChatContext();
     const [isEditing, setIsEditing] = useState(false);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(project.defaultAgentId || null);

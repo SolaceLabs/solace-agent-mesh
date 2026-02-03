@@ -21,7 +21,7 @@ interface KnowledgeSectionProps {
     isOwner?: boolean;
 }
 
-export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project, isOwner = true }) => {
+export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project, isOwner = false }) => {
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);

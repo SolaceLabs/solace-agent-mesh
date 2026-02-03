@@ -13,17 +13,16 @@ interface ProjectCardProps {
     onDelete?: (project: Project) => void;
     onExport?: (project: Project) => void;
     currentUsername?: string;
-    isSharingEnabled?: boolean;
     onShare?: (project: Project) => void;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, currentUsername, isSharingEnabled, onShare }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, currentUsername, onShare }) => {
     const [menuOpen, setMenuOpen] = useState(false);
 
-    const isOwner = currentUsername ? project.userId === currentUsername : true;
+    const isOwner = currentUsername ? project.userId.toLowerCase() === currentUsername.toLowerCase() : true;
 
     const menuActions: MenuAction[] = [
-        ...(isOwner && isSharingEnabled && onShare
+        ...(isOwner && onShare
             ? [
                   {
                       id: "share",
@@ -113,7 +112,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                                 <span>{project.artifactCount}</span>
                             </Badge>
                         )}
-                        {isSharingEnabled && (
+                        {onShare && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <span className="cursor-default">{isOwner ? <UserCog className="h-4 w-4" /> : <UserSearch className="h-4 w-4" />}</span>
