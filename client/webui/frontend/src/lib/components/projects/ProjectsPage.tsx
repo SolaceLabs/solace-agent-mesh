@@ -26,7 +26,7 @@ export const ProjectsPage: React.FC = () => {
     const exportProjectMutation = useExportProject();
     const importProjectMutation = useImportProject();
 
-    // Derived values for sharing
+    // Project sharing is a enterprise feature, it is not available in community edition.
     const isSharingEnabled = configFeatureEnablement?.projectSharingEnabled ?? false;
 
     // state
