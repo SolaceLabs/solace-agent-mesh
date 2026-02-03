@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal, Share2 } from "lucide-react";
 
 import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from "@/lib/components/ui";
 import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext } from "@/lib/hooks";
+import { useConfigContext, useIsProjectOwner } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
@@ -21,9 +21,11 @@ interface ProjectDetailViewProps {
     onBack: () => void;
     onStartNewChat?: () => void;
     onChatClick?: (sessionId: string) => void;
+    onShare?: () => void;
 }
 
-export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
+export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, onShare }) => {
+    const isOwner = useIsProjectOwner(project.userId);
     const { updateProject, projects, deleteProject } = useProjectContext();
     const { validationLimits } = useConfigContext();
     const [isSaving, setIsSaving] = useState(false);
@@ -132,23 +134,35 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
-                        <Pencil className="h-4 w-4" />
-                        Edit Details
-                    </Button>,
-                    <DropdownMenu key="more">
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={handleDeleteClick}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>,
+                    ...(isOwner
+                        ? [
+                              <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
+                                  <Pencil className="h-4 w-4" />
+                                  Edit Details
+                              </Button>,
+                              ...(onShare
+                                  ? [
+                                        <Button key="share" variant="ghost" size="sm" onClick={onShare} testid="shareButton" className="gap-2">
+                                            <Share2 className="h-4 w-4" />
+                                            Share
+                                        </Button>,
+                                    ]
+                                  : []),
+                              <DropdownMenu key="more">
+                                  <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                          <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={handleDeleteClick}>
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete
+                                      </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                              </DropdownMenu>,
+                          ]
+                        : []),
                 ]}
             />
 
