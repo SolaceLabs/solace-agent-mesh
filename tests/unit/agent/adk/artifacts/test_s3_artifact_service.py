@@ -640,7 +640,8 @@ class TestS3ArtifactServiceDeleteArtifact:
                 filename="test.txt"
             )
         
-        # Should delete all versions
+        # Should delete all artifact versions (3)
+        # Note: S3 stores metadata in object metadata, not as separate files
         assert mock_s3_client.delete_object.call_count == 3
         
         # Verify correct keys were deleted
@@ -675,10 +676,12 @@ class TestS3ArtifactServiceDeleteArtifact:
         service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
         
         # Mock delete_object to fail on second call
+        # Note: S3 stores metadata in object metadata, not as separate files
+        # So for 3 versions, we need 3 responses (3 artifacts only)
         mock_s3_client.delete_object.side_effect = [
-            {},  # Success
-            ClientError({'Error': {'Code': '403'}}, 'DeleteObject'),  # Failure
-            {},  # Success
+            {},  # Success - artifact version 0
+            ClientError({'Error': {'Code': '403'}}, 'DeleteObject'),  # Failure - artifact version 1
+            {},  # Success - artifact version 2
         ]
         
         with patch.object(service, 'list_versions', return_value=[0, 1, 2]):
@@ -690,7 +693,7 @@ class TestS3ArtifactServiceDeleteArtifact:
                 filename="test.txt"
             )
         
-        # Should attempt to delete all versions
+        # Should attempt to delete all versions (3 artifacts)
         assert mock_s3_client.delete_object.call_count == 3
 
 

@@ -372,7 +372,7 @@ class S3ArtifactService(BaseArtifactService):
             logger.debug("%sNo versions found to delete for artifact.", log_prefix)
             return
 
-        # Delete all versions
+        # Delete all artifact versions
         for version in versions:
             object_key = self._get_object_key(
                 app_name, user_id, session_id, filename, version

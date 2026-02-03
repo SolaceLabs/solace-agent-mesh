@@ -21,12 +21,14 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
     _inspect_structure,
     _infer_schema,
     save_artifact_with_metadata,
+    delete_artifact_with_metadata,
     process_artifact_upload,
     format_metadata_for_llm,
     decode_and_get_bytes,
     get_latest_artifact_version,
     load_artifact_content_or_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
+    METADATA_SUFFIX,
 )
 
 
@@ -1477,3 +1479,366 @@ class TestArtifactHelpersWithFixtures:
         wrong_ext_filename = filename.replace(".csv", ".txt")
         corrected = ensure_correct_extension(wrong_ext_filename, "csv")
         assert corrected == filename
+
+
+class TestDeleteArtifactWithMetadata:
+    """Test the delete_artifact_with_metadata function."""
+
+    @pytest.fixture
+    def mock_artifact_service(self):
+        """Mock artifact service for testing."""
+        service = Mock(spec=BaseArtifactService)
+        service.delete_artifact = AsyncMock()
+        return service
+
+    @pytest.mark.asyncio
+    async def test_delete_both_artifacts_success(self, mock_artifact_service):
+        """Test successful deletion of both data and metadata artifacts."""
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        assert result["status"] == "success"
+        assert result["data_filename"] == "test.txt"
+        assert result["metadata_filename"] == f"test.txt{METADATA_SUFFIX}"
+        assert "Both data artifact" in result["message"]
+        assert "deleted successfully" in result["message"]
+        
+        # Verify delete_artifact was called twice (data + metadata)
+        assert mock_artifact_service.delete_artifact.call_count == 2
+        
+        # Verify the calls were made with correct filenames
+        calls = mock_artifact_service.delete_artifact.call_args_list
+        assert calls[0][1]["filename"] == "test.txt"
+        assert calls[1][1]["filename"] == f"test.txt{METADATA_SUFFIX}"
+
+    @pytest.mark.asyncio
+    async def test_delete_data_not_found_metadata_deleted(self, mock_artifact_service):
+        """Test when data artifact is not found but metadata is deleted."""
+        # First call (data) raises FileNotFoundError, second call (metadata) succeeds
+        mock_artifact_service.delete_artifact.side_effect = [
+            FileNotFoundError("Data artifact not found"),
+            None  # Metadata deletion succeeds
+        ]
+        
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        assert result["status"] == "partial success"
+        assert result["data_filename"] == "test.txt"
+        assert "Metadata artifact" in result["message"]
+        assert "deleted" in result["message"]
+        assert "data artifact" in result["message"]
+        assert "failed" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_data_deleted_metadata_not_found(self, mock_artifact_service):
+        """Test when data artifact is deleted but metadata is not found."""
+        # First call (data) succeeds, second call (metadata) raises FileNotFoundError
+        mock_artifact_service.delete_artifact.side_effect = [
+            None,  # Data deletion succeeds
+            FileNotFoundError("Metadata artifact not found")
+        ]
+        
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        # Status should still be "partial success" since data was deleted
+        assert result["status"] == "partial success"
+        assert result["data_filename"] == "test.txt"
+        # The message should indicate data was deleted successfully
+        assert "Data artifact 'test.txt' deleted successfully" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_both_not_found(self, mock_artifact_service):
+        """Test when both data and metadata artifacts are not found."""
+        # Both calls raise FileNotFoundError
+        mock_artifact_service.delete_artifact.side_effect = [
+            FileNotFoundError("Data artifact not found"),
+            FileNotFoundError("Metadata artifact not found")
+        ]
+        
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        assert result["status"] == "error"
+        assert result["data_filename"] == "test.txt"
+        assert "Neither data artifact" in result["message"]
+        assert "nor metadata artifact" in result["message"]
+        assert "found" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_data_error_metadata_deleted(self, mock_artifact_service):
+        """Test when data deletion fails with error but metadata is deleted."""
+        # First call (data) raises generic exception, second call (metadata) succeeds
+        mock_artifact_service.delete_artifact.side_effect = [
+            Exception("Permission denied"),
+            None  # Metadata deletion succeeds
+        ]
+        
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        assert result["status"] == "partial success"
+        assert result["data_filename"] == "test.txt"
+        assert "Metadata artifact" in result["message"]
+        assert "deleted" in result["message"]
+        assert "data artifact" in result["message"]
+        assert "failed" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_data_deleted_metadata_error(self, mock_artifact_service):
+        """Test when data is deleted but metadata deletion fails with error."""
+        # First call (data) succeeds, second call (metadata) raises exception
+        mock_artifact_service.delete_artifact.side_effect = [
+            None,  # Data deletion succeeds
+            Exception("Metadata deletion failed")
+        ]
+        
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        assert result["status"] == "partial success"
+        assert result["data_filename"] == "test.txt"
+        assert "Data artifact 'test.txt' deleted" in result["message"]
+        assert "failed to delete metadata artifact" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_both_fail_with_errors(self, mock_artifact_service):
+        """Test when both data and metadata deletions fail with errors."""
+        # Both calls raise exceptions
+        mock_artifact_service.delete_artifact.side_effect = [
+            Exception("Data deletion error"),
+            Exception("Metadata deletion error")
+        ]
+        
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        assert result["status"] == "error"
+        assert result["data_filename"] == "test.txt"
+        assert "Failed to delete both artifacts" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_with_correct_parameters(self, mock_artifact_service):
+        """Test that delete is called with correct parameters."""
+        await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="myapp",
+            user_id="user456",
+            session_id="session789",
+            filename="document.pdf"
+        )
+        
+        # Verify first call (data artifact)
+        first_call = mock_artifact_service.delete_artifact.call_args_list[0]
+        assert first_call[1]["app_name"] == "myapp"
+        assert first_call[1]["user_id"] == "user456"
+        assert first_call[1]["session_id"] == "session789"
+        assert first_call[1]["filename"] == "document.pdf"
+        
+        # Verify second call (metadata artifact)
+        second_call = mock_artifact_service.delete_artifact.call_args_list[1]
+        assert second_call[1]["app_name"] == "myapp"
+        assert second_call[1]["user_id"] == "user456"
+        assert second_call[1]["session_id"] == "session789"
+        assert second_call[1]["filename"] == f"document.pdf{METADATA_SUFFIX}"
+
+    @pytest.mark.asyncio
+    async def test_delete_metadata_attempted_even_if_data_fails(self, mock_artifact_service):
+        """Test that metadata deletion is always attempted regardless of data deletion result."""
+        # Data deletion fails
+        mock_artifact_service.delete_artifact.side_effect = [
+            Exception("Data deletion failed"),
+            None  # Metadata should still be attempted
+        ]
+        
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        # Verify both delete calls were made
+        assert mock_artifact_service.delete_artifact.call_count == 2
+        assert result["status"] == "partial success"
+
+    @pytest.mark.asyncio
+    async def test_delete_with_special_filename(self, mock_artifact_service):
+        """Test deletion with special characters in filename."""
+        special_filename = "my-file_2024.json"
+        
+        await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename=special_filename
+        )
+        
+        # Verify correct filenames were used
+        calls = mock_artifact_service.delete_artifact.call_args_list
+        assert calls[0][1]["filename"] == special_filename
+        assert calls[1][1]["filename"] == f"{special_filename}{METADATA_SUFFIX}"
+
+    @pytest.mark.asyncio
+    async def test_delete_return_structure(self, mock_artifact_service):
+        """Test that the return structure contains all expected fields."""
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        # Verify all expected fields are present
+        assert "status" in result
+        assert "data_filename" in result
+        assert "metadata_filename" in result
+        assert "message" in result
+        
+        # Verify field values
+        assert result["data_filename"] == "test.txt"
+        assert result["metadata_filename"] == f"test.txt{METADATA_SUFFIX}"
+        assert isinstance(result["status"], str)
+        assert isinstance(result["message"], str)
+
+    @pytest.mark.asyncio
+    async def test_delete_outer_exception_handling(self, mock_artifact_service):
+        """Test handling of unexpected exceptions in outer try block."""
+        # Make getattr fail to simulate an unexpected error
+        mock_artifact_service.delete_artifact = None  # This will cause getattr to fail
+        
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        
+        assert result["status"] == "error"
+        assert "Failed to delete data artifact" in result["message"] or "Failed to delete" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_status_transitions(self, mock_artifact_service):
+        """Test status transitions through different scenarios."""
+        # Scenario 1: Both succeed -> "success"
+        mock_artifact_service.delete_artifact.side_effect = [None, None]
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test1.txt"
+        )
+        assert result["status"] == "success"
+        
+        # Scenario 2: Data fails, metadata succeeds -> "partial success"
+        mock_artifact_service.delete_artifact.side_effect = [
+            FileNotFoundError("Not found"),
+            None
+        ]
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test2.txt"
+        )
+        assert result["status"] == "partial success"
+        
+        # Scenario 3: Data succeeds, metadata fails -> "partial success"
+        mock_artifact_service.delete_artifact.side_effect = [
+            None,
+            Exception("Metadata error")
+        ]
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test3.txt"
+        )
+        assert result["status"] == "partial success"
+        
+        # Scenario 4: Both fail -> "error"
+        mock_artifact_service.delete_artifact.side_effect = [
+            FileNotFoundError("Not found"),
+            FileNotFoundError("Not found")
+        ]
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test4.txt"
+        )
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_delete_message_accuracy(self, mock_artifact_service):
+        """Test that status messages accurately reflect what happened."""
+        # Test success message
+        mock_artifact_service.delete_artifact.side_effect = [None, None]
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        assert "Both data artifact 'test.txt' and metadata artifact" in result["message"]
+        assert "deleted successfully" in result["message"]
+        
+        # Test data not found message
+        mock_artifact_service.delete_artifact.side_effect = [
+            FileNotFoundError("Not found"),
+            None
+        ]
+        result = await delete_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="test.txt"
+        )
+        assert "Metadata artifact" in result["message"]
+        assert "data artifact 'test.txt' failed" in result["message"]
