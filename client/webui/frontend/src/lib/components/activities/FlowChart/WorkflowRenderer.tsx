@@ -224,9 +224,10 @@ interface WorkflowRendererProps {
     onNodeClick?: (node: LayoutNode) => void;
     onEdgeClick?: (edge: Edge) => void;
     showDetail?: boolean;
+    onUnknownAgent?: (agentName: string) => void;
 }
 
-const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({ processedSteps, agentNameMap, selectedStepId, onNodeClick, onEdgeClick, showDetail = true }) => {
+const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({ processedSteps, agentNameMap, selectedStepId, onNodeClick, onEdgeClick, showDetail = true, onUnknownAgent }) => {
     const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
 
     // Handle expand toggle for a node
@@ -249,12 +250,12 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({ processedSteps, age
         }
 
         try {
-            return processSteps(processedSteps, agentNameMap);
+            return processSteps(processedSteps, agentNameMap, onUnknownAgent);
         } catch (error) {
             console.error("[WorkflowRenderer] Error processing steps:", error);
             return { nodes: [], edges: [], totalWidth: 800, totalHeight: 600 };
         }
-    }, [processedSteps, agentNameMap]);
+    }, [processedSteps, agentNameMap, onUnknownAgent]);
 
     // Collapse nested agents when showDetail is false
     const layoutResult = useMemo(() => {

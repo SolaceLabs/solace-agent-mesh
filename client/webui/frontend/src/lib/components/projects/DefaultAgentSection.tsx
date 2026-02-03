@@ -3,7 +3,7 @@ import { Bot, Pencil } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useIsProjectOwner } from "@/lib/hooks";
 import { MessageBanner } from "../common";
 
 interface DefaultAgentSectionProps {
@@ -14,6 +14,7 @@ interface DefaultAgentSectionProps {
 
 export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving }) => {
     const { agents, agentsLoading, agentNameDisplayNameMap } = useChatContext();
+    const isOwner = useIsProjectOwner(project.userId);
     const [isEditing, setIsEditing] = useState(false);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(project.defaultAgentId || null);
 
@@ -38,9 +39,11 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ projec
             <div className="mb-6">
                 <div className="mb-3 flex items-center justify-between px-4">
                     <h3 className="text-foreground text-sm font-semibold">Default Agent</h3>
-                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} disabled={agentsLoading} className="h-8 w-8 p-0" tooltip="Edit">
-                        <Pencil className="h-4 w-4" />
-                    </Button>
+                    {isOwner && (
+                        <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} disabled={agentsLoading} className="h-8 w-8 p-0" tooltip="Edit">
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
                 {agentNameDisplayNameMap[project.defaultAgentId ?? ""] === undefined && project.defaultAgentId !== null && (
                     <div className="mb-3 px-4">

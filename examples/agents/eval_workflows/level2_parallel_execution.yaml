@@ -180,7 +180,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "ParallelExecutionWorkflow"
+      name: "ParallelExecutionWorkflow"
       display_name: "Parallel Execution Workflow"
 
       # Timeout configurations

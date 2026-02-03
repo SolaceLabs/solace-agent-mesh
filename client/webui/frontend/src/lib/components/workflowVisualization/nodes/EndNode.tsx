@@ -8,9 +8,7 @@ import { NODE_BASE_STYLES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/
 const EndNode: FC<NodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
-            className={`${NODE_BASE_STYLES.PILL} ${
-                isSelected ? NODE_SELECTED_CLASS : ""
-            }`}
+            className={`${NODE_BASE_STYLES.PILL} ${isSelected ? NODE_SELECTED_CLASS : ""}`}
             style={{
                 width: `${node.width}px`,
                 height: `${node.height}px`,

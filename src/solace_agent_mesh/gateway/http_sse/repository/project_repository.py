@@ -51,11 +51,9 @@ class ProjectRepository(IProjectRepository):
         query = self.db.query(ProjectModel).filter(ProjectModel.deleted_at.is_(None))
 
         if not shared_project_ids:
-            # No shares: just owned projects
             models = query.filter(ProjectModel.user_id == user_email).all()
             return [self._model_to_entity(model) for model in models]
 
-        # Has shares: owned OR in shared list (with batching for safety)
         # Conservative limits to avoid SQL parameter/query length issues
         # SQLite parameter limit: 999, UUID ~40 chars, keep query under 100KB
         MAX_IN_CLAUSE = 500
@@ -69,20 +67,17 @@ class ProjectRepository(IProjectRepository):
                 )
             ).all()
         else:
-            # Batch for large share lists (edge case)
+            # Batch for large share lists
             all_models = []
 
-            # Get owned projects
             owned_models = query.filter(ProjectModel.user_id == user_email).all()
             all_models.extend(owned_models)
 
-            # Batch shared projects
             for i in range(0, len(shared_project_ids), MAX_IN_CLAUSE):
                 batch = shared_project_ids[i:i + MAX_IN_CLAUSE]
                 shared_models = query.filter(ProjectModel.id.in_(batch)).all()
                 all_models.extend(shared_models)
 
-            # Deduplicate (user might own a project they also have shared access to)
             seen = set()
             models = []
             for model in all_models:

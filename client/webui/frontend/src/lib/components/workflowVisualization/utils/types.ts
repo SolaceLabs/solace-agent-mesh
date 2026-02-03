@@ -108,8 +108,7 @@ export interface NodeProps {
  * Shared CSS classes for node highlighting when referenced in expressions
  * Used by all node components to ensure consistent highlight styling
  */
-export const NODE_HIGHLIGHT_CLASSES =
-    "ring-1 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/50 dark:ring-amber-500 dark:ring-offset-gray-900 dark:shadow-amber-500/30";
+export const NODE_HIGHLIGHT_CLASSES = "ring-1 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/50 dark:ring-amber-500 dark:ring-offset-gray-900 dark:shadow-amber-500/30";
 
 /**
  * Common base styles for different node types
@@ -120,15 +119,19 @@ export const NODE_BASE_STYLES = {
     /** Rectangular node style - used by Agent, Workflow, Switch nodes
      * Figma Card: rounded (4px), shadow, 16px padding
      */
-    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-4 py-3 shadow transition-all duration-200 ease-in-out hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    RECTANGULAR:
+        "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-4 py-3 shadow transition-all duration-200 ease-in-out hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
     /** Rectangular compact style - used by Loop/Map collapsed nodes */
-    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-3 py-2 shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    RECTANGULAR_COMPACT:
+        "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-3 py-2 shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
     /** Pill-shaped node style - used by Start/End nodes */
     PILL: "flex cursor-pointer items-center justify-center gap-2 rounded-full bg-(--color-primary-w10) dark:hover:bg-(--color-primary-wMain) px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:bg-(--color-primary-w90) dark:!shadow-none",
     /** Container header style - used by Loop/Map expanded header */
-    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    CONTAINER_HEADER:
+        "group relative mx-auto w-fit cursor-pointer rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
     /** Condition pill style - used by Switch condition pills */
-    CONDITION_PILL: "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 bg-(--color-background-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    CONDITION_PILL:
+        "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 bg-(--color-background-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
     /** Switch node style - similar to rectangular but without justify-between */
     SWITCH: "group relative cursor-pointer rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
 } as const;

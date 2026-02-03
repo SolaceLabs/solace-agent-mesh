@@ -71,37 +71,13 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, selectedEdgeId, onEdgeClic
             }}
         >
             <defs>
-                <marker
-                    id="arrowhead"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
-                    orient="auto"
-                    markerUnits="strokeWidth"
-                >
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
                     <path d="M0,0 L0,6 L9,3 z" fill="#888" />
                 </marker>
-                <marker
-                    id="arrowhead-selected"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
-                    orient="auto"
-                    markerUnits="strokeWidth"
-                >
+                <marker id="arrowhead-selected" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
                     <path d="M0,0 L0,6 L9,3 z" fill="#3b82f6" />
                 </marker>
-                <marker
-                    id="arrowhead-error"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
-                    orient="auto"
-                    markerUnits="strokeWidth"
-                >
+                <marker id="arrowhead-error" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
                     <path d="M0,0 L0,6 L9,3 z" fill="#ef4444" />
                 </marker>
             </defs>
@@ -151,14 +127,7 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, selectedEdgeId, onEdgeClic
 
                         {/* Label */}
                         {edge.label && isHovered && (
-                            <text
-                                x={(edge.sourceX + edge.targetX) / 2}
-                                y={(edge.sourceY + edge.targetY) / 2}
-                                fill="#374151"
-                                fontSize="12"
-                                textAnchor="middle"
-                                style={{ pointerEvents: "none" }}
-                            >
+                            <text x={(edge.sourceX + edge.targetX) / 2} y={(edge.sourceY + edge.targetY) / 2} fill="#374151" fontSize="12" textAnchor="middle" style={{ pointerEvents: "none" }}>
                                 {edge.label}
                             </text>
                         )}
