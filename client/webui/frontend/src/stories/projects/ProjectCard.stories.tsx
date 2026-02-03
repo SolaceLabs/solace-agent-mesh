@@ -13,9 +13,6 @@ const meta = {
                 component: "Card component for displaying project information in a grid layout. Shows project name, description, artifact count, and provides menu actions for owners.",
             },
         },
-        authContext: {
-            userInfo: { username: "user-id" },
-        },
     },
 } satisfies Meta<typeof ProjectCard>;
 

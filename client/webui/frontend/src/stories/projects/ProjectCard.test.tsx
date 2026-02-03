@@ -33,6 +33,9 @@ describe("ProjectCard", () => {
                         authContext: {
                             userInfo: { username: "owner-user" },
                         },
+                        configContext: {
+                            configUseAuthorization: true,
+                        },
                     },
                 },
                 meta
@@ -61,6 +64,9 @@ describe("ProjectCard", () => {
                         authContext: {
                             userInfo: { username: "different-user" },
                         },
+                        configContext: {
+                            configUseAuthorization: true,
+                        },
                     },
                 },
                 meta
@@ -88,6 +94,9 @@ describe("ProjectCard", () => {
                         authContext: {
                             userInfo: { username: "owner-user" },
                         },
+                        configContext: {
+                            configUseAuthorization: true,
+                        },
                     },
                 },
                 meta
@@ -113,6 +122,9 @@ describe("ProjectCard", () => {
                     parameters: {
                         authContext: {
                             userInfo: { username: "different-user" },
+                        },
+                        configContext: {
+                            configUseAuthorization: true,
                         },
                     },
                 },
@@ -143,6 +155,9 @@ describe("ProjectCard", () => {
                         authContext: {
                             userInfo: { username: "owner-user" },
                         },
+                        configContext: {
+                            configUseAuthorization: true,
+                        },
                     },
                 },
                 meta
@@ -167,6 +182,9 @@ describe("ProjectCard", () => {
                     parameters: {
                         authContext: {
                             userInfo: { username: "different-user" },
+                        },
+                        configContext: {
+                            configUseAuthorization: true,
                         },
                     },
                 },
@@ -193,6 +211,9 @@ describe("ProjectCard", () => {
                     parameters: {
                         authContext: {
                             userInfo: { username: "owner-user" },
+                        },
+                        configContext: {
+                            configUseAuthorization: true,
                         },
                     },
                 },
@@ -225,6 +246,9 @@ describe("ProjectCard", () => {
                     parameters: {
                         authContext: {
                             userInfo: { username: "owner-user" },
+                        },
+                        configContext: {
+                            configUseAuthorization: true,
                         },
                     },
                 },

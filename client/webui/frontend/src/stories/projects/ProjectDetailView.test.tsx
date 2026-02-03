@@ -24,6 +24,9 @@ describe("ProjectDetailView", () => {
                         authContext: {
                             userInfo: { username: "different-user" },
                         },
+                        configContext: {
+                            configUseAuthorization: true,
+                        },
                     },
                 },
                 meta
@@ -58,6 +61,9 @@ describe("ProjectDetailView", () => {
                     parameters: {
                         authContext: {
                             userInfo: { username: "user-id" },
+                        },
+                        configContext: {
+                            configUseAuthorization: true,
                         },
                     },
                 },

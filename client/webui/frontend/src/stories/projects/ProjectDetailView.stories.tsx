@@ -82,9 +82,6 @@ const meta = {
             },
         },
         msw: { handlers },
-        authContext: {
-            userInfo: { username: "user-id" },
-        },
     },
     decorators: [
         (Story: StoryFn, context: StoryContext) => {
