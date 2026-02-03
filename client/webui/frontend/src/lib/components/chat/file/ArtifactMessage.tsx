@@ -71,7 +71,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const fileMimeType = fileAttachment?.mime_type;
 
     // Check if artifact exists in allArtifacts (exists but may be hidden due to internal tag)
-    const artifactInAll = useMemo(() => allArtifacts.find(art => art.filename === props.name), [allArtifacts, props.name]);
+    // Fall back to artifacts array if allArtifacts is not available (e.g., in Storybook)
+    const artifactInAll = useMemo(() => (allArtifacts ?? artifacts).find(art => art.filename === props.name), [allArtifacts, artifacts, props.name]);
 
     // Detect if artifact has been deleted: completed but not in allArtifacts list
     const isDeleted = useMemo(() => {
