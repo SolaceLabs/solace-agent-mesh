@@ -178,14 +178,12 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
 
     // Determine if this artifact is clickable
     const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
-    // Show shadow for all artifacts in chat context (not deleted)
+    // Show shadow for all artifacts in chat context (not deleted), but only enable hover for clickable ones
     const showShadow = context === "chat" && !isDeleted;
-    // Whether to show in disabled/dimmed state (only deleted)
-    const isDisabled = isDeleted;
 
     return (
         <div
-            className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDisabled ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
+            className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
             style={{
                 backgroundColor,
                 boxShadow: showShadow ? restingShadow : undefined,
@@ -201,7 +199,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     e.currentTarget.style.boxShadow = restingShadow;
                 }
             }}
-            onClick={isDisabled ? undefined : handleBarClick}
+            onClick={isDeleted ? undefined : handleBarClick}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">
                 {/* File Icon */}
@@ -229,7 +227,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             <>
                                 {status === "in-progress" && <Spinner size="small" variant="primary" />}
                                 <span className={statusDisplay.className}>{statusDisplay.text}</span>
-                                {version !== undefined && context === "chat" && <span className="ml-1.5">(v{version})</span>}
                             </>
                         )}
                     </div>
@@ -245,7 +242,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
 
                 {/* Actions Section */}
                 <div className="flex flex-shrink-0 items-center gap-1">
-                    {status === "completed" && actions?.onInfo && !isDisabled && (
+                    {status === "completed" && actions?.onInfo && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -263,7 +260,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onDownload && !isDisabled && (
+                    {status === "completed" && actions?.onDownload && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -281,7 +278,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onExpand && !isDisabled && (
+                    {status === "completed" && actions?.onExpand && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -299,7 +296,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onEdit && !isDisabled && (
+                    {status === "completed" && actions?.onEdit && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -317,7 +314,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onDelete && !isDisabled && (
+                    {status === "completed" && actions?.onDelete && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -344,7 +341,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 </div>
 
                 {/* Expand/Collapse Toggle */}
-                {expandable && onToggleExpand && !isDisabled && (
+                {expandable && onToggleExpand && !isDeleted && (
                     <Button
                         variant="ghost"
                         size="icon"
