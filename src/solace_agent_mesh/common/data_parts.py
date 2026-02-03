@@ -122,6 +122,10 @@ class ArtifactCreationProgressData(BaseModel):
         None,
         description="The original text that was incorrectly parsed as an artifact block. Only present for 'cancelled' status. The frontend should display this text to the user.",
     )
+    tags: Optional[List[str]] = Field(
+        None,
+        description="Tags associated with this artifact (e.g., ['internal'] for hidden artifacts).",
+    )
 
 
 class ArtifactSavedData(BaseModel):
@@ -145,6 +149,10 @@ class ArtifactSavedData(BaseModel):
     )
     function_call_id: Optional[str] = Field(
         None, description="The function call ID if artifact was created by a tool."
+    )
+    tags: Optional[List[str]] = Field(
+        None,
+        description="Tags associated with this artifact (e.g., ['internal'] for hidden artifacts).",
     )
 
 

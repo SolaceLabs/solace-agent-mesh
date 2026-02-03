@@ -20,6 +20,7 @@ from a2a.types import (
     TextPart,
 )
 from .. import a2a
+from ..constants import ARTIFACT_TAG_USER_UPLOADED
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
@@ -168,6 +169,7 @@ async def prepare_file_part_for_publishing(
                     mime_type=mime_type,
                     metadata_dict=metadata_to_save,
                     timestamp=datetime.now(timezone.utc),
+                    tags=[ARTIFACT_TAG_USER_UPLOADED],
                 )
 
                 if save_result["status"] == "success":
