@@ -27,7 +27,7 @@ export const ProjectsPage: React.FC = () => {
     const importProjectMutation = useImportProject();
 
     // Derived values for sharing
-    const isSharingEnabled = configFeatureEnablement?.project_sharing_enabled ?? false;
+    const isSharingEnabled = configFeatureEnablement?.projectSharingEnabled ?? false;
 
     // state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
