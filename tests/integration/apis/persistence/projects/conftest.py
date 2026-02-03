@@ -5,9 +5,18 @@ Provides custom configured API clients for testing different feature flag scenar
 """
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock
+from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
 from sam_test_infrastructure.fastapi_service.webui_backend_factory import WebUIBackendFactory
+from solace_agent_mesh.shared.api.auth_utils import get_current_user
+
+# If get_user_id is not available, define a fallback or mock for testing purposes.
+try:
+    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
+except ImportError:
+    def get_user_id(request: Request):
+        return request.headers.get("X-Test-User-Id", "sam_dev_user")
 
 
 # Custom header for test user identification (matches parent conftest)
@@ -15,9 +24,7 @@ TEST_USER_HEADER = "X-Test-User-Id"
 
 
 def _create_custom_config_client(
-    db_url: str,
-    projects_enabled: bool = True,
-    feature_flag_enabled: bool = True
+    db_url: str, projects_enabled: bool = True, feature_flag_enabled: bool = True
 ):
     """
     Helper to create a test client with custom project configuration.
@@ -31,9 +38,6 @@ def _create_custom_config_client(
         TestClient configured with specified settings
     """
     factory = WebUIBackendFactory(db_url=db_url)
-
-    # Store original get_config
-    original_get_config = factory.mock_component.get_config
 
     def custom_get_config(key, default=None):
         # Override specific config keys
@@ -65,16 +69,22 @@ def _create_custom_config_client(
             return "A2A Agent"
         if key == "frontend_logo_url":
             return ""
+        if key == "gateway_max_upload_size_bytes":
+            # Test override: 1MB per-file limit for projects tests
+            return 1024 * 1024  # 1MB
+        if key == "gateway_max_total_upload_size_bytes":
+            # Test override: 3MB total project size limit
+            return 3145728  # 3MB
 
         # For other keys, return the default to avoid Mock objects
         return default if default is not None else {}
 
     factory.mock_component.get_config = custom_get_config
 
-    # Set up auth overrides
-    from fastapi import Request
-    from solace_agent_mesh.shared.api.auth_utils import get_current_user
-    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
+    # Set up artifact service
+    artifact_service = TestInMemoryArtifactService()
+    factory.mock_component.get_shared_artifact_service = lambda: artifact_service
+    factory._test_artifact_service = artifact_service
 
     async def override_get_current_user(request: Request):
         user_id = request.headers.get(TEST_USER_HEADER, "sam_dev_user")
@@ -121,9 +131,7 @@ def projects_disabled_client(db_provider):
         db_url = str(db_provider.get_sync_gateway_engine().url)
 
     client = _create_custom_config_client(
-        db_url=db_url,
-        projects_enabled=False,
-        feature_flag_enabled=True
+        db_url=db_url, projects_enabled=False, feature_flag_enabled=True
     )
 
     yield client
@@ -140,9 +148,7 @@ def feature_flag_disabled_client(db_provider):
         db_url = str(db_provider.get_sync_gateway_engine().url)
 
     client = _create_custom_config_client(
-        db_url=db_url,
-        projects_enabled=True,
-        feature_flag_enabled=False
+        db_url=db_url, projects_enabled=True, feature_flag_enabled=False
     )
 
     yield client
@@ -159,9 +165,7 @@ def both_disabled_client(db_provider):
         db_url = str(db_provider.get_sync_gateway_engine().url)
 
     client = _create_custom_config_client(
-        db_url=db_url,
-        projects_enabled=False,
-        feature_flag_enabled=False
+        db_url=db_url, projects_enabled=False, feature_flag_enabled=False
     )
 
     yield client
@@ -178,9 +182,7 @@ def both_enabled_client(db_provider):
         db_url = str(db_provider.get_sync_gateway_engine().url)
 
     client = _create_custom_config_client(
-        db_url=db_url,
-        projects_enabled=True,
-        feature_flag_enabled=True
+        db_url=db_url, projects_enabled=True, feature_flag_enabled=True
     )
 
     yield client

@@ -5,7 +5,7 @@ import { useConfigContext, useDownload } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
-import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
+import { formatRelativeTime, validateFileSizes, validateTotalUploadSize, calculateTotalFileSize } from "@/lib/utils";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
@@ -28,6 +28,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
     // Get max upload size from config - if not available, skip client-side validation
     const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
+    const maxTotalUploadSizeBytes = validationLimits?.maxTotalUploadSizeBytes;
 
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,13 +48,25 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         });
     }, [artifacts]);
 
-    // Validate file sizes before showing upload dialog
-    // if maxUploadSizeBytes is not configured, validation is skipped and backend handles it
+    const currentProjectArtifactSizeBytes = React.useMemo(() => {
+        return calculateTotalFileSize(artifacts);
+    }, [artifacts]);
+
     const handleValidateFileSizes = useCallback(
         (files: FileList) => {
-            return validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
+            const fileSizeResult = validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
+            if (!fileSizeResult.valid) {
+                return fileSizeResult;
+            }
+
+            const totalUploadSizeResult = validateTotalUploadSize(currentProjectArtifactSizeBytes, files, maxTotalUploadSizeBytes);
+            if (!totalUploadSizeResult.valid) {
+                return { valid: false, error: totalUploadSizeResult.error };
+            }
+
+            return { valid: true };
         },
-        [maxUploadSizeBytes]
+        [maxUploadSizeBytes, maxTotalUploadSizeBytes, currentProjectArtifactSizeBytes]
     );
 
     const handleFileUploadChange = (files: FileList | null) => {

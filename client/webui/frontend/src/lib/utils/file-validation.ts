@@ -2,6 +2,8 @@
  * File validation utilities for consistent file size validation across the application.
  */
 
+import { formatBytes } from "./format";
+
 export interface FileSizeValidationResult {
     valid: boolean;
     error?: string;
@@ -17,6 +19,14 @@ export interface FileSizeValidationOptions {
     includeFileSizes?: boolean;
     /** Maximum number of files to list in error message before truncating */
     maxFilesToList?: number;
+}
+
+export interface TotalUploadSizeValidationResult {
+    valid: boolean;
+    error?: string;
+    currentSize: number;
+    newSize: number;
+    totalSize: number;
 }
 
 /**
@@ -56,25 +66,25 @@ export function validateFileSizes(files: FileList | File[], options: FileSizeVal
     }
 
     // Build error message
-    const maxSizeMB = (maxSizeBytes / (1024 * 1024)).toFixed(0);
+    const maxSizeWithUnit = formatBytes(maxSizeBytes, 0);
     let errorMsg: string;
 
     if (oversizedFiles.length === 1) {
         const file = oversizedFiles[0];
         if (includeFileSizes) {
-            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-            errorMsg = `File "${file.name}" (${fileSizeMB} MB) exceeds the maximum size of ${maxSizeMB} MB.`;
+            const fileSizeWithUnit = formatBytes(file.size, 2);
+            errorMsg = `File "${file.name}" (${fileSizeWithUnit}) exceeds the maximum size of ${maxSizeWithUnit}.`;
         } else {
-            errorMsg = `File "${file.name}" exceeds the maximum size of ${maxSizeMB} MB.`;
+            errorMsg = `File "${file.name}" exceeds the maximum size of ${maxSizeWithUnit}.`;
         }
     } else {
         const fileList = oversizedFiles.slice(0, maxFilesToList);
-        const fileNames = includeFileSizes ? fileList.map(f => `${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`) : fileList.map(f => f.name);
+        const fileNames = includeFileSizes ? fileList.map(f => `${f.name} (${formatBytes(f.size, 2)})`) : fileList.map(f => f.name);
 
         const remaining = oversizedFiles.length - maxFilesToList;
         const suffix = remaining > 0 ? ` and ${remaining} more` : "";
 
-        errorMsg = `${oversizedFiles.length} files exceed the maximum size of ${maxSizeMB} MB: ${fileNames.join(", ")}${suffix}`;
+        errorMsg = `${oversizedFiles.length} files exceed the maximum size of ${maxSizeWithUnit}: ${fileNames.join(", ")}${suffix}`;
     }
 
     return {
@@ -85,20 +95,14 @@ export function validateFileSizes(files: FileList | File[], options: FileSizeVal
 }
 
 /**
- * Formats a file size in bytes to a human-readable string.
+ * Calculates the total size of multiple files in bytes.
  *
- * @param bytes - File size in bytes
- * @param decimals - Number of decimal places (default: 2)
- * @returns Formatted string like "1.5 MB" or "500 KB"
+ * @param files - Some list of Files, or Array of objects with size property
+ * @returns Total size in bytes
  */
-export function formatFileSize(bytes: number, decimals: number = 2): string {
-    if (bytes === 0) return "0 Bytes";
-
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`;
+export function calculateTotalFileSize(files: FileList | File[] | Array<{ size: number }>): number {
+    const fileArray: Array<{ size: number }> = Array.isArray(files) ? files : Array.from(files);
+    return fileArray.reduce((sum, file) => sum + file.size, 0);
 }
 
 /**
@@ -123,7 +127,42 @@ export function isFileSizeValid(file: File, maxSizeBytes?: number): boolean {
  * @returns Formatted error message
  */
 export function createFileSizeErrorMessage(filename: string, actualSize: number, maxSize: number): string {
-    const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
-    const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
-    return `File "${filename}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB.`;
+    const actualSizeWithUnit = formatBytes(actualSize, 2);
+    const maxSizeWithUnit = formatBytes(maxSize, 2);
+    return `File "${filename}" is too large: ${actualSizeWithUnit} exceeds the maximum allowed size of ${maxSizeWithUnit}.`;
+}
+
+/**
+ * Validates total upload size: existing files + new files <= maxTotalUploadSizeBytes
+ * This enforces a project-level storage limit, not a per-request limit.
+ *
+ * @param currentProjectSizeBytes - Current total size of project artifacts in bytes
+ * @param newFiles - FileList or array of Files to be uploaded
+ * @param maxTotalUploadSizeBytes - Maximum total upload size limit per project
+ * @returns Validation result with error message if limit would be exceeded
+ */
+export function validateTotalUploadSize(currentProjectSizeBytes: number, newFiles: FileList | File[], maxTotalUploadSizeBytes?: number): TotalUploadSizeValidationResult {
+    const newSize = calculateTotalFileSize(newFiles);
+    const totalSize = currentProjectSizeBytes + newSize;
+
+    if (!maxTotalUploadSizeBytes) {
+        return { valid: true, currentSize: currentProjectSizeBytes, newSize, totalSize };
+    }
+
+    if (totalSize <= maxTotalUploadSizeBytes) {
+        return { valid: true, currentSize: currentProjectSizeBytes, newSize, totalSize };
+    }
+
+    const currentWithUnit = formatBytes(currentProjectSizeBytes, 2);
+    const newWithUnit = formatBytes(newSize, 2);
+    const totalWithUnit = formatBytes(totalSize, 2);
+    const limitWithUnit = formatBytes(maxTotalUploadSizeBytes, 0);
+
+    return {
+        valid: false,
+        currentSize: currentProjectSizeBytes,
+        newSize,
+        totalSize,
+        error: `Total upload size limit exceeded. Current: ${currentWithUnit}, New files: ${newWithUnit}, Total: ${totalWithUnit} exceeds limit of ${limitWithUnit}.`,
+    };
 }
