@@ -38,6 +38,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     // Collections
     notifications: [],
     artifacts: [],
+    allArtifacts: [],
     submittedFeedback: {},
     selectedArtifactFilenames: new Set(),
 
@@ -63,6 +64,8 @@ const defaultMockChatContext: DefaultMockContextType = {
     isArtifactEditMode: false,
     isBatchDeleteModalOpen: false,
     configCollectFeedback: false,
+    showInternalArtifacts: false,
+    internalArtifactCount: 0,
 
     // Background task monitoring
     backgroundTasks: [],
@@ -105,6 +108,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     artifactsRefetch: async () => {},
     setArtifacts: () => {},
     displayError: () => {},
+    toggleShowInternalArtifacts: () => {},
 
     // Prompt handling
     pendingPrompt: null,
