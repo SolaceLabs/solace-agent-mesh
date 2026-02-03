@@ -15,8 +15,8 @@ interface OnboardingViewProps {
 
 function OnboardingView({ title, description, learnMoreText, learnMoreHref = "#", image, className }: OnboardingViewProps) {
     return (
-        <div className={cn("flex h-full items-center justify-center p-12", className)}>
-            <div className="grid max-w-6xl grid-cols-2">
+        <div className={cn("flex h-full justify-center overflow-auto p-12", className)}>
+            <div className="my-auto grid max-w-6xl grid-cols-[40%_60%] gap-8">
                 <div className="flex flex-col justify-center">
                     <h2 className="mb-4 text-xl font-semibold">{title}</h2>
                     <p className="text-muted-foreground mb-6 text-sm">{description}</p>
