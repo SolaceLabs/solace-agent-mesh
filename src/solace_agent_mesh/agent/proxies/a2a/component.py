@@ -47,7 +47,6 @@ from datetime import datetime, timezone
 
 from ....common import a2a
 from ....common.auth_headers import build_full_auth_headers
-from ....common.constants import ARTIFACT_TAG_INTERNAL
 from ....common.oauth import OAuth2Client, validate_https_url
 from ....common.data_parts import AgentProgressUpdateData
 from ....agent.utils.artifact_helpers import format_artifact_uri
@@ -1545,9 +1544,6 @@ class A2AProxyComponent(BaseProxyComponent):
                     filename = a2a.get_filename_from_file_part(file_part)
                     mime_type = a2a.get_mimetype_from_file_part(file_part)
 
-                    # Auto-tag as internal if this is a structured invocation
-                    tags = [ARTIFACT_TAG_INTERNAL] if task_context.get_flag("is_structured_invocation") else None
-
                     save_result = await save_artifact_with_metadata(
                         artifact_service=self.artifact_service,
                         app_name=agent_name,
@@ -1558,7 +1554,6 @@ class A2AProxyComponent(BaseProxyComponent):
                         mime_type=mime_type,
                         metadata_dict=metadata_to_save,
                         timestamp=datetime.now(timezone.utc),
-                        tags=tags,
                     )
 
                     if save_result.get("status") in ["success", "partial_success"]:
