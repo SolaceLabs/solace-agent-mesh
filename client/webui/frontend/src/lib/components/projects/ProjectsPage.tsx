@@ -7,11 +7,12 @@ import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { ProjectImportDialog } from "./ProjectImportDialog";
 import { ProjectCards } from "./ProjectCards";
 import { ProjectDetailView } from "./ProjectDetailView";
+import { ShareProjectDialog } from "./ShareProjectDialog";
 import { useProjectContext } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
 import { Button, Header } from "@/lib/components";
 import { downloadBlob, getErrorMessage } from "@/lib/utils";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { useExportProject, useImportProject } from "@/lib/api/projects/hooks";
 
 export const ProjectsPage: React.FC = () => {
@@ -21,8 +22,12 @@ export const ProjectsPage: React.FC = () => {
     // hooks
     const { projects, isLoading, createProject, activeProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
+    const { configFeatureEnablement } = useConfigContext();
     const exportProjectMutation = useExportProject();
     const importProjectMutation = useImportProject();
+
+    // Project sharing is a enterprise feature, it is not available in community edition.
+    const isSharingEnabled = configFeatureEnablement?.projectSharingEnabled ?? false;
 
     // state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -32,6 +37,8 @@ export const ProjectsPage: React.FC = () => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+    const [projectToShare, setProjectToShare] = useState<Project | null>(null);
 
     useEffect(() => {
         if (loaderData?.projectId) {
@@ -149,7 +156,16 @@ export const ProjectsPage: React.FC = () => {
         }
     };
 
-    // Determine if we should show list or detail view
+    const handleShareClick = (project: Project) => {
+        setProjectToShare(project);
+        setIsShareDialogOpen(true);
+    };
+
+    const handleShareDialogClose = () => {
+        setIsShareDialogOpen(false);
+        setProjectToShare(null);
+    };
+
     const showDetailView = selectedProject !== null;
 
     return (
@@ -172,7 +188,7 @@ export const ProjectsPage: React.FC = () => {
 
             <div className="min-h-0 flex-1">
                 {showDetailView ? (
-                    <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} />
+                    <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} onShare={isSharingEnabled ? () => handleShareClick(selectedProject) : undefined} />
                 ) : (
                     <ProjectCards
                         projects={filteredProjects}
@@ -183,6 +199,7 @@ export const ProjectsPage: React.FC = () => {
                         onDelete={handleDeleteClick}
                         onExport={handleExport}
                         isLoading={isLoading}
+                        onShare={isSharingEnabled ? handleShareClick : undefined}
                     />
                 )}
             </div>
@@ -204,6 +221,9 @@ export const ProjectsPage: React.FC = () => {
 
             {/* Import Project Dialog */}
             <ProjectImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
+
+            {/* Share Project Dialog */}
+            {projectToShare && <ShareProjectDialog isOpen={isShareDialogOpen} onClose={handleShareDialogClose} project={projectToShare} />}
         </div>
     );
 };
