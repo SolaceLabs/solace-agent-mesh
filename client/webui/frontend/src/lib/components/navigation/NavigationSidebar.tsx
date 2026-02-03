@@ -64,29 +64,68 @@ const NavItemButton: React.FC<{
     className?: string;
     indent?: boolean;
     hasActiveChild?: boolean;
-}> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild }) => {
-    const buttonContent = (
-        <Button
-            variant="ghost"
-            onClick={item.hasSubmenu ? onToggleExpand : onClick}
-            className={cn("h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w200)]", className)}
-        >
-            {indent ? (
-                // Subitem - no icon wrapper, just text
-                <span className={cn(isActive ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
-            ) : (
-                // Main item - with icon wrapper
-                <>
-                    <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
-                        <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
-                    </div>
-                    <span className={cn(isActive || hasActiveChild ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
-                </>
-            )}
-            {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
-            {item.badge && <span className="ml-auto rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-600">{item.badge}</span>}
-        </Button>
-    );
+    href?: string;
+}> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild, href }) => {
+    const handleClick = (e: React.MouseEvent) => {
+        // Prevent default link behavior for left-click
+        e.preventDefault();
+        if (item.hasSubmenu) {
+            onToggleExpand?.();
+        } else {
+            onClick();
+        }
+    };
+
+    const buttonContent =
+        href && !item.hasSubmenu ? (
+            // Use anchor tag for navigable items to support right-click "Open in new tab"
+            <a
+                href={href}
+                onClick={handleClick}
+                className={cn(
+                    "flex h-10 w-full items-center justify-start rounded-md px-2 text-sm font-normal transition-colors hover:bg-[var(--color-background-w100)]",
+                    indent && "pl-4",
+                    indent && isActive && "bg-[var(--color-background-w200)]",
+                    className
+                )}
+            >
+                {indent ? (
+                    // Subitem - no icon wrapper, just text
+                    <span className={cn(isActive ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                ) : (
+                    // Main item - with icon wrapper
+                    <>
+                        <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
+                            <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                        </div>
+                        <span className={cn(isActive || hasActiveChild ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                    </>
+                )}
+                {item.badge && <span className="ml-auto rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-600">{item.badge}</span>}
+            </a>
+        ) : (
+            // Use button for items with submenus or custom onClick handlers
+            <Button
+                variant="ghost"
+                onClick={item.hasSubmenu ? onToggleExpand : onClick}
+                className={cn("h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w200)]", className)}
+            >
+                {indent ? (
+                    // Subitem - no icon wrapper, just text
+                    <span className={cn(isActive ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                ) : (
+                    // Main item - with icon wrapper
+                    <>
+                        <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
+                            <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                        </div>
+                        <span className={cn(isActive || hasActiveChild ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                    </>
+                )}
+                {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
+                {item.badge && <span className="ml-auto rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-600">{item.badge}</span>}
+            </Button>
+        );
 
     if (item.tooltip) {
         return (
@@ -190,6 +229,30 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
         addNotification?.("Session moved successfully", "success");
     };
 
+    // Helper function to get the href for a navigation item
+    // Using hash-based routing since the app uses createHashRouter
+    const getItemHref = (itemId: string): string => {
+        switch (itemId) {
+            case "agents":
+                return "#/agents";
+            case "chats":
+                return "#/chat";
+            case "projects":
+                return "#/projects";
+            case "prompts":
+                return "#/prompts";
+            case "artifacts":
+                return "#/artifacts";
+            case "agentManagement":
+                return "#/agentManagement";
+            case "activities":
+                return "#/activities";
+            default:
+                // Try to navigate to /{itemId} as a fallback
+                return `#/${itemId}`;
+        }
+    };
+
     const handleItemClick = (itemId: string, item: NavItem) => {
         setActiveItem(itemId);
 
@@ -203,29 +266,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
         onNavigate?.(itemId);
 
         // Then handle known routes
-        switch (itemId) {
-            case "agents":
-                navigate("/agents");
-                break;
-            case "chats":
-                navigate("/chat");
-                break;
-            case "projects":
-                navigate("/projects");
-                break;
-            case "prompts":
-                navigate("/prompts");
-                break;
-            case "artifacts":
-                navigate("/artifacts");
-                break;
-            // For unknown items (like enterprise-specific ones),
-            // the onNavigate callback above handles navigation
-            default:
-                // Try to navigate to /{itemId} as a fallback
-                navigate(`/${itemId}`);
-                break;
-        }
+        navigate(getItemHref(itemId));
     };
 
     const handleNewChatClick = () => {
@@ -514,12 +555,19 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
                     {/* Scrollable Navigation Section */}
                     <div className="flex-1 overflow-y-auto px-2 py-3">
                         {/* New Chat Button */}
-                        <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
+                        <a
+                            href="#/chat"
+                            onClick={e => {
+                                e.preventDefault();
+                                handleNewChatClick();
+                            }}
+                            className={cn("flex h-10 w-full items-center justify-start rounded-md px-2 text-sm font-normal transition-colors hover:bg-[var(--color-background-w100)]")}
+                        >
                             <div className={cn("mr-2 flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
                                 <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
                             </div>
                             <span className={cn(activeItem === "chats" ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>New Chat</span>
-                        </Button>
+                        </a>
 
                         {/* Navigation Items */}
                         <div>
@@ -535,6 +583,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
                                             isExpanded={expandedMenus[item.id]}
                                             onToggleExpand={() => toggleMenu(item.id)}
                                             hasActiveChild={hasActiveChild}
+                                            href={!item.hasSubmenu && !item.onClick ? getItemHref(item.id) : undefined}
                                         />
                                         {/* Submenu items with vertical line */}
                                         {item.hasSubmenu && expandedMenus[item.id] && item.children && (
@@ -547,7 +596,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
                                                         <div key={child.id} className="relative">
                                                             {/* Selected state line - thicker when active */}
                                                             {isChildActive && <div className="absolute top-0 left-0 h-full w-[3px] bg-[var(--color-brand-w60)]" />}
-                                                            <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
+                                                            <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent href={!child.onClick ? getItemHref(child.id) : undefined} />
                                                         </div>
                                                     );
                                                 })}
