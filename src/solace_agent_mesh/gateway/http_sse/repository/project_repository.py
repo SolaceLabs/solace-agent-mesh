@@ -12,6 +12,7 @@ from .models import ProjectModel, ProjectUserModel
 from .entities.project import Project
 from ..routers.dto.requests.project_requests import ProjectFilter
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from solace_agent_mesh.shared.api.pagination import PaginationParams
 
 
 class ProjectRepository(IProjectRepository):
@@ -37,44 +38,71 @@ class ProjectRepository(IProjectRepository):
         self.db.refresh(model)
         return self._model_to_entity(model)
 
-    def get_user_projects(self, user_id: str) -> List[Project]:
+    def get_accessible_projects(self, user_email: str, shared_project_ids: List[str] = None) -> List[Project]:
         """
-        Get all projects owned by a specific user.
+        Get all accessible projects for a user (owned + shared).
+
+        Args:
+            user_email: User's email (used for ownership check)
+            shared_project_ids: Optional list of project IDs user has shared access to
+
+        Returns:
+            List of accessible projects (owned + shared)
+        """
+        query = self.db.query(ProjectModel).filter(ProjectModel.deleted_at.is_(None))
+
+        if not shared_project_ids:
+            # No shares: just owned projects
+            models = query.filter(ProjectModel.user_id == user_email).all()
+            return [self._model_to_entity(model) for model in models]
+
+        # Has shares: owned OR in shared list (with batching for safety)
+        # Conservative limits to avoid SQL parameter/query length issues
+        # SQLite parameter limit: 999, UUID ~40 chars, keep query under 100KB
+        MAX_IN_CLAUSE = 500
+
+        if len(shared_project_ids) <= MAX_IN_CLAUSE:
+            # Single query for normal case
+            models = query.filter(
+                or_(
+                    ProjectModel.user_id == user_email,
+                    ProjectModel.id.in_(shared_project_ids)
+                )
+            ).all()
+        else:
+            # Batch for large share lists (edge case)
+            all_models = []
+
+            # Get owned projects
+            owned_models = query.filter(ProjectModel.user_id == user_email).all()
+            all_models.extend(owned_models)
+
+            # Batch shared projects
+            for i in range(0, len(shared_project_ids), MAX_IN_CLAUSE):
+                batch = shared_project_ids[i:i + MAX_IN_CLAUSE]
+                shared_models = query.filter(ProjectModel.id.in_(batch)).all()
+                all_models.extend(shared_models)
+
+            # Deduplicate (user might own a project they also have shared access to)
+            seen = set()
+            models = []
+            for model in all_models:
+                if model.id not in seen:
+                    seen.add(model.id)
+                    models.append(model)
+
+        return [self._model_to_entity(model) for model in models]
+
+    def get_all_projects(self) -> List[Project]:
+        """
+        Get all projects.
         
-        Note: This returns only projects where the user is the owner (user_id matches).
-        For projects the user has access to via project_users table, use get_accessible_projects().
+        Returns:
+            List[Project]: List of all non-deleted projects.
         """
         models = self.db.query(ProjectModel).filter(
-            ProjectModel.user_id == user_id,
-            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
+            ProjectModel.deleted_at.is_(None)
         ).all()
-        return [self._model_to_entity(model) for model in models]
-    
-    def get_accessible_projects(self, user_id: str) -> List[Project]:
-        """
-        Get all projects accessible by a user (owned or shared).
-        
-        This includes:
-        - Projects owned by the user (user_id matches)
-        - Projects shared with the user (via project_users table)
-        
-        Args:
-            user_id: The user ID
-            
-        Returns:
-            List[Project]: List of accessible projects
-        """
-        # Query for projects where user is owner OR has access via project_users
-        models = self.db.query(ProjectModel).outerjoin(
-            ProjectUserModel,
-            ProjectModel.id == ProjectUserModel.project_id
-        ).filter(
-            ProjectModel.deleted_at.is_(None),  # Exclude soft-deleted projects
-            or_(
-                ProjectModel.user_id == user_id,
-                ProjectUserModel.user_id == user_id
-            )
-        ).distinct().all()
         
         return [self._model_to_entity(model) for model in models]
 
@@ -90,36 +118,27 @@ class ProjectRepository(IProjectRepository):
         models = query.all()
         return [self._model_to_entity(model) for model in models]
 
-    def get_by_id(self, project_id: str, user_id: str) -> Optional[Project]:
+    def get_by_id(self, project_id: str) -> Optional[Project]:
         """
-        Get a project by its ID, ensuring user access.
-        
-        This checks if the user is the owner OR has access via project_users table.
+        Get a project by its ID.
         """
-        model = self.db.query(ProjectModel).outerjoin(
-            ProjectUserModel,
-            ProjectModel.id == ProjectUserModel.project_id
-        ).filter(
+        model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
-            ProjectModel.deleted_at.is_(None),  # Exclude soft-deleted projects
-            or_(
-                ProjectModel.user_id == user_id,
-                ProjectUserModel.user_id == user_id
-            )
+            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
         ).first()
         
         return self._model_to_entity(model) if model else None
 
-    def update(self, project_id: str, user_id: str, update_data: dict) -> Optional[Project]:
-        """Update a project with the given data, ensuring user access."""
+    def update(self, project_id: str, update_data: dict) -> Optional[Project]:
+        """Update a project with the given data."""
+        # First, find the project
         model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id,  # Only allow updates to user's own projects
             ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
         ).first()
-        
+
         if not model:
-            return None
+            return None  # Project doesn't exist
         
         for field, value in update_data.items():
             if hasattr(model, field):
@@ -130,20 +149,18 @@ class ProjectRepository(IProjectRepository):
         self.db.refresh(model)
         return self._model_to_entity(model)
 
-    def delete(self, project_id: str, user_id: str) -> bool:
-        """Delete a project by its ID, ensuring user access."""
+    def delete(self, project_id: str) -> bool:
+        """Delete a project by its ID."""
         result = self.db.query(ProjectModel).filter(
-            ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id  # Only allow deletion of user's own projects
+            ProjectModel.id == project_id
         ).delete()
         self.db.flush()
         return result > 0
 
-    def soft_delete(self, project_id: str, user_id: str) -> bool:
-        """Soft delete a project by its ID, ensuring user access."""
+    def soft_delete(self, project_id: str, deleted_by_user_id: str) -> bool:
+        """Soft delete a project by its ID."""
         model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id,  # Only allow deletion of user's own projects
             ProjectModel.deleted_at.is_(None)  # Only delete if not already deleted
         ).first()
         
@@ -151,7 +168,7 @@ class ProjectRepository(IProjectRepository):
             return False
         
         model.deleted_at = now_epoch_ms()
-        model.deleted_by = user_id
+        model.deleted_by = deleted_by_user_id
         model.updated_at = now_epoch_ms()
         self.db.flush()
         return True
