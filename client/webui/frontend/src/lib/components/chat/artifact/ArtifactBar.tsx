@@ -176,11 +176,11 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     const restingShadow = isDarkMode ? "0px 1px 4px 0px var(--color-primary-w90)" : "0px 1px 4px 0px var(--color-secondary-w8040)";
     const hoverShadow = isDarkMode ? "0px 2px 8px 0px var(--color-primary-w90)" : "0px 2px 8px 0px var(--color-secondary-w8040)";
 
-    // Determine if this artifact is clickable (not deleted - hidden artifacts are still clickable)
+    // Determine if this artifact is clickable
     const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
-    // Show shadow for all artifacts in chat context (not deleted), hidden artifacts still get shadow
+    // Show shadow for all artifacts in chat context (not deleted)
     const showShadow = context === "chat" && !isDeleted;
-    // Whether to show in disabled/dimmed state (only deleted, not hidden - hidden are still interactive)
+    // Whether to show in disabled/dimmed state (only deleted)
     const isDisabled = isDeleted;
 
     return (
