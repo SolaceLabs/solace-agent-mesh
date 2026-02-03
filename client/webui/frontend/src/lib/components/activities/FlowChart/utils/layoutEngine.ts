@@ -47,11 +47,7 @@ function resolveAgentName(context: BuildContext, agentName: string): string {
 /**
  * Main entry point: Process VisualizerSteps into layout tree
  */
-export function processSteps(
-    steps: VisualizerStep[],
-    agentNameMap: Record<string, string> = {},
-    onUnknownAgent?: (agentName: string) => void
-): LayoutResult {
+export function processSteps(steps: VisualizerStep[], agentNameMap: Record<string, string> = {}, onUnknownAgent?: (agentName: string) => void): LayoutResult {
     const context: BuildContext = {
         steps,
         stepIndex: 0,

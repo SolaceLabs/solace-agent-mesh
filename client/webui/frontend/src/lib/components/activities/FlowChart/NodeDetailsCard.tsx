@@ -11,6 +11,15 @@ import type { NodeDetails } from "./utils/nodeDetailsHelper";
 
 const MAX_ARTIFACT_DISPLAY_LENGTH = 5000;
 
+const ColumnHeader = ({ label, color }: { label: string; color: string }) => {
+    return (
+        <div className="mb-3 flex items-center gap-2 border-b pb-2">
+            <div className={`h-2 w-2 rounded-full bg-${color}`}></div>
+            <h4 className={`text-sm font-bold text-${color}`}>{label}</h4>
+        </div>
+    );
+};
+
 interface ArtifactContentViewerProps {
     uri?: string;
     name: string;
@@ -90,7 +99,7 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
             try {
                 const parsed = JSON.parse(content);
                 return (
-                    <div className="max-h-64 overflow-y-auto">
+                    <div className="my-1 max-h-64 overflow-y-auto">
                         <JSONViewer data={parsed} />
                     </div>
                 );
@@ -100,12 +109,12 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
         }
 
         // For YAML, CSV, and other text formats, show as preformatted text
-        return <pre className="max-h-64 overflow-x-auto overflow-y-auto rounded bg-gray-100 p-2 text-xs whitespace-pre-wrap dark:bg-gray-900">{content}</pre>;
+        return <pre className="max-h-64 overflow-x-auto overflow-y-auto p-2 text-xs whitespace-pre-wrap">{content}</pre>;
     };
 
     if (isLoading) {
         return (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2 text-xs">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Loading artifact content...
             </div>
@@ -117,13 +126,13 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     }
 
     if (!content) {
-        return <div className="text-xs text-gray-500 italic">No content available</div>;
+        return <div className="text-secondary-foreground text-xs italic">No content available</div>;
     }
 
     return (
         <div>
             {renderContent()}
-            {isTruncated && <div className="mt-1 text-xs text-amber-600 italic dark:text-amber-400">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
+            {isTruncated && <div className="mt-1 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
         </div>
     );
 };
@@ -145,7 +154,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             case "user":
                 return <User className="text-purple-500 dark:text-purple-400" size={20} />;
             case "agent":
-                return <Bot className="text-blue-500 dark:text-blue-400" size={20} />;
+                return <Bot className="text-(--color-brand-wMain)" size={20} />;
             case "llm":
                 return <Zap className="text-teal-500 dark:text-teal-400" size={20} />;
             case "tool":
@@ -157,13 +166,13 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             case "group":
                 return <Workflow className="text-purple-500 dark:text-purple-400" size={20} />;
             default:
-                return <Terminal className="text-gray-500 dark:text-gray-400" size={20} />;
+                return <Terminal className="text-secondary-foreground" size={20} />;
         }
     };
 
     const renderStepContent = (step: VisualizerStep | undefined, isRequest: boolean) => {
         if (!step) {
-            return <div className="flex h-full items-center justify-center text-gray-400 italic dark:text-gray-500">{isRequest ? "No request data available" : "No result data available"}</div>;
+            return <div className="text-secondary-foreground flex h-full items-center justify-center">{isRequest ? "No request data available" : "No result data available"}</div>;
         }
 
         // Format timestamp with milliseconds
@@ -180,7 +189,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         return (
             <div className="space-y-3">
                 {/* Timestamp */}
-                <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{formattedTimestamp}</div>
+                <div className="text-secondary-foreground font-mono text-xs">{formattedTimestamp}</div>
 
                 {/* Step-specific content */}
                 {renderStepTypeContent(step)}
@@ -219,15 +228,15 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             case "WORKFLOW_EXECUTION_RESULT":
                 return renderWorkflowResult(step);
             default:
-                return <div className="text-sm text-gray-600 dark:text-gray-300">{step.title}</div>;
+                return <div className="text-sm">{step.title}</div>;
         }
     };
 
     const renderUserRequest = (step: VisualizerStep) => (
         <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">User Input</h4>
+            <h4 className="mb-2 text-sm font-semibold">User Input</h4>
             {step.data.text && (
-                <div className="prose prose-sm dark:prose-invert max-h-96 max-w-none overflow-y-auto rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+                <div className="prose prose-sm dark:prose-invert bg-muted/50 max-h-96 max-w-none overflow-y-auto rounded-md p-3">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
@@ -240,19 +249,19 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Workflow Agent Request</h4>
+                <h4 className="mb-2 text-sm font-semibold">Workflow Agent Request</h4>
                 <div className="space-y-3">
                     {data.nodeId && (
                         <div className="text-xs">
-                            <span className="font-semibold text-gray-600 dark:text-gray-400">Node Id:</span> <span className="text-gray-800 dark:text-gray-200">{data.nodeId}</span>
+                            <span className="font-semibold">Node Id:</span> <span>{data.nodeId}</span>
                         </div>
                     )}
 
                     {/* Instruction from workflow node */}
                     {data.instruction && (
                         <div>
-                            <div className="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400">Instruction:</div>
-                            <div className="prose prose-sm dark:prose-invert max-w-none overflow-y-auto rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30">
+                            <div className="mb-1 text-xs font-semibold">Instruction:</div>
+                            <div className="prose prose-sm dark:prose-invert max-w-none overflow-y-auto rounded-md border border-(--color-info-w100) bg-(--color-info-w10) p-3 dark:bg-(--color-info-w100)/50">
                                 <MarkdownHTMLConverter>{data.instruction}</MarkdownHTMLConverter>
                             </div>
                         </div>
@@ -261,24 +270,23 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {/* Input as artifact reference */}
                     {data.inputArtifactRef && (
                         <div>
-                            <div className="mb-1 flex min-w-0 items-baseline gap-1 text-xs font-semibold text-gray-600 dark:text-gray-400">
+                            <div className="mb-1 flex min-w-0 items-baseline gap-1 text-xs font-semibold">
                                 <span className="flex-shrink-0">Input:</span>
-                                <span className="min-w-0 truncate font-normal text-gray-500" title={data.inputArtifactRef.name}>
+                                <span className="text-muted-foreground min-w-0 truncate font-normal" title={data.inputArtifactRef.name}>
                                     {data.inputArtifactRef.name}
                                 </span>
                                 {data.inputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600 dark:text-purple-400">v{data.inputArtifactRef.version}</span>}
                             </div>
-                            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
-                                <ArtifactContentViewer uri={data.inputArtifactRef.uri} name={data.inputArtifactRef.name} version={data.inputArtifactRef.version} mimeType={data.inputArtifactRef.mimeType} />
-                            </div>
+
+                            <ArtifactContentViewer uri={data.inputArtifactRef.uri} name={data.inputArtifactRef.name} version={data.inputArtifactRef.version} mimeType={data.inputArtifactRef.mimeType} />
                         </div>
                     )}
 
                     {/* Input as text (for simple text schemas) */}
                     {data.inputText && !data.inputArtifactRef && (
                         <div>
-                            <div className="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400">Input:</div>
-                            <div className="prose prose-sm dark:prose-invert max-w-none overflow-y-auto rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+                            <div className="mb-1 text-xs font-semibold">Input:</div>
+                            <div className="prose prose-sm dark:prose-invert bg-muted/50 max-w-none overflow-y-auto rounded-md p-3">
                                 <MarkdownHTMLConverter>{data.inputText}</MarkdownHTMLConverter>
                             </div>
                         </div>
@@ -287,9 +295,9 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {/* Input Schema */}
                     {data.inputSchema && (
                         <div>
-                            <div className="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400">Input Schema:</div>
-                            <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
-                                <JSONViewer data={data.inputSchema} />
+                            <div className="mb-1 text-xs font-semibold">Input Schema:</div>
+                            <div className="my-1 max-h-48 overflow-y-auto py-2">
+                                <JSONViewer data={data.inputSchema} maxDepth={0} />
                             </div>
                         </div>
                     )}
@@ -297,15 +305,15 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {/* Output Schema */}
                     {data.outputSchema && (
                         <div>
-                            <div className="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400">Output Schema:</div>
-                            <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
-                                <JSONViewer data={data.outputSchema} />
+                            <div className="mb-1 text-xs font-semibold">Output Schema:</div>
+                            <div className="my-1 max-h-48 overflow-y-auto py-2">
+                                <JSONViewer data={data.outputSchema} maxDepth={0} />
                             </div>
                         </div>
                     )}
 
                     {/* No input data available */}
-                    {!data.inputText && !data.inputArtifactRef && !data.instruction && <div className="text-xs text-gray-500 italic dark:text-gray-400">No input data available</div>}
+                    {!data.inputText && !data.inputArtifactRef && !data.instruction && <div className="text-secondary-foreground text-xs italic">No input data available</div>}
                 </div>
             </div>
         );
@@ -313,9 +321,9 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
     const renderAgentResponse = (step: VisualizerStep) => (
         <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Agent Response</h4>
+            <h4 className="mb-2 text-sm font-semibold">Agent Response</h4>
             {step.data.text && (
-                <div className="prose prose-sm dark:prose-invert max-w-none overflow-y-auto rounded-md bg-gray-50 p-3 dark:bg-gray-800">
+                <div className="prose prose-sm dark:prose-invert bg-muted/50 max-w-none overflow-y-auto rounded-md p-3">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
@@ -328,14 +336,14 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">LLM Request</h4>
+                <h4 className="mb-2 text-sm font-semibold">LLM Request</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Model:</span> {data.modelName}
                     </div>
                     <div>
                         <div className="mb-1 text-xs font-semibold">Prompt:</div>
-                        <pre className="max-h-80 overflow-auto rounded-md bg-gray-50 p-2 text-xs break-words whitespace-pre-wrap dark:bg-gray-800">{data.promptPreview}</pre>
+                        <pre className="bg-muted/50 max-h-80 overflow-auto rounded-md p-2 text-xs break-words whitespace-pre-wrap">{data.promptPreview}</pre>
                     </div>
                 </div>
             </div>
@@ -348,7 +356,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">LLM Response</h4>
+                <h4 className="mb-2 text-sm font-semibold">LLM Response</h4>
                 <div className="space-y-2">
                     {data.modelName && (
                         <div className="text-xs">
@@ -356,7 +364,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         </div>
                     )}
                     <div>
-                        <pre className="max-h-80 overflow-auto rounded-md bg-gray-50 p-2 text-xs break-words whitespace-pre-wrap dark:bg-gray-800">{data.response || data.responsePreview}</pre>
+                        <pre className="bg-muted/50 max-h-80 overflow-auto rounded-md p-2 text-xs break-words whitespace-pre-wrap">{data.response || data.responsePreview}</pre>
                     </div>
                     {data.isFinalResponse !== undefined && (
                         <div className="text-xs">
@@ -374,15 +382,15 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">LLM Tool Decision{data.isParallel ? " (Parallel)" : ""}</h4>
+                <h4 className="mb-2 text-sm font-semibold">LLM Tool Decision{data.isParallel ? " (Parallel)" : ""}</h4>
                 <div className="space-y-3">
                     {data.decisions && data.decisions.length > 0 && (
                         <div>
                             <div className="mb-2 text-xs font-semibold">Tools to invoke:</div>
                             <div className="space-y-2">
                                 {data.decisions.map((decision: ToolDecision, index: number) => (
-                                    <div key={index} className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
-                                        <div className="mb-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                    <div key={index} className="rounded-md border p-2">
+                                        <div className="mb-1 text-xs font-semibold text-(--color-info-wMain)">
                                             {decision.toolName}
                                             {decision.isPeerDelegation && (
                                                 <span className="ml-2 rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-700 dark:bg-purple-900 dark:text-purple-300">{decision.toolName.startsWith("workflow_") ? "Workflow" : "Peer Agent"}</span>
@@ -405,7 +413,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">{data.isPeerInvocation ? "Peer Agent Call" : "Tool Invocation"}</h4>
+                <h4 className="mb-2 text-sm font-semibold">{data.isPeerInvocation ? "Peer Agent Call" : "Tool Invocation"}</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Tool:</span> {data.toolName}
@@ -423,14 +431,14 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         const entries = Object.entries(args);
 
         if (entries.length === 0) {
-            return <div className="text-xs text-gray-500 italic dark:text-gray-400">No arguments</div>;
+            return <div className="text-muted-foreground text-xs italic">No arguments</div>;
         }
 
         return (
             <div className="space-y-3">
                 {entries.map(([key, value]) => (
-                    <div key={key} className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
-                        <div className="mb-1 text-xs font-semibold text-blue-600 dark:text-blue-400">{key}</div>
+                    <div key={key} className="overflow-hidden rounded-md border p-2">
+                        <div className="mb-1 text-xs font-semibold text-(--color-info-wMain)">{key}</div>
                         <div className="max-h-60 overflow-auto text-xs">{renderArgumentValue(value)}</div>
                     </div>
                 ))}
@@ -441,34 +449,34 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
     const renderArgumentValue = (value: unknown): React.ReactNode => {
         // Handle null/undefined
         if (value === null) {
-            return <span className="text-gray-500 italic dark:text-gray-400">null</span>;
+            return <span className="text-secondary-foreground italic">null</span>;
         }
         if (value === undefined) {
-            return <span className="text-gray-500 italic dark:text-gray-400">undefined</span>;
+            return <span className="text-secondary-foreground italic">undefined</span>;
         }
 
         // Handle primitives
         if (typeof value === "string") {
-            return <span className="break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">{value}</span>;
+            return <span className="break-words whitespace-pre-wrap">{value}</span>;
         }
         if (typeof value === "number") {
             return <span className="text-purple-600 dark:text-purple-400">{value}</span>;
         }
         if (typeof value === "boolean") {
-            return <span className="text-green-600 dark:text-green-400">{value.toString()}</span>;
+            return <span className="text-(--color-success-wMain)">{value.toString()}</span>;
         }
 
         // Handle arrays
         if (Array.isArray(value)) {
             if (value.length === 0) {
-                return <span className="text-gray-500 italic dark:text-gray-400">[]</span>;
+                return <span className="text-secondary-foreground italic">[]</span>;
             }
             // For simple arrays of primitives, show inline
             if (value.every(item => typeof item === "string" || typeof item === "number" || typeof item === "boolean")) {
                 return (
                     <div className="space-y-1">
                         {value.map((item, idx) => (
-                            <div key={idx} className="border-l-2 border-blue-300 pl-2 dark:border-blue-700">
+                            <div key={idx} className="border-l-2 border-(--color-info-wMain) pl-2">
                                 {renderArgumentValue(item)}
                             </div>
                         ))}
@@ -477,8 +485,8 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             }
             // For complex arrays, use JSONViewer
             return (
-                <div className="mt-1">
-                    <JSONViewer data={value} />
+                <div className="my-1">
+                    <JSONViewer data={value} maxDepth={0} />
                 </div>
             );
         }
@@ -494,7 +502,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     <div className="space-y-1">
                         {entries.map(([k, v]) => (
                             <div key={k} className="flex min-w-0 gap-2">
-                                <span className="flex-shrink-0 font-semibold text-gray-600 dark:text-gray-400">{k}:</span>
+                                <span className="flex-shrink-0 font-semibold">{k}:</span>
                                 <span className="min-w-0 break-words">{renderArgumentValue(v)}</span>
                             </div>
                         ))}
@@ -504,14 +512,14 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
             // For complex objects, use JSONViewer
             return (
-                <div className="mt-1">
-                    <JSONViewer data={value as JSONValue} />
+                <div className="my-1">
+                    <JSONViewer data={value as JSONValue} maxDepth={0} />
                 </div>
             );
         }
 
         // Fallback
-        return <span className="text-gray-600 dark:text-gray-400">{String(value)}</span>;
+        return <span className="text-secondary-foreground">{String(value)}</span>;
     };
 
     const renderToolResult = (step: VisualizerStep) => {
@@ -520,7 +528,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">{data.isPeerResponse ? "Peer Agent Result" : "Tool Result"}</h4>
+                <h4 className="mb-2 text-sm font-semibold">{data.isPeerResponse ? "Peer Agent Result" : "Tool Result"}</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Tool:</span> {data.toolName}
@@ -530,7 +538,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         {typeof data.resultData === "object" && data.resultData !== null ? (
                             renderFormattedArguments(data.resultData)
                         ) : (
-                            <div className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                            <div className="bg-muted/50 overflow-hidden rounded-md border p-2">
                                 <div className="max-h-60 overflow-auto text-xs">{renderArgumentValue(data.resultData)}</div>
                             </div>
                         )}
@@ -546,7 +554,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Workflow Agent Invocation</h4>
+                <h4 className="mb-2 text-sm font-semibold">Workflow Agent Invocation</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Agent:</span> {data.agentName || data.nodeId}
@@ -555,24 +563,24 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         <span className="font-semibold">Workflow Node:</span> {data.nodeId}
                     </div>
                     {data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === "number" && (
-                        <div className="inline-block rounded bg-blue-100 px-2 py-1 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">Iteration #{data.iterationIndex}</div>
+                        <div className="inline-block rounded bg-(--color-info-w10) px-2 py-1 text-xs text-(--color-info-wMain) dark:bg-(--color-info-w100)/50">Iteration #{data.iterationIndex}</div>
                     )}
                     {data.inputArtifactRef && (
                         <div className="mt-2">
                             <div className="mb-1 text-xs font-semibold">Input:</div>
-                            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                            <div className="bg-muted/50 rounded-md border p-2">
                                 <div className="text-xs">
-                                    <div className="mb-1 font-semibold text-blue-600 dark:text-blue-400">Artifact Reference</div>
+                                    <div className="mb-1 font-semibold text-(--color-info-wMain)">Artifact Reference</div>
                                     <div className="space-y-1">
                                         <div className="flex min-w-0 gap-2">
-                                            <span className="flex-shrink-0 font-semibold text-gray-600 dark:text-gray-400">name:</span>
-                                            <span className="truncate text-gray-800 dark:text-gray-200" title={data.inputArtifactRef.name}>
+                                            <span className="flex-shrink-0 font-semibold">name:</span>
+                                            <span className="truncate" title={data.inputArtifactRef.name}>
                                                 {data.inputArtifactRef.name}
                                             </span>
                                         </div>
                                         {data.inputArtifactRef.version !== undefined && (
                                             <div className="flex gap-2">
-                                                <span className="flex-shrink-0 font-semibold text-gray-600 dark:text-gray-400">version:</span>
+                                                <span className="flex-shrink-0 font-semibold">version:</span>
                                                 <span className="text-purple-600 dark:text-purple-400">{data.inputArtifactRef.version}</span>
                                             </div>
                                         )}
@@ -581,7 +589,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                             </div>
                         </div>
                     )}
-                    <div className="mt-2 text-xs text-gray-500 italic dark:text-gray-400">This agent was invoked by the workflow with the input specified above.</div>
+                    <div className="text-muted-foreground mt-2 text-xs italic">This agent was invoked by the workflow with the input specified above.</div>
                 </div>
             </div>
         );
@@ -595,7 +603,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         if (data.nodeType === "switch") {
             return (
                 <div>
-                    <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Switch Node</h4>
+                    <h4 className="mb-2 text-sm font-semibold">Switch Node</h4>
                     <div className="space-y-3">
                         <div className="text-xs">
                             <span className="font-semibold">Node ID:</span> {data.nodeId}
@@ -607,13 +615,13 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                 <div className="mb-2 text-xs font-semibold">Cases:</div>
                                 <div className="space-y-2">
                                     {data.cases.map((caseItem, index) => (
-                                        <div key={index} className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                                        <div key={index} className="bg-muted/50 rounded-md border p-2">
                                             <div className="mb-1 flex items-center gap-2">
                                                 <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">Case {index + 1}</span>
-                                                <ArrowRight className="h-3 w-3 text-gray-400" />
-                                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">{caseItem.node}</span>
+                                                <ArrowRight className="text-secondary-foreground h-3 w-3" />
+                                                <span className="text-xs font-medium text-(--color-info-wMain)">{caseItem.node}</span>
                                             </div>
-                                            <code className="block text-xs break-all text-gray-600 dark:text-gray-300">{caseItem.condition}</code>
+                                            <code className="text-muted-foreground block text-xs break-all">{caseItem.condition}</code>
                                         </div>
                                     ))}
                                 </div>
@@ -622,11 +630,11 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
                         {/* Default branch */}
                         {data.defaultBranch && (
-                            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-700 dark:bg-amber-900/30">
+                            <div className="rounded-md border border-(--color-warning-w100) p-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Default</span>
-                                    <ArrowRight className="h-3 w-3 text-gray-400" />
-                                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">{data.defaultBranch}</span>
+                                    <span className="text-xs font-semibold text-(--color-warning-wMain)">Default</span>
+                                    <ArrowRight className="text-secondary-foreground h-3 w-3" />
+                                    <span className="text-xs font-medium text-(--color-info-wMain)">{data.defaultBranch}</span>
                                 </div>
                             </div>
                         )}
@@ -639,7 +647,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         if (data.nodeType === "loop") {
             return (
                 <div>
-                    <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Loop Node</h4>
+                    <h4 className="mb-2 text-sm font-semibold">Loop Node</h4>
                     <div className="space-y-2">
                         <div className="text-xs">
                             <span className="font-semibold">Node ID:</span> {data.nodeId}
@@ -647,7 +655,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         {data.condition && (
                             <div>
                                 <div className="mb-1 text-xs font-semibold">Condition:</div>
-                                <code className="block rounded-md bg-gray-50 p-2 text-xs break-all dark:bg-gray-800">{data.condition}</code>
+                                <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.condition}</code>
                             </div>
                         )}
                         {data.maxIterations !== undefined && (
@@ -668,7 +676,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         // Default rendering for other node types
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Workflow Node Start</h4>
+                <h4 className="mb-2 text-sm font-semibold">Workflow Node Start</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Node ID:</span> {data.nodeId}
@@ -684,11 +692,11 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.condition && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Condition:</div>
-                            <code className="block rounded-md bg-gray-50 p-2 text-xs break-all dark:bg-gray-800">{data.condition}</code>
+                            <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.condition}</code>
                         </div>
                     )}
                     {data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === "number" && (
-                        <div className="inline-block rounded bg-blue-100 px-2 py-1 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">Iteration #{data.iterationIndex}</div>
+                        <div className="inline-block rounded bg-(--color-info-w10) px-2 py-1 text-xs text-(--color-info-wMain) dark:bg-(--color-info-w100)/50">Iteration #{data.iterationIndex}</div>
                     )}
                 </div>
             </div>
@@ -706,40 +714,39 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">{isSwitch ? "Switch Result" : "Workflow Node Result"}</h4>
+                <h4 className="mb-2 text-sm font-semibold">{isSwitch ? "Switch Result" : "Workflow Node Result"}</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
-                        <span className="font-semibold">Status:</span>{" "}
-                        <span className={data.status === "success" ? "text-green-600 dark:text-green-400" : data.status === "failure" ? "text-red-600 dark:text-red-400" : "text-gray-600 dark:text-gray-400"}>{data.status}</span>
+                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-(--color-success-wMain)" : data.status === "failure" ? "text-destructive" : ""}>{data.status}</span>
                     </div>
 
                     {/* Switch node result - selected branch */}
                     {selectedBranch !== undefined && (
-                        <div className="mt-2 rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-700 dark:bg-green-900/30">
+                        <div className="mt-2 rounded-md border border-(--color-success-wMain) p-2">
                             <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                <span className="text-xs font-semibold text-green-700 dark:text-green-300">Selected Branch:</span>
-                                <span className="text-xs font-bold text-green-800 dark:text-green-200">{selectedBranch}</span>
+                                <CheckCircle className="h-4 w-4 text-(--color-success-wMain)" />
+                                <span className="text-xs font-semibold text-(--color-success-wMain)">Selected Branch:</span>
+                                <span className="text-xs font-bold text-(--color-success-wMain)">{selectedBranch}</span>
                             </div>
-                            {selectedCaseIndex !== undefined && selectedCaseIndex !== null && <div className="mt-1 text-xs text-green-600 dark:text-green-400">Matched Case #{selectedCaseIndex + 1}</div>}
-                            {selectedCaseIndex === null && <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">(Default branch - no case matched)</div>}
+                            {selectedCaseIndex !== undefined && selectedCaseIndex !== null && <div className="mt-1 text-xs text-(--color-success-wMain)">Matched Case #{selectedCaseIndex + 1}</div>}
+                            {selectedCaseIndex === null && <div className="mt-1 text-xs text-(--color-warning-wMain)">(Default branch - no case matched)</div>}
                         </div>
                     )}
 
                     {data.conditionResult !== undefined && (
                         <div className="text-xs">
                             <span className="font-semibold">Condition Result:</span>{" "}
-                            <span className={data.conditionResult ? "font-bold text-green-600 dark:text-green-400" : "font-bold text-orange-600 dark:text-orange-400"}>{data.conditionResult ? "True" : "False"}</span>
+                            <span className={data.conditionResult ? "font-bold text-(--color-success-wMain)" : "font-bold text-(--color-warning-wMain)"}>{data.conditionResult ? "True" : "False"}</span>
                         </div>
                     )}
                     {data.metadata?.condition && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Condition:</div>
-                            <code className="block rounded-md bg-gray-50 p-2 text-xs break-all dark:bg-gray-800">{data.metadata.condition}</code>
+                            <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.metadata.condition}</code>
                         </div>
                     )}
                     {data.errorMessage && (
-                        <div className="text-xs text-red-600 dark:text-red-400">
+                        <div className="text-destructive text-xs">
                             <span className="font-semibold">Error:</span> {data.errorMessage}
                         </div>
                     )}
@@ -754,7 +761,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Workflow Start</h4>
+                <h4 className="mb-2 text-sm font-semibold">Workflow Start</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Workflow:</span> {data.workflowName}
@@ -776,10 +783,10 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         return (
             <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Workflow Result</h4>
+                <h4 className="mb-2 text-sm font-semibold">Workflow Result</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
-                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>{data.status}</span>
+                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-(--color-success-wMain)" : "text-red-600 dark:text-red-400"}>{data.status}</span>
                     </div>
                     {data.workflowOutput && (
                         <div>
@@ -806,15 +813,15 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         if (!outputArtifactRef) return null;
 
         return (
-            <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
-                <div className="mb-2 flex min-w-0 items-baseline gap-1 text-xs font-semibold text-gray-600 dark:text-gray-400">
+            <div className="mt-4 border-t pt-4">
+                <div className="mb-2 flex min-w-0 items-baseline gap-1 text-xs font-semibold">
                     <span className="flex-shrink-0">Output Artifact:</span>
-                    <span className="min-w-0 truncate font-normal text-gray-500" title={outputArtifactRef.name}>
+                    <span className="text-secondary-foreground min-w-0 truncate font-normal" title={outputArtifactRef.name}>
                         {outputArtifactRef.name}
                     </span>
                     {outputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600 dark:text-purple-400">v{outputArtifactRef.version}</span>}
                 </div>
-                <div className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                <div className="rounded-md border p-2">
                     <ArtifactContentViewer name={outputArtifactRef.name} version={outputArtifactRef.version} />
                 </div>
             </div>
@@ -854,8 +861,8 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         };
 
         return (
-            <div className={asColumn ? "" : "mt-4 border-t border-gray-200 pt-4 dark:border-gray-700"}>
-                <div className={`flex items-center gap-2 ${asColumn ? "mb-3 border-b border-gray-200 pb-2 dark:border-gray-700" : "mb-3"}`}>
+            <div className={asColumn ? "" : "mt-4 border-t pt-4"}>
+                <div className={`flex items-center gap-2 ${asColumn ? "mb-3 border-b pb-2" : "mb-3"}`}>
                     <div className={`${asColumn ? "h-2 w-2 rounded-full bg-indigo-500" : ""}`}></div>
                     <FileText className={`h-4 w-4 text-indigo-500 dark:text-indigo-400 ${asColumn ? "hidden" : ""}`} />
                     <h4 className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{asColumn ? "CREATED ARTIFACTS" : `Created Artifacts (${nodeDetails.createdArtifacts.length})`}</h4>
@@ -875,13 +882,13 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                     {artifact.version !== undefined && <span className="rounded bg-indigo-200 px-1.5 py-0.5 text-xs text-indigo-700 dark:bg-indigo-800 dark:text-indigo-300">v{artifact.version}</span>}
                                 </div>
                             </div>
-                            {artifact.description && <p className="mb-2 text-xs text-gray-600 dark:text-gray-400">{artifact.description}</p>}
+                            {artifact.description && <p className="mb-2 text-xs">{artifact.description}</p>}
                             {artifact.mimeType && (
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                <div className="text-secondary-foreground text-xs">
                                     <span className="font-medium">Type:</span> {artifact.mimeType}
                                 </div>
                             )}
-                            <div className="mt-2 rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                            <div className="bg-card mt-2 rounded-lg p-2">
                                 <ArtifactContentViewer name={artifact.filename} version={artifact.version} mimeType={artifact.mimeType} />
                             </div>
                         </div>
@@ -893,85 +900,74 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
     // Render the main node details content
     const renderMainContent = () => (
-        <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex flex-col">
             {/* Header */}
-            <div className="flex flex-shrink-0 items-center gap-3 border-b border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+            <div className="dark:bg-card flex flex-shrink-0 items-center gap-3 border-b p-4">
                 {getNodeIcon()}
                 <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-base font-bold text-gray-800 dark:text-gray-100">{nodeDetails.label}</h3>
+                    <h3 className="truncate text-base font-bold">{nodeDetails.label}</h3>
                     {nodeDetails.description ? (
-                        <p className="truncate text-xs text-gray-500 dark:text-gray-400" title={nodeDetails.description}>
+                        <p className="text-secondary-foreground truncate text-xs" title={nodeDetails.description}>
                             {nodeDetails.description}
                         </p>
                     ) : (
-                        <p className="text-xs text-gray-500 capitalize dark:text-gray-400">{nodeDetails.nodeType} Node</p>
+                        <p className="text-secondary-foreground text-xs capitalize">{nodeDetails.nodeType} Node</p>
                     )}
                 </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-hidden">
                 {hasRequestAndResult ? (
                     /* Split view for request and result (and optionally created artifacts) */
-                    <div className={`grid grid-cols-1 ${hasCreatedArtifacts ? "lg:grid-cols-3" : "lg:grid-cols-2"} divide-y divide-gray-200 lg:divide-x lg:divide-y-0 dark:divide-gray-700`}>
+                    <div className={`grid h-full grid-cols-1 ${hasCreatedArtifacts ? "lg:grid-cols-3" : "lg:grid-cols-2"} divide-y divide-gray-200 lg:divide-x lg:divide-y-0 dark:divide-gray-700`}>
                         {/* Request Column */}
-                        <div className="p-4">
-                            <div className="mb-3 flex items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
-                                <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                                <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400">REQUEST</h4>
-                            </div>
+                        <div className="max-h-[calc(85vh-140px)] overflow-y-auto p-4">
+                            <ColumnHeader label="REQUEST" color="(--color-info-wMain)" />
                             {renderStepContent(nodeDetails.requestStep, true)}
                         </div>
 
                         {/* Result Column */}
-                        <div className="p-4">
-                            <div className="mb-3 flex items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
-                                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                                <h4 className="text-sm font-bold text-green-600 dark:text-green-400">RESULT</h4>
-                            </div>
+                        <div className="max-h-[calc(85vh-140px)] overflow-y-auto p-4">
+                            <ColumnHeader label="RESULT" color="(--color-success-wMain)" />
                             {renderStepContent(nodeDetails.resultStep, false)}
                             {renderOutputArtifact()}
                         </div>
 
                         {/* Created Artifacts Column (when present) */}
-                        {hasCreatedArtifacts && <div className="p-4">{renderCreatedArtifacts(true)}</div>}
+                        {hasCreatedArtifacts && <div className="max-h-[calc(85vh-140px)] overflow-y-auto p-4">{renderCreatedArtifacts(true)}</div>}
                     </div>
                 ) : (
                     /* Single view when only request or result is available */
-                    <div className="p-4">
+                    <div className="max-h-[calc(85vh-140px)] overflow-y-auto p-4">
                         {nodeDetails.requestStep && (
                             <div className="mb-4">
-                                <div className="mb-3 flex items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
-                                    <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                                    <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400">REQUEST</h4>
+                                <div className="mb-3 flex items-center gap-2 border-b pb-2">
+                                    <div className="h-2 w-2 rounded-full bg-(--color-info-wMain)"></div>
+                                    <h4 className="text-sm font-bold text-(--color-info-wMain)">REQUEST</h4>
                                 </div>
                                 {renderStepContent(nodeDetails.requestStep, true)}
                             </div>
                         )}
                         {nodeDetails.resultStep && (
                             <div>
-                                <div className="mb-3 flex items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
-                                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                                    <h4 className="text-sm font-bold text-green-600 dark:text-green-400">RESULT</h4>
+                                <div className="mb-3 flex items-center gap-2 border-b pb-2">
+                                    <div className="h-2 w-2 rounded-full bg-(--color-success-wMain)"></div>
+                                    <h4 className="text-sm font-bold text-(--color-success-wMain)">RESULT</h4>
                                 </div>
                                 {renderStepContent(nodeDetails.resultStep, false)}
                                 {renderOutputArtifact()}
                                 {renderCreatedArtifacts()}
                             </div>
                         )}
-                        {!nodeDetails.requestStep && !nodeDetails.resultStep && <div className="flex h-32 items-center justify-center text-gray-400 italic dark:text-gray-500">No detailed information available for this node</div>}
+                        {!nodeDetails.requestStep && !nodeDetails.resultStep && <div className="text-muted-foreground flex h-32 items-center justify-center italic">No detailed information available for this node</div>}
                     </div>
                 )}
             </div>
         </div>
     );
 
-    return (
-        <div className="flex h-full">
-            {/* Main content */}
-            <div className="min-w-0 flex-1">{renderMainContent()}</div>
-        </div>
-    );
+    return renderMainContent();
 };
 
 export default NodeDetailsCard;
