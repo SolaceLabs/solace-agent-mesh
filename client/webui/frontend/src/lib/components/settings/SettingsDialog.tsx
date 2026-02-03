@@ -16,19 +16,13 @@ interface SidebarItemProps {
     label: string;
     active: boolean;
     onClick: () => void;
-    badgeLabel?: string;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick, badgeLabel }) => {
+const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick }) => {
     return (
         <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "dark:bg-accent bg-[var(--color-brand-w10)]" : "text-muted-foreground hover:bg-accent/50")}>
             {icon}
             <span>{label}</span>
-            {badgeLabel && (
-                <Badge variant="outline" className="bg-secondary text-secondary-foreground ml-auto h-4 pt-1 text-[8px] leading-none uppercase">
-                    {badgeLabel}
-                </Badge>
-            )}
         </button>
     );
 };
@@ -121,7 +115,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             {/* Top items, scrollable */}
                             <div className="flex-1 space-y-1 overflow-y-auto">
                                 <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
-                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} badgeLabel="Experimental" />}
+                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
                             </div>
                             {/* Bottom items, static */}
                             <div className="space-y-1 pb-2">
@@ -138,6 +132,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                         {/* Header */}
                         <div className="flex items-center border-b px-6 py-4">
                             <h3 className="text-xl font-semibold">{getSectionTitle()}</h3>
+                            {activeSection === "speech" && (
+                                <Badge variant="outline" className="bg-secondary text-secondary-foreground ml-3 h-5 text-[10px] uppercase">
+                                    Experimental
+                                </Badge>
+                            )}
                         </div>
 
                         {/* Content Area */}
