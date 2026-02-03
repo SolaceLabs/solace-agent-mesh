@@ -30,6 +30,7 @@ from ..dependencies import (
 )
 from ..services.project_service import ProjectService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 from ....common.a2a.types import ArtifactInfo
 from typing import TYPE_CHECKING
 
@@ -568,8 +569,14 @@ async def update_project_artifact_metadata(
         
         return {"message": "Artifact metadata updated successfully"}
     except ValueError as e:
-        log.warning(f"Validation error updating artifact metadata in project {project_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning(f"Permission denied updating artifact metadata in project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning(f"Validation error updating artifact metadata in project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except HTTPException:
         raise
     except Exception as e:
@@ -735,8 +742,14 @@ async def delete_project_artifact(
             response.status_code = status.HTTP_204_NO_CONTENT
             return
     except ValueError as e:
-        log.warning(f"Validation error deleting artifact from project {project_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning(f"Permission denied deleting artifact from project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning(f"Validation error deleting artifact from project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except HTTPException:
         raise
     except Exception as e:
@@ -792,7 +805,7 @@ async def update_project(
         }
 
         project = project_service.update_project(**kwargs)
-        
+
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -800,7 +813,7 @@ async def update_project(
             )
 
         log.info("Project %s updated successfully", project_id)
-        
+
         return ProjectResponse(
             id=project.id,
             name=project.name,
@@ -811,14 +824,19 @@ async def update_project(
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
-    
+
     except HTTPException:
         raise
     except ValueError as e:
-        log.warning("Validation error updating project %s: %s", project_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        )
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (422)
+        if "permission denied" in error_msg.lower():
+            log.warning("Permission denied updating project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning("Validation error updating project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)
+
     except Exception as e:
         log.error(
             "Error updating project %s for user %s: %s",
@@ -862,14 +880,19 @@ async def delete_project(
             )
 
         log.info("Project %s soft deleted successfully", project_id)
-    
+
     except HTTPException:
         raise
     except ValueError as e:
-        log.warning("Validation error deleting project %s: %s", project_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning("Permission denied deleting project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning("Validation error deleting project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+
     except Exception as e:
         log.error(
             "Error deleting project %s for user %s: %s",

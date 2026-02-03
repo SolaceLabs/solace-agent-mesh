@@ -47,6 +47,7 @@ from a2a.types import (
     JSONRPCResponse,
     Task,
     TaskArtifactUpdateEvent,
+    TaskState,
     TaskStatusUpdateEvent,
 )
 
@@ -308,6 +309,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        # Initialize system (including any installed plugins/enterprise features)
+        # This must happen before migrations so plugins can register migration hooks
+        from ...common.utils.initializer import initialize
+        initialize()
+        log.info("%s System initialization completed", self.log_identifier)
+
+        # Run database migrations (any registered hooks will execute automatically)
         if self.database_url:
             log.info("%s Running database migrations...", self.log_identifier)
             self._run_database_migrations()
@@ -1739,6 +1747,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if result.metadata
                             else None
                         )
+                        task_status = a2a.get_task_status(result)
+                        # Guard against task_status being an Enum (TaskState) instead of TaskStatus object
+                        if (
+                            task_status
+                            and not isinstance(task_status, TaskState)
+                            and hasattr(task_status, "message")
+                        ):
+                            data_parts = a2a.get_data_parts_from_message(
+                                task_status.message
+                            )
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "task_result"
+                                )
                     elif isinstance(result, TaskArtifactUpdateEvent):
                         artifact = a2a.get_artifact_from_artifact_update(result)
                         if artifact:
@@ -1774,6 +1796,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if message.metadata
                             else None
                         )
+                        data_parts = a2a.get_data_parts_from_message(message)
+                        if data_parts:
+                            details["debug_type"] = data_parts[0].data.get(
+                                "type", method
+                            )
                 elif method == "tasks/cancel":
                     details["task_id"] = a2a.get_task_id_from_cancel_request(
                         rpc_request

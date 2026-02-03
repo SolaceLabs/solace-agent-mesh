@@ -4,7 +4,7 @@ import { Info, Settings, Type, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useConfigContext } from "@/lib/hooks";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
 import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
@@ -132,6 +132,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                         {/* Header */}
                         <div className="flex items-center border-b px-6 py-4">
                             <h3 className="text-xl font-semibold">{getSectionTitle()}</h3>
+                            {activeSection === "speech" && (
+                                <Badge variant="outline" className="bg-secondary text-secondary-foreground ml-3 h-5 text-[10px] uppercase">
+                                    Experimental
+                                </Badge>
+                            )}
                         </div>
 
                         {/* Content Area */}

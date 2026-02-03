@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level6_composition",
+  "category": "Workflows",
+  "description": "Tests workflow-to-workflow invocation (sub-workflows). The parent workflow invokes a child workflow to transform data, then generates a summary.",
+  "query": "Please use the WorkflowCompositionParent to process the value 25, and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 300,
+  "evaluation": {
+    "expected_tools": ["workflow_WorkflowCompositionParent"],
+    "expected_response": "The WorkflowCompositionParent has successfully processed the value 25. The parent workflow invoked the DataProcessingSubWorkflow to transform the data (25 + 10 = 35), then generated a summary. Summary: Value 25 transformed to 35 (difference: 10). Results: Original: 25, Transformed: 35, Difference: 10",
+    "criterion": "Evaluate if the orchestrator successfully delegated to WorkflowCompositionParent, the parent workflow invoked DataProcessingSubWorkflow, the sub-workflow transformed 25→35, and the summary was generated correctly."
+  }
+}

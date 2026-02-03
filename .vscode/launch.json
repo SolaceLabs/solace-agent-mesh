@@ -42,6 +42,30 @@
             }
         },
         {
+            "name": "SAM (workflow)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/test_agent_example.yaml examples/agents/jira_bug_triage_workflow.yaml examples/gateways/webui_gateway_example.yaml examples/agents/advanced_workflow_test.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
+        },
+        {
+            "name": "SAM (new node types)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/all_node_types_workflow.yaml examples/agents/complex_branching_workflow.yaml examples/agents/workflow_to_workflow_example.yaml examples/agents/simple_nested_test.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
+        },
+        {
             "name": "SAM (preset)",
             "type": "debugpy",
             "request": "launch",
@@ -225,6 +249,18 @@
             "module": "cli.main",
             "console": "integratedTerminal",
             "args": "run examples/gateways/event_mesh_gateway_example.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
+        },
+        {
+            "name": "EM Gateway + Workflow",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cli.main",
+            "console": "integratedTerminal",
+            "args": "run examples/gateways/event_mesh_gateway_example.yaml examples/gateways/test_gateway_workflow.yaml examples/agents/all_node_types_workflow.yaml examples/agents/simple_nested_test.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
