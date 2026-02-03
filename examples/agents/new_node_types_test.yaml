@@ -290,7 +290,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "SwitchTestWorkflow"
+      name: "SwitchTestWorkflow"
       display_name: "Switch Node Test Workflow"
 
       workflow:
