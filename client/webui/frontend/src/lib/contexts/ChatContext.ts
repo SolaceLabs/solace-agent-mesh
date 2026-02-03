@@ -33,9 +33,9 @@ export interface ChatState {
     artifactsLoading: boolean;
     artifactsRefetch: () => Promise<void>;
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
-    showInternalArtifacts: boolean;
-    toggleShowInternalArtifacts: () => void;
-    internalArtifactCount: number;
+    showWorkingArtifacts: boolean;
+    toggleShowWorkingArtifacts: () => void;
+    workingArtifactCount: number;
     taskIdInSidePanel: string | null;
     // RAG State
     ragData: RAGSearchResult[];

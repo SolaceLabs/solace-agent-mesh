@@ -34,7 +34,7 @@ from a2a.types import (
 )
 
 from ....common import a2a
-from ....common.constants import ARTIFACT_TAG_INTERNAL
+from ....common.constants import ARTIFACT_TAG_WORKING
 from ....common.data_parts import (
     ArtifactRef,
     StructuredInvocationRequest,
@@ -344,7 +344,7 @@ class StructuredInvocationHandler:
             mime_type=mime_type,
             metadata_dict={"source": "workflow_input"},
             timestamp=datetime.now(timezone.utc),
-            tags=[ARTIFACT_TAG_INTERNAL],
+            tags=[ARTIFACT_TAG_WORKING],
         )
 
         log.info(f"{log_id} Saved input data to artifact: {artifact_name}")

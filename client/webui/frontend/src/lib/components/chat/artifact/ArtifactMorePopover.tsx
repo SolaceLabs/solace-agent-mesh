@@ -8,32 +8,32 @@ import { useChatContext } from "@/lib/hooks";
 interface ArtifactMorePopoverProps {
     children: React.ReactNode;
     hideDeleteAll?: boolean;
-    showInternalArtifacts?: boolean;
-    onToggleInternalArtifacts?: () => void;
-    internalArtifactCount?: number;
+    showWorkingArtifacts?: boolean;
+    onToggleWorkingArtifacts?: () => void;
+    workingArtifactCount?: number;
 }
 
 export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({
     children,
     hideDeleteAll = false,
-    showInternalArtifacts = false,
-    onToggleInternalArtifacts,
-    internalArtifactCount = 0,
+    showWorkingArtifacts = false,
+    onToggleWorkingArtifacts,
+    workingArtifactCount = 0,
 }) => {
     const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
 
     const menuActions: MenuAction[] = [];
 
-    // Add internal artifacts toggle if callback is provided
-    if (onToggleInternalArtifacts) {
-        const countLabel = internalArtifactCount > 0 ? ` (${internalArtifactCount})` : "";
+    // Add working artifacts toggle if callback is provided
+    if (onToggleWorkingArtifacts) {
+        const countLabel = workingArtifactCount > 0 ? ` (${workingArtifactCount})` : "";
         menuActions.push({
-            id: "toggleInternal",
-            label: showInternalArtifacts
-                ? `Hide Internal Files${countLabel}`
-                : `Show Internal Files${countLabel}`,
-            onClick: onToggleInternalArtifacts,
-            icon: showInternalArtifacts ? <EyeOff /> : <Eye />,
+            id: "toggleWorking",
+            label: showWorkingArtifacts
+                ? `Hide Working Files${countLabel}`
+                : `Show Working Files${countLabel}`,
+            onClick: onToggleWorkingArtifacts,
+            icon: showWorkingArtifacts ? <EyeOff /> : <Eye />,
             iconPosition: "left",
         });
     }
@@ -46,7 +46,7 @@ export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({
         },
         icon: <RefreshCcw />,
         iconPosition: "left",
-        divider: onToggleInternalArtifacts ? true : false,
+        divider: onToggleWorkingArtifacts ? true : false,
     });
 
     if (!hideDeleteAll) {

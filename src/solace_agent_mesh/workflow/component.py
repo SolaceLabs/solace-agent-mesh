@@ -18,7 +18,7 @@ from ..common import a2a
 from ..common.sac.sam_component_base import SamComponentBase
 from ..common.agent_registry import AgentRegistry
 from ..common.constants import (
-    ARTIFACT_TAG_INTERNAL,
+    ARTIFACT_TAG_WORKING,
     EXTENSION_URI_AGENT_TYPE,
     EXTENSION_URI_SCHEMAS,
 )
@@ -556,7 +556,7 @@ class WorkflowExecutorComponent(SamComponentBase):
                 mime_type="application/json",
                 metadata_dict=metadata_dict,
                 timestamp=datetime.now(timezone.utc),
-                tags=[ARTIFACT_TAG_INTERNAL],
+                tags=[ARTIFACT_TAG_WORKING],
             )
 
             if save_result["status"] != "success":
@@ -707,7 +707,7 @@ class WorkflowExecutorComponent(SamComponentBase):
                 mime_type="application/json",
                 metadata_dict=metadata_dict,
                 timestamp=datetime.now(timezone.utc),
-                tags=[ARTIFACT_TAG_INTERNAL],
+                tags=[ARTIFACT_TAG_WORKING],
             )
 
             if save_result["status"] != "success":

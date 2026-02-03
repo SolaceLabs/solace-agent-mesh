@@ -5,4 +5,4 @@
 
 // System artifact tags (must match backend constants in common/constants.py)
 export const ARTIFACT_TAG_USER_UPLOADED = "__user_uploaded";
-export const ARTIFACT_TAG_INTERNAL = "__internal";
+export const ARTIFACT_TAG_WORKING = "__working";

@@ -23,7 +23,7 @@ const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo)
 };
 
 export const ArtifactPanel: React.FC = () => {
-    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal, showInternalArtifacts, toggleShowInternalArtifacts, internalArtifactCount } = useChatContext();
+    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useChatContext();
     const { onDownload } = useDownload();
 
     const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
@@ -51,9 +51,9 @@ export const ArtifactPanel: React.FC = () => {
             );
         }
 
-        // Show header when there are visible artifacts OR when there are internal artifacts (so menu is accessible)
-        const hasArtifactsOrInternal = sortedArtifacts.length > 0 || internalArtifactCount > 0;
-        if (!hasArtifactsOrInternal) return null;
+        // Show header when there are visible artifacts OR when there are working artifacts (so menu is accessible)
+        const hasArtifactsOrWorking = sortedArtifacts.length > 0 || workingArtifactCount > 0;
+        if (!hasArtifactsOrWorking) return null;
 
         return (
             <div className="flex items-center justify-end border-b p-2">
@@ -68,9 +68,9 @@ export const ArtifactPanel: React.FC = () => {
                 <ArtifactMorePopover
                     key="more-popover"
                     hideDeleteAll={!hasDeletableArtifacts}
-                    showInternalArtifacts={showInternalArtifacts}
-                    onToggleInternalArtifacts={toggleShowInternalArtifacts}
-                    internalArtifactCount={internalArtifactCount}
+                    showWorkingArtifacts={showWorkingArtifacts}
+                    onToggleWorkingArtifacts={toggleShowWorkingArtifacts}
+                    workingArtifactCount={workingArtifactCount}
                 >
                     <Button variant="ghost" tooltip="More">
                         <Ellipsis className="h-5 w-5" />
@@ -78,7 +78,7 @@ export const ArtifactPanel: React.FC = () => {
                 </ArtifactMorePopover>
             </div>
         );
-    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact, hasDeletableArtifacts, showInternalArtifacts, toggleShowInternalArtifacts, internalArtifactCount]);
+    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact, hasDeletableArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount]);
 
     return (
         <div className="flex h-full flex-col">
@@ -98,9 +98,9 @@ export const ArtifactPanel: React.FC = () => {
                                             <>
                                                 <FileText className="mx-auto mb-4 h-12 w-12" />
                                                 <div className="text-lg font-medium">Files</div>
-                                                {!showInternalArtifacts && internalArtifactCount > 0 ? (
+                                                {!showWorkingArtifacts && workingArtifactCount > 0 ? (
                                                     <div className="mt-2 text-sm">
-                                                        {internalArtifactCount} internal {internalArtifactCount === 1 ? "file is" : "files are"} hidden
+                                                        {workingArtifactCount} working {workingArtifactCount === 1 ? "file is" : "files are"} hidden
                                                     </div>
                                                 ) : (
                                                     <>
@@ -116,14 +116,14 @@ export const ArtifactPanel: React.FC = () => {
                                 </div>
                             )}
                         </div>
-                        {/* Hidden internal files indicator */}
-                        {!showInternalArtifacts && internalArtifactCount > 0 && sortedArtifacts.length > 0 && (
+                        {/* Hidden working files indicator */}
+                        {!showWorkingArtifacts && workingArtifactCount > 0 && sortedArtifacts.length > 0 && (
                             <button
-                                onClick={toggleShowInternalArtifacts}
+                                onClick={toggleShowWorkingArtifacts}
                                 className="text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center justify-center gap-1.5 border-t px-3 py-2 text-xs transition-colors"
                             >
                                 <EyeOff className="h-3 w-3" />
-                                <span>{internalArtifactCount} internal {internalArtifactCount === 1 ? "file" : "files"} hidden</span>
+                                <span>{workingArtifactCount} working {workingArtifactCount === 1 ? "file" : "files"} hidden</span>
                             </button>
                         )}
                     </div>

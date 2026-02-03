@@ -51,7 +51,7 @@ from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
 from ...common.a2a.types import ArtifactInfo
-from ...common.constants import ARTIFACT_TAG_INTERNAL
+from ...common.constants import ARTIFACT_TAG_WORKING
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -426,8 +426,8 @@ async def process_artifact_blocks_callback(
                             with host_component.active_tasks_lock:
                                 task_ctx = host_component.active_tasks.get(logical_task_id_for_tags)
                             if task_ctx and task_ctx.get_flag("is_structured_invocation"):
-                                if ARTIFACT_TAG_INTERNAL not in tags_list:
-                                    tags_list.append(ARTIFACT_TAG_INTERNAL)
+                                if ARTIFACT_TAG_WORKING not in tags_list:
+                                    tags_list.append(ARTIFACT_TAG_WORKING)
 
                         if tags_list:
                             kwargs_for_call["tags"] = tags_list

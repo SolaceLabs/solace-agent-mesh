@@ -18,7 +18,7 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
 )
 from solace_agent_mesh.common.constants import (
     ARTIFACT_TAG_USER_UPLOADED,
-    ARTIFACT_TAG_INTERNAL,
+    ARTIFACT_TAG_WORKING,
 )
 from datetime import datetime, timezone
 
@@ -463,26 +463,26 @@ class TestArtifactTagging:
 
         print(f"Scenario {scenario_id}: __user_uploaded tag correctly stored")
 
-    async def test_internal_tag(
+    async def test_working_tag(
         self,
         test_artifact_service_instance: TestInMemoryArtifactService,
     ):
-        """Test that internal artifacts can be tagged with __internal."""
-        scenario_id = "test_internal_tag"
+        """Test that working artifacts can be tagged with __working."""
+        scenario_id = "test_working_tag"
 
-        content = b"Internal artifact content"
+        content = b"Working artifact content"
 
         result = await save_artifact_with_metadata(
             artifact_service=test_artifact_service_instance,
             app_name="TestAgent",
             user_id="test_user@example.com",
-            session_id="test_session_internal",
-            filename="internal_file.txt",
+            session_id="test_session_working",
+            filename="working_file.txt",
             content_bytes=content,
             mime_type="text/plain",
             metadata_dict={},
             timestamp=datetime.now(timezone.utc),
-            tags=[ARTIFACT_TAG_INTERNAL],
+            tags=[ARTIFACT_TAG_WORKING],
         )
 
         assert result["status"] == "success", f"Scenario {scenario_id}: Save failed"
@@ -492,16 +492,16 @@ class TestArtifactTagging:
             artifact_service=test_artifact_service_instance,
             app_name="TestAgent",
             user_id="test_user@example.com",
-            session_id="test_session_internal",
-            filename="internal_file.txt",
+            session_id="test_session_working",
+            filename="working_file.txt",
             version="latest",
             load_metadata_only=True,
         )
 
-        assert ARTIFACT_TAG_INTERNAL in metadata_result["metadata"]["tags"], \
-            f"Scenario {scenario_id}: __internal tag not found"
+        assert ARTIFACT_TAG_WORKING in metadata_result["metadata"]["tags"], \
+            f"Scenario {scenario_id}: __working tag not found"
 
-        print(f"Scenario {scenario_id}: __internal tag correctly stored")
+        print(f"Scenario {scenario_id}: __working tag correctly stored")
 
     async def test_tags_in_artifact_info_list(
         self,
@@ -513,8 +513,8 @@ class TestArtifactTagging:
         # Save artifacts with different tags
         artifacts_to_create = [
             ("user_file.txt", [ARTIFACT_TAG_USER_UPLOADED]),
-            ("internal_file.txt", [ARTIFACT_TAG_INTERNAL]),
-            ("multi_tag.txt", [ARTIFACT_TAG_INTERNAL, "custom"]),
+            ("working_file.txt", [ARTIFACT_TAG_WORKING]),
+            ("multi_tag.txt", [ARTIFACT_TAG_WORKING, "custom"]),
         ]
 
         for filename, tags in artifacts_to_create:
@@ -544,10 +544,10 @@ class TestArtifactTagging:
 
         assert ARTIFACT_TAG_USER_UPLOADED in artifacts_by_name["user_file.txt"].tags, \
             f"Scenario {scenario_id}: user_file.txt missing __user_uploaded tag"
-        assert ARTIFACT_TAG_INTERNAL in artifacts_by_name["internal_file.txt"].tags, \
-            f"Scenario {scenario_id}: internal_file.txt missing __internal tag"
-        assert ARTIFACT_TAG_INTERNAL in artifacts_by_name["multi_tag.txt"].tags, \
-            f"Scenario {scenario_id}: multi_tag.txt missing __internal tag"
+        assert ARTIFACT_TAG_WORKING in artifacts_by_name["working_file.txt"].tags, \
+            f"Scenario {scenario_id}: working_file.txt missing __working tag"
+        assert ARTIFACT_TAG_WORKING in artifacts_by_name["multi_tag.txt"].tags, \
+            f"Scenario {scenario_id}: multi_tag.txt missing __working tag"
         assert "custom" in artifacts_by_name["multi_tag.txt"].tags, \
             f"Scenario {scenario_id}: multi_tag.txt missing custom tag"
 

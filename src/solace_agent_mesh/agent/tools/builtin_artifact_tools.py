@@ -70,7 +70,7 @@ async def _internal_create_artifact(
         description (str, optional): A description for the artifact.
         metadata_json (str, optional): A JSON string of additional metadata.
         schema_max_keys (int, optional): Max keys for schema inference.
-        tags (List[str], optional): Tags for categorization (e.g., ["__internal"]).
+        tags (List[str], optional): Tags for categorization (e.g., ["__working"]).
 
     Returns:
         A dictionary indicating the result, returned by save_artifact_with_metadata.

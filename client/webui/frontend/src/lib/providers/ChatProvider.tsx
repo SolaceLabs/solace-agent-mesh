@@ -115,7 +115,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
-    const { artifacts, allArtifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts, showInternalArtifacts, toggleShowInternalArtifacts, internalArtifactCount } = useArtifacts(sessionId);
+    const { artifacts, allArtifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useArtifacts(sessionId);
 
     // Title Generation
     const { generateTitle } = useTitleGeneration();
@@ -2614,9 +2614,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifactsLoading,
         artifactsRefetch,
         setArtifacts,
-        showInternalArtifacts,
-        toggleShowInternalArtifacts,
-        internalArtifactCount,
+        showWorkingArtifacts,
+        toggleShowWorkingArtifacts,
+        workingArtifactCount,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,

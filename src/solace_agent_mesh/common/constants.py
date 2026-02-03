@@ -16,4 +16,4 @@ EXTENSION_URI_AGENT_TYPE = "https://solace.com/a2a/extensions/agent-type"
 
 # System artifact tags (prefixed with __ to distinguish from user tags)
 ARTIFACT_TAG_USER_UPLOADED = "__user_uploaded"
-ARTIFACT_TAG_INTERNAL = "__internal"
+ARTIFACT_TAG_WORKING = "__working"

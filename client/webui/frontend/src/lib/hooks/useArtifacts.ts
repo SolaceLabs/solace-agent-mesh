@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { api } from "@/lib/api";
 import type { ArtifactInfo } from "@/lib/types";
 import { useProjectContext } from "../providers/ProjectProvider";
-import { ARTIFACT_TAG_INTERNAL } from "@/lib/constants";
+import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
 
-const STORAGE_KEY = "sam_show_internal_artifacts";
+const STORAGE_KEY = "sam_show_working_artifacts";
 
 interface UseArtifactsReturn {
     artifacts: ArtifactInfo[];
@@ -13,9 +13,9 @@ interface UseArtifactsReturn {
     error: string | null;
     refetch: () => Promise<void>;
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
-    showInternalArtifacts: boolean;
-    toggleShowInternalArtifacts: () => void;
-    internalArtifactCount: number;
+    showWorkingArtifacts: boolean;
+    toggleShowWorkingArtifacts: () => void;
+    workingArtifactCount: number;
 }
 
 /**
@@ -32,14 +32,14 @@ const isIntermediateWebContentArtifact = (filename: string | undefined): boolean
 };
 
 /**
- * Checks if an artifact has the internal system tag (case-insensitive).
- * Internal artifacts are hidden from users by default.
+ * Checks if an artifact has the working system tag (case-insensitive).
+ * Working artifacts are hidden from users by default.
  *
  * @param tags The tags array of the artifact.
- * @returns True if the artifact has the internal system tag.
+ * @returns True if the artifact has the working system tag.
  */
-const hasInternalTag = (tags: string[] | undefined): boolean => {
-    return tags?.some(t => t.toLowerCase() === ARTIFACT_TAG_INTERNAL.toLowerCase()) ?? false;
+const hasWorkingTag = (tags: string[] | undefined): boolean => {
+    return tags?.some(t => t.toLowerCase() === ARTIFACT_TAG_WORKING.toLowerCase()) ?? false;
 };
 
 export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
@@ -47,7 +47,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-    const [showInternalArtifacts, setShowInternalArtifacts] = useState<boolean>(() => {
+    const [showWorkingArtifacts, setShowWorkingArtifacts] = useState<boolean>(() => {
         try {
             return localStorage.getItem(STORAGE_KEY) === "true";
         } catch {
@@ -74,7 +74,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
 
             const data: ArtifactInfo[] = await api.webui.get(endpoint);
             // Filter out intermediate web content artifacts from deep research
-            // Note: Internal artifacts are NOT filtered here - they are filtered in the useMemo below
+            // Note: Working artifacts are NOT filtered here - they are filtered in the useMemo below
             const filteredData = data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
             const artifactsWithUris = filteredData.map(artifact => ({
                 ...artifact,
@@ -94,8 +94,8 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         fetchArtifacts();
     }, [fetchArtifacts]);
 
-    const toggleShowInternalArtifacts = useCallback(() => {
-        setShowInternalArtifacts(prev => {
+    const toggleShowWorkingArtifacts = useCallback(() => {
+        setShowWorkingArtifacts(prev => {
             const newValue = !prev;
             try {
                 localStorage.setItem(STORAGE_KEY, String(newValue));
@@ -106,17 +106,17 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         });
     }, []);
 
-    // Filter out internal artifacts unless the toggle is on
+    // Filter out working artifacts unless the toggle is on
     const filteredArtifacts = useMemo(() => {
-        if (showInternalArtifacts) {
+        if (showWorkingArtifacts) {
             return artifacts;
         }
-        return artifacts.filter(artifact => !hasInternalTag(artifact.tags));
-    }, [artifacts, showInternalArtifacts]);
+        return artifacts.filter(artifact => !hasWorkingTag(artifact.tags));
+    }, [artifacts, showWorkingArtifacts]);
 
-    // Count internal artifacts for display in toggle
-    const internalArtifactCount = useMemo(() => {
-        return artifacts.filter(artifact => hasInternalTag(artifact.tags)).length;
+    // Count working artifacts for display in toggle
+    const workingArtifactCount = useMemo(() => {
+        return artifacts.filter(artifact => hasWorkingTag(artifact.tags)).length;
     }, [artifacts]);
 
     return {
@@ -126,8 +126,8 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         error,
         refetch: fetchArtifacts,
         setArtifacts,
-        showInternalArtifacts,
-        toggleShowInternalArtifacts,
-        internalArtifactCount,
+        showWorkingArtifacts,
+        toggleShowWorkingArtifacts,
+        workingArtifactCount,
     };
 };
