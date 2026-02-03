@@ -422,9 +422,10 @@ class ProjectService:
                 if desc:
                     metadata["description"] = desc
 
-            # Add line-range citations for text-based files (if indexing enabled)
+            # Add line-range citations for text-based files
             # This provides granular location info similar to page numbers for PDFs
-            if indexing_enabled and self._is_text_file(file.content_type, file.filename):
+            # Generate citations regardless of indexing_enabled (they're just metadata)
+            if self._is_text_file(file.content_type, file.filename):
                 try:
                     # Decode text content
                     text_content = content_bytes.decode('utf-8', errors='ignore')

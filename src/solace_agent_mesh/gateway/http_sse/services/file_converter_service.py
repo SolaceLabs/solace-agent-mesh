@@ -69,10 +69,6 @@ def create_line_range_citations(text: str, lines_per_chunk: int = LINES_PER_CITA
         char_start = char_position
         char_end = char_position + len(chunk_text)
 
-        # Add newline character except for last chunk
-        if end_line_idx < len(lines):
-            char_end += 1  # Account for newline
-
         # Create citation entry (1-indexed for user-friendliness)
         citation_map.append({
             "location": f"lines_{start_line_idx + 1}_{end_line_idx}",
@@ -80,7 +76,11 @@ def create_line_range_citations(text: str, lines_per_chunk: int = LINES_PER_CITA
             "char_end": char_end
         })
 
-        char_position = char_end
+        # Move position past the chunk text AND the newline separator (except for last chunk)
+        if end_line_idx < len(lines):
+            char_position = char_end + 1  # +1 for newline separator between citation chunks
+        else:
+            char_position = char_end  # No separator after last chunk
 
     metadata = {
         "citation_type": "line_range",
@@ -140,7 +140,7 @@ def convert_pdf_to_text(pdf_bytes: bytes) -> Tuple[str, dict]:
             page_text = page.extract_text()
 
             if page_text:
-                # Record citation info before adding to full text
+                # Record citation info
                 char_start = char_position
                 char_end = char_position + len(page_text)
 
@@ -153,9 +153,18 @@ def convert_pdf_to_text(pdf_bytes: bytes) -> Tuple[str, dict]:
                 })
 
                 full_text.append(page_text)
-                char_position = char_end
 
+                # CRITICAL: Account for newline that will be added by "\n".join()
+                # Move position past the page text AND the newline character
+                char_position = char_end + 1  # +1 for the newline between pages
+
+        # Join with newlines (this is why we added +1 above)
         extracted_text = "\n".join(full_text)
+
+        # IMPORTANT: Fix the last citation's char_end (no newline after last page)
+        if citation_map:
+            # The last page doesn't have a trailing newline, so subtract 1
+            citation_map[-1]["char_end"] = len(extracted_text)
 
         metadata = {
             "converter": "pypdf",
@@ -213,7 +222,7 @@ def convert_docx_to_text(docx_bytes: bytes) -> Tuple[str, dict]:
             para_text = paragraph.text
 
             if para_text.strip():  # Only include non-empty paragraphs
-                # Record citation info before adding to full text
+                # Record citation info
                 char_start = char_position
                 char_end = char_position + len(para_text)
 
@@ -225,9 +234,16 @@ def convert_docx_to_text(docx_bytes: bytes) -> Tuple[str, dict]:
                 })
 
                 full_text.append(para_text)
-                char_position = char_end
 
+                # CRITICAL: Account for newline that will be added by "\n".join()
+                char_position = char_end + 1  # +1 for the newline between paragraphs
+
+        # Join with newlines (this is why we added +1 above)
         extracted_text = "\n".join(full_text)
+
+        # IMPORTANT: Fix the last citation's char_end (no newline after last paragraph)
+        if citation_map:
+            citation_map[-1]["char_end"] = len(extracted_text)
 
         metadata = {
             "converter": "python-docx",
@@ -299,7 +315,7 @@ def convert_pptx_to_text(pptx_bytes: bytes) -> Tuple[str, dict]:
             if slide_text_parts:
                 slide_text = "\n".join(slide_text_parts)
 
-                # Record citation info before adding to full text
+                # Record citation info
                 char_start = char_position
                 char_end = char_position + len(slide_text)
 
@@ -312,9 +328,17 @@ def convert_pptx_to_text(pptx_bytes: bytes) -> Tuple[str, dict]:
                 })
 
                 full_text.append(slide_text)
-                char_position = char_end
 
-        extracted_text = "\n\n".join(full_text)  # Double newline between slides
+                # CRITICAL: Account for double newline that will be added by "\n\n".join()
+                # Move position past the slide text AND the two newline characters
+                char_position = char_end + 2  # +2 for the double newline between slides
+
+        # Join with double newlines (this is why we added +2 above)
+        extracted_text = "\n\n".join(full_text)
+
+        # IMPORTANT: Fix the last citation's char_end (no double newline after last slide)
+        if citation_map:
+            citation_map[-1]["char_end"] = len(extracted_text)
 
         metadata = {
             "converter": "python-pptx",

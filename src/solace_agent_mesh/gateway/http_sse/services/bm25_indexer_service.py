@@ -140,16 +140,37 @@ async def collect_project_text_files(
             continue
 
         try:
-            # 3. Load content using artifact service (storage-agnostic)
-            content_result = await load_artifact_content_or_metadata(
-                artifact_service=artifact_service,
+            # 3. Load FULL content for indexing (bypass truncation limits)
+            # For indexing, we need complete text regardless of size
+            # Use load_artifact directly to bypass the 200K truncation limit
+            artifact_part = await artifact_service.load_artifact(
                 app_name=app_name,
                 user_id=user_id,
                 session_id=session_id,
-                filename=artifact.filename,
-                version="latest",
-                load_metadata_only=False
+                filename=artifact.filename
             )
+
+            if not artifact_part or not artifact_part.inline_data:
+                log.warning(f"{log_prefix} Failed to load {artifact.filename}: No data")
+                continue
+
+            # Decode full content (no truncation!)
+            try:
+                full_text = artifact_part.inline_data.data.decode('utf-8', errors='ignore')
+                log.debug(
+                    f"{log_prefix} Loaded FULL content for {artifact.filename}: "
+                    f"{len(full_text):,} chars (no truncation for indexing)"
+                )
+            except Exception as decode_error:
+                log.error(f"{log_prefix} Failed to decode {artifact.filename}: {decode_error}")
+                continue
+
+            # Store in content_result format for compatibility
+            content_result = {
+                "status": "success",
+                "content": full_text,
+                "version": artifact.version
+            }
 
             if content_result.get("status") != "success":
                 log.warning(f"{log_prefix} Failed to load {artifact.filename}: {content_result.get('message')}")

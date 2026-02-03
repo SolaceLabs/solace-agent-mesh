@@ -81,6 +81,13 @@ apps:
       background_tasks:
         default_timeout_ms: 3600000  # Default: 1 hour (3600000ms)
 
+      # --- Project Indexing (BM25 Search) Configuration ---
+      # Enable automatic conversion of PDF/DOCX/PPTX files to searchable text
+      # and BM25 index generation for all text-based project files.
+      # Default: false (disabled for backward compatibility)
+      # project_indexing:
+      #   enabled: ${PROJECT_INDEXING_ENABLED, false}
+
       # --- Speech Configuration (STT/TTS) ---
       speech:
         # stt:
