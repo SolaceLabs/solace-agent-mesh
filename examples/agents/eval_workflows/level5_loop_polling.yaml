@@ -80,7 +80,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "LoopPollingWorkflow"
+      name: "LoopPollingWorkflow"
       display_name: "Loop Polling Workflow"
 
       # Timeout configurations
