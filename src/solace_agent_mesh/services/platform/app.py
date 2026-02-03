@@ -169,6 +169,18 @@ class PlatformServiceApp(SamAppBase):
             {"topic": get_discovery_subscription_topic(namespace)},
         ]
 
+        # Add trust card subscription if trust manager is enabled
+        trust_config = app_config.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ...common.a2a.protocol import get_trust_card_subscription_topic
+
+            trust_card_topic = get_trust_card_subscription_topic(namespace)
+            subscriptions.append({"topic": trust_card_topic})
+            log.info(
+                "Trust Manager enabled for Platform Service, added trust card subscription: %s",
+                trust_card_topic,
+            )
+
         # Create component definition with subscriptions
         # (SAC framework looks for subscriptions in component definition for simplified apps)
         component_definition = {

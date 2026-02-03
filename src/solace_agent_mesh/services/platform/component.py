@@ -211,6 +211,9 @@ class PlatformServiceComponent(SamComponentBase):
         - Direct message publisher (for deployer commands)
         - Agent health check timer (for removing expired agents from registry)
         """
+        # Initialize base class (sets up trust_manager if enterprise feature enabled)
+        super()._late_init()
+
         log.info("%s Starting late initialization (broker-dependent services)...", self.log_identifier)
 
         # Initialize direct message publisher for deployer commands
@@ -401,7 +404,20 @@ class PlatformServiceComponent(SamComponentBase):
         processed_successfully = False
 
         try:
-            if a2a.topic_matches_subscription(
+            # Handle trust card messages first (like gateway component pattern)
+            if (
+                hasattr(self, "trust_manager")
+                and self.trust_manager
+                and self.trust_manager.is_trust_card_topic(topic)
+            ):
+                payload = message.get_payload()
+                if isinstance(payload, bytes):
+                    payload = json.loads(payload.decode('utf-8'))
+                elif isinstance(payload, str):
+                    payload = json.loads(payload)
+                await self.trust_manager.handle_trust_card_message(payload, topic)
+                processed_successfully = True
+            elif a2a.topic_matches_subscription(
                 topic, a2a.get_discovery_subscription_topic(self.namespace)
             ):
                 payload = message.get_payload()
@@ -522,11 +538,16 @@ class PlatformServiceComponent(SamComponentBase):
     def _pre_async_cleanup(self) -> None:
         """
         Cleanup before async operations stop (required by SamComponentBase).
-
-        Platform Service doesn't have async-specific resources to clean up here.
-        Main cleanup happens in cleanup() method.
         """
-        pass
+        if self.trust_manager:
+            try:
+                log.info("%s Cleaning up Trust Manager...", self.log_identifier)
+                self.trust_manager.cleanup(self.cancel_timer)
+                log.info("%s Trust Manager cleanup complete", self.log_identifier)
+            except Exception as e:
+                log.error(
+                    "%s Error during Trust Manager cleanup: %s", self.log_identifier, e
+                )
 
     def cleanup(self):
         """

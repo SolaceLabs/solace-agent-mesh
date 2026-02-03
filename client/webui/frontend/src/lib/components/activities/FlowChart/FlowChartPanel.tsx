@@ -27,13 +27,16 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
     const { agentNameMap, refetch: refetchAgents } = useAgentCards();
 
     // Callback for when agent name resolution fails
-    const handleUnknownAgent = useCallback((agentName: string) => {
-        if (!refetchedAgents.has(agentName)) {
-            console.log('[FlowChart] Unknown agent detected, triggering refetch:', agentName);
-            refetchedAgents.add(agentName);
-            refetchAgents();
-        }
-    }, [refetchAgents]);
+    const handleUnknownAgent = useCallback(
+        (agentName: string) => {
+            if (!refetchedAgents.has(agentName)) {
+                console.log("[FlowChart] Unknown agent detected, triggering refetch:", agentName);
+                refetchedAgents.add(agentName);
+                refetchAgents();
+            }
+        },
+        [refetchAgents]
+    );
 
     // Dialog state
     const [selectedNodeDetails, setSelectedNodeDetails] = useState<NodeDetails | null>(null);
@@ -237,7 +240,15 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
                     onClick={handlePaneClick}
                 >
                     <div ref={contentRef} style={{ width: "fit-content" }}>
-                        <WorkflowRenderer processedSteps={processedSteps} agentNameMap={agentNameMap} selectedStepId={highlightedStepId} onNodeClick={handleNodeClick} onEdgeClick={handleEdgeClick} showDetail={showDetail} onUnknownAgent={handleUnknownAgent} />
+                        <WorkflowRenderer
+                            processedSteps={processedSteps}
+                            agentNameMap={agentNameMap}
+                            selectedStepId={highlightedStepId}
+                            onNodeClick={handleNodeClick}
+                            onEdgeClick={handleEdgeClick}
+                            showDetail={showDetail}
+                            onUnknownAgent={handleUnknownAgent}
+                        />
                     </div>
                 </div>
             </PanZoomCanvas>

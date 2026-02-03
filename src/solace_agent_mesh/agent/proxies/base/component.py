@@ -334,34 +334,41 @@ class BaseProxyComponent(ComponentBase, ABC):
 
         return update_message_parts(original_message, resolved_parts)
 
-    def _update_agent_card_for_proxy(self, agent_card: AgentCard, agent_alias: str) -> AgentCard:
+    def _update_agent_card_for_proxy(
+        self, agent_card: AgentCard, agent_alias: str, config_display_name: Optional[str] = None
+    ) -> AgentCard:
         """
         Updates an agent card for proxying by:
         1. Setting the name to the proxy alias
-        2. Adding/updating the display-name extension to preserve the original name
+        2. Adding/updating the display-name extension
 
         Args:
             agent_card: The original agent card fetched from the remote agent
             agent_alias: The alias/name to use for this agent in SAM
+            config_display_name: Optional display name from config to use instead of card's name
 
         Returns:
             A modified copy of the agent card with updated name and display-name extension
         """
-        # Create a deep copy to avoid modifying the original
         card_copy = agent_card.model_copy(deep=True)
 
-        # Store the original name as the display name (if not already set)
-        # This preserves the agent's identity while allowing it to be proxied under an alias
-        original_display_name = agent_card.name
+        # Determine the display name to use (priority order):
+        # 1. Config-provided display_name (if not None and not empty)
+        # 2. Existing display-name extension from fetched card
+        # 3. Fetched card's name (fallback)
+        display_name = agent_card.name
 
-        # Check if there's already a display-name extension to preserve
+        # Check for existing display-name extension from fetched card
         display_name_uri = "https://solace.com/a2a/extensions/display-name"
         if card_copy.capabilities and card_copy.capabilities.extensions:
             for ext in card_copy.capabilities.extensions:
                 if ext.uri == display_name_uri and ext.params and ext.params.get("display_name"):
-                    # Use the existing display name from the extension
-                    original_display_name = ext.params["display_name"]
+                    display_name = ext.params["display_name"]
                     break
+
+        # Override with config if provided and not empty
+        if config_display_name and config_display_name.strip():
+            display_name = config_display_name.strip()
 
         # Update the card's name to the proxy alias
         card_copy.name = agent_alias
@@ -380,23 +387,22 @@ class BaseProxyComponent(ComponentBase, ABC):
                 break
 
         if display_name_ext:
-            # Update existing extension
             if not display_name_ext.params:
                 display_name_ext.params = {}
-            display_name_ext.params["display_name"] = original_display_name
+            display_name_ext.params["display_name"] = display_name
         else:
-            # Create new extension
             new_ext = AgentExtension(
                 uri=display_name_uri,
-                params={"display_name": original_display_name}
+                params={"display_name": display_name}
             )
             card_copy.capabilities.extensions.append(new_ext)
 
         log.debug(
-            "%s Updated agent card: name='%s', display_name='%s'",
+            "%s Updated agent card: name='%s', display_name='%s'%s",
             self.log_identifier,
             agent_alias,
-            original_display_name
+            display_name,
+            " (from config)" if config_display_name and config_display_name.strip() else ""
         )
 
         return card_copy
@@ -435,7 +441,10 @@ class BaseProxyComponent(ComponentBase, ABC):
                             continue
 
                         # Update the card for proxying
-                        card_for_proxy = self._update_agent_card_for_proxy(agent_card, agent_alias)
+                        config_display_name = agent_config.get("display_name")
+                        card_for_proxy = self._update_agent_card_for_proxy(
+                            agent_card, agent_alias, config_display_name
+                        )
                         self.agent_registry.add_or_update_agent(card_for_proxy)
                         log.info(
                             "%s Initial discovery successful for static agent '%s' (actual name: '%s').",
@@ -517,7 +526,10 @@ class BaseProxyComponent(ComponentBase, ABC):
                     agent_card = AgentCard.model_validate(response.json())
 
                     # Update the card for proxying (preserves display name)
-                    card_for_proxy = self._update_agent_card_for_proxy(agent_card, agent_alias)
+                    config_display_name = agent_config.get("display_name")
+                    card_for_proxy = self._update_agent_card_for_proxy(
+                        agent_card, agent_alias, config_display_name
+                    )
                     self.agent_registry.add_or_update_agent(card_for_proxy)
                     log.info(
                         "%s Initial discovery successful for alias '%s' (actual name: '%s').",
@@ -580,7 +592,10 @@ class BaseProxyComponent(ComponentBase, ABC):
                     continue
 
                 # Update the card for proxying (preserves display name)
-                card_for_registry = self._update_agent_card_for_proxy(modern_card, agent_alias)
+                config_display_name = agent_config.get("display_name")
+                card_for_registry = self._update_agent_card_for_proxy(
+                    modern_card, agent_alias, config_display_name
+                )
                 self.agent_registry.add_or_update_agent(card_for_registry)
 
                 # Create a separate copy for publishing
