@@ -3,18 +3,18 @@ import { Bot, Pencil } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useIsProjectOwner } from "@/lib/hooks";
 import { MessageBanner } from "../common";
 
 interface DefaultAgentSectionProps {
     project: Project;
     onSave: (defaultAgentId: string | null) => Promise<void>;
     isSaving: boolean;
-    isOwner?: boolean;
 }
 
-export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving, isOwner = false }) => {
+export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving }) => {
     const { agents, agentsLoading, agentNameDisplayNameMap } = useChatContext();
+    const isOwner = useIsProjectOwner(project.userId);
     const [isEditing, setIsEditing] = useState(false);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(project.defaultAgentId || null);
 

@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
-import { useConfigContext, useDownload } from "@/lib/hooks";
+import { useConfigContext, useDownload, useIsProjectOwner } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
@@ -18,10 +18,10 @@ import { DeleteProjectFileDialog } from "./DeleteProjectFileDialog";
 
 interface KnowledgeSectionProps {
     project: Project;
-    isOwner?: boolean;
 }
 
-export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project, isOwner = false }) => {
+export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
+    const isOwner = useIsProjectOwner(project.userId);
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);

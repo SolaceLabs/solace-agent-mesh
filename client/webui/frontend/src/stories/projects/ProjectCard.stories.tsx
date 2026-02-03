@@ -13,6 +13,9 @@ const meta = {
                 component: "Card component for displaying project information in a grid layout. Shows project name, description, artifact count, and provides menu actions for owners.",
             },
         },
+        authContext: {
+            userInfo: { username: "user-id" },
+        },
     },
 } satisfies Meta<typeof ProjectCard>;
 
@@ -22,7 +25,6 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         project: weatherProject,
-        currentUsername: "user-id",
         onClick: () => alert("Card clicked"),
         onDelete: () => alert("Delete clicked"),
         onExport: () => alert("Export clicked"),
@@ -38,7 +40,6 @@ export const Default: Story = {
 export const WithDescription: Story = {
     args: {
         project: projectWithLongDescription,
-        currentUsername: "user-id",
         onClick: () => alert("Card clicked"),
         onDelete: () => alert("Delete clicked"),
         onExport: () => alert("Export clicked"),
@@ -53,7 +54,6 @@ export const WithDescription: Story = {
 export const WithManyArtifacts: Story = {
     args: {
         project: projectWithManyArtifacts,
-        currentUsername: "user-id",
         onClick: () => alert("Card clicked"),
         onDelete: () => alert("Delete clicked"),
         onExport: () => alert("Export clicked"),
@@ -67,7 +67,6 @@ export const WithManyArtifacts: Story = {
 export const EmptyProject: Story = {
     args: {
         project: emptyProject,
-        currentUsername: "user-id",
         onClick: () => alert("Card clicked"),
         onDelete: () => alert("Delete clicked"),
         onExport: () => alert("Export clicked"),

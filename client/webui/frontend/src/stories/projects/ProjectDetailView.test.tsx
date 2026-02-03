@@ -10,16 +10,20 @@ expect.extend(matchers);
 
 describe("ProjectDetailView", () => {
     describe("Button Visibility for Viewers", () => {
-        test("viewer cannot see edit buttons when isOwner is false", async () => {
+        test("viewer cannot see edit buttons when not owner", async () => {
             const ViewerStory = composeStory(
                 {
                     args: {
                         project: populatedProject,
-                        isOwner: false,
-                        isSharingEnabled: true,
                         onBack: () => {},
                         onStartNewChat: () => {},
                         onChatClick: () => {},
+                        onShare: () => {},
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "different-user" },
+                        },
                     },
                 },
                 meta
@@ -46,12 +50,15 @@ describe("ProjectDetailView", () => {
                 {
                     args: {
                         project: populatedProject,
-                        isOwner: true,
-                        isSharingEnabled: true,
                         onBack: () => {},
                         onStartNewChat: () => {},
                         onChatClick: () => {},
                         onShare: mockOnShare,
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "user-id" },
+                        },
                     },
                 },
                 meta

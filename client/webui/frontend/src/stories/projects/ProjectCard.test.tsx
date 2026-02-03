@@ -26,9 +26,13 @@ describe("ProjectCard", () => {
                 {
                     args: {
                         project: mockProject,
-                        currentUsername: "owner-user",
-                        isSharingEnabled: true,
                         onDelete: () => {},
+                        onShare: () => {},
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "owner-user" },
+                        },
                     },
                 },
                 meta
@@ -50,9 +54,13 @@ describe("ProjectCard", () => {
                 {
                     args: {
                         project: mockProject,
-                        currentUsername: "different-user",
-                        isSharingEnabled: true,
                         onDelete: () => {},
+                        onShare: () => {},
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "different-user" },
+                        },
                     },
                 },
                 meta
@@ -69,14 +77,17 @@ describe("ProjectCard", () => {
             expect(ownerIcon).not.toBeInTheDocument();
         });
 
-        test("no ownership icon shown when isSharingEnabled is false", async () => {
+        test("no ownership icon shown when onShare is not provided", async () => {
             const OwnerWithoutSharing = composeStory(
                 {
                     args: {
                         project: mockProject,
-                        currentUsername: "owner-user",
-                        isSharingEnabled: false,
                         onDelete: () => {},
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "owner-user" },
+                        },
                     },
                 },
                 meta
@@ -97,9 +108,12 @@ describe("ProjectCard", () => {
                 {
                     args: {
                         project: mockProject,
-                        currentUsername: "different-user",
-                        isSharingEnabled: false,
                         onDelete: () => {},
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "different-user" },
+                        },
                     },
                 },
                 meta
@@ -122,10 +136,13 @@ describe("ProjectCard", () => {
                 {
                     args: {
                         project: mockProject,
-                        currentUsername: "owner-user",
-                        isSharingEnabled: true,
                         onDelete: () => {},
                         onShare: mockOnShare,
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "owner-user" },
+                        },
                     },
                 },
                 meta
@@ -144,10 +161,13 @@ describe("ProjectCard", () => {
                 {
                     args: {
                         project: mockProject,
-                        currentUsername: "different-user",
-                        isSharingEnabled: true,
                         onDelete: () => {},
                         onShare: () => {},
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "different-user" },
+                        },
                     },
                 },
                 meta
@@ -161,17 +181,19 @@ describe("ProjectCard", () => {
             expect(screen.queryByText("Share Project")).toBeNull();
         });
 
-        test("'Share Project' NOT shown when isSharingEnabled is false (even for owner)", async () => {
+        test("'Share Project' NOT shown when onShare is not provided (even for owner)", async () => {
             const user = userEvent.setup();
 
             const OwnerWithoutSharing = composeStory(
                 {
                     args: {
                         project: mockProject,
-                        currentUsername: "owner-user",
-                        isSharingEnabled: false,
                         onDelete: () => {},
-                        onShare: () => {},
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "owner-user" },
+                        },
                     },
                 },
                 meta
@@ -197,10 +219,13 @@ describe("ProjectCard", () => {
                 {
                     args: {
                         project: mockProject,
-                        currentUsername: "owner-user",
-                        isSharingEnabled: true,
                         onDelete: () => {},
                         onShare: mockOnShare,
+                    },
+                    parameters: {
+                        authContext: {
+                            userInfo: { username: "owner-user" },
+                        },
                     },
                 },
                 meta

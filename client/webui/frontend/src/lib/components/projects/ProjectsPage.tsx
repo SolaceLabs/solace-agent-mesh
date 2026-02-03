@@ -12,7 +12,7 @@ import { useProjectContext } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
 import { Button, Header } from "@/lib/components";
 import { downloadBlob, getErrorMessage } from "@/lib/utils";
-import { useChatContext, useAuthContext, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { useExportProject, useImportProject } from "@/lib/api/projects/hooks";
 
 export const ProjectsPage: React.FC = () => {
@@ -22,13 +22,11 @@ export const ProjectsPage: React.FC = () => {
     // hooks
     const { projects, isLoading, createProject, activeProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
-    const { userInfo } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
     const exportProjectMutation = useExportProject();
     const importProjectMutation = useImportProject();
 
     // Derived values for sharing
-    const currentUsername = userInfo?.username as string | undefined;
     const isSharingEnabled = configFeatureEnablement?.project_sharing_enabled ?? false;
 
     // state
@@ -170,8 +168,6 @@ export const ProjectsPage: React.FC = () => {
 
     const showDetailView = selectedProject !== null;
 
-    const isSelectedProjectOwner = selectedProject && currentUsername ? selectedProject.userId.toLowerCase() === currentUsername.toLowerCase() : true;
-
     return (
         <div className="flex h-full w-full flex-col">
             {!showDetailView && (
@@ -192,14 +188,7 @@ export const ProjectsPage: React.FC = () => {
 
             <div className="min-h-0 flex-1">
                 {showDetailView ? (
-                    <ProjectDetailView
-                        project={selectedProject}
-                        onBack={handleBackToList}
-                        onStartNewChat={handleStartNewChat}
-                        onChatClick={handleChatClick}
-                        isOwner={isSelectedProjectOwner}
-                        onShare={isSharingEnabled ? () => handleShareClick(selectedProject) : undefined}
-                    />
+                    <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} onShare={isSharingEnabled ? () => handleShareClick(selectedProject) : undefined} />
                 ) : (
                     <ProjectCards
                         projects={filteredProjects}
@@ -210,7 +199,6 @@ export const ProjectsPage: React.FC = () => {
                         onDelete={handleDeleteClick}
                         onExport={handleExport}
                         isLoading={isLoading}
-                        currentUsername={currentUsername}
                         onShare={isSharingEnabled ? handleShareClick : undefined}
                     />
                 )}

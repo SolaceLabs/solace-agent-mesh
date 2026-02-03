@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Pencil } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
+import { useIsProjectOwner } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
 import { EditInstructionsDialog } from "./EditInstructionsDialog";
 
@@ -10,10 +11,10 @@ interface SystemPromptSectionProps {
     onSave: (systemPrompt: string) => Promise<void>;
     isSaving: boolean;
     error?: string | null;
-    isOwner?: boolean;
 }
 
-export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ project, onSave, isSaving, error, isOwner = true }) => {
+export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ project, onSave, isSaving, error }) => {
+    const isOwner = useIsProjectOwner(project.userId);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     return (

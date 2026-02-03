@@ -6,7 +6,7 @@ import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext } from "@/lib/hooks";
+import { useConfigContext, useIsProjectOwner } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
@@ -21,11 +21,11 @@ interface ProjectDetailViewProps {
     onBack: () => void;
     onStartNewChat?: () => void;
     onChatClick?: (sessionId: string) => void;
-    isOwner?: boolean;
     onShare?: () => void;
 }
 
-export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, isOwner = false, onShare }) => {
+export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, onShare }) => {
+    const isOwner = useIsProjectOwner(project.userId);
     const { updateProject, projects, deleteProject } = useProjectContext();
     const { validationLimits } = useConfigContext();
     const [isSaving, setIsSaving] = useState(false);
@@ -181,11 +181,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
                 {/* Right Panel - Metadata Sidebar */}
                 <div className="flex min-h-0 w-[40%] flex-col">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} isOwner={isOwner} />
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isOwner={isOwner} />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
 
-                    <KnowledgeSection project={project} isOwner={isOwner} />
+                    <KnowledgeSection project={project} />
                 </div>
             </div>
 

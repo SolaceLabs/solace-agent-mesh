@@ -6,20 +6,19 @@ import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Pop
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
+import { useIsProjectOwner } from "@/lib/hooks";
 
 interface ProjectCardProps {
     project: Project;
     onClick?: () => void;
     onDelete?: (project: Project) => void;
     onExport?: (project: Project) => void;
-    currentUsername?: string;
     onShare?: (project: Project) => void;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, currentUsername, onShare }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, onShare }) => {
     const [menuOpen, setMenuOpen] = useState(false);
-
-    const isOwner = currentUsername ? project.userId.toLowerCase() === currentUsername.toLowerCase() : true;
+    const isOwner = useIsProjectOwner(project.userId);
 
     const menuActions: MenuAction[] = [
         ...(isOwner && onShare
