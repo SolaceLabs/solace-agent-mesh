@@ -317,19 +317,17 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                 <div className="space-y-2">
                                     {node.data.cases.map((caseItem, index) => (
                                         <div key={index} className="grid grid-cols-[auto_1fr] gap-3">
-                                            <div className="flex h-8 w-[30px] items-center justify-center rounded border border-(--color-secondary-w20) bg-(--color-background-w10) text-sm text-(--color-secondary-text-wMain)">{index + 1}</div>
+                                            <div className="flex h-8 w-[30px] items-center justify-center rounded border text-sm">{index + 1}</div>
                                             <div className="mb-2">
-                                                <div className="mb-1 min-h-[32px] bg-(--color-background-w20) p-2 font-mono text-xs">{caseItem.condition}</div>
+                                                <div className="bg-muted/50 mb-1 min-h-[32px] p-2 font-mono text-xs">{caseItem.condition}</div>
                                                 <div className="text-sm">→ {caseItem.node}</div>
                                             </div>
                                         </div>
                                     ))}
                                     {node.data.defaultCase && (
                                         <div className="grid grid-cols-[auto_1fr] gap-3">
-                                            <div className="flex h-8 w-[30px] items-center justify-center rounded border border-(--color-secondary-w20) bg-(--color-background-w10) text-sm text-(--color-secondary-text-wMain)">
-                                                {node.data.cases.length + 1}
-                                            </div>
-                                            <div className="flex min-h-[32px] items-center bg-(--color-background-w20) p-2">
+                                            <div className="flex h-8 w-[30px] items-center justify-center rounded border">{node.data.cases.length + 1}</div>
+                                            <div className="bg-muted/50 flex min-h-[32px] items-center p-2">
                                                 <span className="text-sm">default</span>
                                             </div>
                                         </div>
