@@ -44,7 +44,7 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
     }, [blocker]);
 
     const allowNavigation = useCallback((navigationFn: () => void) => {
-        setIsNavigationAllowed(true);
+        setIsNavigationAllowed(true)
         setPendingNavigation(() => navigationFn);
     }, []);
 
