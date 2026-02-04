@@ -1,9 +1,9 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { Home } from "lucide-react";
+
 import type { VisualizerStep } from "@/lib/types";
 import { Dialog, DialogContent, DialogFooter, VisuallyHidden, DialogTitle, DialogDescription, Button, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
-import { useTaskContext } from "@/lib/hooks";
-import { useAgentCards } from "@/lib/hooks";
+import { useChatContext, useTaskContext } from "@/lib/hooks";
 import WorkflowRenderer from "./WorkflowRenderer";
 import type { LayoutNode, Edge } from "./utils/types";
 import { findNodeDetails, type NodeDetails } from "./utils/nodeDetailsHelper";
@@ -24,7 +24,7 @@ interface FlowChartPanelProps {
 
 const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowChartPanelProps) => {
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
-    const { agentNameMap, refetch: refetchAgents } = useAgentCards();
+    const { agentNameDisplayNameMap, agentsRefetch } = useChatContext();
 
     // Callback for when agent name resolution fails
     const handleUnknownAgent = useCallback(
@@ -32,10 +32,10 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
             if (!refetchedAgents.has(agentName)) {
                 console.log("[FlowChart] Unknown agent detected, triggering refetch:", agentName);
                 refetchedAgents.add(agentName);
-                refetchAgents();
+                agentsRefetch();
             }
         },
-        [refetchAgents]
+        [agentsRefetch]
     );
 
     // Dialog state
@@ -242,7 +242,7 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
                     <div ref={contentRef} style={{ width: "fit-content" }}>
                         <WorkflowRenderer
                             processedSteps={processedSteps}
-                            agentNameMap={agentNameMap}
+                            agentNameMap={agentNameDisplayNameMap}
                             selectedStepId={highlightedStepId}
                             onNodeClick={handleNodeClick}
                             onEdgeClick={handleEdgeClick}
