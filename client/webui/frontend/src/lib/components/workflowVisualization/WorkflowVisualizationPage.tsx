@@ -334,16 +334,7 @@ export function WorkflowVisualizationPage() {
                 {/* Floating node detail popover (shown when node selected) */}
                 {selectedNode && (
                     <div className={`absolute top-4 right-4 bottom-4 z-10 overflow-hidden rounded-lg border shadow-lg ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`} style={{ width: panelWidth }}>
-                        <WorkflowNodeDetailPanel
-                            node={selectedNode}
-                            workflowConfig={config}
-                            agents={agents}
-                            onHighlightNodes={handleHighlightNodes}
-                            knownNodeIds={knownNodeIds}
-                            onNavigateToNode={handleNavigateToNode}
-                            currentWorkflowName={workflow.name}
-                            parentPath={parentPath}
-                        />
+                        <WorkflowNodeDetailPanel node={selectedNode} workflowConfig={config} agents={agents} onHighlightNodes={handleHighlightNodes} knownNodeIds={knownNodeIds} onNavigateToNode={handleNavigateToNode} />
                     </div>
                 )}
 
