@@ -1,5 +1,6 @@
 import type { FC } from "react";
-import { ZoomIn, ZoomOut, Home } from "lucide-react";
+import { ZoomIn, ZoomOut, Scan } from "lucide-react";
+import { Button } from "../ui/button";
 
 export interface CanvasControlsProps {
     /** Current zoom level as a decimal (e.g., 0.83 for 83%) */
@@ -30,42 +31,23 @@ export const CanvasControls: FC<CanvasControlsProps> = ({ zoomLevel, onZoomIn, o
 
     return (
         <div className="flex items-center justify-end gap-2 border-b px-4 py-2">
-            {/* Fit to view / Center button */}
-            <button
-                onClick={onFitToView}
-                className="flex h-8 w-8 items-center justify-center rounded p-0 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-                title="Fit diagram to view"
-            >
-                <Home className="h-4 w-4" />
-            </button>
-
-            {/* Separator */}
-            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
-
-            {/* Zoom controls group */}
+            <Button onClick={onFitToView} variant="ghost" size="sm" tooltip="Center Workflow">
+                <Scan className="h-4 w-4" />
+            </Button>
+            <div className="h-6 w-px border-l" />
             <div className="flex items-center gap-1">
                 {/* Zoom out button */}
-                <button
-                    onClick={onZoomOut}
-                    disabled={isAtMinZoom}
-                    className="flex h-8 w-8 items-center justify-center rounded p-0 text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-                    title="Zoom out (10%)"
-                >
+                <Button onClick={onZoomOut} disabled={isAtMinZoom} variant="ghost" size="sm" tooltip="Zoom out (10%)">
                     <ZoomOut className="h-4 w-4" />
-                </button>
+                </Button>
 
                 {/* Zoom level display */}
-                <span className="min-w-[3.5rem] text-center text-sm font-medium text-gray-700 dark:text-gray-300">{zoomPercentage}%</span>
+                <span className="min-w-[3.5rem] text-center text-sm font-medium">{zoomPercentage}%</span>
 
                 {/* Zoom in button */}
-                <button
-                    onClick={onZoomIn}
-                    disabled={isAtMaxZoom}
-                    className="flex h-8 w-8 items-center justify-center rounded p-0 text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-                    title="Zoom in (10%)"
-                >
+                <Button onClick={onZoomIn} disabled={isAtMaxZoom} variant="ghost" size="sm" tooltip="Zoom in (10%)">
                     <ZoomIn className="h-4 w-4" />
-                </button>
+                </Button>
             </div>
         </div>
     );
