@@ -302,6 +302,14 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                             </div>
                         )}
 
+                        {/* Delay (for loop nodes) */}
+                        {node.data.delay && (
+                            <div className="mb-4">
+                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Delay</label>
+                                <div className="text-sm">{node.data.delay}</div>
+                            </div>
+                        )}
+
                         {/* Condition (for loop nodes) */}
                         {node.data.condition && (
                             <div className="mb-4">
