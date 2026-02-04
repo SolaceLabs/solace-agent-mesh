@@ -31,9 +31,7 @@ interface WorkflowNodeDetailPanelProps {
  * WorkflowNodeDetailPanel - Shows details for the selected workflow node
  * Includes input/output schemas, code view toggle, and agent information
  */
-const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig: _workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode, currentWorkflowName, parentPath = [] }) => {
-    // workflowConfig is available for future use (e.g., accessing workflow-level output_mapping)
-    void _workflowConfig;
+const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode, currentWorkflowName, parentPath = [] }) => {
     const [showCodeView, setShowCodeView] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
     const [activeTab, setActiveTab] = useState<"input" | "output">("input");
@@ -199,6 +197,29 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     // Get the title (always show node name, regardless of view mode)
     const title = node.type === "agent" ? agentDisplayName || node.data.agentName || node.id : node.data.workflowName || node.id;
 
+    // Helper to get display name for a node ID (used in switch cases)
+    const getNodeDisplayName = useCallback((nodeId: string) => {
+        if (!workflowConfig?.nodes) return nodeId;
+        
+        // Find the node config by ID
+        const nodeConfigById = workflowConfig.nodes.find(n => n.id === nodeId);
+        if (!nodeConfigById) return nodeId;
+        
+        // For agent nodes, try to get the agent's display name
+        if (nodeConfigById.type === 'agent' && nodeConfigById.agent_name) {
+            const agent = agents.find(a => a.name === nodeConfigById.agent_name);
+            return agent?.displayName || agent?.display_name || nodeConfigById.agent_name || nodeId;
+        }
+        
+        // For workflow nodes, use the workflow name
+        if (nodeConfigById.type === 'workflow' && nodeConfigById.workflow_name) {
+            return nodeConfigById.workflow_name;
+        }
+        
+        // For other node types, use the node ID as fallback
+        return nodeId;
+    }, [workflowConfig?.nodes, agents]);
+
     return (
         <div className="bg-background flex h-full flex-col">
             {/* Header */}
@@ -328,7 +349,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                             <div className="flex h-8 w-[30px] items-center justify-center rounded border text-sm">{index + 1}</div>
                                             <div className="mb-2">
                                                 <div className="text-secondary-foreground mb-1 min-h-[32px] rounded bg-(--color-secondary-w10) p-2 font-mono text-xs dark:bg-(--color-secondary-w80)">{caseItem.condition}</div>
-                                                <div className="text-sm">→ {caseItem.node}</div>
+                                                <div className="text-sm">→ {getNodeDisplayName(caseItem.node)}</div>
                                             </div>
                                         </div>
                                     ))}
@@ -336,7 +357,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                         <div className="grid grid-cols-[auto_1fr] gap-3">
                                             <div className="flex h-8 w-[30px] items-center justify-center rounded border">{node.data.cases.length + 1}</div>
                                             <div className="text-secondary-foreground flex min-h-[32px] items-center rounded bg-(--color-secondary-w10) p-2 dark:bg-(--color-secondary-w80)">
-                                                <span className="text-sm">default</span>
+                                                <span className="text-sm">default → {getNodeDisplayName(node.data.defaultCase)}</span>
                                             </div>
                                         </div>
                                     )}
