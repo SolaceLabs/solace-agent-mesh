@@ -5,6 +5,10 @@ sidebar_position: 290
 
 # Prompt Library
 
+:::warning Experimental Feature
+The Prompt Library is currently an experimental feature. While functional, the configuration options and API may change in future releases.
+:::
+
 The Prompt Library is a powerful feature that enables you to create, manage, and reuse prompt templates across your AI conversations. Instead of retyping common instructions or workflows, you can save them as reusable templates with variable placeholders, making your interactions with AI agents more efficient and consistent.
 
 :::tip[In one sentence]
