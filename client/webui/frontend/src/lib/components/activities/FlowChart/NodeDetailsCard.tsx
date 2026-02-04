@@ -621,7 +621,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                                 <ArrowRight className="text-secondary-foreground h-3 w-3" />
                                                 <span className="text-xs font-medium text-(--color-info-wMain)">{caseItem.node}</span>
                                             </div>
-                                            <code className="block text-xs break-all">{caseItem.condition}</code>
+                                            <code className="text-muted-foreground block text-xs break-all">{caseItem.condition}</code>
                                         </div>
                                     ))}
                                 </div>
