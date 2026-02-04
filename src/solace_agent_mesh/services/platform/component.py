@@ -106,6 +106,10 @@ class PlatformServiceComponent(SamComponentBase):
         super().__init__(info, **kwargs)
         log.info("%s Initializing Platform Service Component...", self.log_identifier)
 
+        # Initialize enterprise features (authorization service)
+        from solace_agent_mesh.common.utils.initializer import initialize
+        initialize()
+
         # Note: self.namespace is already set by SamComponentBase
         # Note: self.max_message_size_bytes is already set by SamComponentBase
 
