@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { api, getErrorFromResponse } from "@/lib/api";
+import { Spinner } from "@/lib/components/ui/spinner";
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment, MessageFE } from "@/lib/types";
-import { api, getErrorFromResponse } from "@/lib/api";
+import { downloadFile, getErrorMessage, parseArtifactUri } from "@/lib/utils";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
-import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
-import { Spinner } from "@/lib/components/ui/spinner";
 
 import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
@@ -14,7 +14,6 @@ import { getFileContent, getRenderType } from "../preview/previewUtils";
 import { ArtifactBar } from "../artifact/ArtifactBar";
 import { ArtifactTransitionOverlay } from "../artifact/ArtifactTransitionOverlay";
 import { FileDetails } from "./FileDetails";
-import { getErrorMessage } from "@/lib/utils";
 
 type ArtifactMessageProps = (
     | {
