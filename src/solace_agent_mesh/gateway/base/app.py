@@ -262,7 +262,22 @@ class BaseGatewayApp(SamAppBase):
         if not self.gateway_id:
             self.gateway_id = f"gdk-gateway-{uuid.uuid4().hex[:8]}"
             resolved_app_config_block["gateway_id"] = self.gateway_id
-            log.info("Generated unique gateway_id: %s", self.gateway_id)
+            # Log deprecation warning
+            log.warning(
+                "\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "⚠️  DEPRECATION WARNING: gateway_id is not configured\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "\n"
+                "Automatic gateway_id generation is DEPRECATED and will be removed in a\n"
+                "future release. This causes orphaned queues on the broker that accumulate\n"
+                "and consume resources.\n"
+                "\n"
+                "ACTION REQUIRED: Add gateway_id to your gateway YAML configuration.\n"
+                "\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n",
+                self.gateway_id
+            )
 
         self.artifact_service_config: Dict = resolved_app_config_block.get(
             "artifact_service", {}
