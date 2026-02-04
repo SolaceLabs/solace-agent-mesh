@@ -32,6 +32,7 @@ export interface WorkflowNodeConfig {
     items?: string;
     condition?: string;
     max_iterations?: number;
+    delay?: string;
 }
 
 /**

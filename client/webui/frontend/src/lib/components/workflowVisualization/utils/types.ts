@@ -32,6 +32,7 @@ export interface LayoutNode {
         defaultCase?: string; // For switch default branch
         items?: string; // For map node
         maxIterations?: number; // For loop
+        delay?: string; // For loop
         childNodeId?: string; // For map/loop inner node reference
         // For condition pill nodes
         conditionLabel?: string; // The condition text to display
