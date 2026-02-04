@@ -54,6 +54,8 @@ def get_workflow_config_json(workflow_definition: WorkflowDefinition) -> Dict[st
                 node_dict["condition"] = node.condition
             if node.max_iterations:
                 node_dict["max_iterations"] = node.max_iterations
+            if node.delay:
+                node_dict["delay"] = node.delay
 
         nodes_json.append(node_dict)
 
@@ -222,6 +224,32 @@ class TestWorkflowConfigJson:
         assert loop_node["node"] == "attempt"
         assert loop_node["condition"] == "{{attempt.output.success}} == false"
         assert loop_node["max_iterations"] == 5
+        assert "delay" not in loop_node  # delay should not be present when not set
+
+    def test_workflow_with_loop_node_delay(self):
+        """Loop node with delay includes delay in serialized config."""
+        workflow = WorkflowDefinition(
+            description="Loop workflow with delay",
+            nodes=[
+                LoopNode(
+                    id="polling_loop",
+                    type="loop",
+                    node="check_status",
+                    condition="{{check_status.output.status}} == 'pending'",
+                    max_iterations=10,
+                    delay="5s",
+                ),
+                AgentNode(id="check_status", type="agent", agent_name="StatusChecker"),
+            ],
+            output_mapping={"result": "{{polling_loop.output}}"},
+        )
+
+        config = get_workflow_config_json(workflow)
+
+        # Find the loop node
+        loop_node = next(n for n in config["nodes"] if n["type"] == "loop")
+
+        assert loop_node["delay"] == "5s"
 
     def test_agent_node_with_explicit_input(self):
         """Agent node with explicit input mapping includes it in config."""
