@@ -27,9 +27,6 @@ interface WorkflowNodeDetailPanelProps {
     parentPath?: string[];
 }
 
-/**
- * Hardcoded descriptions for logic node types (from documentation)
- */
 const LOGIC_NODE_DESCRIPTIONS: Record<string, string> = {
     map: "Executes a node for each item in a collection. Items are processed in parallel by default.",
     switch: "Routes execution based on conditions. Cases are evaluated in order; the first match wins.",
