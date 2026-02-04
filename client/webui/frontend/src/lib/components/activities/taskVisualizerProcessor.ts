@@ -840,24 +840,41 @@ export const processTaskForVisualization = (
 
                                     const delegationInfos: DelegationInfo[] = [];
                                     const claimedSubTaskIds = new Set<string>();
+                                    // Look for matching sub-tasks for ALL tool calls, not just those with peer_/workflow_ prefix
+                                    // If a matching sub-task is found, it's a peer delegation regardless of tool name
                                     decisions.forEach(decision => {
-                                        if (decision.isPeerDelegation) {
-                                            let peerAgentActualName = decision.toolName;
-                                            if (decision.toolName.startsWith("peer_")) {
-                                                peerAgentActualName = decision.toolName.substring(5);
-                                            } else if (decision.toolName.startsWith("workflow_")) {
-                                                peerAgentActualName = decision.toolName.substring(9);
-                                            }
+                                        // Determine the agent name (strip peer_/workflow_ prefix if present)
+                                        let peerAgentActualName = decision.toolName;
+                                        if (decision.toolName.startsWith("peer_")) {
+                                            peerAgentActualName = decision.toolName.substring(5);
+                                        } else if (decision.toolName.startsWith("workflow_")) {
+                                            peerAgentActualName = decision.toolName.substring(9);
+                                        }
 
-                                            for (const stId in allMonitoredTasks) {
-                                                const candSubTask = allMonitoredTasks[stId];
-                                                if (claimedSubTaskIds.has(candSubTask.taskId)) continue;
+                                        // Search for a sub-task that matches this function call
+                                        for (const stId in allMonitoredTasks) {
+                                            const candSubTask = allMonitoredTasks[stId];
+                                            if (claimedSubTaskIds.has(candSubTask.taskId)) continue;
 
-                                                const candSubTaskParentId = getParentTaskIdFromTaskObject(candSubTask);
+                                            const candSubTaskParentId = getParentTaskIdFromTaskObject(candSubTask);
 
-                                                if (candSubTaskParentId === currentEventOwningTaskId && candSubTask.events && candSubTask.events.length > 0) {
-                                                    const subTaskCreationRequest = candSubTask.events.find(e => e.direction === "request" && e.full_payload?.params?.message?.metadata?.function_call_id === decision.functionCallId);
-                                                    if (subTaskCreationRequest && new Date(getEventTimestamp(subTaskCreationRequest)).getTime() >= new Date(eventTimestamp).getTime()) {
+                                            if (candSubTaskParentId === currentEventOwningTaskId && candSubTask.events && candSubTask.events.length > 0) {
+                                                const subTaskCreationRequest = candSubTask.events.find(e => {
+                                                    const fcId = e.full_payload?.params?.message?.metadata?.function_call_id;
+                                                    return e.direction === "request" && fcId === decision.functionCallId;
+                                                });
+                                                if (subTaskCreationRequest) {
+                                                    // Validate timestamp if available, but don't fail if timestamp is undefined
+                                                    // (request events may not have result.status.timestamp, causing getEventTimestamp to return undefined)
+                                                    const subTaskTimestamp = getEventTimestamp(subTaskCreationRequest);
+                                                    const eventTimestampMs = new Date(eventTimestamp).getTime();
+                                                    const subTaskTimestampMs = subTaskTimestamp ? new Date(subTaskTimestamp).getTime() : NaN;
+                                                    // If we can't determine the sub-task timestamp (NaN), trust the function_call_id match
+                                                    // Otherwise, require the sub-task to be created at or after the LLM response
+                                                    const isValidMatch = Number.isNaN(subTaskTimestampMs) || subTaskTimestampMs >= eventTimestampMs;
+                                                    if (isValidMatch) {
+                                                        // Found a matching sub-task - this is a peer delegation
+                                                        decision.isPeerDelegation = true;
                                                         const delInfo: DelegationInfo = {
                                                             functionCallId: decision.functionCallId,
                                                             peerAgentName: peerAgentActualName,
@@ -944,15 +961,17 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "tool_invocation_start": {
+                                // Get delegation info first - if it exists, this is a peer agent invocation
+                                const delegationInfo = functionCallIdToDelegationInfoMap.get(signalData.function_call_id);
+
                                 const invocationData: ToolInvocationStartData = {
                                     functionCallId: signalData.function_call_id,
                                     toolName: signalData.tool_name,
                                     toolArguments: signalData.tool_args,
-                                    isPeerInvocation: signalData.tool_name?.startsWith("peer_") || signalData.tool_name?.startsWith("workflow_"),
+                                    // Peer invocation if: tool_name has peer_/workflow_ prefix, OR delegation info exists (agent was invoked)
+                                    isPeerInvocation: signalData.tool_name?.startsWith("peer_") || signalData.tool_name?.startsWith("workflow_") || !!delegationInfo,
                                     parallelGroupId: signalData.parallel_group_id,
                                 };
-
-                                const delegationInfo = functionCallIdToDelegationInfoMap.get(signalData.function_call_id);
 
                                 visualizerSteps.push({
                                     id: `vstep-toolinvokestart-${visualizerSteps.length}-${eventId}`,

@@ -76,26 +76,6 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         processStep(step, context);
     }
 
-    // DEBUG: Print tree structure
-    console.log("=== LAYOUT ENGINE DEBUG ===");
-    console.log("Steps processed:", steps.length);
-    console.log("Root nodes:", context.rootNodes.length);
-    console.log("taskToNodeMap keys:", Array.from(context.taskToNodeMap.keys()));
-    console.log("subWorkflowParentMap keys:", Array.from(context.subWorkflowParentMap.keys()));
-
-    const printTree = (node: LayoutNode, indent: string = "") => {
-        console.log(`${indent}[${node.type}] ${node.data.label} (id=${node.id}, owningTaskId=${node.owningTaskId || "none"})`);
-        for (const child of node.children) {
-            printTree(child, indent + "  ");
-        }
-    };
-
-    console.log("Tree structure:");
-    for (const node of context.rootNodes) {
-        printTree(node);
-    }
-    console.log("=== END DEBUG ===");
-
     // Calculate layout (positions and dimensions)
     const nodes = calculateLayout(context.rootNodes);
 
@@ -117,11 +97,6 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
  * Process a single VisualizerStep
  */
 function processStep(step: VisualizerStep, context: BuildContext): void {
-    // Log workflow-related steps
-    if (step.type.startsWith("WORKFLOW")) {
-        console.log("[processStep]", step.type, "owningTaskId=", step.owningTaskId, "data=", step.data);
-    }
-
     switch (step.type) {
         case "USER_REQUEST":
             handleUserRequest(step, context);
@@ -177,8 +152,19 @@ function handleUserRequest(step: VisualizerStep, context: BuildContext): void {
             },
             step.owningTaskId
         );
-        context.rootNodes.push(userNode);
+        // Insert User node at the beginning of rootNodes so it always comes first
+        context.rootNodes.unshift(userNode);
         context.hasTopUserNode = true;
+    }
+
+    // Check if agent already exists (may have been created on-demand by handleToolInvocation or handleLLMCall)
+    if (step.owningTaskId) {
+        const existingAgent = context.taskToNodeMap.get(step.owningTaskId);
+        if (existingAgent) {
+            // Agent was already created on-demand, just update currentAgentNode
+            context.currentAgentNode = existingAgent;
+            return;
+        }
     }
 
     // Create Agent node
@@ -211,7 +197,25 @@ function handleUserRequest(step: VisualizerStep, context: BuildContext): void {
  * Handle AGENT_LLM_CALL - adds LLM child to current agent
  */
 function handleLLMCall(step: VisualizerStep, context: BuildContext): void {
-    const agentNode = findAgentForStep(step, context);
+    let agentNode = findAgentForStep(step, context);
+
+    // If no agent node found, create it on-demand (handles out-of-order step processing)
+    if (!agentNode && step.owningTaskId && step.source) {
+        const displayName = resolveAgentName(context, step.source);
+        agentNode = createNode(
+            context,
+            "agent",
+            {
+                label: displayName,
+                visualizerStepId: step.id,
+            },
+            step.owningTaskId
+        );
+        context.rootNodes.push(agentNode);
+        context.currentAgentNode = agentNode;
+        context.taskToNodeMap.set(step.owningTaskId, agentNode);
+    }
+
     if (!agentNode) return;
 
     const llmNode = createNode(
@@ -341,8 +345,29 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
         return;
     }
 
-    const agentNode = findAgentForStep(step, context);
-    if (!agentNode) return;
+    let agentNode = findAgentForStep(step, context);
+
+    // If no agent node found but this is a peer invocation, create the parent agent on-demand
+    // This handles cases where steps arrive out of order (tool invocation before USER_REQUEST)
+    if (!agentNode && isPeer && step.owningTaskId && step.source) {
+        const displayName = resolveAgentName(context, step.source);
+        agentNode = createNode(
+            context,
+            "agent",
+            {
+                label: displayName,
+                visualizerStepId: step.id,
+            },
+            step.owningTaskId
+        );
+        context.rootNodes.push(agentNode);
+        context.currentAgentNode = agentNode;
+        context.taskToNodeMap.set(step.owningTaskId, agentNode);
+    }
+
+    if (!agentNode) {
+        return;
+    }
 
     if (isPeer) {
         // Create nested agent node
