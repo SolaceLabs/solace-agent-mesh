@@ -71,9 +71,15 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const fileMimeType = fileAttachment?.mime_type;
 
     // Detect if artifact has been deleted: completed but not in artifacts list
+    // However, don't mark as deleted if we have a valid fileAttachment with a URI -
+    // that means the artifact exists on the backend but just hasn't been fetched into the local list yet
     const isDeleted = useMemo(() => {
-        return props.status === "completed" && !artifact;
-    }, [props.status, artifact]);
+        if (props.status !== "completed") return false;
+        if (artifact) return false; // Found in list, not deleted
+        // If we have a fileAttachment with a URI, the artifact exists on backend (just not fetched yet)
+        if (fileAttachment?.uri) return false;
+        return true; // Completed, not in list, no URI = likely deleted
+    }, [props.status, artifact, fileAttachment?.uri]);
 
     // Determine if this should auto-expand based on context
     const shouldAutoExpand = useMemo(() => {
