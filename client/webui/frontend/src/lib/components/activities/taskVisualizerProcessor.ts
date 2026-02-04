@@ -857,19 +857,29 @@ export const processTaskForVisualization = (
 
                                                 if (candSubTaskParentId === currentEventOwningTaskId && candSubTask.events && candSubTask.events.length > 0) {
                                                     const subTaskCreationRequest = candSubTask.events.find(e => e.direction === "request" && e.full_payload?.params?.message?.metadata?.function_call_id === decision.functionCallId);
-                                                    if (subTaskCreationRequest && new Date(getEventTimestamp(subTaskCreationRequest)).getTime() >= new Date(eventTimestamp).getTime()) {
-                                                        const delInfo: DelegationInfo = {
-                                                            functionCallId: decision.functionCallId,
-                                                            peerAgentName: peerAgentActualName,
-                                                            subTaskId: candSubTask.taskId,
-                                                        };
-                                                        delegationInfos.push(delInfo);
-                                                        functionCallIdToDelegationInfoMap.set(decision.functionCallId, delInfo);
-                                                        if (candSubTask.taskId) {
-                                                            subTaskToFunctionCallIdMap.set(candSubTask.taskId, decision.functionCallId);
-                                                            claimedSubTaskIds.add(candSubTask.taskId);
+                                                    if (subTaskCreationRequest) {
+                                                        // Validate timestamp if available, but don't fail if timestamp is undefined
+                                                        // (request events may not have result.status.timestamp, causing getEventTimestamp to return undefined)
+                                                        const subTaskTimestamp = getEventTimestamp(subTaskCreationRequest);
+                                                        const eventTimestampMs = new Date(eventTimestamp).getTime();
+                                                        const subTaskTimestampMs = subTaskTimestamp ? new Date(subTaskTimestamp).getTime() : NaN;
+                                                        // If we can't determine the sub-task timestamp (NaN), trust the function_call_id match
+                                                        // Otherwise, require the sub-task to be created at or after the LLM response
+                                                        const isValidMatch = Number.isNaN(subTaskTimestampMs) || subTaskTimestampMs >= eventTimestampMs;
+                                                        if (isValidMatch) {
+                                                            const delInfo: DelegationInfo = {
+                                                                functionCallId: decision.functionCallId,
+                                                                peerAgentName: peerAgentActualName,
+                                                                subTaskId: candSubTask.taskId,
+                                                            };
+                                                            delegationInfos.push(delInfo);
+                                                            functionCallIdToDelegationInfoMap.set(decision.functionCallId, delInfo);
+                                                            if (candSubTask.taskId) {
+                                                                subTaskToFunctionCallIdMap.set(candSubTask.taskId, decision.functionCallId);
+                                                                claimedSubTaskIds.add(candSubTask.taskId);
+                                                            }
+                                                            break;
                                                         }
-                                                        break;
                                                     }
                                                 }
                                             }
