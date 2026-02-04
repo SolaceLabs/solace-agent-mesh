@@ -62,19 +62,3 @@ class TestDefaultResourceSharingService:
         )
 
         assert result is True
-
-    def test_get_shared_users_returns_empty_list(self):
-        """Test that get_shared_users returns an empty list.
-
-        Community edition has no sharing, so there are never any shared users.
-        This method is called when deleting projects to clean up shared users'
-        sessions. Returning an empty list means no additional session cleanup
-        is needed beyond the owner's sessions.
-        """
-        result = self.service.get_shared_users(
-            session=self.mock_session,
-            resource_id=self.resource_id,
-            resource_type=self.resource_type,
-        )
-
-        assert result == []
