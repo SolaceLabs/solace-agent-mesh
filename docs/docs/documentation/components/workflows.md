@@ -1,9 +1,12 @@
 ---
 title: Workflows
-sidebar_position: 225
+sidebar_position: 245
 ---
 
 # Workflows
+:::note
+This feature is currently experimental.
+:::
 
 Workflows orchestrate multiple agents through YAML configuration. Unlike the [orchestrator](./orchestrator.md), which uses AI to dynamically decide how to accomplish tasks, workflows follow explicit paths you define. Each step, branch, and iteration is specified in configuration.
 

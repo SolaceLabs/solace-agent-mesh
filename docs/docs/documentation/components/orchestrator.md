@@ -3,7 +3,7 @@ title: Orchestrator
 sidebar_position: 240
 ---
 
-# Orchestrator Agent
+# Orchestrator
 
 The A2A (Agent-to-Agent) protocol is the communication backbone of Agent Mesh that enables distributed agent coordination and workflow management. Unlike traditional centralized orchestration, the A2A protocol enables agents to discover each other, delegate tasks, and collaborate directly through standardized message patterns.
 
