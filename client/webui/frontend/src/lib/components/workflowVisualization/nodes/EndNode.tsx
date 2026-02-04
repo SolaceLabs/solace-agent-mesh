@@ -8,7 +8,7 @@ import { NODE_BASE_STYLES, type NodeProps } from "../utils/types";
 const EndNode: FC<NodeProps> = ({ node }) => {
     return (
         <div
-            className={`${NODE_BASE_STYLES.PILL}`}
+            className={NODE_BASE_STYLES.PILL}
             style={{
                 width: `${node.width}px`,
                 height: `${node.height}px`,
