@@ -138,7 +138,7 @@ class IndexingTaskService:
             if is_text_based or converted_results:
                 await self._send_event(task_id, {
                     "type": "indexing_started",
-                    "file_count": len(is_text_based) + len(converted_results)
+                    "files_in_this_batch": len(is_text_based) + len(converted_results)
                 })
 
                 # Build index (CPU-intensive - run in thread pool)
@@ -146,10 +146,17 @@ class IndexingTaskService:
                 index_result = await self._rebuild_index_async(project)
 
                 if index_result and index_result.get("status") == "success":
+                    # Extract total counts from manifest (shared index includes ALL project files)
+                    manifest = index_result.get('manifest', {})
+                    total_files_in_index = manifest.get('file_count', 0)
+                    total_chunks_in_index = manifest.get('chunk_count', 0)
+
                     await self._send_event(task_id, {
                         "type": "indexing_completed",
                         "index_version": index_result.get('data_version'),
-                        "files_indexed": len(is_text_based) + len(converted_results)
+                        "total_files_indexed": total_files_in_index,  # Total files in shared index
+                        "total_chunks": total_chunks_in_index,  # Total chunks in shared index
+                        "files_added_this_batch": len(is_text_based) + len(converted_results)
                     })
                 else:
                     await self._send_event(task_id, {
@@ -157,12 +164,25 @@ class IndexingTaskService:
                         "error": index_result.get('message') if index_result else "Unknown error"
                     })
 
-            # 3. Send completion event
-            await self._send_event(task_id, {
+            # 3. Send completion event with total index stats
+            # Get final manifest info if index was built
+            final_manifest = {}
+            if is_text_based or converted_results:
+                final_manifest = index_result.get('manifest', {}) if index_result else {}
+
+            task_completion_data = {
                 "type": "task_completed",
                 "files_converted": len(converted_results),
-                "files_indexed": len(is_text_based) + len(converted_results)
-            })
+                "files_added_to_index": len(is_text_based) + len(converted_results)
+            }
+
+            # Add total index stats if available
+            if final_manifest:
+                task_completion_data["total_files_indexed"] = final_manifest.get('file_count', 0)
+                task_completion_data["total_chunks"] = final_manifest.get('chunk_count', 0)
+                task_completion_data["index_version"] = index_result.get('data_version') if index_result else None
+
+            await self._send_event(task_id, task_completion_data)
 
             log.info(f"{log_prefix} Background task completed successfully")
 
@@ -211,20 +231,57 @@ class IndexingTaskService:
             index_result = await self._rebuild_index_async(project)
 
             if index_result and index_result.get("status") == "success":
-                await self._send_event(task_id, {
-                    "type": "indexing_completed",
-                    "index_version": index_result.get('data_version')
-                })
+                # Check if index was deleted (no files left) or rebuilt
+                if index_result.get('index_deleted'):
+                    # Index was deleted - no files left
+                    await self._send_event(task_id, {
+                        "type": "indexing_completed",
+                        "index_deleted": True,
+                        "total_files_indexed": 0,  # No files left
+                        "total_chunks": 0,
+                        "message": "Index deleted - last file removed"
+                    })
+                else:
+                    # Index was rebuilt with remaining files
+                    manifest = index_result.get('manifest', {})
+                    total_files_in_index = manifest.get('file_count', 0)
+                    total_chunks_in_index = manifest.get('chunk_count', 0)
+
+                    await self._send_event(task_id, {
+                        "type": "indexing_completed",
+                        "index_version": index_result.get('data_version'),
+                        "total_files_indexed": total_files_in_index,  # Total files remaining in index
+                        "total_chunks": total_chunks_in_index  # Total chunks in index
+                    })
             else:
                 await self._send_event(task_id, {
                     "type": "indexing_failed",
                     "error": index_result.get('message') if index_result else "Unknown error"
                 })
 
-            # Send completion
-            await self._send_event(task_id, {
-                "type": "task_completed"
-            })
+            # Send completion with total index stats
+            task_completion_data = {
+                "type": "task_completed",
+                "deleted_file": deleted_file,
+                "deleted_category": file_category
+            }
+
+            # Add total index stats from rebuild result
+            if index_result and index_result.get("status") == "success":
+                if index_result.get('index_deleted'):
+                    # Index was deleted - last file removed
+                    task_completion_data["index_deleted"] = True
+                    task_completion_data["total_files_indexed"] = 0
+                    task_completion_data["total_chunks"] = 0
+                else:
+                    # Index still exists with remaining files
+                    manifest = index_result.get('manifest', {})
+                    if manifest:
+                        task_completion_data["total_files_indexed"] = manifest.get('file_count', 0)
+                        task_completion_data["total_chunks"] = manifest.get('chunk_count', 0)
+                        task_completion_data["index_version"] = index_result.get('data_version')
+
+            await self._send_event(task_id, task_completion_data)
 
             log.info(f"{log_prefix} Background task completed successfully")
 
@@ -377,8 +434,33 @@ class IndexingTaskService:
             )
 
             if not text_files:
-                log.info(f"No text files to index for project {project.id}")
-                return {"status": "success", "message": "No files to index"}
+                # No files left to index - delete the existing index if it exists
+                log.info(f"No text files to index for project {project.id}, deleting index if exists")
+
+                try:
+                    # Delete project_bm25_index.zip (all versions)
+                    loop.run_until_complete(
+                        self.project_service.artifact_service.delete_artifact(
+                            app_name=self.project_service.app_name,
+                            user_id=project.user_id,
+                            session_id=f"project-{project.id}",
+                            filename="project_bm25_index.zip"
+                        )
+                    )
+                    log.info(f"Deleted empty index for project {project.id}")
+                    return {
+                        "status": "success",
+                        "message": "Index deleted - no files to index",
+                        "index_deleted": True
+                    }
+                except Exception as e:
+                    # Index might not exist - this is fine
+                    log.debug(f"No index to delete for project {project.id}: {e}")
+                    return {
+                        "status": "success",
+                        "message": "No files to index, no index exists",
+                        "index_deleted": False
+                    }
 
             # Build index (CPU-intensive)
             index_zip_bytes, manifest = build_bm25_index(text_files, project.id)
@@ -395,6 +477,8 @@ class IndexingTaskService:
                 )
             )
 
+            # Add manifest info to result for SSE events
+            result["manifest"] = manifest
             return result
 
         except Exception as e:
