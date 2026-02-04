@@ -319,7 +319,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                         <div key={index} className="grid grid-cols-[auto_1fr] gap-3">
                                             <div className="flex h-8 w-[30px] items-center justify-center rounded border text-sm">{index + 1}</div>
                                             <div className="mb-2">
-                                                <div className="bg-muted/50 mb-1 min-h-[32px] p-2 font-mono text-xs">{caseItem.condition}</div>
+                                                <div className="text-secondary-foreground mb-1 min-h-[32px] rounded bg-(--color-secondary-w10) p-2 font-mono text-xs dark:bg-(--color-secondary-w80)">{caseItem.condition}</div>
                                                 <div className="text-sm">→ {caseItem.node}</div>
                                             </div>
                                         </div>
@@ -327,7 +327,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                     {node.data.defaultCase && (
                                         <div className="grid grid-cols-[auto_1fr] gap-3">
                                             <div className="flex h-8 w-[30px] items-center justify-center rounded border">{node.data.cases.length + 1}</div>
-                                            <div className="bg-muted/50 flex min-h-[32px] items-center p-2">
+                                            <div className="text-secondary-foreground flex min-h-[32px] items-center rounded bg-(--color-secondary-w10) p-2 dark:bg-(--color-secondary-w80)">
                                                 <span className="text-sm">default</span>
                                             </div>
                                         </div>

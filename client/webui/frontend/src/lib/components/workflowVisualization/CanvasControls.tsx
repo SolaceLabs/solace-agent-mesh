@@ -31,7 +31,7 @@ export const CanvasControls: FC<CanvasControlsProps> = ({ zoomLevel, onZoomIn, o
 
     return (
         <div className="flex items-center justify-end gap-2 border-b px-4 py-2">
-            <Button onClick={onFitToView} variant="ghost" size="sm" tooltip="Reset diagram">
+            <Button onClick={onFitToView} variant="ghost" size="sm" tooltip="Center Workflow">
                 <Scan className="h-4 w-4" />
             </Button>
             <div className="h-6 w-px border-l" />
