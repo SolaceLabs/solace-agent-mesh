@@ -21,17 +21,13 @@ interface WorkflowNodeDetailPanelProps {
     knownNodeIds?: Set<string>;
     /** Callback to navigate/pan to a node when clicking the navigation icon */
     onNavigateToNode?: (nodeId: string) => void;
-    /** Current workflow name - used for building sub-workflow navigation URLs */
-    currentWorkflowName?: string;
-    /** Parent workflow path (for breadcrumb navigation) */
-    parentPath?: string[];
 }
 
 /**
  * WorkflowNodeDetailPanel - Shows details for the selected workflow node
  * Includes input/output schemas, code view toggle, and agent information
  */
-const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig: _workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode, currentWorkflowName, parentPath = [] }) => {
+const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig: _workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode }) => {
     // workflowConfig is available for future use (e.g., accessing workflow-level output_mapping)
     void _workflowConfig;
     const [showCodeView, setShowCodeView] = useState(false);
@@ -76,14 +72,14 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
         setShowCodeView(false);
     }, []);
 
-    // Navigate to nested workflow with parent path tracking for breadcrumbs
+    // Navigate to nested workflow in a new tab
+    // When opening in a new tab, don't include parent path - the new tab should start fresh
+    // without breadcrumb navigation back to the previous workflow
     const handleOpenWorkflow = useCallback(() => {
         if (node?.data.workflowName) {
-            // Build new parent path: current workflow becomes closest parent
-            const newParentPath = currentWorkflowName ? [currentWorkflowName, ...parentPath] : parentPath;
-            window.open("/#" + buildWorkflowNavigationUrl(node.data.workflowName, newParentPath), "_blank");
+            window.open("/#" + buildWorkflowNavigationUrl(node.data.workflowName), "_blank");
         }
-    }, [node?.data.workflowName, currentWorkflowName, parentPath]);
+    }, [node?.data.workflowName]);
 
     if (!node) {
         return null;
