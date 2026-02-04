@@ -364,3 +364,104 @@ sam plugin catalog [OPTIONS]
 - `--install-command TEXT` – Command to use to install a python package. Must follow the format `command {package} args`.
 - `-h, --help` – Displays the help message and exits.
 
+### `task` - Send Tasks to the Gateway
+
+The `task` command allows you to send tasks to the webui gateway from the command line and receive streaming responses. This is useful for testing agents, debugging workflows, and automating interactions without using a browser.
+
+```sh
+sam task [COMMAND] [OPTIONS]
+```
+
+#### `send` - Send a Task Message
+
+Sends a message to an agent via the webui gateway and streams the response.
+
+```sh
+sam task send [OPTIONS] MESSAGE
+```
+
+The command blocks until the task completes and streams the response text to the terminal. All SSE events are recorded for debugging purposes.
+
+##### Basic Examples:
+
+```sh
+# Send a simple message
+sam task send "What is the weather today?"
+
+# Send to a specific agent
+sam task send "Analyze this data" --agent data_analyst
+
+# Continue a previous conversation
+sam task send "What did we discuss?" --session-id abc-123-def-456
+
+# Attach a file to the message
+sam task send "Summarize this document" --file ./document.pdf
+
+# Attach multiple files
+sam task send "Compare these files" --file ./file1.txt --file ./file2.txt
+
+# Use a custom gateway URL with authentication
+sam task send "Hello" --url https://mygateway.com --token $MY_TOKEN
+```
+
+##### Options:
+
+- `-u, --url TEXT` – Base URL of the webui gateway. Can also be set via `SAM_WEBUI_URL` environment variable. (default: `http://localhost:8000`)
+- `-a, --agent TEXT` – Target agent name. The command fetches available agents and attempts to match the specified name (case-insensitive). Can also be set via `SAM_AGENT` environment variable. (default: `orchestrator`)
+- `-s, --session-id TEXT` – Session ID for context continuity. Use the same session ID to continue a previous conversation. If not provided, a new UUID is generated.
+- `-t, --token TEXT` – Bearer token for authentication. Can also be set via `SAM_AUTH_TOKEN` environment variable.
+- `-f, --file PATH` – File(s) to attach to the message. Can be specified multiple times to attach multiple files.
+- `--timeout INTEGER` – Timeout in seconds for the SSE connection. (default: 120)
+- `-o, --output-dir PATH` – Output directory for artifacts, logs, and response files. (default: `/tmp/sam-task-{taskId}`)
+- `-q, --quiet` – Suppress streaming output. Only shows the final summary.
+- `--no-stim` – Do not fetch the STIM file on completion.
+- `--debug` – Enable debug output showing SSE events and connection details.
+- `-h, --help` – Displays the help message and exits.
+
+##### Output Directory Structure:
+
+When a task completes, the output directory contains:
+
+```
+/tmp/sam-task-{taskId}/
+├── sse_events.yaml       # All SSE events in YAML format (for debugging)
+├── response.txt          # User-facing text output (same as terminal output)
+├── {taskId}.stim         # STIM file from the backend (task invocation log)
+└── artifacts/            # Downloaded artifacts created by agents
+    ├── report.md
+    └── data.csv
+```
+
+##### Session Continuity:
+
+To continue a conversation from a previous session, use the `--session-id` option with the session ID printed at the end of a previous task:
+
+```sh
+# First interaction
+sam task send "Remember my name is Alice"
+# Output includes: Session ID: abc-123-def-456
+
+# Continue the conversation
+sam task send "What is my name?" --session-id abc-123-def-456
+# Agent recalls: "Your name is Alice"
+```
+
+##### Agent Discovery:
+
+The command automatically fetches available agents from the gateway at startup. When specifying an agent:
+
+1. **Exact match** – If the agent name matches exactly, it's used directly
+2. **Case-insensitive match** – If no exact match, tries case-insensitive matching
+3. **Partial match** – If still no match, tries partial matching
+4. **Fallback** – If the specified agent is not found, falls back to the first available agent
+
+If the specified agent cannot be found, the command displays available agents and uses the default.
+
+##### Environment Variables:
+
+| Variable | Description |
+|----------|-------------|
+| `SAM_WEBUI_URL` | Default gateway URL (equivalent to `--url`) |
+| `SAM_AGENT` | Default target agent (equivalent to `--agent`) |
+| `SAM_AUTH_TOKEN` | Default authentication token (equivalent to `--token`) |
+
