@@ -712,6 +712,14 @@ class ProjectService:
                 db, project_id, shared_user_email
             )
 
+        # Delete all share records for this project (enterprise feature)
+        # Must be called AFTER get_shared_users() to ensure session cleanup
+        self._resource_sharing_service.delete_resource_shares(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT
+        )
+
         total_deleted = owner_deleted_count + shared_deleted_count
         self.logger.info(
             f"Successfully soft deleted project {project_id} and {total_deleted} associated sessions "
