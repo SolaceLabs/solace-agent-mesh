@@ -291,46 +291,20 @@ function handleLLMResponse(step: VisualizerStep, context: BuildContext): void {
             // Filter for workflow calls (non-peer, toolName contains 'workflow_')
             const workflowDecisions = toolDecision.decisions.filter(d => !d.isPeerDelegation && d.toolName.includes("workflow_"));
 
-            // Handle parallel peer delegations
+            // Handle parallel peer delegations - just track the functionCallIds for legacy fallback
+            // The parallelBlock will be created on-demand in handleToolInvocation
             if (peerDecisions.length > 1) {
                 const groupKey = `${step.owningTaskId}:parallel-peer:${step.id}`;
                 const functionCallIds = new Set(peerDecisions.map(d => d.functionCallId));
-
                 context.parallelPeerGroupMap.set(groupKey, functionCallIds);
-
-                const parallelBlockNode = createNode(
-                    context,
-                    "parallelBlock",
-                    {
-                        label: "Parallel",
-                        visualizerStepId: step.id,
-                    },
-                    step.owningTaskId
-                );
-
-                agentNode.children.push(parallelBlockNode);
-                context.parallelBlockMap.set(groupKey, parallelBlockNode);
             }
 
-            // Handle parallel workflow calls
+            // Handle parallel workflow calls - just track the functionCallIds for legacy fallback
+            // The parallelBlock will be created on-demand in handleWorkflowStart
             if (workflowDecisions.length > 1) {
                 const groupKey = `${step.owningTaskId}:parallel-workflow:${step.id}`;
                 const functionCallIds = new Set(workflowDecisions.map(d => d.functionCallId));
-
                 context.parallelPeerGroupMap.set(groupKey, functionCallIds);
-
-                const parallelBlockNode = createNode(
-                    context,
-                    "parallelBlock",
-                    {
-                        label: "Parallel",
-                        visualizerStepId: step.id,
-                    },
-                    step.owningTaskId
-                );
-
-                agentNode.children.push(parallelBlockNode);
-                context.parallelBlockMap.set(groupKey, parallelBlockNode);
             }
         }
     }
@@ -414,12 +388,24 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
             for (const [groupKey, functionCallIds] of context.parallelPeerGroupMap.entries()) {
                 if (functionCallIds.has(functionCallId)) {
                     // This peer invocation is part of a parallel group
-                    const parallelBlock = context.parallelBlockMap.get(groupKey);
-                    if (parallelBlock) {
-                        // Add the sub-agent as a child of the parallelBlock
-                        parallelBlock.children.push(subAgentNode);
-                        addedToParallelBlock = true;
+                    let parallelBlock = context.parallelBlockMap.get(groupKey);
+                    if (!parallelBlock) {
+                        // Create the parallel block on-demand
+                        parallelBlock = createNode(
+                            context,
+                            "parallelBlock",
+                            {
+                                label: "Parallel",
+                                visualizerStepId: step.id,
+                            },
+                            step.owningTaskId
+                        );
+                        context.parallelBlockMap.set(groupKey, parallelBlock);
+                        agentNode.children.push(parallelBlock);
                     }
+                    // Add the sub-agent as a child of the parallelBlock
+                    parallelBlock.children.push(subAgentNode);
+                    addedToParallelBlock = true;
                     break;
                 }
             }
@@ -634,7 +620,21 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
         for (const [groupKey, functionCallIds] of context.parallelPeerGroupMap.entries()) {
             if (functionCallIds.has(functionCallId)) {
                 // This workflow is part of a parallel group
-                const parallelBlock = context.parallelBlockMap.get(groupKey);
+                let parallelBlock = context.parallelBlockMap.get(groupKey);
+                if (!parallelBlock && callingAgent) {
+                    // Create the parallel block on-demand
+                    parallelBlock = createNode(
+                        context,
+                        "parallelBlock",
+                        {
+                            label: "Parallel",
+                            visualizerStepId: step.id,
+                        },
+                        step.owningTaskId
+                    );
+                    context.parallelBlockMap.set(groupKey, parallelBlock);
+                    callingAgent.children.push(parallelBlock);
+                }
                 if (parallelBlock) {
                     parallelBlock.children.push(groupNode);
                     addedToParallelBlock = true;
