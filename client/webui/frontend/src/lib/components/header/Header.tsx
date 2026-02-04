@@ -1,5 +1,5 @@
-import { Button } from "@/lib/components/ui";
-import { ChevronRight, TestTube } from "lucide-react";
+import { Button, ExperimentalBadge } from "@/lib/components/ui";
+import { ChevronRight } from "lucide-react";
 import React from "react";
 
 export interface BreadcrumbItem {
@@ -67,11 +67,7 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
                         >
                             <span className="flex items-center gap-2">
                                 {tab.label}
-                                {tab.badge && (
-                                    <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900 dark:text-green-300">
-                                        {tab.badge}
-                                    </span>
-                                )}
+                                {tab.badge && <ExperimentalBadge variant="transparent" className="text-[8px] px-1 py-0">{tab.badge}</ExperimentalBadge>}
                             </span>
                             {tab.isActive && <div className="absolute right-0 bottom-0 left-0 h-0.5" />}
                         </button>
