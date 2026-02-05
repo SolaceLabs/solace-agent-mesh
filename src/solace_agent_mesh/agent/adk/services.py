@@ -484,20 +484,21 @@ async def append_event_with_retry(
     session_id: str,
     max_retries: int = STALE_SESSION_MAX_RETRIES,
     log_identifier: str = "",
-) -> ADKEvent:
+) -> tuple[ADKEvent, ADKSession]:
     """
     Appends an event to a session with automatic retry on stale session errors.
-    
+
     The Google ADK's DatabaseSessionService validates that the session object's
     `last_update_time` is not older than the database's `update_timestamp_tz`.
     When another process updates the session between when we fetch it and when
     we call append_event, this validation fails with a "stale session" error.
-    
+
     This helper function handles this race condition by:
     1. Attempting to append the event
     2. On stale session error, re-fetching the session from the database
     3. Retrying the append with the fresh session
-    
+    4. After successful append, reload session to get fresh state with the new event
+
     Args:
         session_service: The session service instance
         session: The ADK session object (may become stale)
@@ -507,22 +508,37 @@ async def append_event_with_retry(
         session_id: The session ID for session lookup
         max_retries: Maximum number of retry attempts (default: 3)
         log_identifier: Optional log identifier for debugging
-        
+
     Returns:
-        The appended event (from the session service)
-        
+        Tuple of (appended_event, updated_session) - the session is freshly reloaded from DB
+
     Raises:
         ValueError: If the stale session error persists after max_retries
+        RuntimeError: If session reload fails after successful append
         Exception: Any other exception from append_event
     """
     current_session = session
     last_error = None
-    
+
     for attempt in range(max_retries + 1):
         try:
-            return await session_service.append_event(
+            appended_event = await session_service.append_event(
                 session=current_session, event=event
             )
+
+            # Reload session from DB to get fresh state with the appended event
+            fresh_session = await session_service.get_session(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+            if not fresh_session:
+                raise RuntimeError(
+                    f"Failed to reload session '{session_id}' after successful append_event"
+                )
+
+            return appended_event, fresh_session
         except ValueError as e:
             error_message = str(e)
             
