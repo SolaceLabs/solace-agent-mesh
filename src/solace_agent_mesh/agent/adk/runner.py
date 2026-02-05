@@ -296,10 +296,13 @@ async def _send_truncation_notification(
                 f"Summary of earlier messages:\n{summary}"
             )
 
-        status_update = a2a.create_task_status_update(
+        message = a2a.create_agent_text_message(text=notification_text)
+
+        status_update = a2a.create_status_update(
             task_id=logical_task_id,
-            state=TaskState.running,
-            message=a2a.create_agent_text_message(text=notification_text)
+            context_id=a2a_context.get("contextId"),
+            message=message,
+            is_final=False
         )
 
         response = a2a.create_success_response(
@@ -439,25 +442,67 @@ async def run_adk_async_task_thread_wrapper(
         is_paused = False
 
         while retry_count <= max_retries:
-            # TEST MODE: Simulate context overflow after N user turns
+            # TEST MODE: Proactively summarize when hitting threshold
             # This allows testing compaction without burning thousands of tokens
-            if TEST_COMPACTION_TURN_THRESHOLD > 0 and adk_session.events:
+            if TEST_COMPACTION_TURN_THRESHOLD > 0 and adk_session.events and ENABLE_AUTO_SUMMARIZATION:
                 user_turn_count = _count_user_turns(adk_session.events)
 
                 if user_turn_count >= TEST_COMPACTION_TURN_THRESHOLD:
                     log.warning(
-                        "%s [TEST MODE] Simulating context limit error after %d user turns (threshold: %d)",
+                        "%s [TEST MODE] Proactively summarizing after %d user turns (threshold: %d)",
                         component.log_identifier,
                         user_turn_count,
                         TEST_COMPACTION_TURN_THRESHOLD
                     )
 
-                    # Raise a fake BadRequestError that triggers compaction logic below
-                    raise BadRequestError(
-                        message=f"context_length_exceeded [SAM_TEST_MODE: {user_turn_count} turns >= {TEST_COMPACTION_TURN_THRESHOLD} threshold]",
-                        model="test-mode",
-                        llm_provider="test"
+                    # Store original events for audit logging
+                    original_event_count = len(adk_session.events) if adk_session.events else 0
+
+                    events_removed, summary, adk_session = await _summarize_and_replace_oldest_turns(
+                        component=component,
+                        session=adk_session,
+                        num_turns_to_summarize=2,
+                        log_identifier=component.log_identifier
                     )
+
+                    # Reload session from DB to see the actual compacted state
+                    adk_session = await component.session_service.get_session(
+                        app_name=component.agent_name,
+                        user_id=adk_session.user_id,
+                        session_id=adk_session.id
+                    )
+
+                    if not adk_session:
+                        log.error(
+                            "%s [TEST MODE] Failed to reload session after compaction",
+                            component.log_identifier
+                        )
+                        raise RuntimeError("Session disappeared after test mode compaction")
+
+                    if events_removed > 0:
+                        new_event_count = len(adk_session.events) if adk_session.events else 0
+                        new_user_count = _count_user_turns(adk_session.events)
+
+                        log.warning(
+                            "%s [TEST MODE] AUDIT: Summarized %d events (%d → %d total, %d → %d user turns). Summary: '%s'",
+                            component.log_identifier,
+                            events_removed,
+                            original_event_count,
+                            new_event_count,
+                            user_turn_count,
+                            new_user_count,
+                            summary[:200] + "..." if len(summary) > 200 else summary
+                        )
+
+                        # Send notification to user
+                        is_background = _is_background_task(a2a_context)
+                        await _send_truncation_notification(
+                            component=component,
+                            a2a_context=a2a_context,
+                            summary=summary,
+                            is_background=is_background,
+                            log_identifier=component.log_identifier
+                        )
 
             try:
                 is_paused = await run_adk_async_task(
@@ -504,6 +549,23 @@ async def run_adk_async_task_thread_wrapper(
                         num_turns_to_summarize=2,
                         log_identifier=component.log_identifier
                     )
+
+                    # Reload session from DB after compaction to get the real state
+                    # This is important for test mode to see the actual event count
+                    # In production, ADK reloads the session anyway, but test mode checks before ADK runs
+                    adk_session = await component.session_service.get_session(
+                        app_name=component.agent_name,
+                        user_id=adk_session.user_id,
+                        session_id=adk_session.id
+                    )
+
+                    if not adk_session:
+                        log.error(
+                            "%s Failed to reload session after compaction for task %s",
+                            component.log_identifier,
+                            logical_task_id
+                        )
+                        raise RuntimeError("Session disappeared after compaction")
 
                     if events_removed == 0:
                         # Can't summarize any more (not enough turns)
