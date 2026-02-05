@@ -340,15 +340,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             let fullMessage = chatInputRef.current ? buildMessageFromDOM(chatInputRef.current).trim() : inputValue.trim();
 
             // Capture the display HTML for showing in user's message bubble
-            let displayHtml = chatInputRef.current?.innerHTML || null;
+            const displayHtml = chatInputRef.current?.innerHTML || null;
 
+            // If there's context text from "Ask Followup", include it in the message sent to the agent
+            // The contextQuote will be passed separately for UI display
             if (contextText && showContextBadge) {
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
-                // Also include the context in displayHtml so the quote is visible in the chat UI
-                // Use the same badge styling as the input box context badge
-                const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="context-quote-icon"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3z"/></svg>`;
-                const contextHtml = `<div class="context-quote-badge">${iconSvg}<span class="context-quote-text">"${escapeMarkdown(contextText)}"</span></div>`;
-                displayHtml = displayHtml ? contextHtml + displayHtml : contextHtml;
             }
 
             // Upload all pending pasted text items as artifacts, then create references
@@ -446,7 +443,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
             // as the uploaded artifacts (avoids React state timing issues)
-            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml);
+            // Also pass contextQuote separately for persistent display above the message bubble
+            const contextQuoteToPass = contextText && showContextBadge ? contextText : null;
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass);
             setSelectedFiles([]);
             setPendingPastedTextItems([]);
             setInputValue("");

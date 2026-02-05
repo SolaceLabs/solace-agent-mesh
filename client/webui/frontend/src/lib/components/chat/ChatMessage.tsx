@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 
-import { AlertCircle, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertCircle, Quote, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
@@ -130,11 +130,19 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
     const { sessionId, ragData, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
 
     // Extract text content from message parts
-    const textContent =
+    let textContent =
         message.parts
             ?.filter(p => p.kind === "text")
             .map(p => (p as TextPart).text)
             .join("") || "";
+
+    // For user messages with contextQuote, strip the "Context: ..." prefix from the displayed text
+    // The context is shown separately above the message bubble via the contextQuote field
+    if (message.isUser && message.contextQuote) {
+        // Match and remove the context prefix pattern: Context: "quoted text"\n\n
+        const contextPrefixRegex = /^Context:\s*"[^"]*"\s*\n\n/;
+        textContent = textContent.replace(contextPrefixRegex, "");
+    }
 
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
@@ -232,9 +240,16 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
 
     // If user message has displayHtml (with mention chips), render that instead
     if (message.isUser && message.displayHtml) {
+        // Strip out any embedded context quote HTML from displayHtml
+        // (for backward compatibility with old messages that had context embedded in displayHtml)
+        // The context quote is now rendered separately above the message bubble
+        let htmlToRender = message.displayHtml;
+        // Remove context-quote-badge div and its contents
+        htmlToRender = htmlToRender.replace(/<div class="context-quote-badge">[\s\S]*?<\/div>/g, "");
+
         // Sanitize the HTML to prevent XSS
-        // Allow mention chips, context quotes, and their data attributes
-        const cleanHtml = DOMPurify.sanitize(message.displayHtml, {
+        // Allow mention chips and their data attributes
+        const cleanHtml = DOMPurify.sanitize(htmlToRender, {
             ALLOWED_TAGS: ["span", "br", "div", "svg", "path"],
             ALLOWED_ATTR: ["class", "contenteditable", "data-internal", "data-person-id", "data-person-name", "data-display", "xmlns", "width", "height", "viewBox", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "d"],
         });
@@ -482,6 +497,15 @@ const getChatBubble = (
 
     return (
         <div key={message.metadata?.messageId} className="space-y-6">
+            {/* Render context quote above user message if present */}
+            {message.isUser && message.contextQuote && (
+                <div className="flex justify-end pr-4">
+                    <div className="bg-muted/50 flex max-w-fit items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
+                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                        <span className="text-muted-foreground truncate italic">"{message.contextQuote}"</span>
+                    </div>
+                </div>
+            )}
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
                 const isLastPart = index === lastPartIndex;
