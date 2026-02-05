@@ -27,6 +27,8 @@ interface ArtifactContentViewerProps {
     mimeType?: string;
 }
 
+const isBinaryType = (renderType: string) => renderType === "image" || renderType === "audio";
+
 /**
  * Component to fetch and display artifact content inline.
  * Supports binary artifacts (images, audio) as well as text-based artifacts.
@@ -34,14 +36,10 @@ interface ArtifactContentViewerProps {
 const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContentViewerProps) => {
     const { sessionId } = useChatContext();
     const [content, setContent] = useState<string | null>(null);
+    const [fetchedMimeType, setFetchedMimeType] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isTruncated, setIsTruncated] = useState(false);
-    const [effectiveMimeType, setEffectiveMimeType] = useState<string | undefined>(mimeType);
-
-    // Determine render type based on filename and mime type
-    const renderType = getRenderType(name, effectiveMimeType);
-    const isBinaryType = renderType === "image" || renderType === "audio";
 
     useEffect(() => {
         const fetchContent = async () => {
@@ -65,32 +63,29 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
                     }
                 }
 
-                const { content: base64Content, mimeType: contentMimeType } = await getArtifactContent({
+                const { content, mimeType: responseMimeType } = await getArtifactContent({
                     filename,
                     sessionId,
                     version: artifactVersion,
                 });
+                setFetchedMimeType(responseMimeType);
 
-                setEffectiveMimeType(contentMimeType);
+                // Only truncate text-based content - never truncate binary (image, audio)
+                const currentRenderType = getRenderType(filename, responseMimeType);
+                const shouldTruncate = currentRenderType && !isBinaryType(currentRenderType);
 
-                // For text-based content, check if truncation is needed
-                // Binary content (images, audio) should not be truncated
-                const currentRenderType = getRenderType(filename, contentMimeType);
-                const isCurrentBinaryType = currentRenderType === "image" || currentRenderType === "audio";
-
-                if (!isCurrentBinaryType) {
-                    // For text content, decode and check actual text length for truncation
-                    const decodedText = decodeBase64Content(base64Content);
+                if (shouldTruncate) {
+                    const decodedText = decodeBase64Content(content);
                     if (decodedText.length > MAX_ARTIFACT_DISPLAY_LENGTH) {
                         const truncatedText = decodedText.substring(0, MAX_ARTIFACT_DISPLAY_LENGTH);
                         setContent(encodeBase64Content(truncatedText));
                         setIsTruncated(true);
                     } else {
-                        setContent(base64Content);
+                        setContent(content);
                         setIsTruncated(false);
                     }
                 } else {
-                    setContent(base64Content);
+                    setContent(content);
                     setIsTruncated(false);
                 }
             } catch (err) {
@@ -118,36 +113,35 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     }
 
     if (!content) {
-        return <div className="text-secondary-foreground text-xs italic">No content available</div>;
+        return <div className="text-secondary-foreground text-xs">No content available</div>;
     }
 
-    // Use ContentRenderer for supported types
-    if (renderType) {
-        // Create a FileAttachment-like object for getFileContent
-        const fileAttachment: FileAttachment = {
-            name,
-            mime_type: effectiveMimeType,
-            content,
-        };
-        const processedContent = getFileContent(fileAttachment);
+    // Derive render type from filename and fetched mime type
+    const effectiveMimeType = fetchedMimeType || mimeType;
+    const renderType = getRenderType(name, effectiveMimeType);
 
-        if (processedContent) {
-            return (
-                <div className="flex min-h-0 flex-1 flex-col">
-                    <div className={`min-h-0 flex-1 ${isBinaryType ? "overflow-hidden" : "overflow-y-auto"}`}>
-                        <ContentRenderer content={processedContent} rendererType={renderType} mime_type={effectiveMimeType} setRenderError={setError} />
-                    </div>
-                    {isTruncated && <div className="mt-1 flex-shrink-0 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
-                </div>
-            );
-        }
+    // No supported render type - show message
+    if (!renderType) {
+        return <div className="text-secondary-foreground text-xs">Preview not available for this file type</div>;
     }
 
-    // Fallback: decode and show as preformatted text
-    const decodedContent = decodeBase64Content(content);
+    // Create a FileAttachment-like object for getFileContent
+    const fileAttachment: FileAttachment = {
+        name,
+        mime_type: effectiveMimeType,
+        content,
+    };
+    const processedContent = getFileContent(fileAttachment);
+
+    if (!processedContent) {
+        return <div className="text-secondary-foreground text-xs">No content available</div>;
+    }
+
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <pre className="min-h-0 flex-1 overflow-auto p-2 text-xs whitespace-pre-wrap">{decodedContent}</pre>
+            <div className={`min-h-0 flex-1 ${isBinaryType(renderType) ? "overflow-hidden" : "overflow-y-auto"}`}>
+                <ContentRenderer content={processedContent} rendererType={renderType} mime_type={effectiveMimeType} setRenderError={setError} />
+            </div>
             {isTruncated && <div className="mt-1 flex-shrink-0 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
         </div>
     );
@@ -294,7 +288,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                 {data.inputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600 dark:text-purple-400">v{data.inputArtifactRef.version}</span>}
                             </div>
 
-                            <ArtifactContentViewer uri={data.inputArtifactRef.uri} name={data.inputArtifactRef.name} version={data.inputArtifactRef.version} mimeType={data.inputArtifactRef.mimeType} />
+                            <ArtifactContentViewer uri={data.inputArtifactRef.uri} name={data.inputArtifactRef.name} version={data.inputArtifactRef.version} />
                         </div>
                     )}
 
