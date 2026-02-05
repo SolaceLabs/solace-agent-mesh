@@ -131,6 +131,10 @@ jobs:
 
       - name: Run Storybook Tests
         run: npm run ci:storybook
+        env:
+          # Workaround for Node.js 25 Web Storage API breaking jsdom tests
+          # See: https://github.com/vitest-dev/vitest/issues/8757
+          NODE_OPTIONS: "--no-webstorage"
 
       - name: Build UI package
         run: npm run build-package
