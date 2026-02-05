@@ -35,6 +35,11 @@ log = logging.getLogger(__name__)
 # Set SAM_ENABLE_AUTO_SUMMARIZATION=false to disable
 ENABLE_AUTO_SUMMARIZATION = os.getenv("SAM_ENABLE_AUTO_SUMMARIZATION", "true").lower() == "true"
 
+# Test mode: Trigger compaction after N user turns (for testing without burning tokens)
+# Set SAM_TEST_COMPACTION_AFTER_TURNS=4 to trigger compaction after 4 user messages
+# Set to 0 (default) to disable test mode and use real context limits
+TEST_COMPACTION_TURN_THRESHOLD = int(os.getenv("SAM_TEST_COMPACTION_AFTER_TURNS", "0"))
+
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
     from ..sac.task_execution_context import TaskExecutionContext
@@ -97,6 +102,24 @@ def _is_background_task(a2a_context: dict) -> bool:
         return True
 
     return False
+
+
+def _count_user_turns(events: list[ADKEvent]) -> int:
+    """
+    Count the number of user turns in the session.
+
+    Used for test mode to trigger compaction after N user messages.
+
+    Args:
+        events: List of ADK events
+
+    Returns:
+        Number of user turns (messages authored by 'user')
+    """
+    if not events:
+        return 0
+
+    return sum(1 for e in events if e.author == 'user' and e.content)
 
 
 async def _summarize_and_replace_oldest_turns(
@@ -190,12 +213,12 @@ async def _summarize_and_replace_oldest_turns(
         log.error("%s Failed to create compaction event: %s", log_identifier, e, exc_info=True)
         return 0, "", session
 
-    # 5. Persist compaction event and reload session atomically
-    #    Using helper that handles stale session errors and returns fresh session
+    # 5. Persist compaction event to database
+    #    We don't reload the session here - ADK will reload from DB on retry anyway
     try:
         from ..adk.services import append_event_with_retry
 
-        _, fresh_session = await append_event_with_retry(
+        await append_event_with_retry(
             session_service=component.session_service,
             session=session,
             event=compaction_event,
@@ -213,9 +236,8 @@ async def _summarize_and_replace_oldest_turns(
         )
 
         log.debug(
-            "%s Reloaded session from DB: %d events (including compaction)",
-            log_identifier,
-            len(fresh_session.events) if fresh_session.events else 0
+            "%s Compaction event persisted to DB. ADK will reload session on retry.",
+            log_identifier
         )
 
     except Exception as e:
@@ -237,7 +259,7 @@ async def _summarize_and_replace_oldest_turns(
         max(1, sum(len(str(e.content)) for e in events_to_compact if e.content) // max(1, len(summary_text)))
     )
 
-    return len(events_to_compact), summary_text, fresh_session
+    return len(events_to_compact), summary_text, session  # Return original session - ADK reloads from DB on retry
 
 
 async def _send_truncation_notification(
@@ -377,7 +399,7 @@ async def run_adk_async_task_thread_wrapper(
                     branch=None,
                 )
                 # Use retry helper to handle stale session race conditions
-                _, adk_session = await append_event_with_retry(
+                await append_event_with_retry(
                     session_service=component.session_service,
                     session=adk_session,
                     event=context_setting_event,
@@ -417,6 +439,26 @@ async def run_adk_async_task_thread_wrapper(
         is_paused = False
 
         while retry_count <= max_retries:
+            # TEST MODE: Simulate context overflow after N user turns
+            # This allows testing compaction without burning thousands of tokens
+            if TEST_COMPACTION_TURN_THRESHOLD > 0 and adk_session.events:
+                user_turn_count = _count_user_turns(adk_session.events)
+
+                if user_turn_count >= TEST_COMPACTION_TURN_THRESHOLD:
+                    log.warning(
+                        "%s [TEST MODE] Simulating context limit error after %d user turns (threshold: %d)",
+                        component.log_identifier,
+                        user_turn_count,
+                        TEST_COMPACTION_TURN_THRESHOLD
+                    )
+
+                    # Raise a fake BadRequestError that triggers compaction logic below
+                    raise BadRequestError(
+                        message=f"context_length_exceeded [SAM_TEST_MODE: {user_turn_count} turns >= {TEST_COMPACTION_TURN_THRESHOLD} threshold]",
+                        model="test-mode",
+                        llm_provider="test"
+                    )
+
             try:
                 is_paused = await run_adk_async_task(
                     component,
