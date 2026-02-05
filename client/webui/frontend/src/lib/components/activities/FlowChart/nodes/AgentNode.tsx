@@ -41,6 +41,10 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
             case "group":
                 return <WorkflowGroup key={child.id} {...childProps} onChildClick={onChildClick} />;
             case "parallelBlock":
+                // Don't render empty parallel blocks
+                if (child.children.length === 0) {
+                    return null;
+                }
                 // Render parallel block - children displayed side-by-side with bounding box
                 return (
                     <div key={child.id} className="flex flex-row items-start gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-gray-600 dark:bg-gray-800/50">
