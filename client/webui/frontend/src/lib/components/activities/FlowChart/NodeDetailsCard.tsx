@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
 import { ArrowRight, Bot, CheckCircle, FileText, GitBranch, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
 
-import { api } from "@/lib/api";
 import { useChatContext } from "@/lib/hooks";
 import { type JSONValue, JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
-import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
-import { getRenderType, getFileContent, decodeBase64Content, arrayBufferToBase64, encodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
+import { getRenderType, getFileContent, decodeBase64Content, encodeBase64Content, ContentRenderer } from "@/lib/components/chat/preview";
 import type { VisualizerStep, ToolDecision, FileAttachment } from "@/lib/types";
-import { parseArtifactUri } from "@/lib/utils";
+import { parseArtifactUri, getArtifactContent } from "@/lib/utils";
 
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 
@@ -42,19 +40,19 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     const [effectiveMimeType, setEffectiveMimeType] = useState<string | undefined>(mimeType);
 
     // Determine render type based on filename and mime type
-    const renderType = getRenderType(name, "");
+    const renderType = getRenderType(name, effectiveMimeType);
     const isBinaryType = renderType === "image" || renderType === "audio";
 
     useEffect(() => {
         const fetchContent = async () => {
-            if (!uri && !name) return;
+            if (!sessionId || (!uri && !name)) return;
 
             setIsLoading(true);
             setError(null);
 
             try {
                 let filename = name;
-                let artifactVersion = version?.toString() || "latest";
+                let artifactVersion = version;
 
                 // Try to parse URI if available
                 if (uri) {
@@ -62,42 +60,35 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
                     if (parsed) {
                         filename = parsed.filename;
                         if (parsed.version) {
-                            artifactVersion = parsed.version;
+                            artifactVersion = parseInt(parsed.version);
                         }
                     }
                 }
 
-                // Construct API endpoint
-                const endpoint = `/api/v1/artifacts/${encodeURIComponent(sessionId || "null")}/${encodeURIComponent(filename)}/versions/${artifactVersion}`;
+                const { content: base64Content, mimeType: contentMimeType } = await getArtifactContent({
+                    filename,
+                    sessionId,
+                    version: artifactVersion,
+                });
 
-                const response = await api.webui.get(endpoint, { fullResponse: true, credentials: "include" });
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch artifact: ${response.statusText}`);
-                }
-
-                // Get mime type from response headers if available
-                const contentType = response.headers.get("content-type");
-                if (contentType) {
-                    setEffectiveMimeType(contentType.split(";")[0].trim());
-                }
-
-                const blob = await response.blob();
-
-                // Convert to base64 for consistent handling with ContentRenderer
-                const arrayBuffer = await blob.arrayBuffer();
-                const base64Content = arrayBufferToBase64(arrayBuffer);
+                setEffectiveMimeType(contentMimeType);
 
                 // For text-based content, check if truncation is needed
                 // Binary content (images, audio) should not be truncated
-                const currentRenderType = getRenderType(filename, contentType || mimeType);
+                const currentRenderType = getRenderType(filename, contentMimeType);
                 const isCurrentBinaryType = currentRenderType === "image" || currentRenderType === "audio";
 
-                if (!isCurrentBinaryType && base64Content.length > MAX_ARTIFACT_DISPLAY_LENGTH) {
-                    // For text content, decode, truncate, then re-encode
+                if (!isCurrentBinaryType) {
+                    // For text content, decode and check actual text length for truncation
                     const decodedText = decodeBase64Content(base64Content);
-                    const truncatedText = decodedText.substring(0, MAX_ARTIFACT_DISPLAY_LENGTH);
-                    setContent(encodeBase64Content(truncatedText));
-                    setIsTruncated(true);
+                    if (decodedText.length > MAX_ARTIFACT_DISPLAY_LENGTH) {
+                        const truncatedText = decodedText.substring(0, MAX_ARTIFACT_DISPLAY_LENGTH);
+                        setContent(encodeBase64Content(truncatedText));
+                        setIsTruncated(true);
+                    } else {
+                        setContent(base64Content);
+                        setIsTruncated(false);
+                    }
                 } else {
                     setContent(base64Content);
                     setIsTruncated(false);
@@ -111,7 +102,7 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
         };
 
         fetchContent();
-    }, [uri, name, version, sessionId, mimeType]);
+    }, [uri, name, version, sessionId]);
 
     if (isLoading) {
         return (
@@ -142,11 +133,11 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
 
         if (processedContent) {
             return (
-                <div>
-                    <div className={isBinaryType ? "max-h-64 overflow-hidden" : "max-h-64 overflow-y-auto"}>
+                <div className="flex min-h-0 flex-1 flex-col">
+                    <div className={`min-h-0 flex-1 ${isBinaryType ? "overflow-hidden" : "overflow-y-auto"}`}>
                         <ContentRenderer content={processedContent} rendererType={renderType} mime_type={effectiveMimeType} setRenderError={setError} />
                     </div>
-                    {isTruncated && <div className="mt-1 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
+                    {isTruncated && <div className="mt-1 flex-shrink-0 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
                 </div>
             );
         }
@@ -155,9 +146,9 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     // Fallback: decode and show as preformatted text
     const decodedContent = decodeBase64Content(content);
     return (
-        <div>
-            <pre className="max-h-64 overflow-x-auto overflow-y-auto p-2 text-xs whitespace-pre-wrap">{decodedContent}</pre>
-            {isTruncated && <div className="mt-1 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
+        <div className="flex min-h-0 flex-1 flex-col">
+            <pre className="min-h-0 flex-1 overflow-auto p-2 text-xs whitespace-pre-wrap">{decodedContent}</pre>
+            {isTruncated && <div className="mt-1 flex-shrink-0 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
         </div>
     );
 };
