@@ -256,6 +256,7 @@ class SamAgentComponent(SamComponentBase):
         self.adk_agent: LlmAgent = None
         self.runner: Runner = None
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
+        self.tool_scopes_map: Dict[str, List[str]] = {}  # Maps tool names to required scopes
         self.peer_agents: Dict[str, Any] = {}  # Keep for backward compatibility
         self._card_publish_timer_id: str = f"publish_card_{self.agent_name}"
         self._async_init_future = None
@@ -3259,6 +3260,7 @@ class SamAgentComponent(SamComponentBase):
                 loaded_tools,
                 enabled_builtin_tools,
                 self._tool_cleanup_hooks,
+                self.tool_scopes_map,
             ) = await load_adk_tools(self)
             log.info(
                 "%s Initializing ADK Agent/Runner asynchronously in dedicated thread...",
@@ -3288,6 +3290,8 @@ class SamAgentComponent(SamComponentBase):
                             e,
                         )
                         continue
+                    # Get scopes from the toolset (config-level scopes apply to all MCP tools)
+                    toolset_scopes = getattr(tool, "required_scopes", [])
                     for mcp_tool in mcp_tools:
                         tool_manifest.append(
                             {
@@ -3295,6 +3299,7 @@ class SamAgentComponent(SamComponentBase):
                                 "name": mcp_tool.name,
                                 "description": mcp_tool.description
                                 or "No description available.",
+                                "required_scopes": toolset_scopes,
                             }
                         )
                 elif isinstance(tool, OpenAPIToolset):
@@ -3313,6 +3318,8 @@ class SamAgentComponent(SamComponentBase):
                             e,
                         )
                         continue
+                    # Get scopes from the toolset (config-level scopes apply to all OpenAPI tools)
+                    toolset_scopes = getattr(tool, "required_scopes", [])
                     for openapi_tool in openapi_tools:
                         tool_manifest.append(
                             {
@@ -3320,6 +3327,7 @@ class SamAgentComponent(SamComponentBase):
                                 "name": openapi_tool.name,
                                 "description": openapi_tool.description
                                 or "No description available.",
+                                "required_scopes": toolset_scopes,
                             }
                         )
                 else:
@@ -3333,6 +3341,7 @@ class SamAgentComponent(SamComponentBase):
                                     tool, "description", getattr(tool, "__doc__", None)
                                 )
                                 or "No description available.",
+                                "required_scopes": self.tool_scopes_map.get(tool_name, []),
                             }
                         )
 
