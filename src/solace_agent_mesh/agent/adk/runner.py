@@ -135,7 +135,6 @@ async def _summarize_and_replace_oldest_turns(
         if not (e.actions and e.actions.compaction)
     ]
 
-    system_events = [e for e in non_compaction_events if e.author == "system"]
     conversation_events = [e for e in non_compaction_events if e.author != "system"]
 
     # 2. Find user turn boundaries
@@ -153,7 +152,6 @@ async def _summarize_and_replace_oldest_turns(
     # 3. Extract turns to summarize (from start to Nth user turn)
     cutoff_idx = user_indices[num_turns_to_summarize]
     events_to_compact = conversation_events[:cutoff_idx]
-    remaining_events = conversation_events[cutoff_idx:]
 
     if not events_to_compact:
         return 0, "", session
@@ -192,34 +190,27 @@ async def _summarize_and_replace_oldest_turns(
         log.error("%s Failed to create compaction event: %s", log_identifier, e, exc_info=True)
         return 0, "", session
 
-    # 5. Persist compaction event to database
+    # 5. Persist compaction event and reload session atomically
+    #    Using helper that handles stale session errors and returns fresh session
     try:
-        await component.session_service.append_event(session=session, event=compaction_event)
+        from ..adk.services import append_event_with_retry
+
+        _, fresh_session = await append_event_with_retry(
+            session_service=component.session_service,
+            session=session,
+            event=compaction_event,
+            app_name=session.app_name,
+            user_id=session.user_id,
+            session_id=session.id,
+            log_identifier=log_identifier
+        )
+
         log.info(
             "%s Persisted compaction event for timestamp range [%s → %s]",
             log_identifier,
             compaction_event.actions.compaction.start_timestamp,
             compaction_event.actions.compaction.end_timestamp
         )
-    except Exception as e:
-        log.error(
-            "%s Failed to persist compaction event: %s",
-            log_identifier,
-            e,
-            exc_info=True
-        )
-        raise  # Fail retry if we can't persist
-
-    # 6. Reload session from DB to get fresh state with compaction included
-    #    This ensures ADK's prompt builder can properly handle the compaction event
-    try:
-        fresh_session = await component.session_service.get_session(
-            app_name=session.app_name,
-            user_id=session.user_id,
-            session_id=session.id
-        )
-        if not fresh_session:
-            raise RuntimeError(f"Failed to reload session {session.id} after compaction")
 
         log.debug(
             "%s Reloaded session from DB: %d events (including compaction)",
@@ -228,8 +219,13 @@ async def _summarize_and_replace_oldest_turns(
         )
 
     except Exception as e:
-        log.error("%s Failed to reload session: %s", log_identifier, e, exc_info=True)
-        raise
+        log.error(
+            "%s Failed to persist compaction event: %s",
+            log_identifier,
+            e,
+            exc_info=True
+        )
+        raise  # Fail retry if we can't persist
 
     # Log compression stats
     log.info(
@@ -381,7 +377,7 @@ async def run_adk_async_task_thread_wrapper(
                     branch=None,
                 )
                 # Use retry helper to handle stale session race conditions
-                await append_event_with_retry(
+                _, adk_session = await append_event_with_retry(
                     session_service=component.session_service,
                     session=adk_session,
                     event=context_setting_event,

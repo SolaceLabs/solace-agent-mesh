@@ -49,10 +49,14 @@ class TestAppendEventWithRetrySuccess:
     async def test_append_event_success_first_try(
         self, mock_session_service, mock_session, mock_event
     ):
-        """Test that append_event succeeds on the first try."""
-        mock_session_service.append_event.return_value = mock_event
+        """Test that append_event succeeds on the first try and returns both event and fresh session."""
+        fresh_session = MagicMock()
+        fresh_session.id = "test-session-id"
 
-        result = await append_event_with_retry(
+        mock_session_service.append_event.return_value = mock_event
+        mock_session_service.get_session.return_value = fresh_session
+
+        returned_event, returned_session = await append_event_with_retry(
             session_service=mock_session_service,
             session=mock_session,
             event=mock_event,
@@ -62,11 +66,16 @@ class TestAppendEventWithRetrySuccess:
             log_identifier="[Test]",
         )
 
-        assert result == mock_event
+        assert returned_event == mock_event
+        assert returned_session == fresh_session
         mock_session_service.append_event.assert_called_once_with(
             session=mock_session, event=mock_event
         )
-        mock_session_service.get_session.assert_not_called()
+        mock_session_service.get_session.assert_called_once_with(
+            app_name="test-app",
+            user_id="test-user",
+            session_id="test-session",
+        )
 
 
 class TestAppendEventWithRetryStaleSession:
@@ -88,7 +97,7 @@ class TestAppendEventWithRetryStaleSession:
         mock_session_service.append_event.side_effect = [stale_error, mock_event]
         mock_session_service.get_session.return_value = fresh_session
 
-        result = await append_event_with_retry(
+        returned_event, returned_session = await append_event_with_retry(
             session_service=mock_session_service,
             session=mock_session,
             event=mock_event,
@@ -98,13 +107,11 @@ class TestAppendEventWithRetryStaleSession:
             log_identifier="[Test]",
         )
 
-        assert result == mock_event
+        assert returned_event == mock_event
+        assert returned_session == fresh_session
         assert mock_session_service.append_event.call_count == 2
-        mock_session_service.get_session.assert_called_once_with(
-            app_name="test-app",
-            user_id="test-user",
-            session_id="test-session",
-        )
+        # get_session is called twice: once during retry for fresh session, once after successful append
+        assert mock_session_service.get_session.call_count == 2
 
     @pytest.mark.asyncio
     async def test_retry_multiple_times_before_success(
@@ -125,7 +132,7 @@ class TestAppendEventWithRetryStaleSession:
         ]
         mock_session_service.get_session.return_value = fresh_session
 
-        result = await append_event_with_retry(
+        returned_event, returned_session = await append_event_with_retry(
             session_service=mock_session_service,
             session=mock_session,
             event=mock_event,
@@ -135,9 +142,11 @@ class TestAppendEventWithRetryStaleSession:
             log_identifier="[Test]",
         )
 
-        assert result == mock_event
+        assert returned_event == mock_event
+        assert returned_session == fresh_session
         assert mock_session_service.append_event.call_count == 3
-        assert mock_session_service.get_session.call_count == 2
+        # get_session is called 3 times: twice during retries for fresh session, once after successful append
+        assert mock_session_service.get_session.call_count == 3
 
     @pytest.mark.asyncio
     async def test_max_retries_exceeded(
