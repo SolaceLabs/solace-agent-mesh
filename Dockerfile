@@ -46,10 +46,9 @@ RUN npm run build
 # - Source code changes only rebuild the wheel build layer
 # - Independent from UI build stages - Python changes don't rebuild UI
 # ============================================================
-FROM python:3.11-slim AS builder
+FROM python:3.13.11-slim-trixie AS builder
 
 # Install system dependencies and uv
-# Upgrade pip to >=25.3 to fix CVE-2025-8869
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
@@ -62,7 +61,6 @@ RUN apt-get update && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* && \
     python3 -m venv /opt/venv && \
-    /opt/venv/bin/python -m pip install --upgrade "pip>=25.3" && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
@@ -117,13 +115,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install /app/dist/solace_agent_mesh-*.whl
 
 # Runtime stage
-FROM python:3.11-slim AS runtime
+FROM python:3.13.11-slim-trixie AS runtime
 
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install minimal runtime dependencies (no uv for licensing compliance)
-# Upgrade system pip to >=25.3 to fix CVE-2025-8869
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
@@ -131,7 +128,6 @@ RUN apt-get update && \
     git \
     libssl3t64=3.5.4-1~deb13u2 \
     openssl=3.5.4-1~deb13u2 && \
-    python3 -m pip install --upgrade "pip>=25.3" && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
@@ -145,7 +141,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/playwright \
     python3 -m pip install playwright && \
     playwright install-deps chromium && \
-    playwright install chromium
+    playwright install chromium && \
+    python3 -m pip uninstall playwright -y
 
 # Create non-root user and Playwright cache directory
 RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai && \
