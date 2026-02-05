@@ -340,6 +340,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isError: message.isError,
             displayHtml: message.displayHtml,
             contextQuote: message.contextQuote,
+            contextQuoteSourceId: message.contextQuoteSourceId,
         };
     }, []);
 
@@ -495,6 +496,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     isError: bubble.isError,
                     displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
                     contextQuote: bubble.contextQuote, // Restore context quote for user messages
+                    contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -2054,7 +2056,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null, contextQuoteSourceId?: string | null) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
@@ -2075,6 +2077,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 displayHtml: displayHtml || undefined,
                 contextQuote: contextQuote || undefined,
+                contextQuoteSourceId: contextQuoteSourceId || undefined,
                 metadata: {
                     messageId: `msg-${v4()}`,
                     sessionId: overrideSessionId || sessionId,

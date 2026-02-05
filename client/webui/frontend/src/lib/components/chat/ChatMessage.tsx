@@ -125,9 +125,121 @@ const getUserFriendlyErrorMessage = (technicalMessage: string): string => {
     return technicalMessage;
 };
 
-const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>(({ message, isStreaming }) => {
+const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; highlightedText?: string | null }>(({ message, isStreaming, highlightedText }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
     const { sessionId, ragData, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const contentRef = React.useRef<HTMLDivElement>(null);
+
+    // Effect to highlight specific text when highlightedText changes
+    React.useEffect(() => {
+        if (!highlightedText || !contentRef.current) return;
+
+        // Find and highlight the text using TreeWalker to search text nodes
+        const treeWalker = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT, null);
+        let node: Text | null;
+        let highlightSpan: HTMLElement | null = null;
+
+        // First, try to find an exact match within a single text node
+        while ((node = treeWalker.nextNode() as Text | null)) {
+            const text = node.textContent || "";
+            const index = text.indexOf(highlightedText);
+
+            if (index !== -1) {
+                // Found exact match - wrap it in a highlight span
+                const range = document.createRange();
+                range.setStart(node, index);
+                range.setEnd(node, index + highlightedText.length);
+
+                highlightSpan = document.createElement("mark");
+                highlightSpan.style.cssText = "background-color: rgba(250, 204, 21, 0.4); color: inherit; border-radius: 2px; padding: 0 2px; transition: background-color 0.5s ease-out;";
+
+                try {
+                    range.surroundContents(highlightSpan);
+                    break;
+                } catch {
+                    // surroundContents can fail if the range spans multiple elements
+                    highlightSpan = null;
+                }
+            }
+        }
+
+        // If no exact match found, try progressively shorter prefixes
+        if (!highlightSpan) {
+            const words = highlightedText.split(/\s+/);
+
+            // Try different lengths: first 3 words, first 2 words, first word
+            for (const wordCount of [3, 2, 1]) {
+                if (highlightSpan) break;
+                if (words.length < wordCount) continue;
+
+                const searchText = words.slice(0, wordCount).join(" ");
+                if (searchText.length < 3) continue; // Skip very short searches
+
+                const treeWalker2 = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT, null);
+                while ((node = treeWalker2.nextNode() as Text | null)) {
+                    const text = node.textContent || "";
+                    const index = text.indexOf(searchText);
+
+                    if (index !== -1) {
+                        const range = document.createRange();
+                        range.setStart(node, index);
+                        range.setEnd(node, index + searchText.length);
+
+                        highlightSpan = document.createElement("mark");
+                        highlightSpan.style.cssText = "background-color: rgba(250, 204, 21, 0.4); color: inherit; border-radius: 2px; padding: 0 2px; transition: background-color 0.5s ease-out;";
+
+                        try {
+                            range.surroundContents(highlightSpan);
+                            break;
+                        } catch {
+                            highlightSpan = null;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Last resort: find any text node that contains the first word and highlight the whole node
+        if (!highlightSpan && highlightedText.length > 0) {
+            const firstWord = highlightedText.split(/\s+/)[0];
+            if (firstWord && firstWord.length >= 2) {
+                const treeWalker3 = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT, null);
+                while ((node = treeWalker3.nextNode() as Text | null)) {
+                    const text = node.textContent || "";
+                    if (text.includes(firstWord) && text.trim().length > 0) {
+                        // Highlight the entire text node content
+                        const parent = node.parentNode;
+                        if (parent) {
+                            highlightSpan = document.createElement("mark");
+                            highlightSpan.style.cssText = "background-color: rgba(250, 204, 21, 0.4); color: inherit; border-radius: 2px; padding: 0 2px; transition: background-color 0.5s ease-out;";
+                            highlightSpan.textContent = text;
+                            parent.replaceChild(highlightSpan, node);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (highlightSpan) {
+            // Scroll the highlight into view
+            highlightSpan.scrollIntoView({ behavior: "smooth", block: "center" });
+
+            // Fade out the highlight after 2 seconds
+            const span = highlightSpan;
+            setTimeout(() => {
+                span.style.backgroundColor = "transparent";
+            }, 2000);
+
+            // Remove the mark element after fade completes
+            setTimeout(() => {
+                if (span.parentNode) {
+                    const textNode = document.createTextNode(span.textContent || "");
+                    span.parentNode.replaceChild(textNode, span);
+                }
+            }, 2500);
+        }
+    }, [highlightedText]);
 
     // Extract text content from message parts
     let textContent =
@@ -298,13 +410,15 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
     // Wrap AI messages with SelectableMessageContent for text selection
     if (!message.isUser) {
         return (
-            <SelectableMessageContent messageId={message.metadata?.messageId || ""} isAIMessage={true}>
-                {renderContent()}
-            </SelectableMessageContent>
+            <div ref={contentRef}>
+                <SelectableMessageContent messageId={message.metadata?.messageId || ""} taskId={message.taskId} isAIMessage={true}>
+                    {renderContent()}
+                </SelectableMessageContent>
+            </div>
         );
     }
 
-    return renderContent();
+    return <div ref={contentRef}>{renderContent()}</div>;
 });
 
 const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; className?: string }>(({ message, children, className }) => {
@@ -339,7 +453,7 @@ const DeepResearchReportBubble: React.FC<{
     return (
         <ChatBubble variant="received">
             <ChatBubbleMessage variant="received">
-                <SelectableMessageContent messageId={message.metadata?.messageId || ""} isAIMessage={true}>
+                <SelectableMessageContent messageId={message.metadata?.messageId || ""} taskId={message.taskId} isAIMessage={true}>
                     <DeepResearchReportContent artifact={deepResearchReportInfo.artifact} sessionId={deepResearchReportInfo.sessionId} ragData={deepResearchReportInfo.ragData} onContentLoaded={onContentLoaded} />
                 </SelectableMessageContent>
             </ChatBubbleMessage>
@@ -355,7 +469,8 @@ const getChatBubble = (
     sourcesElement?: React.ReactNode,
     deepResearchReportInfo?: DeepResearchReportInfo,
     onReportContentLoaded?: (content: string) => void,
-    reportContentOverride?: string
+    reportContentOverride?: string,
+    highlightedText?: string | null
 ): React.ReactNode => {
     const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
 
@@ -500,10 +615,24 @@ const getChatBubble = (
             {/* Render context quote above user message if present */}
             {message.isUser && message.contextQuote && (
                 <div className="flex justify-end pr-4">
-                    <div className="bg-muted/50 flex max-w-fit items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
+                    <button
+                        className={`bg-muted/50 flex max-w-fit items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm ${message.contextQuoteSourceId ? "hover:bg-muted cursor-pointer transition-colors" : "cursor-default"}`}
+                        onClick={() => {
+                            if (message.contextQuoteSourceId) {
+                                // Dispatch event to scroll to and highlight the quoted text in the source message
+                                window.dispatchEvent(
+                                    new CustomEvent("scroll-to-message", {
+                                        detail: { taskId: message.contextQuoteSourceId, quotedText: message.contextQuote },
+                                    })
+                                );
+                            }
+                        }}
+                        disabled={!message.contextQuoteSourceId}
+                        title={message.contextQuoteSourceId ? "Click to scroll to original message" : undefined}
+                    >
                         <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
                         <span className="text-muted-foreground truncate italic">"{message.contextQuote}"</span>
-                    </div>
+                    </button>
                 </div>
             )}
             {/* Render parts in their original order to preserve interleaving */}
@@ -535,7 +664,7 @@ const getChatBubble = (
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
                             <ChatBubbleMessage variant={variant}>
-                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: textContent }] }} isStreaming={shouldStream} />
+                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: textContent }] }} isStreaming={shouldStream} highlightedText={highlightedText} />
                                 {/* Show actions on the last part if it's text */}
                                 {isLastPart && (
                                     <MessageActions
@@ -588,6 +717,40 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     // State to track deep research report content for message actions functionality
     const [reportContent, setReportContent] = useState<string | null>(null);
+
+    // State for highlight animation when scrolled to from context quote link
+    const [isHighlighted, setIsHighlighted] = useState(false);
+    const [highlightedText, setHighlightedText] = useState<string | null>(null);
+    const messageRef = React.useRef<HTMLDivElement>(null);
+
+    // Listen for scroll-to-message events
+    React.useEffect(() => {
+        const handleScrollToMessage = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { taskId, quotedText } = customEvent.detail;
+
+            // Check if this message matches the target taskId
+            if (message.taskId === taskId && messageRef.current) {
+                // Scroll the message into view
+                messageRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                // If we have quoted text, highlight just that portion
+                if (quotedText) {
+                    setHighlightedText(quotedText);
+                    setTimeout(() => setHighlightedText(null), 2000);
+                } else {
+                    // Fallback to highlighting the entire message
+                    setIsHighlighted(true);
+                    setTimeout(() => setIsHighlighted(false), 2000);
+                }
+            }
+        };
+
+        window.addEventListener("scroll-to-message", handleScrollToMessage);
+        return () => {
+            window.removeEventListener("scroll-to-message", handleScrollToMessage);
+        };
+    }, [message.taskId]);
 
     // Get RAG metadata for this task
     const taskRagData = useMemo(() => {
@@ -696,7 +859,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     };
 
     return (
-        <>
+        <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
             {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
             {isDeepResearchComplete &&
                 hasRagSources &&
@@ -773,7 +936,9 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 // Callback to capture report content for TTS/copy
                 setReportContent,
                 // Pass report content to MessageActions for TTS/copy
-                reportContent || undefined
+                reportContent || undefined,
+                // Pass highlighted text for scroll-to-source feature
+                highlightedText
             )}
 
             {/* Render images separately at the end for web search */}
@@ -804,6 +969,6 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 })()}
 
             {getUploadedFiles(message)}
-        </>
+        </div>
     );
 };

@@ -73,6 +73,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [showArtifactForm, setShowArtifactForm] = useState(false);
 
     const [contextText, setContextText] = useState<string | null>(null);
+    const [contextSourceId, setContextSourceId] = useState<string | null>(null);
     const [showContextBadge, setShowContextBadge] = useState(false);
 
     const chatInputRef = useRef<HTMLDivElement>(null);
@@ -198,11 +199,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     useEffect(() => {
         const handleFollowUp = async (event: Event) => {
             const customEvent = event as CustomEvent;
-            const { text, prompt, autoSubmit } = customEvent.detail;
+            const { text, prompt, autoSubmit, sourceMessageId } = customEvent.detail;
 
             // If a prompt is provided, use the old behavior
             if (prompt) {
                 setContextText(text);
+                setContextSourceId(sourceMessageId || null);
                 setInputValue(prompt + " ");
 
                 if (autoSubmit) {
@@ -212,6 +214,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
+                        setContextSourceId(null);
                         setShowContextBadge(false);
                         setInputValue("");
                         scrollToBottom?.();
@@ -221,6 +224,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             } else {
                 // No prompt provided - show the selected text as a badge above the input
                 setContextText(text);
+                setContextSourceId(sourceMessageId || null);
                 setShowContextBadge(true);
             }
 
@@ -443,14 +447,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
             // as the uploaded artifacts (avoids React state timing issues)
-            // Also pass contextQuote separately for persistent display above the message bubble
+            // Also pass contextQuote and contextQuoteSourceId separately for persistent display above the message bubble
             const contextQuoteToPass = contextText && showContextBadge ? contextText : null;
-            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass);
+            const contextQuoteSourceIdToPass = contextSourceId && showContextBadge ? contextSourceId : null;
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
             setSelectedFiles([]);
             setPendingPastedTextItems([]);
             setInputValue("");
             setMentionMap(new Map()); // Clear mention map after submit
             setContextText(null);
+            setContextSourceId(null);
             setShowContextBadge(false);
             scrollToBottom?.();
         }

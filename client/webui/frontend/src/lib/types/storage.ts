@@ -16,6 +16,7 @@ export interface MessageBubble {
     isError?: boolean;
     displayHtml?: string; // HTML for displaying user messages with mention chips
     contextQuote?: string; // Original quoted text from "Ask Followup" action
+    contextQuoteSourceId?: string; // Task ID of the message containing the original quoted text
 }
 
 /**

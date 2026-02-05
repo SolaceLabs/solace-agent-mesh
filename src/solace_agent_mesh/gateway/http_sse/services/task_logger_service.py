@@ -668,6 +668,8 @@ class TaskLoggerService:
                         frontend_only_fields = {}
                         if existing_user_bubble.get("contextQuote"):
                             frontend_only_fields["contextQuote"] = existing_user_bubble["contextQuote"]
+                        if existing_user_bubble.get("contextQuoteSourceId"):
+                            frontend_only_fields["contextQuoteSourceId"] = existing_user_bubble["contextQuoteSourceId"]
                         if existing_user_bubble.get("displayHtml"):
                             frontend_only_fields["displayHtml"] = existing_user_bubble["displayHtml"]
                         
@@ -679,6 +681,7 @@ class TaskLoggerService:
                                     log.info(
                                         f"{self.log_identifier} Preserved frontend-only fields for task {task_id}: "
                                         f"contextQuote={bool(frontend_only_fields.get('contextQuote'))}, "
+                                        f"contextQuoteSourceId={bool(frontend_only_fields.get('contextQuoteSourceId'))}, "
                                         f"displayHtml={bool(frontend_only_fields.get('displayHtml'))}"
                                     )
                                     break
