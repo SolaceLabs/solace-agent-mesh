@@ -484,7 +484,7 @@ async def append_event_with_retry(
     session_id: str,
     max_retries: int = STALE_SESSION_MAX_RETRIES,
     log_identifier: str = "",
-) -> tuple[ADKEvent, ADKSession]:
+) -> ADKEvent:
     """
     Appends an event to a session with automatic retry on stale session errors.
 
@@ -497,7 +497,6 @@ async def append_event_with_retry(
     1. Attempting to append the event
     2. On stale session error, re-fetching the session from the database
     3. Retrying the append with the fresh session
-    4. After successful append, reload session to get fresh state with the new event
 
     Args:
         session_service: The session service instance
@@ -510,11 +509,10 @@ async def append_event_with_retry(
         log_identifier: Optional log identifier for debugging
 
     Returns:
-        Tuple of (appended_event, updated_session) - the session is freshly reloaded from DB
+        The appended event (from the session service)
 
     Raises:
         ValueError: If the stale session error persists after max_retries
-        RuntimeError: If session reload fails after successful append
         Exception: Any other exception from append_event
     """
     current_session = session
@@ -522,23 +520,9 @@ async def append_event_with_retry(
 
     for attempt in range(max_retries + 1):
         try:
-            appended_event = await session_service.append_event(
+            return await session_service.append_event(
                 session=current_session, event=event
             )
-
-            # Reload session from DB to get fresh state with the appended event
-            fresh_session = await session_service.get_session(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-            )
-
-            if not fresh_session:
-                raise RuntimeError(
-                    f"Failed to reload session '{session_id}' after successful append_event"
-                )
-
-            return appended_event, fresh_session
         except ValueError as e:
             error_message = str(e)
             

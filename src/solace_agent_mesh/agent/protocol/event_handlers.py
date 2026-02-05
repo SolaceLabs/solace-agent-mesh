@@ -789,8 +789,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                             )
                             for event_to_copy in original_history_events:
                                 # Use retry helper to handle stale session race conditions
-                                # The helper automatically reloads the session after append
-                                _, run_based_adk_session_for_copy = await append_event_with_retry(
+                                await append_event_with_retry(
                                     session_service=component.session_service,
                                     session=run_based_adk_session_for_copy,
                                     event=event_to_copy,
@@ -798,6 +797,14 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                     user_id=user_id,
                                     session_id=effective_session_id,
                                     log_identifier=f"{component.log_identifier}[RunBasedCopy:{logical_task_id}]",
+                                )
+                                # Re-fetch session after each append to keep it fresh for the next iteration
+                                run_based_adk_session_for_copy = (
+                                    await component.session_service.get_session(
+                                        app_name=agent_name,
+                                        user_id=user_id,
+                                        session_id=effective_session_id,
+                                    )
                                 )
                         else:
                             log.debug(
