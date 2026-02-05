@@ -448,6 +448,7 @@ apps:
     app_config:
       # Required: namespace for A2A topics
       namespace: ${NAMESPACE}
+      gateway_id: my_gateway
 
       # Required: path to your adapter class
       gateway_adapter: my_package.adapters.MyAdapter
@@ -476,6 +477,10 @@ apps:
         Responses should be clear, concise, and formatted
         appropriately for the platform.
 ```
+
+:::info
+If `gateway_id` is not provided, it defaults to the app name. Ensure `apps.name` is unique across all gateways or specify a unique `gateway_id` to prevent conflicts.
+:::
 
 ## Example: Slack Adapter
 
