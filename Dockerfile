@@ -70,7 +70,6 @@ RUN apt-get update && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* && \
     python3 -m venv /opt/venv && \
-    /opt/venv/bin/python -m pip install --upgrade "pip>=25.3" && \
     uv pip install --system hatch
 
 WORKDIR /app
@@ -140,7 +139,6 @@ RUN apt-get update && \
     git \
     libssl3t64=3.5.4-1~deb13u2 \
     openssl=3.5.4-1~deb13u2 && \
-    python3 -m pip install --upgrade "pip>=25.3" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
