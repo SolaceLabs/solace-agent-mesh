@@ -3,11 +3,12 @@ ADK Callbacks for the A2A Host Component.
 Includes dynamic instruction injection, artifact metadata injection,
 embed resolution, and logging.
 """
-
 import logging
 import json
 import asyncio
+import time
 import uuid
+import re
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
 
@@ -33,19 +34,23 @@ from ...agent.utils.context_helpers import (
     get_session_from_callback_context,
 )
 from ..tools.tool_definition import BuiltinTool
+from ..tools.workflow_tool import WorkflowAgentTool, WORKFLOW_TOOL_PREFIX
+from ..tools.peer_agent_tool import PEER_TOOL_PREFIX
 
 from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
-)
-
-from ...common.utils.embeds import (
     EMBED_CHAIN_DELIMITER,
+    EARLY_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
 )
+from ...common.utils.embeds.types import ResolutionMode
 
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
+from ...common.a2a.types import ArtifactInfo
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -72,7 +77,9 @@ from ...agent.adk.stream_parser import (
     TemplateBlockCompletedEvent,
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
+    TEMPLATE_LIQUID_START_SEQUENCE,
 )
+
 
 log = logging.getLogger(__name__)
 
@@ -87,32 +94,95 @@ async def _publish_data_part_status_update(
     a2a_context: Dict[str, Any],
     data_part_model: BaseModel,
 ):
-    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart."""
-    logical_task_id = a2a_context.get("logical_task_id")
-    context_id = a2a_context.get("contextId")
+    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart.
 
-    status_update_event = a2a.create_data_signal_event(
-        task_id=logical_task_id,
-        context_id=context_id,
+    This function delegates to the host component's publish_data_signal_from_thread method,
+    which handles the async loop check and scheduling internally.
+    """
+    host_component.publish_data_signal_from_thread(
+        a2a_context=a2a_context,
         signal_data=data_part_model,
-        agent_name=host_component.agent_name,
+        skip_buffer_flush=False,
+        log_identifier=host_component.log_identifier,
     )
 
-    loop = host_component.get_async_loop()
-    if loop and loop.is_running():
-        asyncio.run_coroutine_threadsafe(
-            host_component._publish_status_update_with_buffer_flush(
-                status_update_event,
-                a2a_context,
-                skip_buffer_flush=False,
-            ),
-            loop,
+
+async def _resolve_early_embeds_in_chunk(
+    chunk: str,
+    callback_context: CallbackContext,
+    host_component: "SamAgentComponent",
+    log_identifier: str,
+) -> str:
+    """
+    Resolves early embeds in an artifact chunk before streaming to the browser.
+
+    Args:
+        chunk: The text chunk containing potential embeds
+        callback_context: The ADK callback context with services
+        host_component: The host component instance
+        log_identifier: Identifier for logging
+
+    Returns:
+        The chunk with early embeds resolved
+    """
+    if not chunk or EMBED_DELIMITER_OPEN not in chunk:
+        return chunk
+
+    try:
+        # Build resolution context from callback_context (pattern from EmbedResolvingMCPToolset)
+        invocation_context = callback_context._invocation_context
+        if not invocation_context:
+            log.warning(
+                "%s No invocation context available for embed resolution",
+                log_identifier,
+            )
+            return chunk
+
+        session_context = invocation_context.session
+        if not session_context:
+            log.warning(
+                "%s No session context available for embed resolution", log_identifier
+            )
+            return chunk
+
+        resolution_context = {
+            "artifact_service": invocation_context.artifact_service,
+            "session_context": {
+                "session_id": get_original_session_id(invocation_context),
+                "user_id": session_context.user_id,
+                "app_name": session_context.app_name,
+            },
+        }
+
+        # Resolve only early embeds (math, datetime, uuid, artifact_meta)
+        resolved_text, processed_until, _ = await resolve_embeds_in_string(
+            text=chunk,
+            context=resolution_context,
+            resolver_func=evaluate_embed,
+            types_to_resolve=EARLY_EMBED_TYPES,  # Only resolve early embeds
+            resolution_mode=ResolutionMode.ARTIFACT_STREAMING,  # New mode
+            log_identifier=log_identifier,
+            config=None,  # Could pass host_component config if needed
         )
-    else:
+
+        # SAFETY CHECK: If resolver buffered something, parser has a bug
+        if processed_until < len(chunk):
+            log.error(
+                "%s PARSER BUG DETECTED: Resolver buffered partial embed. "
+                "Chunk ends with: %r. Returning unresolved chunk to avoid corruption.",
+                log_identifier,
+                chunk[-50:] if len(chunk) > 50 else chunk,
+            )
+            # Fallback: return original unresolved chunk (degraded but not corrupted)
+            return chunk
+
+        return resolved_text
+
+    except Exception as e:
         log.error(
-            "%s Async loop not available. Cannot publish status update.",
-            host_component.log_identifier,
+            "%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True
         )
+        return chunk  # Return original chunk on error
 
 
 async def process_artifact_blocks_callback(
@@ -132,9 +202,13 @@ async def process_artifact_blocks_callback(
     parser: FencedBlockStreamParser = session.state.get(parser_state_key)
     if parser is None:
         log.debug("%s New turn. Creating new FencedBlockStreamParser.", log_identifier)
-        parser = FencedBlockStreamParser(progress_update_interval_bytes=250)
+        parser = FencedBlockStreamParser(progress_update_interval_bytes=50)
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
+        session.state["completed_template_blocks_list"] = []
+        session.state["artifact_chars_sent"] = (
+            0  # Reset character tracking for new turn
+        )
 
     stream_chunks_were_processed = callback_context.state.get(
         A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY, False
@@ -166,6 +240,9 @@ async def process_artifact_blocks_callback(
                             log_identifier,
                             event.params,
                         )
+                        # Reset character tracking for this new artifact block
+                        session.state["artifact_chars_sent"] = 0
+
                         filename = event.params.get("filename", "unknown_artifact")
                         if filename == "unknown_artifact":
                             log.warning(
@@ -198,6 +275,7 @@ async def process_artifact_blocks_callback(
                                 bytes_transferred=0,
                                 artifact_chunk=None,
                             )
+
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, artifact_progress_data
                             )
@@ -221,13 +299,30 @@ async def process_artifact_blocks_callback(
                                 log_identifier,
                             )
                         if a2a_context:
+                            # Resolve early embeds in the chunk before streaming
+                            resolved_chunk = await _resolve_early_embeds_in_chunk(
+                                chunk=event.chunk,
+                                callback_context=callback_context,
+                                host_component=host_component,
+                                log_identifier=f"{log_identifier}[ResolveChunk]",
+                            )
+
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
                                 description=params.get("description"),
                                 status="in-progress",
                                 bytes_transferred=event.buffered_size,
-                                artifact_chunk=event.chunk,
+                                artifact_chunk=resolved_chunk,  # Resolved chunk
                             )
+
+                            # Track the cumulative character count of what we've sent
+                            # We need character count (not bytes) to slice correctly later
+                            previous_char_count = session.state.get(
+                                "artifact_chars_sent", 0
+                            )
+                            new_char_count = previous_char_count + len(event.chunk)
+                            session.state["artifact_chars_sent"] = new_char_count
+
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, progress_data
                             )
@@ -330,6 +425,13 @@ async def process_artifact_blocks_callback(
                                             version_for_tool,
                                             logical_task_id,
                                         )
+                                    else:
+                                        log.warning(
+                                            "%s TaskExecutionContext not found for task %s, cannot register inline artifact '%s'.",
+                                            log_identifier,
+                                            logical_task_id,
+                                            filename,
+                                        )
                                 else:
                                     log.warning(
                                         "%s No logical_task_id, cannot register inline artifact.",
@@ -341,6 +443,39 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     e_track,
                                 )
+
+                            # Send final progress update with any remaining content not yet sent
+                            if a2a_context:
+                                # Check if there's unsent content (content after last progress event)
+                                total_bytes = len(event.content.encode("utf-8"))
+                                chars_already_sent = session.state.get(
+                                    "artifact_chars_sent", 0
+                                )
+
+                                if chars_already_sent < len(event.content):
+                                    # There's unsent content - send it as a final progress update
+                                    final_chunk = event.content[chars_already_sent:]
+
+                                    # Resolve embeds in final chunk
+                                    resolved_final_chunk = await _resolve_early_embeds_in_chunk(
+                                        chunk=final_chunk,
+                                        callback_context=callback_context,
+                                        host_component=host_component,
+                                        log_identifier=f"{log_identifier}[ResolveFinalChunk]",
+                                    )
+
+                                    final_progress_data = ArtifactCreationProgressData(
+                                        filename=filename,
+                                        description=params.get("description"),
+                                        status="in-progress",
+                                        bytes_transferred=total_bytes,
+                                        artifact_chunk=resolved_final_chunk,  # Resolved final chunk
+                                    )
+
+                                    await _publish_data_part_status_update(
+                                        host_component, a2a_context, final_progress_data
+                                    )
+
                             # Publish completion status immediately via SSE
                             if a2a_context:
                                 progress_data = ArtifactCreationProgressData(
@@ -374,6 +509,9 @@ async def process_artifact_blocks_callback(
                                 "filename": filename,
                                 "version": version_for_tool,
                                 "status": status_for_tool,
+                                "description": params.get("description"),
+                                "mime_type": params.get("mime_type"),
+                                "bytes_transferred": len(event.content),
                                 "original_text": original_text,
                             }
                         )
@@ -427,14 +565,47 @@ async def process_artifact_blocks_callback(
                                 template_id,
                             )
 
-                        # Store template_id in session for potential future use
-                        # (Gateway will handle the actual resolution)
-                        if "completed_template_blocks_list" not in session.state:
+                        # Reconstruct the original template block text for peer-to-peer responses
+                        # Peer agents don't receive TemplateBlockData signals, so they need
+                        # the original block text to pass templates through to the gateway
+                        params_str = " ".join([f'{k}="{v}"' for k, v in params.items()])
+                        original_template_text = (
+                            f"{TEMPLATE_LIQUID_START_SEQUENCE} {params_str}\n"
+                            f"{event.template_content}"
+                            f"{ARTIFACT_BLOCK_DELIMITER_CLOSE}"
+                        )
+
+                        # For RUN_BASED sessions (peer-to-peer agent requests), preserve the
+                        # template block in the response text at its original position.
+                        # This allows the calling agent to forward it to the gateway.
+                        # Gateway requests use streaming sessions and receive TemplateBlockData
+                        # signals instead.
+                        is_run_based = a2a_context and a2a_context.get(
+                            "is_run_based_session", False
+                        )
+                        if is_run_based and llm_response.partial:
+                            processed_parts.append(
+                                adk_types.Part(text=original_template_text)
+                            )
+                            log.debug(
+                                "%s Preserved template block in RUN_BASED peer response. Template ID: %s",
+                                log_identifier,
+                                template_id,
+                            )
+
+                        # Store template_id and original text in session for potential future use
+                        # (Gateway will handle the actual resolution via signals,
+                        # but peer agents need the original text in their responses)
+                        if (
+                            "completed_template_blocks_list" not in session.state
+                            or session.state["completed_template_blocks_list"] is None
+                        ):
                             session.state["completed_template_blocks_list"] = []
                         session.state["completed_template_blocks_list"].append(
                             {
                                 "template_id": template_id,
                                 "data_artifact": data_artifact,
+                                "original_text": original_template_text,
                             }
                         )
 
@@ -466,34 +637,50 @@ async def process_artifact_blocks_callback(
         final_parser_result = parser.finalize()
 
         for event in final_parser_result.events:
-            if isinstance(event, BlockCompletedEvent):
+            if isinstance(event, BlockInvalidatedEvent):
+                # This event is emitted when an unterminated block is detected at the end of a turn.
+                # The rolled_back_text contains the original opening line + buffered content.
+                # We need to:
+                # 1. Send a "cancelled" status to clean up any in-progress UI
+                # 2. Send the original text as a status update so the frontend can display it
                 log.warning(
-                    "%s Unterminated artifact block detected at end of turn.",
+                    "%s Unterminated artifact block detected at end of turn. Rolled back text length: %d",
                     log_identifier,
+                    len(event.rolled_back_text),
                 )
-                params = event.params
-                filename = params.get("filename", "unknown_artifact")
-                if filename == "unknown_artifact":
-                    log.warning(
-                        "%s Unterminated fenced artifact block is missing a valid 'filename'. Failing operation.",
-                        log_identifier,
+                
+                # Try to extract filename from the rolled back text for the cancelled status
+                # The format is: «««save_artifact: filename="test.md" ...\n...content...
+                filename = "unknown_artifact"
+                filename_match = re.search(r'filename="([^"]+)"', event.rolled_back_text)
+                if filename_match:
+                    filename = filename_match.group(1)
+                
+                # Send a "cancelled" status to clean up any in-progress UI that was created
+                # when the block started. This tells the frontend to remove the artifact bubble.
+                a2a_context = callback_context.state.get("a2a_context")
+                if a2a_context:
+                    cancelled_progress_data = ArtifactCreationProgressData(
+                        filename=filename,
+                        status="cancelled",  # Use "cancelled" instead of "failed" for unterminated blocks
+                        bytes_transferred=0,
+                        # Include the rolled back text so the frontend can display it
+                        # This is sent along with the cancelled status so the frontend
+                        # can show the original text that was incorrectly parsed as an artifact
+                        rolled_back_text=event.rolled_back_text,
                     )
-                if (
-                    "completed_artifact_blocks_list" not in session.state
-                    or session.state["completed_artifact_blocks_list"] is None
-                ):
-                    session.state["completed_artifact_blocks_list"] = []
-                session.state["completed_artifact_blocks_list"].append(
-                    {
-                        "filename": filename,
-                        "version": 0,
-                        "status": "error",
-                        "original_text": session.state.get(
-                            "artifact_block_original_text", ""
-                        )
-                        + event.content,
-                    }
-                )
+                    await _publish_data_part_status_update(
+                        host_component, a2a_context, cancelled_progress_data
+                    )
+                    log.debug(
+                        "%s Sent 'cancelled' status with rolled back text for unterminated artifact block: %s",
+                        log_identifier,
+                        filename,
+                    )
+                
+                # Note: We no longer need to store the original text in completed_artifact_blocks_list
+                # because we're sending it directly with the cancelled status.
+                # The frontend will handle displaying the text when it receives the cancelled status.
 
         # If there was any rolled-back text from finalization, append it
         if final_parser_result.user_facing_text:
@@ -523,8 +710,12 @@ async def process_artifact_blocks_callback(
                 len(completed_blocks_list),
             )
 
+            # Get a2a_context for sending signals
+            a2a_context = callback_context.state.get("a2a_context")
+
             tool_call_parts = []
             for block_info in completed_blocks_list:
+                function_call_id = f"host-notify-{uuid.uuid4()}"
                 notify_tool_call = adk_types.FunctionCall(
                     name="_notify_artifact_save",
                     args={
@@ -532,9 +723,40 @@ async def process_artifact_blocks_callback(
                         "version": block_info["version"],
                         "status": block_info["status"],
                     },
-                    id=f"host-notify-{uuid.uuid4()}",
+                    id=function_call_id,
                 )
                 tool_call_parts.append(adk_types.Part(function_call=notify_tool_call))
+
+                # Send artifact saved notification now that we have the function_call_id
+                # This ensures the signal and tool call arrive together
+                if block_info["status"] == "success" and a2a_context:
+                    try:
+                        artifact_info = ArtifactInfo(
+                            filename=block_info["filename"],
+                            version=block_info["version"],
+                            mime_type=block_info.get("mime_type")
+                            or "application/octet-stream",
+                            size=block_info.get("bytes_transferred", 0),
+                            description=block_info.get("description"),
+                            version_count=None,  # Count not available in save context
+                        )
+                        await host_component.notify_artifact_saved(
+                            artifact_info=artifact_info,
+                            a2a_context=a2a_context,
+                            function_call_id=function_call_id,
+                        )
+                        log.debug(
+                            "%s Published artifact saved notification for fenced block: %s (function_call_id=%s)",
+                            log_identifier,
+                            block_info["filename"],
+                            function_call_id,
+                        )
+                    except Exception as signal_err:
+                        log.warning(
+                            "%s Failed to publish artifact saved notification: %s",
+                            log_identifier,
+                            signal_err,
+                        )
 
             existing_parts = llm_response.content.parts if llm_response.content else []
             final_existing_parts = existing_parts
@@ -803,26 +1025,24 @@ async def manage_large_mcp_tool_responses_callback(
     message_parts_for_llm: list[str] = []
 
     if needs_truncation_for_llm:
-        truncation_suffix = "... [Response truncated due to size limit.]"
-        adjusted_max_bytes = llm_max_bytes - len(truncation_suffix.encode("utf-8"))
-        if adjusted_max_bytes < 0:
-            adjusted_max_bytes = 0
-
-        truncated_bytes = serialized_original_response_str.encode("utf-8")[
-            :adjusted_max_bytes
-        ]
-        truncated_preview_str = (
-            truncated_bytes.decode("utf-8", "ignore") + truncation_suffix
-        )
-
+        # ALL-OR-NOTHING APPROACH: Do not include truncated data to prevent LLM hallucination.
+        # When LLMs receive partial data, they tend to confidently fill in gaps with
+        # hallucinated information. By withholding partial data entirely, we force the LLM
+        # to use reliable mechanisms (template_liquid, load_artifact) to access the full data.
         final_llm_response_dict["mcp_tool_output"] = {
-            "type": "truncated_json_string",
-            "content": truncated_preview_str,
+            "type": "data_in_artifact_only",
+            "message": "Data exceeds size limit. Full data saved as artifact - use template_liquid, load_artifact or other artifact analysis tools to process and access.",
         }
         message_parts_for_llm.append(
-            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) for direct display and has been truncated."
+            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) to display directly. "
+            "The data has NOT been included here to prevent incomplete information. "
+            "You MUST use template_liquid (for displaying to users) or load_artifact or other "
+            "artifact analysis tools (for processing) to access the full data."
         )
-        log.debug("%s MCP tool output truncated for LLM.", log_identifier)
+        log.debug(
+            "%s MCP tool output withheld from LLM (all-or-nothing approach).",
+            log_identifier,
+        )
 
     if needs_saving_as_artifact:
         if save_result and save_result.status in [
@@ -839,19 +1059,27 @@ async def manage_large_mcp_tool_responses_callback(
                 filename = first_artifact.data_filename
                 version = first_artifact.data_version
                 if total_artifacts > 1:
-                    message_parts_for_llm.append(
-                        f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
-                    )
+                    artifact_msg = f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
                 else:
-                    message_parts_for_llm.append(
-                        f"The full response has been saved as artifact '{filename}' (version {version})."
+                    artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
+
+                # When data was too large and truncated, provide explicit guidance
+                if needs_truncation_for_llm:
+                    artifact_msg += (
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
                     )
+                message_parts_for_llm.append(artifact_msg)
             elif save_result.fallback_artifact:
                 filename = save_result.fallback_artifact.data_filename
                 version = save_result.fallback_artifact.data_version
-                message_parts_for_llm.append(
-                    f"The full response has been saved as artifact '{filename}' (version {version})."
-                )
+                artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
+                if needs_truncation_for_llm:
+                    artifact_msg += (
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
+                    )
+                message_parts_for_llm.append(artifact_msg)
 
             log.debug(
                 "%s Added saved artifact details to LLM response.", log_identifier
@@ -876,16 +1104,18 @@ async def manage_large_mcp_tool_responses_callback(
         and save_result.status in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_saved_and_truncated"
+            # Data was too large - withheld from LLM, only available via artifact
+            final_llm_response_dict["status"] = "processed_saved_artifact_only"
         else:
             final_llm_response_dict["status"] = "processed_and_saved"
     elif needs_saving_as_artifact:
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_truncated_save_failed"
+            final_llm_response_dict["status"] = "processed_artifact_only_save_failed"
         else:
             final_llm_response_dict["status"] = "processed_save_failed"
     elif needs_truncation_for_llm:
-        final_llm_response_dict["status"] = "processed_truncated"
+        # This case shouldn't happen (truncation implies saving), but handle it
+        final_llm_response_dict["status"] = "processed_data_withheld"
     else:
         final_llm_response_dict["status"] = "processed"
 
@@ -906,7 +1136,7 @@ def _generate_fenced_block_syntax_rules() -> str:
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
     return f"""
-**Fenced Block Syntax Rules (Applies to `save_artifact` and `template`):**
+**Fenced Block Syntax Rules (Applies to `save_artifact` and `template_liquid`):**
 To create content blocks, you MUST use the EXACT syntax shown below.
 
 **EXACT SYNTAX (copy this pattern exactly):**
@@ -916,8 +1146,8 @@ It can span multiple lines.
 {close_delim}
 
 **CRITICAL FORMATTING RULES:**
-  1. The opening delimiter MUST be EXACTLY `{open_delim}` (three angle brackets).
-  2. Immediately after the delimiter, write the keyword (`save_artifact` or `template`) followed by a colon, with NO space before the colon (e.g., `save_artifact:`).
+  1. The opening delimiter MUST be EXACTLY `{open_delim}`.
+  2. Immediately after the delimiter, write the keyword (`save_artifact` or `template_liquid`) followed by a colon, with NO space before the colon (e.g., `{open_delim}save_artifact:`).
   3. All parameters (like `filename`, `data`, `mime_type`) must be on the SAME line as the opening delimiter.
   4. All parameter values **MUST** be enclosed in double quotes (e.g., `filename="example.txt"`).
   5. You **MUST NOT** use double quotes `"` inside parameter values. Use single quotes or rephrase instead.
@@ -926,6 +1156,7 @@ It can span multiple lines.
   8. Do NOT surround the block with triple backticks (```). The `{open_delim}` and `{close_delim}` delimiters are sufficient.
 
 **COMMON ERRORS TO AVOID:**
+  ❌ WRONG: `{open_delim[0:1]}template_liquid:` (only 1 angle brackets)
   ❌ WRONG: `{open_delim[0:2]}save_artifact:` (only 2 angle brackets)
   ❌ WRONG: `{open_delim}save_artifact` (missing colon)
   ✅ CORRECT: `{open_delim}save_artifact: filename="test.txt" mime_type="text/plain"`
@@ -936,24 +1167,24 @@ def _generate_fenced_artifact_instruction() -> str:
     """Generates the instruction text for using fenced artifact blocks."""
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     return f"""\
-**Creating Text-Based Artifacts (`{open_delim}save_artifact:...`):**
+**Creating Text-Based Artifacts (`{open_delim}save_artifact: ...`):**
 
-**When to Create Artifacts:**
+When to Create Artifacts:
 Create an artifact when the content provides value as a standalone file, such as:
 - Content with special formatting (HTML, Markdown, CSS).
 - Documents intended for use outside the conversation (reports, emails).
 - Structured reference content (schedules, guides, templates).
 - Substantial text documents or technical documentation.
 
-**When NOT to Create Artifacts:**
+When NOT to Create Artifacts:
 - Simple answers, explanations, or conversational responses.
 - Brief advice, opinions, or short lists.
 
-**Behavior of Created Artifacts:**
+Behavior of Created Artifacts:
 - They are sent to the user as an interactive file component.
 - The user can see the content, so there is no need to return or embed it again.
 
-**Parameters for `save_artifact`:**
+Parameters for `{open_delim}save_artifact: ...`:
 - `filename="your_filename.ext"` (REQUIRED)
 - `mime_type="text/plain"` (optional, defaults to text/plain)
 - `description="A brief description."` (optional)
@@ -967,30 +1198,44 @@ def _generate_inline_template_instruction() -> str:
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
     return f"""\
-**Inline Templates (`{open_delim}template:...`):**
+**Inline Liquid Templates (`{open_delim}template_liquid: ...`):**
 
-Use inline templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
+Use inline Liquid templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
 
-**When to Use Inline Templates:**
+IMPORTANT: Template Format
+- Templates use Liquid template syntax (same as Shopify templates - NOTE that Jekyll extensions are NOT supported).
+
+When to Use Inline Templates:
 - Formatting CSV, JSON, or YAML data into tables or lists.
 - Applying simple transformations (filtering, limiting rows).
 
-**Parameters for `template`:**
+Parameters for `{open_delim}template_liquid: ...`:
 - `data="filename.ext"` (REQUIRED): The data artifact to render. Can include version: `data="file.csv:2"`.
 - `jsonpath="$.expression"` (optional): JSONPath to extract a subset of JSON/YAML data.
 - `limit="N"` (optional): Limit to the first N rows (CSV) or items (JSON/YAML arrays).
 
-**Data Context for Templates:**
-- **CSV data**: Available as `headers` (array of column names) and `data_rows` (array of row arrays).
-- **JSON/YAML arrays**: Available as `items`.
-- **JSON/YAML objects**: Keys are directly available (e.g., `name`, `email`).
+Data Context for Liquid Templates:
+- CSV data: Available as `headers` (array of column names) and `data_rows` (array of row arrays).
+- JSON/YAML arrays: Available as `items`.
+- JSON/YAML objects: Keys are directly available (e.g., `name`, `email`).
 
-**Example - CSV Table:**
-{open_delim}template: data="sales_data.csv" limit="5"
+Example - CSV Table:
+{open_delim}template_liquid: data="sales_data.csv" limit="5"
 | {{% for h in headers %}}{{{{ h }}}} | {{% endfor %}}
 |{{% for h in headers %}}---|{{% endfor %}}
 {{% for row in data_rows %}}| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}{{% endfor %}}
 {close_delim}
+
+**IMPORTANT - Pipe Characters in Markdown Tables:**
+Text data may contain "|" characters which will break markdown table rendering by pushing data into wrong columns. For text fields that might contain pipes, use the `replace` filter to escape them:
+`{{{{ item.summary | replace: "|", "&#124;" }}}}`
+Only apply this to text fields that might contain pipes - numerical columns don't need it.
+
+Negative Examples
+Use {{ issues.size }} instead of {{ issues|length }}
+Use {{ forloop.index }} instead of {{ loop.index }} (Liquid uses forloop not loop)
+Use {{ issue.fields.description | truncate: 200 }} instead of slicing with [:200]
+Do not use Jekyll-specific tags or filters (e.g., `{{% assign %}}`, `{{% capture %}}`, `where`, `sort`, `where_exp`, etc.)
 
 The rendered output will appear inline in your response automatically.
 """
@@ -1000,7 +1245,7 @@ def _generate_artifact_creation_instruction() -> str:
     return """
     **Creating Text-Based Artifacts:**
 
-    **When to Create Text-based Artifacts:**
+    When to Create Text-based Artifacts:
     Create an artifact when the content provides value as a standalone file:
     - Content with special formatting (HTML, Markdown, CSS, structured markup) that requires proper rendering
     - Content explicitly intended for use outside this conversation (reports, emails, presentations, reference documents)
@@ -1009,13 +1254,121 @@ def _generate_artifact_creation_instruction() -> str:
     - Substantial text documents
     - Technical documentation meant as reference material
 
-    **When NOT to Create Text-based Artifacts:**
+    When NOT to Create Text-based Artifacts:
     - Simple answers, explanations, or conversational responses
     - Brief advice, opinions, or quick information
     - Short lists, summaries, or single paragraphs
     - Temporary content only relevant to the immediate conversation
     - Basic explanations that don't require reference material
     """
+
+
+def _generate_examples_instruction() -> str:
+    open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
+    close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
+    embed_open_delim = EMBED_DELIMITER_OPEN
+    embed_close_delim = EMBED_DELIMITER_CLOSE
+
+    return (
+        f"""\
+    Example 1:
+    - User: "Create a markdown file with your two csv files as tables."
+    <note>There are two csv files already uploaded: data1.csv and data2.csv</note>
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Creating Markdown tables from CSV files...{embed_close_delim}
+    {open_delim}save_artifact: filename="data_tables.md" mime_type="text/markdown" description="Markdown tables from CSV files"
+    # Data Tables
+    ## Data 1
+    {open_delim}template_liquid: data="data1.csv"
+    """
+        + """| {% for h in headers %}{{ h }} | {% endfor %}
+    |{% for h in headers %}---|{% endfor %}
+    {% for row in data_rows %}| {% for cell in row %}{{ cell }} | {% endfor %}{% endfor %}
+    """
+        + f"""{close_delim}
+    ## Data 2
+    {open_delim}template_liquid: data="data2.csv"
+    """
+        + """| {% for h in headers %}{{ h }} | {% endfor %}
+    |{% for h in headers %}---|{% endfor %}
+    {% for row in data_rows %}| {% for cell in row %}{{ cell }} | {% endfor %}{% endfor %}
+    """
+        + f"""{close_delim}
+    {close_delim}
+    Example 2:
+    - User: "Create a text file with the result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)."
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Calculating and creating text file...{embed_close_delim}
+    {open_delim}save_artifact: filename="math.txt" mime_type="text/plain" description="Result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)"
+    result = {embed_open_delim}math: sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680) | .2f{embed_close_delim}
+    {close_delim}
+    
+    Example 3:
+    - User: "Show me the first 10 entries from data1.csv"
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Loading CSV data...{embed_close_delim}
+    {open_delim}template_liquid: data="data1.csv" limit="10"
+    """
+        + """| {% for h in headers %}{{ h }} | {% endfor %}
+    |{% for h in headers %}---|{% endfor %}
+    {% for row in data_rows %}| {% for cell in row %}{{ cell }} | {% endfor %}{% endfor %}
+    """
+        + f"""{close_delim}
+
+    Example 4:
+    - User: "Show me the Jira issues as a table"
+    <note>There is a JSON artifact jira_issues.json with items containing key, summary, status, type, assignee, updated fields</note>
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Rendering Jira issues table...{embed_close_delim}
+    {open_delim}template_liquid: data="jira_issues.json" limit="10"
+    """
+        + """| Key | Summary | Status | Type | Assignee | Updated |
+    |-----|---------|--------|------|----------|---------|
+    {% for item in items %}| [{{ item.key }}](https://jira.example.com/browse/{{ item.key }}) | {{ item.summary | replace: "|", "&#124;" }} | {{ item.status }} | {{ item.type }} | {{ item.assignee }} | {{ item.updated }} |
+    {% endfor %}"""
+        + f"""
+    {close_delim}
+    <note>The replace filter on item.summary escapes any pipe characters that would break the markdown table. Only apply to text fields that might contain pipes.</note>
+
+    Example 5:
+    - User: "Search the database for all orders from last month"
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Querying order database...{embed_close_delim}
+    [calls search_database tool with no visible text]
+    [After getting results:]
+    Found 247 orders from last month totaling $45,231.
+
+    Example 6:
+    - User: "Create an HTML with the chart image you just generated with the customer data."
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Generating HTML report with chart...{embed_close_delim}
+    {open_delim}save_artifact: filename="customer_analysis.html" mime_type="text/html" description="Interactive customer analysis dashboard"
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Customer Chart - {embed_open_delim}datetime:%Y-%m-%d{embed_close_delim}</title>
+    """
+        + """
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .metric { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+            img { max-width: 100%; height: auto; }
+    """
+        + f"""    </style>
+        </head>
+    <body>
+    <h1>Customer Analysis Report</h1>
+    <p>Generated: {embed_open_delim}datetime:iso{embed_close_delim}</p>
+        
+    <h2>Customer Distribution Chart</h2>
+    <img src="{embed_open_delim}artifact_content:customer_chart.png >>> format:datauri{embed_close_delim}" alt="Customer Distribution">
+    
+    </body>
+    </html>
+    {close_delim}
+
+    """
+    )
 
 
 def _generate_embed_instruction(
@@ -1027,11 +1380,17 @@ def _generate_embed_instruction(
     close_delim = EMBED_DELIMITER_CLOSE
     chain_delim = EMBED_CHAIN_DELIMITER
     early_types = "`math`, `datetime`, `uuid`, `artifact_meta`"
-    modifier_list = ", ".join(
-        [f"`{prefix}`" for prefix in MODIFIER_IMPLEMENTATIONS.keys()]
-    )
+
+    modifier_list = MODIFIER_IMPLEMENTATIONS.keys()
+    # Remove apply_to_template from the modifier list as it's been deprecated
+    if "apply_to_template" in modifier_list:
+        modifier_list = list(modifier_list)
+        modifier_list.remove("apply_to_template")
+    modifier_list = ", ".join([f"`{prefix}`" for prefix in modifier_list])
 
     base_instruction = f"""\
+**Using Dynamic Embeds in Responses:**
+
 You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression {chain_delim} format{close_delim}. NOTE that this differs from 'save_artifact', which has  different delimiters. This allows you to
 always have correct information in your output. Specifically, make sure you always use embeds for math, even if it is simple. You will make mistakes if you try to do math yourself.
 Use HTML entities to escape the delimiters.
@@ -1047,7 +1406,31 @@ Examples:
 - `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
 
 The following embeds are resolved *late* (by the gateway before final display):
-- `{open_delim}artifact_return:filename[:version]{close_delim}`: **This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message."""
+- `{open_delim}artifact_return:filename[:version]{close_delim}`: Attaches an artifact to your message so the user receives the file. The embed itself is removed from the text.
+
+  **CRITICAL - Returning Artifacts to Users:**
+  Only artifacts created with the `{open_delim}save_artifact:...{close_delim}` fenced block syntax are automatically sent to the user.
+
+  **You MUST use artifact_return for:**
+  - Artifacts created by tools (e.g., image generation, chart creation, file conversion)
+  - Artifacts created by other agents you called
+  - Artifacts from MCP servers
+
+  **When deciding whether to return an artifact:**
+  - Return artifacts the user explicitly requested or that answer their question
+  - Return final outputs (charts, reports, images, documents)
+  - Do NOT return intermediate/temporary artifacts (e.g., temp files, internal data)
+
+  **Example - Tool creates an image:**
+  User: "Create a chart of sales data"
+  [You call a charting tool that creates sales_chart.png]
+  Your response: "Here's the sales chart. {open_delim}artifact_return:sales_chart.png{close_delim}"
+
+  **Example - Agent creates a report:**
+  User: "Generate a quarterly report"
+  [You call ReportAgent which creates quarterly_report.pdf]
+  Your response: "The quarterly report is ready. {open_delim}artifact_return:quarterly_report.pdf{close_delim}"
+"""
 
     artifact_content_instruction = f"""
 - `{open_delim}artifact_content:filename[:version] {chain_delim} modifier1:value1 {chain_delim} ... {chain_delim} format:output_format{close_delim}`: Embeds artifact content after applying a chain of modifiers. This is resolved *late* (typically by a gateway before final display).
@@ -1056,13 +1439,18 @@ The following embeds are resolved *late* (by the gateway before final display):
     - Available modifiers: {modifier_list}.
     - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.
     - Use `artifact_meta` first to check size; embedding large files may fail.
+    - Efficient workflows for large artifacts:
+        - To extract specific line ranges: `load_artifact(filename, version, include_line_numbers=True)` to identify lines, then use `slice_lines:start:end` modifier to extract that range.
+        - To fill templates with many placeholders: use `artifact_search_and_replace_regex` with `replacements` array (single atomic operation instead of multiple calls).
+        - Line numbers are display-only; `slice_lines` always operates on original content.
     - Examples:
         - `<img src="{open_delim}artifact_content:image.png {chain_delim} format:datauri{close_delim}`"> (Embed image as data URI - NOTE that this includes the datauri prefix. Do not add it yourself.)
         - `{open_delim}artifact_content:data.json {chain_delim} jsonpath:$.items[*] {chain_delim} select_fields:name,status {chain_delim} format:json_pretty{close_delim}` (Extract and format JSON fields)
         - `{open_delim}artifact_content:logs.txt {chain_delim} grep:ERROR {chain_delim} head:10 {chain_delim} format:text{close_delim}` (Get first 10 error lines)
         - `{open_delim}artifact_content:config.json {chain_delim} jsonpath:$.userPreferences.theme {chain_delim} format:text{close_delim}` (Extract a single value from a JSON artifact)
-        - `{open_delim}artifact_content:sensor_readings.csv {chain_delim} filter_rows_eq:status:critical {chain_delim} select_cols:timestamp,sensor_id,value {chain_delim} format:csv{close_delim}` (Filter critical sensor readings and select specific columns, output as CSV)
         - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)
+        - `{open_delim}artifact_content:template.html {chain_delim} slice_lines:10:50 {chain_delim} format:text{close_delim}` (Extract lines 10-50 from a large file)
+        - `<img src="{open_delim}artifact_content:diagram.png {chain_delim} format:datauri{close_delim}`"> (Embed an PNG diagram as a data URI)`
 """
 
     final_instruction = base_instruction
@@ -1073,6 +1461,64 @@ The following embeds are resolved *late* (by the gateway before final display):
 Ensure the syntax is exactly `{open_delim}type:expression{close_delim}` or `{open_delim}type:expression {chain_delim} ... {chain_delim} format:output_format{close_delim}` with no extra spaces around delimiters (`{open_delim}`, `{close_delim}`, `{chain_delim}`, `:`, `|`). Malformed directives will be ignored."""
 
     return final_instruction
+
+
+def _generate_conversation_flow_instruction() -> str:
+    """Generates instruction text for conversation flow and response formatting."""
+    open_delim = EMBED_DELIMITER_OPEN
+    close_delim = EMBED_DELIMITER_CLOSE
+    return f"""\
+**Conversation Flow and Response Formatting:**
+
+**CRITICAL: Minimize Narration - Maximize Results**
+
+You do NOT need to produce visible text on every turn. Many turns should contain ONLY status updates and tool calls, with NO visible text at all.
+Only produce visible text when you have actual results, answers, or insights to share with the user.
+
+Response Content Rules:
+1. Visible responses should contain ONLY:
+   - Direct answers to the user's question
+   - Analysis and insights derived from tool results
+   - Final results and data
+   - Follow-up questions when needed
+   - Plans for complex multi-step tasks
+
+2. DO NOT include visible text for:
+   - Process narration ("Let me...", "I'll...", "Now I will...")
+   - Acknowledgments of tool calls ("I'm calling...", "Searching...")
+   - Descriptions of what you're about to do
+   - Play-by-play commentary on your actions
+   - Transitional phrases between tool calls
+
+3. Use invisible status_update embeds for ALL process updates:
+   - "Searching for..."
+   - "Analyzing..."
+   - "Creating..."
+   - "Querying..."
+   - "Calling agent X..."
+
+4. NEVER mix process narration with status updates - if you use a status_update embed, do NOT repeat that information in visible text.
+
+Examples:
+
+**Excellent (no visible text, just status and tools):**
+"{open_delim}status_update:Retrieving sales data...{close_delim}" [then calls tool, no visible text]
+
+**Good (visible text only contains results):**
+"{open_delim}status_update:Analyzing Q4 sales...{close_delim}" [calls tool]
+"Sales increased 23% in Q4, driven primarily by enterprise accounts."
+
+**Bad (unnecessary narration):**
+"Let me retrieve the sales data for you." [then calls tool]
+
+**Bad (narration mixed with results):**
+"I've analyzed the data and found that sales increased 23% in Q4."
+
+**Bad (play-by-play commentary):**
+"Now I'll search for the information. After that I'll analyze it."
+
+Remember: The user can see status updates and tool calls. You don't need to announce them in visible text.
+"""
 
 
 def _generate_tool_instructions_from_registry(
@@ -1144,10 +1590,34 @@ def inject_dynamic_instructions_callback(
 Parallel Tool Calling:
 The system is capable of calling multiple tools in parallel to speed up processing. Please try to run tools in parallel when they don't depend on each other. This saves money and time, providing faster results to the user.
 
+**Response Formatting - CRITICAL**:
+In most cases when calling tools, you should produce NO visible text at all - only status_update embeds and the tool calls themselves.
+The user can see your tool calls and status updates, so narrating your actions is redundant and creates noise.
+
+If you do include visible text:
+- It must contain actual results, insights, or answers - NOT process narration
+- Do NOT end with a colon (":") before tool calls, as this leaves it hanging
+- Prefer ending with a period (".") if you must include visible text
+
+Examples:
+ - BEST: "{open_delim}status_update:Searching database...{close_delim}" [then calls tool, NO visible text]
+ - BAD: "Let me search for that information." [then calls tool]
+ - BAD: "Searching for information..." [then calls tool]
+
+**CRITICAL - No Links From Training Data**:
+- DO NOT include URLs, links, or markdown links from your training data in responses
+- NEVER include markdown links like [text](url) or raw URLs like https://example.com unless they came from a tool result
+- If a delegated agent's response contains [[cite:searchN]] citations, those are properly formatted - preserve them exactly
+- If a delegated agent's response has no links, do NOT add any links yourself
+- The ONLY acceptable links are those returned by tools (web search, deep research, etc.) with proper citation format
+- Your role is to coordinate and present results, not to augment them with links from your training data
+
 Embeds in responses from agents:
-To be efficient, agents may respond with artifact_content or template embeds in their responses. These will not be resolved until they are sent back to a gateway. If it makes
+To be efficient, peer agents may respond with artifact_content in their responses. These will not be resolved until they are sent back to a gateway. If it makes
 sense, just carry that embed forward to your response to the user. For example, if you ask for an org chart from another agent and its response contains an embed like
 `{open_delim}artifact_content:org_chart.md{close_delim}`, you can just include that embed in your response to the user. The gateway will resolve it and display the org chart.
+
+Similarly, template_liquid blocks in peer agent responses can be carried forward to your response to the user for resolution by the gateway.
 
 When faced with a complex goal or request that involves multiple steps, data retrieval, or artifact summarization to produce a new report or document, you MUST first create a plan.
 Simple, direct requests like 'create an image of a dog' or 'write an email to thank my boss' do not require a plan.
@@ -1232,6 +1702,11 @@ If a plan is created:
                 include_artifact_content_instr,
             )
 
+        instruction = _generate_conversation_flow_instruction()
+        if instruction:
+            injected_instructions.append(instruction)
+            log.debug("%s Prepared conversation flow instructions.", log_identifier)
+
     if active_builtin_tools:
         instruction = _generate_tool_instructions_from_registry(
             active_builtin_tools, log_identifier
@@ -1251,6 +1726,27 @@ If a plan is created:
             "%s Injected peer discovery instructions from callback state.",
             log_identifier,
         )
+
+    # Check for WorkflowAgentTool instances and inject specific instructions
+    has_workflow_tools = False
+    if llm_request.tools_dict:
+        for tool in llm_request.tools_dict.values():
+            if isinstance(tool, WorkflowAgentTool):
+                has_workflow_tools = True
+                break
+
+    if has_workflow_tools:
+        workflow_instruction = (
+            "**Workflow Execution:**\n"
+            "You have access to workflow tools (prefixed with `workflow_`). These tools represent structured business processes.\n"
+            "They support two modes of invocation:\n"
+            "1. **Parameter Mode:** Provide arguments directly matching the tool's schema. Use this for new data or simple inputs.\n"
+            "2. **Artifact Mode:** Provide a single `input_artifact` argument with the filename of an existing JSON artifact. "
+            "Use this when passing large datasets or outputs from previous steps to avoid re-tokenizing.\n"
+            "Do NOT provide both parameters and `input_artifact` simultaneously."
+        )
+        injected_instructions.append(workflow_instruction)
+        log.debug("%s Injected workflow execution instructions.", log_identifier)
 
     last_call_notification_message_added = False
     try:
@@ -1300,6 +1796,8 @@ If a plan is created:
             log_identifier,
             e_last_call,
         )
+
+    injected_instructions.append(_generate_examples_instruction())
 
     if injected_instructions:
         combined_instructions = "\n\n---\n\n".join(injected_instructions)
@@ -1684,6 +2182,28 @@ def solace_llm_response_callback(
         agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
 
+        # Check for parallel tool calls - if multiple function_calls in this response,
+        # generate a parallel_group_id for the frontend to group them visually
+        function_calls = []
+        if llm_response.content and llm_response.content.parts:
+            function_calls = [
+                p for p in llm_response.content.parts if p.function_call
+            ]
+
+        if len(function_calls) > 1:
+            import uuid
+            parallel_group_id = f"llm_batch_{uuid.uuid4().hex[:8]}"
+            callback_context.state["parallel_group_id"] = parallel_group_id
+            log.debug(
+                "%s Detected %d parallel tool calls, assigned parallel_group_id=%s",
+                log_identifier,
+                len(function_calls),
+                parallel_group_id,
+            )
+        else:
+            # Clear any previous parallel_group_id
+            callback_context.state["parallel_group_id"] = None
+
         llm_response_data = {
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
@@ -1814,14 +2334,20 @@ def notify_tool_invocation_start_callback(
             except TypeError:
                 serializable_args[k] = str(v)
 
+        # Get parallel_group_id from callback state if this is part of a parallel batch
+        parallel_group_id = tool_context.state.get("parallel_group_id")
+
         tool_data = ToolInvocationStartData(
             tool_name=tool.name,
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
+            parallel_group_id=parallel_group_id,
         )
-        asyncio.run_coroutine_threadsafe(
-            _publish_data_part_status_update(host_component, a2a_context, tool_data),
-            host_component.get_async_loop(),
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=tool_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
         log.debug(
             "%s Scheduled tool_invocation_start notification.",
@@ -1892,9 +2418,11 @@ def notify_tool_execution_result_callback(
             result_data=serializable_response,
             function_call_id=tool_context.function_call_id,
         )
-        asyncio.run_coroutine_threadsafe(
-            _publish_data_part_status_update(host_component, a2a_context, tool_data),
-            host_component.get_async_loop(),
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=tool_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
         log.debug(
             "%s Scheduled tool_result notification for function call ID %s.",
@@ -1992,3 +2520,562 @@ def auto_continue_on_max_tokens_callback(
     )
 
     return hijacked_response
+
+
+def preregister_long_running_tools_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to pre-register all long-running tool calls
+    before any tool execution begins. This prevents race conditions where
+    one tool completes before another has registered.
+
+    The race condition occurs because tools are executed via asyncio.gather
+    (non-deterministic order) and each tool calls register_parallel_call_sent()
+    inside its run_async(). If Tool A completes before Tool B even registers,
+    the system thinks all calls are done (completed=1, total=1).
+
+    By pre-registering all long-running tools in this callback (which runs
+    BEFORE tool execution), we ensure the total count is set correctly upfront.
+    """
+    log_identifier = "[Callback:PreregisterLongRunning]"
+
+    # Only process non-partial responses with function calls
+    if llm_response.partial:
+        return None
+
+    if not llm_response.content or not llm_response.content.parts:
+        return None
+
+    # Find all long-running tool calls (identified by peer_ or workflow_ prefix)
+    long_running_calls = []
+    for part in llm_response.content.parts:
+        if part.function_call:
+            tool_name = part.function_call.name
+            if tool_name.startswith(PEER_TOOL_PREFIX) or tool_name.startswith(WORKFLOW_TOOL_PREFIX):
+                long_running_calls.append(part.function_call)
+
+    if not long_running_calls:
+        return None
+
+    # Get task context
+    a2a_context = callback_context.state.get("a2a_context")
+    if not a2a_context:
+        log.warning("%s No a2a_context, cannot pre-register tools", log_identifier)
+        return None
+
+    logical_task_id = a2a_context.get("logical_task_id")
+    invocation_id = callback_context._invocation_context.invocation_id
+
+    with host_component.active_tasks_lock:
+        task_context = host_component.active_tasks.get(logical_task_id)
+
+    if not task_context:
+        log.warning(
+            "%s TaskContext not found for %s, cannot pre-register",
+            log_identifier,
+            logical_task_id,
+        )
+        return None
+
+    # Pre-register ALL long-running calls atomically
+    for fc in long_running_calls:
+        task_context.register_parallel_call_sent(invocation_id)
+
+    log.info(
+        "%s Pre-registered %d long-running tool call(s) for invocation %s (task %s)",
+        log_identifier,
+        len(long_running_calls),
+        invocation_id,
+        logical_task_id,
+    )
+
+    return None  # Don't alter the response
+
+
+# ============================================================================
+# Tool Name Sanitization Callback
+# ============================================================================
+
+# Bedrock tool name validation pattern: must start with letter or underscore, then alphanumeric/underscore/hyphen
+# Note: We allow underscore prefix for internal tools like _notify_artifact_save
+VALID_TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_-]*$')
+
+
+def sanitize_tool_names_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to sanitize and validate tool names in LLM responses.
+    
+    This callback catches hallucinated tool names that would cause 
+    errors when sent back to the LLM provider. 
+    
+    When an invalid tool name is detected:
+    1. The invalid function_call is removed from the response
+    2. A synthetic error message is injected to inform the LLM
+    3. The response is modified to continue the conversation gracefully
+    
+    This prevents the entire request from failing with a provider error.
+    """
+    log_identifier = "[Callback:SanitizeToolNames]"
+    
+    # Only process non-partial responses with function calls
+    if llm_response.partial:
+        return None
+    
+    if not llm_response.content or not llm_response.content.parts:
+        return None
+    
+    # Find all function calls and check for invalid tool names
+    invalid_calls = []  # Calls that need error responses
+    silently_dropped_calls = []  # Calls to drop without error (e.g., redundant internal tool calls)
+    valid_parts = []
+
+    for part in llm_response.content.parts:
+        if part.function_call:
+            tool_name = part.function_call.name
+            function_call_id = part.function_call.id or ""
+
+            # Check for placeholder patterns (tool names starting with $)
+            # This catches $FUNCTION_NAME, $ARTIFACT_TOOL, $TOOL_NAME, etc.
+            is_placeholder = tool_name.startswith('$')
+
+            # Check against Bedrock's validation pattern
+            is_valid_format = VALID_TOOL_NAME_PATTERN.match(tool_name) is not None
+
+            # Check for unauthorized _notify_artifact_save calls
+            # This tool should only be called by the system with host-notify- prefix
+            # LLM-generated calls (without this prefix) should be silently dropped
+            # since the artifact was already saved and a system call was injected
+            is_unauthorized_internal_tool = (
+                tool_name == "_notify_artifact_save"
+                and not function_call_id.startswith("host-notify-")
+            )
+
+            if is_placeholder:
+                log.warning(
+                    "%s Detected hallucinated placeholder tool name: '%s'. "
+                    "This is a known LLM hallucination from training data examples.",
+                    log_identifier,
+                    tool_name,
+                )
+                invalid_calls.append((part.function_call, "placeholder_hallucination"))
+            elif is_unauthorized_internal_tool:
+                # Silently drop LLM-generated _notify_artifact_save calls
+                # The system already injected a valid call, so this is redundant
+                log.info(
+                    "%s Silently dropping redundant LLM-generated call to internal tool: '%s' (id=%s). "
+                    "The system already injected a valid call for this artifact save.",
+                    log_identifier,
+                    tool_name,
+                    function_call_id,
+                )
+                silently_dropped_calls.append(part.function_call)
+                # Don't add to invalid_calls - we don't want to send an error response
+            elif not is_valid_format:
+                log.warning(
+                    "%s Detected invalid tool name format: '%s'. "
+                    "Tool names must match pattern: ^[a-zA-Z][a-zA-Z0-9_-]*$",
+                    log_identifier,
+                    tool_name,
+                )
+                invalid_calls.append((part.function_call, "invalid_format"))
+            else:
+                # Valid tool call, keep it
+                valid_parts.append(part)
+        else:
+            # Non-function-call parts (text, etc.) are always kept
+            valid_parts.append(part)
+
+    if not invalid_calls and not silently_dropped_calls:
+        # All tool names are valid, no modification needed
+        return None
+
+    # If we only have silently dropped calls (no invalid calls needing error responses),
+    # just return a modified response without forcing another turn
+    if not invalid_calls and silently_dropped_calls:
+        log.info(
+            "%s Silently dropped %d redundant internal tool call(s). No error response needed.",
+            log_identifier,
+            len(silently_dropped_calls),
+        )
+        # Return modified response with the dropped calls removed, preserving turn_complete
+        return LlmResponse(
+            content=adk_types.Content(
+                role="model",
+                parts=valid_parts if valid_parts else [adk_types.Part(text=" ")],
+            ),
+            partial=False,
+            turn_complete=llm_response.turn_complete,  # Preserve original turn_complete
+        )
+    
+    # Log the invalid calls for debugging
+    for fc, reason in invalid_calls:
+        log.error(
+            "%s Removing invalid tool call: name='%s', reason='%s', args=%s",
+            log_identifier,
+            fc.name,
+            reason,
+            fc.args,
+        )
+    
+    # Create synthetic error responses for the invalid calls
+    # This informs the LLM that its tool call was invalid
+    error_response_parts = []
+    for fc, reason in invalid_calls:
+        if reason == "placeholder_hallucination":
+            error_message = (
+                f"ERROR: '{fc.name}' is not a valid tool name. "
+                "You appear to have hallucinated a placeholder. "
+                "Please use only the actual tools available to you. "
+                "Review the available tools and try again with a real tool name."
+            )
+        else:
+            error_message = (
+                f"ERROR: '{fc.name}' is not a valid tool name format. "
+                "Tool names must start with a letter and contain only letters, numbers, underscores, and hyphens. "
+                "Please use only the actual tools available to you."
+            )
+        
+        error_response_part = adk_types.Part.from_function_response(
+            name=fc.name,
+            response={"status": "error", "message": error_message},
+        )
+        # Preserve the function call ID for proper pairing
+        if fc.id:
+            error_response_part.function_response.id = fc.id
+        error_response_parts.append(error_response_part)
+    
+    # If there are still valid parts, keep them and add error responses
+    if valid_parts or error_response_parts:
+        # Reconstruct the response with valid parts
+        # The error responses will be added as a follow-up content
+        modified_response = LlmResponse(
+            content=adk_types.Content(
+                role="model",
+                parts=valid_parts if valid_parts else [adk_types.Part(text=" ")],
+            ),
+            partial=False,
+            turn_complete=False,  # Force another turn to handle the error
+        )
+        
+        # Store the error responses in callback state for the framework to handle
+        # The ADK will automatically pair these with the function calls
+        if error_response_parts:
+            # Create a synthetic tool response content to inject
+            error_content = adk_types.Content(
+                role="tool",
+                parts=error_response_parts,
+            )
+            # Store in callback state for potential use by other callbacks
+            callback_context.state["sanitized_tool_error_content"] = error_content
+            
+            log.info(
+                "%s Sanitized %d invalid tool call(s). Response modified to continue gracefully.",
+                log_identifier,
+                len(invalid_calls),
+            )
+        
+        return modified_response
+    
+    # Edge case: all parts were invalid function calls
+    # Return a response asking the LLM to try again
+    log.warning(
+        "%s All function calls in response were invalid. Returning error guidance.",
+        log_identifier,
+    )
+    
+    return LlmResponse(
+        content=adk_types.Content(
+            role="model",
+            parts=[
+                adk_types.Part(
+                    text="I apologize, but I made an error in my tool usage. "
+                    "Let me review the available tools and try again with the correct tool names."
+                )
+            ],
+        ),
+        partial=False,
+        turn_complete=True,
+    )
+
+
+# ============================================================================
+# OpenAPI Tool Audit Logging Callbacks
+# ============================================================================
+
+
+def _is_openapi_tool(tool: BaseTool) -> bool:
+    """
+    Check if a tool is an OpenAPI-based RestApiTool.
+
+    Args:
+        tool: The tool to check
+
+    Returns:
+        True if the tool is OpenAPI-based, False otherwise
+    """
+    # Check the origin attribute set by SAM at initialization
+    return getattr(tool, "origin", None) == "openapi"
+
+
+def _extract_openapi_base_url(tool: BaseTool) -> Optional[str]:
+    """Extract base URL from an OpenAPI tool."""
+    try:
+        # Check for endpoint.base_url attribute (RestApiTool has this)
+        if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "base_url"):
+            return str(tool.endpoint.base_url)
+
+        if hasattr(tool, "base_url") and tool.base_url:
+            return str(tool.base_url)
+
+        if hasattr(tool, "_base_url") and tool._base_url:
+            return str(tool._base_url)
+
+        if hasattr(tool, "_config") and isinstance(tool._config, dict):
+            return tool._config.get("base_url")
+
+    except Exception as e:
+        log.debug("Could not extract base URL: %s", e)
+
+    return None
+
+
+def _extract_openapi_http_method(tool: BaseTool) -> Optional[str]:
+    """Extract HTTP method from OpenAPI tool."""
+    # Get from tool's endpoint (RestApiTool)
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "method"):
+        return str(tool.endpoint.method).upper()
+    return None
+
+
+def _extract_openapi_operation_id(tool: BaseTool) -> Optional[str]:
+    """Extract operation ID from OpenAPI tool."""
+    # Get from tool's operation (RestApiTool)
+    if hasattr(tool, "operation") and hasattr(tool.operation, "operationId"):
+        return tool.operation.operationId
+    return None
+
+
+def _extract_openapi_metadata(tool: BaseTool) -> Dict[str, Optional[str]]:
+    """
+    Extract all OpenAPI metadata from tool in one pass.
+
+    Returns:
+        Dict with keys: operation_id, base_url, http_method, endpoint_path, tool_uri
+    """
+    operation_id = _extract_openapi_operation_id(tool)
+    base_url = _extract_openapi_base_url(tool)
+    http_method = _extract_openapi_http_method(tool)
+
+    # Extract endpoint path template (safe, non-sensitive)
+    endpoint_path = None
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "path"):
+        endpoint_path = tool.endpoint.path
+
+    # Construct URI from base URL + path template
+    tool_uri = base_url
+    if base_url and endpoint_path:
+        base_clean = base_url.rstrip('/')
+        path_clean = endpoint_path.lstrip('/') if endpoint_path.startswith('/') else endpoint_path
+        tool_uri = f"{base_clean}/{path_clean}"
+
+    return {
+        "operation_id": operation_id,
+        "base_url": base_url,
+        "http_method": http_method,
+        "endpoint_path": endpoint_path,
+        "tool_uri": tool_uri,
+    }
+
+
+def audit_log_openapi_tool_invocation_start(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    host_component: "SamAgentComponent",
+) -> None:
+    """
+    ADK before_tool_callback for OpenAPI tools - logs invocation start.
+
+    Args:
+        tool: The tool being invoked
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        host_component: The SamAgentComponent host
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool)
+
+    # Build action field and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    # Store start time for latency calculation
+    tool_context.state["audit_start_time_ms"] = int(time.time() * 1000)
+
+    # Log in MCP-style format: [openapi-tool] [corr:xxx] message
+    log.info(
+        "[openapi-tool] [%s] Tool call: %s - User: %s, Agent: %s, URI: %s",
+        correlation_tag,
+        action,
+        user_id,
+        host_component.agent_name,
+        metadata['tool_uri'],
+        extra={
+            "user_id": user_id,
+            "agent_id": host_component.agent_name,
+            "tool_name": tool.name,
+            "session_id": session_id,
+            "operation_id": metadata['operation_id'],
+            "tool_uri": metadata['tool_uri'],
+        },
+    )
+
+
+async def audit_log_openapi_tool_execution_result(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: Any,
+    host_component: "SamAgentComponent",
+) -> Optional[Dict[str, Any]]:
+    """
+    ADK after_tool_callback for OpenAPI tools - logs execution result.
+
+    Args:
+        tool: The tool that was executed
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        tool_response: Tool response (NOT logged for sensitive data)
+        host_component: The SamAgentComponent host
+
+    Returns:
+        None (does not modify the response)
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return None
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool)
+
+    # Check if request failed or is pending auth
+    has_error = False
+    is_pending_auth = False
+    error_type = None
+
+    if isinstance(tool_response, dict):
+        has_error = "error" in tool_response
+        is_pending_auth = tool_response.get("pending") == True
+
+        # Extract error type if present (safe, non-sensitive)
+        if has_error:
+            error_data = tool_response.get("error", {})
+            if isinstance(error_data, dict):
+                error_type = error_data.get("type") or error_data.get("code")
+            elif isinstance(error_data, str):
+                # If error is just a string, try to classify it
+                error_lower = error_data.lower()
+                if "auth" in error_lower or "unauthorized" in error_lower:
+                    error_type = "auth_error"
+                elif "not found" in error_lower or "404" in error_lower:
+                    error_type = "not_found"
+                elif "timeout" in error_lower:
+                    error_type = "timeout"
+                elif "network" in error_lower or "connection" in error_lower:
+                    error_type = "network_error"
+
+    # Calculate latency
+    latency_ms = None
+    start_time = tool_context.state.get("audit_start_time_ms")
+    if start_time:
+        latency_ms = int(time.time() * 1000) - start_time
+
+    # Build action and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    if has_error:
+        # Build error message with optional error type
+        error_msg = f"[openapi-tool] [{correlation_tag}] {action} failed - Path: {metadata['endpoint_path'] or 'unknown'}"
+        if error_type:
+            error_msg += f", Error Type: {error_type}"
+        error_msg += f", Latency: {latency_ms}ms, User: {user_id}"
+
+        log.error(
+            error_msg,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "endpoint_path": metadata['endpoint_path'],
+                "error_type": error_type,
+            },
+        )
+    elif is_pending_auth:
+        log.warning(
+            "[openapi-tool] [%s] %s pending auth - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "status": "pending_auth",
+            },
+        )
+    else:
+        # SUCCESS format
+        log.info(
+            "[openapi-tool] [%s] %s completed - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+            },
+        )
+
+    return None

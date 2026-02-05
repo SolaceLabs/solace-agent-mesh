@@ -1,18 +1,26 @@
 import React, { type ReactNode, useState, useRef, useEffect, useCallback } from "react";
 
-import { useConfigContext } from "@/lib/hooks/useConfigContext";
 import type { A2AEventSSEPayload, TaskFE } from "@/lib/types";
 import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
-import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
+import { getApiBearerToken } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+
+// Helper to strip gateway timestamp prefix from request text
+const stripGatewayTimestamp = (text: string): string => {
+    const gatewayTimestampPattern = /^Request received by gateway at:[^\n]*\n?/;
+    return text.replace(gatewayTimestampPattern, "").trim();
+};
+
+interface SubscriptionResponse {
+    stream_id: string;
+    sse_endpoint_url: string;
+}
 
 interface TaskProviderProps {
     children: ReactNode;
 }
 
 export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
-    const { configServerUrl } = useConfigContext();
-    const apiPrefix = `${configServerUrl}/api/v1`;
-
     const [taskMonitorSseStreamId, setTaskMonitorSseStreamId] = useState<string | null>(null);
     const [isTaskMonitorConnecting, setIsTaskMonitorConnecting] = useState<boolean>(false);
     const [isTaskMonitorConnected, setIsTaskMonitorConnected] = useState<boolean>(false);
@@ -61,7 +69,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                     if (params?.message?.parts) {
                         const textParts = params.message.parts.filter(p => p.kind === "text" && p.text);
                         if (textParts.length > 0) {
-                            initialRequestText = textParts[textParts.length - 1].text;
+                            // Join all text parts and strip any gateway timestamp prefix
+                            const combinedText = textParts.map(p => p.text).join("\n");
+                            initialRequestText = stripGatewayTimestamp(combinedText);
                         }
                     }
                 }
@@ -134,17 +144,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         console.log("TaskMonitorContext: Attempting to connect stream...");
         setIsTaskMonitorConnecting(true);
         try {
-            const subscribePayload = { subscription_targets: [{ type: "my_a2a_messages" }] };
-            const subscribeResponse = await authenticatedFetch(`${apiPrefix}/visualization/subscribe`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(subscribePayload),
-                credentials: "include",
-            });
+            const subscribeResponse = await api.webui.post("/api/v1/visualization/subscribe", { subscription_targets: [{ type: "my_a2a_messages" }] }, { fullResponse: true });
             if (!subscribeResponse.ok) {
                 const errorData = await subscribeResponse.json().catch(() => ({ detail: "Failed to subscribe" }));
-
-                // Handle structured error responses from the new backend
                 if (errorData.error_type === "authorization_failure") {
                     const message = errorData.message || "Access denied: insufficient permissions";
                     const suggestion = errorData.suggested_action ? ` ${errorData.suggested_action}` : "";
@@ -157,12 +159,12 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || errorData.message || `Subscription failed: ${subscribeResponse.statusText}`);
                 }
             }
-            const subscriptionData = await subscribeResponse.json();
+            const subscriptionData: SubscriptionResponse = await subscribeResponse.json();
             setTaskMonitorSseStreamId(subscriptionData.stream_id);
-            const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? `${configServerUrl || ""}${subscriptionData.sse_endpoint_url}` : subscriptionData.sse_endpoint_url;
+            const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? api.webui.getFullUrl(subscriptionData.sse_endpoint_url) : subscriptionData.sse_endpoint_url;
 
             if (taskMonitorEventSourceRef.current) taskMonitorEventSourceRef.current.close();
-            const accessToken = getAccessToken();
+            const accessToken = getApiBearerToken();
             const finalSseUrl = `${sseUrl}${accessToken ? `?token=${accessToken}` : ""}`;
             const newEventSource = new EventSource(finalSseUrl, { withCredentials: true });
             taskMonitorEventSourceRef.current = newEventSource;
@@ -185,7 +187,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 reconnectionTimeoutRef.current = null;
             }
         }
-    }, [apiPrefix, configServerUrl, isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
+    }, [isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
 
     const attemptReconnection = useCallback(() => {
         // Prevent multiple concurrent reconnection attempts
@@ -215,7 +217,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     const disconnectTaskMonitorStream = useCallback(async () => {
         console.log("TaskMonitorContext: Disconnecting stream...");
 
-        // Clear any pending reconnection attempts
         if (reconnectionTimeoutRef.current) {
             clearTimeout(reconnectionTimeoutRef.current);
             reconnectionTimeoutRef.current = null;
@@ -228,10 +229,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         const streamIdToUnsubscribe = taskMonitorSseStreamIdRef.current;
         if (streamIdToUnsubscribe) {
             try {
-                await authenticatedFetch(`${apiPrefix}/visualization/${streamIdToUnsubscribe}/unsubscribe`, {
-                    method: "DELETE",
-                    credentials: "include",
-                });
+                await api.webui.delete(`/api/v1/visualization/${streamIdToUnsubscribe}/unsubscribe`);
             } catch (error) {
                 console.error(`TaskMonitorContext: Error unsubscribing from stream ID: ${streamIdToUnsubscribe}`, error);
             }
@@ -245,7 +243,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setHighlightedStepIdState(null);
         setReconnectionAttempts(0);
         setIsReconnecting(false);
-    }, [apiPrefix]);
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -256,21 +254,21 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             }
             const streamIdForUnsubscribe = taskMonitorSseStreamIdRef.current;
             if (streamIdForUnsubscribe) {
-                // Use sendBeacon for unmount cleanup if supported, otherwise fetch with keepalive
+                const unsubscribeUrl = api.webui.getFullUrl(`/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`);
                 if (navigator.sendBeacon) {
                     const formData = new FormData();
-                    // For DELETE, this is a bit of a workaround. The key is that the request is made.
-                    navigator.sendBeacon(`${apiPrefix}/visualization/${streamIdForUnsubscribe}/unsubscribe`, formData);
+                    navigator.sendBeacon(unsubscribeUrl, formData);
                 } else {
-                    authenticatedFetch(`${apiPrefix}/visualization/${streamIdForUnsubscribe}/unsubscribe`, {
-                        method: "DELETE",
-                        credentials: "include",
-                        keepalive: true,
-                    }).catch((err: Error) => console.error("TaskMonitorProvider: Error in final unsubscribe on unmount (fetch):", err));
+                    api.webui
+                        .delete(`/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`, {
+                            credentials: "include",
+                            keepalive: true,
+                        })
+                        .catch((err: Error) => console.error("TaskMonitorProvider: Error in final unsubscribe on unmount (fetch):", err));
                 }
             }
         };
-    }, [apiPrefix]);
+    }, []);
 
     useEffect(() => {
         if (!isTaskMonitorConnected && !isTaskMonitorConnecting) {
@@ -300,6 +298,68 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setHighlightedStepIdState(stepId);
     }, []);
 
+    const loadTaskFromBackend = useCallback(async (taskId: string): Promise<TaskFE | null> => {
+        try {
+            const data = await api.webui.get(`/api/v1/tasks/${taskId}/events`);
+
+            const allTasks = data.tasks as Record<string, { events: A2AEventSSEPayload[]; initial_request_text: string }>;
+            const loadedTasks: Record<string, TaskFE> = {};
+
+            for (const [tid, taskData] of Object.entries(allTasks)) {
+                const events = taskData.events;
+                const rawRequestText = taskData.initial_request_text || "Task loaded from history";
+                const taskFE: TaskFE = {
+                    taskId: tid,
+                    initialRequestText: stripGatewayTimestamp(rawRequestText),
+                    events: events,
+                    firstSeen: new Date(events[0]?.timestamp || Date.now()),
+                    lastUpdated: new Date(events[events.length - 1]?.timestamp || Date.now()),
+                };
+                loadedTasks[tid] = taskFE;
+            }
+
+            setMonitoredTasks(prevTasks => ({
+                ...prevTasks,
+                ...loadedTasks,
+            }));
+
+            setMonitoredTaskOrder(prevOrder => {
+                if (prevOrder.includes(taskId)) {
+                    return prevOrder;
+                }
+                return [taskId, ...prevOrder];
+            });
+
+            return loadedTasks[taskId] || null;
+        } catch (error) {
+            console.error(`TaskProvider: Error loading task ${taskId} from backend:`, error);
+            return null;
+        }
+    }, []);
+
+    const registerTaskEarly = useCallback((taskId: string, initialRequestText: string) => {
+        console.log(`TaskProvider: Pre-registering task ${taskId} before SSE events arrive`);
+        setMonitoredTasks(prevTasks => {
+            // Only register if not already present
+            if (prevTasks[taskId]) {
+                console.log(`TaskProvider: Task ${taskId} already exists, skipping pre-registration`);
+                return prevTasks;
+            }
+
+            const now = new Date();
+            const newTask: TaskFE = {
+                taskId,
+                initialRequestText,
+                events: [],
+                firstSeen: now,
+                lastUpdated: now,
+            };
+
+            setMonitoredTaskOrder(prevOrder => [taskId, ...prevOrder.filter(id => id !== taskId)]);
+            return { ...prevTasks, [taskId]: newTask };
+        });
+    }, []);
+
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,
         isTaskMonitorConnected,
@@ -312,6 +372,8 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         connectTaskMonitorStream,
         disconnectTaskMonitorStream,
         setHighlightedStepId,
+        loadTaskFromBackend,
+        registerTaskEarly,
     };
 
     return <TaskContext.Provider value={contextValue}>{children}</TaskContext.Provider>;

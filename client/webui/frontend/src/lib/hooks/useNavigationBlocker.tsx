@@ -1,24 +1,6 @@
-import React, { useState, useEffect, useCallback, type JSX } from "react";
+import { useState, useEffect, useCallback, type JSX } from "react";
 import { useBlocker } from "react-router-dom";
-import { ConfirmationDialog } from "@/lib/components/ui";
-
-// Confirmation dialog component used as blocker
-interface NavigationConfirmationDialogProps {
-    isOpen: boolean;
-    onConfirm: () => void;
-    onCancel: () => void;
-}
-
-const NavigationConfirmationDialog: React.FC<NavigationConfirmationDialogProps> = ({ isOpen, onConfirm, onCancel }) => {
-    return isOpen ? (
-        <ConfirmationDialog
-            title="Unsaved Changes Will Be Discarded"
-            message="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
-            onClose={onCancel}
-            onConfirm={onConfirm}
-        />
-    ) : null;
-};
+import { ConfirmationDialog } from "../components/common/ConfirmationDialog";
 
 interface UseNavigationBlockerReturn {
     NavigationBlocker: () => JSX.Element | null;
@@ -30,16 +12,22 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
     const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
     const [isNavigationAllowed, setIsNavigationAllowed] = useState(false);
     const [blockingEnabled, setBlockingEnabled] = useState(false);
+    const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
 
-    const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-        blockingEnabled && !isNavigationAllowed && currentLocation.pathname !== nextLocation.pathname
-    );
+    const blocker = useBlocker(({ currentLocation, nextLocation }) => blockingEnabled && !isNavigationAllowed && currentLocation.pathname !== nextLocation.pathname);
 
     useEffect(() => {
         if (blocker.state === "blocked") {
             setShowConfirmationDialog(true);
         }
     }, [blocker]);
+
+    useEffect(() => {
+        if (isNavigationAllowed && pendingNavigation) {
+            pendingNavigation();
+            setPendingNavigation(null);
+        }
+    }, [isNavigationAllowed, pendingNavigation]);
 
     const confirmNavigation = useCallback(() => {
         setShowConfirmationDialog(false);
@@ -57,13 +45,20 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
 
     const allowNavigation = useCallback((navigationFn: () => void) => {
         setIsNavigationAllowed(true);
-        setTimeout(() => {
-            navigationFn();
-        }, 0);
+        setPendingNavigation(() => navigationFn);
     }, []);
 
     const NavigationBlocker = useCallback(() => {
-        return <NavigationConfirmationDialog isOpen={showConfirmationDialog} onConfirm={confirmNavigation} onCancel={cancelNavigation} />;
+        return (
+            <ConfirmationDialog
+                title="Unsaved Changes Will Be Discarded"
+                description="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
+                open={showConfirmationDialog}
+                onConfirm={confirmNavigation}
+                onCancel={cancelNavigation}
+                onOpenChange={setShowConfirmationDialog}
+            />
+        );
     }, [showConfirmationDialog, confirmNavigation, cancelNavigation]);
 
     return {

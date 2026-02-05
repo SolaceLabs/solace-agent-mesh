@@ -66,6 +66,3 @@ client/webui/frontend/cypress/
 .github/actions
 .github/workflows
 wss-unified-agent.config
-
-# Lock file (not needed in container)
-uv.lock

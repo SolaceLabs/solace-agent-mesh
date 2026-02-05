@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert } from "lucide-react";
+import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert, Pencil } from "lucide-react";
 
-import { Button, Spinner, Badge } from "@/lib/components/ui";
-import { FileIcon } from "../file/FileIcon";
-import { cn } from "@/lib/utils";
+import { Button, Spinner } from "@/lib/components/ui";
+import { cn, formatBytes } from "@/lib/utils";
+
+import { FileIcon, ProjectBadge } from "../file";
 
 const ErrorState: React.FC<{ message: string }> = ({ message }) => (
     <div className="w-full rounded-lg border border-[var(--color-error-w100)] bg-[var(--color-error-wMain-50)] p-3">
@@ -26,6 +27,7 @@ export interface ArtifactBarProps {
         onDelete?: () => void;
         onInfo?: () => void;
         onExpand?: () => void;
+        onEdit?: () => void;
     };
     // For creation progress
     bytesTransferred?: number;
@@ -38,8 +40,26 @@ export interface ArtifactBarProps {
     source?: string; // Source of the artifact (e.g., "project")
 }
 
-export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, expandedContent, context = "chat", isDeleted = false, version, source }) => {
+export const ArtifactBar: React.FC<ArtifactBarProps> = ({
+    filename,
+    description,
+    mimeType,
+    size,
+    status,
+    expandable = false,
+    expanded = false,
+    onToggleExpand,
+    actions,
+    bytesTransferred,
+    error,
+    expandedContent,
+    context = "chat",
+    isDeleted = false,
+    version,
+    source,
+}) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
+    const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
 
     useEffect(() => {
         if (expandedContent) {
@@ -52,6 +72,20 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
             return () => clearTimeout(timer);
         }
     }, [expandedContent]);
+
+    // Track dark mode changes
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            setIsDarkMode(document.documentElement.classList.contains("dark"));
+        });
+
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"],
+        });
+
+        return () => observer.disconnect();
+    }, []);
 
     // Validate required props
     if (!filename || typeof filename !== "string") {
@@ -76,7 +110,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
         switch (status) {
             case "in-progress":
                 return {
-                    text: bytesTransferred ? `Creating... ${(bytesTransferred / 1024).toFixed(1)}KB` : "Creating...",
+                    text: bytesTransferred ? `Creating... ${formatBytes(bytesTransferred)}` : "Creating...",
                     className: "text-[var(--color-info-wMain)]",
                 };
             case "failed":
@@ -86,7 +120,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                 };
             case "completed":
                 return {
-                    text: size ? `${(size / 1024).toFixed(1)}KB` : "",
+                    text: size ? formatBytes(size) : "",
                 };
             default:
                 return {
@@ -135,9 +169,36 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
         }
     };
 
+    // Define shadow and background colors based on theme
+    // Light mode: background-w10, shadow using secondary-w8040
+    // Dark mode: background-wMain, shadow using primary-w90 (darker shadows)
+    const backgroundColor = isDarkMode ? "var(--color-background-wMain)" : "var(--color-background-w10)";
+    const restingShadow = isDarkMode ? "0px 1px 4px 0px var(--color-primary-w90)" : "0px 1px 4px 0px var(--color-secondary-w8040)";
+    const hoverShadow = isDarkMode ? "0px 2px 8px 0px var(--color-primary-w90)" : "0px 2px 8px 0px var(--color-secondary-w8040)";
+
+    // Determine if this artifact is clickable
+    const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
+    // Show shadow for all artifacts in chat context (not deleted), but only enable hover for clickable ones
+    const showShadow = context === "chat" && !isDeleted;
+
     return (
         <div
-            className={`dark:bg-muted/30 w-full ${status === "completed" && actions?.onPreview && !isDeleted ? "cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md" : ""} ${context === "list" ? "border-b" : "border-border rounded-md border"} ${isDeleted ? "opacity-60" : ""}`}
+            className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
+            style={{
+                backgroundColor,
+                boxShadow: showShadow ? restingShadow : undefined,
+                borderRadius: context === "list" ? undefined : "4px",
+            }}
+            onMouseEnter={e => {
+                if (isClickable) {
+                    e.currentTarget.style.boxShadow = hoverShadow;
+                }
+            }}
+            onMouseLeave={e => {
+                if (isClickable) {
+                    e.currentTarget.style.boxShadow = restingShadow;
+                }
+            }}
             onClick={isDeleted ? undefined : handleBarClick}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">
@@ -152,14 +213,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                             {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
                         </div>
                         {/* Project badge */}
-                        {source === "project" && (
-                            <Badge
-                                variant="outline"
-                                className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
-                            >
-                                Project
-                            </Badge>
-                        )}
+                        {source === "project" && <ProjectBadge />}
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}
@@ -239,6 +293,24 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                             tooltip={expanded ? "Collapse" : "Expand"}
                         >
                             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </Button>
+                    )}
+
+                    {status === "completed" && actions?.onEdit && !isDeleted && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={e => {
+                                e.stopPropagation();
+                                try {
+                                    actions.onEdit?.();
+                                } catch (error) {
+                                    console.error("Edit failed:", error);
+                                }
+                            }}
+                            tooltip="Edit Description"
+                        >
+                            <Pencil className="h-4 w-4" />
                         </Button>
                     )}
 

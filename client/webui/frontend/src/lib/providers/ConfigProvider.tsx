@@ -1,23 +1,29 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { authenticatedFetch } from "../utils/api";
 import { ConfigContext, type ConfigContextValue } from "../contexts";
 import { useCsrfContext } from "../hooks/useCsrfContext";
 import { EmptyState } from "../components";
+import { api } from "../api";
 
 interface BackendConfig {
     frontend_server_url: string;
+    frontend_platform_server_url: string;
     frontend_auth_login_url: string;
     frontend_use_authorization: boolean;
     frontend_welcome_message: string;
     frontend_redirect_url: string;
     frontend_collect_feedback: boolean;
     frontend_bot_name: string;
+    frontend_logo_url: string;
     frontend_feature_enablement?: Record<string, boolean>;
     persistence_enabled?: boolean;
+    identity_service_type: string | null;
     validation_limits?: {
         projectNameMax?: number;
         projectDescriptionMax?: number;
         projectInstructionsMax?: number;
+    };
+    background_tasks_config?: {
+        default_timeout_ms?: number;
     };
 }
 
@@ -48,9 +54,10 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
             setError(null);
 
             try {
-                let configResponse = await authenticatedFetch("/api/v1/config", {
+                let configResponse = await api.webui.get("/api/v1/config", {
                     credentials: "include",
                     headers: { Accept: "application/json" },
+                    fullResponse: true,
                 });
 
                 let data: BackendConfig;
@@ -65,12 +72,13 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                             throw new Error("Failed to obtain CSRF token after config fetch failed.");
                         }
                         console.log("Retrying config fetch with CSRF token...");
-                        configResponse = await authenticatedFetch("/api/v1/config", {
+                        configResponse = await api.webui.get("/api/v1/config", {
                             credentials: "include",
                             headers: {
                                 "X-CSRF-TOKEN": csrfToken,
                                 Accept: "application/json",
                             },
+                            fullResponse: true,
                         });
                         if (!configResponse.ok) {
                             const errorTextRetry = await configResponse.text();
@@ -95,24 +103,47 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 // Compute projectsEnabled from feature flags
                 const projectsEnabled = data.frontend_feature_enablement?.projects ?? false;
 
+                // Extract background tasks config from feature enablement
+                const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
+                const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
+
+                // Check if platform service is configured
+                const platformConfigured = Boolean(data.frontend_platform_server_url);
+
+                // Extract auto title generation config from feature enablement
+                const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
-                    configServerUrl: data.frontend_server_url,
+                    webuiServerUrl: data.frontend_server_url,
+                    platformServerUrl: data.frontend_platform_server_url,
                     configAuthLoginUrl: data.frontend_auth_login_url,
                     configUseAuthorization: effectiveUseAuthorization,
                     configWelcomeMessage: data.frontend_welcome_message,
                     configRedirectUrl: data.frontend_redirect_url,
                     configCollectFeedback: data.frontend_collect_feedback,
                     configBotName: data.frontend_bot_name,
+                    configLogoUrl: data.frontend_logo_url,
                     configFeatureEnablement: data.frontend_feature_enablement ?? {},
                     frontend_use_authorization: data.frontend_use_authorization,
                     persistenceEnabled: data.persistence_enabled ?? false,
                     projectsEnabled,
                     validationLimits: data.validation_limits,
+                    backgroundTasksEnabled,
+                    backgroundTasksDefaultTimeoutMs,
+                    platformConfigured,
+                    autoTitleGenerationEnabled,
+                    identityServiceType: data.identity_service_type,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
                     setConfig(mappedConfig);
+
+                    api.configure(mappedConfig.webuiServerUrl, mappedConfig.platformServerUrl);
+                    console.log("API client configured with:", {
+                        webui: mappedConfig.webuiServerUrl,
+                        platform: mappedConfig.platformServerUrl,
+                    });
                 }
                 console.log("App config processed and set:", mappedConfig);
             } catch (err: unknown) {
@@ -142,26 +173,12 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
 
     // If config is not yet available, handle loading and error states.
     if (loading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-                <div className="text-center">
-                    <div className="border-solace-green mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2"></div>
-                    <h1 className="text-2xl text-black dark:text-white">Loading Configuration...</h1>
-                </div>
-            </div>
-        );
+        return <EmptyState variant="loading" title="Loading Configuration..." className="h-screen w-screen" />;
     }
 
     if (error) {
-        return <EmptyState className="h-screen w-screen" variant="error" title="Configuration Error" subtitle="Please check the backend server and network connection, then refresh the page." />;
+        return <EmptyState variant="error" title="Configuration Error" subtitle="Please check the backend server and network connection, then refresh the page." className="h-screen w-screen" />;
     }
 
-    return (
-        <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-            <div className="text-center">
-                <div className="border-solace-green mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2"></div>
-                <h1 className="text-2xl">Initializing Application...</h1>
-            </div>
-        </div>
-    );
+    return <EmptyState variant="loading" title="Initializing Application..." className="h-screen w-screen" />;
 }

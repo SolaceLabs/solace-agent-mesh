@@ -37,45 +37,50 @@ export function getSelectionBoundingRect(): DOMRect | null {
  * Ensures the menu stays within viewport boundaries
  */
 export function calculateMenuPosition(rect: DOMRect): { x: number; y: number } {
-    const menuWidth = 200; // Approximate menu width
-    const menuHeight = 150; // Approximate menu height
-    const padding = 10;
+    const menuWidth = 160; // Approximate menu width (matches max-w-[160px])
+    const menuHeight = 40; // Approximate menu height for single button
+    const padding = 8;
 
-    let x = rect.left + rect.width / 2;
-    let y = rect.bottom + padding;
+    // Position at the left edge of the selection
+    let x = rect.left;
+    // Position above the selection
+    let y = rect.top - menuHeight - padding;
 
     // Adjust if menu would go off right edge
-    if (x + menuWidth / 2 > window.innerWidth) {
-        x = window.innerWidth - menuWidth / 2 - padding;
+    if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - padding;
     }
 
     // Adjust if menu would go off left edge
-    if (x - menuWidth / 2 < 0) {
-        x = menuWidth / 2 + padding;
+    if (x < padding) {
+        x = padding;
     }
 
-    // If menu would go off bottom, show above selection
-    if (y + menuHeight > window.innerHeight) {
-        y = rect.top - menuHeight - padding;
-    }
-
-    // If still off screen, position at top
-    if (y < 0) {
-        y = padding;
+    // If menu would go off top, show below selection instead
+    if (y < padding) {
+        y = rect.bottom + padding;
     }
 
     return { x, y };
 }
 
 /**
- * Validates if a selection is meaningful (not just whitespace, meets minimum length)
+ * Maximum character limit for text selection in "Ask Followup" feature.
+ * This prevents users from selecting excessively large amounts of text
+ * which could subvert the pasted text flow and lead to very large prompts.
+ */
+export const MAX_SELECTION_LENGTH = 5000;
+
+/**
+ * Validates if a selection is meaningful (not just whitespace, meets minimum length,
+ * and doesn't exceed maximum length)
  */
 export function isValidSelection(text: string | null): boolean {
     if (!text) {
         return false;
     }
     const trimmed = text.trim();
-    return trimmed.length >= 3 && /\S/.test(trimmed);
+    return trimmed.length >= 3 && trimmed.length <= MAX_SELECTION_LENGTH && /\S/.test(trimmed);
 }
 
 /**
@@ -86,4 +91,24 @@ export function clearBrowserSelection(): void {
     if (selection) {
         selection.removeAllRanges();
     }
+}
+
+/**
+ * Checks if the selection is fully contained within a single container element.
+ * This prevents selections that span across multiple messages.
+ * @param range - The selection range to check
+ * @param container - The container element that should fully contain the selection
+ * @returns True if the selection is fully contained within the container
+ */
+export function isSelectionContainedInElement(range: Range, container: HTMLElement): boolean {
+    // Check if both the start and end of the selection are within the container
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+
+    // Check if start container is within the element
+    const startInContainer = container.contains(startContainer);
+    // Check if end container is within the element
+    const endInContainer = container.contains(endContainer);
+
+    return startInContainer && endInContainer;
 }

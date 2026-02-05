@@ -1,40 +1,57 @@
-import React, { useState, useEffect } from "react";
-import { RefreshCcw } from "lucide-react";
+import React, { useState, useCallback, useEffect } from "react";
+import { RefreshCcw, Upload } from "lucide-react";
+import { useLoaderData, useNavigate } from "react-router-dom";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
-import { ProjectsListView } from "./ProjectsListView";
+import { ProjectImportDialog } from "./ProjectImportDialog";
+import { ProjectCards } from "./ProjectCards";
 import { ProjectDetailView } from "./ProjectDetailView";
+import { ShareProjectDialog } from "./ShareProjectDialog";
 import { useProjectContext } from "@/lib/providers";
-import { useChatContext } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
-import { Header } from "@/lib/components/header";
-import { Button } from "@/lib/components/ui";
+import { Button, Header } from "@/lib/components";
+import { downloadBlob, getErrorMessage } from "@/lib/utils";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
+import { useExportProject, useImportProject } from "@/lib/api/projects/hooks";
 
-interface ProjectsPageProps {
-    onProjectActivated: () => void;
-}
+export const ProjectsPage: React.FC = () => {
+    const navigate = useNavigate();
+    const loaderData = useLoaderData<{ projectId?: string }>();
 
-export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }) => {
+    // hooks
+    const { projects, isLoading, createProject, activeProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
+    const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
+    const { configFeatureEnablement } = useConfigContext();
+    const exportProjectMutation = useExportProject();
+    const importProjectMutation = useImportProject();
+
+    // Project sharing is a enterprise feature, it is not available in community edition.
+    const isSharingEnabled = configFeatureEnablement?.projectSharingEnabled ?? false;
+
+    // state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showImportDialog, setShowImportDialog] = useState(false);
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+    const [projectToShare, setProjectToShare] = useState<Project | null>(null);
 
-    const {
-        isLoading,
-        createProject,
-        selectedProject,
-        setSelectedProject,
-        setActiveProject,
-        refetch,
-        searchQuery,
-        setSearchQuery,
-        filteredProjects,
-        deleteProject,
-    } = useProjectContext();
-    const { handleNewSession, handleSwitchSession } = useChatContext();
+    useEffect(() => {
+        if (loaderData?.projectId) {
+            const project = projects.find(p => p.id === loaderData.projectId) || null;
+            setSelectedProject(project);
+        } else if (activeProject) {
+            // redirect to active project if no projectId in URL
+            navigate(`/projects/${activeProject.id}`, { replace: true });
+        } else {
+            setSelectedProject(null);
+            setActiveProject(null);
+        }
+    }, [loaderData?.projectId, activeProject, projects, navigate, setActiveProject]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
@@ -47,32 +64,31 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
 
             const newProject = await createProject(formData);
             setShowCreateDialog(false);
-            
+
             // Refetch projects to get artifact counts
             await refetch();
-            
-            // Auto-select the newly created project
-            setSelectedProject(newProject);
+
+            navigate(`/projects/${newProject.id}`);
         } finally {
             setIsCreating(false);
         }
     };
 
     const handleProjectSelect = (project: Project) => {
-        setSelectedProject(project);
+        navigate(`/projects/${project.id}`);
     };
 
     const handleBackToList = () => {
-        setSelectedProject(null);
+        setActiveProject(null);
+        navigate("/projects");
     };
 
     const handleChatClick = async (sessionId: string) => {
-
         if (selectedProject) {
             setActiveProject(selectedProject);
         }
         await handleSwitchSession(sessionId);
-        onProjectActivated();
+        navigate("chat");
     };
 
     const handleCreateNew = () => {
@@ -99,41 +115,57 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         }
     };
 
-    const handleStartNewChat = async () => {
-        // Activate the project and start a new chat session
+    const handleStartNewChat = useCallback(async () => {
         if (selectedProject) {
             setActiveProject(selectedProject);
             // Start a new session while preserving the active project context
             await handleNewSession(true);
-            // Navigate to chat page
-            onProjectActivated();
-            // Dispatch focus event after navigation to ensure ChatInputArea is mounted
-            setTimeout(() => {
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("focus-chat-input"));
-                }
-            }, 150);
+            navigate("chat");
+        }
+    }, [selectedProject, setActiveProject, handleNewSession, navigate]);
+
+    const handleExport = async (project: Project) => {
+        try {
+            const blob = await exportProjectMutation.mutateAsync(project.id);
+            const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
+            downloadBlob(blob, filename);
+
+            addNotification("Project exported", "success");
+        } catch (error) {
+            console.error("Failed to export project:", error);
+            displayError({ title: "Failed to Export Project", error: getErrorMessage(error, "An unknown error occurred while exporting the project.") });
         }
     };
 
-    // Handle event-based navigation for state-based routing
-    // Listens for navigate-to-project events and selects the project
-    useEffect(() => {
-        const handleNavigateToProject = (event: CustomEvent) => {
-            const { projectId } = event.detail;
-            const project = filteredProjects.find(p => p.id === projectId);
-            if (project) {
-                setSelectedProject(project);
+    const handleImport = async (file: File, options: { preserveName: boolean; customName?: string }) => {
+        try {
+            const result = await importProjectMutation.mutateAsync({ file, options });
+
+            // Show warnings if any (combine into single notification for better UX)
+            if (result.warnings && result.warnings.length > 0) {
+                const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
+                addNotification(warningMessage, "info");
             }
-        };
 
-        window.addEventListener("navigate-to-project", handleNavigateToProject as EventListener);
-        return () => {
-            window.removeEventListener("navigate-to-project", handleNavigateToProject as EventListener);
-        };
-    }, [filteredProjects, setSelectedProject]);
+            // Navigate to the newly imported project
+            navigate(`/projects/${result.projectId}`);
+            addNotification(`Project imported with ${result.artifactsImported} artifacts`, "success");
+        } catch (error) {
+            console.error("Failed to import project:", error);
+            throw error; // Re-throw to let dialog handle it
+        }
+    };
 
-    // Determine if we should show list or detail view
+    const handleShareClick = (project: Project) => {
+        setProjectToShare(project);
+        setIsShareDialogOpen(true);
+    };
+
+    const handleShareDialogClose = () => {
+        setIsShareDialogOpen(false);
+        setProjectToShare(null);
+    };
+
     const showDetailView = selectedProject !== null;
 
     return (
@@ -142,42 +174,38 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 <Header
                     title="Projects"
                     buttons={[
-                        <Button key="refresh-projects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
+                        <Button key="importProject" variant="ghost" title="Import Project" onClick={() => setShowImportDialog(true)}>
+                            <Upload className="size-4" />
+                            Import Project
+                        </Button>,
+                        <Button key="refreshProjects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
                             <RefreshCcw className="size-4" />
-                            Refresh
-                        </Button>
+                            Refresh Projects
+                        </Button>,
                     ]}
                 />
             )}
-            
-            <div className="flex-1 min-h-0">
+
+            <div className="min-h-0 flex-1">
                 {showDetailView ? (
-                    <ProjectDetailView
-                        project={selectedProject}
-                        onBack={handleBackToList}
-                        onStartNewChat={handleStartNewChat}
-                        onChatClick={handleChatClick}
-                    />
+                    <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} onShare={isSharingEnabled ? () => handleShareClick(selectedProject) : undefined} />
                 ) : (
-                    <ProjectsListView
+                    <ProjectCards
                         projects={filteredProjects}
                         searchQuery={searchQuery}
                         onSearchChange={setSearchQuery}
                         onProjectClick={handleProjectSelect}
                         onCreateNew={handleCreateNew}
                         onDelete={handleDeleteClick}
+                        onExport={handleExport}
                         isLoading={isLoading}
+                        onShare={isSharingEnabled ? handleShareClick : undefined}
                     />
                 )}
             </div>
-            
+
             {/* Create Project Dialog */}
-            <CreateProjectDialog
-                isOpen={showCreateDialog}
-                onClose={() => setShowCreateDialog(false)}
-                onSubmit={handleCreateProject}
-                isSubmitting={isCreating}
-            />
+            <CreateProjectDialog isOpen={showCreateDialog} onClose={() => setShowCreateDialog(false)} onSubmit={handleCreateProject} isSubmitting={isCreating} />
 
             {/* Delete Project Dialog */}
             <DeleteProjectDialog
@@ -190,6 +218,12 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 project={projectToDelete}
                 isDeleting={isDeleting}
             />
+
+            {/* Import Project Dialog */}
+            <ProjectImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
+
+            {/* Share Project Dialog */}
+            {projectToShare && <ShareProjectDialog isOpen={isShareDialogOpen} onClose={handleShareDialogClose} project={projectToShare} />}
         </div>
     );
 };

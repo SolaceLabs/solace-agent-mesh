@@ -2,6 +2,7 @@
 Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
+from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Generator
@@ -19,6 +20,7 @@ from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
+from ...gateway.http_sse.services.audio_service import AudioService
 from ...gateway.http_sse.services.project_service import ProjectService
 from ...gateway.http_sse.services.feedback_service import FeedbackService
 from ...gateway.http_sse.services.people_service import PeopleService
@@ -32,6 +34,7 @@ from .repository.interfaces import ITaskRepository
 from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
+from ...shared.api import get_current_user
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +47,7 @@ except ImportError:
 
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from .component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
 SessionLocal: sessionmaker = None
@@ -208,7 +211,7 @@ def get_user_id(
             )
 
     # If we reach here, AuthMiddleware didn't set user state properly
-    use_authorization = session_manager.use_authorization
+    use_authorization = api_config.get("frontend_use_authorization", False) if api_config else False
 
     if use_authorization:
         # When OAuth is enabled, we should never reach here - AuthMiddleware should have handled authentication
@@ -385,7 +388,7 @@ def get_app_config(
 
 async def get_user_config(
     request: Request,
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     app_config: dict[str, Any] = Depends(get_app_config),
@@ -393,67 +396,28 @@ async def get_user_config(
     """
     FastAPI dependency to get the user-specific configuration.
     """
+    user_id = user.get("id")
     log.debug(f"get_user_config called for user_id: {user_id}")
-    gateway_context = {
-        "gateway_id": component.gateway_id,
-        "gateway_app_config": app_config,
-        "request": request,
-    }
-    return await config_resolver.resolve_user_config(
-        user_id, gateway_context, app_config
-    )
+
+    # TODO: DATAGO-114659-split-cleanup
+    gateway_context = {}
+    if getattr(component, "gateway_id", None):
+        gateway_context = {
+            "gateway_id": component.gateway_id,
+            "gateway_app_config": app_config,
+            "request": request,
+        }
+    return await config_resolver.resolve_user_config(user, gateway_context, app_config)
 
 
-class ValidatedUserConfig:
-    """
-    FastAPI dependency class for validating user scopes and returning user config.
+# DEPRECATED: Import from shared location
+# Re-export for backward compatibility
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig, get_current_user
 
-    This class creates a callable dependency that validates a user has the required
-    scopes before allowing access to protected endpoints.
 
-    Args:
-        required_scopes: List of scope strings required for authorization
-
-    Raises:
-        HTTPException: 403 if user lacks required scopes
-
-    Example:
-        @router.get("/artifacts")
-        async def list_artifacts(
-            user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
-        ):
-    """
-
-    def __init__(self, required_scopes: list[str]):
-        self.required_scopes = required_scopes
-
-    async def __call__(
-        self,
-        request: Request,
-        config_resolver: ConfigResolver = Depends(get_config_resolver),
-        user_config: dict[str, Any] = Depends(get_user_config),
-    ) -> dict[str, Any]:
-        user_id = user_config.get("user_profile", {}).get("id")
-
-        log.debug(
-            f"ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}"
-        )
-
-        # Validate scopes
-        if not config_resolver.is_feature_enabled(
-            user_config,
-            {"tool_metadata": {"required_scopes": self.required_scopes}},
-            {},
-        ):
-            log.warning(
-                f"Authorization denied for user '{user_id}'. Required scopes: {self.required_scopes}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Not authorized. Required scopes: {self.required_scopes}",
-            )
-
-        return user_config
+# Note: ValidatedUserConfig implementation moved to:
+# src/solace_agent_mesh/shared/auth/dependencies.py
+# This re-export will be removed in v2.0.0
 
 
 def get_shared_artifact_service(
@@ -617,3 +581,69 @@ def get_session_business_service_optional(
         )
         return None
     return SessionService(component=component)
+
+
+def get_audio_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> AudioService:
+    """FastAPI dependency to get an instance of AudioService."""
+    log.debug("[get_audio_service] called")
+    # AudioService expects app_config which contains the speech configuration
+    app_config = component.component_config.get('app_config', {}) if hasattr(component, 'component_config') else {}
+    log.debug(f"[get_audio_service] app_config keys: {app_config.keys()}")
+    return AudioService(config=app_config)
+
+
+def get_title_generation_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> "TitleGenerationService":
+    """FastAPI dependency to get an instance of TitleGenerationService."""
+    from .services.title_generation_service import TitleGenerationService
+    
+    log.debug("get_title_generation_service called")
+    
+    # Get model configuration from component (same pattern as prompt_builder_assistant)
+    model_config = component.get_config("model", {})
+    
+    return TitleGenerationService(model_config=model_config)
+
+
+
+def get_user_display_name(
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> str:
+    """
+    FastAPI dependency to get a user's display name.
+    Returns email if available, otherwise returns user_id.
+    """
+    # Try to get user info from request state (set by AuthMiddleware)
+    if hasattr(request.state, "user") and request.state.user:
+        user_info = request.state.user
+        # Try email first, then name, then fall back to user_id
+        return user_info.get("email") or user_info.get("name") or user_id
+
+    return user_id
+
+
+def get_authorization_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    config_resolver: ConfigResolver = Depends(get_config_resolver),
+) -> Any | None:
+    """
+    Returns:
+        AuthorizationService instance from enterprise, or None if not available
+    """
+    # Check if this is the enterprise config resolver with authorization support
+    if not hasattr(config_resolver, 'get_authorization_service'):
+        log.debug("Base config resolver - no authorization service available")
+        return None
+
+    gateway_id = getattr(component, "gateway_id", None)
+    app_config = component.component_config.get("app_config", {})
+
+    try:
+        return config_resolver.get_authorization_service(gateway_id, app_config)
+    except Exception as e:
+        log.warning(f"Failed to get authorization service: {e}")
+        return None

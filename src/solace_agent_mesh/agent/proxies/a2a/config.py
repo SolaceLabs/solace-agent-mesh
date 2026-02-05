@@ -28,7 +28,7 @@ class AuthenticationConfig(SamConfigBase):
     """Authentication configuration for downstream A2A agents."""
 
     type: Optional[
-        Literal["static_bearer", "static_apikey", "oauth2_client_credentials"]
+        Literal["static_bearer", "static_apikey", "oauth2_client_credentials", "oauth2_authorization_code"]
     ] = Field(
         default=None,
         description="Authentication type. If not specified, inferred from 'scheme' for backward compatibility.",
@@ -47,11 +47,11 @@ class AuthenticationConfig(SamConfigBase):
     )
     client_id: Optional[str] = Field(
         default=None,
-        description="OAuth 2.0 client identifier (required for oauth2_client_credentials type).",
+        description="OAuth 2.0 client identifier (required for oauth2_client_credentials and oauth2_authorization_code types).",
     )
     client_secret: Optional[str] = Field(
         default=None,
-        description="OAuth 2.0 client secret (required for oauth2_client_credentials type).",
+        description="OAuth 2.0 client secret (required for oauth2_client_credentials type, optional for oauth2_authorization_code).",
     )
     scope: Optional[str] = Field(
         default=None,
@@ -61,6 +61,20 @@ class AuthenticationConfig(SamConfigBase):
         default=3300,
         gt=0,
         description="How long to cache OAuth 2.0 tokens before refresh, in seconds (default: 3300 = 55 minutes).",
+    )
+
+    # NEW fields for oauth2_authorization_code
+    authorization_url: Optional[str] = Field(
+        default=None,
+        description="OAuth 2.0 authorization endpoint URL (for oauth2_authorization_code type). Can override agent card URL.",
+    )
+    redirect_uri: Optional[str] = Field(
+        default=None,
+        description="OAuth 2.0 redirect URI (required for oauth2_authorization_code type).",
+    )
+    scopes: Optional[List[str]] = Field(
+        default=None,
+        description="OAuth 2.0 scopes as a list of strings (optional for oauth2_authorization_code type).",
     )
 
     @model_validator(mode="after")
@@ -121,10 +135,35 @@ class AuthenticationConfig(SamConfigBase):
                     "OAuth 2.0 client credentials flow requires 'client_secret'."
                 )
 
+        elif auth_type == "oauth2_authorization_code":
+            # Validate client_id
+            if not self.client_id:
+                raise ValueError(
+                    "OAuth 2.0 authorization code flow requires 'client_id'."
+                )
+
+            # Validate redirect_uri
+            if not self.redirect_uri:
+                raise ValueError(
+                    "OAuth 2.0 authorization code flow requires 'redirect_uri'."
+                )
+
+            # Optional: Validate authorization_url if provided (can also come from agent card)
+            if self.authorization_url:
+                try:
+                    parsed_url = urlparse(self.authorization_url)
+                    if parsed_url.scheme not in ["https", "http"]:
+                        raise ValueError(
+                            f"OAuth 2.0 'authorization_url' must use HTTP(S). "
+                            f"Got scheme: '{parsed_url.scheme}'"
+                        )
+                except Exception as e:
+                    raise ValueError(f"Failed to parse 'authorization_url': {e}")
+
         else:
             raise ValueError(
                 f"Unsupported authentication type '{auth_type}'. "
-                f"Supported types: static_bearer, static_apikey, oauth2_client_credentials."
+                f"Supported types: static_bearer, static_apikey, oauth2_client_credentials, oauth2_authorization_code."
             )
 
         return self
@@ -136,6 +175,18 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     url: str = Field(
         ...,
         description="The base URL of the downstream A2A agent's HTTP endpoint.",
+    )
+    agent_card_path: str = Field(
+        default="/.well-known/agent-card.json",
+        description="Path to the agent card endpoint (relative to the base URL). "
+        "Only used when agent_card_data is not provided.",
+    )
+    agent_card_data: Optional[dict] = Field(
+        default=None,
+        description="Static agent card data embedded directly in configuration. "
+        "If provided, the agent card will be constructed from this data instead of "
+        "being fetched from the agent card endpoint. This allows proxying agents without "
+        "agent card endpoints.",
     )
     authentication: Optional[AuthenticationConfig] = Field(
         default=None,
@@ -160,11 +211,80 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     task_headers: Optional[List[HttpHeaderConfig]] = Field(
         default=None,
         description="Custom HTTP headers to include when invoking A2A tasks. "
-        "These headers are added alongside authentication headers. Note: The A2A SDK's "
-        "AuthInterceptor applies authentication headers after these are set, so custom "
-        "headers cannot override authentication. For custom auth, omit the 'authentication' "
-        "config and use task_headers to set auth headers directly.",
+        "These headers are applied at the httpx client level and are supplementary to "
+        "authentication. The A2A SDK's AuthInterceptor applies authentication headers at "
+        "the middleware level using the security scheme name from the agent card, so "
+        "task_headers cannot override authentication headers. For custom authentication, "
+        "omit the 'authentication' config and use task_headers to set auth headers directly.",
     )
+    convert_progress_updates: bool = Field(
+        default=True,
+        description="If true, converts TextPart messages in intermediate TaskStatusUpdateEvents "
+        "to AgentProgressUpdateData (shown as status updates in the UI). If false, passes TextPart "
+        "messages through unchanged."
+    )
+    agent_card_authentication: Optional[AuthenticationConfig] = Field(
+        default=None,
+        description="Authentication configuration for agent card fetching. If specified, "
+        "takes precedence over the 'authentication' field for agent card requests. "
+        "Supports all authentication types: static_bearer, static_apikey, oauth2_client_credentials, oauth2_authorization_code.",
+    )
+    task_authentication: Optional[AuthenticationConfig] = Field(
+        default=None,
+        description="Authentication configuration for task invocations. If specified, "
+        "takes precedence over the 'authentication' field for task requests. "
+        "Supports all authentication types: static_bearer, static_apikey, oauth2_client_credentials, oauth2_authorization_code.",
+    )
+    display_name: Optional[str] = Field(
+        default=None,
+        description="Display name for this agent shown in UI. If not provided, uses fetched card's name. "
+                    "Stored in agent card's display-name extension (https://solace.com/a2a/extensions/display-name).",
+    )
+
+    @model_validator(mode="after")
+    def validate_auth_configuration(self) -> "A2AProxiedAgentConfig":
+        """
+        Validates authentication configuration and handles backward compatibility.
+
+        Rules:
+        1. If agent_card_authentication or task_authentication are specified, they take precedence
+        2. If only legacy 'authentication' is specified:
+           - Applies to tasks by default
+           - Applies to agent card only if use_auth_for_agent_card=True
+        3. use_auth_for_agent_card is only considered when using legacy 'authentication'
+        4. Warns if use_auth_for_agent_card is set when using new fields
+        """
+        from solace_ai_connector.common.log import log
+
+        has_legacy_auth = self.authentication is not None
+        has_agent_card_auth = self.agent_card_authentication is not None
+        has_task_auth = self.task_authentication is not None
+
+        # Case 1: New fields are used
+        if has_agent_card_auth or has_task_auth:
+            # Warn if legacy flag is set with new fields (but no legacy auth)
+            if self.use_auth_for_agent_card and not has_legacy_auth:
+                log.warning(
+                    "Configuration Warning: 'use_auth_for_agent_card' is ignored when "
+                    "'agent_card_authentication' or 'task_authentication' are specified. "
+                    "Agent: %s",
+                    self.name,
+                )
+
+            # If legacy auth is also specified, log info about precedence
+            if has_legacy_auth:
+                log.info(
+                    "Agent '%s': New auth fields take precedence over legacy 'authentication'. "
+                    "agent_card_authentication=%s, task_authentication=%s",
+                    self.name,
+                    "configured" if has_agent_card_auth else "not configured",
+                    "configured" if has_task_auth else "not configured",
+                )
+
+        # Cases 2 and 3: Legacy authentication or no authentication
+        # These cases are handled at runtime by the component's helper methods
+
+        return self
 
 
 class A2AProxyAppConfig(BaseProxyAppConfig):

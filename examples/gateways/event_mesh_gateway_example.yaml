@@ -39,7 +39,7 @@ apps:
       event_handlers: # List of handlers for incoming Solace messages
         - name: "generic_json_event_handler"
           subscriptions:
-            - topic: "test/ed/>"
+            - topic: "acme/events/>"
               qos: 1
           input_expression: "template:Summarize this data: {{json://input.payload}}"
           payload_encoding: "utf-8"
@@ -53,35 +53,84 @@ apps:
           forward_context: # Optional: Forward data from input to output handlers
             correlation_id: "input.user_properties:correlation_id" # Example: forward a correlation ID
 
-  # Example of a second event handler, commented out
-  #       - name: "text_event_to_specific_agent"
-  #         subscriptions:
-  #           - topic: "external/systemB/events/text/>"
-  #         input_expression: "template:User query from System B: {{text://input.payload}}"
-  #         payload_encoding: "utf-8" # Or "none" if payload is already string
-  #         payload_format: "text"
-  #         on_success: "text_response_to_systemB"
-  #         target_agent_name_expression: "static:TextAnalysisAgent" # Example of static via expression
+        # Workflow handler - workflows use structured invocation automatically
+        # Use target_workflow_name instead of target_agent_name for workflows
+        - name: "order_workflow_handler"
+          subscriptions:
+            - topic: "acme/orders/>"
+              qos: 1
+          target_workflow_name: "OrderProcessingWorkflow"
+          input_expression: "input.payload"
+          payload_encoding: "utf-8"
+          payload_format: "json"
+          on_success: "workflow_success_handler"
+          on_error: "error_response_handler"
+          default_user_identity: "anonymous_event_mesh_user"
+          forward_context:
+            correlation_id: "input.user_properties:correlation_id"
 
-      output_handlers: # Optional: List of handlers for publishing A2A responses
+        # Structured invocation to a regular agent (gateway provides schemas)
+        # Use this when you want schema-validated input/output with a non-workflow agent
+        - name: "structured_agent_handler"
+          subscriptions:
+            - topic: "acme/data/validate/>"
+              qos: 1
+          target_agent_name: "DataValidationAgent"
+          structured_invocation:
+            input_schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  additionalProperties: true
+              required: [data]
+            output_schema:
+              type: object
+              properties:
+                valid:
+                  type: boolean
+                errors:
+                  type: array
+              required: [valid]
+          input_expression: "input.payload"
+          payload_encoding: "utf-8"
+          payload_format: "json"
+          on_success: "workflow_success_handler"
+          on_error: "error_response_handler"
+          default_user_identity: "anonymous_event_mesh_user"
+          forward_context:
+            correlation_id: "input.user_properties:correlation_id"
+
+        # Example of additional handlers - add more as needed for your use case
+        # - name: "text_event_to_specific_agent"
+        #   subscriptions:
+        #     - topic: "external/systemB/events/text/>"
+        #   input_expression: "template:User query from System B: {{text://input.payload}}"
+        #   payload_encoding: "utf-8" # Or "none" if payload is already string
+        #   payload_format: "text"
+        #   on_success: "text_response_to_systemB"
+        #   target_agent_name_expression: "static:TextAnalysisAgent" # Example of static via expression
+
+      output_handlers: # List of handlers for publishing A2A responses
         - name: "success_response_handler"
           max_file_size_for_base64_bytes: 5242880 # 5MB limit for embedded files
-          topic_expression: "template:test/responses/{{text://user_data.forward_context:correlation_id}}"
-          payload_expression: "task_response:text" # Use the simplified payload's text field
+          topic_expression: "template:acme/responses/{{text://user_data.forward_context:correlation_id}}"
+          payload_expression: "task_response:text" # Use the text field from the response
           payload_encoding: "utf-8"
           payload_format: "text"
-          # output_schema: # Optional: Embedded JSON schema for validation
-          #   type: "object"
-          #   properties:
-          #     processed_data: { "type": "string" }
-          #   required: ["processed_data"]
-          # on_validation_error: "log" # Or "drop"
+
         - name: "error_response_handler"
-          topic_expression: "template:test/errors/{{text://user_data.forward_context:correlation_id}}"
-          payload_expression: "task_response:a2a_task_response.error" # Send the full error object
+          topic_expression: "template:acme/errors/{{text://user_data.forward_context:correlation_id}}"
+          payload_expression: "task_response:a2a_task_response.error"
           payload_encoding: "utf-8"
           payload_format: "json"
 
+        # Output handler for structured responses (workflows and structured agent invocations)
+        - name: "workflow_success_handler"
+          topic_expression: "template:acme/responses/{{text://user_data.forward_context:correlation_id}}"
+          payload_expression: "input.payload:structured_output"  # Extract structured_output field
+          payload_encoding: "utf-8"
+          payload_format: "json"
 
       ############################
       # 1. UPDATE REQUIRED - END #

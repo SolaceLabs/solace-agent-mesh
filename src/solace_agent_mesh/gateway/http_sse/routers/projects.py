@@ -1,6 +1,7 @@
 """
 Project API controller using 3-tiered architecture.
 """
+from __future__ import annotations
 
 import json
 from typing import List, Optional, Dict, Any
@@ -14,12 +15,14 @@ from fastapi import (
     File,
     UploadFile,
 )
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from solace_ai_connector.common.log import log
 
 from ..dependencies import get_project_service, get_sac_component, get_api_config, get_db
 from ..services.project_service import ProjectService
-from ..shared.auth_utils import get_current_user
+from solace_agent_mesh.shared.api.auth_utils import get_current_user
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 from ....common.a2a.types import ArtifactInfo
 from typing import TYPE_CHECKING
 
@@ -36,6 +39,10 @@ from .dto.requests.project_requests import (
 from .dto.responses.project_responses import (
     ProjectResponse,
     ProjectListResponse,
+)
+from .dto.project_dto import (
+    ProjectImportOptions,
+    ProjectImportResponse,
 )
 
 router = APIRouter()
@@ -150,10 +157,17 @@ async def create_project(
         )
     
     except ValueError as e:
-        log.warning(f"Validation error creating project: {e}")
+        error_msg = str(e)
+        log.warning(f"Validation error creating project: {error_msg}")
+        # Check if this is a file size error
+        if "exceeds maximum" in error_msg.lower() and "bytes" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=error_msg
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=error_msg
         )
     except Exception as e:
         log.error("Error creating project for user %s: %s", user_id, e)
@@ -370,11 +384,14 @@ async def add_project_artifacts(
         )
         return results
     except ValueError as e:
-        log.warning(f"Validation error adding artifacts to project {project_id}: {e}")
-        # Could be 404 if project not found, or 400 if other validation fails
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        log.warning(f"Validation error adding artifacts to project {project_id}: {error_msg}")
+        # Could be 404 if project not found, 413 if file too large, or 400 if other validation fails
+        if "not found" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
+        if "exceeds maximum" in error_msg.lower() and "bytes" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=error_msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except Exception as e:
         log.error(
             "Error adding artifacts to project %s for user %s: %s",
@@ -385,6 +402,62 @@ async def add_project_artifacts(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add artifacts to project"
+        )
+
+
+@router.patch("/projects/{project_id}/artifacts/{filename}", status_code=status.HTTP_200_OK)
+async def update_project_artifact_metadata(
+    project_id: str,
+    filename: str,
+    description: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Update metadata (description) for a project artifact.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} attempting to update metadata for artifact '{filename}' in project {project_id}")
+
+    try:
+        success = await project_service.update_artifact_metadata(
+            db=db,
+            project_id=project_id,
+            user_id=user_id,
+            filename=filename,
+            description=description,
+        )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project or artifact not found, or access denied."
+            )
+        
+        return {"message": "Artifact metadata updated successfully"}
+    except ValueError as e:
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning(f"Permission denied updating artifact metadata in project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning(f"Validation error updating artifact metadata in project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(
+            "Error updating metadata for artifact '%s' in project %s for user %s: %s",
+            filename,
+            project_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update artifact metadata"
         )
 
 
@@ -418,8 +491,14 @@ async def delete_project_artifact(
         
         return
     except ValueError as e:
-        log.warning(f"Validation error deleting artifact from project {project_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning(f"Permission denied deleting artifact from project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning(f"Validation error deleting artifact from project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except HTTPException:
         raise
     except Exception as e:
@@ -475,7 +554,7 @@ async def update_project(
         }
 
         project = project_service.update_project(**kwargs)
-        
+
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -483,7 +562,7 @@ async def update_project(
             )
 
         log.info("Project %s updated successfully", project_id)
-        
+
         return ProjectResponse(
             id=project.id,
             name=project.name,
@@ -494,14 +573,19 @@ async def update_project(
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
-    
+
     except HTTPException:
         raise
     except ValueError as e:
-        log.warning("Validation error updating project %s: %s", project_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        )
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (422)
+        if "permission denied" in error_msg.lower():
+            log.warning("Permission denied updating project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning("Validation error updating project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)
+
     except Exception as e:
         log.error(
             "Error updating project %s for user %s: %s",
@@ -545,14 +629,19 @@ async def delete_project(
             )
 
         log.info("Project %s soft deleted successfully", project_id)
-    
+
     except HTTPException:
         raise
     except ValueError as e:
-        log.warning("Validation error deleting project %s: %s", project_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning("Permission denied deleting project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning("Validation error deleting project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+
     except Exception as e:
         log.error(
             "Error deleting project %s for user %s: %s",
@@ -563,4 +652,140 @@ async def delete_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete project"
+        )
+
+
+@router.get("/projects/{project_id}/export")
+async def export_project(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Export project as ZIP containing:
+    - project.json (metadata)
+    - artifacts/ (all project files)
+    
+    Excludes: chat history, sessions
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} exporting project {project_id}")
+    
+    try:
+        # Create ZIP file
+        zip_buffer = await project_service.export_project_as_zip(
+            db=db,
+            project_id=project_id,
+            user_id=user_id
+        )
+        
+        # Get project for filename
+        project = project_service.get_project(db, project_id, user_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        # Create safe filename
+        safe_name = project.name.replace(' ', '-').replace('/', '-')
+        filename = f"project-{safe_name}-{project_id[:8]}.zip"
+        
+        log.info(f"Project {project_id} exported successfully")
+        
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    
+    except ValueError as e:
+        log.warning(f"Validation error exporting project {project_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        log.error(f"Error exporting project {project_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to export project"
+        )
+
+
+@router.post("/projects/import", response_model=ProjectImportResponse)
+async def import_project(
+    file: UploadFile = File(...),
+    options: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Import project from ZIP file.
+    Handles name conflicts automatically.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} importing project from {file.filename}")
+    
+    try:
+        # Validate file type
+        if not file.filename.endswith('.zip'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be a ZIP archive"
+            )
+        
+        # Parse options
+        import_options = ProjectImportOptions()
+        if options:
+            try:
+                options_dict = json.loads(options)
+                import_options = ProjectImportOptions(**options_dict)
+            except (json.JSONDecodeError, ValueError) as e:
+                log.warning(f"Invalid import options: {e}")
+        
+        # Import project
+        project, artifacts_count, warnings = await project_service.import_project_from_zip(
+            db=db,
+            zip_file=file,
+            user_id=user_id,
+            preserve_name=import_options.preserve_name,
+            custom_name=import_options.custom_name,
+        )
+        
+        log.info(
+            f"Project imported successfully: {project.id} with {artifacts_count} artifacts"
+        )
+        
+        return ProjectImportResponse(
+            project_id=project.id,
+            name=project.name,
+            artifacts_imported=artifacts_count,
+            warnings=warnings,
+        )
+    
+    except ValueError as e:
+        error_msg = str(e)
+        log.warning(f"Validation error importing project: {error_msg}")
+        # Check if this is a file size error 
+        if "exceeds maximum" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    except Exception as e:
+        log.error(f"Error importing project: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to import project"
         )

@@ -82,7 +82,9 @@ from .protocol import (
     get_client_response_topic,
     get_client_status_subscription_topic,
     get_client_status_topic,
-    get_discovery_topic,
+    get_agent_discovery_topic,
+    get_gateway_discovery_topic,
+    get_discovery_subscription_topic,
     get_gateway_response_subscription_topic,
     get_gateway_response_topic,
     get_gateway_status_subscription_topic,
@@ -123,6 +125,14 @@ from .translation import (
     translate_a2a_to_adk_content,
     translate_adk_function_response_to_a2a_parts,
     translate_adk_part_to_a2a_filepart,
+)
+from ..data_parts import (
+    StructuredInvocationRequest,
+    StructuredInvocationResult,
+)
+from .utils import (
+    is_gateway_card,
+    extract_gateway_info,
 )
 
 __all__ = [
@@ -199,7 +209,9 @@ __all__ = [
     "get_client_response_topic",
     "get_client_status_subscription_topic",
     "get_client_status_topic",
-    "get_discovery_topic",
+    "get_agent_discovery_topic",
+    "get_gateway_discovery_topic",
+    "get_discovery_subscription_topic",
     "get_gateway_response_subscription_topic",
     "get_gateway_response_topic",
     "get_gateway_status_subscription_topic",
@@ -238,4 +250,9 @@ __all__ = [
     "translate_a2a_to_adk_content",
     "translate_adk_function_response_to_a2a_parts",
     "translate_adk_part_to_a2a_filepart",
+    "StructuredInvocationRequest",
+    "StructuredInvocationResult",
+    # utils.py
+    "is_gateway_card",
+    "extract_gateway_info",
 ]

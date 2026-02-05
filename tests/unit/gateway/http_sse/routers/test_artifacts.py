@@ -102,15 +102,27 @@ class TestUploadArtifactWithSession:
     @pytest.fixture
     def mock_dependencies(self):
         """Create mock dependencies for upload tests."""
-        # Mock FastAPI Request
+        # Mock FastAPI Request - don't include Content-Length to avoid early size check
         mock_request = MagicMock()
-        mock_request.headers = {}
+        mock_request.headers = {}  # No Content-Length header
         
-        # Mock UploadFile
+        # Mock UploadFile - use BytesIO for natural read/seek behavior
         mock_upload_file = MagicMock(spec=UploadFile)
         mock_upload_file.filename = "test.txt"
         mock_upload_file.content_type = "text/plain"
-        mock_upload_file.read = AsyncMock(return_value=b"test content")
+
+        # Use BytesIO to naturally handle read/seek (supports new validate-seek-read pattern)
+        test_content = b"test content"
+        file_buffer = io.BytesIO(test_content)
+
+        async def async_read(size=-1):
+            return file_buffer.read(size)
+
+        async def async_seek(offset):
+            return file_buffer.seek(offset)
+
+        mock_upload_file.read = async_read
+        mock_upload_file.seek = async_seek
         mock_upload_file.close = AsyncMock()
         
         # Mock artifact service
@@ -131,7 +143,13 @@ class TestUploadArtifactWithSession:
         
         # Mock component
         mock_component = MagicMock()
-        mock_component.get_config.return_value = "TestApp"
+        def mock_get_config(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 100 * 1024 * 1024  # 100MB
+            return default
+        mock_component.get_config.side_effect = mock_get_config
         
         # Mock validation functions
         mock_validate_session = MagicMock(return_value=True)
@@ -432,8 +450,19 @@ class TestUploadArtifactWithSession:
         """Test upload with large file content."""
         # Setup
         deps = mock_dependencies
-        large_content = b"x" * (10 * 1024 * 1024)  # 10MB file
-        deps['upload_file'].read = AsyncMock(return_value=large_content)
+        large_content = b"x" * (9 * 1024 * 1024)  # 9MB file (well below 100MB limit to account for overhead)
+
+        # Use BytesIO for natural read/seek behavior
+        large_buffer = io.BytesIO(large_content)
+
+        async def async_read_large(size=-1):
+            return large_buffer.read(size)
+
+        async def async_seek_large(offset):
+            return large_buffer.seek(offset)
+
+        deps['upload_file'].read = async_read_large
+        deps['upload_file'].seek = async_seek_large
         
         # Mock successful upload result
         with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
@@ -471,8 +500,8 @@ class TestUploadArtifactWithSession:
         deps = mock_dependencies
         
         file_types = [
-            ("image.png", "image/png", b"\x89PNG\r\n\x1a\n"),
-            ("document.pdf", "application/pdf", b"%PDF-1.4"),
+            ("image.png", "image/png", b"\x89PNG\r\n\x1a\n" + b"x" * 100),
+            ("document.pdf", "application/pdf", b"%PDF-1.4" + b"x" * 100),
             ("data.json", "application/json", b'{"key": "value"}'),
             ("script.py", "text/x-python", b"print('hello')"),
             ("unknown.xyz", "application/octet-stream", b"binary data")
@@ -481,7 +510,18 @@ class TestUploadArtifactWithSession:
         for filename, mime_type, content in file_types:
             deps['upload_file'].filename = filename
             deps['upload_file'].content_type = mime_type
-            deps['upload_file'].read = AsyncMock(return_value=content)
+
+            # Use BytesIO for each file type
+            file_buffer = io.BytesIO(content)
+
+            async def async_read_file(size=-1):
+                return file_buffer.read(size)
+
+            async def async_seek_file(offset):
+                return file_buffer.seek(offset)
+
+            deps['upload_file'].read = async_read_file
+            deps['upload_file'].seek = async_seek_file
             
             # Mock successful upload result
             with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
@@ -595,7 +635,13 @@ class TestListArtifactVersions:
         mock_artifact_service.list_versions = AsyncMock()
         
         mock_component = MagicMock()
-        mock_component.get_config.return_value = "TestApp"
+        def mock_get_config(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 100 * 1024 * 1024  # 100MB
+            return default
+        mock_component.get_config.side_effect = mock_get_config
         
         mock_validate_session = MagicMock(return_value=True)
         
@@ -754,7 +800,13 @@ class TestListArtifacts:
         mock_artifact_service = MagicMock(spec=BaseArtifactService)
         
         mock_component = MagicMock()
-        mock_component.get_config.return_value = "TestApp"
+        def mock_get_config(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 100 * 1024 * 1024  # 100MB
+            return default
+        mock_component.get_config.side_effect = mock_get_config
         
         mock_validate_session = MagicMock(return_value=True)
         
@@ -844,7 +896,13 @@ class TestDeleteArtifact:
         mock_artifact_service.delete_artifact = AsyncMock()
         
         mock_component = MagicMock()
-        mock_component.get_config.return_value = "TestApp"
+        def mock_get_config(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 100 * 1024 * 1024  # 100MB
+            return default
+        mock_component.get_config.side_effect = mock_get_config
         
         mock_validate_session = MagicMock(return_value=True)
         

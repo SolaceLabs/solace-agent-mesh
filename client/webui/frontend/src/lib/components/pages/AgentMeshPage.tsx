@@ -1,54 +1,73 @@
-import { useState } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
-import { Button, EmptyState, Header, LayoutSelector } from "@/lib/components";
+import { Button, EmptyState, Header } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
+import { WorkflowList } from "@/lib/components/workflows";
 import { useChatContext } from "@/lib/hooks";
-import { pluginRegistry } from "@/lib/plugins";
-import { LayoutType } from "@/lib/types";
+import { isWorkflowAgent } from "@/lib/utils/agentUtils";
 import { RefreshCcw } from "lucide-react";
+
+type AgentMeshTab = "agents" | "workflows";
 
 export function AgentMeshPage() {
     const { agents, agentsLoading, agentsError, agentsRefetch } = useChatContext();
-    const [currentLayout, setCurrentLayout] = useState<string>("cards");
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    const renderLayoutContent = () => {
-        if (currentLayout === LayoutType.CARDS) {
-            return <AgentMeshCards agents={agents} />;
-        }
+    // Read active tab from URL, default to "agents"
+    const activeTab: AgentMeshTab = (searchParams.get("tab") as AgentMeshTab) || "agents";
 
-        // For other layouts, check if the layout exists in the registry
-        const layoutPlugin = pluginRegistry.getPluginById(currentLayout);
-        if (layoutPlugin) {
-            return layoutPlugin.render({ agents });
+    const setActiveTab = (tab: AgentMeshTab) => {
+        if (tab === "agents") {
+            // Remove tab param for default tab
+            searchParams.delete("tab");
         } else {
-            console.warn(`Layout ${currentLayout} not found, falling back to cards layout`);
-            return <AgentMeshCards agents={agents} />;
+            searchParams.set("tab", tab);
         }
+        setSearchParams(searchParams);
     };
+
+    const { regularAgents, workflowAgents } = useMemo(() => {
+        const regular = agents.filter(agent => !isWorkflowAgent(agent));
+        const workflows = agents.filter(agent => isWorkflowAgent(agent));
+        return { regularAgents: regular, workflowAgents: workflows };
+    }, [agents]);
+
+    const tabs = [
+        {
+            id: "agents",
+            label: "Agents",
+            isActive: activeTab === "agents",
+            onClick: () => setActiveTab("agents"),
+        },
+        {
+            id: "workflows",
+            label: "Workflows",
+            isActive: activeTab === "workflows",
+            onClick: () => setActiveTab("workflows"),
+            badge: "EXPERIMENTAL",
+        },
+    ];
 
     return (
         <div className="flex h-full w-full flex-col">
             <Header
-                title="Agents"
+                title="Agent Mesh"
+                tabs={tabs}
                 buttons={[
-                    <Button data-testid="refreshAgents" disabled={agentsLoading} variant="ghost" title="Refresh Agents" onClick={() => agentsRefetch()}>
+                    <Button key="refresh" data-testid="refreshAgents" disabled={agentsLoading} variant="ghost" title="Refresh Agents" onClick={() => agentsRefetch()}>
                         <RefreshCcw className="size-4" />
-                        Refresh Agents
+                        Refresh
                     </Button>,
                 ]}
             />
 
             {agentsLoading ? (
-                <EmptyState title="Loading agents..." variant="loading" />
+                <EmptyState title="Loading..." variant="loading" />
             ) : agentsError ? (
-                <EmptyState variant="error" title="Error loading agents" subtitle={agentsError} />
+                <EmptyState variant="error" title="Error loading data" subtitle={agentsError} />
             ) : (
-                <div className={`relative flex-1 p-4 ${currentLayout === LayoutType.CARDS ? "" : "bg-[var(--muted)] dark:bg-[var(--color-bg-wMain)]"}`}>
-                    <div className="absolute right-8 z-20 flex items-center space-x-4">
-                        <LayoutSelector currentLayout={currentLayout} onLayoutChange={setCurrentLayout} />
-                    </div>
-                    {renderLayoutContent()}
-                </div>
+                <div className="relative min-h-0 flex-1 overflow-hidden">{activeTab === "agents" ? <AgentMeshCards agents={regularAgents} /> : <WorkflowList workflows={workflowAgents} />}</div>
             )}
         </div>
     );

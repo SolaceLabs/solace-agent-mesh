@@ -39,6 +39,7 @@ async def run_adk_async_task_thread_wrapper(
     run_config: RunConfig,
     a2a_context: dict[str, Any],
     append_context_event: bool = True,
+    skip_finalization: bool = False,
 ):
     """
     Wrapper to run the async ADK task.
@@ -50,6 +51,8 @@ async def run_adk_async_task_thread_wrapper(
         adk_content: The input content for the ADK agent.
         run_config: The ADK run configuration.
         a2a_context: The context dictionary for this specific A2A request.
+        append_context_event: Whether to append the context-setting event to the session.
+        skip_finalization: If True, skips automatic finalization (for custom finalization like workflow nodes).
     """
     logical_task_id = a2a_context.get("logical_task_id", "unknown_task")
     is_paused = False
@@ -77,21 +80,31 @@ async def run_adk_async_task_thread_wrapper(
         if adk_session and component.session_service and append_context_event:
             context_setting_invocation_id = logical_task_id
             try:
+                from .services import append_event_with_retry
+
                 context_setting_event = ADKEvent(
                     invocation_id=context_setting_invocation_id,
                     author="A2A_Host_System",
                     content=adk_types.Content(
+                        role="user",  # Must set role to avoid breaking ADK's is_final_response() logic
                         parts=[
                             adk_types.Part(
                                 text="Initializing A2A context for task run."
                             )
-                        ]
+                        ],
                     ),
                     actions=EventActions(state_delta={"a2a_context": a2a_context}),
                     branch=None,
                 )
-                await component.session_service.append_event(
-                    session=adk_session, event=context_setting_event
+                # Use retry helper to handle stale session race conditions
+                await append_event_with_retry(
+                    session_service=component.session_service,
+                    session=adk_session,
+                    event=context_setting_event,
+                    app_name=component.agent_name,
+                    user_id=adk_session.user_id,
+                    session_id=adk_session.id,
+                    log_identifier=f"{component.log_identifier}[ContextEvent:{logical_task_id}]",
                 )
                 log.debug(
                     "%s Appended context-setting event to ADK session %s (via component.session_service) for task %s.",
@@ -201,13 +214,13 @@ async def run_adk_async_task_thread_wrapper(
             llm_limit_e,
         )
     except BadRequestError as e:
+        exception_to_finalize_with = e
         log.error(
-            "%s Bad Request for task %s: %s.",
+            "%s Bad Request for task %s: %s. Scheduling finalization.",
             component.log_identifier,
             logical_task_id,
             e.message,
         )
-        raise
     except Exception as e:
         exception_to_finalize_with = e
         log.exception(
@@ -217,22 +230,29 @@ async def run_adk_async_task_thread_wrapper(
             e,
         )
 
-    loop = component.get_async_loop()
-    if loop and loop.is_running():
-        log.debug(
-            "%s Scheduling finalize_task_with_cleanup for task %s.",
-            component.log_identifier,
-            logical_task_id,
-        )
-        asyncio.run_coroutine_threadsafe(
-            component.finalize_task_with_cleanup(
-                a2a_context, is_paused, exception_to_finalize_with
-            ),
-            loop,
-        )
+    if not skip_finalization:
+        loop = component.get_async_loop()
+        if loop and loop.is_running():
+            log.debug(
+                "%s Scheduling finalize_task_with_cleanup for task %s.",
+                component.log_identifier,
+                logical_task_id,
+            )
+            asyncio.run_coroutine_threadsafe(
+                component.finalize_task_with_cleanup(
+                    a2a_context, is_paused, exception_to_finalize_with
+                ),
+                loop,
+            )
+        else:
+            log.error(
+                "%s Async loop not available. Cannot schedule finalization for task %s.",
+                component.log_identifier,
+                logical_task_id,
+            )
     else:
-        log.error(
-            "%s Async loop not available. Cannot schedule finalization for task %s.",
+        log.debug(
+            "%s Skipping automatic finalization for task %s (skip_finalization=True).",
             component.log_identifier,
             logical_task_id,
         )
@@ -261,7 +281,11 @@ async def run_adk_async_task(
     logical_task_id = a2a_context.get("logical_task_id", "unknown_task")
     event_loop_stored = False
     current_loop = asyncio.get_running_loop()
-    is_paused = False
+    # Track pending long-running tools by their function_call IDs
+    # This replaces the simple boolean is_paused to properly handle sync returns
+    pending_long_running_tools: set[str] = set()
+    # Collect synchronous responses from long-running tools for potential re-run
+    sync_tool_responses: list[adk_types.Part] = []
 
     adk_event_generator = component.runner.run_async(
         user_id=adk_session.user_id,
@@ -316,7 +340,10 @@ async def run_adk_async_task(
                 break
 
             if event.long_running_tool_ids:
-                is_paused = True
+                # Track which long-running tool calls are pending (waiting for async response)
+                pending_long_running_tools = pending_long_running_tools.union(
+                    event.long_running_tool_ids
+                )
 
             if not event_loop_stored and event.invocation_id:
                 task_context.set_event_loop(current_loop)
@@ -342,8 +369,18 @@ async def run_adk_async_task(
             if event.content and event.content.parts:
                 for part in event.content.parts:
                     if part.function_response:
-                        if part.function_response.name.startswith("peer_"):
-                            pass
+                        # Check if this is a sync response from a long-running tool
+                        # (i.e., the tool returned immediately instead of async)
+                        response_id = part.function_response.id
+                        if response_id and response_id in pending_long_running_tools:
+                            pending_long_running_tools.discard(response_id)
+                            sync_tool_responses.append(part)
+                            log.info(
+                                "%s Long-running tool %s (id=%s) returned synchronously.",
+                                component.log_identifier,
+                                part.function_response.name,
+                                response_id,
+                            )
 
     except TaskCancelledError:
         raise
@@ -374,13 +411,54 @@ async def run_adk_async_task(
             f"Task {logical_task_id} was cancelled before finalization."
         )
 
-    if is_paused:
+    invocation_id = a2a_context.get("invocation_id")
+
+    # Check if we still have pending long-running tools (waiting for async responses)
+    if pending_long_running_tools:
+        # Store any sync responses using the SAME format as event_handlers.py
+        # This ensures they're combined with async responses when _retrigger is called
+        if sync_tool_responses:
+            for part in sync_tool_responses:
+                result = {
+                    "adk_function_call_id": part.function_response.id,
+                    "peer_tool_name": part.function_response.name,
+                    "payload": part.function_response.response,  # Already a dict from ADK
+                }
+                task_context.record_parallel_result(result, invocation_id)
+            log.info(
+                "%s Stored %d sync tool response(s) for later combination. Waiting for: %s",
+                component.log_identifier,
+                len(sync_tool_responses),
+                pending_long_running_tools,
+            )
+
         log.info(
-            "%s ADK run completed by invoking a long-running tool. Task %s will remain open, awaiting peer response.",
+            "%s Task %s paused, waiting for %d async tool response(s).",
             component.log_identifier,
             logical_task_id,
+            len(pending_long_running_tools),
         )
         return True
+
+    # All tools returned synchronously - re-run ADK with their responses
+    # The ADK already created the Part objects, so we use them directly (no duplication)
+    if sync_tool_responses:
+        log.info(
+            "%s All %d long-running tool(s) returned synchronously for task %s. Re-running ADK.",
+            component.log_identifier,
+            len(sync_tool_responses),
+            logical_task_id,
+        )
+        # Use the Part objects directly from the ADK (already properly formatted)
+        tool_response_content = adk_types.Content(role="tool", parts=sync_tool_responses)
+        return await run_adk_async_task(
+            component=component,
+            task_context=task_context,
+            adk_session=adk_session,
+            adk_content=tool_response_content,
+            run_config=run_config,
+            a2a_context=a2a_context,
+        )
 
     log.debug(
         "%s ADK run_async completed for task %s. Returning to wrapper for finalization.",

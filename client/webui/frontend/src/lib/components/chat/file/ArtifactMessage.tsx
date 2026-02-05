@@ -1,42 +1,45 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { api, getErrorFromResponse } from "@/lib/api";
+import { Spinner } from "@/lib/components/ui/spinner";
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
-import type { FileAttachment } from "@/lib/types";
-import { authenticatedFetch } from "@/lib/utils/api";
-import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
-import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
+import type { FileAttachment, MessageFE } from "@/lib/types";
+import { downloadFile, getErrorMessage, parseArtifactUri } from "@/lib/utils";
+import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 
 import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { getFileContent, getRenderType } from "../preview/previewUtils";
 import { ArtifactBar } from "../artifact/ArtifactBar";
 import { ArtifactTransitionOverlay } from "../artifact/ArtifactTransitionOverlay";
-import { Spinner } from "../../ui";
+import { FileDetails } from "./FileDetails";
 
 type ArtifactMessageProps = (
     | {
-        status: "in-progress";
-        name: string;
-        bytesTransferred: number;
-    }
+          status: "in-progress";
+          name: string;
+          bytesTransferred: number;
+      }
     | {
-        status: "completed";
-        name: string;
-        fileAttachment: FileAttachment;
-    }
+          status: "completed";
+          name: string;
+          fileAttachment: FileAttachment;
+      }
     | {
-        status: "failed";
-        name: string;
-        error?: string;
-    }
+          status: "failed";
+          name: string;
+          error?: string;
+      }
 ) & {
     context?: "chat" | "list";
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
+    isStreaming?: boolean;
+    message?: MessageFE; // Optional message to get taskId for ragData lookup
 };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
-    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion } = useChatContext();
+    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion, ragData } = useChatContext();
     const { activeProject } = useProjectContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -47,6 +50,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
+    const isStreaming = props.isStreaming;
 
     // Check if this artifact is from a project (should not be deletable)
     const isProjectArtifact = artifact?.source === "project";
@@ -67,17 +71,38 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const fileMimeType = fileAttachment?.mime_type;
 
     // Detect if artifact has been deleted: completed but not in artifacts list
+    // However, don't mark as deleted if we have a valid fileAttachment with a URI -
+    // that means the artifact exists on the backend but just hasn't been fetched into the local list yet
     const isDeleted = useMemo(() => {
-        return props.status === "completed" && !artifact;
-    }, [props.status, artifact]);
+        if (props.status !== "completed") return false;
+        if (artifact) return false; // Found in list, not deleted
+        // If we have a fileAttachment with a URI, the artifact exists on backend (just not fetched yet)
+        if (fileAttachment?.uri) return false;
+        return true; // Completed, not in list, no URI = likely deleted
+    }, [props.status, artifact, fileAttachment?.uri]);
 
     // Determine if this should auto-expand based on context
     const shouldAutoExpand = useMemo(() => {
+        // Don't auto-expand deleted artifacts
+        if (isDeleted) {
+            return false;
+        }
+
+        // Don't auto-expand deep research reports - they are shown inline without expander
+        if (isDeepResearchReportFilename(fileName)) {
+            return false;
+        }
+
         const renderType = getRenderType(fileName, fileMimeType);
-        const isAutoRenderType = renderType === "image" || renderType === "audio";
-        // Only auto-expand images/audio in chat context, never in list context
-        return isAutoRenderType && context === "chat";
-    }, [fileName, fileMimeType, context]);
+        const isAutoRenderType = renderType === "image" || renderType === "audio" || renderType === "markdown";
+
+        // Check if it's specifically a .txt file (not other text-based files like code, XML, etc.)
+        const isTxtFile = fileName.toLowerCase().endsWith(".txt") || fileName.toLowerCase().endsWith(".text");
+        const shouldAutoExpandText = renderType === "text" && isTxtFile;
+
+        // Only auto-expand images/audio/markdown/.txt files in chat context, never in list context
+        return (isAutoRenderType || shouldAutoExpandText) && context === "chat";
+    }, [fileName, fileMimeType, context, isDeleted]);
 
     // Use the artifact rendering hook to determine rendering behavior
     // This uses local state, so each component instance has its own expansion state
@@ -155,16 +180,16 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         };
     }, [shouldRender, artifact?.filename, markArtifactAsDisplayed]);
 
-    // Check if we should render content inline (for images and audio)
-    const shouldRenderInline = useMemo(() => {
-        const renderType = getRenderType(fileName, fileMimeType);
-        return renderType === "image" || renderType === "audio";
-    }, [fileName, fileMimeType]);
-
     // Check if this is specifically an image for special styling
     const isImage = useMemo(() => {
         const renderType = getRenderType(fileName, fileMimeType);
         return renderType === "image";
+    }, [fileName, fileMimeType]);
+
+    // Check if this is text or markdown for no-scroll expansion
+    const isTextOrMarkdown = useMemo(() => {
+        const renderType = getRenderType(fileName, fileMimeType);
+        return renderType === "text" || renderType === "markdown";
     }, [fileName, fileMimeType]);
 
     // Update fetched content when accumulated content changes (for progressive rendering during streaming)
@@ -198,7 +223,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Fetch content from URI for completed artifacts when needed for rendering
     useEffect(() => {
         const fetchContentFromUri = async () => {
-            if (isLoading || !shouldRender) {
+            if (isLoading || !shouldRender || error) {
                 return;
             }
 
@@ -242,15 +267,18 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 const parsedUri = parseArtifactUri(fileUri);
                 if (!parsedUri) throw new Error("Invalid artifact URI.");
 
-                const { filename, version } = parsedUri;
+                const { sessionId: uriSessionId, filename, version } = parsedUri;
 
                 // Construct API URL based on context
-                // Priority 1: Session context (active chat)
+                // Priority 1: Session ID from URI (artifact was created in this session)
+                // Priority 2: Current session context (active chat)
+                // Priority 3: Project context (pre-session, project artifacts)
                 let apiUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    apiUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
+                const effectiveSessionId = uriSessionId || sessionId;
+                if (effectiveSessionId && effectiveSessionId.trim() && effectiveSessionId !== "null" && effectiveSessionId !== "undefined") {
+                    apiUrl = `/api/v1/artifacts/${effectiveSessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
                 }
-                // Priority 2: Project context (pre-session, project artifacts)
+                // Priority 3: Project context (pre-session, project artifacts)
                 else if (activeProject?.id) {
                     apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}?project_id=${activeProject.id}`;
                 }
@@ -259,8 +287,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                     apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
                 }
 
-                const response = await authenticatedFetch(apiUrl);
-                if (!response.ok) throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
+                const response = await api.webui.get(apiUrl, { fullResponse: true });
+                if (!response.ok) {
+                    const errorMessage = await getErrorFromResponse(response);
+                    throw new Error(`Failed to fetch artifact content: ${errorMessage}`);
+                }
 
                 const blob = await response.blob();
                 const base64data = await new Promise<string>((resolve, reject) => {
@@ -280,15 +311,20 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
                 setFetchedContent(base64data);
             } catch (e) {
-                console.error("Error fetching inline content:", e);
-                setError(e instanceof Error ? e.message : "Unknown error fetching content.");
+                setError(getErrorMessage(e, "Failed to fetch artifact content."));
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchContentFromUri();
-    }, [props.status, shouldRender, fileAttachment, sessionId, activeProject?.id, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact]);
+    }, [props.status, shouldRender, fileAttachment, sessionId, activeProject?.id, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact, error]);
+
+    // Get ragData for this task if message is provided
+    const taskRagData = useMemo(() => {
+        if (!props.message?.taskId || !ragData) return undefined;
+        return ragData.find(r => r.taskId === props.message?.taskId);
+    }, [props.message?.taskId, ragData]);
 
     // Prepare actions for the artifact bar
     const actions = useMemo(() => {
@@ -345,22 +381,50 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 content: contentToRender,
                 // @ts-expect-error - Add flag to indicate if content is plain text from streaming
                 // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
-                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
-                             (props.status === "in-progress" && !!fetchedContent)
+                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) || (props.status === "in-progress" && !!fetchedContent),
             });
 
             if (finalContent) {
+                // Determine max height and overflow behavior based on content type
+                let maxHeight: string;
+                let height: string | undefined;
+                let overflowY: "visible" | "auto";
+
+                if (isImage) {
+                    // Images: no height limit, no scroll
+                    maxHeight = "none";
+                    overflowY = "visible";
+                } else if (isTextOrMarkdown) {
+                    // Text/Markdown: safety max height of 6000px, scroll if overflow (auto-expanded)
+                    maxHeight = "6000px";
+                    overflowY = "auto";
+                } else if (renderType === "audio") {
+                    // Audio: 300px with scroll (auto-expanded)
+                    maxHeight = "300px";
+                    overflowY = "auto";
+                } else if (renderType === "html") {
+                    // HTML: fixed height of 900px (iframes need explicit height, not maxHeight)
+                    height = "600px";
+                    maxHeight = "600px";
+                    overflowY = "auto";
+                } else {
+                    // All other types (CSV, JSON, YAML, Mermaid, etc.): 900px with scroll
+                    maxHeight = "600px";
+                    overflowY = "auto";
+                }
+
                 expandedContent = (
                     <div className="group relative max-w-full overflow-hidden">
                         {renderError && <MessageBanner variant="error" message={renderError} />}
                         <div
                             style={{
-                                maxHeight: shouldRenderInline && !isImage ? "300px" : isImage ? "none" : "400px",
-                                overflowY: isImage ? "visible" : "auto",
+                                height,
+                                maxHeight,
+                                overflowY,
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
-                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} />
+                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} isStreaming={isStreaming} ragData={taskRagData} />
                         </div>
                         <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
                     </div>
@@ -379,32 +443,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const infoContent = useMemo(() => {
         if (!isInfoExpanded || !artifact) return null;
 
-        return (
-            <div className="space-y-2 text-sm">
-                {artifact.description && (
-                    <div>
-                        <span className="text-secondary-foreground">Description:</span>
-                        <div className="mt-1">{artifact.description}</div>
-                    </div>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                    <div>
-                        <span className="text-secondary-foreground">Size:</span>
-                        <div>{formatBytes(artifact.size)}</div>
-                    </div>
-                    <div>
-                        <span className="text-secondary-foreground">Modified:</span>
-                        <div>{formatRelativeTime(artifact.last_modified)}</div>
-                    </div>
-                </div>
-                {artifact.mime_type && (
-                    <div>
-                        <span className="text-secondary-foreground">Type:</span>
-                        <div>{artifact.mime_type}</div>
-                    </div>
-                )}
-            </div>
-        );
+        return <FileDetails description={artifact.description ?? undefined} size={artifact.size} lastModified={artifact.last_modified} mimeType={artifact.mime_type} />;
     }, [isInfoExpanded, artifact]);
 
     // Determine what content to show in expanded area - can show both info and content
@@ -441,7 +480,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}
-            expandable={isExpandable && context === "chat"} // Allow expansion in chat context for user-controllable files
+            expandable={isExpandable && context === "chat" && !isDeepResearchReportFilename(fileName)} // Allow expansion in chat context for user-controllable files, but not for deep research reports (shown inline)
             expanded={isExpanded || isInfoExpanded}
             onToggleExpand={isExpandable && context === "chat" ? toggleExpanded : undefined}
             actions={actions}

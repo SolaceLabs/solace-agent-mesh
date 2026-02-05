@@ -15,6 +15,7 @@ export interface ThemeMappings {
 export const customThemeMapping: ThemeMappings = {
     light: {
         background: "background.w10",
+        "card-background": "background.w20",
         foreground: "primary.text.wMain",
         card: "background.w10",
         "card-foreground": "primary.text.wMain",
@@ -26,6 +27,7 @@ export const customThemeMapping: ThemeMappings = {
         "secondary-foreground": "secondary.text.wMain",
         muted: "secondary.w10",
         "muted-foreground": "secondary.text.wMain",
+        placeholder: "secondary.wMain",
         accent: "secondary.w40",
         "accent-foreground": "secondary.text.wMain",
         destructive: "error.wMain",
@@ -35,13 +37,6 @@ export const customThemeMapping: ThemeMappings = {
         "ring-offset": "brand.wMain",
         "accent-background": "background.w20",
         "message-background": "secondary.w20",
-
-        // Chart colors
-        "chart-1": "brand.w60",
-        "chart-2": "primary.wMain",
-        "chart-3": "accent.n3.wMain",
-        "chart-4": "accent.n6.wMain",
-        "chart-5": "accent.n5.wMain",
 
         // Sidebar colors
         sidebar: "background.w20",
@@ -57,6 +52,7 @@ export const customThemeMapping: ThemeMappings = {
     dark: {
         // Core theme colors (dark variants)
         background: "background.w100",
+        "card-background": "background.w100",
         foreground: "primary.text.w10",
         card: "background.wMain",
         "card-foreground": "primary.text.w10",
@@ -68,9 +64,10 @@ export const customThemeMapping: ThemeMappings = {
         "secondary-foreground": "secondary.text.w50",
         muted: "secondary.w80",
         "muted-foreground": "secondary.text.w50",
+        placeholder: "secondary.w70",
         accent: "secondary.w80",
         "accent-foreground": "secondary.text.w50",
-        destructive: "error.w70",
+        destructive: "error.wMain",
         border: "secondary.w70",
         input: "secondary.w70",
         ring: "brand.w60",

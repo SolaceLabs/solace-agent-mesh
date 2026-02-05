@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { Search, X } from "lucide-react";
-import { Input } from "@/lib/components/ui/input";
-import { Button } from "@/lib/components/ui/button";
-import { Badge } from "@/lib/components/ui/badge";
-import { useDebounce } from "@/lib/hooks/useDebounce";
-import { useConfigContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils/api";
+
+import { api } from "@/lib/api";
+import { ProjectBadge } from "@/lib/components/chat";
+import { Button, Input } from "@/lib/components/ui";
+import { useDebounce } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 
 interface SessionSearchProps {
@@ -24,14 +23,11 @@ interface SearchResult {
 }
 
 export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps) => {
-    const { configServerUrl } = useConfigContext();
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<Session[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
-
-    const apiPrefix = `${configServerUrl}/api/v1`;
 
     const performSearch = useCallback(async (query: string, currentProjectId: string | null | undefined) => {
         if (!query.trim()) {
@@ -52,16 +48,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                 params.append("projectId", currentProjectId);
             }
 
-            const response = await authenticatedFetch(
-                `${apiPrefix}/sessions/search?${params.toString()}`,
-                { credentials: "include" }
-            );
-
-            if (!response.ok) {
-                throw new Error("Search failed");
-            }
-
-            const data: SearchResult = await response.json();
+            const data: SearchResult = await api.webui.get(`/api/v1/sessions/search?${params.toString()}`);
             setSearchResults(data.data || []);
             setShowResults(true);
         } catch (error) {
@@ -70,7 +57,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         } finally {
             setIsSearching(false);
         }
-    }, [apiPrefix]);
+    }, []);
 
     useEffect(() => {
         performSearch(debouncedSearchQuery, projectId);
@@ -92,63 +79,33 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
     return (
         <div className="relative w-full">
             <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                    type="text"
-                    placeholder={placeholder}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-9"
-                />
+                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                <Input type="text" placeholder={placeholder} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pr-9 pl-9" />
                 {searchQuery && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
-                        onClick={handleClear}
-                    >
+                    <Button variant="ghost" size="sm" className="absolute top-1/2 right-1 h-7 w-7 -translate-y-1/2 p-0" onClick={handleClear}>
                         <X className="h-4 w-4" />
                     </Button>
                 )}
             </div>
 
             {showResults && (
-                <div className="absolute z-50 mt-2 w-full rounded-md border bg-popover p-2 shadow-md">
+                <div className="bg-popover absolute z-50 mt-2 w-full rounded-md border p-2 shadow-md">
                     {isSearching ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
-                            Searching...
-                        </div>
+                        <div className="text-muted-foreground p-4 text-center text-sm">Searching...</div>
                     ) : searchResults.length > 0 ? (
                         <div className="max-h-[300px] overflow-y-auto">
-                            {searchResults.map((session) => (
-                                <button
-                                    key={session.id}
-                                    onClick={() => handleSessionClick(session.id)}
-                                    className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-                                >
-                                    <div className="flex items-center justify-between gap-2 mb-1">
-                                        <div className="font-medium truncate flex-1">
-                                            {session.name || "Untitled Session"}
-                                        </div>
-                                        {session.projectName && (
-                                            <Badge
-                                                variant="outline"
-                                                className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm flex-shrink-0"
-                                            >
-                                                {session.projectName}
-                                            </Badge>
-                                        )}
+                            {searchResults.map(session => (
+                                <button key={session.id} onClick={() => handleSessionClick(session.id)} className="hover:bg-accent hover:text-accent-foreground w-full rounded-sm px-3 py-2 text-left text-sm">
+                                    <div className="mb-1 flex items-center justify-between gap-2">
+                                        <div className="flex-1 truncate font-medium">{session.name || "Untitled Session"}</div>
+                                        {session.projectName && <ProjectBadge text={session.projectName} />}
                                     </div>
-                                    <div className="text-xs text-muted-foreground">
-                                        {new Date(session.updatedTime).toLocaleDateString()}
-                                    </div>
+                                    <div className="text-muted-foreground text-xs">{new Date(session.updatedTime).toLocaleDateString()}</div>
                                 </button>
                             ))}
                         </div>
                     ) : (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
-                            No results found
-                        </div>
+                        <div className="text-muted-foreground p-4 text-center text-sm">No results found</div>
                     )}
                 </div>
             )}

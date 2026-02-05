@@ -9,6 +9,10 @@ Agent Mesh is an open-source framework for building event-driven multi-agent AI 
 
 Whether you're building intelligent automation systems, creating sophisticated AI workflows, or integrating AI capabilities across your enterprise, Agent Mesh provides the foundation you need. The framework handles agent communication automatically, so you can focus on building powerful AI experiences that scale with your needs.
 
+:::info
+Agent Mesh is built for modern development workflows. Whether you're using Claude, GitHub Copilot, or another AI coding assistant, our documentation is optimized to help you quickly understand the framework and build your projects faster. See our [Vibe Coding guide](../vibe_coding.md) to learn more.
+:::
+
 ## Understanding Agent Mesh
 
 Before diving into implementation, it's helpful to understand what makes Agent Mesh unique. The framework combines the power of Google's Agent Development Kit with Solace's event-driven messaging platform, creating a robust foundation for multi-agent AI systems. To learn about the core concepts and architectural principles that drive the framework's design, see [What is Agent Mesh?](./introduction.md)
@@ -55,7 +59,7 @@ As your AI systems grow in complexity and scale, Agent Mesh provides advanced fe
 
 Various approaches for running Agent Mesh in production range from single-machine setups to distributed enterprise deployments across multiple environments. To explore your deployment options, see [Deployment Options](../deploying/deployment-options.md).
 
-For comprehensive guidance on deploying to Kubernetes with Helm charts and enterprise configurations, see [Kubernetes](../deploying/kubernetes-deployment.md).
+For comprehensive guidance on deploying to Kubernetes with Helm charts and enterprise configurations, see [Kubernetes](../deploying/kubernetes/kubernetes.md).
 
 Real-time monitoring capabilities help you track performance metrics and debug issues when they occur, with the framework's event-driven architecture providing natural visibility into all system interactions. For guidance on system monitoring, see [Observability](../deploying/observability.md)
 

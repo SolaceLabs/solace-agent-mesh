@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, FileText } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -18,11 +18,11 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         },
         {
             id: "agentMesh",
-            label: "Agents",
+            label: "Agent Mesh",
             icon: Bot,
         },
     ];
-    
+
     // Add projects only if explicitly enabled (requires SQL persistence)
     // Default to false if flag is undefined to be safe
     const projectsEnabled = featureFlags?.projects ?? false;
@@ -33,7 +33,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             icon: FolderOpen,
         });
     }
-    
+
     // Add prompts only if explicitly enabled (requires SQL persistence)
     // Default to false if flag is undefined to be safe
     const promptLibraryEnabled = featureFlags?.promptLibrary ?? false;
@@ -41,10 +41,11 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         items.push({
             id: "prompts",
             label: "Prompts",
-            icon: FileText,
+            icon: NotepadText,
+            badge: "EXPERIMENTAL",
         });
     }
-    
+
     return items;
 };
 
@@ -57,7 +58,7 @@ export const topNavigationItems: NavigationItem[] = [
     },
     {
         id: "agentMesh",
-        label: "Agents",
+        label: "Agent Mesh",
         icon: Bot,
     },
     {
@@ -68,7 +69,8 @@ export const topNavigationItems: NavigationItem[] = [
     {
         id: "prompts",
         label: "Prompts",
-        icon: FileText,
+        icon: NotepadText,
+        badge: "EXPERIMENTAL",
     },
 ];
 

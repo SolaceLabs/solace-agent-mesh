@@ -1,3 +1,4 @@
+
 """
 Helper functions for artifact management, including metadata handling and schema inference.
 """
@@ -33,6 +34,7 @@ log = logging.getLogger(__name__)
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20
+DEFAULT_SCHEMA_INFERENCE_DEPTH = 4
 
 
 def is_filename_safe(filename: str) -> bool:
@@ -65,6 +67,67 @@ def is_filename_safe(filename: str) -> bool:
         return False
 
     return True
+
+
+def sanitize_to_filename(
+    text: str,
+    max_length: int = 50,
+    suffix: str = "",
+    replacement_char: str = "_"
+) -> str:
+    """
+    Sanitizes arbitrary text into a safe filename.
+    
+    Converts text (like a research question or title) into a filesystem-safe
+    filename by:
+    1. Converting to lowercase
+    2. Removing non-word characters (except spaces and hyphens)
+    3. Replacing spaces and hyphens with the replacement character
+    4. Limiting length to max_length
+    5. Optionally appending a suffix
+    
+    Args:
+        text: The text to convert into a filename (e.g., research question, title)
+        max_length: Maximum length of the base filename (before suffix). Default: 50
+        suffix: Optional suffix to append (e.g., "_report.md"). Default: ""
+        replacement_char: Character to replace spaces/hyphens with. Default: "_"
+    
+    Returns:
+        A sanitized filename string safe for filesystem use.
+    
+    Examples:
+        >>> sanitize_to_filename("What is AI?")
+        'what_is_ai'
+        >>> sanitize_to_filename("Research: Deep Learning!", suffix="_report.md")
+        'research_deep_learning_report.md'
+        >>> sanitize_to_filename("A very long research question about many topics", max_length=20)
+        'a_very_long_research'
+    """
+    import re
+    
+    if not text:
+        return f"unnamed{suffix}"
+    
+    # Convert to lowercase and remove non-word characters except spaces and hyphens
+    safe_name = re.sub(r'[^\w\s-]', '', text.lower())
+    
+    # Replace spaces and hyphens with the replacement character
+    safe_name = re.sub(r'[-\s]+', replacement_char, safe_name)
+    
+    # Strip leading/trailing replacement chars
+    safe_name = safe_name.strip(replacement_char)
+    
+    # Limit length
+    if max_length > 0:
+        safe_name = safe_name[:max_length]
+        # Strip trailing replacement char if we cut in the middle
+        safe_name = safe_name.rstrip(replacement_char)
+    
+    # Handle empty result
+    if not safe_name:
+        safe_name = "unnamed"
+    
+    return f"{safe_name}{suffix}"
 
 
 def ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> str:
@@ -127,6 +190,34 @@ def parse_artifact_uri(uri: str) -> Dict[str, Any]:
         "filename": path_parts[2],
         "version": int(version) if version.isdigit() else version,
     }
+
+
+def _clean_metadata_for_output(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Remove null, False, and empty values from metadata to reduce token usage.
+    Recursively cleans nested dictionaries.
+
+    Args:
+        metadata: The metadata dictionary to clean
+
+    Returns:
+        A cleaned dictionary with unnecessary fields removed
+    """
+    cleaned = {}
+    for key, value in metadata.items():
+        # Skip None, False, and empty collections
+        if value is None or value is False or value == {} or value == []:
+            continue
+
+        # Recursively clean nested dictionaries
+        if isinstance(value, dict):
+            cleaned_nested = _clean_metadata_for_output(value)
+            if cleaned_nested:  # Only include if not empty after cleaning
+                cleaned[key] = cleaned_nested
+        else:
+            cleaned[key] = value
+
+    return cleaned
 
 
 def _inspect_structure(
@@ -234,15 +325,40 @@ async def save_artifact_with_metadata(
     metadata_dict: Dict[str, Any],
     timestamp: datetime,
     explicit_schema: Optional[Dict] = None,
-    schema_inference_depth: int = 2,
+    schema_inference_depth: Optional[int] = None,
     schema_max_keys: int = DEFAULT_SCHEMA_MAX_KEYS,
     tool_context: Optional["ToolContext"] = None,
+    suppress_visualization_signal: bool = False,
 ) -> Dict[str, Any]:
     """
     Saves a data artifact and its corresponding metadata artifact using BaseArtifactService.
     """
     log_identifier = f"[ArtifactHelper:save:{filename}]"
     log.debug("%s Saving artifact and metadata (async)...", log_identifier)
+
+    # Resolve schema_inference_depth from artifact service wrapper if not provided
+    if schema_inference_depth is None:
+        # Use duck typing to check for ScopedArtifactServiceWrapper capability
+        # (avoids dynamic class loading issues with isinstance)
+        if hasattr(artifact_service, "component") and hasattr(
+            artifact_service.component, "get_config"
+        ):
+            schema_inference_depth = artifact_service.component.get_config(
+                "schema_inference_depth", DEFAULT_SCHEMA_INFERENCE_DEPTH
+            )
+            log.debug(
+                "%s Resolved schema_inference_depth from agent config: %d",
+                log_identifier,
+                schema_inference_depth,
+            )
+        else:
+            schema_inference_depth = DEFAULT_SCHEMA_INFERENCE_DEPTH
+            log.debug(
+                "%s Using default schema_inference_depth: %d",
+                log_identifier,
+                schema_inference_depth,
+            )
+
     data_version = None
     metadata_version = None
     metadata_filename = f"{filename}{METADATA_SUFFIX}"
@@ -305,6 +421,59 @@ async def save_artifact_with_metadata(
                 filename,
                 data_version,
             )
+
+        # Always attempt to publish artifact saved notification for workflow visualization
+        # This works independently of artifact_delta and should succeed if we have
+        # the necessary context (host_component and a2a_context)
+        # Skip if suppress_visualization_signal is True (e.g., when called from fenced block callback)
+        if not suppress_visualization_signal:
+            try:
+                # Try to get context from tool_context if available
+                host_component = None
+                a2a_context = None
+                function_call_id = None
+
+                if tool_context:
+                    try:
+                        inv_context = tool_context._invocation_context
+                        agent = getattr(inv_context, "agent", None)
+                        host_component = getattr(agent, "host_component", None)
+                        a2a_context = tool_context.state.get("a2a_context")
+                        # Get function_call_id if this was created by a tool
+                        # Try state first (legacy), then the ADK attribute
+                        function_call_id = tool_context.state.get("function_call_id") or getattr(tool_context, "function_call_id", None)
+                    except Exception as ctx_err:
+                        log.info(
+                            "%s Could not extract context from tool_context: %s",
+                            log_identifier,
+                            ctx_err,
+                        )
+
+                # Only proceed if we have both required components
+                if host_component and a2a_context:
+                    # Create ArtifactInfo object
+                    artifact_info = ArtifactInfo(
+                        filename=filename,
+                        version=data_version,
+                        mime_type=mime_type,
+                        size=len(content_bytes),
+                        description=metadata_dict.get("description") if metadata_dict else None,
+                        version_count=None,  # Count not available in save context
+                    )
+
+                    # Publish artifact saved notification via component method
+                    await host_component.notify_artifact_saved(
+                        artifact_info=artifact_info,
+                        a2a_context=a2a_context,
+                        function_call_id=function_call_id,
+                    )
+            except Exception as signal_err:
+                # Don't fail artifact save if notification publishing fails
+                log.warning(
+                    "%s Failed to publish artifact saved notification (non-critical): %s",
+                    log_identifier,
+                    signal_err,
+                )
 
         final_metadata = {
             "filename": filename,
@@ -636,12 +805,15 @@ async def generate_artifact_metadata_summary(
                 metadata.pop("filename", None)
                 metadata.pop("version", None)
 
+                # Clean metadata to remove null/false/empty values for token efficiency
+                cleaned_metadata = _clean_metadata_for_output(metadata)
+
                 TRUNCATION_LIMIT_BYTES = 1024
                 TRUNCATION_MESSAGE = "\n... [truncated] ..."
 
                 try:
                     formatted_metadata_str = yaml.safe_dump(
-                        metadata,
+                        cleaned_metadata,
                         default_flow_style=False,
                         sort_keys=False,
                         allow_unicode=True,
@@ -988,6 +1160,7 @@ async def load_artifact_content_or_metadata(
     load_metadata_only: bool = False,
     return_raw_bytes: bool = False,
     max_content_length: Optional[int] = None,
+    include_line_numbers: bool = False,
     component: Optional[Any] = None,
     log_identifier_prefix: str = "[ArtifactHelper:load]",
     encoding: str = "utf-8",
@@ -1044,11 +1217,13 @@ async def load_artifact_content_or_metadata(
             )
             try:
                 list_versions_method = getattr(artifact_service, "list_versions")
+                # Use metadata filename when loading metadata, content filename otherwise
+                version_check_filename = f"{filename}{METADATA_SUFFIX}" if load_metadata_only else filename
                 available_versions = await list_versions_method(
                     app_name=app_name,
                     user_id=user_id,
                     session_id=session_id,
-                    filename=filename,
+                    filename=version_check_filename,
                 )
                 if not available_versions:
                     raise FileNotFoundError(
@@ -1094,7 +1269,7 @@ async def load_artifact_content_or_metadata(
         )
         version_to_load = actual_version
 
-        log_identifier = f"{log_identifier_prefix}:{filename}:{version_to_load}"
+        log_identifier = f"{log_identifier_prefix}:{filename}:v{version_to_load}"
 
         log.debug(
             "%s Attempting to load '%s' v%d (async)",
@@ -1172,61 +1347,106 @@ async def load_artifact_content_or_metadata(
                 is_text = is_text_based_file(mime_type, data_bytes)
 
                 if is_text:
-                    try:
-                        content_str = data_bytes.decode(encoding, errors=error_handling)
-                        message_to_llm = ""
-                        if len(content_str) > max_content_length:
-                            truncated_content = content_str[:max_content_length] + "..."
-
-                            if (
-                                max_content_length
-                                < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
-                            ):
-                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
-                                                The artifact is larger ({len(content_str)} characters).
-                                                Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
-                            else:
-                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
-                                                The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
-                                                Please continue with this truncated content as the full artifact cannot be provided."""
-                            log.info(
-                                "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).",
-                                log_identifier,
-                                filename,
-                                version_to_load,
-                                len(truncated_content),
-                                max_content_length,
-                            )
-                        else:
-                            truncated_content = content_str
-                            log.info(
-                                "%s Loaded and decoded text artifact '%s' v%d. Returning full content (%d chars).",
-                                log_identifier,
-                                filename,
-                                version_to_load,
-                                len(content_str),
-                            )
-                        return {
-                            "status": "success",
-                            "filename": filename,
-                            "version": version_to_load,
-                            "mime_type": mime_type,
-                            "content": truncated_content,
-                            "message_to_llm": message_to_llm,
-                            "size_bytes": size_bytes,
-                        }
-                    except UnicodeDecodeError as decode_err:
+                    # Try multiple encodings with fallback for Windows-exported files
+                    # Common case: CSV files exported from Excel on Windows use CP1252
+                    content_str = None
+                    used_encoding = None
+                    encodings_to_try = [encoding, "utf-16", "cp1252", "latin-1"]
+                    decode_errors = []
+                    
+                    for enc in encodings_to_try:
+                        try:
+                            content_str = data_bytes.decode(enc, errors=error_handling)
+                            used_encoding = enc
+                            if enc != encoding:
+                                log.info(
+                                    "%s Successfully decoded text artifact '%s' v%d using fallback encoding '%s' (primary '%s' failed)",
+                                    log_identifier,
+                                    filename,
+                                    version_to_load,
+                                    enc,
+                                    encoding,
+                                )
+                            break
+                        except UnicodeDecodeError as e:
+                            decode_errors.append(f"{enc}: {e}")
+                            continue
+                    
+                    if content_str is None:
+                        # All encodings failed
                         log.error(
-                            "%s Failed to decode text artifact '%s' v%d with encoding '%s': %s",
+                            "%s Failed to decode text artifact '%s' v%d with any encoding. Errors: %s",
                             log_identifier,
                             filename,
                             version_to_load,
-                            mime_type,
-                            decode_err,
+                            "; ".join(decode_errors),
                         )
                         raise ValueError(
-                            f"Failed to decode artifact '{filename}' v{version_to_load} as {encoding}."
-                        ) from decode_err
+                            f"Failed to decode artifact '{filename}' v{version_to_load}. Tried encodings: {', '.join(encodings_to_try)}"
+                        )
+                    
+                    original_content_str = content_str  # Save for line count calculation
+
+                    # Add line numbers if requested (before truncation)
+                    if include_line_numbers:
+                        lines = content_str.split('\n')
+                        numbered_lines = [f"{i+1}\t{line}" for i, line in enumerate(lines)]
+                        content_str = '\n'.join(numbered_lines)
+                        log.debug(
+                            "%s Added line numbers to %d lines.",
+                            log_identifier,
+                            len(lines)
+                        )
+
+                    message_to_llm = ""
+                    if len(content_str) > max_content_length:
+                        truncated_content = content_str[:max_content_length] + "..."
+
+                        # Calculate line range if line numbers are included
+                        line_range_msg = ""
+                        if include_line_numbers:
+                            visible_line_count = truncated_content.count('\n') + 1
+                            total_line_count = original_content_str.count('\n') + 1
+                            line_range_msg = f" Lines 1-{visible_line_count} of {total_line_count} total."
+
+                        if (
+                            max_content_length
+                            < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
+                        ):
+                            message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
+                                            The artifact is larger ({len(content_str)} characters).
+                                            Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
+                        else:
+                            message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
+                                            The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
+                                            Please continue with this truncated content as the full artifact cannot be provided."""
+                        log.info(
+                            "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).%s",
+                            log_identifier,
+                            filename,
+                            version_to_load,
+                            len(truncated_content),
+                            max_content_length,
+                            line_range_msg,
+                        )
+                    else:
+                        truncated_content = content_str
+                        log.info(
+                            "%s Loaded and decoded text artifact '%s' v%d. Returning full content (%d chars).",
+                            log_identifier,
+                            filename,
+                            version_to_load,
+                            len(content_str),
+                        )
+                    return {
+                        "status": "success",
+                        "filename": filename,
+                        "version": version_to_load,
+                        "mime_type": mime_type,
+                        "content": truncated_content,
+                        "message_to_llm": message_to_llm,
+                        "size_bytes": size_bytes,
+                    }
                 else:
                     log.info(
                         "%s Loaded binary/unknown artifact '%s' v%d. Returning metadata summary.",

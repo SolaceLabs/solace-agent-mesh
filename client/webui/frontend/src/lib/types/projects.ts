@@ -14,7 +14,6 @@ export interface Project {
     updatedAt: string; // ISO string
 }
 
-
 export interface CreateProjectRequest {
     name: string;
     description?: string;
@@ -39,7 +38,6 @@ export interface ProjectListResponse {
     total: number;
 }
 
-
 // Frontend-only types
 export interface ProjectFormData {
     name: string;
@@ -58,7 +56,6 @@ export interface UseProjectsReturn {
     refetch: () => Promise<void>;
 }
 
-
 export interface ProjectContextValue extends UseProjectsReturn {
     currentProject: Project | null;
     setCurrentProject: (project: Project | null) => void;
@@ -68,9 +65,58 @@ export interface ProjectContextValue extends UseProjectsReturn {
     setActiveProject: (project: Project | null) => void;
     addFilesToProject: (projectId: string, formData: FormData) => Promise<void>;
     removeFileFromProject: (projectId: string, filename: string) => Promise<void>;
+    updateFileMetadata: (projectId: string, filename: string, description: string) => Promise<void>;
     updateProject: (projectId: string, data: UpdateProjectData) => Promise<Project>;
     deleteProject: (projectId: string) => Promise<void>;
     searchQuery: string;
     setSearchQuery: (query: string) => void;
     filteredProjects: Project[];
 }
+
+// Project Sharing Types
+
+export interface ShareResponse {
+    id: string;
+    projectId: string;
+    userEmail: string;
+    accessLevel: string;
+    sharedByEmail: string;
+    createdAt: string; // ISO 8601 datetime
+    updatedAt: string; // ISO 8601 datetime
+}
+
+export interface ProjectSharesResponse {
+    projectId: string;
+    ownerEmail: string;
+    shares: ShareResponse[];
+}
+
+export interface BatchShareRequest {
+    shares: {
+        userEmail: string;
+        accessLevel: "RESOURCE_VIEWER";
+    }[];
+}
+
+export interface BatchShareResponse {
+    projectId: string;
+    created: ShareResponse[];
+    updated: ShareResponse[];
+    totalProcessed: number;
+}
+
+export interface BatchDeleteRequest {
+    userEmails: string[];
+}
+
+export interface BatchDeleteResponse {
+    projectId: string;
+    deletedCount: number;
+    deletedEmails: string[];
+}
+
+export interface UpdateShareRequest {
+    accessLevel: "RESOURCE_VIEWER";
+}
+
+export type AccessLevel = "RESOURCE_VIEWER";

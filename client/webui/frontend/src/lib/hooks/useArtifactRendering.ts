@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { shouldAutoRender, isUserControllableRendering } from "@/lib/components/chat/file/fileUtils";
 
 interface UseArtifactRenderingOptions {
@@ -18,11 +18,7 @@ interface UseArtifactRenderingReturn {
  * Custom hook to manage artifact rendering state and decisions
  * Uses local component state to ensure each instance has independent expansion
  */
-export const useArtifactRendering = ({
-    filename,
-    mimeType,
-    shouldAutoExpand
-}: UseArtifactRenderingOptions): UseArtifactRenderingReturn => {
+export const useArtifactRendering = ({ filename, mimeType, shouldAutoExpand }: UseArtifactRenderingOptions): UseArtifactRenderingReturn => {
     // Determine if this artifact should auto-render (images and audio)
     const shouldAutoRenderArtifact = useMemo(() => {
         return shouldAutoRender(filename, mimeType);
@@ -31,6 +27,23 @@ export const useArtifactRendering = ({
     // Initialize expansion state based on shouldAutoExpand parameter
     // This allows the caller to control whether artifacts start expanded
     const [isExpanded, setIsExpanded] = useState(() => shouldAutoExpand ?? shouldAutoRenderArtifact);
+
+    // Track whether the user has manually toggled expansion
+    // This prevents auto-expand from overriding user's manual toggle
+    const userHasToggled = useRef(false);
+
+    // Effect to handle late auto-expand when shouldAutoExpand changes from false to true
+    // This handles the case where artifact data arrives after the component mounts
+    // (e.g., artifact initially not available then becomes available)
+    useEffect(() => {
+        // Only auto-expand if:
+        // 1. shouldAutoExpand just became true
+        // 2. Currently not expanded
+        // 3. User hasn't manually toggled the expansion
+        if (shouldAutoExpand && !isExpanded && !userHasToggled.current) {
+            setIsExpanded(true);
+        }
+    }, [shouldAutoExpand, isExpanded]);
 
     // Determine if this artifact supports user-controlled rendering
     const isUserControllable = useMemo(() => {
@@ -60,9 +73,12 @@ export const useArtifactRendering = ({
             return;
         }
 
+        // Mark that user has manually toggled, preventing future auto-expand
+        userHasToggled.current = true;
+
         setIsExpanded(prev => {
             const newValue = !prev;
-            console.log(`[useArtifactRendering] ${newValue ? 'Expanding' : 'Collapsing'} ${filename}`);
+            console.log(`[useArtifactRendering] ${newValue ? "Expanding" : "Collapsing"} ${filename}`);
             return newValue;
         });
     }, [filename, isExpandable]);
@@ -71,7 +87,7 @@ export const useArtifactRendering = ({
         shouldRender,
         isExpandable,
         isExpanded,
-        toggleExpanded
+        toggleExpanded,
     };
 };
 
@@ -82,7 +98,7 @@ export const useArtifactRendering = ({
 export const useArtifactRenderingPreferences = () => {
     // Future: This could read from user preferences/settings
     // For now, we use the default behavior defined in the design
-    
+
     const getAutoRenderPreference = useCallback((filename?: string, mimeType?: string) => {
         return shouldAutoRender(filename, mimeType);
     }, []);
@@ -93,6 +109,6 @@ export const useArtifactRenderingPreferences = () => {
 
     return {
         getAutoRenderPreference,
-        getUserControllablePreference
+        getUserControllablePreference,
     };
 };

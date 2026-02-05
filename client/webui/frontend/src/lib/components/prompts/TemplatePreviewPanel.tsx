@@ -1,7 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import { FileText } from 'lucide-react';
-import { Badge, CardTitle, Label } from '@/lib/components/ui';
-import type { TemplateConfig } from './hooks/usePromptTemplateBuilder';
+import React, { useRef } from "react";
+import { NotepadText } from "lucide-react";
+import { Badge, CardTitle, Label } from "@/lib/components/ui";
+import type { TemplateConfig } from "@/lib/types";
 
 interface TemplatePreviewPanelProps {
     config: TemplateConfig;
@@ -9,28 +9,24 @@ interface TemplatePreviewPanelProps {
     isReadyToSave: boolean;
 }
 
-export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
-    config,
-    highlightedFields,
-}) => {
+export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ config, highlightedFields }) => {
     // Only show content when we have actual prompt text, not just metadata
-    const hasContent = config.prompt_text && config.prompt_text.trim().length > 0;
-    
-    // Track if we've ever had content before to distinguish initial generation from updates
-    const hadContentBeforeRef = useRef(false);
-    const previousHighlightedFieldsRef = useRef<string[]>([]);
-    
-    useEffect(() => {
-        // When highlightedFields changes, check if we had content before
-        if (highlightedFields.length > 0 && hasContent) {
-            if (!hadContentBeforeRef.current) {
-                hadContentBeforeRef.current = true;
-            }
-        }
-        previousHighlightedFieldsRef.current = highlightedFields;
-    }, [highlightedFields, hasContent]);
-    
-    const showBadges = hadContentBeforeRef.current && highlightedFields.length > 0;
+    const hasContent = config.promptText && config.promptText.trim().length > 0;
+
+    const updateCountRef = useRef(0);
+    const lastHighlightedFieldsRef = useRef<string[]>([]);
+
+    // Check if highlightedFields actually changed (not just a re-render)
+    const highlightedFieldsChanged = highlightedFields.length > 0 && (highlightedFields.length !== lastHighlightedFieldsRef.current.length || highlightedFields.some((f, i) => f !== lastHighlightedFieldsRef.current[i]));
+
+    // Update count when we get new highlighted fields with content
+    if (highlightedFieldsChanged && hasContent) {
+        updateCountRef.current += 1;
+        lastHighlightedFieldsRef.current = [...highlightedFields];
+    }
+
+    // Show badges only after the first update (updateCount >= 2 means we've had at least one update after initial generation)
+    const showBadges = updateCountRef.current >= 2 && highlightedFields.length > 0;
 
     const renderField = (label: string, value: string | undefined, fieldName: string, isCommand: boolean = false) => {
         const isHighlighted = highlightedFields.includes(fieldName);
@@ -39,37 +35,25 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
         return (
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+                    <Label className="text-muted-foreground text-sm font-medium">{label}</Label>
                     {isHighlighted && showBadges && (
-                        <Badge variant="default" className="text-xs bg-primary text-primary-foreground">
+                        <Badge variant="default" className="bg-primary text-primary-foreground text-xs">
                             Updated
                         </Badge>
                     )}
                 </div>
                 {isCommand ? (
-                    <div className="text-sm p-3 rounded">
-                        {isEmpty ? (
-                            <span className="text-muted-foreground italic">No {label.toLowerCase()} yet</span>
-                        ) : (
-                            <span className="font-mono text-primary">/{value}</span>
-                        )}
-                    </div>
+                    <div className="rounded p-3 text-sm">{isEmpty ? <span className="text-muted-foreground italic">No {label.toLowerCase()} yet</span> : <span className="text-primary font-mono">/{value}</span>}</div>
                 ) : (
-                    <div className="text-sm p-3 rounded">
-                        {isEmpty ? (
-                            <span className="text-muted-foreground italic">No {label.toLowerCase()} yet</span>
-                        ) : (
-                            value
-                        )}
-                    </div>
+                    <div className="rounded p-3 text-sm">{isEmpty ? <span className="text-muted-foreground italic">No {label.toLowerCase()} yet</span> : value}</div>
                 )}
             </div>
         );
     };
 
     const renderPromptText = () => {
-        const isHighlighted = highlightedFields.includes('prompt_text');
-        const isEmpty = !config.prompt_text || config.prompt_text.trim().length === 0;
+        const isHighlighted = highlightedFields.includes("promptText");
+        const isEmpty = !config.promptText || config.promptText.trim().length === 0;
 
         // Highlight variables in the prompt text
         const highlightVariables = (text: string) => {
@@ -77,7 +61,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
             return parts.map((part, index) => {
                 if (part.match(/\{\{[^}]+\}\}/)) {
                     return (
-                        <span key={index} className="bg-primary/20 text-primary font-medium px-1 rounded">
+                        <span key={index} className="bg-primary/20 text-primary rounded px-1 font-medium">
                             {part}
                         </span>
                     );
@@ -90,18 +74,12 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
                     {isHighlighted && showBadges && (
-                        <Badge variant="default" className="text-xs bg-primary text-primary-foreground">
+                        <Badge variant="default" className="bg-primary text-primary-foreground text-xs">
                             Updated
                         </Badge>
                     )}
                 </div>
-                <div className="min-h-[288px] w-full rounded-md px-3 py-2 text-sm font-mono whitespace-pre-wrap">
-                    {isEmpty ? (
-                        <span className="text-muted-foreground italic">No prompt text yet</span>
-                    ) : (
-                        highlightVariables(config.prompt_text!)
-                    )}
-                </div>
+                <div className="min-h-[288px] w-full rounded-md px-3 py-2 font-mono text-sm whitespace-pre-wrap">{isEmpty ? <span className="text-muted-foreground italic">No prompt text yet</span> : highlightVariables(config.promptText!)}</div>
             </div>
         );
     };
@@ -110,21 +88,14 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
         const variables = config.detected_variables || [];
 
         if (variables.length === 0) {
-            return (
-                <div className="text-sm text-muted-foreground italic py-2">
-                    No variables detected yet
-                </div>
-            );
+            return <div className="text-muted-foreground py-2 text-sm italic">No variables detected yet</div>;
         }
 
         return (
             <div className="py-2">
                 <div className="flex flex-wrap gap-2">
                     {variables.map((variable, index) => (
-                        <span
-                            key={index}
-                            className="px-2 py-1 bg-primary/10 text-primary text-xs font-mono rounded"
-                        >
+                        <span key={index} className="bg-primary/10 text-primary rounded px-2 py-1 font-mono text-xs">
                             {`{{${variable}}}`}
                         </span>
                     ))}
@@ -138,70 +109,65 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
             {/* Header */}
             <div className="border-b px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
+                    <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
+                        <NotepadText className="text-muted-foreground h-4 w-4" />
                     </div>
                     <div>
-                        <h3 className="font-semibold text-sm">Template Preview</h3>
+                        <h3 className="text-sm font-semibold">Preview</h3>
                     </div>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-4 space-y-4" style={{ paddingTop: '24px' }}>
+            <div className="flex-1 space-y-4 overflow-y-auto px-4" style={{ paddingTop: "24px" }}>
                 {!hasContent ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-                            <FileText className="h-8 w-8 text-muted-foreground" />
+                    <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+                        <div className="bg-muted mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+                            <NotepadText className="text-muted-foreground h-8 w-8" />
                         </div>
-                        <h3 className="font-semibold text-lg mb-2">No Template Yet</h3>
-                        <p className="text-sm text-muted-foreground max-w-sm">
-                            Start chatting with the AI assistant to create your template. The preview
-                            will update in real-time as you describe your task.
-                        </p>
+                        <h3 className="mb-2 text-lg font-semibold">No Template Yet</h3>
+                        <p className="text-muted-foreground max-w-sm text-sm">Start chatting with the AI assistant to create your template. The preview will update in real-time as you describe your task.</p>
                     </div>
                 ) : (
                     <>
                         {/* Basic Info */}
                         <div>
-                            <CardTitle className="text-base mb-4">Basic Information</CardTitle>
+                            <CardTitle className="mb-4 text-base">Basic Information</CardTitle>
                             <div className="space-y-6">
-                                {renderField('Name', config.name, 'name')}
-                                {renderField('Description', config.description, 'description')}
-                                {renderField('Tag', config.category, 'category')}
-                                {renderField('Chat Shortcut', config.command, 'command', true)}
+                                {renderField("Name", config.name, "name")}
+                                {renderField("Description", config.description, "description")}
+                                {renderField("Tag", config.category, "category")}
+                                {renderField("Chat Shortcut", config.command, "command", true)}
                             </div>
                         </div>
 
                         {/* Content */}
                         <div>
-                            <CardTitle className="text-base mb-4">Content</CardTitle>
+                            <CardTitle className="mb-4 text-base">Content</CardTitle>
                             {renderPromptText()}
                         </div>
 
                         {/* Variables */}
                         <div>
-                            <CardTitle className="text-base mb-4">Variables</CardTitle>
+                            <CardTitle className="mb-4 text-base">Variables</CardTitle>
                             <div className="space-y-3">
                                 {config.detected_variables && config.detected_variables.length > 0 ? (
                                     <>
-                                        <p className="text-sm text-muted-foreground leading-relaxed">
-                                            Variables are placeholder values that make your prompt flexible and reusable. Variables are enclosed in double brackets like <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{'{{Variable Name}}'}</code>. You will be asked to fill in these variable values whenever you use this prompt. The prompt above has the following variables:
+                                        <p className="text-muted-foreground text-sm leading-relaxed">
+                                            Variables are placeholder values that make your prompt flexible and reusable. Variables are enclosed in double brackets like{" "}
+                                            <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{"{{Variable Name}}"}</code>. You will be asked to fill in these variable values whenever you use this prompt. The prompt above has the
+                                            following variables:
                                         </p>
                                         {renderVariables()}
                                     </>
                                 ) : (
-                                    <div className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-lg">
-                                        No variables detected yet
-                                    </div>
+                                    <div className="text-muted-foreground bg-muted/50 rounded-lg p-3 text-sm italic">No variables detected yet</div>
                                 )}
                             </div>
                         </div>
-
                     </>
                 )}
             </div>
-
         </div>
     );
 };

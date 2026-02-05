@@ -1,9 +1,10 @@
 """
 API Router for submitting and managing tasks to agents.
+Includes background task status endpoints.
 """
+from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import yaml
@@ -14,16 +15,15 @@ from a2a.types import (
     SendStreamingMessageRequest,
     SendStreamingMessageSuccessResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi import Request as FastAPIRequest
+from pydantic import BaseModel
 from sqlalchemy.orm import Session as DBSession
 
 from ....gateway.http_sse.services.project_service import ProjectService
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
-    load_artifact_content_or_metadata,
-    save_artifact_with_metadata,
 )
 
 from ....common import a2a
@@ -40,11 +40,12 @@ from ....gateway.http_sse.dependencies import (
 )
 from ....gateway.http_sse.repository.entities import Task
 from ....gateway.http_sse.repository.interfaces import ITaskRepository
+from ....gateway.http_sse.repository.task_repository import TaskRepository
 from ....gateway.http_sse.services.session_service import SessionService
 from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.session_manager import SessionManager
-from ....gateway.http_sse.shared.pagination import PaginationParams
-from ....gateway.http_sse.shared.types import UserId
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import UserId
 from ..utils.stim_utils import create_stim_from_task_data
 
 if TYPE_CHECKING:
@@ -53,6 +54,108 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 log = logging.getLogger(__name__)
+
+
+# Background Task Status Models and Endpoints
+class TaskStatusResponse(BaseModel):
+    """Response model for task status queries."""
+    task: Task
+    is_running: bool
+    is_background: bool
+    can_reconnect: bool
+
+
+@router.get("/tasks/{task_id}/status", response_model=TaskStatusResponse, tags=["Tasks"])
+async def get_task_status(
+    task_id: str,
+    db: DBSession = Depends(get_db),
+):
+    """
+    Get the current status of a task.
+    Used by frontend to check if a background task is still running.
+    
+    Args:
+        task_id: The task ID to query
+        
+    Returns:
+        Task status information including whether it's running and can be reconnected to
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/status] "
+    log.debug("%sQuerying task status", log_prefix)
+    
+    repo = TaskRepository()
+    task = repo.find_by_id(db, task_id)
+    
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    
+    # Determine if task is still running
+    is_running = task.status in [None, "running", "pending"] and task.end_time is None
+    
+    # Check if it's a background task
+    is_background = task.background_execution_enabled or False
+    
+    # Can reconnect if it's a background task and still running
+    can_reconnect = is_background and is_running
+    
+    log.info(
+        "%sTask status: running=%s, background=%s, can_reconnect=%s",
+        log_prefix,
+        is_running,
+        is_background,
+        can_reconnect,
+    )
+    
+    return TaskStatusResponse(
+        task=task,
+        is_running=is_running,
+        is_background=is_background,
+        can_reconnect=can_reconnect
+    )
+
+
+@router.get("/tasks/background/active", tags=["Tasks"])
+async def get_active_background_tasks(
+    user_id: str = Query(..., description="User ID to filter tasks"),
+    db: DBSession = Depends(get_db),
+):
+    """
+    Get all active background tasks for a user.
+    Used by frontend on session load to detect running background tasks.
+    
+    Args:
+        user_id: The user ID to filter by
+        
+    Returns:
+        List of active background tasks
+    """
+    log_prefix = "[GET /api/v1/tasks/background/active] "
+    log.debug("%sQuerying active background tasks for user %s", log_prefix, user_id)
+    
+    repo = TaskRepository()
+    
+    # Get all background tasks
+    all_background_tasks = repo.find_background_tasks_by_status(db, status=None)
+    
+    # Filter by user and running status
+    active_tasks = [
+        task for task in all_background_tasks
+        if task.user_id == user_id
+        and task.status in [None, "running", "pending"]
+        and task.end_time is None
+    ]
+    
+    log.info("%sFound %d active background tasks for user %s", log_prefix, len(active_tasks), user_id)
+    
+    return {
+        "tasks": active_tasks,
+        "count": len(active_tasks)
+    }
+
+
+# =============================================================================
+# Project Context Injection Helper
+# =============================================================================
 
 
 async def _inject_project_context(
@@ -80,6 +183,7 @@ async def _inject_project_context(
         return message_text
 
     from ....gateway.http_sse.dependencies import SessionLocal
+    from ..utils.artifact_copy_utils import copy_project_artifacts_to_session
 
     if SessionLocal is None:
         log.warning(
@@ -88,6 +192,8 @@ async def _inject_project_context(
         return message_text
 
     db = SessionLocal()
+    artifact_service = None
+
     try:
         project = project_service.get_project(db, project_id, user_id)
         if not project:
@@ -108,201 +214,66 @@ async def _inject_project_context(
 
             # Add project description if exists
             if project.description and project.description.strip():
-                context_parts.append(
-                    f"\nProject Description: {project.description.strip()}"
-                )
+                context_parts.append(f"\nProject Description: {project.description.strip()}")
 
         # Always copy project artifacts to session (for both new and existing sessions)
         # This ensures new project files are available to existing sessions
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
-            try:
-                source_user_id = project.user_id
-                project_artifacts_session_id = f"project-{project.id}"
-
-                log.info(
-                    "%sChecking for artifacts in project %s (storage session: %s)",
-                    log_prefix,
-                    project.id,
-                    project_artifacts_session_id,
+            try:            
+                artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    project_service=project_service,
+                    component=component,
+                    db=db,
+                    log_prefix=log_prefix,
                 )
 
-                project_artifacts = await get_artifact_info_list(
-                    artifact_service=artifact_service,
-                    app_name=project_service.app_name,
-                    user_id=source_user_id,
-                    session_id=project_artifacts_session_id,
-                )
+                # Get artifact descriptions for context injection
+                if artifacts_copied > 0 or inject_full_context:
+                    source_user_id = project.user_id
+                    project_artifacts_session_id = f"project-{project.id}"
 
-                if project_artifacts:
-                    log.info(
-                        "%sFound %d artifacts in project %s to process.",
-                        log_prefix,
-                        len(project_artifacts),
-                        project.id,
+                    project_artifacts = await get_artifact_info_list(
+                        artifact_service=artifact_service,
+                        app_name=project_service.app_name,
+                        user_id=source_user_id,
+                        session_id=project_artifacts_session_id,
                     )
 
-                    # Get list of artifacts already in session to avoid re-copying
-                    try:
-                        session_artifacts = await get_artifact_info_list(
-                            artifact_service=artifact_service,
-                            app_name=project_service.app_name,
-                            user_id=user_id,
-                            session_id=session_id,
-                        )
-                        session_artifact_names = {
-                            art.filename for art in session_artifacts
-                        }
-                        log.debug(
-                            "%sSession %s currently has %d artifacts",
-                            log_prefix,
-                            session_id,
-                            len(session_artifact_names),
-                        )
-                    except Exception as e:
-                        log.warning(
-                            "%sFailed to get session artifacts, will copy all project artifacts: %s",
-                            log_prefix,
-                            e,
-                        )
-                        session_artifact_names = set()
+                    if project_artifacts:
+                        # For new sessions - all files
+                        all_artifact_descriptions = []
+                        # For existing sessions - only new files
+                        new_artifact_descriptions = []
 
-                    all_artifact_descriptions = []  # For new sessions - all files
-                    new_artifact_descriptions = (
-                        []
-                    )  # For existing sessions - only new files
-                    artifacts_copied = 0
+                        for artifact_info in project_artifacts:
+                            # Build description for all artifacts (for new sessions)
+                            desc_str = f"- {artifact_info.filename}"
+                            if artifact_info.description:
+                                desc_str += f": {artifact_info.description}"
+                            all_artifact_descriptions.append(desc_str)
 
-                    for artifact_info in project_artifacts:
-                        # Build description for all artifacts (for new sessions)
-                        desc_str = f"- {artifact_info.filename}"
-                        if artifact_info.description:
-                            desc_str += f": {artifact_info.description}"
-                        all_artifact_descriptions.append(desc_str)
+                            # Track new artifacts for existing sessions
+                            if artifact_info.filename in new_artifact_names:
+                                new_artifact_descriptions.append(desc_str)
 
-                        # Skip if artifact already exists in session (any source)
-                        if artifact_info.filename in session_artifact_names:
-                            log.debug(
-                                "%sSkipping artifact %s - already exists in session",
-                                log_prefix,
-                                artifact_info.filename,
-                            )
-                            continue
-
-                        # Track new artifacts for existing sessions
-                        new_artifact_descriptions.append(desc_str)
-
-                        log.info(
-                            "%sCopying new artifact %s to session %s",
-                            log_prefix,
-                            artifact_info.filename,
-                            session_id,
+                        # Add artifact descriptions to context
+                        files_added_header = (
+                            "\nNew Files Added to Session:\n"
+                            "The following files have been added to your session (in addition to any files already present):\n"
                         )
 
-                        try:
-                            # Load artifact content from project storage
-                            loaded_artifact = await load_artifact_content_or_metadata(
-                                artifact_service=artifact_service,
-                                app_name=project_service.app_name,
-                                user_id=source_user_id,
-                                session_id=project_artifacts_session_id,
-                                filename=artifact_info.filename,
-                                return_raw_bytes=True,
-                                version="latest",
-                            )
-
-                            # Load the full metadata separately
-                            loaded_metadata = await load_artifact_content_or_metadata(
-                                artifact_service=artifact_service,
-                                app_name=project_service.app_name,
-                                user_id=source_user_id,
-                                session_id=project_artifacts_session_id,
-                                filename=artifact_info.filename,
-                                load_metadata_only=True,
-                                version="latest",
-                            )
-
-                            # Save a copy to the current chat session
-                            if loaded_artifact.get("status") == "success":
-                                full_metadata = (
-                                    loaded_metadata.get("metadata", {})
-                                    if loaded_metadata.get("status") == "success"
-                                    else {}
-                                )
-
-                                # Ensure the source is always set for copied project artifacts
-                                full_metadata["source"] = "project"
-
-                                await save_artifact_with_metadata(
-                                    artifact_service=artifact_service,
-                                    app_name=project_service.app_name,
-                                    user_id=user_id,
-                                    session_id=session_id,
-                                    filename=artifact_info.filename,
-                                    content_bytes=loaded_artifact.get("raw_bytes"),
-                                    mime_type=loaded_artifact.get("mime_type"),
-                                    metadata_dict=full_metadata,
-                                    timestamp=datetime.now(timezone.utc),
-                                )
-                                artifacts_copied += 1
-                                log.info(
-                                    "%sSuccessfully copied artifact %s to session",
-                                    log_prefix,
-                                    artifact_info.filename,
-                                )
-                            else:
-                                log.warning(
-                                    "%sFailed to load artifact %s: %s",
-                                    log_prefix,
-                                    artifact_info.filename,
-                                    loaded_artifact.get("status"),
-                                )
-                        except Exception as e:
-                            log.error(
-                                "%sError copying artifact %s to session: %s",
-                                log_prefix,
-                                artifact_info.filename,
-                                e,
-                            )
-                            # Continue with other artifacts even if one fails
-
-                    # Add artifact descriptions to context
-                    if inject_full_context and all_artifact_descriptions:
-                        # New session: show all project files
-                        artifacts_context = (
-                            "\nFiles in Session:\n"
-                            "The following files are available in your session and can be viewed using your tools if required:\n"
-                            + "\n".join(all_artifact_descriptions)
-                        )
-                        context_parts.append(artifacts_context)
-                    elif not inject_full_context and new_artifact_descriptions:
-                        # Existing session: notify about newly added files
-                        new_files_context = (
-                            "\nNew Files Added to Project:\n"
-                            "The following files have been added to the project and are now available in your session:\n"
-                            + "\n".join(new_artifact_descriptions)
-                        )
-                        context_parts.append(new_files_context)
-
-                    if artifacts_copied > 0:
-                        log.info(
-                            "%sCopied %d new artifacts to session %s.",
-                            log_prefix,
-                            artifacts_copied,
-                            session_id,
-                        )
-                    else:
-                        log.debug(
-                            "%sNo new artifacts to copy to session %s.",
-                            log_prefix,
-                            session_id,
-                        )
-                else:
-                    log.info(
-                        "%sNo artifacts found in project %s to copy.",
-                        log_prefix,
-                        project.id,
-                    )
+                        if inject_full_context and all_artifact_descriptions:
+                            # New session: show all project files
+                            artifacts_context = files_added_header + "\n".join(all_artifact_descriptions)
+                            context_parts.append(artifacts_context)
+                        elif not inject_full_context and new_artifact_descriptions:
+                            # Existing session: notify about newly added files
+                            new_files_context = files_added_header + "\n".join(new_artifact_descriptions)
+                            context_parts.append(new_files_context)
 
             except Exception as e:
                 log.warning(
@@ -316,16 +287,9 @@ async def _inject_project_context(
         if context_parts:
             project_context = "\n".join(context_parts)
             modified_message_text = f"{project_context}\n\nUSER QUERY:\n{message_text}"
-            log.info(
-                "%sInjected full project context for project: %s",
-                log_prefix,
-                project_id,
-            )
+            log.debug("%sInjected full project context for project: %s", log_prefix, project_id)
         else:
-            log.debug(
-                "%sSkipped full context injection for existing session, but ensured new artifacts are copied",
-                log_prefix,
-            )
+            log.debug("%sSkipped full context injection for existing session, but ensured new artifacts are copied", log_prefix)
 
         return modified_message_text
 
@@ -476,9 +440,34 @@ async def _submit_task(
         # Skip if project_service is None (persistence disabled)
         modified_message = payload.params.message
         if project_service and project_id and message_text:
-            # Inject context for new sessions (includes full context + artifact copy)
-            # For existing sessions, only copy new artifacts without re-injecting full context
+            # Determine if we should inject full context:
             should_inject_full_context = not frontend_session_id
+
+            # Check if there are artifacts with pending project context
+            if frontend_session_id and not should_inject_full_context:
+                from ..utils.artifact_copy_utils import has_pending_project_context
+                from ....gateway.http_sse.dependencies import SessionLocal
+
+                artifact_service = component.get_shared_artifact_service()
+                if artifact_service and SessionLocal:
+                    db = SessionLocal()
+                    try:
+                        has_pending = await has_pending_project_context(
+                            user_id=client_id,
+                            session_id=session_id,
+                            artifact_service=artifact_service,
+                            app_name=component.gateway_id,
+                            db=db,
+                        )
+                        if has_pending:
+                            should_inject_full_context = True
+                            log.info(
+                                "%sDetected pending project context for session %s, will inject full context",
+                                log_prefix,
+                                session_id,
+                            )
+                    finally:
+                        db.close()
 
             modified_message_text = await _inject_project_context(
                 project_id=project_id,
@@ -528,12 +517,24 @@ async def _submit_task(
             "target_agent_name": agent_name,
         }
 
+        # Extract additional metadata from the message (e.g., background execution settings)
+        # This metadata will be passed through to the A2A message for the task logger
+        additional_metadata = {}
+        if payload.params and payload.params.message and payload.params.message.metadata:
+            msg_metadata = payload.params.message.metadata
+            # Pass through background execution settings
+            if msg_metadata.get("backgroundExecutionEnabled"):
+                additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
+            if msg_metadata.get("maxExecutionTimeMs"):
+                additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
+
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
             is_streaming=is_streaming,
+            metadata=additional_metadata if additional_metadata else None,
         )
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
@@ -652,8 +653,8 @@ async def search_tasks(
         )
 
 
-@router.get("/tasks/{task_id}", tags=["Tasks"])
-async def get_task_as_stim_file(
+@router.get("/tasks/{task_id}/events", tags=["Tasks"])
+async def get_task_events(
     task_id: str,
     request: FastAPIRequest,
     db: DBSession = Depends(get_db),
@@ -662,9 +663,11 @@ async def get_task_as_stim_file(
     repo: ITaskRepository = Depends(get_task_repository),
 ):
     """
-    Retrieves the complete event history for a single task and returns it as a `.stim` file.
+    Retrieves the complete event history for a task and all its child tasks as JSON.
+    Returns events in the same format as the SSE stream for workflow visualization.
+    Recursively loads all descendant tasks to enable full workflow rendering.
     """
-    log_prefix = f"[GET /api/v1/tasks/{task_id}] "
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/events] "
     log.info("%sRequest from user %s", log_prefix, user_id)
 
     try:
@@ -684,8 +687,255 @@ async def get_task_as_stim_file(
                 detail="You do not have permission to view this task.",
             )
 
-        # Format into .stim structure
-        stim_data = create_stim_from_task_data(task, events)
+        # Transform task events into A2AEventSSEPayload format for the frontend
+        # Need to reconstruct the SSE structure from stored data
+        formatted_events = []
+        
+        for event in events:
+            # event.payload contains the raw A2A JSON-RPC message
+            # event.created_time is epoch milliseconds
+            # event.direction is simplified (request, response, status, error, etc)
+
+            # Convert timestamp from epoch milliseconds to ISO 8601
+            from datetime import datetime, timezone
+            timestamp_dt = datetime.fromtimestamp(event.created_time / 1000, tz=timezone.utc)
+            timestamp_iso = timestamp_dt.isoformat()
+
+            # Extract metadata from payload using similar logic to SSE component
+            payload = event.payload
+            message_id = payload.get("id")
+            source_entity = "unknown"
+            target_entity = "unknown"
+            method = "N/A"
+
+            # Parse based on direction
+            if event.direction == "request":
+                # It's a request - extract target from message metadata
+                method = payload.get("method", "N/A")
+                if "params" in payload and "message" in payload.get("params", {}):
+                    message = payload["params"]["message"]
+                    if isinstance(message, dict) and "metadata" in message:
+                        target_entity = message["metadata"].get("agent_name", "unknown")
+            elif event.direction in ["status", "response", "error"]:
+                # It's a response - extract source from result metadata
+                if "result" in payload:
+                    result = payload["result"]
+                    if isinstance(result, dict):
+                        # Check for agent_name in metadata
+                        if "metadata" in result:
+                            source_entity = result["metadata"].get("agent_name", "unknown")
+                        # For status updates, check the message inside
+                        if "message" in result:
+                            message = result["message"]
+                            if isinstance(message, dict) and "metadata" in message:
+                                if source_entity == "unknown":
+                                    source_entity = message["metadata"].get("agent_name", "unknown")
+
+            # Map stored direction to SSE direction format
+            direction_map = {
+                "request": "request",
+                "response": "task",
+                "status": "status-update",
+                "error": "error_response",
+            }
+            sse_direction = direction_map.get(event.direction, event.direction)
+
+            # Build the A2AEventSSEPayload structure
+            formatted_event = {
+                "event_type": "a2a_message",
+                "timestamp": timestamp_iso,
+                "solace_topic": event.topic,
+                "direction": sse_direction,
+                "source_entity": source_entity,
+                "target_entity": target_entity,
+                "message_id": message_id,
+                "task_id": task_id,
+                "payload_summary": {
+                    "method": method,
+                    "params_preview": None,
+                },
+                "full_payload": payload,
+            }
+            formatted_events.append(formatted_event)
+
+        # Use database-level query to get all related tasks efficiently
+        related_task_ids = repo.find_all_by_parent_chain(db, task_id)
+        log.info(
+            "%sFound %d related tasks for task_id %s",
+            log_prefix,
+            len(related_task_ids),
+            task_id,
+        )
+
+        # Load and format all related tasks
+        all_tasks = {}
+        all_tasks[task_id] = {
+            "events": formatted_events,
+            "initial_request_text": task.initial_request_text or "",
+        }
+
+        # Load remaining related tasks
+        for tid in related_task_ids:
+            if tid == task_id:
+                continue  # Already loaded
+
+            task_result = repo.find_by_id_with_events(db, tid)
+            if not task_result:
+                continue
+
+            related_task, related_events = task_result
+
+            # Check permissions for each related task
+            if related_task.user_id != user_id and not can_read_all:
+                log.warning(
+                    "%sSkipping related task %s due to permission check",
+                    log_prefix,
+                    tid,
+                )
+                continue
+
+            # Format events for this related task
+            related_formatted_events = []
+            
+            for event in related_events:
+                from datetime import datetime, timezone
+
+                timestamp_dt = datetime.fromtimestamp(
+                    event.created_time / 1000, tz=timezone.utc
+                )
+                timestamp_iso = timestamp_dt.isoformat()
+                payload = event.payload
+                message_id = payload.get("id")
+                source_entity = "unknown"
+                target_entity = "unknown"
+                method = "N/A"
+
+                if event.direction == "request":
+                    method = payload.get("method", "N/A")
+                    if "params" in payload and "message" in payload.get("params", {}):
+                        message = payload["params"]["message"]
+                        if isinstance(message, dict) and "metadata" in message:
+                            target_entity = message["metadata"].get(
+                                "agent_name", "unknown"
+                            )
+                elif event.direction in ["status", "response", "error"]:
+                    if "result" in payload:
+                        result = payload["result"]
+                        if isinstance(result, dict):
+                            if "metadata" in result:
+                                source_entity = result["metadata"].get(
+                                    "agent_name", "unknown"
+                                )
+                            if "message" in result:
+                                message = result["message"]
+                                if isinstance(message, dict) and "metadata" in message:
+                                    if source_entity == "unknown":
+                                        source_entity = message["metadata"].get(
+                                            "agent_name", "unknown"
+                                        )
+
+                direction_map = {
+                    "request": "request",
+                    "response": "task",
+                    "status": "status-update",
+                    "error": "error_response",
+                }
+                sse_direction = direction_map.get(event.direction, event.direction)
+
+                formatted_event = {
+                    "event_type": "a2a_message",
+                    "timestamp": timestamp_iso,
+                    "solace_topic": event.topic,
+                    "direction": sse_direction,
+                    "source_entity": source_entity,
+                    "target_entity": target_entity,
+                    "message_id": message_id,
+                    "task_id": tid,
+                    "payload_summary": {"method": method, "params_preview": None},
+                    "full_payload": payload,
+                }
+                related_formatted_events.append(formatted_event)
+
+            all_tasks[tid] = {
+                "events": related_formatted_events,
+                "initial_request_text": related_task.initial_request_text or "",
+            }
+
+        # Return all tasks (parent + children) for the frontend to process
+        return {"tasks": all_tasks}
+
+    except HTTPException:
+        # Re-raise HTTPExceptions (404, 403, etc.) without modification
+        raise
+    except Exception as e:
+        log.exception("%sError retrieving task events: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving the task events.",
+        )
+
+
+@router.get("/tasks/{task_id}", tags=["Tasks"])
+async def get_task_as_stim_file(
+    task_id: str,
+    request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+):
+    """
+    Retrieves the complete event history for a task and all its child tasks, returning it as a `.stim` file.
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+
+    try:
+        # Find all related task IDs (parent chain + all children)
+        related_task_ids = repo.find_all_by_parent_chain(db, task_id)
+
+        if not related_task_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        # Load all tasks and their events
+        tasks_dict = {}
+        events_dict = {}
+        can_read_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+
+        for tid in related_task_ids:
+            result = repo.find_by_id_with_events(db, tid)
+            if result:
+                task, events = result
+
+                # Check permissions for each task
+                if task.user_id != user_id and not can_read_all:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You do not have permission to view this task.",
+                    )
+
+                tasks_dict[tid] = task
+                events_dict[tid] = events
+
+        if task_id not in tasks_dict:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        # Determine the root task (the one without a parent)
+        root_task_id = task_id
+        for tid, task in tasks_dict.items():
+            if task.parent_task_id is None:
+                root_task_id = tid
+                break
+
+        # Format into .stim structure with all tasks
+        from ..utils.stim_utils import create_stim_from_task_hierarchy
+        stim_data = create_stim_from_task_hierarchy(tasks_dict, events_dict, root_task_id)
 
         yaml_content = yaml.dump(
             stim_data,
@@ -698,7 +948,7 @@ async def get_task_as_stim_file(
         return Response(
             content=yaml_content,
             media_type="application/yaml",
-            headers={"Content-Disposition": f'attachment; filename="{task_id}.stim"'},
+            headers={"Content-Disposition": f'attachment; filename="{root_task_id}.stim"'},
         )
 
     except HTTPException:
@@ -768,9 +1018,11 @@ async def cancel_agent_task(
     session_manager: SessionManager = Depends(get_session_manager),
     task_service: TaskService = Depends(get_task_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    db: DBSession = Depends(get_db),
 ):
     """
     Sends a cancellation request for a specific task to the specified agent.
+    Also sends cancellation requests to all active child tasks (e.g., workflows).
     Returns 202 Accepted, as cancellation is asynchronous.
     Returns 404 if the task context is not found.
     """
@@ -814,9 +1066,72 @@ async def cancel_agent_task(
 
         log.info("%sUsing ClientID: %s", log_prefix, client_id)
 
+        # Send cancel to the original target agent
         await task_service.cancel_task(agent_name, taskId, client_id, client_id)
+        log.info("%sCancellation request sent to original target '%s'", log_prefix, agent_name)
 
-        log.info("%sCancellation request published successfully.", log_prefix)
+        # Also send cancel requests to all active child tasks (e.g., workflows)
+        # This ensures that when an orchestrator delegates to a workflow, the workflow
+        # also receives the cancellation request
+        if not db:
+            log.warning("%sDatabase session not available, skipping child task cancellation", log_prefix)
+            log.info("%sCancellation request(s) published successfully.", log_prefix)
+            return {"message": "Cancellation request sent"}
+
+        try:
+            repo = TaskRepository()
+            log.info("%sLooking up active child tasks for parent task '%s'", log_prefix, taskId)
+            
+            # Find children by parent_task_id column
+            active_children = repo.find_active_children(db, taskId)
+            log.info("%sfind_active_children returned %d children: %s", log_prefix, len(active_children), active_children)
+            
+            if not active_children:
+                log.debug("%sNo active child tasks found", log_prefix)
+                log.info("%sCancellation request(s) published successfully.", log_prefix)
+                return {"message": "Cancellation request sent"}
+
+            log.info(
+                "%sFound %d active child task(s) to cancel: %s",
+                log_prefix,
+                len(active_children),
+                [child_id for child_id, _ in active_children],
+            )
+            
+            for child_task_id, child_agent_name in active_children:
+                if child_agent_name:
+                    try:
+                        await task_service.cancel_task(
+                            child_agent_name, child_task_id, client_id, client_id
+                        )
+                        log.info(
+                            "%sCancellation request sent to child task '%s' (agent: '%s')",
+                            log_prefix,
+                            child_task_id,
+                            child_agent_name,
+                        )
+                    except Exception as child_err:
+                        log.warning(
+                            "%sFailed to send cancellation to child task '%s': %s",
+                            log_prefix,
+                            child_task_id,
+                            child_err,
+                        )
+                else:
+                    log.warning(
+                        "%sCould not determine target agent for child task '%s', skipping",
+                        log_prefix,
+                        child_task_id,
+                    )
+        except Exception as db_err:
+            # Don't fail the main cancellation if child lookup fails
+            log.warning(
+                "%sFailed to look up child tasks for cancellation: %s",
+                log_prefix,
+                db_err,
+            )
+
+        log.info("%sCancellation request(s) published successfully.", log_prefix)
 
         return {"message": "Cancellation request sent"}
 

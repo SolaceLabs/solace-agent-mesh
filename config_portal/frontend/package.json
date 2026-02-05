@@ -11,8 +11,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@remix-run/node": "^2.16.2",
-    "@remix-run/react": "^2.16.2",
+    "@remix-run/node": "2.17.4",
+    "@remix-run/react": "2.17.4",
     "isbot": "^4",
     "lucide-react": "^0.542.0",
     "react": "^18.2.0",
@@ -20,7 +20,7 @@
     "react-markdown": "^10.1.0"
   },
   "devDependencies": {
-    "@remix-run/dev": "^2.16.2",
+    "@remix-run/dev": "2.17.4",
     "@types/react": "^18.2.20",
     "@types/react-dom": "^18.2.7",
     "@typescript-eslint/eslint-plugin": "^6.7.4",
@@ -39,9 +39,14 @@
     "vite-tsconfig-paths": "^4.2.1"
   },
   "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "4.44.0"
+    "@esbuild/darwin-arm64": "0.25.1",
+    "@esbuild/darwin-x64": "0.25.1",
+    "@esbuild/linux-arm64": "0.25.1",
+    "@esbuild/linux-x64": "0.25.1",
+    "@rollup/rollup-linux-arm64-gnu": "4.36.0",
+    "@rollup/rollup-linux-x64-gnu": "4.36.0"
   },
   "engines": {
-    "node": ">=24.11.1 <25.0.0"
+    "node": ">=25.5.0 <26"
   }
 }

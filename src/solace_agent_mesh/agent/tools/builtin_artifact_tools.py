@@ -10,7 +10,7 @@ import uuid
 import json
 import re
 import fnmatch
-from typing import Any, Dict, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 from datetime import datetime, timezone
 from google.adk.tools import ToolContext
 
@@ -175,6 +175,7 @@ async def _internal_create_artifact(
             timestamp=timestamp_for_artifact,
             schema_max_keys=max_keys_to_use,
             tool_context=tool_context,
+            suppress_visualization_signal=True,  # Fenced blocks handle their own visualization signals
         )
         log.info(
             "%s Result from save_artifact_with_metadata: %s", log_identifier, result
@@ -362,6 +363,7 @@ async def load_artifact(
     version: int,
     load_metadata_only: bool = False,
     max_content_length: Optional[int] = None,
+    include_line_numbers: bool = False,
     tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """
@@ -377,6 +379,9 @@ async def load_artifact(
         load_metadata_only (bool): If True, load only the metadata JSON. Default False.
         max_content_length (Optional[int]): Maximum character length for text content.
                                            If None, uses app configuration. Range: 100-100,000.
+        include_line_numbers (bool): If True, prefix each line with its 1-based line number
+                                    followed by a TAB character for LLM viewing. Line numbers
+                                    are not stored in the artifact. Default False.
         tool_context: The context provided by the ADK framework.
 
     Returns:
@@ -415,6 +420,7 @@ async def load_artifact(
             version=version,
             load_metadata_only=load_metadata_only,
             max_content_length=max_content_length,
+            include_line_numbers=include_line_numbers,
             component=host_component,
             log_identifier_prefix="[BuiltinArtifactTool:load_artifact]",
         )
@@ -866,25 +872,52 @@ async def extract_content_from_artifact(
     )
 
     if is_text_based:
-        try:
-            artifact_text_content = source_artifact_content_bytes.decode("utf-8")
+        # Try multiple encodings to handle files from different sources (e.g., Windows Excel exports)
+        # Includes common Windows encodings like CP1252 and UTF-16
+        artifact_text_content = None
+        encoding_used = None
+        encodings_to_try = ['utf-8', 'utf-16', 'cp1252', 'latin-1']
+        decode_errors = []
+        
+        for encoding in encodings_to_try:
+            try:
+                artifact_text_content = source_artifact_content_bytes.decode(encoding)
+                encoding_used = encoding
+                log.debug(
+                    "%s Successfully decoded artifact using %s encoding.",
+                    log_identifier,
+                    encoding,
+                )
+                break
+            except UnicodeDecodeError as e:
+                decode_errors.append(f"{encoding}: {e}")
+                continue
+        
+        if artifact_text_content is not None:
             llm_parts.append(
                 adk_types.Part(
-                    text=f"Artifact Content (MIME type: {source_mime_type}):\n```\n{artifact_text_content}\n```"
+                    text=f"Artifact Content (MIME type: {source_mime_type}, encoding: {encoding_used}):\n```\n{artifact_text_content}\n```"
                 )
             )
             log.debug("%s Prepared text content for LLM.", log_identifier)
-        except UnicodeDecodeError as e:
-            log.warning(
-                "%s Failed to decode text artifact as UTF-8: %s. Treating as opaque binary.",
+        else:
+            # All encoding attempts failed - return an error to the calling agent
+            # instead of passing a misleading message to the internal LLM
+            log.error(
+                "%s Failed to decode text artifact with any supported encoding. Errors: %s",
                 log_identifier,
-                e,
+                "; ".join(decode_errors),
             )
-            llm_parts.append(
-                adk_types.Part(
-                    text=f"The artifact '{filename}' is a binary file of type '{source_mime_type}' and could not be decoded as text."
-                )
-            )
+            return {
+                "status": "error_encoding_failed",
+                "message_to_llm": f"Could not extract content from artifact '{filename}' (v{actual_source_version}). "
+                                  f"The file appears to be a text file (MIME type: {source_mime_type}) but could not be decoded "
+                                  f"with any supported encoding (UTF-8, CP1252, Latin-1). The file may be corrupted or use an "
+                                  f"unsupported encoding. Please inform the user that the file cannot be processed.",
+                "filename": filename,
+                "version_requested": str(version),
+                "encoding_errors": decode_errors,
+            }
     else:  # Binary
         for supported_pattern in supported_binary_mime_types:
             if fnmatch.fnmatch(source_mime_type, supported_pattern):
@@ -920,6 +953,29 @@ async def extract_content_from_artifact(
                 source_mime_type,
             )
 
+    # System instruction to ensure the LLM directly analyzes data rather than generating code
+    system_instruction = """You are a data extraction and analysis assistant. Your task is to directly analyze the provided artifact content and return the requested information.
+
+CRITICAL RULES:
+1. DIRECTLY ANALYZE the data provided - do NOT write code (Python, SQL, or any other language) to analyze it
+2. The artifact content is already loaded and provided to you - you must work with it directly
+3. Provide actual results, counts, summaries, or extracted data based on what you find in the content
+4. If you cannot find the requested information, clearly state what you found instead
+5. Format your response as plain text or structured data (JSON, markdown tables) - NOT as code
+6. You do NOT have access to execute code - any code you write will NOT be run
+
+Example of WRONG response (do not do this):
+```python
+import pandas as pd
+df = pd.read_csv('file.csv')
+print(df['column'].count())
+```
+
+Example of CORRECT response:
+Based on analyzing the CSV data, I found 102 records containing 'Employee' in the 'Type' column. Here's the breakdown:
+- Employee-A: 65 records
+- Employee-B: 37 records"""
+
     internal_llm_contents = [
         adk_types.Content(
             role="user", parts=[adk_types.Part(text=extraction_goal)] + llm_parts
@@ -930,6 +986,7 @@ async def extract_content_from_artifact(
         contents=internal_llm_contents,
         config=adk_types.GenerateContentConfig(
             temperature=0.1,
+            system_instruction=system_instruction,
         ),
     )
 
@@ -1004,15 +1061,27 @@ async def extract_content_from_artifact(
                     log_identifier,
                     llm_async_err,
                 )
-                extracted_content_str = (
-                    f"[ERROR: Asynchronous LLM call failed: {llm_async_err}]"
-                )
+                # Return an error status instead of continuing with error message as "extracted data"
+                return {
+                    "status": "error_llm_call_failed",
+                    "message_to_llm": f"The internal LLM call failed while processing artifact '{filename}' for your goal '{extraction_goal}'. "
+                                      f"Error: {llm_async_err}. Please inform the user that the extraction could not be completed.",
+                    "filename": filename,
+                    "version_requested": str(version),
+                    "error_details": str(llm_async_err),
+                }
         else:
             log.error(
-                "%s LLM does not have a known generate_content or generate_content_async method. Extraction will be empty.",
+                "%s LLM does not have a known generate_content or generate_content_async method.",
                 log_identifier,
             )
-            extracted_content_str = "[ERROR: LLM method not found]"
+            return {
+                "status": "error_llm_configuration",
+                "message_to_llm": f"The LLM configured for extraction does not have a supported generation method. "
+                                  f"Please inform the user that the extraction tool is misconfigured.",
+                "filename": filename,
+                "version_requested": str(version),
+            }
 
         log.info(
             "%s Internal LLM call completed. Extracted content length: %d chars",
@@ -1024,6 +1093,47 @@ async def extract_content_from_artifact(
                 "%s Internal LLM produced empty or whitespace-only content for extraction goal.",
                 log_identifier,
             )
+        
+        # Check if the LLM generated code instead of actual analysis results
+        # This is a safety check to prevent hallucinated code from being saved as "extracted data"
+        code_indicators = [
+            "```python",
+            "```sql",
+            "import pandas",
+            "import csv",
+            "pd.read_csv",
+            "df = pd.",
+            "SELECT * FROM",
+            "def analyze(",
+            "def extract(",
+        ]
+        content_lower = extracted_content_str.lower()
+        detected_code = [indicator for indicator in code_indicators if indicator.lower() in content_lower]
+        
+        if detected_code and len(extracted_content_str) > 100:
+            # Check if the response is primarily code (more than 50% of content is in code blocks)
+            code_block_pattern = r'```[\s\S]*?```'
+            code_blocks = re.findall(code_block_pattern, extracted_content_str)
+            code_content_length = sum(len(block) for block in code_blocks)
+            
+            if code_content_length > len(extracted_content_str) * 0.3:
+                log.warning(
+                    "%s Internal LLM generated code instead of analyzing data. Detected indicators: %s. "
+                    "Code blocks comprise %.1f%% of response.",
+                    log_identifier,
+                    detected_code,
+                    (code_content_length / len(extracted_content_str)) * 100,
+                )
+                return {
+                    "status": "error_llm_generated_code",
+                    "message_to_llm": f"The extraction tool's internal LLM generated code instead of analyzing the data directly. "
+                                      f"This tool cannot execute code. For CSV data analysis, please use the 'query_data_with_sql' tool"
+                                      f"from the Data Analysis tools instead, if available, which can execute SQL queries on CSV files. "
+                                      f"Alternatively, use 'load_artifact' to view the raw content and analyze it yourself.",
+                    "filename": filename,
+                    "version_requested": str(version),
+                    "detected_code_indicators": detected_code,
+                }
 
     except Exception as e:
         log.exception(
@@ -1621,7 +1731,7 @@ list_artifacts_tool_def = BuiltinTool(
 load_artifact_tool_def = BuiltinTool(
     name="load_artifact",
     implementation=load_artifact,
-    description="Loads the content or metadata of a specific artifact version. If load_metadata_only is True, loads the full metadata dictionary. Otherwise, loads text content (potentially truncated) or a summary for binary types.",
+    description="Loads the content or metadata of a specific artifact version. If load_metadata_only is True, loads the full metadata dictionary. Otherwise, loads text content (potentially truncated) or a summary for binary types. Line numbers can be optionally included for precise line range identification.",
     category="artifact_management",
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -1645,6 +1755,11 @@ load_artifact_tool_def = BuiltinTool(
             "max_content_length": adk_types.Schema(
                 type=adk_types.Type.INTEGER,
                 description="Optional. Maximum character length for text content. If None, uses app configuration. Range: 100-100,000.",
+                nullable=True,
+            ),
+            "include_line_numbers": adk_types.Schema(
+                type=adk_types.Type.BOOLEAN,
+                description="If True, prefix each line with its 1-based line number followed by a TAB character. Line numbers are for LLM viewing only and are not stored in the artifact. Default False.",
                 nullable=True,
             ),
         },
@@ -1687,7 +1802,7 @@ apply_embed_and_create_artifact_tool_def = BuiltinTool(
 extract_content_from_artifact_tool_def = BuiltinTool(
     name="extract_content_from_artifact",
     implementation=extract_content_from_artifact,
-    description="Loads an existing artifact, uses an internal LLM to process its content based on an 'extraction_goal,' and manages the output by returning it or saving it as a new artifact.",
+    description="Loads an existing artifact, uses an internal LLM to process its content based on an 'extraction_goal,' and manages the output by returning it or saving it as a new artifact. IMPORTANT: If the tool returns an error status (e.g., 'error_encoding_failed', 'error_artifact_not_found'), you MUST relay this error to the user - do NOT attempt to generate or fabricate data. The tool will return a 'message_to_llm' field explaining the error.",
     category="artifact_management",
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -1730,18 +1845,20 @@ tool_registry.register(extract_content_from_artifact_tool_def)
 async def delete_artifact(
     filename: str,
     version: Optional[int] = None,
+    confirm_delete: bool = False,
     tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """
-    Deletes a specific version of an artifact, or all versions if no version is specified.
+    Deletes all versions of an artifact. Version-specific deletion is not currently supported.
 
     Args:
         filename: The name of the artifact to delete.
-        version: The specific version number to delete. If not provided, all versions will be deleted.
+        version: Reserved for future use. Currently not supported - returns error if specified.
+        confirm_delete: Must be set to True to confirm deletion. If False, returns confirmation prompt.
         tool_context: The context provided by the ADK framework.
 
     Returns:
-        A dictionary indicating the result of the deletion.
+        A dictionary indicating the result of the deletion or requesting confirmation.
     """
     if not tool_context:
         return {
@@ -1750,9 +1867,7 @@ async def delete_artifact(
             "message": "ToolContext is missing, cannot delete artifact.",
         }
 
-    log_identifier = (
-        f"[BuiltinArtifactTool:delete_artifact:{filename}:{version or 'all'}]"
-    )
+    log_identifier = f"[BuiltinArtifactTool:delete_artifact:{filename}]"
     log.debug("%s Processing request.", log_identifier)
 
     try:
@@ -1770,14 +1885,32 @@ async def delete_artifact(
                 "ArtifactService does not support deleting artifacts."
             )
 
+        # Error if version-specific deletion requested (not currently supported)
         if version is not None:
-            log.warning(
-                "%s Deleting a specific version (%s) is not supported by the current artifact service interface. "
-                "All versions of the artifact will be deleted.",
-                log_identifier,
-                version,
-            )
+            return {
+                "status": "error",
+                "filename": filename,
+                "version_requested": version,
+                "message": f"Deleting a specific version ({version}) is not currently supported. Only deletion of ALL versions is supported. To delete all versions, omit 'version' and set confirm_delete=True.",
+            }
 
+        # Get version list for confirmation message
+        versions = await artifact_service.list_versions(
+            app_name=app_name, user_id=user_id, session_id=session_id, filename=filename
+        )
+
+        # Require confirmation before deleting
+        if not confirm_delete:
+            count = len(versions) if versions else "unknown number of"
+            return {
+                "status": "confirmation_required",
+                "filename": filename,
+                "version_count": len(versions) if versions else None,
+                "versions": versions,
+                "message": f"WARNING: This operation is irreversible and will permanently delete artifact '{filename}' and ALL {count} version(s). To proceed, call this tool again with confirm_delete=True.",
+            }
+
+        # Proceed with deletion
         await artifact_service.delete_artifact(
             app_name=app_name,
             user_id=user_id,
@@ -1785,17 +1918,12 @@ async def delete_artifact(
             filename=filename,
         )
 
-        log.info(
-            "%s Successfully deleted artifact '%s' version '%s'.",
-            log_identifier,
-            filename,
-            version or "all",
-        )
+        log.info("%s Successfully deleted artifact '%s'.", log_identifier, filename)
         return {
             "status": "success",
             "filename": filename,
-            "version": version or "all",
-            "message": f"Artifact '{filename}' version '{version or 'all'}' deleted successfully.",
+            "versions_deleted": len(versions) if versions else None,
+            "message": f"Artifact '{filename}' deleted successfully.",
         }
 
     except FileNotFoundError as e:
@@ -1819,7 +1947,7 @@ async def delete_artifact(
 delete_artifact_tool_def = BuiltinTool(
     name="delete_artifact",
     implementation=delete_artifact,
-    description="Deletes a specific version of an artifact, or all versions if no version is specified.",
+    description="Deletes all versions of an artifact. IMPORTANT: Requires explicit confirmation via confirm_delete=True parameter. The first call without confirmation will return details about what will be deleted.",
     category="artifact_management",
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -1833,7 +1961,12 @@ delete_artifact_tool_def = BuiltinTool(
             ),
             "version": adk_types.Schema(
                 type=adk_types.Type.INTEGER,
-                description="The specific version number to delete. If not provided, all versions will be deleted.",
+                description="Reserved for future use. Version-specific deletion is not currently supported - will return error if specified.",
+                nullable=True,
+            ),
+            "confirm_delete": adk_types.Schema(
+                type=adk_types.Type.BOOLEAN,
+                description="Must be set to True to actually perform the deletion. If False or omitted, returns a confirmation prompt with details about what will be deleted (including version count).",
                 nullable=True,
             ),
         },
@@ -1845,21 +1978,135 @@ delete_artifact_tool_def = BuiltinTool(
 tool_registry.register(delete_artifact_tool_def)
 
 
+def _perform_single_replacement(
+    content: str,
+    search_expr: str,
+    replace_expr: str,
+    is_regex: bool,
+    regex_flags: str,
+    log_identifier: str,
+    strict_match_validation: bool = False,
+) -> Tuple[str, int, Optional[str]]:
+    """
+    Performs a single search-and-replace operation.
+
+    Args:
+        content: The text content to search/replace in
+        search_expr: The search pattern (literal or regex)
+        replace_expr: The replacement text
+        is_regex: If True, search_expr is treated as regex
+        regex_flags: Flags for regex behavior ('g', 'i', 'm', 's')
+        log_identifier: Logging prefix
+        strict_match_validation: If True, error on multiple matches without 'g' flag (for batch mode)
+
+    Returns:
+        tuple: (new_content, match_count, error_message)
+               error_message is None on success
+    """
+    match_count = 0
+    new_content = content
+
+    if is_regex:
+        # Parse regex flags
+        flags_value = 0
+        global_replace = False
+
+        if regex_flags:
+            for flag_char in regex_flags.lower():
+                if flag_char == "g":
+                    global_replace = True
+                elif flag_char == "i":
+                    flags_value |= re.IGNORECASE
+                elif flag_char == "m":
+                    flags_value |= re.MULTILINE
+                elif flag_char == "s":
+                    flags_value |= re.DOTALL
+                else:
+                    log.warning(
+                        "%s Ignoring unrecognized regexp flag: '%s'",
+                        log_identifier,
+                        flag_char,
+                    )
+
+        # Convert JavaScript-style capture groups ($1, $2) to Python style (\1, \2)
+        # Also handle escaped dollar signs ($$) -> literal $
+        python_replace_expr = replace_expr
+        # First, protect escaped dollars: $$ -> a placeholder
+        python_replace_expr = python_replace_expr.replace("$$", "\x00DOLLAR\x00")
+        # Convert capture groups: $1 -> \1
+        python_replace_expr = re.sub(r"\$(\d+)", r"\\\1", python_replace_expr)
+        # Restore escaped dollars: placeholder -> $
+        python_replace_expr = python_replace_expr.replace("\x00DOLLAR\x00", "$")
+
+        try:
+            # Compile the regex pattern
+            pattern = re.compile(search_expr, flags_value)
+
+            # Count matches first
+            match_count = len(pattern.findall(content))
+
+            if match_count == 0:
+                return content, 0, f"No matches found"
+
+            # Check for multiple matches without global flag (only in strict mode for batch operations)
+            if strict_match_validation and match_count > 1 and not global_replace:
+                return (
+                    content,
+                    match_count,
+                    f"Multiple matches found ({match_count}) but global flag 'g' not set",
+                )
+
+            # Perform replacement
+            count_limit = 0 if global_replace else 1
+            new_content = pattern.sub(python_replace_expr, content, count=count_limit)
+
+            return new_content, match_count, None
+
+        except re.error as regex_err:
+            return content, 0, f"Invalid regular expression: {regex_err}"
+
+    else:
+        # Literal string replacement
+        match_count = content.count(search_expr)
+
+        if match_count == 0:
+            return content, 0, f"No matches found"
+
+        # Replace all occurrences for literal mode
+        new_content = content.replace(search_expr, replace_expr)
+        return new_content, match_count, None
+
+
 async def artifact_search_and_replace_regex(
     filename: str,
-    search_expression: str,
-    replace_expression: str,
-    is_regexp: bool,
+    search_expression: Optional[str] = None,
+    replace_expression: Optional[str] = None,
+    is_regexp: bool = False,
     version: Optional[str] = "latest",
     regexp_flags: Optional[str] = "",
     new_filename: Optional[str] = None,
     new_description: Optional[str] = None,
+    replacements: Optional[List[Dict[str, Any]]] = None,
     tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """
     Performs search and replace on an artifact's text content using either
     literal string matching or regular expressions. Note that this is run once across the entire artifact.
     If multiple replacements are needed, then set the 'g' flag in regexp_flags.
+
+    Handling Multi-line Search and Replace:
+
+        When searching for or replacing text that spans multiple lines:
+
+        - In literal mode (is_regexp=false): Include actual newline characters directly in your search_expression
+        and replace_expression parameters. Do NOT use escape sequences like \n - the tool will search for those
+        literal characters. Multi-line parameter values are fully supported in the XML parameter format.
+
+        - In regex mode (is_regexp=true): Use the regex pattern \n to match newline characters in your pattern.
+
+    For multiple independent replacements:
+
+        Use the replacements array parameter to perform all replacements atomically in a single tool call, which is more efficient than multiple sequential calls.
 
     Args:
         filename: The name of the artifact to search/replace in.
@@ -1888,8 +2135,50 @@ async def artifact_search_and_replace_regex(
     )
     log.debug("%s Processing request.", log_identifier)
 
-    # Validate inputs
-    if not search_expression:
+    # Validate parameter combinations
+    if replacements is not None and (
+        search_expression is not None or replace_expression is not None
+    ):
+        return {
+            "status": "error",
+            "filename": filename,
+            "message": "Cannot provide both 'replacements' array and individual 'search_expression'/'replace_expression'. Use one or the other.",
+        }
+
+    if replacements is None and (
+        search_expression is None or replace_expression is None
+    ):
+        return {
+            "status": "error",
+            "filename": filename,
+            "message": "Must provide either 'replacements' array or both 'search_expression' and 'replace_expression'.",
+        }
+
+    if replacements is not None:
+        if not isinstance(replacements, list) or len(replacements) == 0:
+            return {
+                "status": "error",
+                "filename": filename,
+                "message": "replacements must be a non-empty array.",
+            }
+
+        # Validate each replacement entry
+        for idx, repl in enumerate(replacements):
+            if not isinstance(repl, dict):
+                return {
+                    "status": "error",
+                    "filename": filename,
+                    "message": f"Replacement at index {idx} must be a dictionary.",
+                }
+            if "search" not in repl or "replace" not in repl or "is_regexp" not in repl:
+                return {
+                    "status": "error",
+                    "filename": filename,
+                    "message": f"Replacement at index {idx} missing required fields: 'search', 'replace', 'is_regexp'.",
+                }
+
+    # Validate inputs for single replacement mode
+    if replacements is None and not search_expression:
         return {
             "status": "error",
             "filename": filename,
@@ -1954,78 +2243,155 @@ async def artifact_search_and_replace_regex(
                 "message": f"Cannot perform search and replace on binary artifact of type '{source_mime_type}'. This tool only works with text-based content.",
             }
 
-        # Decode the content
-        try:
-            original_content = source_bytes.decode("utf-8")
-        except UnicodeDecodeError as decode_err:
+        # Decode the content - try multiple encodings for Windows-exported files
+        original_content = None
+        encoding_used = None
+        encodings_to_try = ['utf-8', 'utf-16', 'cp1252', 'latin-1']
+        decode_errors = []
+        
+        for encoding in encodings_to_try:
+            try:
+                original_content = source_bytes.decode(encoding)
+                encoding_used = encoding
+                if encoding != 'utf-8':
+                    log.info(
+                        "%s Successfully decoded artifact using fallback encoding '%s' (UTF-8 failed)",
+                        log_identifier,
+                        encoding,
+                    )
+                break
+            except UnicodeDecodeError as e:
+                decode_errors.append(f"{encoding}: {e}")
+                continue
+        
+        if original_content is None:
             log.error(
-                "%s Failed to decode artifact content as UTF-8: %s",
+                "%s Failed to decode artifact content with any supported encoding. Errors: %s",
                 log_identifier,
-                decode_err,
+                "; ".join(decode_errors),
             )
             return {
                 "status": "error",
                 "filename": filename,
                 "version": actual_version,
-                "message": f"Failed to decode artifact content as UTF-8: {decode_err}",
+                "message": f"Failed to decode artifact content. Tried encodings: {', '.join(encodings_to_try)}",
             }
 
         # Perform the search and replace
-        match_count = 0
-        new_content = original_content
+        if replacements:
+            # Batch mode
+            log.info(
+                "%s Processing batch of %d replacements.",
+                log_identifier,
+                len(replacements),
+            )
 
-        if is_regexp:
-            # Parse regexp flags
-            flags_value = 0
-            global_replace = False
+            current_content = original_content
+            replacement_results = []
+            total_matches = 0
 
-            if regexp_flags:
-                for flag_char in regexp_flags.lower():
-                    if flag_char == "g":
-                        global_replace = True
-                    elif flag_char == "i":
-                        flags_value |= re.IGNORECASE
-                    elif flag_char == "m":
-                        flags_value |= re.MULTILINE
-                    elif flag_char == "s":
-                        flags_value |= re.DOTALL
-                    else:
-                        log.warning(
-                            "%s Ignoring unrecognized regexp flag: '%s'",
-                            log_identifier,
-                            flag_char,
+            for idx, repl in enumerate(replacements):
+                search_expr = repl["search"]
+                replace_expr = repl["replace"]
+                is_regex = repl["is_regexp"]
+                regex_flags = repl.get("regexp_flags", "")
+
+                # Perform replacement on current state (with strict validation for batch mode)
+                new_content, match_count, error_msg = _perform_single_replacement(
+                    current_content,
+                    search_expr,
+                    replace_expr,
+                    is_regex,
+                    regex_flags,
+                    log_identifier,
+                    strict_match_validation=True,
+                )
+
+                if error_msg:
+                    # Rollback - return error with details
+                    log.warning(
+                        "%s Batch replacement failed at index %d: %s",
+                        log_identifier,
+                        idx,
+                        error_msg,
+                    )
+
+                    # Mark all as skipped
+                    all_results = replacement_results + [
+                        {
+                            "search": repl["search"],
+                            "match_count": match_count,
+                            "status": "error",
+                            "error": error_msg,
+                        }
+                    ]
+                    # Add remaining as skipped
+                    for i in range(idx + 1, len(replacements)):
+                        all_results.append(
+                            {
+                                "search": replacements[i]["search"],
+                                "match_count": 0,
+                                "status": "skipped",
+                            }
                         )
 
-            # Convert JavaScript-style capture groups ($1, $2) to Python style (\1, \2)
-            # Also handle escaped dollar signs ($$) -> literal $
-            python_replace_expression = replace_expression
-            # First, protect escaped dollars: $$ -> a placeholder
-            python_replace_expression = python_replace_expression.replace(
-                "$$", "\x00DOLLAR\x00"
-            )
-            # Convert capture groups: $1 -> \1
-            python_replace_expression = re.sub(
-                r"\$(\d+)", r"\\\1", python_replace_expression
-            )
-            # Restore escaped dollars: placeholder -> $
-            python_replace_expression = python_replace_expression.replace(
-                "\x00DOLLAR\x00", "$"
+                    return {
+                        "status": "error",
+                        "filename": filename,
+                        "version": actual_version,
+                        "message": f"Batch replacement failed: No changes applied due to error in replacement {idx + 1}",
+                        "replacement_results": all_results,
+                        "failed_replacement": {
+                            "index": idx,
+                            "search": search_expr,
+                            "error": error_msg,
+                        },
+                    }
+
+                # Success - update state and continue
+                current_content = new_content
+                total_matches += match_count
+                replacement_results.append(
+                    {
+                        "search": search_expr,
+                        "match_count": match_count,
+                        "status": "success",
+                    }
+                )
+
+                log.debug(
+                    "%s Replacement %d/%d succeeded: %d matches",
+                    log_identifier,
+                    idx + 1,
+                    len(replacements),
+                    match_count,
+                )
+
+            # All replacements succeeded
+            final_content = current_content
+            total_replacements = len(replacements)
+
+            log.info(
+                "%s Batch replacement succeeded: %d operations, %d total matches",
+                log_identifier,
+                total_replacements,
+                total_matches,
             )
 
-            try:
-                # Compile the regex pattern
-                pattern = re.compile(search_expression, flags_value)
+        else:
+            # Single replacement mode (backward compatible)
+            final_content, match_count, error_msg = _perform_single_replacement(
+                original_content,
+                search_expression,
+                replace_expression,
+                is_regexp,
+                regexp_flags,
+                log_identifier,
+            )
 
-                # Count matches first
-                match_count = len(pattern.findall(original_content))
-
-                if match_count == 0:
-                    log.info(
-                        "%s No matches found for pattern '%s' in artifact '%s'.",
-                        log_identifier,
-                        search_expression,
-                        filename,
-                    )
+            if error_msg:
+                # Check if it's a "no matches" error specifically
+                if match_count == 0 and "No matches found" in error_msg:
                     return {
                         "status": "no_matches",
                         "filename": filename,
@@ -2033,75 +2399,33 @@ async def artifact_search_and_replace_regex(
                         "match_count": 0,
                         "message": f"No matches found for pattern '{search_expression}'. Artifact not modified.",
                     }
+                else:
+                    return {
+                        "status": "error",
+                        "filename": filename,
+                        "version": actual_version,
+                        "message": error_msg,
+                    }
 
-                # Perform replacement
-                count_limit = 0 if global_replace else 1
-                new_content = pattern.sub(
-                    python_replace_expression, original_content, count=count_limit
-                )
-
-                log.info(
-                    "%s Regex replacement: found %d matches, replaced %s in '%s'.",
-                    log_identifier,
-                    match_count,
-                    "all" if global_replace else "first match",
-                    filename,
-                )
-
-            except re.error as regex_err:
-                log.error(
-                    "%s Invalid regular expression '%s': %s",
-                    log_identifier,
-                    search_expression,
-                    regex_err,
-                )
-                return {
-                    "status": "error",
-                    "filename": filename,
-                    "version": actual_version,
-                    "message": f"Invalid regular expression: {regex_err}",
-                }
-
-        else:
-            # Literal string replacement (ignore regexp_flags)
-            # Count occurrences
-            match_count = original_content.count(search_expression)
-
-            if match_count == 0:
-                log.info(
-                    "%s No matches found for literal string '%s' in artifact '%s'.",
-                    log_identifier,
-                    search_expression,
-                    filename,
-                )
-                return {
-                    "status": "no_matches",
-                    "filename": filename,
-                    "version": actual_version,
-                    "match_count": 0,
-                    "message": f"No matches found for literal string '{search_expression}'. Artifact not modified.",
-                }
-
-            # Replace all occurrences for literal mode
-            new_content = original_content.replace(
-                search_expression, replace_expression
-            )
-
-            log.info(
-                "%s Literal replacement: found and replaced %d occurrences in '%s'.",
-                log_identifier,
-                match_count,
-                filename,
-            )
+            total_replacements = 1
+            total_matches = match_count
+            replacement_results = None
 
         # Prepare metadata for the new/updated artifact
-        new_metadata = {
-            "source": f"artifact_search_and_replace_regex from '{filename}' v{actual_version}",
-            "search_expression": search_expression,
-            "replace_expression": replace_expression,
-            "is_regexp": is_regexp,
-            "match_count": match_count,
-        }
+        if replacements:
+            new_metadata = {
+                "source": f"artifact_search_and_replace_regex (batch) from '{filename}' v{actual_version}",
+                "total_replacements": total_replacements,
+                "total_matches": total_matches,
+            }
+        else:
+            new_metadata = {
+                "source": f"artifact_search_and_replace_regex from '{filename}' v{actual_version}",
+                "search_expression": search_expression,
+                "replace_expression": replace_expression,
+                "is_regexp": is_regexp,
+                "match_count": match_count,
+            }
 
         if regexp_flags and is_regexp:
             new_metadata["regexp_flags"] = regexp_flags
@@ -2134,7 +2458,7 @@ async def artifact_search_and_replace_regex(
                 )
 
         # Save the result
-        new_content_bytes = new_content.encode("utf-8")
+        new_content_bytes = final_content.encode("utf-8")
         schema_max_keys = (
             host_component.get_config("schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS)
             if host_component
@@ -2176,19 +2500,39 @@ async def artifact_search_and_replace_regex(
             result_version,
         )
 
-        return {
-            "status": "success",
-            "source_filename": filename,
-            "source_version": actual_version,
-            "output_filename": output_filename,
-            "output_version": result_version,
-            "match_count": match_count,
-            "replacements_made": (
+        # Return appropriate response based on mode
+        if replacements:
+            return {
+                "status": "success",
+                "source_filename": filename,
+                "source_version": actual_version,
+                "output_filename": output_filename,
+                "output_version": result_version,
+                "total_replacements": total_replacements,
+                "replacement_results": replacement_results,
+                "total_matches": total_matches,
+                "message": f"Batch replacement completed: {total_replacements} operations, {total_matches} total matches",
+            }
+        else:
+            # Compute replacements_made for backward compatibility
+            # For literal replacements, all matches are replaced
+            # For regex without 'g' flag, only first match is replaced
+            global_replace = "g" in (regexp_flags or "")
+            replacements_made = (
                 match_count if not is_regexp or global_replace else min(match_count, 1)
-            ),
-            "message": f"Successfully performed {'regex' if is_regexp else 'literal'} search and replace. "
-            f"Found {match_count} match(es), saved result as '{output_filename}' v{result_version}.",
-        }
+            )
+
+            return {
+                "status": "success",
+                "source_filename": filename,
+                "source_version": actual_version,
+                "output_filename": output_filename,
+                "output_version": result_version,
+                "match_count": match_count,
+                "replacements_made": replacements_made,
+                "message": f"Successfully performed {'regex' if is_regexp else 'literal'} search and replace. "
+                f"Found {match_count} match(es), saved result as '{output_filename}' v{result_version}.",
+            }
 
     except FileNotFoundError as fnf_err:
         log.warning("%s Artifact not found: %s", log_identifier, fnf_err)
@@ -2213,7 +2557,7 @@ async def artifact_search_and_replace_regex(
 artifact_search_and_replace_regex_tool_def = BuiltinTool(
     name="artifact_search_and_replace_regex",
     implementation=artifact_search_and_replace_regex,
-    description="Performs search and replace on an artifact's text content using either literal string matching or regular expressions. Supports capture groups, flags for case-insensitive/multiline matching, and can create new versions or new artifacts with the result.",
+    description="Performs search and replace on an artifact's text content using either literal string matching or regular expressions. Supports both single replacements and atomic batch replacements for efficiency.",
     category="artifact_management",
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -2227,15 +2571,18 @@ artifact_search_and_replace_regex_tool_def = BuiltinTool(
             ),
             "search_expression": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="The pattern to search for. If is_regexp is true, this is treated as a regular expression. Otherwise, it's a literal string.",
+                description="The pattern to search for (single replacement mode). If is_regexp is true, this is treated as a regular expression. Otherwise, it's a literal string. Do not use if 'replacements' is provided.",
+                nullable=True,
             ),
             "replace_expression": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="The replacement text. For regex mode, supports capture group references using $1, $2, etc. Use $$ to insert a literal dollar sign (e.g., '$$value' becomes '$value', ',$$$1' becomes ',$' followed by capture group 1).",
+                description="The replacement text (single replacement mode). For regex mode, supports capture group references using $1, $2, etc. Use $$ to insert a literal dollar sign. Do not use if 'replacements' is provided.",
+                nullable=True,
             ),
             "is_regexp": adk_types.Schema(
                 type=adk_types.Type.BOOLEAN,
-                description="If true, treat search_expression as a regular expression with support for capture groups. If false, treat as literal string.",
+                description="If true, treat search_expression as a regular expression. If false, treat as literal string. Only used in single replacement mode.",
+                nullable=True,
             ),
             "version": adk_types.Schema(
                 type=adk_types.Type.STRING,
@@ -2244,7 +2591,7 @@ artifact_search_and_replace_regex_tool_def = BuiltinTool(
             ),
             "regexp_flags": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="Flags for regex behavior (only used when is_regexp=true). String of letters: 'g' (global/replace all - IMPORTANT: always include 'g' to replace all matches, not just the first), 'i' (case-insensitive), 'm' (multiline mode - makes ^ and $ match line boundaries), 's' (dotall - dot matches newlines). Example: 'gim' for global, case-insensitive, multiline. Defaults to empty string (replaces only first match).",
+                description="Flags for regex behavior (only used when is_regexp=true in single mode). String of letters: 'g' (global/replace all), 'i' (case-insensitive), 'm' (multiline), 's' (dotall). Example: 'gim'. Defaults to empty string.",
                 nullable=True,
             ),
             "new_filename": adk_types.Schema(
@@ -2254,11 +2601,39 @@ artifact_search_and_replace_regex_tool_def = BuiltinTool(
             ),
             "new_description": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="Optional. Description for the new/updated artifact. If not provided and modifying the same artifact, the original description is preserved.",
+                description="Optional. Description for the new/updated artifact.",
+                nullable=True,
+            ),
+            "replacements": adk_types.Schema(
+                type=adk_types.Type.ARRAY,
+                items=adk_types.Schema(
+                    type=adk_types.Type.OBJECT,
+                    properties={
+                        "search": adk_types.Schema(
+                            type=adk_types.Type.STRING,
+                            description="The search pattern (literal string or regex).",
+                        ),
+                        "replace": adk_types.Schema(
+                            type=adk_types.Type.STRING,
+                            description="The replacement text. For regex mode, supports $1, $2, etc. Use $$ for literal $.",
+                        ),
+                        "is_regexp": adk_types.Schema(
+                            type=adk_types.Type.BOOLEAN,
+                            description="If true, 'search' is a regex pattern. If false, literal string.",
+                        ),
+                        "regexp_flags": adk_types.Schema(
+                            type=adk_types.Type.STRING,
+                            description="Flags for regex: 'g' (global), 'i' (case-insensitive), 'm' (multiline), 's' (dotall). Default: ''.",
+                            nullable=True,
+                        ),
+                    },
+                    required=["search", "replace", "is_regexp"],
+                ),
+                description="Optional. Array of replacement operations to perform atomically. Each operation is processed sequentially on the cumulative result. If any operation fails, all changes are rolled back. Do not use with 'search_expression' or 'replace_expression'.",
                 nullable=True,
             ),
         },
-        required=["filename", "search_expression", "replace_expression", "is_regexp"],
+        required=["filename"],
     ),
     examples=[],
 )

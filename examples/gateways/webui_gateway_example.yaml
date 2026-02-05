@@ -36,6 +36,20 @@ apps:
         type: "sql"
         database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
+
+      # --- Platform Service Configuration ---
+      # URL for Platform Service (runs separately on port 8001)
+      # Frontend will route /api/v1/platform/* requests to this URL
+      platform_service:
+        url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
+
+      # --- OAuth2 Authentication (Optional - Enterprise Feature) ---
+      # Community mode: frontend_use_authorization=false (default) - uses dev user (sam_dev_user)
+      # Enterprise mode: frontend_use_authorization=true - validates tokens with external OAuth service
+      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
+      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}  # Set to true for production with OAuth
+
       # --- Optional with Defaults ---
       model: *general_model # Optional: defaults to None - Points to shared_config.yaml
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
@@ -67,6 +81,12 @@ apps:
       frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
       frontend_bot_name: ${FRONTEND_BOT_NAME}
       frontend_collect_feedback: true
+      frontend_logo_url: "${WEBUI_FRONTEND_LOGO_URL}"
+
+      identity_service:
+        type: local_file
+        file_path: ./tests/integration/test_data/people/dummy_employees.json
+        cache_ttl_seconds: 300
 
       task_logging:
         enabled: true
@@ -80,6 +100,134 @@ apps:
         topic: "${NAMESPACE}/sam/feedback/v1"
         include_task_info: "stim" # Options: "none", "summary", "stim"
         max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
+
+      # --- Frontend Feature Enablement ---
+      frontend_feature_enablement:
+        background_tasks: ${BACKGROUND_TASKS_ENABLED, true} # NOTE: task_logging must also be enabled for background tasks to work
+        auto_title_generation: ${AUTO_TITLE_GENERATION_ENABLED, true}  # Enable automatic chat title generation
+
+      # --- Background Tasks Configuration ---
+      background_tasks:
+        default_timeout_ms: ${BACKGROUND_TASKS_TIMEOUT_MS, 3600000}  # 1 hour default timeout
+
+      # # --- Speech Configuration (STT/TTS) ---
+      # # Uncomment the following sections to enable STT and TTS in the UI
+      # speech:
+      #   # stt:
+      #   #   provider: openai
+      #   #   url: "https://api.openai.com/v1/audio/transcriptions"
+      #   #   api_key: "${OPENAI_API_KEY}"
+      #   #   model: "whisper-1"
+      #   stt:
+      #     provider: azure
+      #     azure:
+      #       api_key: "${AZURE_SPEECH_KEY}"
+      #       region: "${AZURE_SPEECH_REGION}"
+      #       language: en-US
+        
+      #   # Text-to-Speech Configuration
+      #   tts:
+      #     provider: ${TTS_PROVIDER, gemini}  # "gemini", "azure", or "polly" (can be overridden by UI)
+
+      #     polly:
+      #       aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+      #       aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+      #       region: ${AWS_POLLY_REGION}
+      #       engine: neural  # or 'standard'
+      #       default_voice: Joanna
+          
+      #     # Azure Neural Voices Configuration (voices field defines the subset voices shown in the UI TTS settins)
+      #     azure:
+      #       api_key: "${AZURE_SPEECH_KEY}"
+      #       region: "${AZURE_SPEECH_REGION}"
+      #       default_voice: "en-US-Andrew:DragonHDLatestNeural"
+      #       voices:
+      #         # DragonHD Latest Neural Voices (Highest Quality)
+      #         - "en-US-Ava:DragonHDLatestNeural"
+      #         - "en-US-Ava3:DragonHDLatestNeural"
+      #         - "en-US-Adam:DragonHDLatestNeural"
+      #         - "en-US-Alloy:DragonHDLatestNeural"
+      #         - "en-US-Andrew:DragonHDLatestNeural"
+      #         - "en-US-Andrew2:DragonHDLatestNeural"
+      #         - "en-US-Andrew3:DragonHDLatestNeural"
+      #         - "en-US-Aria:DragonHDLatestNeural"
+      #         - "en-US-Brian:DragonHDLatestNeural"
+      #         - "en-US-Davis:DragonHDLatestNeural"
+      #         - "en-US-Emma:DragonHDLatestNeural"
+      #         - "en-US-Emma2:DragonHDLatestNeural"
+      #         - "en-US-Jenny:DragonHDLatestNeural"
+      #         - "en-US-MultiTalker-Ava-Andrew:DragonHDLatestNeural"
+      #         - "en-US-Nova:DragonHDLatestNeural"
+      #         - "en-US-Phoebe:DragonHDLatestNeural"
+      #         - "en-US-Serena:DragonHDLatestNeural"
+      #         - "en-US-Steffan:DragonHDLatestNeural"
+      #         # Standard Neural Voices
+      #         - "en-US-JennyNeural"
+      #         - "en-US-GuyNeural"
+      #         - "en-US-AriaNeural"
+      #         - "en-US-DavisNeural"
+      #         - "en-US-JaneNeural"
+      #         - "en-US-JasonNeural"
+      #         - "en-US-NancyNeural"
+      #         - "en-US-TonyNeural"
+      #         - "en-GB-LibbyNeural"
+      #         - "en-GB-RyanNeural"
+      #         - "en-GB-SoniaNeural"
+      #         - "en-AU-NatashaNeural"
+      #         - "en-AU-WilliamNeural"
+          
+      #     # Google Gemini Configuration (voices field defines the subset voices shown in the UI TTS settins)
+      #     gemini:
+      #       api_key: "${GEMINI_API_KEY}"
+      #       model: "gemini-2.5-flash-preview-tts"
+      #       default_voice: "Kore"
+      #       language: "en-US"
+      #       voices:
+      #       - "Kore"
+      #       - "Puck"
+      #       - "Zephyr"
+      #       - "Charon"
+      #       - "Fenrir"
+      #       - "Leda"
+      #       - "Aoede"
+      #       - "Callirhoe"
+      #       - "Umbriel"
+      #       - "Enceladus"
+      #       - "Iapetus"
+      #       - "Erinome"
+      #       - "Algieba"
+      #       - "Despina"
+      #       - "Algenib"
+      #       - "Achernar"
+      #       - "Schedar"
+      #       - "Gacrux"
+      #       - "Pulcherrima"
+      #       - "Achird"
+      #       - "Zubenelgenubi"
+      #       - "Vindemiatrix"
+      #       - "Sadachbia"
+      #       - "Sadaltager"
+      #       - "Sulafat"
+      #       - "Autonoe"
+      #       - "Laomedeia"
+      #       - "Orus"
+      #       - "Rasalgethi"
+      #       - "Alnilam"
+        
+      #   # Frontend Speech Tab Default Settings (optional)
+      #   speechTab:
+      #     advancedMode: false
+      #     speechToText:
+      #       speechToText: true
+      #       engineSTT: "external"  # Use external for better quality
+      #       languageSTT: "en-US"
+      #     textToSpeech:
+      #       textToSpeech: true
+      #       engineTTS: "external"  # Use external for better quality
+      #       voice: "Kore"
+      #       playbackRate: 1.0
+      #       cacheTTS: true
+
 
       # --- Data Retention Configuration ---
       # Automatically cleans up old tasks, task events, and feedback to prevent unbounded database growth

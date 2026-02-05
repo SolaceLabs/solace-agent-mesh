@@ -19,6 +19,7 @@ from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ....common.agent_registry import AgentRegistry
+from ....common.auth_headers import build_static_auth_headers
 from pydantic import TypeAdapter, ValidationError
 
 from ....common import a2a
@@ -333,34 +334,41 @@ class BaseProxyComponent(ComponentBase, ABC):
 
         return update_message_parts(original_message, resolved_parts)
 
-    def _update_agent_card_for_proxy(self, agent_card: AgentCard, agent_alias: str) -> AgentCard:
+    def _update_agent_card_for_proxy(
+        self, agent_card: AgentCard, agent_alias: str, config_display_name: Optional[str] = None
+    ) -> AgentCard:
         """
         Updates an agent card for proxying by:
         1. Setting the name to the proxy alias
-        2. Adding/updating the display-name extension to preserve the original name
+        2. Adding/updating the display-name extension
 
         Args:
             agent_card: The original agent card fetched from the remote agent
             agent_alias: The alias/name to use for this agent in SAM
+            config_display_name: Optional display name from config to use instead of card's name
 
         Returns:
             A modified copy of the agent card with updated name and display-name extension
         """
-        # Create a deep copy to avoid modifying the original
         card_copy = agent_card.model_copy(deep=True)
 
-        # Store the original name as the display name (if not already set)
-        # This preserves the agent's identity while allowing it to be proxied under an alias
-        original_display_name = agent_card.name
+        # Determine the display name to use (priority order):
+        # 1. Config-provided display_name (if not None and not empty)
+        # 2. Existing display-name extension from fetched card
+        # 3. Fetched card's name (fallback)
+        display_name = agent_card.name
 
-        # Check if there's already a display-name extension to preserve
+        # Check for existing display-name extension from fetched card
         display_name_uri = "https://solace.com/a2a/extensions/display-name"
         if card_copy.capabilities and card_copy.capabilities.extensions:
             for ext in card_copy.capabilities.extensions:
                 if ext.uri == display_name_uri and ext.params and ext.params.get("display_name"):
-                    # Use the existing display name from the extension
-                    original_display_name = ext.params["display_name"]
+                    display_name = ext.params["display_name"]
                     break
+
+        # Override with config if provided and not empty
+        if config_display_name and config_display_name.strip():
+            display_name = config_display_name.strip()
 
         # Update the card's name to the proxy alias
         card_copy.name = agent_alias
@@ -379,23 +387,22 @@ class BaseProxyComponent(ComponentBase, ABC):
                 break
 
         if display_name_ext:
-            # Update existing extension
             if not display_name_ext.params:
                 display_name_ext.params = {}
-            display_name_ext.params["display_name"] = original_display_name
+            display_name_ext.params["display_name"] = display_name
         else:
-            # Create new extension
             new_ext = AgentExtension(
                 uri=display_name_uri,
-                params={"display_name": original_display_name}
+                params={"display_name": display_name}
             )
             card_copy.capabilities.extensions.append(new_ext)
 
         log.debug(
-            "%s Updated agent card: name='%s', display_name='%s'",
+            "%s Updated agent card: name='%s', display_name='%s'%s",
             self.log_identifier,
             agent_alias,
-            original_display_name
+            display_name,
+            " (from config)" if config_display_name and config_display_name.strip() else ""
         )
 
         return card_copy
@@ -404,6 +411,9 @@ class BaseProxyComponent(ComponentBase, ABC):
         """
         Synchronously fetches agent cards to populate the registry at startup.
         This method does NOT publish the cards to the mesh.
+
+        For agents with embedded agent_card_data, constructs synthetic agent cards
+        without fetching from a URL.
         """
         log.info(
             "%s Performing initial synchronous agent discovery...", self.log_identifier
@@ -411,7 +421,55 @@ class BaseProxyComponent(ComponentBase, ABC):
         with httpx.Client() as client:
             for agent_config in self.proxied_agents_config:
                 agent_alias = agent_config["name"]
+
+                # Check if this is a static agent with embedded card data
+                if agent_config.get("agent_card_data"):
+                    log.info(
+                        "%s Agent '%s' has embedded agent_card_data. Constructing synthetic card.",
+                        self.log_identifier,
+                        agent_alias,
+                    )
+                    try:
+                        # Delegate to subclass to construct synthetic card
+                        agent_card = self._construct_synthetic_agent_card(agent_config)
+                        if not agent_card:
+                            log.error(
+                                "%s Failed to construct synthetic agent card for '%s'.",
+                                self.log_identifier,
+                                agent_alias,
+                            )
+                            continue
+
+                        # Update the card for proxying
+                        config_display_name = agent_config.get("display_name")
+                        card_for_proxy = self._update_agent_card_for_proxy(
+                            agent_card, agent_alias, config_display_name
+                        )
+                        self.agent_registry.add_or_update_agent(card_for_proxy)
+                        log.info(
+                            "%s Initial discovery successful for static agent '%s' (actual name: '%s').",
+                            self.log_identifier,
+                            agent_alias,
+                            agent_card.name,
+                        )
+                    except Exception as e:
+                        log.error(
+                            "%s Failed initial discovery for static agent '%s': %s",
+                            self.log_identifier,
+                            agent_alias,
+                            e,
+                        )
+                    continue  # Skip URL-based discovery for this agent
+
+                # Remote agent - fetch from URL
                 agent_url = agent_config.get("url")
+                agent_card_path = agent_config.get("agent_card_path", "/.well-known/agent-card.json")
+                log.debug(
+                    "%s Agent '%s': agent_card_path from config = %s",
+                    self.log_identifier,
+                    agent_alias,
+                    agent_card_path,
+                )
                 if not agent_url:
                     log.error(
                         "%s Skipping agent '%s' in initial discovery: no URL configured.",
@@ -420,13 +478,58 @@ class BaseProxyComponent(ComponentBase, ABC):
                     )
                     continue
                 try:
+                    # Build headers using common utility (sync context - OAuth2 not supported)
+                    use_auth = agent_config.get("use_auth_for_agent_card", False)
+
+                    # Skip OAuth2-configured agents in sync discovery
+                    # They will be discovered during periodic async discovery
+                    if use_auth:
+                        auth_config = agent_config.get("authentication")
+                        if auth_config:
+                            auth_type = auth_config.get("type")
+                            if not auth_type:
+                                # Backward compatibility: infer from scheme
+                                scheme = auth_config.get("scheme", "bearer")
+                                auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
+
+                            if auth_type in ("oauth2_client_credentials", "oauth2_authorization_code"):
+                                # Skip this agent - OAuth2 not supported in sync context
+                                log.info(
+                                    "%s Skipping agent '%s' in synchronous discovery (OAuth2 configured). "
+                                    "Will be discovered during periodic async discovery.",
+                                    self.log_identifier,
+                                    agent_alias,
+                                )
+                                continue
+
+                    headers = build_static_auth_headers(
+                        agent_name=agent_alias,
+                        agent_config=agent_config,
+                        custom_headers_key="agent_card_headers",
+                        use_auth=use_auth,
+                        log_identifier=self.log_identifier,
+                    )
+                    
+                    if headers:
+                        log.debug(
+                            "%s Fetching agent card with %d custom header(s) (auth=%s)",
+                            self.log_identifier,
+                            len(headers),
+                            use_auth,
+                        )
+                    else:
+                        log.debug("%s Fetching agent card without authentication", self.log_identifier)
+
                     # Use a synchronous client for this initial blocking call
-                    response = client.get(f"{agent_url}/.well-known/agent-card.json")
+                    response = client.get(f"{agent_url}{agent_card_path}", headers=headers)
                     response.raise_for_status()
                     agent_card = AgentCard.model_validate(response.json())
 
                     # Update the card for proxying (preserves display name)
-                    card_for_proxy = self._update_agent_card_for_proxy(agent_card, agent_alias)
+                    config_display_name = agent_config.get("display_name")
+                    card_for_proxy = self._update_agent_card_for_proxy(
+                        agent_card, agent_alias, config_display_name
+                    )
                     self.agent_registry.add_or_update_agent(card_for_proxy)
                     log.info(
                         "%s Initial discovery successful for alias '%s' (actual name: '%s').",
@@ -448,17 +551,51 @@ class BaseProxyComponent(ComponentBase, ABC):
         """
         Asynchronously fetches agent cards, updates the registry, and publishes them.
         This is intended for the recurring timer.
+
+        Agents with embedded agent_card_data are skipped during polling since they
+        don't need to be fetched from a URL.
         """
         log.info("%s Starting recurring agent discovery cycle...", self.log_identifier)
         for agent_config in self.proxied_agents_config:
+            agent_alias = agent_config["name"]
+
+            # Skip agents with embedded agent_card_data - they don't need polling
+            if agent_config.get("agent_card_data"):
+                log.debug(
+                    "%s Skipping agent '%s' - static agent with embedded card data (no polling needed).",
+                    self.log_identifier,
+                    agent_alias,
+                )
+
+                # Still publish the card if it's in the registry
+                agent_card = self.agent_registry.get_agent(agent_alias)
+                if agent_card:
+                    card_to_publish = agent_card.model_copy(deep=True)
+                    card_to_publish.url = (
+                        f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
+                    )
+                    discovery_topic = a2a.get_agent_discovery_topic(self.namespace)
+                    self._publish_a2a_message(
+                        card_to_publish.model_dump(exclude_none=True), discovery_topic
+                    )
+                    log.debug(
+                        "%s Published card for static agent '%s'.",
+                        self.log_identifier,
+                        agent_alias,
+                    )
+                continue
+
+            # Remote agent - fetch and publish
             try:
                 modern_card = await self._fetch_agent_card(agent_config)
                 if not modern_card:
                     continue
 
-                agent_alias = agent_config["name"]
                 # Update the card for proxying (preserves display name)
-                card_for_registry = self._update_agent_card_for_proxy(modern_card, agent_alias)
+                config_display_name = agent_config.get("display_name")
+                card_for_registry = self._update_agent_card_for_proxy(
+                    modern_card, agent_alias, config_display_name
+                )
                 self.agent_registry.add_or_update_agent(card_for_registry)
 
                 # Create a separate copy for publishing
@@ -466,7 +603,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                 card_to_publish.url = (
                     f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
                 )
-                discovery_topic = a2a.get_discovery_topic(self.namespace)
+                discovery_topic = a2a.get_agent_discovery_topic(self.namespace)
                 self._publish_a2a_message(
                     card_to_publish.model_dump(exclude_none=True), discovery_topic
                 )
@@ -479,7 +616,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                 log.error(
                     "%s Failed to discover or publish card for agent '%s' in recurring cycle: %s",
                     self.log_identifier,
-                    agent_config.get("name", "unknown"),
+                    agent_alias,
                     e,
                 )
 
@@ -714,7 +851,7 @@ class BaseProxyComponent(ComponentBase, ABC):
             card_to_publish.url = (
                 f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
             )
-            discovery_topic = a2a.get_discovery_topic(self.namespace)
+            discovery_topic = a2a.get_agent_discovery_topic(self.namespace)
             self._publish_a2a_message(
                 card_to_publish.model_dump(exclude_none=True), discovery_topic
             )
@@ -796,6 +933,25 @@ class BaseProxyComponent(ComponentBase, ABC):
 
         super().cleanup()
         log.info("%s Component cleanup finished.", self.log_identifier)
+
+    def _construct_synthetic_agent_card(
+        self, agent_config: dict
+    ) -> Optional[AgentCard]:
+        """
+        Constructs a synthetic AgentCard from embedded agent_card_data in config.
+
+        This allows proxying agents that don't have a live agent card endpoint.
+        Concrete proxy classes should override this method to support static agents.
+
+        Args:
+            agent_config: Agent configuration with agent_card_data.
+
+        Returns:
+            A synthetic AgentCard, or None if not supported or invalid.
+        """
+        # Default implementation returns None (static agents not supported)
+        # Subclasses can override to support static agents
+        return None
 
     @abstractmethod
     async def _fetch_agent_card(self, agent_config: dict) -> Optional[AgentCard]:

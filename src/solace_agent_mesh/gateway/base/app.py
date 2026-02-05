@@ -8,11 +8,11 @@ from abc import abstractmethod
 from typing import Any, Dict, List, Type
 
 from solace_ai_connector.common.utils import deep_merge
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ...common.a2a import (
-    get_discovery_topic,
+    get_discovery_subscription_topic,
     get_gateway_response_subscription_topic,
     get_gateway_status_subscription_topic,
 )
@@ -107,6 +107,13 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": 10_000_000,  # 10MB
             "description": "Maximum allowed message size in bytes for messages published by the gateway.",
         },
+        {
+            "name": "gateway_max_upload_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 52428800,  # 50MB
+            "description": "Maximum file upload size in bytes. Validated before reading file content to prevent memory exhaustion.",
+        },
         # --- Default User Identity Configuration ---
         {
             "name": "default_user_identity",
@@ -128,11 +135,54 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": None,
             "description": "Configuration for the pluggable Identity Service provider.",
         },
+        # --- Gateway Type Configuration ---
+        {
+            "name": "gateway_type",
+            "required": False,
+            "type": "string",
+            "default": None,
+            "description": "Type of gateway for discovery and monitoring (e.g., 'rest', 'slack', 'teams', 'http_sse'). Auto-detected if not specified.",
+        },
+        # --- Gateway Card Publishing Configuration ---
+        {
+            "name": "gateway_card_publishing",
+            "required": False,
+            "type": "object",
+            "default": {"enabled": True, "interval_seconds": 30},
+            "description": "Configuration for publishing gateway discovery cards to enable platform monitoring and deployment tracking.",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Enable periodic gateway card publishing for discovery and health monitoring.",
+                },
+                "interval_seconds": {
+                    "type": "integer",
+                    "default": 30,
+                    "description": "Interval in seconds between gateway card publishes. Acts as heartbeat for deployment tracking.",
+                },
+            },
+        },
+        # --- Gateway Card Configuration ---
+        {
+            "name": "gateway_card",
+            "required": False,
+            "type": "object",
+            "default": {},
+            "description": "Metadata for the gateway's discovery card.",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Human-readable description of this gateway instance.",
+                },
+            },
+        },
     ]
 }
 
 
-class BaseGatewayApp(App):
+class BaseGatewayApp(SamAppBase):
     """
     Base class for Gateway applications.
 
@@ -255,12 +305,15 @@ class BaseGatewayApp(App):
         self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
             "gateway_max_message_size_bytes", 10_000_000
         )
+        self.gateway_max_upload_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_upload_size_bytes", 52428800
+        )
 
         modified_app_info = app_info.copy()
         modified_app_info["app_config"] = resolved_app_config_block
 
         subscriptions = [
-            {"topic": get_discovery_topic(self.namespace)},
+            {"topic": get_discovery_subscription_topic(self.namespace)},
             {
                 "topic": get_gateway_response_subscription_topic(
                     self.namespace, self.gateway_id

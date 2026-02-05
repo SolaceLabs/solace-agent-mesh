@@ -3,6 +3,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 import type { NavigationItem } from "@/lib/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+import { ExperimentalBadge } from "@/lib/components/ui/experimental-badge";
 
 interface NavigationItemProps {
     item: NavigationItem;
@@ -11,7 +12,7 @@ interface NavigationItemProps {
 }
 
 export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive, onItemClick }) => {
-    const { id, label, icon: Icon, disabled } = item;
+    const { id, label, icon: Icon, disabled, badge } = item;
 
     const handleClick = () => {
         if (!disabled && onItemClick) {
@@ -34,17 +35,18 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                     onKeyDown={onItemClick ? handleKeyDown : undefined}
                     disabled={disabled}
                     className={cn(
-                        "relative mx-auto flex w-full cursor-pointer flex-col items-center border-l-4 border-[var(--color-primary-w100)] px-3 py-5 text-xs transition-colors",
-                        "bg-[var(--color-primary-w100)] hover:bg-[var(--color-primary-w90)]",
-                        "text-[var(--color-primary-text-w10)] hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]",
-                        "disabled:cursor-not-allowed disabled:opacity-50",
-                        isActive ? "border-l-4 border-[var(--color-brand-wMain)] bg-[var(--color-primary-w90)]" : ""
+                        "relative mx-auto flex w-full cursor-pointer flex-col items-center px-3 py-5 text-xs transition-colors",
+                        "bg-(--color-primary-w100) hover:bg-(--color-primary-w90)",
+                        "text-(--color-primary-text-w10) hover:bg-(--color-primary-w90) hover:text-(--color-background-w10)",
+                        "border-l-4 border-(--color-primary-w100)",
+                        isActive ? "border-l-4 border-(--color-brand-wMain) bg-(--color-primary-w90)" : ""
                     )}
                     aria-label={label}
                     aria-current={isActive ? "page" : undefined}
                 >
-                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-[var(--color-brand-wMain)]")} />
+                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--color-brand-wMain)")} />
                     <span className="text-center text-[13px] leading-tight">{label}</span>
+                    {badge && <ExperimentalBadge className="mt-1 h-4 pt-1 text-[8px] leading-none">{badge}</ExperimentalBadge>}
                 </button>
             </TooltipTrigger>
             <TooltipContent side="right">{label}</TooltipContent>

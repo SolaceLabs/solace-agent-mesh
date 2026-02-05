@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
 import type { ArtifactInfo, FileAttachment } from "@/lib/types";
+import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 
 import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
@@ -16,8 +17,32 @@ const EmptyState: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
 };
 
 export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ artifact }) => {
-    const { openArtifactForPreview, previewFileContent, markArtifactAsDisplayed, downloadAndResolveArtifact } = useChatContext();
+    const { openArtifactForPreview, previewFileContent, markArtifactAsDisplayed, downloadAndResolveArtifact, ragData } = useChatContext();
     const preview = useMemo(() => canPreviewArtifact(artifact), [artifact]);
+
+    // Find RAG data for deep research reports
+    // The RAG metadata stores the artifact filename to associate sources with the report
+    const artifactRagData = useMemo(() => {
+        if (!isDeepResearchReportFilename(artifact.filename) || !ragData || ragData.length === 0) {
+            return undefined;
+        }
+
+        // Find RAG data where the artifact filename matches
+        const matchingRagData = ragData.find(r => {
+            const artifactFilenameFromRag = r.metadata?.artifactFilename as string | undefined;
+            return artifactFilenameFromRag === artifact.filename;
+        });
+
+        // If no direct match, try to find deep research RAG data (fallback for single report scenarios)
+        if (!matchingRagData) {
+            const deepResearchRagData = ragData.filter(r => r.searchType === "deep_research");
+            if (deepResearchRagData.length === 1) {
+                return deepResearchRagData[0];
+            }
+        }
+
+        return matchingRagData;
+    }, [artifact.filename, ragData]);
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -146,8 +171,12 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     }
 
     // Use cached content if available, otherwise fall back to previewFileContent
-    const contentSource = cachedContent || previewFileContent;
-    const rendererType = getRenderType(artifact.filename, artifact.mime_type);
+    // But only if it matches the current artifact filename to avoid showing stale content
+    const contentSource = cachedContent || (previewFileContent?.name === artifact.filename ? previewFileContent : null);
+    // Use MIME type from contentSource (version-specific) if available, otherwise fall back to artifact.mime_type
+    // This ensures each version is rendered according to its own MIME type, not the latest version's
+    const effectiveMimeType = contentSource?.mime_type || artifact.mime_type;
+    const rendererType = getRenderType(artifact.filename, effectiveMimeType);
     const content = getFileContent(contentSource);
 
     if (!rendererType || !content) {
@@ -156,7 +185,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
 
     return (
         <div className="relative h-full w-full">
-            <ContentRenderer content={content} rendererType={rendererType} mime_type={contentSource?.mime_type} setRenderError={setError} />
+            <ContentRenderer content={content} rendererType={rendererType} mime_type={contentSource?.mime_type} setRenderError={setError} ragData={artifactRagData} />
             <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
         </div>
     );

@@ -47,6 +47,7 @@ from a2a.types import (
     JSONRPCResponse,
     Task,
     TaskArtifactUpdateEvent,
+    TaskState,
     TaskStatusUpdateEvent,
 )
 
@@ -124,6 +125,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.model_config = self.get_config("model", None)
 
+            # OAuth2 configuration (enterprise feature - defaults to community mode)
+            self.external_auth_service_url = self.get_config("external_auth_service_url", "")
+            self.external_auth_provider = self.get_config("external_auth_provider", "generic")
+
+            # frontend_server_url is optional - empty string means frontend uses relative URLs
+            self.frontend_server_url = self.get_config("frontend_server_url", "")
+
             log.info(
                 "%s WebUI-specific configuration retrieved (Host: %s, Port: %d).",
                 self.log_identifier,
@@ -134,16 +142,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.error("%s Failed to retrieve configuration: %s", self.log_identifier, e)
             raise ValueError(f"Configuration retrieval error: {e}") from e
 
-        sse_max_queue_size = self.get_config("sse_max_queue_size", 200)
+        self.sse_max_queue_size = self.get_config("sse_max_queue_size", 200)
         sse_buffer_max_age_seconds = self.get_config("sse_buffer_max_age_seconds", 600)
 
         self.sse_event_buffer = SSEEventBuffer(
-            max_queue_size=sse_max_queue_size,
+            max_queue_size=self.sse_max_queue_size,
             max_age_seconds=sse_buffer_max_age_seconds,
         )
-        self.sse_manager = SSEManager(
-            max_queue_size=sse_max_queue_size, event_buffer=self.sse_event_buffer
-        )
+        # SSE manager will be initialized after database setup
+        self.sse_manager = None
 
         self._sse_cleanup_timer_id = f"sse_cleanup_{self.gateway_id}"
         cleanup_interval_sec = self.get_config(
@@ -212,7 +219,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
 
         platform_config = self.get_config("platform_service", {})
-        self.platform_database_url = platform_config.get("database_url")
+        self.platform_service_url = platform_config.get("url", "")
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
 
@@ -240,6 +247,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._task_logger_broker_input: BrokerInput | None = None
         self._task_logger_processor_task: asyncio.Task | None = None
         self.task_logger_service: TaskLoggerService | None = None
+        
+        # Background task monitor
+        self.background_task_monitor = None
+        self._background_task_monitor_timer_id = None
 
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
@@ -298,7 +309,33 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        # Initialize system (including any installed plugins/enterprise features)
+        # This must happen before migrations so plugins can register migration hooks
+        from ...common.utils.initializer import initialize
+        initialize()
+        log.info("%s System initialization completed", self.log_identifier)
+
+        # Run database migrations (any registered hooks will execute automatically)
+        if self.database_url:
+            log.info("%s Running database migrations...", self.log_identifier)
+            self._run_database_migrations()
+            log.info("%s Database migrations completed", self.log_identifier)
+
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
+
+    def _run_database_migrations(self):
+        """Run database migrations synchronously during __init__."""
+        try:
+            from ...gateway.http_sse.main import _setup_database
+            _setup_database(self.database_url)
+        except Exception as e:
+            log.error(
+                "%s Failed to run database migrations: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+            raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
@@ -330,6 +367,27 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 else:
                     log.warning(
                         "%s Data retention timer fired but service is not initialized.",
+                        self.log_identifier,
+                    )
+                return
+            
+            if timer_id == self._background_task_monitor_timer_id:
+                log.debug("%s Background task monitor timer triggered.", self.log_identifier)
+                if self.background_task_monitor:
+                    loop = self.get_async_loop()
+                    if loop and loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            self.background_task_monitor.check_timeouts(),
+                            loop
+                        )
+                    else:
+                        log.warning(
+                            "%s Async loop not available for background task monitor.",
+                            self.log_identifier
+                        )
+                else:
+                    log.warning(
+                        "%s Background task monitor timer fired but service is not initialized.",
                         self.log_identifier,
                     )
                 return
@@ -641,6 +699,22 @@ class WebUIBackendComponent(BaseGatewayComponent):
         )
         return default_config
 
+    def get_db_engine(self):
+        """
+        Get the SQLAlchemy database engine for health checks.
+
+        Returns the engine bound to SessionLocal if database is configured,
+        otherwise returns None.
+
+        Returns:
+            Engine or None: The SQLAlchemy engine if available.
+        """
+        from . import dependencies
+
+        if dependencies.SessionLocal is not None:
+            return dependencies.SessionLocal.kw.get("bind")
+        return None
+
     async def _visualization_message_processor_loop(self) -> None:
         """
         Asynchronously consumes messages from the _visualization_message_queue,
@@ -812,11 +886,34 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     event_details["direction"],
                                 )
                             except asyncio.QueueFull:
-                                log.warning(
-                                    "%s SSE queue full for stream %s. Visualization message dropped.",
-                                    log_id_prefix,
-                                    stream_id,
-                                )
+                                # Check if this is a background task
+                                is_background = False
+                                if task_id_for_context and self.database_url:
+                                    try:
+                                        from .repository.task_repository import TaskRepository
+                                        db = dependencies.SessionLocal()
+                                        try:
+                                            repo = TaskRepository()
+                                            task = repo.find_by_id(db, task_id_for_context)
+                                            is_background = task and task.background_execution_enabled
+                                        finally:
+                                            db.close()
+                                    except Exception:
+                                        pass
+                                
+                                if is_background:
+                                    log.debug(
+                                        "%s SSE queue full for stream %s. Dropping visualization message for background task %s.",
+                                        log_id_prefix,
+                                        stream_id,
+                                        task_id_for_context,
+                                    )
+                                else:
+                                    log.warning(
+                                        "%s SSE queue full for stream %s. Visualization message dropped.",
+                                        log_id_prefix,
+                                        stream_id,
+                                    )
                             except Exception as send_err:
                                 log.error(
                                     "%s Error sending formatted message to SSE queue for stream %s: %s",
@@ -1229,11 +1326,22 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.database_url, self.platform_database_url)
+            setup_dependencies(self)
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
             session_factory = dependencies.SessionLocal if self.database_url else None
+            
+            # Initialize SSE manager with session factory for background task detection
+            self.sse_manager = SSEManager(
+                max_queue_size=self.sse_max_queue_size,
+                event_buffer=self.sse_event_buffer,
+                session_factory=session_factory
+            )
+            log.debug(
+                "%s SSE manager initialized with database session factory.",
+                self.log_identifier,
+            )
             task_logging_config = self.get_config("task_logging", {})
             self.task_logger_service = TaskLoggerService(
                 session_factory=session_factory, config=task_logging_config
@@ -1242,6 +1350,55 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Services dependent on database session factory have been initialized.",
                 self.log_identifier,
             )
+            
+            # Initialize background task monitor if task logging is enabled
+            if self.database_url and task_logging_config.get("enabled", False):
+                from .services.background_task_monitor import BackgroundTaskMonitor
+                from .services.task_service import TaskService
+                
+                # Create task service for cancellation operations
+                task_service = TaskService(
+                    core_a2a_service=self.core_a2a_service,
+                    publish_func=self.publish_a2a,
+                    namespace=self.namespace,
+                    gateway_id=self.gateway_id,
+                    sse_manager=self.sse_manager,
+                    task_context_map=self.task_context_manager._contexts,
+                    task_context_lock=self.task_context_manager._lock,
+                    app_name=self.name,
+                )
+                
+                # Get timeout configuration
+                background_config = self.get_config("background_tasks", {})
+                default_timeout_ms = background_config.get("default_timeout_ms", 3600000)  # 1 hour
+                
+                self.background_task_monitor = BackgroundTaskMonitor(
+                    session_factory=session_factory,
+                    task_service=task_service,
+                    default_timeout_ms=default_timeout_ms,
+                )
+                
+                # Create timer for periodic timeout checks
+                monitor_interval_ms = background_config.get("monitor_interval_ms", 300000)  # 5 minutes
+                self._background_task_monitor_timer_id = f"background_task_monitor_{self.gateway_id}"
+                
+                self.add_timer(
+                    delay_ms=monitor_interval_ms,
+                    timer_id=self._background_task_monitor_timer_id,
+                    interval_ms=monitor_interval_ms,
+                )
+                
+                log.info(
+                    "%s Background task monitor initialized with %dms check interval and %dms default timeout",
+                    self.log_identifier,
+                    monitor_interval_ms,
+                    default_timeout_ms
+                )
+            else:
+                log.info(
+                    "%s Background task monitor not initialized (task logging disabled or no database)",
+                    self.log_identifier
+                )
 
             port = (
                 self.fastapi_https_port
@@ -1258,6 +1415,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 ssl_keyfile=self.ssl_keyfile,
                 ssl_certfile=self.ssl_certfile,
                 ssl_keyfile_password=self.ssl_keyfile_password,
+                log_config=None
             )
             self.uvicorn_server = uvicorn.Server(config)
 
@@ -1345,71 +1503,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
                     self.stop_signal.set()
 
-                try:
-                    from solace_agent_mesh_enterprise.init_enterprise import (
-                        start_enterprise_background_tasks,
-                    )
-
-                    log.info(
-                        "%s Starting enterprise background tasks...",
-                        self.log_identifier,
-                    )
-                    await start_enterprise_background_tasks(self)
-                    log.info(
-                        "%s Enterprise background tasks started successfully",
-                        self.log_identifier,
-                    )
-                except ImportError:
-                    log.debug(
-                        "%s Enterprise package not available - skipping background tasks",
-                        self.log_identifier,
-                    )
-                except RuntimeError as enterprise_err:
-                    log.warning(
-                        "%s Enterprise background tasks disabled: %s - Community features will continue normally",
-                        self.log_identifier,
-                        enterprise_err,
-                    )
-                except Exception as enterprise_err:
-                    log.error(
-                        "%s Failed to start enterprise background tasks: %s - Community features will continue normally",
-                        self.log_identifier,
-                        enterprise_err,
-                        exc_info=True,
-                    )
-
             @self.fastapi_app.on_event("shutdown")
             async def shutdown_event():
                 log.info(
                     "%s [_start_listener] FastAPI shutdown event triggered.",
                     self.log_identifier,
                 )
-
-                try:
-                    from solace_agent_mesh_enterprise.init_enterprise import (
-                        stop_enterprise_background_tasks,
-                    )
-
-                    log.info(
-                        "%s Stopping enterprise background tasks...",
-                        self.log_identifier,
-                    )
-                    await stop_enterprise_background_tasks()
-                    log.info(
-                        "%s Enterprise background tasks stopped", self.log_identifier
-                    )
-                except ImportError:
-                    log.debug(
-                        "%s Enterprise package not available - no background tasks to stop",
-                        self.log_identifier,
-                    )
-                except Exception as enterprise_err:
-                    log.error(
-                        "%s Failed to stop enterprise background tasks: %s",
-                        self.log_identifier,
-                        enterprise_err,
-                        exc_info=True,
-                    )
 
             self.fastapi_thread = threading.Thread(
                 target=self.uvicorn_server.run, daemon=True, name="FastAPI_Thread"
@@ -1479,11 +1578,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
         if self._data_retention_timer_id:
             self.cancel_timer(self._data_retention_timer_id)
             log.info("%s Cancelled data retention cleanup timer.", self.log_identifier)
+        
+        if self._background_task_monitor_timer_id:
+            self.cancel_timer(self._background_task_monitor_timer_id)
+            log.info("%s Cancelled background task monitor timer.", self.log_identifier)
 
         # Clean up data retention service
         if self.data_retention_service:
             self.data_retention_service = None
             log.info("%s Data retention service cleaned up.", self.log_identifier)
+        
+        # Clean up background task monitor
+        if self.background_task_monitor:
+            self.background_task_monitor = None
+            log.info("%s Background task monitor cleaned up.", self.log_identifier)
 
         self.cancel_timer(self.health_check_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
@@ -1639,6 +1747,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if result.metadata
                             else None
                         )
+                        task_status = a2a.get_task_status(result)
+                        # Guard against task_status being an Enum (TaskState) instead of TaskStatus object
+                        if (
+                            task_status
+                            and not isinstance(task_status, TaskState)
+                            and hasattr(task_status, "message")
+                        ):
+                            data_parts = a2a.get_data_parts_from_message(
+                                task_status.message
+                            )
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "task_result"
+                                )
                     elif isinstance(result, TaskArtifactUpdateEvent):
                         artifact = a2a.get_artifact_from_artifact_update(result)
                         if artifact:
@@ -1674,6 +1796,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if message.metadata
                             else None
                         )
+                        data_parts = a2a.get_data_parts_from_message(message)
+                        if data_parts:
+                            details["debug_type"] = data_parts[0].data.get(
+                                "type", method
+                            )
                 elif method == "tasks/cancel":
                     details["task_id"] = a2a.get_task_id_from_cancel_request(
                         rpc_request
@@ -2187,6 +2314,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
                 sse_task_id,
             )
+            
 
     async def _send_error_to_external(
         self, external_request_context: dict[str, Any], error_data: JSONRPCError

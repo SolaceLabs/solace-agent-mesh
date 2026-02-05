@@ -45,12 +45,20 @@ class TaskExecutionContext:
         self.token_usage_by_model: Dict[str, Dict[str, int]] = {}
         self.token_usage_by_source: Dict[str, Dict[str, int]] = {}
 
+        # Generic flags storage for task-level state
+        self._flags: Dict[str, Any] = {}
+
         # Generic security storage (enterprise use only)
         self._security_context: Dict[str, Any] = {}
 
         # Original Solace message for ACK/NACK operations
         # Stored here instead of a2a_context to avoid serialization issues
         self._original_solace_message: Optional["SolaceMessage"] = None
+
+        # Turn tracking for proper spacing between LLM turns
+        self._current_invocation_id: Optional[str] = None
+        self._first_text_seen_in_turn: bool = False
+        self._need_spacing_before_next_text: bool = False
 
     def cancel(self) -> None:
         """Signals that the task should be cancelled."""
@@ -354,3 +362,85 @@ class TaskExecutionContext:
         """
         with self.lock:
             return self._original_solace_message
+
+    def check_and_update_invocation(self, new_invocation_id: str) -> bool:
+        """
+        Check if this is a new turn (different invocation_id) and update tracking.
+
+        Args:
+            new_invocation_id: The invocation_id from the current ADK event
+
+        Returns:
+            True if this is a new turn (invocation_id changed), False otherwise
+        """
+        with self.lock:
+            is_new_turn = (
+                self._current_invocation_id is not None
+                and self._current_invocation_id != new_invocation_id
+            )
+
+            if is_new_turn:
+                # Mark that we need spacing before the next text
+                self._need_spacing_before_next_text = True
+
+            if is_new_turn or self._current_invocation_id is None:
+                self._current_invocation_id = new_invocation_id
+                self._first_text_seen_in_turn = False
+
+            return is_new_turn
+
+    def is_first_text_in_turn(self) -> bool:
+        """
+        Check if this is the first text we're seeing in the current turn,
+        and mark it as seen.
+
+        Returns:
+            True if this is the first text in the turn, False otherwise
+        """
+        with self.lock:
+            if not self._first_text_seen_in_turn:
+                self._first_text_seen_in_turn = True
+                return True
+            return False
+
+    def should_add_turn_spacing(self) -> bool:
+        """
+        Check if we need to add spacing before the next text (because it's a new turn).
+        This flag is set when a new invocation starts and cleared after spacing is added.
+
+        Returns:
+            True if spacing should be added, False otherwise
+        """
+        with self.lock:
+            if self._need_spacing_before_next_text:
+                self._need_spacing_before_next_text = False
+                return True
+            return False
+
+    def set_flag(self, key: str, value: Any) -> None:
+        """
+        Set a task-level flag.
+
+        This method provides a generic mechanism for storing task-level state
+        that needs to persist across different parts of the task execution.
+
+        Args:
+            key: The flag name
+            value: The flag value
+        """
+        with self.lock:
+            self._flags[key] = value
+
+    def get_flag(self, key: str, default: Any = None) -> Any:
+        """
+        Get a task-level flag.
+
+        Args:
+            key: The flag name
+            default: Default value to return if flag not found
+
+        Returns:
+            The flag value, or default if not found
+        """
+        with self.lock:
+            return self._flags.get(key, default)

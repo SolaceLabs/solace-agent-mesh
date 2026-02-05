@@ -3,11 +3,13 @@ import { Download } from "lucide-react";
 
 import { Badge, Button } from "@/lib/components/ui";
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { getErrorMessage } from "@/lib/utils/api";
 
 import type { MessageFE, TextPart, VisualizedTask } from "@/lib/types";
 
 import { LoadingMessageRow } from "../chat";
+import { downloadBlob } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 const getStatusBadge = (status: string, type: "info" | "error" | "success") => {
     return (
@@ -57,9 +59,8 @@ const getTaskStatus = (task: VisualizedTask, loadingMessage: MessageFE | undefin
 };
 
 export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) => {
-    const { messages, addNotification } = useChatContext();
-    const { configServerUrl, configFeatureEnablement } = useConfigContext();
-    const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
+    const { messages, addNotification, displayError } = useChatContext();
+    const { configFeatureEnablement } = useConfigContext();
     const taskLoggingEnabled = configFeatureEnablement?.taskLogging ?? false;
 
     const taskStatus = useMemo(() => {
@@ -69,30 +70,16 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
     }, [messages, task]);
 
     const handleDownloadStim = async () => {
-        if (!task.taskId) {
-            addNotification("Task ID is missing, cannot download.", "error");
-            return;
-        }
-
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/tasks/${task.taskId}`);
+            const response = await api.webui.get(`/api/v1/tasks/${task.taskId}`, { fullResponse: true });
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ detail: `Failed to download: ${response.statusText}` }));
-                throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                throw new Error(`Failed to download task log: ${response.statusText}`);
             }
             const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${task.taskId}.stim`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-            addNotification("Task log download started.", "success");
+            downloadBlob(blob, `${task.taskId}.stim`);
+            addNotification("Task log downloaded", "success");
         } catch (error) {
-            console.error("Failed to download .stim file:", error);
-            addNotification(`Failed to download task log: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+            displayError({ title: "Failed to Download Task Log", error: getErrorMessage(error, "An unknown error occurred while downloading the task log.") });
         }
     };
 
@@ -110,8 +97,8 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
 
             <div>
                 {taskLoggingEnabled && (
-                    <Button variant="ghost" size="icon" onClick={handleDownloadStim} tooltip="Download Task Log (.stim)">
-                        <Download className="size-4" />
+                    <Button variant="ghost" size="icon" onClick={handleDownloadStim} tooltip="Download Task Log (.stim)" disabled={!task.taskId}>
+                        <Download />
                     </Button>
                 )}
             </div>

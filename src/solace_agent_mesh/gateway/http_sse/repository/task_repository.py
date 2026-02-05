@@ -2,10 +2,14 @@
 Task repository implementation using SQLAlchemy.
 """
 
+import logging
+
 from sqlalchemy.orm import Session as DBSession
 
-from ..shared.pagination import PaginationParams
-from ..shared.types import UserId
+log = logging.getLogger(__name__)
+
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import UserId
 from .entities import Task, TaskEvent
 from .interfaces import ITaskRepository
 from .models import TaskEventModel, TaskModel
@@ -25,10 +29,15 @@ class TaskRepository(ITaskRepository):
             model.total_output_tokens = task.total_output_tokens
             model.total_cached_input_tokens = task.total_cached_input_tokens
             model.token_usage_details = task.token_usage_details
+            model.execution_mode = task.execution_mode
+            model.last_activity_time = task.last_activity_time
+            model.background_execution_enabled = task.background_execution_enabled
+            model.max_execution_time_ms = task.max_execution_time_ms
         else:
             model = TaskModel(
                 id=task.id,
                 user_id=task.user_id,
+                parent_task_id=task.parent_task_id,
                 start_time=task.start_time,
                 end_time=task.end_time,
                 status=task.status,
@@ -37,6 +46,10 @@ class TaskRepository(ITaskRepository):
                 total_output_tokens=task.total_output_tokens,
                 total_cached_input_tokens=task.total_cached_input_tokens,
                 token_usage_details=task.token_usage_details,
+                execution_mode=task.execution_mode,
+                last_activity_time=task.last_activity_time,
+                background_execution_enabled=task.background_execution_enabled,
+                max_execution_time_ms=task.max_execution_time_ms,
             )
             session.add(model)
 
@@ -154,6 +167,192 @@ class TaskRepository(ITaskRepository):
                 break
 
         return total_deleted
+
+    def find_all_by_parent_chain(self, session: DBSession, task_id: str) -> list[str]:
+        """
+        Returns all task IDs in the hierarchy starting from task_id.
+        Traverses up to find root, then traverses down to find all descendants.
+
+        Args:
+            session: Database session
+            task_id: Starting task ID
+
+        Returns:
+            List of all task IDs in the hierarchy (including the starting task)
+        """
+        # Find root task (traverse up parent chain)
+        root_task_id = task_id
+        current_id = task_id
+        visited = set()
+
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            task_model = (
+                session.query(TaskModel).filter(TaskModel.id == current_id).first()
+            )
+            if not task_model or not task_model.parent_task_id:
+                root_task_id = current_id
+                break
+            current_id = task_model.parent_task_id
+
+        # Find all descendants of root (BFS)
+        all_task_ids = {root_task_id}
+        to_process = [root_task_id]
+
+        while to_process:
+            current = to_process.pop(0)
+            # Find children
+            children = (
+                session.query(TaskModel)
+                .filter(TaskModel.parent_task_id == current)
+                .all()
+            )
+            for child in children:
+                if child.id not in all_task_ids:
+                    all_task_ids.add(child.id)
+                    to_process.append(child.id)
+
+        return list(all_task_ids)
+
+    # Maximum recursion depth for child task traversal to prevent infinite loops
+    MAX_CHILD_TASK_DEPTH = 50
+
+    def find_active_children(
+        self, session: DBSession, parent_task_id: str, _depth: int = 0
+    ) -> list[tuple[str, str | None]]:
+        """
+        Find all active (running/pending) child tasks of a given parent task.
+        Returns a list of tuples: (task_id, target_agent_name).
+        
+        Uses the indexed parent_task_id column for efficient lookup.
+        The target_agent_name is extracted from the first request event's metadata.
+        
+        Args:
+            session: Database session
+            parent_task_id: The parent task ID to find children for
+            _depth: Internal recursion depth counter (do not set manually)
+            
+        Returns:
+            List of (task_id, target_agent_name) tuples for active child tasks
+        """
+        from sqlalchemy import or_
+        
+        # Prevent infinite recursion with a sanity check on depth
+        if _depth >= self.MAX_CHILD_TASK_DEPTH:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Max recursion depth ({self.MAX_CHILD_TASK_DEPTH}) reached while "
+                f"finding child tasks for parent {parent_task_id}. "
+                "This may indicate a circular parent-child relationship."
+            )
+            return []
+        
+        # Find all direct children that are still running
+        # Use OR to properly handle NULL status (SQL NULL doesn't work with IN clause)
+        child_models = (
+            session.query(TaskModel)
+            .filter(
+                TaskModel.parent_task_id == parent_task_id,
+                or_(
+                    TaskModel.status.is_(None),
+                    TaskModel.status.in_(["running", "pending"]),
+                ),
+            )
+            .all()
+        )
+        
+        results = []
+        for child in child_models:
+            # Extract target agent from the first request event
+            target_agent = self._extract_target_agent_from_events(session, child.id)
+            results.append((child.id, target_agent))
+            
+            # Recursively find children of this child
+            results.extend(self.find_active_children(session, child.id, _depth + 1))
+        
+        return results
+    
+    def _extract_target_agent_from_events(self, session: DBSession, task_id: str) -> str | None:
+        """
+        Extract the target agent name from a task's request event.
+        
+        Args:
+            session: Database session
+            task_id: The task ID to extract agent from
+            
+        Returns:
+            The target agent name, or None if not found
+        """
+        # Find the first request event for this task
+        event = (
+            session.query(TaskEventModel)
+            .filter(
+                TaskEventModel.task_id == task_id,
+                TaskEventModel.direction == "request",
+            )
+            .order_by(TaskEventModel.created_time.asc())
+            .first()
+        )
+        
+        if not event or not event.payload:
+            return None
+        
+        try:
+            # Navigate the expected A2A request structure
+            # Structure: payload["params"]["message"]["metadata"]["agent_name" | "workflow_name"]
+            metadata = (
+                event.payload
+                .get("params", {})
+                .get("message", {})
+                .get("metadata", {})
+            )
+
+            # Prefer workflow_name for workflow invocations
+            return metadata.get("workflow_name") or metadata.get("agent_name")
+
+        except AttributeError as e:
+            # Payload structure doesn't match expected dict structure
+            log.debug(
+                f"Failed to extract agent from task {task_id}: "
+                f"unexpected payload structure - {e}"
+            )
+            return None
+        except Exception as e:
+            # Unexpected error - log at warning level
+            log.warning(
+                f"Unexpected error extracting agent from task {task_id}: {e}",
+                exc_info=True
+            )
+            return None
+
+    def find_background_tasks_by_status(
+        self, session: DBSession, status: str | None = None
+    ) -> list[Task]:
+        """Find all background tasks, optionally filtered by status."""
+        query = session.query(TaskModel).filter(
+            TaskModel.execution_mode == "background"
+        )
+        
+        if status:
+            query = query.filter(TaskModel.status == status)
+        
+        models = query.all()
+        return [self._task_model_to_entity(model) for model in models]
+    
+    def find_timed_out_background_tasks(
+        self, session: DBSession, cutoff_time_ms: int
+    ) -> list[Task]:
+        """Find background tasks that have exceeded their timeout."""
+        models = (
+            session.query(TaskModel)
+            .filter(
+                TaskModel.execution_mode == "background",
+                TaskModel.status.in_(["running", "pending"]),
+                TaskModel.last_activity_time < cutoff_time_ms
+            )
+            .all()
+        )
+        return [self._task_model_to_entity(model) for model in models]
 
     def _task_model_to_entity(self, model: TaskModel) -> Task:
         """Convert SQLAlchemy task model to domain entity."""

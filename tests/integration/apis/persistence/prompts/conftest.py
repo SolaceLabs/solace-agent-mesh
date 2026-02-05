@@ -47,6 +47,10 @@ def _create_custom_config_client(
             return {"type": "sql"}
         if key == "task_logging":
             return {"enabled": False}
+        if key == "projects":
+            return {"enabled": True}
+        if key == "model":
+            return {}
         if key == "frontend_collect_feedback":
             return False
         if key == "frontend_auth_login_url":
@@ -59,20 +63,17 @@ def _create_custom_config_client(
             return ""
         if key == "frontend_bot_name":
             return "A2A Agent"
+        if key == "frontend_logo_url":
+            return ""
 
-        # For other keys, delegate to original or return default
-        if callable(original_get_config):
-            try:
-                return original_get_config(key, default)
-            except:
-                return default
-        return default
+        # For other keys, return the default to avoid Mock objects
+        return default if default is not None else {}
 
     factory.mock_component.get_config = custom_get_config
 
     # Set up auth overrides
     from fastapi import Request
-    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+    from solace_agent_mesh.shared.api.auth_utils import get_current_user
     from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
 
     async def override_get_current_user(request: Request):

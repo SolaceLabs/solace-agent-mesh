@@ -8,6 +8,8 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict
 
+from litellm.exceptions import BadRequestError
+
 from a2a.types import (
     A2ARequest,
     AgentCapabilities,
@@ -25,21 +27,32 @@ from google.adk.agents import RunConfig
 from google.adk.agents.run_config import StreamingMode
 from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.message import Message as SolaceMessage
+from sqlalchemy.exc import OperationalError
 
 from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
+from ...common.error_handlers import get_error_message
+from ...common.utils.embeds.constants import (
+    EMBED_DELIMITER_OPEN,
+    EMBED_DELIMITER_CLOSE,
+)
 from ...common.a2a import (
+    get_agent_discovery_topic,
     get_agent_request_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
     get_client_response_topic,
-    get_discovery_topic,
+    get_discovery_subscription_topic,
     get_sam_events_subscription_topic,
     get_text_from_message,
     topic_matches_subscription,
     translate_a2a_to_adk_content,
+)
+from ...common.constants import (
+    EXTENSION_URI_AGENT_TYPE,
+    EXTENSION_URI_SCHEMAS,
 )
 from ...common.a2a.types import ToolsExtensionParams
 from ...common.data_parts import ToolResultData
@@ -155,7 +168,7 @@ async def process_event(component, event: Event):
             namespace = component.get_config("namespace")
             agent_name = component.get_config("agent_name")
             agent_request_topic = get_agent_request_topic(namespace, agent_name)
-            discovery_topic = get_discovery_topic(namespace)
+            discovery_subscription = get_discovery_subscription_topic(namespace)
             agent_response_sub_prefix = (
                 get_agent_response_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
@@ -165,7 +178,7 @@ async def process_event(component, event: Event):
             sam_events_topic = get_sam_events_subscription_topic(namespace, "session")
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
-            elif topic == discovery_topic:
+            elif topic_matches_subscription(topic, discovery_subscription):
                 payload = message.get_payload()
                 if isinstance(payload, dict) and payload.get("name") != agent_name:
                     handle_agent_card_message(component, message)
@@ -321,6 +334,17 @@ async def handle_a2a_request(component, message: SolaceMessage):
             log.warning("a2aUserConfig is not a dict, using empty dict instead")
             a2a_user_config = {}
 
+        # Extract and validate call depth
+        call_depth = message.get_user_properties().get("callDepth", 0)
+        max_call_depth = component.get_config("max_call_depth", 10)
+        if call_depth > max_call_depth:
+            error_msg = (
+                f"Call depth {call_depth} exceeds maximum allowed depth of {max_call_depth}. "
+                "This may indicate infinite recursion in workflow/agent calls."
+            )
+            log.error("%s %s", component.log_identifier, error_msg)
+            raise ValueError(error_msg)
+
         # The concept of logical_task_id changes. For Cancel, it's in params.id.
         # For Send, we will generate it.
         logical_task_id = None
@@ -408,6 +432,62 @@ async def handle_a2a_request(component, message: SolaceMessage):
                             ack_e,
                         )
                     return None
+
+        # Check for structured invocation mode
+        if method in ["message/send", "message/stream"]:
+            a2a_message = a2a.get_message_from_send_request(a2a_request)
+            invocation_data = component.structured_invocation_handler.extract_structured_invocation_context(
+                a2a_message
+            )
+
+            if invocation_data:
+                log.info(
+                    "%s Detected structured invocation request for node '%s' in context '%s'. Delegating to StructuredInvocationHandler.",
+                    component.log_identifier,
+                    invocation_data.node_id,
+                    invocation_data.workflow_name,
+                )
+
+                # Extract context needed for handler
+                logical_task_id = str(a2a.get_request_id(a2a_request))
+                original_session_id = a2a_message.context_id
+                user_id = message.get_user_properties().get("userId", "default_user")
+
+                # For structured invocations, we use the original session ID as the effective session ID
+                # because the caller manages the session scope.
+
+                a2a_context = {
+                    "logical_task_id": logical_task_id,
+                    "session_id": original_session_id,
+                    "effective_session_id": original_session_id,
+                    "user_id": user_id,
+                    "jsonrpc_request_id": jsonrpc_request_id,
+                    "contextId": original_session_id,
+                    "messageId": a2a_message.message_id,
+                    "replyToTopic": reply_topic_from_peer,
+                    "a2a_user_config": a2a_user_config,
+                    "statusTopic": status_topic_from_peer,
+                    "call_depth": call_depth,
+                }
+                # Note: original_solace_message is NOT stored in a2a_context to avoid
+                # serialization issues when a2a_context is stored in ADK session state.
+                # It is stored in TaskExecutionContext by the structured invocation handler.
+
+                # Execute as structured invocation
+                loop = component.get_async_loop()
+                if loop and loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        component.structured_invocation_handler.execute_structured_invocation(
+                            a2a_message, invocation_data, a2a_context, message
+                        ),
+                        loop,
+                    )
+                else:
+                    log.error(
+                        "%s Async loop not available. Cannot execute structured invocation.",
+                        component.log_identifier,
+                    )
+                return
 
         if method == "tasks/cancel":
             logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
@@ -507,7 +587,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                     is_paused=False,
                                     exception=TaskCancelledError(
                                         f"Task {logical_task_id} cancelled while paused."
-                                    )
+                                    ),
                                 ),
                                 loop,
                             )
@@ -678,6 +758,8 @@ async def handle_a2a_request(component, message: SolaceMessage):
 
             if is_run_based_session:
                 try:
+                    from ...agent.adk.services import append_event_with_retry
+
                     original_adk_session_data = (
                         await component.session_service.get_session(
                             app_name=agent_name,
@@ -705,9 +787,23 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                 )
                             )
                             for event_to_copy in original_history_events:
-                                await component.session_service.append_event(
+                                # Use retry helper to handle stale session race conditions
+                                await append_event_with_retry(
+                                    session_service=component.session_service,
                                     session=run_based_adk_session_for_copy,
                                     event=event_to_copy,
+                                    app_name=agent_name,
+                                    user_id=user_id,
+                                    session_id=effective_session_id,
+                                    log_identifier=f"{component.log_identifier}[RunBasedCopy:{logical_task_id}]",
+                                )
+                                # Re-fetch session after each append to keep it fresh for the next iteration
+                                run_based_adk_session_for_copy = (
+                                    await component.session_service.get_session(
+                                        app_name=agent_name,
+                                        user_id=user_id,
+                                        session_id=effective_session_id,
+                                    )
                                 )
                         else:
                             log.debug(
@@ -753,6 +849,8 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "system_purpose": system_purpose,
                 "response_format": response_format,
                 "host_agent_name": agent_name,
+                "call_depth": call_depth,
+                "original_message_metadata": task_metadata,  # Store original message metadata for tools
             }
 
             # Store verified user identity claims in a2a_context (not the raw token)
@@ -963,6 +1061,101 @@ async def handle_a2a_request(component, message: SolaceMessage):
         except Exception as nack_e:
             log.error(
                 "%s Failed to NACK message after pre-start error: %s",
+                component.log_identifier,
+                nack_e,
+            )
+
+        component.handle_error(e, Event(EventType.MESSAGE, message))
+        return None
+
+    except BadRequestError as e:
+        log.error(
+            "%s Bad Request error handling A2A request: %s", component.log_identifier, e
+        )
+        
+        # Use centralized error handler
+        error_message, is_context_limit = get_error_message(e)
+        
+        if is_context_limit:
+            log.error(
+                "%s Context limit exceeded for task %s",
+                component.log_identifier,
+                logical_task_id,
+            )
+        
+        error_response = a2a.create_invalid_request_error_response(
+            message=error_message,
+            request_id=jsonrpc_request_id,
+            data={"taskId": logical_task_id},
+        )
+        target_topic = reply_topic_from_peer or (
+            get_client_response_topic(namespace, client_id) if client_id else None
+        )
+        if target_topic:
+            component.publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
+            )
+
+        try:
+            message.call_negative_acknowledgements()
+            log.warning(
+                "%s NACKed original A2A request due to bad request error.",
+                component.log_identifier,
+            )
+        except Exception as nack_e:
+            log.error(
+                "%s Failed to NACK message after bad request error: %s",
+                component.log_identifier,
+                nack_e,
+            )
+
+        component.handle_error(e, Event(EventType.MESSAGE, message))
+        return None
+
+    except OperationalError as e:
+        log.error(
+            "%s Database error while processing A2A request: %s",
+            component.log_identifier,
+            e,
+        )
+
+        # Check if it's a schema error
+        error_msg = str(e).lower()
+        if "no such column" in error_msg or "no such table" in error_msg:
+            user_message = (
+                "Database schema update required. "
+                "Please contact your administrator to run database migrations."
+            )
+        else:
+            user_message = (
+                "Database error occurred. Please try again or contact support."
+            )
+
+        error_response = a2a.create_internal_error_response(
+            message=user_message,
+            request_id=jsonrpc_request_id,
+            data={"taskId": logical_task_id} if logical_task_id else None,
+        )
+
+        target_topic = reply_topic_from_peer or (
+            get_client_response_topic(namespace, client_id) if client_id else None
+        )
+        if target_topic:
+            component.publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
+            )
+
+        try:
+            message.call_negative_acknowledgements()
+            log.warning(
+                "%s NACKed A2A request due to database error.",
+                component.log_identifier,
+            )
+        except Exception as nack_e:
+            log.error(
+                "%s Failed to NACK message after database error: %s",
                 component.log_identifier,
                 nack_e,
             )
@@ -1296,43 +1489,106 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                         peer_agent_name=peer_agent_name,
                                         message=message,
                                     )
+                                    # Reset the timeout since we received a status update
+                                    await component.reset_peer_timeout(sub_task_id)
                                     return
 
+                                # Filter out artifact creation progress from peer agents.
+                                # These are implementation details that should not leak across
+                                # agent boundaries. Artifacts are properly bubbled up in the
+                                # final Task response metadata.
+                                filtered_data_parts = []
+                                has_deep_research_report = False
                                 for data_part in data_parts:
-                                    log.info(
-                                        "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
+                                    if isinstance(data_part.data, dict):
+                                        data_type = data_part.data.get("type", "")
+                                        if data_type == "artifact_creation_progress":
+                                            log.debug(
+                                                "%s Filtered out artifact_creation_progress DataPart from peer sub-task %s. Not forwarding to user.",
+                                                component.log_identifier,
+                                                sub_task_id,
+                                            )
+                                            continue
+                                        # Filter out workflow status updates to prevent duplication in the gateway
+                                        # The gateway already sees these events via subscription to the peer agent
+                                        if data_type.startswith("workflow_"):
+                                            log.debug(
+                                                "%s Skipping forwarding of workflow status update '%s' from peer for sub-task %s.",
+                                                component.log_identifier,
+                                                data_type,
+                                                sub_task_id,
+                                            )
+                                            continue
+                                        if data_type == "deep_research_report":
+                                            # Track that we've seen a deep research report
+                                            # This will be used to suppress text content in the final response
+                                            has_deep_research_report = True
+                                            log.info(
+                                                "%s Detected deep_research_report DataPart from peer sub-task %s. Will suppress text in final response.",
+                                                component.log_identifier,
+                                                sub_task_id,
+                                            )
+                                    filtered_data_parts.append(data_part)
+                                
+                                # Store the deep research report flag in correlation data for later use
+                                if has_deep_research_report:
+                                    main_logical_task_id_for_flag = original_task_context.get("logical_task_id")
+                                    with component.active_tasks_lock:
+                                        task_context_for_flag = component.active_tasks.get(main_logical_task_id_for_flag)
+                                        if task_context_for_flag:
+                                            # Store flag in task context to suppress text in final response
+                                            task_context_for_flag.set_flag("peer_sent_deep_research_report", True)
+                                            log.info(
+                                                "%s Set peer_sent_deep_research_report flag for task %s",
+                                                component.log_identifier,
+                                                main_logical_task_id_for_flag,
+                                            )
+
+                                # Only forward if there are non-filtered data parts
+                                if filtered_data_parts:
+                                    for data_part in filtered_data_parts:
+                                        log.info(
+                                            "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
+                                            component.log_identifier,
+                                            sub_task_id,
+                                        )
+
+                                        forwarded_message = a2a.create_agent_parts_message(
+                                            parts=[data_part],
+                                            metadata=event_metadata,
+                                        )
+
+                                        forwarded_event = a2a.create_status_update(
+                                            task_id=main_logical_task_id,
+                                            context_id=main_context_id,
+                                            message=forwarded_message,
+                                            is_final=False,
+                                        )
+                                        if (
+                                            status_event.status
+                                            and status_event.status.timestamp
+                                        ):
+                                            forwarded_event.status.timestamp = (
+                                                status_event.status.timestamp
+                                            )
+                                        _forward_jsonrpc_response(
+                                            component=component,
+                                            original_jsonrpc_request_id=original_jsonrpc_request_id,
+                                            result_data=forwarded_event,
+                                            target_topic=target_topic_for_forward,
+                                            main_logical_task_id=main_logical_task_id,
+                                            peer_agent_name=peer_agent_name,
+                                            message=message,
+                                        )
+                                    # Reset the timeout since we received a status update
+                                    await component.reset_peer_timeout(sub_task_id)
+                                    return
+                                else:
+                                    log.debug(
+                                        "%s All DataParts from peer sub-task %s were filtered. Not forwarding.",
                                         component.log_identifier,
                                         sub_task_id,
                                     )
-
-                                    forwarded_message = a2a.create_agent_parts_message(
-                                        parts=[data_part],
-                                        metadata=event_metadata,
-                                    )
-
-                                    forwarded_event = a2a.create_status_update(
-                                        task_id=main_logical_task_id,
-                                        context_id=main_context_id,
-                                        message=forwarded_message,
-                                        is_final=False,
-                                    )
-                                    if (
-                                        status_event.status
-                                        and status_event.status.timestamp
-                                    ):
-                                        forwarded_event.status.timestamp = (
-                                            status_event.status.timestamp
-                                        )
-                                    _forward_jsonrpc_response(
-                                        component=component,
-                                        original_jsonrpc_request_id=original_jsonrpc_request_id,
-                                        result_data=forwarded_event,
-                                        target_topic=target_topic_for_forward,
-                                        main_logical_task_id=main_logical_task_id,
-                                        peer_agent_name=peer_agent_name,
-                                        message=message,
-                                    )
-                                    return
 
                             payload_to_queue = status_event.model_dump(
                                 by_alias=True, exclude_none=True
@@ -1613,6 +1869,16 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             header_text=header_text,
                                         )
                                     )
+
+                                    # Add guidance about artifact_return responsibility
+                                    artifact_return_guidance = (
+                                        f"\n\n**Note:** If any of these artifacts fulfill the user's request, "
+                                        f"you should return them directly to the user using the "
+                                        f"{EMBED_DELIMITER_OPEN}artifact_return:filename:version{EMBED_DELIMITER_CLOSE} embed. "
+                                        f"This is more convenient for the user than just describing the artifacts. "
+                                        f"Replace 'filename' and 'version' with the actual values from the artifact metadata above."
+                                    )
+                                    artifact_summary += artifact_return_guidance
                                 else:
                                     log.warning(
                                         "%s Could not generate artifact summary: missing user_id or session_id in correlation data.",
@@ -1633,9 +1899,28 @@ async def handle_a2a_response(component, message: SolaceMessage):
             else:
                 final_text = str(payload_to_queue)
 
-            full_response_text = final_text
-            if artifact_summary:
-                full_response_text = f"{artifact_summary}\n\n{full_response_text}"
+            # Check if a deep research report was sent by the peer agent
+            # If so, suppress the verbose text but keep artifact info to use
+            peer_sent_deep_research = task_context.get_flag("peer_sent_deep_research_report", False)
+            if peer_sent_deep_research:
+                # Clear the flag after using it
+                task_context.set_flag("peer_sent_deep_research_report", False)
+                if artifact_summary:
+                    full_response_text = (
+                        f"{artifact_summary}\n---\n\n"
+                        "SUCCESS: Deep research task completed. The report has been delivered to the user "
+                        "and is being displayed. Use artifact_return to include the artifact reference "
+                        "in your response so users can click on it."
+                    )
+                else:
+                    full_response_text = (
+                        "SUCCESS: Deep research task completed successfully. "
+                        "The research report has been delivered to the user."
+                    )
+            else:
+                full_response_text = final_text
+                if artifact_summary:
+                    full_response_text = f"{artifact_summary}\n---\n\nPeer Agent Response:\n\n{full_response_text}"
 
             await _publish_peer_tool_result_notification(
                 component=component,
@@ -1745,6 +2030,21 @@ def publish_agent_card(component):
 
         extensions_list = []
 
+        # Create the extension object for agent type.
+        agent_type = component.get_config("agent_type", "standard")
+        if agent_type != "standard":
+            agent_type_extension = AgentExtension(
+                uri=EXTENSION_URI_AGENT_TYPE,
+                description="Specifies the type of agent (e.g., 'workflow').",
+                params={"type": agent_type},
+            )
+            extensions_list.append(agent_type_extension)
+            log.debug(
+                "%s Added agent_type extension: %s",
+                component.log_identifier,
+                agent_type,
+            )
+
         # Create the extension object for deployment tracking.
         deployment_config = component.get_config("deployment", {})
         deployment_id = deployment_config.get("id")
@@ -1754,13 +2054,13 @@ def publish_agent_card(component):
                 uri=DEPLOYMENT_EXTENSION_URI,
                 description="SAM deployment tracking for rolling updates",
                 required=False,
-                params={"id": deployment_id}
+                params={"id": deployment_id},
             )
             extensions_list.append(deployment_extension)
             log.debug(
                 "%s Added deployment extension with ID: %s",
                 component.log_identifier,
-                deployment_id
+                deployment_id,
             )
 
         # Create the extension object for peer agents.
@@ -1804,6 +2104,30 @@ def publish_agent_card(component):
             )
             extensions_list.append(tools_extension)
 
+        # Create the extension object for the agent's input/output schemas.
+        input_schema = component.get_config("input_schema")
+        output_schema = component.get_config("output_schema")
+
+        if input_schema or output_schema:
+            schema_params = {}
+            if input_schema:
+                schema_params["input_schema"] = input_schema
+            if output_schema:
+                schema_params["output_schema"] = output_schema
+
+            schemas_extension = AgentExtension(
+                uri=EXTENSION_URI_SCHEMAS,
+                description="Input and output JSON schemas for the agent.",
+                params=schema_params,
+            )
+            extensions_list.append(schemas_extension)
+            log.debug(
+                "%s Added schemas extension (input: %s, output: %s)",
+                component.log_identifier,
+                "present" if input_schema else "none",
+                "present" if output_schema else "none",
+            )
+
         # Build the capabilities object, including our custom extensions.
         capabilities = AgentCapabilities(
             streaming=supports_streaming,
@@ -1816,11 +2140,13 @@ def publish_agent_card(component):
         # The 'tools' field is not part of the official AgentCard spec.
         # The tools are now included as an extension.
 
-        # Ensure all skills have a 'tags' field to prevent validation errors.
+        # Ensure all skills have 'tags' and 'description' fields to prevent validation errors.
         processed_skills = []
         for skill in skills_from_config:
             if "tags" not in skill:
                 skill["tags"] = []
+            if "description" not in skill:
+                skill["description"] = "No description provided."
             processed_skills.append(skill)
 
         agent_card = AgentCard(
@@ -1837,7 +2163,7 @@ def publish_agent_card(component):
             provider=card_config.get("provider"),
         )
 
-        discovery_topic = get_discovery_topic(namespace)
+        discovery_topic = get_agent_discovery_topic(namespace)
 
         component.publish_a2a_message(
             agent_card.model_dump(exclude_none=True), discovery_topic

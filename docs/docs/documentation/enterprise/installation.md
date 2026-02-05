@@ -66,6 +66,15 @@ You can run Agent Mesh Enterprise in two different modes depending on your needs
 You may need to include `--platform linux/amd64` depending on the host machine you're using.
 :::
 
+:::warning[Authorization Required]
+**Agent Mesh Enterprise uses secure-by-default authorization.** Without explicit authorization configuration, the system will **deny all access** to protect your deployment.
+
+For production use, you must configure RBAC (Role-Based Access Control) to grant access to users. See the [RBAC Setup Guide](./rbac-setup-guide.md) for details.
+
+For development/testing only, you can disable authorization by setting `type: none` in your configuration, but this should **never** be used in production. (see example below)
+:::
+
+
 ### Running in Development Mode
 
 Development mode simplifies getting started by using an embedded Solace broker. This configuration requires fewer parameters and allows you to test Agent Mesh Enterprise without setting up external infrastructure. Use this mode for local development, testing, and evaluation.
@@ -80,6 +89,7 @@ docker run -itd -p 8001:8000 \
   -e LLM_SERVICE_GENERAL_MODEL_NAME="<YOUR_MODEL_NAME>" \
   -e NAMESPACE="<YOUR_NAMESPACE>" \
   -e SOLACE_DEV_MODE="true" \
+  -e SAM_AUTHORIZATION_CONFIG="/preset/auth/insecure_permissive_auth_config.yaml" \
   --name sam-ent-dev \
   solace-agent-mesh-enterprise:<tag>
 ```
@@ -95,7 +105,7 @@ Replace the placeholder values with your actual configuration:
 The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the embedded broker instead of connecting to an external one.
 
 <details>
-    <summary>Example</summary>
+    <summary>Example: Basic Development Mode (Secure Default - Access Denied)</summary>
 
     ```bash
     docker run -itd -p 8001:8000 \
@@ -108,6 +118,29 @@ The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the
       --name sam-ent-dev \
       868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
     ```
+    
+    **Note:** This configuration uses secure defaults and will deny all access. You must configure RBAC or use the permissive development configuration below.
+</details>
+
+<details>
+    <summary>Example: Development Mode with Permissive Authorization (Development Only)</summary>
+
+    You can use the pre-configured development configuration file provided in the `preset` directory. Run the container with the `SAM_AUTHORIZATION_CONFIG` environment variable pointing to this file to disable authorization checks.
+    
+    ```bash
+    docker run -itd -p 8001:8000 \
+      -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
+      -e LLM_SERVICE_ENDPOINT="https://lite-llm.mymaas.net/" \
+      -e LLM_SERVICE_PLANNING_MODEL_NAME="openai/vertex-claude-4-sonnet" \
+      -e LLM_SERVICE_GENERAL_MODEL_NAME="openai/vertex-claude-4-sonnet" \
+      -e NAMESPACE="sam-dev" \
+      -e SOLACE_DEV_MODE="true" \
+      -e SAM_AUTHORIZATION_CONFIG="/preset/auth/insecure_permissive_auth_config.yaml" \
+      --name sam-ent-dev \
+      868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
+    ```
+    
+    **⚠️ Warning:** This configuration disables authorization and grants full access. Use only for local development.
 </details>
 
 ### Running in Production Mode
@@ -141,6 +174,8 @@ Replace the placeholder values with your actual configuration. In addition to th
 
 The `SOLACE_DEV_MODE="false"` environment variable tells the container to connect to the external broker specified by the other SOLACE_BROKER parameters instead of using the embedded broker.
 
+**Ensure you have set up proper RBAC authorization for production deployments.** For more information, see [RBAC Setup Guide](./rbac-setup-guide.md).
+
 <details>
     <summary>How to find your credentials</summary>
 
@@ -163,6 +198,60 @@ The `SOLACE_DEV_MODE="false"` environment variable tells the container to connec
     ![How to get credentials](../../../static/img/sam-enterprise-credentials.png)
 
 </details>
+
+## Infrastructure Setup: S3 Buckets for OpenAPI Connector Specs
+
+Some enterprise features require additional infrastructure setup. If you plan to use the OpenAPI Connector feature, you must configure a dedicated S3 bucket for OpenAPI specification files. This is separate from artifact storage and is required for agents to download OpenAPI specs at startup.
+
+### When is a connector specs bucket required?
+- When using the OpenAPI Connector feature for REST API integrations
+- When deploying via Kubernetes (Helm charts handle this automatically)
+- When agents must access OpenAPI spec files at startup
+
+### Why a separate bucket?
+- **Public read access**: Agents must download OpenAPI specs without authentication
+- **Security isolation**: Keeps infrastructure files separate from user artifacts
+- **No secrets**: Only API schemas, endpoints, and models are stored (never credentials)
+
+### Setup Instructions
+
+1. **Create the connector specs S3 bucket** (public read, authenticated write):
+   ```bash
+   aws s3 mb s3://my-connector-specs-bucket --region us-west-2
+   ```
+
+2. **Apply a public read policy**:
+   Save as `connector-specs-policy.json`:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Sid": "PublicReadGetObject",
+       "Effect": "Allow",
+       "Principal": "*",
+       "Action": "s3:GetObject",
+       "Resource": "arn:aws:s3:::my-connector-specs-bucket/*"
+     }]
+   }
+   ```
+   Apply with:
+   ```bash
+   aws s3api put-bucket-policy \
+     --bucket my-connector-specs-bucket \
+     --policy file://connector-specs-policy.json
+   ```
+
+3. **IAM permissions for write access** (for the SAM service):
+   - Grant `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` to the SAM platform's IAM user/role for this bucket.
+
+4. **Kubernetes deployments**: Use the `connectorSpecBucketName` value in your Helm chart.
+
+5. **Standalone deployments**: The platform manages the connector specs bucket; see your deployment guide.
+
+### Security Notes
+- Never store API keys, passwords, or secrets in OpenAPI spec files
+- Public read is safe for API schemas only
+- Write access should be restricted to the platform
 
 ## Accessing the Web UI
 

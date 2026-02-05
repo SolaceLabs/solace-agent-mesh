@@ -1,22 +1,22 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "@/lib/api";
 
 import type { AgentCard, AgentExtension, AgentCardInfo, AgentSkill } from "@/lib/types";
-import { authenticatedFetch } from "@/lib/utils/api";
-
-import { useConfigContext } from "./useConfigContext";
 
 const DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name";
 const PEER_AGENT_TOPOLOGY_EXTENSION_URI = "https://solace.com/a2a/extensions/peer-agent-topology";
 const TOOL_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools";
+const AGENT_TYPE_EXTENSION_URI = "https://solace.com/a2a/extensions/agent-type";
 
 /**
  * Transforms a raw A2A AgentCard into a UI-friendly AgentCardInfo object,
  * extracting the displayName and peer_agents from the extensions array.
  */
-const transformAgentCard = (card: AgentCard): AgentCardInfo => {
+export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
     let displayName: string | undefined;
     let peerAgents: string[] | undefined;
     let tools: AgentSkill[] | undefined;
+    let isWorkflow = false;
 
     if (card.capabilities?.extensions) {
         const displayNameExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === DISPLAY_NAME_EXTENSION_URI);
@@ -33,6 +33,11 @@ const transformAgentCard = (card: AgentCard): AgentCardInfo => {
         if (toolsExtension?.params?.tools) {
             tools = toolsExtension.params.tools as AgentSkill[];
         }
+
+        const agentTypeExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === AGENT_TYPE_EXTENSION_URI);
+        if (agentTypeExtension?.params?.type === "workflow") {
+            isWorkflow = true;
+        }
     }
     return {
         ...card,
@@ -43,6 +48,7 @@ const transformAgentCard = (card: AgentCard): AgentCardInfo => {
         tools: tools || [],
         displayName: displayName,
         peerAgents: peerAgents || [],
+        isWorkflow,
     };
 };
 
@@ -55,34 +61,17 @@ interface useAgentCardsReturn {
 }
 
 export const useAgentCards = (): useAgentCardsReturn => {
-    const { configServerUrl } = useConfigContext();
     const [agents, setAgents] = useState<AgentCardInfo[]>([]);
-    const [agentNameMap, setAgentNameMap] = useState<Record<string, string>>({});
-    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchAgents = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const apiPrefix = `${configServerUrl}/api/v1`;
-            const response = await authenticatedFetch(`${apiPrefix}/agentCards`, { credentials: "include" });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: `Failed to fetch agents: ${response.statusText}` }));
-                throw new Error(errorData.message || `Failed to fetch agents: ${response.statusText}`);
-            }
-            const data: AgentCard[] = await response.json();
+            const data: AgentCard[] = await api.webui.get("/api/v1/agentCards");
             const transformedAgents = data.map(transformAgentCard);
             setAgents(transformedAgents);
-
-            // Create a mapping of agent names to display names for easy lookup
-            const nameDisplayNameMap: Record<string, string> = {};
-            transformedAgents.forEach(agent => {
-                if (agent.name) {
-                    nameDisplayNameMap[agent.name] = agent.displayName || agent.name;
-                }
-            });
-            setAgentNameMap(nameDisplayNameMap);
         } catch (err: unknown) {
             console.error("Error fetching agents:", err);
             setError(err instanceof Error ? err.message : "Could not load agent information.");
@@ -90,11 +79,21 @@ export const useAgentCards = (): useAgentCardsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [configServerUrl]);
+    }, []);
 
     useEffect(() => {
         fetchAgents();
     }, [fetchAgents]);
+
+    const agentNameMap = useMemo(() => {
+        const nameDisplayNameMap: Record<string, string> = {};
+        agents.forEach(agent => {
+            if (agent.name) {
+                nameDisplayNameMap[agent.name] = agent.displayName || agent.name;
+            }
+        });
+        return nameDisplayNameMap;
+    }, [agents]);
 
     return useMemo(
         () => ({

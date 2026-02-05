@@ -46,6 +46,10 @@ apps:
         database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator-agent.db}"
         default_behavior: "PERSISTENT"    
       artifact_service: *default_artifact_service # Points to shared_config.yaml
+      identity_service:
+        type: local_file
+        file_path: ./tests/integration/test_data/people/dummy_employees.json
+        cache_ttl_seconds: 300  # 5 minutes for testing
       artifact_handling_mode: "reference" # Embed artifacts created by *this* agent
       enable_embed_resolution: true # Enable embed feature and instruction injection
       enable_artifact_content_instruction: true # Enable instruction for late-stage embed
@@ -55,7 +59,9 @@ apps:
           group_name: "artifact_management"
         - tool_type: builtin-group
           group_name: "data_analysis"
-      stream_batching_threshold_bytes: 50
+        - tool_type: builtin
+          tool_name: "get_current_time"
+      stream_batching_threshold_bytes: 120
       inject_system_purpose: true
       inject_response_format: true
       max_llm_calls_per_task: 25 # Limit the number of LLM calls per task to prevent excessive usage
