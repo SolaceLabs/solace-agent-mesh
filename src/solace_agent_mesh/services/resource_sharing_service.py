@@ -56,6 +56,34 @@ class ResourceSharingService(ABC):
         """
         Delete all sharing records for a resource (e.g., when resource is deleted).
 
+        IMPORTANT: Implementations MUST also cleanup any dependent data
+        (e.g., sessions created by shared users) to maintain data consistency.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def unshare_users_from_resource(
+        self,
+        session,
+        resource_id: str,
+        resource_type: ResourceType,
+        user_emails: List[str]
+    ) -> bool:
+        """
+        Remove specific users' access to a resource.
+
+        IMPORTANT: Implementations MUST cleanup dependent data
+        (e.g., sessions) when removing access.
+
+        Args:
+            session: Database session
+            resource_id: The resource ID
+            resource_type: Type of resource (e.g., PROJECT)
+            user_emails: List of user emails to unshare
+
         Returns:
             True if successful, False otherwise.
         """

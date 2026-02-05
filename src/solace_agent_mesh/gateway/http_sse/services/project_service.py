@@ -700,30 +700,17 @@ class ProjectService:
         # Delete owner's sessions
         owner_deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
 
-        # Delete shared users' sessions (enterprise feature)
-        shared_users = self._resource_sharing_service.get_shared_users(
-            session=db,
-            resource_id=project_id,
-            resource_type=ResourceType.PROJECT
-        )
-        shared_deleted_count = 0
-        for shared_user_email in shared_users:
-            shared_deleted_count += session_repo.soft_delete_by_project(
-                db, project_id, shared_user_email
-            )
-
-        # Delete all share records for this project (enterprise feature)
-        # Must be called AFTER get_shared_users() to ensure session cleanup
+        # Delete all shares for this project + cascade to shared users' sessions
+        # This is handled by the resource sharing service (enterprise feature)
         self._resource_sharing_service.delete_resource_shares(
             session=db,
             resource_id=project_id,
             resource_type=ResourceType.PROJECT
         )
 
-        total_deleted = owner_deleted_count + shared_deleted_count
         self.logger.info(
-            f"Successfully soft deleted project {project_id} and {total_deleted} associated sessions "
-            f"(owner: {owner_deleted_count}, shared users: {shared_deleted_count})"
+            f"Successfully soft deleted project {project_id} and {owner_deleted_count} owner sessions "
+            f"(shared users handled by sharing service)"
         )
 
         return True
