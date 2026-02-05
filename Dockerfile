@@ -9,7 +9,7 @@
 # ============================================================
 
 # Build Config Portal UI
-FROM node:25-trixie-slim AS ui-config-portal
+FROM node:25.5.0-trixie-slim AS ui-config-portal
 WORKDIR /build/config_portal/frontend
 COPY config_portal/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -18,7 +18,7 @@ COPY config_portal/frontend ./
 RUN npm run build
 
 # Build WebUI
-FROM node:25-trixie-slim AS ui-webui
+FROM node:25.5.0-trixie-slim AS ui-webui
 WORKDIR /build/client/webui/frontend
 COPY client/webui/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -27,7 +27,7 @@ COPY client/webui/frontend ./
 RUN npm run build
 
 # Build Documentation
-FROM node:25-trixie-slim AS ui-docs
+FROM node:25.5.0-trixie-slim AS ui-docs
 WORKDIR /build/docs
 COPY docs/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -38,7 +38,7 @@ COPY cli/__init__.py ../cli/__init__.py
 RUN npm run build
 
 # Stage to extract Node.js binaries for use in Python stages
-FROM node:25-trixie-slim AS node-binaries
+FROM node:25.5.0-trixie-slim AS node-binaries
 
 # ============================================================
 # Python Build Stage

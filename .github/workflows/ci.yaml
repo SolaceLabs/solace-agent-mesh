@@ -26,7 +26,7 @@ jobs:
       whitesource_product_name: "solaceai"
       whitesource_config_file: "wss-unified-agent.config"
       npm_package_path: client/webui/frontend
-      node_version: 25
+      node_version: "25.5.0"
       npm_lock_file: package-lock.json
       sca_scanners: "fossa"
 
