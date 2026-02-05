@@ -55,6 +55,8 @@ router = APIRouter()
 
 log = logging.getLogger(__name__)
 
+SESSION_NOT_FOUND_MSG = "Session not found."
+
 
 # Background Task Status Models and Endpoints
 class TaskStatusResponse(BaseModel):
@@ -385,6 +387,36 @@ async def _submit_task(
                 finally:
                     db.close()
 
+        # Security: Validate user still has project access
+        if project_id and project_service:
+            if SessionLocal is not None:
+                db = SessionLocal()
+                try:
+                    project = project_service.get_project(db, project_id, user_id)
+                    if not project:
+                        log.warning(
+                            "%sUser %s denied - project %s not found or access denied",
+                            log_prefix,
+                            user_id,
+                            project_id
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=SESSION_NOT_FOUND_MSG
+                        )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    log.error(
+                        "%sFailed to validate project access: %s", log_prefix, e
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=SESSION_NOT_FOUND_MSG
+                    )
+                finally:
+                    db.close()
+
         if frontend_session_id:
             session_id = frontend_session_id
             log.info(
@@ -555,6 +587,9 @@ async def _submit_task(
                 result=task_object, request_id=payload.id
             )
 
+    except HTTPException:
+        # Re-raise HTTPExceptions (including our security check) without wrapping
+        raise
     except PermissionError as pe:
         log.warning("%sPermission denied: %s", log_prefix, str(pe))
         raise HTTPException(
