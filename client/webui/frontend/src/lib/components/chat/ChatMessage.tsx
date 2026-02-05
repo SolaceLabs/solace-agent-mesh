@@ -233,10 +233,10 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
     // If user message has displayHtml (with mention chips), render that instead
     if (message.isUser && message.displayHtml) {
         // Sanitize the HTML to prevent XSS
-        // Allow mention chips and their data attributes
+        // Allow mention chips, context quotes, and their data attributes
         const cleanHtml = DOMPurify.sanitize(message.displayHtml, {
-            ALLOWED_TAGS: ["span", "br"],
-            ALLOWED_ATTR: ["class", "contenteditable", "data-internal", "data-person-id", "data-person-name", "data-display"],
+            ALLOWED_TAGS: ["span", "br", "div", "svg", "path"],
+            ALLOWED_ATTR: ["class", "contenteditable", "data-internal", "data-person-id", "data-person-name", "data-display", "xmlns", "width", "height", "viewBox", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "d"],
         });
 
         return <div className="message-with-mentions break-words whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: cleanHtml }} />;

@@ -340,10 +340,15 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             let fullMessage = chatInputRef.current ? buildMessageFromDOM(chatInputRef.current).trim() : inputValue.trim();
 
             // Capture the display HTML for showing in user's message bubble
-            const displayHtml = chatInputRef.current?.innerHTML || null;
+            let displayHtml = chatInputRef.current?.innerHTML || null;
 
             if (contextText && showContextBadge) {
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
+                // Also include the context in displayHtml so the quote is visible in the chat UI
+                // Use the same badge styling as the input box context badge
+                const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="context-quote-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/></svg>`;
+                const contextHtml = `<div class="context-quote-badge">${iconSvg}<span class="context-quote-text">"${escapeMarkdown(contextText)}"</span></div>`;
+                displayHtml = displayHtml ? contextHtml + displayHtml : contextHtml;
             }
 
             // Upload all pending pasted text items as artifacts, then create references
