@@ -21,6 +21,10 @@ interface WorkflowNodeDetailPanelProps {
     knownNodeIds?: Set<string>;
     /** Callback to navigate/pan to a node when clicking the navigation icon */
     onNavigateToNode?: (nodeId: string) => void;
+    /** Current workflow name - used for building sub-workflow navigation URLs */
+    currentWorkflowName?: string;
+    /** Parent workflow path (for breadcrumb navigation) */
+    parentPath?: string[];
 }
 
 /**
