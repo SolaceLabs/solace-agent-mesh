@@ -21,17 +21,13 @@ interface WorkflowNodeDetailPanelProps {
     knownNodeIds?: Set<string>;
     /** Callback to navigate/pan to a node when clicking the navigation icon */
     onNavigateToNode?: (nodeId: string) => void;
-    /** Current workflow name - used for building sub-workflow navigation URLs */
-    currentWorkflowName?: string;
-    /** Parent workflow path (for breadcrumb navigation) */
-    parentPath?: string[];
 }
 
 /**
  * WorkflowNodeDetailPanel - Shows details for the selected workflow node
  * Includes input/output schemas, code view toggle, and agent information
  */
-const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode, currentWorkflowName, parentPath = [] }) => {
+const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode }) => {
     const [showCodeView, setShowCodeView] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
     const [activeTab, setActiveTab] = useState<"input" | "output">("input");
@@ -81,7 +77,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
         if (node?.data.workflowName) {
             window.open("/#" + buildWorkflowNavigationUrl(node.data.workflowName), "_blank");
         }
-    }, [node?.data.workflowName, currentWorkflowName, parentPath]);
+    }, [node?.data.workflowName]);
 
     // Helper to get display name for a node ID (used in switch cases)
     // Must be defined before early return to comply with React Hooks rules
