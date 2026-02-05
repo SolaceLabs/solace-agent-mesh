@@ -314,7 +314,7 @@
 
 /* Context quote badge styles (for follow-up questions) */
 .context-quote-badge {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 0.5rem;
     background-color: hsl(var(--muted) / 0.5);
@@ -323,7 +323,7 @@
     padding: 0.5rem 0.75rem;
     margin-bottom: 0.75rem;
     font-size: 0.875rem;
-    max-width: 100%;
+    max-width: fit-content;
     overflow: hidden;
 }
 

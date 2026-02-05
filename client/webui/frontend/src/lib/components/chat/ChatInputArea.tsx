@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ban, Paperclip, Send, MessageSquarePlus, X } from "lucide-react";
+import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
@@ -346,7 +346,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
                 // Also include the context in displayHtml so the quote is visible in the chat UI
                 // Use the same badge styling as the input box context badge
-                const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="context-quote-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/></svg>`;
+                const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="context-quote-icon"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3z"/></svg>`;
                 const contextHtml = `<div class="context-quote-badge">${iconSvg}<span class="context-quote-text">"${escapeMarkdown(contextText)}"</span></div>`;
                 displayHtml = displayHtml ? contextHtml + displayHtml : contextHtml;
             }
@@ -707,7 +707,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {showContextBadge && contextText && (
                 <div className="mb-2 overflow-hidden">
                     <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
-                        <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
                         <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
