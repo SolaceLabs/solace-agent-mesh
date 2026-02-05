@@ -693,15 +693,11 @@ class ProjectService:
         if not soft_deleted:
             return False
 
-        # Cascade to sessions
         from ..repository.session_repository import SessionRepository
         session_repo = SessionRepository()
 
-        # Delete owner's sessions
         owner_deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
 
-        # Delete all shares for this project + cascade to shared users' sessions
-        # This is handled by the resource sharing service (enterprise feature)
         self._resource_sharing_service.delete_resource_shares(
             session=db,
             resource_id=project_id,
