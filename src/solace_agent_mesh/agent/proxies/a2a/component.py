@@ -915,21 +915,16 @@ class A2AProxyComponent(BaseProxyComponent):
                 raise
 
             except A2AClientHTTPError as e:
-                # Step 4: Add specific handling for 401 Unauthorized errors
-                # The error might be wrapped in an SSE parsing error, so we need to check
-                # if the underlying cause is a 401
+                error_str = str(e)
+
+                # Step 4: Check for 401 errors FIRST (they need retry logic)
                 is_401_error = False
 
                 # Check if this is directly a 401
                 if hasattr(e, "status_code") and e.status_code == 401:
                     is_401_error = True
-                # Check if this is an SSE parsing error caused by a 401 response
-                elif "401" in str(e) or "Unauthorized" in str(e):
-                    is_401_error = True
-                # Check if the error message mentions application/json content type
-                # (which is what 401 responses typically return)
-                elif "application/json" in str(e) and "text/event-stream" in str(e):
-                    # This is likely an SSE parsing error caused by a 401 JSON response
+                # Check error string for 401 indicators
+                elif "401" in error_str or "Unauthorized" in error_str:
                     is_401_error = True
 
                 if is_401_error and auth_retry_count < max_auth_retries:
@@ -948,6 +943,45 @@ class A2AProxyComponent(BaseProxyComponent):
                     if should_retry:
                         auth_retry_count += 1
                         continue  # Retry with fresh token
+
+                # Step 5: Check for SSE Content-Type errors on first attempt
+                # These include 307 redirects, 401 auth errors, and endpoint misconfigurations
+                is_sse_content_type_error = (
+                    "Content-Type" in error_str and
+                    "text/event-stream" in error_str and
+                    "Invalid SSE response" in error_str and
+                    auth_retry_count == 0
+                )
+
+                if is_sse_content_type_error:
+                    # Provide user-friendly error explaining common causes
+                    from ....common.a2a import create_error_response
+
+                    error_msg = (
+                        f"The agent '{agent_name}' endpoint did not return a valid SSE streaming response. "
+                        f"Common causes: (1) HTTP 307/308 redirects are not supported, "
+                        f"(2) authentication failure (HTTP 401), "
+                        f"(3) the endpoint is misconfigured or not an A2A streaming endpoint, "
+                        f"or (4) the agent is unavailable. "
+                        f"Please verify the agent endpoint URL and authentication configuration."
+                    )
+                    log.error("%s %s", log_identifier, error_msg)
+
+                    error = InternalError(
+                        message=error_msg,
+                        data={"agent_name": agent_name}
+                    )
+                    reply_topic = task_context.a2a_context.get("reply_to_topic")
+                    if reply_topic:
+                        response = create_error_response(
+                            error=error,
+                            request_id=task_context.a2a_context.get("jsonrpc_request_id")
+                        )
+                        self._publish_a2a_message(
+                            response.model_dump(exclude_none=True),
+                            reply_topic
+                        )
+                    break  # Exit retry loop - not retryable
 
                 # Not a retryable auth error, or max retries exceeded
                 log.exception(
