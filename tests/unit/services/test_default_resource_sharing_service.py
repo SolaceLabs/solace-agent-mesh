@@ -62,3 +62,52 @@ class TestDefaultResourceSharingService:
         )
 
         assert result is True
+
+    def test_unshare_users_from_resource_returns_true(self):
+        """Test that unshare_users_from_resource returns True indicating successful operation.
+
+        When users are unshared from a resource, this method is called to remove
+        their access. In community edition, there are no shares to remove, but
+        the operation succeeds (no-op). Returning True indicates the operation
+        completed successfully without errors.
+        """
+        user_emails = ["user1@example.com", "user2@example.com"]
+
+        result = self.service.unshare_users_from_resource(
+            session=self.mock_session,
+            resource_id=self.resource_id,
+            resource_type=self.resource_type,
+            user_emails=user_emails,
+        )
+
+        assert result is True
+
+    def test_unshare_users_from_resource_handles_empty_list(self):
+        """Test that unshare_users_from_resource handles empty email list correctly.
+
+        Edge case: when called with an empty list of user emails, the method
+        should still succeed (no-op on empty input).
+        """
+        result = self.service.unshare_users_from_resource(
+            session=self.mock_session,
+            resource_id=self.resource_id,
+            resource_type=self.resource_type,
+            user_emails=[],
+        )
+
+        assert result is True
+
+    def test_get_shared_users_returns_empty_list(self):
+        """Test that get_shared_users returns an empty list.
+
+        This method is used to retrieve users who have shared access to a resource.
+        In community edition, no users have shared access (only ownership exists),
+        so this method always returns an empty list.
+        """
+        result = self.service.get_shared_users(
+            session=self.mock_session,
+            resource_id=self.resource_id,
+            resource_type=self.resource_type,
+        )
+
+        assert result == []

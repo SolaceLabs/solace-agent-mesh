@@ -313,12 +313,9 @@ class SessionService:
 
         # Validate project exists and user has access if project_id is provided
         if new_project_id:
-            from ..repository.models import ProjectModel
-            project = db.query(ProjectModel).filter(
-                ProjectModel.id == new_project_id,
-                ProjectModel.user_id == user_id,
-                ProjectModel.deleted_at.is_(None)
-            ).first()
+            from .project_service import ProjectService
+            project_service = ProjectService(component=self.component)
+            project = project_service.get_project(db, new_project_id, user_id)
 
             if not project:
                 raise ValueError(f"Project {new_project_id} not found or access denied")
