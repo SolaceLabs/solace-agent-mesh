@@ -7,7 +7,9 @@ import json
 import logging
 import queue
 import re
+import statistics
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -59,6 +61,87 @@ from ...common.utils.embeds import (
     evaluate_embed,
     resolve_embeds_in_string,
 )
+
+
+class QueueMetrics:
+    """
+    Tracks performance metrics for queue consumer loops.
+
+    Measures throughput, latency percentiles, and queue depth over time.
+    Reports metrics periodically to help diagnose performance bottlenecks.
+    """
+
+    def __init__(self, name: str, report_interval_seconds: float = 10.0):
+        self.name = name
+        self.report_interval_seconds = report_interval_seconds
+        self.messages_processed = 0
+        self.total_processing_time = 0.0
+        self.processing_times: list[float] = []
+        self.last_report_time = time.time()
+        self.start_time = time.time()
+
+    def record(self, processing_time: float):
+        """Record a single message processing time."""
+        self.messages_processed += 1
+        self.total_processing_time += processing_time
+        self.processing_times.append(processing_time)
+
+        # Auto-report if interval elapsed
+        if time.time() - self.last_report_time >= self.report_interval_seconds:
+            self.report_and_reset()
+
+    def report_and_reset(self):
+        """Report metrics and reset counters."""
+        if not self.processing_times or self.messages_processed == 0:
+            return
+
+        elapsed = time.time() - self.last_report_time
+        throughput = self.messages_processed / elapsed if elapsed > 0 else 0
+
+        # Calculate percentiles
+        p50 = statistics.median(self.processing_times)
+        if len(self.processing_times) >= 10:
+            sorted_times = sorted(self.processing_times)
+            p95_idx = int(len(sorted_times) * 0.95)
+            p99_idx = int(len(sorted_times) * 0.99)
+            p95 = sorted_times[p95_idx]
+            p99 = sorted_times[p99_idx]
+        else:
+            p95 = max(self.processing_times)
+            p99 = max(self.processing_times)
+
+        avg_time = self.total_processing_time / self.messages_processed
+
+        log.info(
+            "[QueueMetrics:%s] Interval: %.1fs | Processed: %d | Throughput: %.1f msg/s | "
+            "Latency - Avg: %.2fms, P50: %.2fms, P95: %.2fms, P99: %.2fms",
+            self.name,
+            elapsed,
+            self.messages_processed,
+            throughput,
+            avg_time * 1000,
+            p50 * 1000,
+            p95 * 1000,
+            p99 * 1000
+        )
+
+        # Reset counters
+        self.messages_processed = 0
+        self.total_processing_time = 0.0
+        self.processing_times.clear()
+        self.last_report_time = time.time()
+
+    def report_queue_depth(self, current_size: int, max_size: int):
+        """Report queue depth metrics."""
+        utilization = (current_size / max_size * 100) if max_size > 0 else 0
+        log.info(
+            "[QueueMetrics:%s] Queue depth: %d/%d (%.1f%% full)",
+            self.name,
+            current_size,
+            max_size,
+            utilization
+        )
+
 
 info = {
     "class_name": "WebUIBackendComponent",
@@ -238,6 +321,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
         self._task_logger_queue: queue.Queue = queue.Queue(maxsize=200)
         self._active_visualization_streams: dict[str, dict[str, Any]] = {}
+
+        # Performance metrics for consumer loops (Phase 0 instrumentation)
+        self._viz_queue_metrics = QueueMetrics("VisualizationQueue", report_interval_seconds=10.0)
+        self._task_logger_metrics = QueueMetrics("TaskLoggerQueue", report_interval_seconds=10.0)
+        log.info("%s Queue performance metrics initialized", self.log_identifier)
         self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
@@ -724,8 +812,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log.info("%s Starting visualization message processor loop...", log_id_prefix)
         loop = asyncio.get_running_loop()
 
+        # Phase 0: Queue depth reporting timer
+        last_queue_depth_report = time.time()
+        queue_depth_report_interval = 10.0  # Report every 10 seconds
+
         while not self.stop_signal.is_set():
             msg_data = None
+            processing_start_time = time.perf_counter()  # Phase 0: Start timing
+
             try:
                 msg_data = await loop.run_in_executor(
                     None,
@@ -743,6 +837,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                 current_size = self._visualization_message_queue.qsize()
                 max_size = self._visualization_message_queue.maxsize
+
+                # Phase 0: Periodic queue depth reporting
+                if time.time() - last_queue_depth_report >= queue_depth_report_interval:
+                    self._viz_queue_metrics.report_queue_depth(current_size, max_size)
+                    last_queue_depth_report = time.time()
+
                 if max_size > 0 and (current_size / max_size) > 0.90:
                     log.warning(
                         "%s Visualization message queue is over 90%% full. Current size: %d/%d",
@@ -926,6 +1026,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                 self._visualization_message_queue.task_done()
 
+                # Phase 0: Record processing time for metrics
+                processing_time = time.perf_counter() - processing_start_time
+                self._viz_queue_metrics.record(processing_time)
+
             except queue.Empty:
                 continue
             except asyncio.CancelledError:
@@ -954,8 +1058,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log.info("%s Starting task logger loop...", log_id_prefix)
         loop = asyncio.get_running_loop()
 
+        # Phase 0: Queue depth reporting timer
+        last_queue_depth_report = time.time()
+        queue_depth_report_interval = 10.0  # Report every 10 seconds
+
         while not self.stop_signal.is_set():
             msg_data = None
+            processing_start_time = time.perf_counter()  # Phase 0: Start timing
+
             try:
                 msg_data = await loop.run_in_executor(
                     None,
@@ -971,6 +1081,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
                     break
 
+                # Phase 0: Periodic queue depth reporting
+                current_size = self._task_logger_queue.qsize()
+                max_size = self._task_logger_queue.maxsize
+                if time.time() - last_queue_depth_report >= queue_depth_report_interval:
+                    self._task_logger_metrics.report_queue_depth(current_size, max_size)
+                    last_queue_depth_report = time.time()
+
+                # Time the actual database operation
+                db_operation_start = time.perf_counter()
+
                 if self.task_logger_service:
                     self.task_logger_service.log_event(msg_data)
                 else:
@@ -979,7 +1099,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                     )
 
+                # Phase 0: Record DB operation time separately for analysis
+                db_operation_time = time.perf_counter() - db_operation_start
+                if db_operation_time > 0.100:  # Log if >100ms (potential bottleneck)
+                    log.debug(
+                        "%s Slow DB operation detected: %.2fms",
+                        log_id_prefix,
+                        db_operation_time * 1000
+                    )
+
                 self._task_logger_queue.task_done()
+
+                # Phase 0: Record total processing time for metrics
+                processing_time = time.perf_counter() - processing_start_time
+                self._task_logger_metrics.record(processing_time)
 
             except queue.Empty:
                 continue
