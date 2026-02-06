@@ -143,7 +143,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     apt-get install -y --no-install-recommends \
     ffmpeg=7:7.1.3-0+deb13u1 \
     git \
-    libtasn1-6 \
+    libtasn1-6/unstable \
     libssl3t64=3.5.4-1~deb13u2 \
     openssl=3.5.4-1~deb13u2 && \
     apt-get clean && \
