@@ -9,7 +9,7 @@
 # ============================================================
 
 # Build Config Portal UI
-FROM node:20-trixie-slim AS ui-config-portal
+FROM node:25.5.0-trixie-slim AS ui-config-portal
 WORKDIR /build/config_portal/frontend
 COPY config_portal/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -18,7 +18,7 @@ COPY config_portal/frontend ./
 RUN npm run build
 
 # Build WebUI
-FROM node:20-trixie-slim AS ui-webui
+FROM node:25.5.0-trixie-slim AS ui-webui
 WORKDIR /build/client/webui/frontend
 COPY client/webui/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -27,7 +27,7 @@ COPY client/webui/frontend ./
 RUN npm run build
 
 # Build Documentation
-FROM node:20-trixie-slim AS ui-docs
+FROM node:25.5.0-trixie-slim AS ui-docs
 WORKDIR /build/docs
 COPY docs/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -36,6 +36,9 @@ COPY docs ./
 COPY README.md ../README.md
 COPY cli/__init__.py ../cli/__init__.py
 RUN npm run build
+
+# Stage to extract Node.js binaries for use in Python stages
+FROM node:25.5.0-trixie-slim AS node-binaries
 
 # ============================================================
 # Python Build Stage
@@ -47,6 +50,12 @@ RUN npm run build
 # - Independent from UI build stages - Python changes don't rebuild UI
 # ============================================================
 FROM python:3.13.11-slim-trixie AS builder
+
+# Copy Node.js 25 from the official node image - Revert to NodeSource when useful (25.5 or 26) version is available
+COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 # Install system dependencies and uv
 RUN apt-get update && \
@@ -61,10 +70,6 @@ RUN apt-get update && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* && \
     python3 -m venv /opt/venv && \
-    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
     uv pip install --system hatch
 
 WORKDIR /app
@@ -120,6 +125,12 @@ FROM python:3.13.11-slim-trixie AS runtime
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Copy Node.js 25 from the official node image
+COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
+
 # Install minimal runtime dependencies (no uv for licensing compliance)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -128,8 +139,6 @@ RUN apt-get update && \
     git \
     libssl3t64=3.5.4-1~deb13u2 \
     openssl=3.5.4-1~deb13u2 && \
-    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
