@@ -6,7 +6,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from ..dependencies import get_session_business_service, get_db, get_title_generation_service
+from ....common.utils.embeds import (
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
+)
+from ....common.utils.embeds.types import ResolutionMode
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -199,10 +205,13 @@ async def save_task(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
+    artifact_service = Depends(get_shared_artifact_service),
+    component = Depends(get_sac_component),
 ):
     """
     Save a complete task interaction (upsert).
     Creates a new task or updates an existing one.
+    Resolves embeds (e.g., «artifact_content:...») before saving.
     """
     user_id = user.get("id")
     log.debug(
@@ -229,6 +238,76 @@ async def save_task(
         existing_task = task_repo.find_by_id(db, request.task_id, user_id)
         is_update = existing_task is not None
 
+        # Resolve embeds in message_bubbles before saving
+        message_bubbles = request.message_bubbles
+        if artifact_service and message_bubbles and '«' in message_bubbles:
+            try:
+                # Parse the message bubbles JSON
+                bubbles = json.loads(message_bubbles)
+                resolved_bubbles = []
+                
+                gateway_id = component.gateway_id if component else "webui"
+                
+                for bubble in bubbles:
+                    if isinstance(bubble, dict):
+                        # Resolve embeds in the text field
+                        text = bubble.get("text", "")
+                        if text and '«' in text:
+                            embed_eval_context = {
+                                "artifact_service": artifact_service,
+                                "session_context": {
+                                    "app_name": gateway_id,
+                                    "user_id": user_id,
+                                    "session_id": session_id,
+                                },
+                            }
+                            embed_eval_config = {
+                                "gateway_max_artifact_resolve_size_bytes": 1024 * 1024,  # 1MB limit
+                                "gateway_recursive_embed_depth": 3,
+                            }
+                            
+                            resolved_text, _, signals = await resolve_embeds_in_string(
+                                text=text,
+                                context=embed_eval_context,
+                                resolver_func=evaluate_embed,
+                                types_to_resolve=LATE_EMBED_TYPES,
+                                resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                                log_identifier=f"[SaveTask:{request.task_id}]",
+                                config=embed_eval_config,
+                            )
+                            bubble["text"] = resolved_text
+                            
+                            # Also resolve embeds in parts if they contain text
+                            parts = bubble.get("parts", [])
+                            resolved_parts = []
+                            for part in parts:
+                                if isinstance(part, dict) and part.get("kind") == "text":
+                                    part_text = part.get("text", "")
+                                    if part_text and '«' in part_text:
+                                        resolved_part_text, _, _ = await resolve_embeds_in_string(
+                                            text=part_text,
+                                            context=embed_eval_context,
+                                            resolver_func=evaluate_embed,
+                                            types_to_resolve=LATE_EMBED_TYPES,
+                                            resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                                            log_identifier=f"[SaveTask:{request.task_id}]",
+                                            config=embed_eval_config,
+                                        )
+                                        part["text"] = resolved_part_text
+                                resolved_parts.append(part)
+                            bubble["parts"] = resolved_parts
+                    
+                    resolved_bubbles.append(bubble)
+                
+                message_bubbles = json.dumps(resolved_bubbles)
+                log.debug("Resolved embeds in message_bubbles for task %s", request.task_id)
+            except Exception as e:
+                log.warning(
+                    "Failed to resolve embeds in message_bubbles for task %s: %s. Saving as-is.",
+                    request.task_id,
+                    e,
+                )
+
         # Save the task - pass strings directly
         saved_task = session_service.save_task(
             db=db,
@@ -236,7 +315,7 @@ async def save_task(
             session_id=session_id,
             user_id=user_id,
             user_message=request.user_message,
-            message_bubbles=request.message_bubbles,  # Already a string
+            message_bubbles=message_bubbles,  # Resolved or original string
             task_metadata=request.task_metadata,  # Already a string
         )
 

@@ -2,11 +2,12 @@
 Service for logging A2A tasks and events to the database.
 """
 
+import asyncio
 import copy
 import json
 import logging
 import uuid
-from typing import Any, Callable, Dict, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from a2a.types import (
     A2ARequest,
@@ -19,6 +20,12 @@ from a2a.types import (
 from sqlalchemy.orm import Session as DBSession
 
 from ....common import a2a
+from ....common.utils.embeds import (
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
+)
+from ....common.utils.embeds.types import ResolutionMode
 from ..repository.entities import Task, TaskEvent
 from ..repository.task_repository import TaskRepository
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
@@ -29,10 +36,16 @@ class TaskLoggerService:
     """Service for logging A2A tasks and events to the database."""
 
     def __init__(
-        self, session_factory: Callable[[], DBSession] | None, config: Dict[str, Any]
+        self,
+        session_factory: Callable[[], DBSession] | None,
+        config: Dict[str, Any],
+        artifact_service: Optional[Any] = None,
+        gateway_id: Optional[str] = None,
     ):
         self.session_factory = session_factory
         self.config = config
+        self.artifact_service = artifact_service
+        self.gateway_id = gateway_id or "webui"
         self.log_identifier = "[TaskLoggerService]"
         log.info(f"{self.log_identifier} Initialized.")
 
@@ -583,8 +596,68 @@ class TaskLoggerService:
             if accumulated_agent_text or artifacts:
                 combined_text = "".join(accumulated_agent_text).strip()
                 
-                # Check if artifact markers are already in the texts
+                # Resolve embeds in the combined text (e.g., «artifact_content:...» markers)
+                # This ensures the actual artifact content is saved to the database
                 import re
+                if self.artifact_service and session_id and '«' in combined_text:
+                    try:
+                        # Build context for embed resolution
+                        embed_eval_context = {
+                            "artifact_service": self.artifact_service,
+                            "session_context": {
+                                "app_name": self.gateway_id,
+                                "user_id": task.user_id,
+                                "session_id": session_id,
+                            },
+                        }
+                        embed_eval_config = {
+                            "gateway_max_artifact_resolve_size_bytes": 1024 * 1024,  # 1MB limit
+                            "gateway_recursive_embed_depth": 3,
+                        }
+                        
+                        # Run async embed resolution in sync context
+                        async def resolve_embeds():
+                            resolved_text, _, _ = await resolve_embeds_in_string(
+                                text=combined_text,
+                                context=embed_eval_context,
+                                resolver_func=evaluate_embed,
+                                types_to_resolve=LATE_EMBED_TYPES,
+                                resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                                log_identifier=f"{self.log_identifier}[EmbedResolve:{task_id}]",
+                                config=embed_eval_config,
+                            )
+                            return resolved_text
+                        
+                        # Check if we're already in an event loop
+                        try:
+                            loop = asyncio.get_running_loop()
+                            # We're in an async context, create a new task
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(asyncio.run, resolve_embeds())
+                                combined_text = future.result(timeout=30)
+                        except RuntimeError:
+                            # No running event loop, safe to use asyncio.run
+                            combined_text = asyncio.run(resolve_embeds())
+                        
+                        log.debug(
+                            f"{self.log_identifier} Resolved embeds for task {task_id}. "
+                            f"Result length: {len(combined_text) if combined_text else 0}"
+                        )
+                    except Exception as e:
+                        log.warning(
+                            f"{self.log_identifier} Failed to resolve embeds for task {task_id}: {e}. "
+                            "Falling back to stripping artifact_content markers."
+                        )
+                        # Fallback: strip artifact_content markers if resolution fails
+                        artifact_content_pattern = r'«artifact_content:[^»]+»'
+                        combined_text = re.sub(artifact_content_pattern, '', combined_text)
+                else:
+                    # No artifact service available, strip artifact_content markers
+                    artifact_content_pattern = r'«artifact_content:[^»]+»'
+                    combined_text = re.sub(artifact_content_pattern, '', combined_text)
+                
+                # Check if artifact markers are already in the texts
                 existing_markers = set()
                 marker_pattern = r'«artifact_return:([^»]+)»'
                 for match in re.finditer(marker_pattern, combined_text):
@@ -608,22 +681,26 @@ class TaskLoggerService:
                     artifact_name = artifact['name']
                     if artifact_name not in existing_markers:
                         combined_text += f"«artifact_return:{artifact_name}»"
-                        log.info(
-                            f"{self.log_identifier} Adding artifact marker for {artifact_name}"
-                        )
-                    else:
-                        log.info(
-                            f"{self.log_identifier} Skipping duplicate artifact marker for {artifact_name} (already in text)"
-                        )
                 
-                # Filter out data parts from accumulated parts
-                content_parts = [p for p in accumulated_agent_parts if p.get("kind") != "data"]
+                # Filter out data parts and text parts from accumulated parts
+                # Text parts are excluded because the resolved text is in bubble.text
+                # and we don't want the frontend to use unresolved text from parts
+                content_parts = [
+                    p for p in accumulated_agent_parts
+                    if p.get("kind") not in ("data", "text")
+                ]
+                
+                # Create parts list with resolved text as the first part
+                final_parts = []
+                if combined_text.strip():
+                    final_parts.append({"kind": "text", "text": combined_text})
+                final_parts.extend(content_parts)
                 
                 message_bubbles.append({
                     "id": f"msg-{uuid.uuid4()}",
                     "type": "agent",
                     "text": combined_text,
-                    "parts": content_parts,  # Only content parts, no artifacts
+                    "parts": final_parts,  # Resolved text + non-text/non-data parts
                 })
                 
             

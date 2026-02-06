@@ -1344,7 +1344,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             task_logging_config = self.get_config("task_logging", {})
             self.task_logger_service = TaskLoggerService(
-                session_factory=session_factory, config=task_logging_config
+                session_factory=session_factory,
+                config=task_logging_config,
+                artifact_service=self.shared_artifact_service,
+                gateway_id=self.gateway_id,
             )
             log.debug(
                 "%s Services dependent on database session factory have been initialized.",

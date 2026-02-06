@@ -384,6 +384,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const extractArtifactMarkers = useCallback((text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
         const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
         const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
+        // Also handle artifact_content markers which are used for inline artifact display
+        // Format: «artifact_content:filename >>> format:text» or «artifact_content:filename»
+        const ARTIFACT_CONTENT_REGEX = /«artifact_content:([^»\s]+)(?:\s*>>>[^»]*)?»/g;
 
         const createArtifactPart = (filename: string) => {
             // Strip version suffix if present (e.g., "file.md:0" -> "file.md")
@@ -431,6 +434,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 processedParts.push(createArtifactPart(artifactFilename));
             }
         }
+
+        // Extract artifact_content markers (inline artifact display)
+        while ((match = ARTIFACT_CONTENT_REGEX.exec(text)) !== null) {
+            const artifactFilename = match[1];
+            // Normalize filename to avoid duplicates (strip version suffix)
+            const normalizedFilename = artifactFilename.includes(":") && /:\d+$/.test(artifactFilename) ? artifactFilename.substring(0, artifactFilename.lastIndexOf(":")) : artifactFilename;
+
+            if (!addedArtifacts.has(normalizedFilename)) {
+                addedArtifacts.add(normalizedFilename);
+                processedParts.push(createArtifactPart(artifactFilename));
+            }
+        }
     }, []);
 
     // Helper function to deserialize task data to MessageFE objects
@@ -460,6 +475,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         // Remove artifact markers from text content
                         textContent = textContent.replace(/«artifact_return:[^»]+»/g, "");
                         textContent = textContent.replace(/«artifact:[^»]+»/g, "");
+                        // Also remove artifact_content markers (inline artifact display)
+                        textContent = textContent.replace(/«artifact_content:[^»]+»/g, "");
 
                         // Remove status update markers
                         textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");
