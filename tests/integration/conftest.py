@@ -112,11 +112,11 @@ def clean_db_fixture(test_db_engine):
                 "chat_messages",
                 "tasks",
                 "sessions",
-                "prompt_group_users",  
-                "prompts",             
-                "prompt_groups",      
-                "project_users",      
-                "projects",            
+                "prompt_group_users",
+                "prompts",
+                "prompt_groups",
+                "project_users",
+                "projects",
                 "users",
             ]
             for table_name in tables_to_clean:
@@ -2090,12 +2090,13 @@ def config_context_agent_component(
     return get_component_from_app(config_context_agent_app_under_test)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def webui_api_client(
     shared_solace_connector: SolaceAiConnector,
 ) -> Generator[TestClient, None, None]:
     """
     Provides a FastAPI TestClient for the running WebUIBackendApp.
+    Session-scoped to avoid ~800ms TestClient teardown overhead per test.
     """
     app_instance = shared_solace_connector.get_app("WebUIBackendApp")
     assert isinstance(
@@ -2112,8 +2113,9 @@ def webui_api_client(
         pytest.fail("WebUIBackendComponent's FastAPI app is not initialized.")
 
     with TestClient(fastapi_app_instance) as client:
-        print("[Fixture] TestClient for WebUIBackendApp created.")
+        print("[SessionFixture] TestClient for WebUIBackendApp created.")
         yield client
+    print("[SessionFixture] TestClient for WebUIBackendApp closed.")
 
 
 @pytest.fixture(scope="session")
