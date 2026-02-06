@@ -241,7 +241,7 @@ class BaseGatewayApp(SamAppBase):
         """
         log.debug(
             "Initializing BaseGatewayApp with app_info: %s",
-            app_info.get("name", "Unnamed App"),
+            app_info.get("name"),
         )
 
         code_config_app_block = getattr(self.__class__, "app_config", {}).get(
@@ -260,9 +260,11 @@ class BaseGatewayApp(SamAppBase):
 
         self.gateway_id: str = resolved_app_config_block.get("gateway_id")
         if not self.gateway_id:
-            self.gateway_id = f"gdk-gateway-{uuid.uuid4().hex[:8]}"
+            self.gateway_id = app_info.get("name")
             resolved_app_config_block["gateway_id"] = self.gateway_id
-            log.info("Generated unique gateway_id: %s", self.gateway_id)
+            log.warning(
+                "No `gateway_id` provided; defaulting to `apps.name`. Ensure `apps.name` is unique across all gateways or specify a unique `gateway_id` to prevent conflicts."
+            )
 
         self.artifact_service_config: Dict = resolved_app_config_block.get(
             "artifact_service", {}

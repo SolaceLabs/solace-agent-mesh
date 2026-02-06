@@ -13,6 +13,10 @@ Agents are the intelligent processing units that perform tasks within the mesh. 
 
 ## Workflows
 
+:::warning Experimental Feature
+Workflows is currently an experimental feature. Expect this feature to change and improve in future releases.
+:::
+
 Workflows provide an alternative to the orchestrator for coordinating multiple agents. While the orchestrator uses AI to dynamically determine how to accomplish tasks, workflows follow explicit execution paths defined in YAML configuration. You specify which agents to call, in what order, and how data flows between them. Workflows support conditional branching, parallel iteration over collections, and polling loops. They're well-suited for business processes that require predictable, auditable execution—the same input always produces the same sequence of agent calls. The UI visualizes workflow execution in real time. For workflow configuration and node types, see [Workflows](./workflows.md).
 
 ## Gateways
