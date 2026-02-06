@@ -52,8 +52,10 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const context = props.context || "chat";
     const isStreaming = props.isStreaming;
 
-    // Check if this artifact is from a project (should not be deletable)
+    // Check if this artifact is from a project or agent default (should not be deletable)
     const isProjectArtifact = artifact?.source === "project";
+    const isAgentDefaultArtifact = artifact?.source === "agent_default";
+    const isReadOnlyArtifact = isProjectArtifact || isAgentDefaultArtifact;
 
     // Extract version from URI if available
     const version = useMemo(() => {
@@ -334,8 +336,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             return {
                 onInfo: handleInfoClick,
                 onDownload: props.status === "completed" ? handleDownloadClick : undefined,
-                // Hide delete button for artifacts with source="project" (they came from project files)
-                onDelete: artifact && props.status === "completed" && !isProjectArtifact ? handleDeleteClick : undefined,
+                // Hide delete button for artifacts with source="project" or "agent_default" (read-only artifacts)
+                onDelete: artifact && props.status === "completed" && !isReadOnlyArtifact ? handleDeleteClick : undefined,
             };
         } else {
             // In chat context, show preview, download, and info actions
@@ -346,7 +348,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isProjectArtifact]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isReadOnlyArtifact]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);

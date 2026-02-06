@@ -48,12 +48,22 @@ except ImportError:
     TestInMemoryArtifactService = None
 
 
+# Constants for agent-level default artifacts
+AGENT_DEFAULTS_USER_ID = "__agent_defaults__"
+
+
 class ScopedArtifactServiceWrapper(BaseArtifactService):
     """
     A wrapper for an artifact service that transparently applies a configured scope.
     This ensures all artifact operations respect either 'namespace' or 'app' scoping
     without requiring changes at the call site. It dynamically checks the component's
     configuration on each call to support test-specific overrides.
+    
+    Additionally, this wrapper supports agent-level default artifacts that are:
+    - Loaded at agent startup from the `default_artifacts` configuration
+    - Stored in a special scope using AGENT_DEFAULTS_USER_ID
+    - Accessible to all users with access to the agent (read-only)
+    - Used as a fallback when an artifact is not found in the user's session
     """
 
     def __init__(
@@ -70,6 +80,8 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         """
         self.wrapped_service = wrapped_service
         self.component = component
+        # Cache of default artifact filenames for quick lookup
+        self._default_artifact_filenames: Optional[set] = None
 
     def _get_scoped_app_name(self, app_name: str) -> str:
         """
@@ -88,6 +100,28 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         # typically the agent_name or gateway_id.
         return app_name
 
+    def _has_default_artifacts(self) -> bool:
+        """Check if the agent has default artifacts configured."""
+        default_artifacts = self.component.get_config("default_artifacts", [])
+        return bool(default_artifacts)
+
+    def _get_default_artifact_filenames(self) -> set:
+        """Get the set of default artifact filenames for quick lookup."""
+        if self._default_artifact_filenames is None:
+            default_artifacts = self.component.get_config("default_artifacts", [])
+            self._default_artifact_filenames = {
+                artifact.get("filename") for artifact in default_artifacts if artifact.get("filename")
+            }
+        return self._default_artifact_filenames
+
+    def _is_default_artifact(self, filename: str) -> bool:
+        """Check if a filename corresponds to a default artifact."""
+        return filename in self._get_default_artifact_filenames()
+
+    def _get_agent_name(self) -> str:
+        """Get the agent name from the component."""
+        return self.component.get_config("agent_name", self.component.agent_name)
+
     @override
     async def save_artifact(
         self,
@@ -99,6 +133,28 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         artifact: adk_types.Part,
     ) -> int:
         scoped_app_name = self._get_scoped_app_name(app_name)
+        
+        # Allow saving to agent defaults scope (used during agent initialization)
+        if user_id == AGENT_DEFAULTS_USER_ID:
+            return await self.wrapped_service.save_artifact(
+                app_name=scoped_app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                artifact=artifact,
+            )
+        
+        # For regular users, check if they're trying to overwrite a default artifact
+        # Users can create their own version of a default artifact in their session
+        # (this allows overrides), but we log a warning for visibility
+        if self._is_default_artifact(filename):
+            log.debug(
+                "User '%s' is saving artifact '%s' which shadows a default artifact. "
+                "The user's version will take precedence in their session.",
+                user_id,
+                filename,
+            )
+        
         return await self.wrapped_service.save_artifact(
             app_name=scoped_app_name,
             user_id=user_id,
@@ -118,28 +174,104 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         version: Optional[int] = None,
     ) -> Optional[adk_types.Part]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        return await self.wrapped_service.load_artifact(
+        
+        # First, try to load from the user's session
+        result = await self.wrapped_service.load_artifact(
             app_name=scoped_app_name,
             user_id=user_id,
             session_id=session_id,
             filename=filename,
             version=version,
         )
+        
+        if result is not None:
+            return result
+        
+        # If not found and we have default artifacts configured, try the agent defaults
+        if self._has_default_artifacts() and user_id != AGENT_DEFAULTS_USER_ID:
+            agent_name = self._get_agent_name()
+            log.debug(
+                "Artifact '%s' not found in user session, checking agent defaults for agent '%s'.",
+                filename,
+                agent_name,
+            )
+            result = await self.wrapped_service.load_artifact(
+                app_name=scoped_app_name,
+                user_id=AGENT_DEFAULTS_USER_ID,
+                session_id=agent_name,
+                filename=filename,
+                version=version,
+            )
+            if result is not None:
+                log.debug(
+                    "Loaded artifact '%s' from agent defaults for agent '%s'.",
+                    filename,
+                    agent_name,
+                )
+        
+        return result
 
     @override
     async def list_artifact_keys(
         self, *, app_name: str, user_id: str, session_id: str
     ) -> List[str]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        return await self.wrapped_service.list_artifact_keys(
+        
+        # Get user's session artifacts
+        user_artifacts = await self.wrapped_service.list_artifact_keys(
             app_name=scoped_app_name, user_id=user_id, session_id=session_id
         )
+        
+        # If we have default artifacts and this is not the defaults user, include them
+        if self._has_default_artifacts() and user_id != AGENT_DEFAULTS_USER_ID:
+            agent_name = self._get_agent_name()
+            default_artifacts = await self.wrapped_service.list_artifact_keys(
+                app_name=scoped_app_name,
+                user_id=AGENT_DEFAULTS_USER_ID,
+                session_id=agent_name,
+            )
+            
+            # Merge lists (user artifacts take precedence, so we use a set)
+            all_artifacts = list(set(user_artifacts + default_artifacts))
+            return all_artifacts
+        
+        return user_artifacts
 
     @override
     async def delete_artifact(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> None:
         scoped_app_name = self._get_scoped_app_name(app_name)
+        
+        # Prevent users from deleting default artifacts
+        if user_id != AGENT_DEFAULTS_USER_ID and self._is_default_artifact(filename):
+            # Check if the user has their own version of this artifact
+            user_artifact = await self.wrapped_service.load_artifact(
+                app_name=scoped_app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+            )
+            if user_artifact is None:
+                # User is trying to delete a default artifact they don't own
+                log.warning(
+                    "User '%s' attempted to delete default artifact '%s'. "
+                    "Default artifacts are read-only.",
+                    user_id,
+                    filename,
+                )
+                raise PermissionError(
+                    f"Cannot delete default artifact '{filename}'. "
+                    "Default artifacts are read-only."
+                )
+            # User has their own version, allow deletion of their version
+            log.debug(
+                "User '%s' is deleting their own version of artifact '%s' "
+                "(default artifact will still be accessible).",
+                user_id,
+                filename,
+            )
+        
         await self.wrapped_service.delete_artifact(
             app_name=scoped_app_name,
             user_id=user_id,

@@ -34,9 +34,9 @@ export const ArtifactPanel: React.FC = () => {
         return artifacts ? [...artifacts].sort(sortFunctions[sortOption]) : [];
     }, [artifacts, artifactsLoading, sortOption]);
 
-    // Check if there are any deletable artifacts (not from projects)
+    // Check if there are any deletable artifacts (not from projects or agent defaults)
     const hasDeletableArtifacts = useMemo(() => {
-        return sortedArtifacts.some(artifact => artifact.source !== "project");
+        return sortedArtifacts.some(artifact => artifact.source !== "project" && artifact.source !== "agent_default");
     }, [sortedArtifacts]);
 
     const header = useMemo(() => {
@@ -106,7 +106,7 @@ export const ArtifactPanel: React.FC = () => {
                                 isPreview={true}
                                 isExpanded={isPreviewInfoExpanded}
                                 setIsExpanded={setIsPreviewInfoExpanded}
-                                onDelete={previewArtifact.source === "project" ? undefined : () => openDeleteModal(previewArtifact)}
+                                onDelete={previewArtifact.source === "project" || previewArtifact.source === "agent_default" ? undefined : () => openDeleteModal(previewArtifact)}
                                 onDownload={() => onDownload(previewArtifact)}
                             />
                         </div>
@@ -126,7 +126,7 @@ export const ArtifactPanel: React.FC = () => {
                                         </div>
                                         <div>
                                             <span className="text-secondary-foreground">Type:</span>
-                                            <div>{previewArtifact.mime_type || 'Unknown'}</div>
+                                            <div>{previewArtifact.mime_type || "Unknown"}</div>
                                         </div>
                                     </div>
                                 </div>
