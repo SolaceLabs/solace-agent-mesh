@@ -236,9 +236,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._visualization_internal_app: SACApp | None = None
         self._visualization_broker_input: BrokerInput | None = None
 
-        self._visualization_message_queue = asyncio.Queue(maxsize=600)
-        self._task_logger_queue = asyncio.Queue(maxsize=800)
+        viz_queue_size = self.get_config("visualization_queue_size", 600)
+        task_logger_queue_size = self.get_config("task_logger_queue_size", 600)
+
+        self._visualization_message_queue = asyncio.Queue(maxsize=viz_queue_size)
+        self._task_logger_queue = asyncio.Queue(maxsize=task_logger_queue_size)
         self._active_visualization_streams: dict[str, dict[str, Any]] = {}
+
+        log.info(
+            "%s Queues initialized - Visualization: %d, TaskLogger: %d (asyncio.Queue)",
+            self.log_identifier,
+            viz_queue_size,
+            task_logger_queue_size
+        )
+
         self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
