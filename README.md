@@ -120,6 +120,9 @@ Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat i
 
 ### 🔧 Customize SAM
 
+
+some text to trigger scan
+
 #### New agents can be added via a GUI interface
 ```bash
 sam add agent --gui
