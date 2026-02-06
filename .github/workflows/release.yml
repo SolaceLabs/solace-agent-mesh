@@ -1,4 +1,5 @@
 name: Release (PyPI & Docker)
+run-name: "${{ format('Release `{0}`', inputs.version || (inputs.version_bump_type && format('Bump `{0}` version and Release', inputs.version_bump_type))) }} to PyPI"
 on:
   workflow_dispatch:
     inputs:
@@ -176,7 +177,7 @@ jobs:
       - name: Verify RC Status
         run: |
           COMMIT_SHA="${{ needs.prepare-release-metadata.outputs.commit_sha }}"
-          STATUS_RESULT="${{ steps.check-status.outputs.result }}"
+          STATUS_RESULT='${{ steps.check-status.outputs.result }}'
           ECR_REGISTRY="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
           VERSION="${{ needs.prepare-release-metadata.outputs.current_version }}"
           SHORT_SHA="${{ needs.prepare-release-metadata.outputs.short_sha }}"
