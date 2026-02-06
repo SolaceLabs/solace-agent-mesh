@@ -275,6 +275,16 @@ async def save_task(
                                 log_identifier=f"[SaveTask:{request.task_id}]",
                                 config=embed_eval_config,
                             )
+                            
+                            # Strip status_update embeds (they're for real-time display only)
+                            import re
+                            status_update_pattern = r'«status_update:[^»]+»\n?'
+                            resolved_text = re.sub(status_update_pattern, '', resolved_text)
+                            
+                            # Strip any remaining template blocks that weren't resolved
+                            template_block_pattern = r'«««template(?:_liquid)?:[^\n]+\n(?:(?!»»»).)*?»»»'
+                            resolved_text = re.sub(template_block_pattern, '', resolved_text, flags=re.DOTALL)
+                            
                             bubble["text"] = resolved_text
                             
                             # Also resolve embeds in parts if they contain text

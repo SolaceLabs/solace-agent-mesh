@@ -26,6 +26,7 @@ from ....common.utils.embeds import (
     resolve_embeds_in_string,
 )
 from ....common.utils.embeds.types import ResolutionMode
+from ....common.utils.templates import resolve_template_blocks_in_string
 from ..repository.entities import Task, TaskEvent
 from ..repository.task_repository import TaskRepository
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
@@ -522,6 +523,26 @@ class TaskLoggerService:
                                                                 log.info(
                                                                     f"{self.log_identifier} Extracted rolled_back_text from cancelled artifact event for task {task_id}"
                                                                 )
+                                                    elif data_type == "template_block":
+                                                        # Template blocks need to be resolved - store for later resolution
+                                                        # We'll resolve them when we have the artifact service context
+                                                        template_content = data.get("template_content", "")
+                                                        data_artifact = data.get("data_artifact", "")
+                                                        if template_content and data_artifact:
+                                                            # Reconstruct the template block as text for resolution
+                                                            params_parts = [f'data="{data_artifact}"']
+                                                            if data.get("jsonpath"):
+                                                                params_parts.append(f'jsonpath="{data.get("jsonpath")}"')
+                                                            if data.get("limit"):
+                                                                params_parts.append(f'limit="{data.get("limit")}"')
+                                                            params_str = " ".join(params_parts)
+                                                            template_block_text = f"«««template_liquid: {params_str}\n{template_content}\n»»»"
+                                                            accumulated_agent_text.append(template_block_text)
+                                                            log.info(
+                                                                f"{self.log_identifier} Extracted template_block for task {task_id}: data={data_artifact}"
+                                                            )
+                                                        # Don't add template_block data parts to accumulated_agent_parts
+                                                        continue
                                                 
                                                 accumulated_agent_parts.append(part)
                                             else:
@@ -597,9 +618,18 @@ class TaskLoggerService:
                 combined_text = "".join(accumulated_agent_text).strip()
                 
                 # Resolve embeds in the combined text (e.g., «artifact_content:...» markers)
+                # This also resolves template blocks (e.g., «««template_liquid:...»»»)
                 # This ensures the actual artifact content is saved to the database
                 import re
-                if self.artifact_service and session_id and '«' in combined_text:
+                has_embed_marker = '«' in combined_text
+                log.info(
+                    f"{self.log_identifier} Checking for embeds in task {task_id}: "
+                    f"artifact_service={self.artifact_service is not None}, "
+                    f"session_id={session_id}, "
+                    f"has_embed_marker={has_embed_marker}, "
+                    f"text_preview={combined_text[:200] if combined_text else 'empty'}..."
+                )
+                if self.artifact_service and session_id and has_embed_marker:
                     try:
                         # Build context for embed resolution
                         embed_eval_context = {
@@ -615,8 +645,9 @@ class TaskLoggerService:
                             "gateway_recursive_embed_depth": 3,
                         }
                         
-                        # Run async embed resolution in sync context
-                        async def resolve_embeds():
+                        # Run async embed and template resolution in sync context
+                        async def resolve_embeds_and_templates():
+                            # First resolve embeds (artifact_content, artifact_return, etc.)
                             resolved_text, _, _ = await resolve_embeds_in_string(
                                 text=combined_text,
                                 context=embed_eval_context,
@@ -626,6 +657,20 @@ class TaskLoggerService:
                                 log_identifier=f"{self.log_identifier}[EmbedResolve:{task_id}]",
                                 config=embed_eval_config,
                             )
+                            
+                            # Then resolve template blocks (template_liquid)
+                            if '«««template' in resolved_text:
+                                resolved_text = await resolve_template_blocks_in_string(
+                                    text=resolved_text,
+                                    artifact_service=self.artifact_service,
+                                    session_context={
+                                        "app_name": self.gateway_id,
+                                        "user_id": task.user_id,
+                                        "session_id": session_id,
+                                    },
+                                    log_identifier=f"{self.log_identifier}[TemplateResolve:{task_id}]",
+                                )
+                            
                             return resolved_text
                         
                         # Check if we're already in an event loop
@@ -634,15 +679,16 @@ class TaskLoggerService:
                             # We're in an async context, create a new task
                             import concurrent.futures
                             with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(asyncio.run, resolve_embeds())
+                                future = executor.submit(asyncio.run, resolve_embeds_and_templates())
                                 combined_text = future.result(timeout=30)
                         except RuntimeError:
                             # No running event loop, safe to use asyncio.run
-                            combined_text = asyncio.run(resolve_embeds())
+                            combined_text = asyncio.run(resolve_embeds_and_templates())
                         
-                        log.debug(
-                            f"{self.log_identifier} Resolved embeds for task {task_id}. "
-                            f"Result length: {len(combined_text) if combined_text else 0}"
+                        log.info(
+                            f"{self.log_identifier} Resolved embeds and templates for task {task_id}. "
+                            f"Result length: {len(combined_text) if combined_text else 0}, "
+                            f"preview: {combined_text[:300] if combined_text else 'empty'}..."
                         )
                     except Exception as e:
                         log.warning(
@@ -656,6 +702,14 @@ class TaskLoggerService:
                     # No artifact service available, strip artifact_content markers
                     artifact_content_pattern = r'«artifact_content:[^»]+»'
                     combined_text = re.sub(artifact_content_pattern, '', combined_text)
+                
+                # Strip status_update embeds (they're for real-time display only)
+                status_update_pattern = r'«status_update:[^»]+»\n?'
+                combined_text = re.sub(status_update_pattern, '', combined_text)
+                
+                # Strip any remaining template blocks that weren't resolved
+                template_block_pattern = r'«««template(?:_liquid)?:[^\n]+\n(?:(?!»»»).)*?»»»'
+                combined_text = re.sub(template_block_pattern, '', combined_text, flags=re.DOTALL)
                 
                 # Check if artifact markers are already in the texts
                 existing_markers = set()
