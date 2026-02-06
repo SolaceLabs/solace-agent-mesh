@@ -946,7 +946,15 @@ async def update_prompt(
         # Update prompt text
         prompt.prompt_text = prompt_data.prompt_text
         prompt.updated_at = now_epoch_ms()
-        
+
+        # Update parent group timestamp
+        group = db.query(PromptGroupModel).filter(
+            PromptGroupModel.id == prompt.group_id
+        ).first()
+
+        if group:
+            group.updated_at = prompt.updated_at
+
         db.commit()
         db.refresh(prompt)
         
