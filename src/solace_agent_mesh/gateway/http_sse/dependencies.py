@@ -532,7 +532,9 @@ def get_session_validator(
         log.debug("No database configured - using basic session validation")
 
         def validate_without_database(session_id: str, user_id: str) -> bool:
-            if not session_id or not session_id.startswith("web-session-"):
+            # Without a database, accept any non-empty session ID with a valid user
+            # This supports both web-session- prefix (from browser) and plain UUIDs (from CLI)
+            if not session_id:
                 return False
             return bool(user_id)
 

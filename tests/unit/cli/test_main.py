@@ -115,16 +115,21 @@ class TestCommandRegistration:
         assert 'tools' in cli.commands
         assert cli.commands['tools'] is not None
 
+    def test_task_command_registered(self):
+        """Test that task command is registered"""
+        assert 'task' in cli.commands
+        assert cli.commands['task'] is not None
+
     def test_all_expected_commands_registered(self):
         """Test that all expected commands are registered"""
-        expected_commands = ['init', 'run', 'add', 'plugin', 'eval', 'docs', 'tools']
+        expected_commands = ['add', 'docs', 'eval', 'init', 'plugin', 'run', 'task', 'tools']
         for cmd in expected_commands:
             assert cmd in cli.commands, f"Command '{cmd}' not registered"
 
     def test_command_count(self):
         """Test that the expected number of commands are registered"""
-        # Should have exactly 7 commands
-        assert len(cli.commands) == 7
+        # Should have exactly 8 commands
+        assert len(cli.commands) == 8
 
 
 class TestHelpText:
@@ -137,7 +142,7 @@ class TestHelpText:
         assert result.exit_code == 0
 
         # Check that all commands appear in help
-        expected_commands = ['init', 'run', 'add', 'plugin', 'eval', 'docs', 'tools']
+        expected_commands = ['init', 'run', 'add', 'plugin', 'eval', 'docs', 'tools', 'task']
         for cmd in expected_commands:
             assert cmd in result.output, f"Command '{cmd}' not in help output"
 
