@@ -51,7 +51,7 @@ FROM node:25.5.0-trixie-slim AS node-binaries
 # ============================================================
 FROM python:3.13.11-slim-trixie AS builder
 
-# Copy Node.js 25 from the official node image
+# Copy Node.js 25 from the official node image - Revert to NodeSource when useful (25.5 or 26) version is available
 COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
 COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
