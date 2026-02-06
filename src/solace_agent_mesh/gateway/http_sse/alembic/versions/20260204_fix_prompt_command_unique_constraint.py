@@ -48,7 +48,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Revert to global unique constraint on command."""
+    """Revert to global unique constraint on command.
+    
+    Note: This is a best-effort downgrade. If there are duplicate commands
+    across users, the unique index creation will fail, but we allow the
+    migration to continue with a non-unique index instead.
+    """
+    from sqlalchemy import inspect
     
     # Drop the composite unique index
     op.drop_index('ix_prompt_groups_command_user_id', table_name='prompt_groups')
@@ -56,11 +62,22 @@ def downgrade() -> None:
     # Drop the non-unique command index
     op.drop_index('ix_prompt_groups_command', table_name='prompt_groups')
     
-    # Recreate the original global unique index
-    # Note: This may fail if there are duplicate commands across users
-    op.create_index(
-        'ix_prompt_groups_command',
-        'prompt_groups',
-        ['command'],
-        unique=True
-    )
+    # Try to recreate the original global unique index
+    # If it fails due to duplicate commands, create a non-unique index instead
+    try:
+        op.create_index(
+            'ix_prompt_groups_command',
+            'prompt_groups',
+            ['command'],
+            unique=True
+        )
+    except Exception as e:
+        # If unique constraint fails (likely due to duplicate commands across users),
+        # create a non-unique index instead to maintain query performance
+        print(f"Warning: Could not create unique index on command (likely due to duplicate commands across users). Creating non-unique index instead. Error: {e}")
+        op.create_index(
+            'ix_prompt_groups_command',
+            'prompt_groups',
+            ['command'],
+            unique=False
+        )
