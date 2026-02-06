@@ -2,11 +2,12 @@
 Service for logging A2A tasks and events to the database.
 """
 
+import asyncio
 import copy
 import json
 import logging
 import uuid
-from typing import Any, Callable, Dict, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from a2a.types import (
     A2ARequest,
@@ -19,6 +20,13 @@ from a2a.types import (
 from sqlalchemy.orm import Session as DBSession
 
 from ....common import a2a
+from ....common.utils.embeds import (
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
+)
+from ....common.utils.embeds.types import ResolutionMode
+from ....common.utils.templates import resolve_template_blocks_in_string
 from ..repository.entities import Task, TaskEvent
 from ..repository.task_repository import TaskRepository
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
@@ -29,10 +37,16 @@ class TaskLoggerService:
     """Service for logging A2A tasks and events to the database."""
 
     def __init__(
-        self, session_factory: Callable[[], DBSession] | None, config: Dict[str, Any]
+        self,
+        session_factory: Callable[[], DBSession] | None,
+        config: Dict[str, Any],
+        artifact_service: Optional[Any] = None,
+        gateway_id: Optional[str] = None,
     ):
         self.session_factory = session_factory
         self.config = config
+        self.artifact_service = artifact_service
+        self.gateway_id = gateway_id or "webui"
         self.log_identifier = "[TaskLoggerService]"
         log.info(f"{self.log_identifier} Initialized.")
 
@@ -509,6 +523,26 @@ class TaskLoggerService:
                                                                 log.info(
                                                                     f"{self.log_identifier} Extracted rolled_back_text from cancelled artifact event for task {task_id}"
                                                                 )
+                                                    elif data_type == "template_block":
+                                                        # Template blocks need to be resolved - store for later resolution
+                                                        # We'll resolve them when we have the artifact service context
+                                                        template_content = data.get("template_content", "")
+                                                        data_artifact = data.get("data_artifact", "")
+                                                        if template_content and data_artifact:
+                                                            # Reconstruct the template block as text for resolution
+                                                            params_parts = [f'data="{data_artifact}"']
+                                                            if data.get("jsonpath"):
+                                                                params_parts.append(f'jsonpath="{data.get("jsonpath")}"')
+                                                            if data.get("limit"):
+                                                                params_parts.append(f'limit="{data.get("limit")}"')
+                                                            params_str = " ".join(params_parts)
+                                                            template_block_text = f"«««template_liquid: {params_str}\n{template_content}\n»»»"
+                                                            accumulated_agent_text.append(template_block_text)
+                                                            log.info(
+                                                                f"{self.log_identifier} Extracted template_block for task {task_id}: data={data_artifact}"
+                                                            )
+                                                        # Don't add template_block data parts to accumulated_agent_parts
+                                                        continue
                                                 
                                                 accumulated_agent_parts.append(part)
                                             else:
@@ -583,8 +617,101 @@ class TaskLoggerService:
             if accumulated_agent_text or artifacts:
                 combined_text = "".join(accumulated_agent_text).strip()
                 
-                # Check if artifact markers are already in the texts
+                # Resolve embeds in the combined text (e.g., «artifact_content:...» markers)
+                # This also resolves template blocks (e.g., «««template_liquid:...»»»)
+                # This ensures the actual artifact content is saved to the database
                 import re
+                has_embed_marker = '«' in combined_text
+                log.info(
+                    f"{self.log_identifier} Checking for embeds in task {task_id}: "
+                    f"artifact_service={self.artifact_service is not None}, "
+                    f"session_id={session_id}, "
+                    f"has_embed_marker={has_embed_marker}, "
+                    f"text_preview={combined_text[:200] if combined_text else 'empty'}..."
+                )
+                if self.artifact_service and session_id and has_embed_marker:
+                    try:
+                        # Build context for embed resolution
+                        embed_eval_context = {
+                            "artifact_service": self.artifact_service,
+                            "session_context": {
+                                "app_name": self.gateway_id,
+                                "user_id": task.user_id,
+                                "session_id": session_id,
+                            },
+                        }
+                        embed_eval_config = {
+                            "gateway_max_artifact_resolve_size_bytes": 1024 * 1024,  # 1MB limit
+                            "gateway_recursive_embed_depth": 3,
+                        }
+                        
+                        # Run async embed and template resolution in sync context
+                        async def resolve_embeds_and_templates():
+                            # First resolve embeds (artifact_content, artifact_return, etc.)
+                            resolved_text, _, _ = await resolve_embeds_in_string(
+                                text=combined_text,
+                                context=embed_eval_context,
+                                resolver_func=evaluate_embed,
+                                types_to_resolve=LATE_EMBED_TYPES,
+                                resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                                log_identifier=f"{self.log_identifier}[EmbedResolve:{task_id}]",
+                                config=embed_eval_config,
+                            )
+                            
+                            # Then resolve template blocks (template_liquid)
+                            if '«««template' in resolved_text:
+                                resolved_text = await resolve_template_blocks_in_string(
+                                    text=resolved_text,
+                                    artifact_service=self.artifact_service,
+                                    session_context={
+                                        "app_name": self.gateway_id,
+                                        "user_id": task.user_id,
+                                        "session_id": session_id,
+                                    },
+                                    log_identifier=f"{self.log_identifier}[TemplateResolve:{task_id}]",
+                                )
+                            
+                            return resolved_text
+                        
+                        # Check if we're already in an event loop
+                        try:
+                            loop = asyncio.get_running_loop()
+                            # We're in an async context, create a new task
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(asyncio.run, resolve_embeds_and_templates())
+                                combined_text = future.result(timeout=30)
+                        except RuntimeError:
+                            # No running event loop, safe to use asyncio.run
+                            combined_text = asyncio.run(resolve_embeds_and_templates())
+                        
+                        log.info(
+                            f"{self.log_identifier} Resolved embeds and templates for task {task_id}. "
+                            f"Result length: {len(combined_text) if combined_text else 0}, "
+                            f"preview: {combined_text[:300] if combined_text else 'empty'}..."
+                        )
+                    except Exception as e:
+                        log.warning(
+                            f"{self.log_identifier} Failed to resolve embeds for task {task_id}: {e}. "
+                            "Falling back to stripping artifact_content markers."
+                        )
+                        # Fallback: strip artifact_content markers if resolution fails
+                        artifact_content_pattern = r'«artifact_content:[^»]+»'
+                        combined_text = re.sub(artifact_content_pattern, '', combined_text)
+                else:
+                    # No artifact service available, strip artifact_content markers
+                    artifact_content_pattern = r'«artifact_content:[^»]+»'
+                    combined_text = re.sub(artifact_content_pattern, '', combined_text)
+                
+                # Strip status_update embeds (they're for real-time display only)
+                status_update_pattern = r'«status_update:[^»]+»\n?'
+                combined_text = re.sub(status_update_pattern, '', combined_text)
+                
+                # Strip any remaining template blocks that weren't resolved
+                template_block_pattern = r'«««template(?:_liquid)?:[^\n]+\n(?:(?!»»»).)*?»»»'
+                combined_text = re.sub(template_block_pattern, '', combined_text, flags=re.DOTALL)
+                
+                # Check if artifact markers are already in the texts
                 existing_markers = set()
                 marker_pattern = r'«artifact_return:([^»]+)»'
                 for match in re.finditer(marker_pattern, combined_text):
@@ -608,22 +735,26 @@ class TaskLoggerService:
                     artifact_name = artifact['name']
                     if artifact_name not in existing_markers:
                         combined_text += f"«artifact_return:{artifact_name}»"
-                        log.info(
-                            f"{self.log_identifier} Adding artifact marker for {artifact_name}"
-                        )
-                    else:
-                        log.info(
-                            f"{self.log_identifier} Skipping duplicate artifact marker for {artifact_name} (already in text)"
-                        )
                 
-                # Filter out data parts from accumulated parts
-                content_parts = [p for p in accumulated_agent_parts if p.get("kind") != "data"]
+                # Filter out data parts and text parts from accumulated parts
+                # Text parts are excluded because the resolved text is in bubble.text
+                # and we don't want the frontend to use unresolved text from parts
+                content_parts = [
+                    p for p in accumulated_agent_parts
+                    if p.get("kind") not in ("data", "text")
+                ]
+                
+                # Create parts list with resolved text as the first part
+                final_parts = []
+                if combined_text.strip():
+                    final_parts.append({"kind": "text", "text": combined_text})
+                final_parts.extend(content_parts)
                 
                 message_bubbles.append({
                     "id": f"msg-{uuid.uuid4()}",
                     "type": "agent",
                     "text": combined_text,
-                    "parts": content_parts,  # Only content parts, no artifacts
+                    "parts": final_parts,  # Resolved text + non-text/non-data parts
                 })
                 
             
