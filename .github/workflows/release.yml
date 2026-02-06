@@ -1,4 +1,5 @@
 name: Release (PyPI & Docker)
+run-name: "${{ format('Release `{0}`', inputs.version || (inputs.version_bump_type && format('Bump `{0}` version and Release', inputs.version_bump_type))) }} to PyPI"
 on:
   workflow_dispatch:
     inputs:
@@ -102,11 +103,11 @@ jobs:
 
       - name: Construct Prisma Image Tag
         id: construct-image-tag
+        env:
+          VERSION: ${{ steps.get-version.outputs.current_version }}
+          SHORT_SHA: ${{ steps.find-commit.outputs.short_sha }}
+          ECR_REGISTRY: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
         run: |
-          VERSION="${{ steps.get-version.outputs.current_version }}"
-          SHORT_SHA="${{ steps.find-commit.outputs.short_sha }}"
-          ECR_REGISTRY="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
-
           PRISMA_IMAGE_TAG="${ECR_REGISTRY}/solace-agent-mesh:${VERSION}-${SHORT_SHA}"
           echo "Constructed Prisma image tag: $PRISMA_IMAGE_TAG"
           echo "prisma_image_tag=$PRISMA_IMAGE_TAG" >> $GITHUB_OUTPUT
@@ -174,12 +175,14 @@ jobs:
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Verify RC Status
+        env:
+          COMMIT_SHA: ${{ needs.prepare-release-metadata.outputs.commit_sha }}
+          STATUS_RESULT: ${{ steps.check-status.outputs.result }}
+          ECR_REGISTRY: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
+          VERSION: ${{ needs.prepare-release-metadata.outputs.current_version }}
+          SHORT_SHA: ${{ needs.prepare-release-metadata.outputs.short_sha }}
+          AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
-          COMMIT_SHA="${{ needs.prepare-release-metadata.outputs.commit_sha }}"
-          STATUS_RESULT="${{ steps.check-status.outputs.result }}"
-          ECR_REGISTRY="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
-          VERSION="${{ needs.prepare-release-metadata.outputs.current_version }}"
-          SHORT_SHA="${{ needs.prepare-release-metadata.outputs.short_sha }}"
           IMAGE_TAG="${VERSION}-${SHORT_SHA}"
           IMAGE_URI="${ECR_REGISTRY}/solace-agent-mesh:${IMAGE_TAG}"
 
@@ -218,7 +221,7 @@ jobs:
           if aws ecr describe-images \
             --repository-name "${REPO_NAME}" \
             --image-ids imageTag="${IMAGE_TAG}" \
-            --region "${{ secrets.AWS_DEFAULT_REGION }}" \
+            --region "${AWS_REGION}" \
             > /dev/null 2>&1; then
             echo "✅ RC verification passed - Image exists in ECR: ${IMAGE_URI}"
             exit 0
