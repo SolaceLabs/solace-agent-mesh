@@ -79,22 +79,30 @@ def perform_web_init(current_cli_params: dict) -> dict:
                 if old_key in config_from_portal and new_key not in config_from_portal:
                     config_from_portal[new_key] = config_from_portal[old_key]
 
-            # Handle planning and general model names with fallback to single model name
-            config_from_portal["llm_service_planning_model_name"] = (
-                config_from_portal.get("llm_service_planning_model_name")
-                or config_from_portal.get("llm_planning_model_name")
-                or config_from_portal.get("llm_model_name")
-            )
+            # Check if AWS Bedrock provider is being used
+            llm_provider = config_from_portal.get("llm_provider", "")
+            
+            if llm_provider == "aws_bedrock":
+                # For AWS Bedrock, we don't need planning and general model names
+                # The model info is already in llm_model_name and aws_model_id
+                pass
+            else:
+                # Handle planning and general model names with fallback to single model name
+                config_from_portal["llm_service_planning_model_name"] = (
+                    config_from_portal.get("llm_service_planning_model_name")
+                    or config_from_portal.get("llm_planning_model_name")
+                    or config_from_portal.get("llm_model_name")
+                )
 
-            config_from_portal["llm_service_general_model_name"] = (
-                config_from_portal.get("llm_service_general_model_name")
-                or config_from_portal.get("llm_general_model_name")
-                or config_from_portal.get("llm_model_name")
-            )
+                config_from_portal["llm_service_general_model_name"] = (
+                    config_from_portal.get("llm_service_general_model_name")
+                    or config_from_portal.get("llm_general_model_name")
+                    or config_from_portal.get("llm_model_name")
+                )
 
-            # Clean up deprecated keys if new keys are present
-            config_from_portal.pop("llm_planning_model_name", None)
-            config_from_portal.pop("llm_general_model_name", None)
+                # Clean up deprecated keys if new keys are present
+                config_from_portal.pop("llm_planning_model_name", None)
+                config_from_portal.pop("llm_general_model_name", None)
 
             click.echo(
                 click.style("Configuration received from web portal.", fg="green")
