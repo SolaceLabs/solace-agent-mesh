@@ -6,12 +6,82 @@ import logging
 import csv
 import io
 import json
+import re
 from typing import Any, Dict, Optional, Tuple
 from liquid import Environment
 from jsonpath_ng.ext import parse as jsonpath_parse
 import yaml
 
+from ..embeds.constants import EMBED_DELIMITER_OPEN, EMBED_DELIMITER_CLOSE
+
 log = logging.getLogger(__name__)
+
+
+# Regex to match embed patterns that should be protected from Liquid processing
+# Matches: «type:expression» or «type:expression | format»
+# This protects all embed types (math, datetime, uuid, artifact_content, etc.)
+#
+_EMBED_PROTECTION_REGEX = re.compile(
+    re.escape(EMBED_DELIMITER_OPEN)
+    + r"[a-zA-Z0-9_]+:"  # embed type followed by colon
+    + r"[^" + re.escape(EMBED_DELIMITER_CLOSE) + r"]{0,10000}"  # expression (no closing delimiter, max 10k chars)
+    + re.escape(EMBED_DELIMITER_CLOSE)
+)
+
+
+def _protect_embeds_from_liquid(template_content: str) -> Tuple[str, Dict[str, str]]:
+    """
+    Replace embed directives with placeholders to protect them from Liquid processing.
+    
+    This is necessary because embed syntax like «math:{{ row[2] }} | ,.2f» contains
+    characters that conflict with Liquid template syntax:
+    - {{ }} is interpreted as Liquid variable output
+    - | is interpreted as Liquid filter operator
+    
+    By replacing embeds with placeholders before Liquid rendering, we prevent these
+    conflicts and restore the original embeds after rendering.
+    
+    Args:
+        template_content: The template string potentially containing embeds
+        
+    Returns:
+        Tuple of (protected_template, placeholders_dict)
+        - protected_template: Template with embeds replaced by placeholders
+        - placeholders_dict: Mapping of placeholder -> original embed
+    """
+    placeholders: Dict[str, str] = {}
+    
+    def replace_with_placeholder(match: re.Match) -> str:
+        placeholder = f"__EMBED_PLACEHOLDER_{len(placeholders)}__"
+        placeholders[placeholder] = match.group(0)
+        return placeholder
+    
+    protected_template = _EMBED_PROTECTION_REGEX.sub(replace_with_placeholder, template_content)
+    
+    if placeholders:
+        log.debug(
+            "Protected %d embed(s) from Liquid processing",
+            len(placeholders),
+        )
+    
+    return protected_template, placeholders
+
+
+def _restore_embeds_after_liquid(rendered_output: str, placeholders: Dict[str, str]) -> str:
+    """
+    Restore embed directives from placeholders after Liquid rendering.
+    
+    Args:
+        rendered_output: The Liquid-rendered output containing placeholders
+        placeholders: Mapping of placeholder -> original embed
+        
+    Returns:
+        Output with placeholders replaced by original embeds
+    """
+    for placeholder, original_embed in placeholders.items():
+        rendered_output = rendered_output.replace(placeholder, original_embed)
+    
+    return rendered_output
 
 
 def _parse_csv_to_context(csv_content: str) -> Dict[str, Any]:
@@ -191,11 +261,25 @@ def render_liquid_template(
             list(context.keys()) if isinstance(context, dict) else "non-dict",
         )
 
+        # Protect embed directives from Liquid processing
+        # This prevents conflicts between embed syntax (e.g., «math:value | format»)
+        # and Liquid syntax (e.g., {{ value | filter }})
+        protected_template, embed_placeholders = _protect_embeds_from_liquid(template_content)
+
         # Render template
         log.info("%s Rendering Liquid template", log_identifier)
         env = Environment()
-        template = env.from_string(template_content)
+        template = env.from_string(protected_template)
         rendered_output = template.render(**context)
+
+        # Restore embed directives after Liquid rendering
+        if embed_placeholders:
+            rendered_output = _restore_embeds_after_liquid(rendered_output, embed_placeholders)
+            log.debug(
+                "%s Restored %d embed(s) after Liquid rendering",
+                log_identifier,
+                len(embed_placeholders),
+            )
 
         log.info(
             "%s Template rendered successfully. Output length: %d",
