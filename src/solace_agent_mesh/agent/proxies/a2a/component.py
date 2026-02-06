@@ -592,12 +592,15 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         agent_name = agent_config.get("name")
         agent_url = agent_config.get("url")
-        agent_card_path = agent_config.get("agent_card_path", "/agent/card.json")
+        agent_card_path = agent_config.get("agent_card_path", "/.well-known/agent-card.json")
         log_identifier = f"{self.log_identifier}[FetchCard:{agent_name}]"
 
         if not agent_url:
             log.error("%s No URL configured for agent.", log_identifier)
             return None
+
+        # Strip trailing slash from URL to avoid double slashes when concatenating
+        agent_url = agent_url.rstrip("/")
 
         try:
             # Get effective authentication for agent card using resolution logic
@@ -1249,6 +1252,8 @@ class A2AProxyComponent(BaseProxyComponent):
         if not use_agent_card_url:
             # Override the agent card URL with the configured URL
             configured_url = agent_config.get("url")
+            # Strip trailing slash from URL to avoid double slashes when concatenating
+            configured_url = configured_url.rstrip("/")
             log.info(
                 "%s Overriding agent card URL with configured URL for agent '%s': %s",
                 self.log_identifier,
