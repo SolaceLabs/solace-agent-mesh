@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Optional, List, Dict, Any
 
 from sqlalchemy.orm import Session as DbSession
@@ -660,6 +661,152 @@ class SessionService:
                 messages.append(message)
         
         return messages
+
+    def bulk_delete_sessions(
+        self,
+        db: DbSession,
+        user_id: UserId,
+        session_ids: list[str] | None = None,
+        delete_all: bool = False,
+        start_date: int | None = None,
+        end_date: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Delete multiple sessions based on various criteria.
+        
+        Args:
+            db: Database session
+            user_id: The user performing the deletion
+            session_ids: Specific session IDs to delete
+            delete_all: Delete all user sessions
+            start_date: Start date (epoch ms) for date range deletion
+            end_date: End date (epoch ms) for date range deletion
+            
+        Returns:
+            Dictionary with deletion results
+        """
+        if not user_id or user_id.strip() == "":
+            raise ValueError("User ID cannot be empty")
+        
+        session_repository = self._get_repositories(db)
+        
+        # Get sessions to delete based on criteria
+        sessions_to_delete = []
+        
+        if delete_all:
+            # Get all user sessions (without pagination to get all)
+            all_sessions_response = session_repository.find_by_user(db, user_id, pagination=None)
+            sessions_to_delete = all_sessions_response if isinstance(all_sessions_response, list) else all_sessions_response
+            log.info("Bulk delete: deleting all %d sessions for user %s", len(sessions_to_delete), user_id)
+        elif session_ids:
+            # Delete specific sessions
+            for session_id in session_ids:
+                session = session_repository.find_user_session(db, session_id, user_id)
+                if session:
+                    sessions_to_delete.append(session)
+            log.info("Bulk delete: deleting %d specific sessions for user %s", len(sessions_to_delete), user_id)
+        elif start_date is not None or end_date is not None:
+            # Delete by date range
+            all_sessions_response = session_repository.find_by_user(db, user_id, pagination=None)
+            all_sessions = all_sessions_response if isinstance(all_sessions_response, list) else all_sessions_response
+            for session in all_sessions:
+                session_time = session.updated_time or session.created_time
+                if start_date and session_time < start_date:
+                    continue
+                if end_date and session_time > end_date:
+                    continue
+                sessions_to_delete.append(session)
+            log.info("Bulk delete: deleting %d sessions in date range for user %s", len(sessions_to_delete), user_id)
+        else:
+            raise ValueError("Must specify delete_all, session_ids, or date range")
+        
+        # Perform deletion
+        deleted_count = 0
+        failed_count = 0
+        deleted_ids = []
+        
+        for session in sessions_to_delete:
+            try:
+                if self.delete_session_with_notifications(db, session.id, user_id):
+                    deleted_count += 1
+                    deleted_ids.append(session.id)
+                else:
+                    failed_count += 1
+            except Exception as e:
+                log.error("Error deleting session %s: %s", session.id, e)
+                failed_count += 1
+        
+        result = {
+            "deleted_count": deleted_count,
+            "failed_count": failed_count,
+            "total_requested": len(sessions_to_delete),
+            "deleted_session_ids": deleted_ids,
+        }
+        
+        log.info(
+            "Bulk delete completed for user %s: %d deleted, %d failed",
+            user_id,
+            deleted_count,
+            failed_count,
+        )
+        
+        return result
+
+    def get_session_statistics(self, db: DbSession, user_id: UserId) -> dict[str, Any]:
+        """
+        Get statistics about user's sessions grouped by date.
+        
+        Args:
+            db: Database session
+            user_id: User ID to get statistics for
+            
+        Returns:
+            Dictionary with session counts by date group
+        """
+        if not user_id or user_id.strip() == "":
+            raise ValueError("User ID cannot be empty")
+        
+        session_repository = self._get_repositories(db)
+        
+        # Get all sessions without pagination
+        all_sessions_response = session_repository.find_by_user(db, user_id, pagination=None)
+        all_sessions = all_sessions_response if isinstance(all_sessions_response, list) else all_sessions_response
+        
+        now = datetime.now()
+        today_start = datetime(now.year, now.month, now.day)
+        yesterday_start = today_start - timedelta(days=1)
+        week_start = today_start - timedelta(days=7)
+        last_week_start = week_start - timedelta(days=7)
+        month_start = today_start - timedelta(days=30)
+        
+        stats = {
+            "total": len(all_sessions),
+            "today": 0,
+            "yesterday": 0,
+            "this_week": 0,
+            "last_week": 0,
+            "previous_30_days": 0,
+            "older": 0,
+        }
+        
+        for session in all_sessions:
+            session_time = session.updated_time or session.created_time
+            session_dt = datetime.fromtimestamp(session_time / 1000)
+            
+            if session_dt >= today_start:
+                stats["today"] += 1
+            elif session_dt >= yesterday_start:
+                stats["yesterday"] += 1
+            elif session_dt >= week_start:
+                stats["this_week"] += 1
+            elif session_dt >= last_week_start:
+                stats["last_week"] += 1
+            elif session_dt >= month_start:
+                stats["previous_30_days"] += 1
+            else:
+                stats["older"] += 1
+        
+        return stats
 
     def _is_valid_session_id(self, session_id: SessionId) -> bool:
         return (
