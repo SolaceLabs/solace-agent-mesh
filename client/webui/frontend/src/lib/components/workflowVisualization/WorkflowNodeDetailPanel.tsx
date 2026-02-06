@@ -81,36 +81,39 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
 
     // Helper to get display name for a node ID (used in switch cases)
     // Must be defined before early return to comply with React Hooks rules
-    const getNodeDisplayName = useCallback((nodeId: string) => {
-        if (!workflowConfig?.nodes) return nodeId;
-        
-        // Find the node config by ID
-        const nodeConfigById = workflowConfig.nodes.find(n => n.id === nodeId);
-        if (!nodeConfigById) return nodeId;
-        
-        // For agent nodes, try to get the agent's display name
-        if (nodeConfigById.type === 'agent' && nodeConfigById.agent_name) {
-            // AgentCardInfo extends AgentInfo which has name, display_name properties
-            // TypeScript doesn't recognize these from the type definition, but they exist at runtime
-            const agent = agents.find(a => {
-                const agentWithName = a as unknown as { name?: string };
-                return agentWithName.name === nodeConfigById.agent_name;
-            });
-            if (agent) {
-                const agentWithProps = agent as unknown as { displayName?: string; display_name?: string };
-                return agent.displayName || agentWithProps.display_name || nodeConfigById.agent_name || nodeId;
+    const getNodeDisplayName = useCallback(
+        (nodeId: string) => {
+            if (!workflowConfig?.nodes) return nodeId;
+
+            // Find the node config by ID
+            const nodeConfigById = workflowConfig.nodes.find(n => n.id === nodeId);
+            if (!nodeConfigById) return nodeId;
+
+            // For agent nodes, try to get the agent's display name
+            if (nodeConfigById.type === "agent" && nodeConfigById.agent_name) {
+                // AgentCardInfo extends AgentInfo which has name, display_name properties
+                // TypeScript doesn't recognize these from the type definition, but they exist at runtime
+                const agent = agents.find(a => {
+                    const agentWithName = a as unknown as { name?: string };
+                    return agentWithName.name === nodeConfigById.agent_name;
+                });
+                if (agent) {
+                    const agentWithProps = agent as unknown as { displayName?: string; display_name?: string };
+                    return agent.displayName || agentWithProps.display_name || nodeConfigById.agent_name || nodeId;
+                }
+                return nodeConfigById.agent_name || nodeId;
             }
-            return nodeConfigById.agent_name || nodeId;
-        }
-        
-        // For workflow nodes, use the workflow name
-        if (nodeConfigById.type === 'workflow' && nodeConfigById.workflow_name) {
-            return nodeConfigById.workflow_name;
-        }
-        
-        // For other node types, use the node ID as fallback
-        return nodeId;
-    }, [workflowConfig?.nodes, agents]);
+
+            // For workflow nodes, use the workflow name
+            if (nodeConfigById.type === "workflow" && nodeConfigById.workflow_name) {
+                return nodeConfigById.workflow_name;
+            }
+
+            // For other node types, use the node ID as fallback
+            return nodeId;
+        },
+        [workflowConfig?.nodes, agents]
+    );
 
     if (!node) {
         return null;
