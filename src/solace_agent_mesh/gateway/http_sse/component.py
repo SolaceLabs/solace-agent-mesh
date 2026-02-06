@@ -235,8 +235,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         self._visualization_internal_app: SACApp | None = None
         self._visualization_broker_input: BrokerInput | None = None
-        self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
-        self._task_logger_queue: queue.Queue = queue.Queue(maxsize=200)
+
+        self._visualization_message_queue = asyncio.Queue(maxsize=600)
+        self._task_logger_queue = asyncio.Queue(maxsize=800)
         self._active_visualization_streams: dict[str, dict[str, Any]] = {}
         self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
@@ -727,12 +728,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         while not self.stop_signal.is_set():
             msg_data = None
             try:
-                msg_data = await loop.run_in_executor(
-                    None,
-                    self._visualization_message_queue.get,
-                    True,
-                    1.0,
-                )
+                try:
+                    msg_data = await asyncio.wait_for(
+                        self._visualization_message_queue.get(),
+                        timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    continue
 
                 if msg_data is None:
                     log.info(
@@ -924,7 +926,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         else:
                             pass
 
-                self._visualization_message_queue.task_done()
 
             except queue.Empty:
                 continue
@@ -939,8 +940,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     log_id_prefix,
                     e,
                 )
-                if msg_data and self._visualization_message_queue:
-                    self._visualization_message_queue.task_done()
                 await asyncio.sleep(1)
 
         log.info("%s Visualization message processor loop finished.", log_id_prefix)
@@ -957,12 +956,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         while not self.stop_signal.is_set():
             msg_data = None
             try:
-                msg_data = await loop.run_in_executor(
-                    None,
-                    self._task_logger_queue.get,
-                    True,
-                    1.0,
-                )
+                try:
+                    msg_data = await asyncio.wait_for(
+                        self._task_logger_queue.get(),
+                        timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    continue
 
                 if msg_data is None:
                     log.info(
@@ -992,8 +992,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     log_id_prefix,
                     e,
                 )
-                if msg_data and self._task_logger_queue:
-                    self._task_logger_queue.task_done()
                 await asyncio.sleep(1)
 
         log.info("%s Task logger loop finished.", log_id_prefix)
@@ -1608,9 +1606,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self.cancel_timer(self.health_check_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
-            self._visualization_message_queue.put(None)
+            self._visualization_message_queue.put_nowait(None)
         if self._task_logger_queue:
-            self._task_logger_queue.put(None)
+            self._task_logger_queue.put_nowait(None)
 
         if (
             self._visualization_processor_task
