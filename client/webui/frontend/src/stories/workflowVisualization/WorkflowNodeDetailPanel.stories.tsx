@@ -55,9 +55,12 @@ export const LoopNodeWithoutDelay: Story = {
         agents: [],
     },
     play: async () => {
-        // Verify node ID appears twice: once in title header, once in Node ID section
-        const pollingLoopElements = screen.getAllByText("polling_loop");
-        expect(pollingLoopElements.length).toBeGreaterThanOrEqual(2);
+        // Verify node ID appears in the Node ID section
+        expect(screen.getByText("polling_loop")).toBeInTheDocument();
+
+        // Verify type label "Loop" appears in the UI (title and Node Type section)
+        const loopElements = screen.getAllByText("Loop");
+        expect(loopElements.length).toBeGreaterThanOrEqual(2);
 
         // Verify expected properties are rendered
         expect(screen.getByText("Max Iterations")).toBeInTheDocument();
