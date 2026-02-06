@@ -94,6 +94,56 @@ The configuration requires only the model name and your Anthropic API key, makin
 
 For comprehensive details about Anthropic-specific configuration options and model capabilities, see the [Anthropic documentation](https://docs.litellm.ai/docs/providers/anthropic).
 
+### OpenAI-Compatible Providers
+
+Many LLM providers offer OpenAI-compatible API endpoints, allowing you to use their models through a standardized interface. When connecting to these providers through Agent Mesh, you must prefix the model name with `openai/` to indicate that LiteLLM should use the OpenAI-compatible request format.
+
+The general configuration pattern for OpenAI-compatible providers follows this structure:
+
+```yaml
+model: openai/<model-name>
+api_base: <provider-endpoint>
+api_key: ${PROVIDER_API_KEY}
+```
+
+The `openai/` prefix tells LiteLLM to route requests using the OpenAI API format, regardless of the actual provider. Without this prefix, LiteLLM may attempt to use provider-specific APIs that require different authentication or request formats, resulting in connection failures.
+
+For aggregator services like OpenRouter that host models from multiple providers, the model name includes both the provider and model identifiers: `openai/<provider>/<model-name>`.
+
+For comprehensive details about OpenAI-compatible provider configuration, see the [LiteLLM OpenAI-Compatible documentation](https://docs.litellm.ai/docs/providers/openai_compatible).
+
+#### Mistral
+
+Mistral AI provides high-performance models through an OpenAI-compatible endpoint. Configure Mistral models using the `openai/` prefix with the Mistral API base URL.
+
+```yaml
+model: openai/mistral-large-latest
+api_base: https://api.mistral.ai/v1
+api_key: ${MISTRAL_API_KEY}
+```
+
+#### Groq
+
+Groq offers fast inference for open-source models through an OpenAI-compatible API. The endpoint path includes `/openai/v1` to indicate the compatibility layer.
+
+```yaml
+model: openai/llama-3.3-70b-versatile
+api_base: https://api.groq.com/openai/v1
+api_key: ${GROQ_API_KEY}
+```
+
+#### OpenRouter
+
+OpenRouter aggregates models from multiple providers through a single API. When using OpenRouter, the model name includes both the original provider and model identifiers, prefixed with `openai/` for LiteLLM compatibility.
+
+```yaml
+model: openai/google/gemini-3-flash-preview
+api_base: https://openrouter.ai/api/v1
+api_key: ${OPENROUTER_API_KEY}
+```
+
+The model naming pattern for OpenRouter follows `openai/<provider>/<model-name>`, where the provider portion matches OpenRouter's catalog naming (for example, `google/gemini-3-flash-preview`, `x-ai/grok-3-fast`, or `mistralai/mistral-large`).
+
 ### Additional Providers
 
 LiteLLM supports numerous other providers including Cohere, Hugging Face, Together AI, and many more. Each provider may have specific configuration requirements and capabilities, but the general pattern of specifying model names, endpoints, and authentication credentials remains consistent.
