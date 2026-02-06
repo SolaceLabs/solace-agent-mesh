@@ -16,3 +16,22 @@ from . import test_tools
 from . import deep_research_tools
 from . import web_search_tools
 from . import dynamic_tool
+
+# Export ToolResult abstraction for tool authors
+from .tool_result import ToolResult, DataObject, DataDisposition
+
+# Export artifact types for tool authors
+from .artifact_types import (
+    Artifact,
+    ArtifactTypeInfo,
+    get_artifact_info,
+)
+
+__all__ = [
+    "ToolResult",
+    "DataObject",
+    "DataDisposition",
+    "Artifact",
+    "ArtifactTypeInfo",
+    "get_artifact_info",
+]

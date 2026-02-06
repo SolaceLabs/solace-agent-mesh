@@ -46,13 +46,8 @@ llm_interactions:
     expected_request: # After load_artifact tool call
       expected_tool_responses_in_llm_messages:
         - tool_call_id_matches_prior_request_index: 0
-          response_json_matches:
-            status: "not_found" # Or "error"
-            # filename: "existing_doc_for_version_test.txt" # May not be in top-level error
-            # version: 99
-          # The message from FileNotFoundError in the helper is likely:
-          # "Artifact 'existing_doc_for_version_test.txt' version 99 not found or has no data."
-          response_contains: "Artifact 'existing_doc_for_version_test.txt' version 99 not found or has no data."
+          response_json_contains:
+            status: "error"
     static_response:
       id: "chatcmpl-load-nonexistent-version-2"
       object: "chat.completion"

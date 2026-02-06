@@ -12,6 +12,7 @@ from typing import (
     Callable,
     Dict,
     Any,
+    Set,
     get_origin,
     get_args,
     Union,
@@ -26,6 +27,9 @@ from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
 
 from solace_agent_mesh.agent.utils.context_helpers import get_original_session_id
+from solace_agent_mesh.agent.utils.artifact_helpers import load_artifact_content_or_metadata
+from solace_agent_mesh.agent.utils.tool_context_facade import ToolContextFacade
+from .artifact_types import Artifact, is_artifact_type, get_artifact_info, ArtifactTypeInfo
 
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -37,6 +41,18 @@ from ...common.utils.embeds import (
 from ...common.utils.embeds.types import ResolutionMode
 
 log = logging.getLogger(__name__)
+
+
+def _is_tool_context_facade_param(annotation) -> bool:
+    """Check if an annotation represents a ToolContextFacade parameter."""
+    if annotation is None:
+        return False
+    if annotation is ToolContextFacade:
+        return True
+    if isinstance(annotation, str) and "ToolContextFacade" in annotation:
+        return True
+    return False
+
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
@@ -116,6 +132,55 @@ class DynamicTool(BaseTool, ABC):
         """
         return "early"
 
+    @property
+    def artifact_args(self) -> List[str]:
+        """
+        Return a list of argument names that should have artifacts pre-loaded.
+        The framework will load the artifact before invoking the tool,
+        replacing the filename with an Artifact object containing content and metadata.
+
+        Subclasses can override this property to specify which parameters
+        should have artifacts pre-loaded.
+
+        Returns:
+            List of parameter names to pre-load artifacts for.
+        """
+        return []
+
+    @property
+    def artifact_params(self) -> Dict[str, ArtifactTypeInfo]:
+        """
+        Return detailed information about artifact parameters.
+
+        This maps parameter names to ArtifactTypeInfo objects that indicate:
+        - is_list: Whether the parameter expects a list of artifacts
+        - is_optional: Whether the parameter is optional
+
+        Subclasses can override this for fine-grained control over artifact loading.
+        Default implementation creates basic info from artifact_args.
+
+        Returns:
+            Dict mapping parameter names to ArtifactTypeInfo.
+        """
+        # Default: create basic info from artifact_args
+        return {name: ArtifactTypeInfo(is_artifact=True) for name in self.artifact_args}
+
+    @property
+    def ctx_facade_param_name(self) -> Optional[str]:
+        """
+        Return the parameter name that should receive a ToolContextFacade.
+
+        If not None, the framework will create and inject a ToolContextFacade
+        instance for this parameter before invoking the tool.
+
+        Subclasses can override this property to specify the parameter name.
+        Default is None (no facade injection).
+
+        Returns:
+            Parameter name for ToolContextFacade injection, or None.
+        """
+        return None
+
     def _get_declaration(self) -> Optional[Any]:
         """
         Generate the FunctionDeclaration for this dynamic tool.
@@ -130,6 +195,112 @@ class DynamicTool(BaseTool, ABC):
             description=self.tool_description,
             parameters=self.parameters_schema,
         )
+
+    async def _load_artifact_for_param(
+        self,
+        param_name: str,
+        filename: str,
+        tool_context: ToolContext,
+        log_identifier: str,
+    ) -> Artifact:
+        """
+        Load artifact for a parameter.
+
+        Args:
+            param_name: Name of the parameter
+            filename: Artifact filename to load (supports filename:version format)
+            tool_context: The ADK ToolContext for accessing services
+            log_identifier: Prefix for log messages
+
+        Returns:
+            An Artifact object containing the content and all metadata
+
+        Raises:
+            ValueError: If artifact loading fails
+        """
+        if not filename:
+            log.debug(
+                "%s Skipping artifact load for '%s': empty filename",
+                log_identifier,
+                param_name,
+            )
+            raise ValueError(f"Empty filename for parameter '{param_name}'")
+
+        try:
+            inv_context = tool_context._invocation_context
+            artifact_service = inv_context.artifact_service
+            app_name = inv_context.app_name
+            user_id = inv_context.user_id
+            session_id = get_original_session_id(inv_context)
+
+            # Parse filename:version format (rsplit to handle colons in filenames)
+            parts = filename.rsplit(":", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                filename_base = parts[0]
+                version = int(parts[1])
+            else:
+                filename_base = filename
+                version = "latest"
+
+            log.debug(
+                "%s Loading artifact '%s' (version=%s) for param '%s'",
+                log_identifier,
+                filename_base,
+                version,
+                param_name,
+            )
+
+            result = await load_artifact_content_or_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename_base,
+                version=version,
+                return_raw_bytes=True,
+            )
+
+            if result.get("status") == "success":
+                content = result.get("raw_bytes") or result.get("content")
+                # Get metadata from result
+                loaded_version = result.get("version", 0 if version == "latest" else version)
+                mime_type = result.get("mime_type", "application/octet-stream")
+                metadata = result.get("metadata", {})
+
+                log.info(
+                    "%s Loaded artifact '%s' v%s for param '%s' (%d bytes, %s)",
+                    log_identifier,
+                    filename_base,
+                    loaded_version,
+                    param_name,
+                    len(content) if content else 0,
+                    mime_type,
+                )
+
+                return Artifact(
+                    content=content,
+                    filename=filename_base,
+                    version=loaded_version,
+                    mime_type=mime_type,
+                    metadata=metadata,
+                )
+            else:
+                error_msg = result.get("message", "Unknown error loading artifact")
+                raise ValueError(f"Failed to load artifact '{filename}': {error_msg}")
+
+        except ValueError:
+            raise
+        except Exception as e:
+            log.error(
+                "%s Failed to load artifact '%s' for param '%s': %s",
+                log_identifier,
+                filename,
+                param_name,
+                e,
+            )
+            raise ValueError(
+                f"Artifact pre-load failed for parameter '{param_name}': {e}"
+            ) from e
 
     async def run_async(
         self, *, args: Dict[str, Any], tool_context: ToolContext
@@ -190,6 +361,108 @@ class DynamicTool(BaseTool, ABC):
                 )
                 resolved_kwargs[key] = resolved_value
 
+        # Pre-load artifacts for Artifact parameters
+        artifact_param_info = self.artifact_params
+        if artifact_param_info:
+            for param_name, param_info in artifact_param_info.items():
+                if param_name not in resolved_kwargs:
+                    continue
+
+                value = resolved_kwargs[param_name]
+
+                # Handle List[Artifact] - load each filename in the list
+                if param_info.is_list:
+                    if not value:
+                        # Empty list or None - keep as-is
+                        continue
+                    if not isinstance(value, list):
+                        log.warning(
+                            "%s Expected list for param '%s' but got %s",
+                            log_identifier,
+                            param_name,
+                            type(value).__name__,
+                        )
+                        continue
+
+                    loaded_artifacts = []
+                    for idx, filename in enumerate(value):
+                        if filename and isinstance(filename, str):
+                            try:
+                                artifact = await self._load_artifact_for_param(
+                                    param_name=f"{param_name}[{idx}]",
+                                    filename=filename,
+                                    tool_context=tool_context,
+                                    log_identifier=log_identifier,
+                                )
+                                loaded_artifacts.append(artifact)
+                            except ValueError as e:
+                                log.error(
+                                    "%s Artifact pre-load failed for %s[%d], returning error: %s",
+                                    log_identifier,
+                                    param_name,
+                                    idx,
+                                    e,
+                                )
+                                return {
+                                    "status": "error",
+                                    "message": str(e),
+                                    "tool_name": self.tool_name,
+                                }
+                        else:
+                            # Non-string entry - skip (shouldn't happen normally)
+                            log.warning(
+                                "%s Skipping non-string entry at %s[%d]: %s",
+                                log_identifier,
+                                param_name,
+                                idx,
+                                type(filename).__name__,
+                            )
+
+                    resolved_kwargs[param_name] = loaded_artifacts
+                    log.debug(
+                        "%s Pre-loaded %d artifacts for list param '%s'",
+                        log_identifier,
+                        len(loaded_artifacts),
+                        param_name,
+                    )
+
+                # Handle single Artifact
+                elif value and isinstance(value, str):
+                    try:
+                        artifact = await self._load_artifact_for_param(
+                            param_name=param_name,
+                            filename=value,
+                            tool_context=tool_context,
+                            log_identifier=log_identifier,
+                        )
+                        resolved_kwargs[param_name] = artifact
+                    except ValueError as e:
+                        # Return error immediately if artifact loading fails
+                        log.error(
+                            "%s Artifact pre-load failed, returning error: %s",
+                            log_identifier,
+                            e,
+                        )
+                        return {
+                            "status": "error",
+                            "message": str(e),
+                            "tool_name": self.tool_name,
+                        }
+
+        # Inject ToolContextFacade if the tool expects it
+        ctx_param = self.ctx_facade_param_name
+        if ctx_param:
+            facade = ToolContextFacade(
+                tool_context=tool_context,
+                tool_config=self.tool_config if isinstance(self.tool_config, dict) else {},
+            )
+            resolved_kwargs[ctx_param] = facade
+            log.debug(
+                "%s Injected ToolContextFacade as '%s'",
+                log_identifier,
+                ctx_param,
+            )
+
         return await self._run_async_impl(
             args=resolved_kwargs, tool_context=tool_context, credential=None
         )
@@ -208,9 +481,34 @@ class DynamicTool(BaseTool, ABC):
 # --- Internal Adapter for Function-Based Tools ---
 
 
-def _get_schema_from_signature(func: Callable) -> adk_types.Schema:
+class _SchemaDetectionResult:
+    """Result from schema generation with detected special params."""
+
+    def __init__(self):
+        self.schema: Optional[adk_types.Schema] = None
+        # Maps param name to ArtifactTypeInfo (includes is_list, is_optional)
+        self.artifact_params: Dict[str, ArtifactTypeInfo] = {}
+        self.ctx_facade_param_name: Optional[str] = None
+
+    @property
+    def artifact_args(self) -> Set[str]:
+        """Property returning set of artifact param names."""
+        return set(self.artifact_params.keys())
+
+
+def _get_schema_from_signature(
+    func: Callable,
+    artifact_args: Optional[Set[str]] = None,
+    detection_result: Optional[_SchemaDetectionResult] = None,
+) -> adk_types.Schema:
     """
     Introspects a function's signature and generates an ADK Schema for its parameters.
+
+    Args:
+        func: The function to introspect
+        artifact_args: Optional set to populate with param names that have
+                       Artifact type annotation (will be pre-loaded)
+        detection_result: Optional result object to populate with all detected params
     """
     sig = inspect.signature(func)
     properties = {}
@@ -240,12 +538,57 @@ def _get_schema_from_signature(func: Callable) -> adk_types.Schema:
             # Get the actual type from Union[T, None]
             param_type = next((t for t in args if t is not type(None)), Any)
 
-        adk_type = type_map.get(param_type)
-        if not adk_type:
-            # Default to string if type is not supported or specified (e.g., Any)
-            adk_type = adk_types.Type.STRING
+        # Check for ToolContextFacade - exclude from schema (injected by framework)
+        if _is_tool_context_facade_param(param_type):
+            if detection_result is not None:
+                detection_result.ctx_facade_param_name = param.name
+            log.debug(
+                "Detected ToolContextFacade param '%s' in %s, excluding from schema",
+                param.name,
+                func.__name__,
+            )
+            continue  # Don't add to schema - framework injects this
 
-        properties[param.name] = adk_types.Schema(type=adk_type, nullable=is_optional)
+        # Check for Artifact type - translate to appropriate schema for LLM
+        # Also check the original annotation for List/Optional detection
+        original_annotation = param.annotation
+        artifact_type_info = get_artifact_info(original_annotation)
+
+        if artifact_type_info.is_artifact:
+            if artifact_args is not None:
+                artifact_args.add(param.name)
+            if detection_result is not None:
+                detection_result.artifact_params[param.name] = artifact_type_info
+
+            if artifact_type_info.is_list:
+                # List[Artifact] -> array of strings (filenames)
+                log.debug(
+                    "Detected List[Artifact] param '%s' in %s, translating to ARRAY of STRING",
+                    param.name,
+                    func.__name__,
+                )
+                properties[param.name] = adk_types.Schema(
+                    type=adk_types.Type.ARRAY,
+                    items=adk_types.Schema(type=adk_types.Type.STRING),
+                    nullable=is_optional or artifact_type_info.is_optional,
+                )
+            else:
+                # Single Artifact -> string (filename)
+                log.debug(
+                    "Detected Artifact param '%s' in %s, translating to STRING",
+                    param.name,
+                    func.__name__,
+                )
+                properties[param.name] = adk_types.Schema(
+                    type=adk_types.Type.STRING,
+                    nullable=is_optional or artifact_type_info.is_optional,
+                )
+        else:
+            adk_type = type_map.get(param_type)
+            if not adk_type:
+                # Default to string if type is not supported or specified (e.g., Any)
+                adk_type = adk_types.Type.STRING
+            properties[param.name] = adk_types.Schema(type=adk_type, nullable=is_optional)
 
         if param.default is inspect.Parameter.empty and not is_optional:
             required.append(param.name)
@@ -271,7 +614,27 @@ class _FunctionAsDynamicTool(DynamicTool):
         super().__init__(tool_config=tool_config)
         self._func = func
         self._provider_instance = provider_instance
-        self._schema = _get_schema_from_signature(func)
+
+        # Detect special params during schema generation
+        self._detection_result = _SchemaDetectionResult()
+        self._schema = _get_schema_from_signature(
+            func,
+            detection_result=self._detection_result,
+        )
+
+        if self._detection_result.artifact_args:
+            log.info(
+                "[_FunctionAsDynamicTool:%s] Will pre-load artifacts for params: %s",
+                func.__name__,
+                list(self._detection_result.artifact_args),
+            )
+
+        if self._detection_result.ctx_facade_param_name:
+            log.info(
+                "[_FunctionAsDynamicTool:%s] Will inject ToolContextFacade as '%s'",
+                func.__name__,
+                self._detection_result.ctx_facade_param_name,
+            )
 
         # Check if the function is an instance method that needs `self`
         self._is_instance_method = False
@@ -292,6 +655,21 @@ class _FunctionAsDynamicTool(DynamicTool):
     @property
     def parameters_schema(self) -> adk_types.Schema:
         return self._schema
+
+    @property
+    def artifact_args(self) -> List[str]:
+        """Return the detected Artifact parameters."""
+        return list(self._detection_result.artifact_args)
+
+    @property
+    def artifact_params(self) -> Dict[str, ArtifactTypeInfo]:
+        """Return detailed info about Artifact parameters (including is_list)."""
+        return self._detection_result.artifact_params
+
+    @property
+    def ctx_facade_param_name(self) -> Optional[str]:
+        """Return the detected ToolContextFacade parameter name."""
+        return self._detection_result.ctx_facade_param_name
 
     async def _run_async_impl(
         self,
