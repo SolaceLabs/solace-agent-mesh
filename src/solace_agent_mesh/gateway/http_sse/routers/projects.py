@@ -1025,6 +1025,11 @@ async def import_project(
             f"Project imported successfully: {project.id} with {artifacts_count} artifacts"
         )
 
+        # CRITICAL: Commit the database transaction NOW before async processing
+        # This ensures project is saved even if post-processing fails
+        db.commit()
+        log.debug("Database transaction committed - project and artifacts saved")
+
         # Step 2: Check if background processing is needed
         # Feature flag check (highest priority)
         if not indexing_enabled:
@@ -1037,9 +1042,19 @@ async def import_project(
             )
 
         # Step 3: Get list of imported artifacts to classify
-        # We need to re-read the ZIP to classify files (import already happened)
-        # For simplicity, we'll classify based on what was imported
-        artifacts = await project_service.get_project_artifacts(db, project.id, user_id)
+        # CRITICAL: Wrap in try/except to prevent exceptions from affecting the import
+        # Import is already committed, so we just skip indexing if this fails
+        try:
+            artifacts = await project_service.get_project_artifacts(db, project.id, user_id)
+        except Exception as e:
+            log.error(f"Failed to get artifacts for classification after import: {e}")
+            # Import succeeded, but classification failed - return success anyway
+            return ProjectImportResponse(
+                project_id=project.id,
+                name=project.name,
+                artifacts_imported=artifacts_count,
+                warnings=warnings + ["Post-import indexing skipped due to classification error"],
+            )
 
         needs_conversion = []
         is_text_based = []
