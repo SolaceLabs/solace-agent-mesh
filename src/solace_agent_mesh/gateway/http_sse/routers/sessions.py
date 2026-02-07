@@ -546,6 +546,94 @@ async def get_session_history(
         ) from e
 
 
+@router.get("/sessions/{session_id}/events/unconsumed")
+async def get_session_unconsumed_events(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Check for unconsumed buffered SSE events for a session.
+    
+    This endpoint is used by the frontend to determine if there are
+    any buffered events that need to be replayed when switching to a session.
+    
+    In the unified event buffer architecture:
+    1. Frontend switches to a session
+    2. Frontend calls this endpoint to check for unconsumed events
+    3. If events exist, frontend replays them via /api/v1/tasks/{task_id}/events/buffered
+    4. Frontend saves to chat_tasks
+    5. Frontend clears buffer via DELETE /api/v1/tasks/{task_id}/events/buffered
+    
+    Returns:
+        JSON object with:
+        - has_events: boolean indicating if there are unconsumed events
+        - task_ids: list of task IDs with unconsumed events
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s checking for unconsumed events in session %s", user_id, session_id
+    )
+
+    try:
+        if (
+            not session_id
+            or session_id.strip() == ""
+            or session_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+
+        # Get the SSE manager to access the persistent buffer
+        from ..dependencies import get_sac_component
+        from ..component import WebUIBackendComponent
+        
+        component: WebUIBackendComponent = get_sac_component()
+        
+        if component is None:
+            log.warning("WebUI backend component not available")
+            return {"has_events": False, "task_ids": []}
+        
+        sse_manager = component.sse_manager
+        if sse_manager is None or sse_manager._persistent_buffer is None:
+            log.debug("Persistent buffer not available")
+            return {"has_events": False, "task_ids": []}
+        
+        # Get unconsumed events for this session
+        unconsumed_by_task = sse_manager._persistent_buffer.get_unconsumed_events_for_session(session_id)
+        
+        task_ids = list(unconsumed_by_task.keys())
+        has_events = len(task_ids) > 0
+        
+        log.info(
+            "Session %s has %d tasks with unconsumed events: %s",
+            session_id,
+            len(task_ids),
+            task_ids
+        )
+        
+        return {
+            "has_events": has_events,
+            "task_ids": task_ids,
+            "session_id": session_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception(
+            "Error checking unconsumed events for session %s, user %s: %s",
+            session_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check unconsumed events",
+        ) from e
+
+
 @router.patch("/sessions/{session_id}", response_model=SessionResponse)
 async def update_session_name(
     session_id: str,

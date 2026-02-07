@@ -218,19 +218,46 @@ class TaskLoggerService:
                         f"{self.log_identifier} Finalized task record for ID: {task_id} with status: {final_status}"
                     )
                     
-                    # For background tasks, save chat messages when task completes
-                    # Only save for top-level tasks (no parent_task_id) to avoid duplicates
-                    # Sub-tasks (delegated by orchestrator) have parent_task_id set and contain system prompts
+                    # UNIFIED ARCHITECTURE: The FE now always saves chat_tasks after task completion
+                    # This BE saving is kept as a fallback for cases where:
+                    # 1. The user never reconnects to a background task session
+                    # 2. The FE fails to save for some reason
+                    #
+                    # To avoid duplicate saves, we only save from BE if:
+                    # - This is a background task (foreground tasks are always handled by connected FE)
+                    # - It's a top-level task (no parent_task_id) to avoid duplicates from sub-tasks
+                    # - The SSE event buffer still has unconsumed events (FE hasn't saved yet)
                     if task_to_update.background_execution_enabled and not task_to_update.parent_task_id:
-                        self._save_chat_messages_for_background_task(db, task_id, task_to_update, repo)
+                        # Check if FE has already saved by checking if buffer is empty
+                        from ..persistent_sse_event_buffer import PersistentSSEEventBuffer
+                        from ..dependencies import get_sse_manager
                         
-                        # Note: The frontend will detect task completion through:
-                        # 1. SSE final_response event (if connected to that task)
-                        # 2. Session list refresh triggered by the ChatProvider
-                        # 3. Database status check when loading sessions
-                        log.info(
-                            f"{self.log_identifier} Background task {task_id} completed and chat messages saved"
-                        )
+                        should_save_from_be = True
+                        try:
+                            sse_manager = get_sse_manager()
+                            if sse_manager:
+                                persistent_buffer = sse_manager.get_persistent_buffer()
+                                if persistent_buffer.is_enabled():
+                                    has_unconsumed = persistent_buffer.has_unconsumed_events(task_id)
+                                    if not has_unconsumed:
+                                        # Buffer is empty - FE already saved, skip BE save
+                                        should_save_from_be = False
+                                        log.info(
+                                            f"{self.log_identifier} Background task {task_id} completed. "
+                                            f"SSE buffer empty (FE already saved) - skipping BE chat_task save"
+                                        )
+                        except Exception as e:
+                            log.warning(
+                                f"{self.log_identifier} Error checking SSE buffer for task {task_id}: {e}. "
+                                f"Will save from BE as fallback."
+                            )
+                        
+                        if should_save_from_be:
+                            self._save_chat_messages_for_background_task(db, task_id, task_to_update, repo)
+                            log.info(
+                                f"{self.log_identifier} Background task {task_id} completed and chat messages saved from BE "
+                                f"(FE hasn't saved yet or buffer check failed)"
+                            )
             
             db.commit()
         except Exception as e:

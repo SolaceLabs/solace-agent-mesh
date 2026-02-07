@@ -539,28 +539,32 @@ async def _submit_task(
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
 
-        # Register task for persistent SSE event buffering if it's a background task
-        if additional_metadata.get("backgroundExecutionEnabled"):
-            try:
-                sse_manager = component.sse_manager
-                if sse_manager:
-                    sse_manager.register_task_for_persistent_buffer(
-                        task_id=task_id,
-                        session_id=session_id,
-                        user_id=user_id,
-                    )
-                    log.info(
-                        "%sRegistered background task %s for persistent SSE buffering (session=%s)",
-                        log_prefix,
-                        task_id,
-                        session_id,
-                    )
-            except Exception as e:
-                log.warning(
-                    "%sFailed to register task for persistent buffering: %s",
-                    log_prefix,
-                    e,
+        # UNIFIED ARCHITECTURE: Register ALL tasks for persistent SSE event buffering
+        # when the feature is enabled (tied to background_tasks feature flag).
+        # This enables session switching, browser refresh recovery, and reconnection for ALL tasks.
+        # The FE will clear the buffer after successfully saving the chat_task.
+        try:
+            sse_manager = component.sse_manager
+            if sse_manager and sse_manager.get_persistent_buffer().is_enabled():
+                sse_manager.register_task_for_persistent_buffer(
+                    task_id=task_id,
+                    session_id=session_id,
+                    user_id=user_id,
                 )
+                is_background = additional_metadata.get("backgroundExecutionEnabled", False)
+                log.info(
+                    "%sRegistered task %s for persistent SSE buffering (session=%s, background=%s)",
+                    log_prefix,
+                    task_id,
+                    session_id,
+                    is_background,
+                )
+        except Exception as e:
+            log.warning(
+                "%sFailed to register task for persistent buffering: %s",
+                log_prefix,
+                e,
+            )
 
         task_object = a2a.create_initial_task(
             task_id=task_id,
@@ -1016,6 +1020,66 @@ async def get_buffered_task_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while retrieving buffered events.",
+        )
+
+
+@router.delete("/tasks/{task_id}/events/buffered", tags=["Tasks"])
+async def clear_buffered_task_events(
+    task_id: str,
+    request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+):
+    """
+    Clear all buffered SSE events for a task.
+    
+    This endpoint is called by the frontend after successfully saving
+    a chat task to clear the temporary event buffer.
+    
+    In the unified event buffer architecture:
+    1. Events are always buffered to the database
+    2. Frontend replays events on session switch
+    3. Frontend saves to chat_tasks
+    4. Frontend calls this endpoint to clear the buffer
+    
+    Returns:
+        JSON object with the number of events deleted
+    """
+    log_prefix = f"[DELETE /api/v1/tasks/{task_id}/events/buffered] "
+    log.info("%sRequest from user %s to clear buffered events", log_prefix, user_id)
+
+    try:
+        # Get the SSE manager to access the persistent buffer
+        component: "WebUIBackendComponent" = get_sac_component()
+        
+        if component is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="WebUI backend component not available",
+            )
+        
+        sse_manager = component.sse_manager
+        if sse_manager is None or sse_manager._persistent_buffer is None:
+            log.warning("%sPersistent buffer not available", log_prefix)
+            return {"deleted": 0, "message": "Persistent buffer not enabled"}
+        
+        # Delete all events for this task
+        deleted_count = sse_manager._persistent_buffer.delete_events_for_task(task_id)
+        
+        log.info("%sDeleted %d buffered events for task %s", log_prefix, deleted_count, task_id)
+        
+        return {
+            "deleted": deleted_count,
+            "task_id": task_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError clearing buffered events: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while clearing buffered events.",
         )
 
 

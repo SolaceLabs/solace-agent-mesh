@@ -269,30 +269,43 @@ class SSEManager:
 
         sse_payload = {"event": event_type, "data": serialized_data}
 
-        # Check if this is a background task (for persistent buffering)
+        # Check if this is a background task (for compatibility during migration)
         is_background_task = self._is_background_task(task_id)
         
-        # For background tasks, ALWAYS buffer to persistent storage for replay
-        # This happens regardless of whether there's an active connection
-        if is_background_task:
-            if self._persistent_buffer.is_enabled():
+        # UNIFIED ARCHITECTURE: Always buffer to persistent storage for replay
+        # This enables session switching, browser refresh recovery, and reconnection for ALL tasks
+        # The FE will clear the buffer after successfully saving the chat_task
+        # Note: We check is_enabled() which is tied to the background_tasks feature flag
+        if self._persistent_buffer.is_enabled():
+            # Check if this task has metadata registered (ensures we have session_id/user_id)
+            # All tasks with registered metadata get buffered
+            task_metadata = self._persistent_buffer.get_task_metadata(task_id)
+            if task_metadata is not None:
                 buffered = self._persistent_buffer.buffer_event(
                     task_id=task_id,
                     event_type=event_type,
                     event_data=sse_payload,  # Store the full SSE payload
                 )
                 log.debug(
-                    "%s Buffered event for background task %s: type=%s, result=%s",
+                    "%s Buffered event for task %s: type=%s, is_background=%s, result=%s",
                     self.log_identifier,
                     task_id,
                     event_type,
+                    is_background_task,
                     buffered,
                 )
-            else:
+            elif is_background_task:
+                # Fallback for background tasks without registered metadata
+                # This shouldn't happen in normal flow but provides safety
                 log.warning(
-                    "%s Persistent buffer is NOT enabled - cannot buffer events for background task %s",
+                    "%s Background task %s has no registered metadata, attempting to buffer anyway",
                     self.log_identifier,
                     task_id,
+                )
+                self._persistent_buffer.buffer_event(
+                    task_id=task_id,
+                    event_type=event_type,
+                    event_data=sse_payload,
                 )
 
         # Get queues and decide action under the lock
