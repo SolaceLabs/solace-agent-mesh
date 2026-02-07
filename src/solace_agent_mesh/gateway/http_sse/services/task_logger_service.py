@@ -654,6 +654,39 @@ class TaskLoggerService:
                 )
                 return
             
+            # Check if a chat task already exists (frontend may have saved it first with frontend-only fields)
+            # If so, preserve frontend-only fields like contextQuote and displayHtml from the user message
+            chat_task_repo = ChatTaskRepository()
+            existing_chat_task = chat_task_repo.find_by_id(db, task_id)
+            if existing_chat_task:
+                try:
+                    existing_bubbles = json.loads(existing_chat_task.message_bubbles) if isinstance(existing_chat_task.message_bubbles, str) else existing_chat_task.message_bubbles
+                    # Find the existing user message bubble
+                    existing_user_bubble = next((b for b in existing_bubbles if b.get("type") == "user"), None)
+                    if existing_user_bubble:
+                        # Extract frontend-only fields
+                        frontend_only_fields = {}
+                        if existing_user_bubble.get("contextQuote"):
+                            frontend_only_fields["contextQuote"] = existing_user_bubble["contextQuote"]
+                        if existing_user_bubble.get("displayHtml"):
+                            frontend_only_fields["displayHtml"] = existing_user_bubble["displayHtml"]
+                        
+                        if frontend_only_fields:
+                            # Find the reconstructed user message bubble and merge frontend-only fields
+                            for bubble in message_bubbles:
+                                if bubble.get("type") == "user":
+                                    bubble.update(frontend_only_fields)
+                                    log.info(
+                                        f"{self.log_identifier} Preserved frontend-only fields for task {task_id}: "
+                                        f"contextQuote={bool(frontend_only_fields.get('contextQuote'))}, "
+                                        f"displayHtml={bool(frontend_only_fields.get('displayHtml'))}"
+                                    )
+                                    break
+                except Exception as e:
+                    log.warning(
+                        f"{self.log_identifier} Failed to extract frontend-only fields from existing chat task {task_id}: {e}"
+                    )
+            
             # Build task metadata including RAG data if present
             task_metadata_dict = {
                 "schema_version": 1,
@@ -680,7 +713,7 @@ class TaskLoggerService:
                 updated_time=task.end_time,
             )
             
-            chat_task_repo = ChatTaskRepository()
+            # chat_task_repo was already created above when checking for existing task
             chat_task_repo.save(db, chat_task)
             
             log.info(

@@ -14,6 +14,8 @@ export interface MessageBubble {
     uploadedFiles?: Array<{ name: string; type: string }>;
     artifactNotification?: { name: string; version?: number };
     isError?: boolean;
+    displayHtml?: string; // HTML for displaying user messages with mention chips
+    contextQuote?: string; // Original quoted text from "Ask Followup" action
 }
 
 /**

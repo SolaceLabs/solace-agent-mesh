@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ban, Paperclip, Send, MessageSquarePlus, X } from "lucide-react";
+import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
@@ -342,6 +342,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Capture the display HTML for showing in user's message bubble
             const displayHtml = chatInputRef.current?.innerHTML || null;
 
+            // If there's context text from "Ask Followup", include it in the message sent to the agent
+            // The contextQuote will be passed separately for UI display
             if (contextText && showContextBadge) {
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
@@ -441,7 +443,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
             // as the uploaded artifacts (avoids React state timing issues)
-            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml);
+            // Also pass contextQuote separately for persistent display above the message bubble
+            const contextQuoteToPass = contextText && showContextBadge ? contextText : null;
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass);
             setSelectedFiles([]);
             setPendingPastedTextItems([]);
             setInputValue("");
@@ -702,7 +706,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {showContextBadge && contextText && (
                 <div className="mb-2 overflow-hidden">
                     <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
-                        <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
                         <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"

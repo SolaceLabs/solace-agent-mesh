@@ -339,6 +339,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             })),
             isError: message.isError,
             displayHtml: message.displayHtml,
+            contextQuote: message.contextQuote,
         };
     }, []);
 
@@ -493,6 +494,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     artifactNotification: bubble.artifactNotification,
                     isError: bubble.isError,
                     displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
+                    contextQuote: bubble.contextQuote, // Restore context quote for user messages
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -1391,13 +1393,62 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         console.log(`[ChatProvider] Background task ${currentTaskIdFromResult} completed. isBackgroundTask=true`);
                         unregisterBackgroundTask(currentTaskIdFromResult);
 
+                        // Re-save the task with frontend-only fields (contextQuote, displayHtml)
+                        // The backend's TaskLoggerService saves the task but doesn't preserve these fields
+                        const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
+                        const bgTaskMessages = messagesRef.current.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
+
+                        if (bgTaskMessages.length > 0 && taskSessionId) {
+                            // Check if any user message has frontend-only fields that need to be preserved
+                            const userMessage = bgTaskMessages.find(m => m.isUser);
+                            const hasFrontendOnlyFields = userMessage?.contextQuote || userMessage?.displayHtml;
+
+                            if (hasFrontendOnlyFields) {
+                                console.log(`[ChatProvider] Re-saving background task ${currentTaskIdFromResult} to preserve frontend-only fields (contextQuote, displayHtml)`);
+
+                                // Serialize all message bubbles with frontend-only fields
+                                const messageBubbles = bgTaskMessages.map(serializeMessageBubble);
+
+                                // Extract user message text
+                                const userMessageText =
+                                    userMessage?.parts
+                                        ?.filter(p => p.kind === "text")
+                                        .map(p => (p as TextPart).text)
+                                        .join("") || "";
+
+                                // Determine task status
+                                const hasError = bgTaskMessages.some(m => m.isError);
+                                const taskStatus = hasError ? "error" : "completed";
+
+                                const taskRagData = ragDataRef.current.filter(r => r.taskId === currentTaskIdFromResult);
+
+                                // Save complete task with frontend-only fields
+                                saveTaskToBackend(
+                                    {
+                                        task_id: currentTaskIdFromResult,
+                                        user_message: userMessageText,
+                                        message_bubbles: messageBubbles,
+                                        task_metadata: {
+                                            schema_version: CURRENT_SCHEMA_VERSION,
+                                            status: taskStatus,
+                                            agent_name: selectedAgentName,
+                                            rag_data: taskRagData.length > 0 ? taskRagData : undefined,
+                                        },
+                                    },
+                                    taskSessionId
+                                ).catch(error => {
+                                    console.error(`[ChatProvider] Error re-saving background task ${currentTaskIdFromResult}:`, error);
+                                });
+                            }
+                        }
+
                         // Trigger session list refresh
                         if (typeof window !== "undefined") {
                             window.dispatchEvent(new CustomEvent("new-chat-session"));
                         }
 
                         // Also trigger title generation for background tasks (if feature is enabled)
-                        const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
+                        // taskSessionId is already defined above
                         console.log(`[ChatProvider] Title generation check: autoTitleGenerationEnabled=${autoTitleGenerationEnabled}, taskSessionId=${taskSessionId}, alreadyGenerated=${sessionsWithAutoGeneratedTitles.current.has(taskSessionId)}`);
 
                         if (autoTitleGenerationEnabled && taskSessionId && !sessionsWithAutoGeneratedTitles.current.has(taskSessionId)) {
@@ -2003,7 +2054,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
@@ -2023,6 +2074,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 displayHtml: displayHtml || undefined,
+                contextQuote: contextQuote || undefined,
                 metadata: {
                     messageId: `msg-${v4()}`,
                     sessionId: overrideSessionId || sessionId,
