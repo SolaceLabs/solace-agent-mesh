@@ -73,6 +73,48 @@ class McpToolConfig(BaseToolConfig):
         return self
 
 
+class SandboxedPythonToolConfig(BaseToolConfig):
+    """Configuration for a sandboxed Python tool executed via nsjail in a container."""
+
+    tool_type: Literal["sandboxed_python"]
+    component_module: str = Field(
+        ...,
+        description="Python module path (e.g., 'mytools.data_processor')",
+    )
+    function_name: str = Field(
+        ...,
+        description="Name of the function to call within the module",
+    )
+    tool_name: Optional[str] = Field(
+        default=None,
+        description="Override name for the tool (defaults to function_name)",
+    )
+    tool_description: Optional[str] = Field(
+        default=None,
+        description="Description of what the tool does",
+    )
+
+    # Sandbox configuration
+    sandbox_worker_id: str = Field(
+        default="sandbox-worker-001",
+        description="ID of the sandbox worker to route requests to",
+    )
+    timeout_seconds: int = Field(
+        default=300,
+        description="Maximum execution time in seconds",
+    )
+    sandbox_profile: str = Field(
+        default="standard",
+        description="nsjail profile to use (restrictive, standard, permissive)",
+    )
+
+    # Development mode
+    dev_mode: bool = Field(
+        default=False,
+        description="If True, skip sandboxing and run tools locally",
+    )
+
+
 class OpenApiToolConfig(BaseToolConfig):
     """Configuration for OpenAPI-based tools."""
     tool_type: Literal["openapi"]
@@ -108,6 +150,7 @@ AnyToolConfig = Union[
     BuiltinToolConfig,
     BuiltinGroupToolConfig,
     PythonToolConfig,
+    SandboxedPythonToolConfig,
     McpToolConfig,
     OpenApiToolConfig,
 ]

@@ -293,6 +293,114 @@ def extract_trust_card_info_from_topic(topic: str) -> tuple[str, str]:
     return component_type, component_id
 
 
+# --- Sandbox Topic Helpers ---
+
+
+def get_sandbox_request_topic(namespace: str, sandbox_worker_id: str) -> str:
+    """
+    Returns the topic for sending tool invocation requests to a sandbox worker.
+
+    Args:
+        namespace: SAM namespace
+        sandbox_worker_id: Unique identifier for the sandbox worker instance
+
+    Returns:
+        Topic string: {namespace}/a2a/v1/sandbox/request/{sandbox_worker_id}
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not sandbox_worker_id:
+        raise ValueError("Sandbox worker ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sandbox/request/{sandbox_worker_id}"
+
+
+def get_sandbox_response_topic(
+    namespace: str, agent_name: str, correlation_id: str
+) -> str:
+    """
+    Returns the topic for sandbox worker to publish tool execution responses
+    back to the requesting agent.
+
+    Args:
+        namespace: SAM namespace
+        agent_name: Name of the agent that requested the tool execution
+        correlation_id: Unique correlation ID for the request
+
+    Returns:
+        Topic string: {namespace}/a2a/v1/sandbox/response/{agent_name}/{correlation_id}
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not agent_name:
+        raise ValueError("Agent name cannot be empty.")
+    if not correlation_id:
+        raise ValueError("Correlation ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sandbox/response/{agent_name}/{correlation_id}"
+
+
+def get_sandbox_status_topic(namespace: str, agent_name: str, task_id: str) -> str:
+    """
+    Returns the topic for sandbox worker to publish status updates during
+    tool execution back to the requesting agent.
+
+    Args:
+        namespace: SAM namespace
+        agent_name: Name of the agent that requested the tool execution
+        task_id: Task ID for the tool execution
+
+    Returns:
+        Topic string: {namespace}/a2a/v1/sandbox/status/{agent_name}/{task_id}
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not agent_name:
+        raise ValueError("Agent name cannot be empty.")
+    if not task_id:
+        raise ValueError("Task ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sandbox/status/{agent_name}/{task_id}"
+
+
+def get_sandbox_response_subscription_topic(namespace: str, agent_name: str) -> str:
+    """
+    Returns the wildcard subscription topic for an agent to receive sandbox
+    tool execution responses.
+
+    Args:
+        namespace: SAM namespace
+        agent_name: Name of the subscribing agent
+
+    Returns:
+        Subscription pattern: {namespace}/a2a/v1/sandbox/response/{agent_name}/>
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not agent_name:
+        raise ValueError("Agent name cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sandbox/response/{agent_name}/>"
+
+
+def get_sandbox_status_subscription_topic(namespace: str, agent_name: str) -> str:
+    """
+    Returns the wildcard subscription topic for an agent to receive sandbox
+    tool execution status updates.
+
+    Args:
+        namespace: SAM namespace
+        agent_name: Name of the subscribing agent
+
+    Returns:
+        Subscription pattern: {namespace}/a2a/v1/sandbox/status/{agent_name}/>
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not agent_name:
+        raise ValueError("Agent name cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sandbox/status/{agent_name}/>"
+
+
+# --- Topic Utility Functions ---
+
+
 def subscription_to_regex(subscription: str) -> str:
     """Converts a Solace topic subscription string to a regex pattern."""
     # Escape regex special characters except for Solace wildcards

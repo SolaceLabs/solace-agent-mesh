@@ -44,6 +44,7 @@ from ..tools.tool_config_types import (
     BuiltinToolConfig,
     McpToolConfig,
     PythonToolConfig,
+    SandboxedPythonToolConfig,
 )
 from ..tools.executors import UnifiedPythonExecutor
 from ..tools.tool_definition import BuiltinTool
@@ -261,6 +262,100 @@ async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -
     )
 
     return loaded_python_tools, [], cleanup_hooks
+
+
+async def _load_sandboxed_python_tool(
+    component: "SamAgentComponent", tool_config: Dict
+) -> ToolLoadingResult:
+    """
+    Load a sandboxed Python tool using the SandboxedPythonExecutor.
+
+    This function creates an executor that sends tool invocations to a sandbox
+    worker running in a container via Solace broker. The sandbox worker executes
+    the tool in an nsjail environment for security isolation.
+
+    Args:
+        component: The SamAgentComponent instance
+        tool_config: Dictionary containing the tool configuration
+
+    Returns:
+        ToolLoadingResult: Tuple of (tools, builtins, cleanup_hooks)
+    """
+    from pydantic import TypeAdapter
+
+    from ..tools.executors import SandboxedPythonExecutor
+
+    sandboxed_tool_adapter = TypeAdapter(SandboxedPythonToolConfig)
+    tool_config_model = sandboxed_tool_adapter.validate_python(tool_config)
+
+    module_name = tool_config_model.component_module
+    function_name = tool_config_model.function_name
+
+    if not module_name:
+        raise ValueError("'component_module' is required for sandboxed_python tools.")
+    if not function_name:
+        raise ValueError("'function_name' is required for sandboxed_python tools.")
+
+    # Create the sandboxed executor
+    executor = SandboxedPythonExecutor(
+        module=module_name,
+        function=function_name,
+        sandbox_worker_id=tool_config_model.sandbox_worker_id,
+        timeout_seconds=tool_config_model.timeout_seconds,
+        sandbox_profile=tool_config_model.sandbox_profile,
+        dev_mode=tool_config_model.dev_mode,
+    )
+
+    # Initialize the executor
+    await executor.initialize(component, tool_config_model.model_dump())
+
+    # Create a tool wrapper for the executor
+    # The tool name defaults to function_name if not specified
+    tool_name = tool_config_model.tool_name or function_name
+    tool_description = tool_config_model.tool_description or f"Sandboxed tool: {tool_name}"
+
+    # Create a wrapper that calls the executor
+    async def sandboxed_tool_wrapper(args: Dict, tool_context) -> Dict:
+        """Wrapper function that invokes the sandboxed executor."""
+        result = await executor.execute(
+            args=args,
+            tool_context=tool_context,
+            tool_config=tool_config_model.tool_config,
+        )
+        # Convert ToolExecutionResult to dict
+        if hasattr(result, "to_dict"):
+            return result.to_dict()
+        elif hasattr(result, "model_dump"):
+            return result.model_dump()
+        return result
+
+    # Wrap in ADKToolWrapper for consistent handling
+    tool_callable = ADKToolWrapper(
+        sandboxed_tool_wrapper,
+        tool_config_model.tool_config,
+        tool_name,
+        origin="sandboxed_python",
+    )
+
+    # Set description for the tool
+    tool_callable.__doc__ = tool_description
+
+    log.info(
+        "%s Loaded sandboxed Python tool: %s (module=%s.%s, worker=%s, dev_mode=%s)",
+        component.log_identifier,
+        tool_name,
+        module_name,
+        function_name,
+        tool_config_model.sandbox_worker_id,
+        tool_config_model.dev_mode,
+    )
+
+    # Create cleanup hook for the executor
+    async def cleanup_executor():
+        await executor.cleanup(component, tool_config_model.model_dump())
+
+    return [tool_callable], [], [cleanup_executor]
+
 
 async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
     """Loads a single built-in tool from the SAM or ADK tool registry."""
@@ -802,6 +897,12 @@ async def load_adk_tools(
                         new_builtins,
                         new_cleanups,
                     ) = await _load_openapi_tool(component, tool_config)
+                elif tool_type == "sandboxed_python":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_sandboxed_python_tool(component, tool_config)
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",
