@@ -26,6 +26,24 @@ from .protocol import (
 
 log = logging.getLogger(__name__)
 
+info = {
+    "class_name": "SandboxWorkerComponent",
+    "description": (
+        "Executes sandboxed Python tools via nsjail. "
+        "Configuration is defined in the app-level 'app_config' block "
+        "and validated by SandboxWorkerApp."
+    ),
+    "config_parameters": [],
+    "input_schema": {
+        "type": "object",
+        "description": "Tool invocation request messages.",
+    },
+    "output_schema": {
+        "type": "object",
+        "description": "Tool invocation response messages.",
+    },
+}
+
 
 class SandboxWorkerComponent(SamComponentBase):
     """
@@ -36,13 +54,12 @@ class SandboxWorkerComponent(SamComponentBase):
     and publishes results back to the requesting agent.
     """
 
-    def __init__(self, info: dict[str, Any], **kwargs: Any):
+    def __init__(self, **kwargs: Any):
         """
         Initialize the sandbox worker component.
 
         Args:
-            info: Component info dictionary from SAC framework
-            **kwargs: Additional keyword arguments
+            **kwargs: Configuration parameters passed from the SAC framework.
         """
         super().__init__(info, **kwargs)
 
@@ -79,6 +96,18 @@ class SandboxWorkerComponent(SamComponentBase):
         self._active_executions: Dict[str, Any] = {}
 
         log.info("%s SandboxWorkerComponent initialized", self.log_identifier)
+
+    def _get_component_id(self) -> str:
+        """Returns the worker ID as the component identifier."""
+        return self.worker_id
+
+    def _get_component_type(self) -> str:
+        """Returns 'sandbox_worker' as the component type."""
+        return "sandbox_worker"
+
+    def _pre_async_cleanup(self) -> None:
+        """Pre-cleanup actions before stopping the async loop."""
+        pass
 
     def invoke(self, message: SolaceMessage, data: dict) -> Optional[dict]:
         """

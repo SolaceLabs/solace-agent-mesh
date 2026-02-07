@@ -1,0 +1,103 @@
+# Sandbox Test Agent Example
+#
+# This agent configuration demonstrates using sandboxed Python tools.
+# The tools are executed in an isolated container environment via nsjail.
+#
+# To test locally:
+#   1. Start SAM with this config + orchestrator + webui
+#   2. Start the sandbox worker container
+#   3. Use the web UI to interact with the agent
+#
+# Requirements:
+#   - Sandbox worker must be running (container or local)
+#   - dev_broker_network_enabled must be true for local testing
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: sandbox_test_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: sandbox_test_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+      # Enable network server for sandbox worker container
+      dev_broker_network_enabled: ${DEV_BROKER_NETWORK_ENABLED, true}
+      dev_broker_network_port: ${DEV_BROKER_PORT, 55555}
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "SandboxTestAgent"
+      display_name: "Sandbox Test"
+      model: *planning_model
+
+      instruction: |
+        You are an agent that helps test sandboxed tool execution. You have access
+        to tools that run in an isolated container environment for security.
+
+        When asked to use a sandboxed tool, you will invoke it and the execution
+        will happen in a secure nsjail sandbox inside a container.
+
+        You should provide verbose status updates about what you're doing.
+
+      # Tools configuration - mix of builtin and sandboxed tools
+      tools:
+        # Standard builtin tools
+        - tool_type: builtin
+          tool_name: "time_delay"
+
+        # Artifact management for working with files
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+        # Sandboxed echo tool - runs in container via nsjail
+        - tool_type: sandboxed_python
+          tool_name: "echo_tool"
+          tool_description: "Echo back a message from the secure sandbox environment. Use this to test sandbox execution."
+          component_module: example_sandbox_tools
+          function_name: echo_tool
+          sandbox_worker_id: sandbox-worker-001
+          timeout_seconds: 30
+          sandbox_profile: standard
+          parameters:
+            message:
+              type: string
+              description: "The message to echo back"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: |
+          Test agent for sandboxed tool execution. This agent can run tools
+          in an isolated container environment for security testing.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: sandbox_test
+            name: Sandbox Test
+            description: "Test sandboxed tool execution"
+            examples:
+              - "Run a sandboxed tool to process some data"
+              - "Execute a secure computation"
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 120

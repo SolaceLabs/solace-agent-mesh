@@ -6,6 +6,7 @@ container. It communicates via Solace broker using the A2A protocol patterns.
 """
 
 import asyncio
+import concurrent.futures
 import logging
 import time
 import uuid
@@ -89,8 +90,8 @@ class SandboxedPythonExecutor(ToolExecutor):
         # For dev mode fallback
         self._local_executor: Optional[ToolExecutor] = None
 
-        # Track pending requests
-        self._pending_responses: Dict[str, asyncio.Future] = {}
+        # Track pending requests (thread-safe concurrent futures)
+        self._pending_responses: Dict[str, concurrent.futures.Future] = {}
 
     @property
     def executor_type(self) -> str:
@@ -232,8 +233,9 @@ class SandboxedPythonExecutor(ToolExecutor):
                 request_topic,
             )
 
-            # Create a future for the response
-            response_future: asyncio.Future = asyncio.get_event_loop().create_future()
+            # Create a thread-safe future for the response
+            # (message handler may run in a different thread/event loop)
+            response_future = concurrent.futures.Future()
             self._pending_responses[correlation_id] = response_future
 
             try:
@@ -244,13 +246,11 @@ class SandboxedPythonExecutor(ToolExecutor):
                     user_properties=user_properties,
                 )
 
-                # Wait for response with timeout
-                # Note: In a full implementation, we'd need to subscribe to the
-                # response topic and have a callback that resolves the future.
-                # For now, this is a placeholder that will timeout.
+                # Wait for response with timeout using asyncio-compatible wrapper
                 try:
+                    asyncio_future = asyncio.wrap_future(response_future)
                     response_payload = await asyncio.wait_for(
-                        response_future,
+                        asyncio_future,
                         timeout=self._timeout_seconds + 10,  # Buffer for network
                     )
 
@@ -327,6 +327,10 @@ class SandboxedPythonExecutor(ToolExecutor):
         """
         future = self._pending_responses.get(correlation_id)
         if future and not future.done():
+            log.info(
+                "[SandboxedExecutor] Resolving future for correlation_id=%s",
+                correlation_id,
+            )
             future.set_result(payload)
         else:
             log.warning(

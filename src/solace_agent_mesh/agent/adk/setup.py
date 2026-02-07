@@ -283,7 +283,8 @@ async def _load_sandboxed_python_tool(
     """
     from pydantic import TypeAdapter
 
-    from ..tools.executors import SandboxedPythonExecutor
+    from ..tools.executors import SandboxedPythonExecutor, ExecutorBasedTool
+    from ..tools.executors.executor_tool import _build_schema_from_config
 
     sandboxed_tool_adapter = TypeAdapter(SandboxedPythonToolConfig)
     tool_config_model = sandboxed_tool_adapter.validate_python(tool_config)
@@ -309,36 +310,26 @@ async def _load_sandboxed_python_tool(
     # Initialize the executor
     await executor.initialize(component, tool_config_model.model_dump())
 
-    # Create a tool wrapper for the executor
+    # Register executor with component for sandbox response routing
+    component.register_sandbox_executor(executor)
+
     # The tool name defaults to function_name if not specified
     tool_name = tool_config_model.tool_name or function_name
     tool_description = tool_config_model.tool_description or f"Sandboxed tool: {tool_name}"
 
-    # Create a wrapper that calls the executor
-    async def sandboxed_tool_wrapper(args: Dict, tool_context) -> Dict:
-        """Wrapper function that invokes the sandboxed executor."""
-        result = await executor.execute(
-            args=args,
-            tool_context=tool_context,
-            tool_config=tool_config_model.tool_config,
-        )
-        # Convert ToolExecutionResult to dict
-        if hasattr(result, "to_dict"):
-            return result.to_dict()
-        elif hasattr(result, "model_dump"):
-            return result.model_dump()
-        return result
+    # Build parameter schema from config
+    params_config = tool_config_model.parameters or {}
+    schema_result = _build_schema_from_config(params_config)
 
-    # Wrap in ADKToolWrapper for consistent handling
-    tool_callable = ADKToolWrapper(
-        sandboxed_tool_wrapper,
-        tool_config_model.tool_config,
-        tool_name,
-        origin="sandboxed_python",
+    # Create an ExecutorBasedTool with proper parameter schema
+    tool = ExecutorBasedTool(
+        name=tool_name,
+        description=tool_description,
+        parameters_schema=schema_result.schema,
+        executor=executor,
+        tool_config=tool_config_model.tool_config,
+        artifact_params=dict(schema_result.artifact_params),
     )
-
-    # Set description for the tool
-    tool_callable.__doc__ = tool_description
 
     log.info(
         "%s Loaded sandboxed Python tool: %s (module=%s.%s, worker=%s, dev_mode=%s)",
@@ -354,7 +345,7 @@ async def _load_sandboxed_python_tool(
     async def cleanup_executor():
         await executor.cleanup(component, tool_config_model.model_dump())
 
-    return [tool_callable], [], [cleanup_executor]
+    return [tool], [], [cleanup_executor]
 
 
 async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:

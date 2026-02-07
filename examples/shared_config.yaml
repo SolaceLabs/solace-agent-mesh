@@ -6,6 +6,9 @@ shared_config:
       broker_password: ${SOLACE_BROKER_PASSWORD, default}
       broker_vpn: ${SOLACE_BROKER_VPN, default}
       temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+      # Dev broker network settings (for sandbox worker container connectivity)
+      dev_broker_network_enabled: ${DEV_BROKER_NETWORK_ENABLED, false}
+      dev_broker_network_port: ${DEV_BROKER_PORT, 55554}
      # Ensure high enough limits if many agents are running
       # max_connection_retries: -1 # Retry forever
 

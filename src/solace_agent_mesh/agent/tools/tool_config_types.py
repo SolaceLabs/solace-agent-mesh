@@ -108,6 +108,12 @@ class SandboxedPythonToolConfig(BaseToolConfig):
         description="nsjail profile to use (restrictive, standard, permissive)",
     )
 
+    # Tool parameters for LLM schema generation
+    parameters: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Parameter definitions for the tool (used to build LLM schema)",
+    )
+
     # Development mode
     dev_mode: bool = Field(
         default=False,

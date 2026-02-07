@@ -125,12 +125,12 @@ async def run_tool_async(
     """
     func = load_tool_function(module_path, function_name)
 
-    # Call the function with args and context
-    # Tools expect (args_dict, tool_context) signature
+    # Call the function with context as first arg and args as kwargs
+    # Tools expect (ctx, **kwargs) signature, e.g. echo_tool(ctx, message="hello")
     if asyncio.iscoroutinefunction(func):
-        result = await func(args, context)
+        result = await func(context, **args)
     else:
-        result = func(args, context)
+        result = func(context, **args)
 
     return serialize_result(result)
 

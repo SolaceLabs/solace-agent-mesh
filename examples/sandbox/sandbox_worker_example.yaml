@@ -1,0 +1,60 @@
+# Sandbox Worker Configuration Example
+#
+# This configuration runs a sandbox worker that executes Python tools
+# in an isolated nsjail environment. The worker communicates with SAM
+# agents via Solace broker.
+#
+# For local testing with dev broker:
+#   1. Run SAM with dev_mode=true and dev_broker_network_enabled=true
+#   2. Run the sandbox worker container with DEV_BROKER_HOST set
+#
+# For production with Solace:
+#   Configure the broker section with your Solace broker details.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: sandbox_worker.log
+
+# Include shared config for broker connection
+!include ../shared_config.yaml
+
+apps:
+  - name: sandbox_worker_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.sandbox.app
+    broker:
+      <<: *broker_connection
+      # Enable network server so containers can connect (for local testing)
+      dev_broker_network_enabled: ${DEV_BROKER_NETWORK_ENABLED, false}
+      dev_broker_network_port: ${DEV_BROKER_PORT, 55555}
+
+    app_config:
+      # Namespace must match the agents that will use sandboxed tools
+      namespace: ${NAMESPACE}
+
+      # Unique identifier for this worker instance
+      worker_id: ${SANDBOX_WORKER_ID, sandbox-worker-001}
+
+      # Default timeout for tool executions (in seconds)
+      default_timeout_seconds: 300
+
+      # nsjail configuration
+      nsjail:
+        # Path to nsjail binary
+        nsjail_bin: /usr/bin/nsjail
+        # Directory containing nsjail config profiles
+        config_dir: /etc/nsjail
+        # Python binary to use inside the sandbox
+        python_bin: /usr/local/bin/python3
+        # Working directory for sandbox executions
+        work_base_dir: /sandbox/work
+        # Default profile (restrictive, standard, permissive)
+        default_profile: standard
+        # Max concurrent tool executions
+        max_concurrent_executions: 4
+
+      # Artifact service configuration (matches agent config)
+      artifact_service:
+        type: filesystem
+        base_path: /tmp/samv2

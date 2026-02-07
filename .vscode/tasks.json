@@ -1,0 +1,108 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Show Sandbox Container Command",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "\n========================================\n",
+                "SANDBOX WORKER CONTAINER\n",
+                "========================================\n",
+                "\nTo start the sandbox worker container, run in a separate terminal:\n\n",
+                "  # Using Podman:\n",
+                "  podman run --rm -it --privileged \\\n",
+                "    -e DEV_BROKER_HOST=host.containers.internal \\\n",
+                "    -e DEV_BROKER_PORT=55554 \\\n",
+                "    -e SAM_NAMESPACE=${NAMESPACE:-solace-agent-mesh/v1} \\\n",
+                "    sam-sandbox-worker\n\n",
+                "  # Using Docker:\n",
+                "  docker run --rm -it --privileged \\\n",
+                "    -e DEV_BROKER_HOST=host.docker.internal \\\n",
+                "    -e DEV_BROKER_PORT=55554 \\\n",
+                "    -e SAM_NAMESPACE=${NAMESPACE:-solace-agent-mesh/v1} \\\n",
+                "    sam-sandbox-worker\n\n",
+                "Build the container first (from repo root):\n",
+                "  podman build -t sam-sandbox-worker -f sandbox-worker/Dockerfile .\n",
+                "  # or: docker build -t sam-sandbox-worker -f sandbox-worker/Dockerfile .\n\n",
+                "========================================"
+            ],
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build Sandbox Worker Container",
+            "type": "shell",
+            "command": "podman",
+            "args": [
+                "build",
+                "-t", "sam-sandbox-worker",
+                "-f", "sandbox-worker/Dockerfile",
+                "."
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Run Sandbox Worker Container (Podman)",
+            "type": "shell",
+            "command": "podman",
+            "args": [
+                "run",
+                "--rm",
+                "-it",
+                "--privileged",
+                "-e", "DEV_BROKER_HOST=host.containers.internal",
+                "-e", "DEV_BROKER_PORT=55554",
+                "-e", "SAM_NAMESPACE=${NAMESPACE}",
+                "sam-sandbox-worker"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": [],
+            "isBackground": false
+        },
+        {
+            "label": "Run Sandbox Worker Container (Docker)",
+            "type": "shell",
+            "command": "docker",
+            "args": [
+                "run",
+                "--rm",
+                "-it",
+                "--privileged",
+                "-e", "DEV_BROKER_HOST=host.docker.internal",
+                "-e", "DEV_BROKER_PORT=55554",
+                "-e", "SAM_NAMESPACE=${NAMESPACE}",
+                "sam-sandbox-worker"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": [],
+            "isBackground": false
+        }
+    ]
+}

@@ -148,6 +148,9 @@ class SamAgentComponent(SamComponentBase):
 
         # Initialize the agent registry for health tracking
         self.agent_registry = AgentRegistry()
+
+        # Registry for sandbox executors (populated during tool loading)
+        self._sandbox_executors = []
         try:
             self.namespace = self.get_config("namespace")
             if not self.namespace:
@@ -496,6 +499,26 @@ class SamAgentComponent(SamComponentBase):
         # Create event and process asynchronously
         event = Event(EventType.MESSAGE, message)
         await process_event(self, event)
+
+    def register_sandbox_executor(self, executor) -> None:
+        """Register a sandbox executor for response routing."""
+        self._sandbox_executors.append(executor)
+
+    def handle_sandbox_response(self, correlation_id: str, payload: Dict) -> None:
+        """Route a sandbox response to the executor that made the request."""
+        log.info(
+            "%s Routing sandbox response to %d executor(s): correlation_id=%s",
+            self.log_identifier,
+            len(self._sandbox_executors),
+            correlation_id,
+        )
+        for executor in self._sandbox_executors:
+            executor.handle_response(correlation_id, payload)
+
+    def handle_sandbox_status(self, correlation_id: str, status_text: str) -> None:
+        """Route a sandbox status update to the executor that made the request."""
+        for executor in self._sandbox_executors:
+            executor.handle_status(correlation_id, status_text)
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
         """Handles timer events for agent card publishing and health checks."""

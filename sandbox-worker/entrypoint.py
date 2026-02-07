@@ -58,16 +58,50 @@ def build_app_info() -> Dict[str, Any]:
     namespace = get_env("SAM_NAMESPACE", required=True)
     worker_id = get_env("SAM_WORKER_ID", "sandbox-worker-001")
 
-    # Broker configuration
-    solace_host = get_env("SOLACE_HOST", required=True)
-    solace_vpn = get_env("SOLACE_VPN", "default")
-    solace_username = get_env("SOLACE_USERNAME", "admin")
-    solace_password = get_env("SOLACE_PASSWORD", "admin")
+    # Check if using dev broker (network mode)
+    dev_broker_host = get_env("DEV_BROKER_HOST")
+    dev_broker_port = get_env_int("DEV_BROKER_PORT", 55555)
 
-    # Optional broker settings
-    trust_store_path = get_env("SOLACE_TRUST_STORE_PATH")
-    client_cert_path = get_env("SOLACE_CLIENT_CERT_PATH")
-    client_key_path = get_env("SOLACE_CLIENT_KEY_PATH")
+    if dev_broker_host:
+        # Use network dev broker (for local testing with containers)
+        log.info(
+            "Using network dev broker at %s:%d",
+            dev_broker_host,
+            dev_broker_port,
+        )
+        broker_config = {
+            "dev_mode": True,
+            "dev_broker_host": dev_broker_host,
+            "dev_broker_port": dev_broker_port,
+        }
+    else:
+        # Use real Solace broker
+        solace_host = get_env("SOLACE_HOST", required=True)
+        solace_vpn = get_env("SOLACE_VPN", "default")
+        solace_username = get_env("SOLACE_USERNAME", "admin")
+        solace_password = get_env("SOLACE_PASSWORD", "admin")
+
+        # Optional broker settings
+        trust_store_path = get_env("SOLACE_TRUST_STORE_PATH")
+        client_cert_path = get_env("SOLACE_CLIENT_CERT_PATH")
+        client_key_path = get_env("SOLACE_CLIENT_KEY_PATH")
+
+        broker_config = {
+            "host": solace_host,
+            "vpn": solace_vpn,
+            "username": solace_username,
+            "password": solace_password,
+            "reconnect_retries": get_env_int("SOLACE_RECONNECT_RETRIES", 10),
+            "reconnect_delay_ms": get_env_int("SOLACE_RECONNECT_DELAY_MS", 3000),
+        }
+
+        # Add optional TLS settings
+        if trust_store_path:
+            broker_config["trust_store_path"] = trust_store_path
+        if client_cert_path:
+            broker_config["client_cert_path"] = client_cert_path
+        if client_key_path:
+            broker_config["client_key_path"] = client_key_path
 
     # nsjail configuration
     nsjail_config = {
@@ -101,23 +135,8 @@ def build_app_info() -> Dict[str, Any]:
             "nsjail": nsjail_config,
             "artifact_service": artifact_config,
         },
-        "broker": {
-            "host": solace_host,
-            "vpn": solace_vpn,
-            "username": solace_username,
-            "password": solace_password,
-            "reconnect_retries": get_env_int("SOLACE_RECONNECT_RETRIES", 10),
-            "reconnect_delay_ms": get_env_int("SOLACE_RECONNECT_DELAY_MS", 3000),
-        },
+        "broker": broker_config,
     }
-
-    # Add optional TLS settings
-    if trust_store_path:
-        app_info["broker"]["trust_store_path"] = trust_store_path
-    if client_cert_path:
-        app_info["broker"]["client_cert_path"] = client_cert_path
-    if client_key_path:
-        app_info["broker"]["client_key_path"] = client_key_path
 
     return app_info
 
@@ -135,11 +154,17 @@ def main():
         log.error("Failed to build configuration: %s", e)
         sys.exit(1)
 
+    broker = app_info["broker"]
+    if broker.get("dev_broker_host"):
+        broker_desc = f"dev_broker@{broker['dev_broker_host']}:{broker['dev_broker_port']}"
+    else:
+        broker_desc = broker.get("host", "unknown")
+
     log.info(
-        "Configuration: namespace=%s, worker_id=%s, host=%s",
+        "Configuration: namespace=%s, worker_id=%s, broker=%s",
         app_info["app_config"]["namespace"],
         app_info["app_config"]["worker_id"],
-        app_info["broker"]["host"],
+        broker_desc,
     )
 
     # Import SAM components
@@ -153,9 +178,13 @@ def main():
         )
         sys.exit(1)
 
+    import threading
+
+    stop_signal = threading.Event()
+
     # Create and configure the app
     try:
-        app = SandboxWorkerApp(app_info)
+        app = SandboxWorkerApp(app_info, app_index=0, stop_signal=stop_signal)
     except Exception as e:
         log.error("Failed to create SandboxWorkerApp: %s", e)
         sys.exit(1)
@@ -163,6 +192,7 @@ def main():
     # Set up signal handlers for graceful shutdown
     def signal_handler(signum, frame):
         log.info("Received signal %d, shutting down...", signum)
+        stop_signal.set()
         try:
             app.stop()
         except Exception as e:
@@ -176,8 +206,11 @@ def main():
     log.info("Starting SandboxWorkerApp...")
     try:
         app.run()
+        # Wait for stop signal
+        stop_signal.wait()
     except KeyboardInterrupt:
         log.info("Interrupted, shutting down...")
+        stop_signal.set()
         app.stop()
     except Exception as e:
         log.error("SandboxWorkerApp failed: %s", e)
