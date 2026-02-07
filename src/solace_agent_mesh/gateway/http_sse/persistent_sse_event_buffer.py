@@ -64,73 +64,23 @@ class PersistentSSEEventBuffer:
         """
         Store task metadata for later use when buffering events.
         
-        This stores metadata both in memory (for fast access) and persists it
-        to the database (for cross-process and restart resilience).
-        This should be called when a task is created so we have the
-        session_id and user_id available when buffering events.
+        This stores metadata in memory (for fast access). Cross-process access
+        is handled via get_task_metadata which falls back to database lookup.
         
         Args:
             task_id: The task ID
             session_id: The session ID
             user_id: The user ID
         """
-        # Store in memory cache for fast access
+        # Store in memory cache only - don't write to DB to avoid conflicts
         with self._lock:
             self._task_metadata_cache[task_id] = {
                 "session_id": session_id,
                 "user_id": user_id,
             }
         
-        # Also persist to database for cross-process access
-        if self._session_factory:
-            try:
-                from .repository.task_repository import TaskRepository
-                from .repository.entities.task import Task
-                
-                db = self._session_factory()
-                try:
-                    repo = TaskRepository()
-                    task = repo.find_by_id(db, task_id)
-                    if task:
-                        # Update existing task with session_id
-                        task.session_id = session_id
-                        repo.save_task(db, task)
-                        log.debug(
-                            "%s Updated task %s with session_id=%s in database",
-                            self.log_identifier,
-                            task_id,
-                            session_id,
-                        )
-                    else:
-                        # Task doesn't exist yet - create a minimal record
-                        # The TaskLoggerService will fill in the rest later
-                        import time
-                        now_ms = int(time.time() * 1000)
-                        new_task = Task(
-                            id=task_id,
-                            user_id=user_id,
-                            start_time=now_ms,
-                            session_id=session_id,
-                        )
-                        repo.save_task(db, new_task)
-                        log.debug(
-                            "%s Created task %s with session_id=%s in database",
-                            self.log_identifier,
-                            task_id,
-                            session_id,
-                        )
-                    db.commit()
-                finally:
-                    db.close()
-            except Exception as e:
-                log.warning(
-                    "%s Failed to persist task metadata to database: %s",
-                    self.log_identifier,
-                    e,
-                )
-        
         log.debug(
-            "%s Set metadata for task %s: session=%s, user=%s",
+            "%s Cached metadata for task %s: session=%s, user=%s",
             self.log_identifier,
             task_id,
             session_id,

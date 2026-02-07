@@ -1083,6 +1083,179 @@ async def clear_buffered_task_events(
         )
 
 
+@router.get("/tasks/{task_id}/title-data", tags=["Tasks"])
+async def get_task_title_data(
+    task_id: str,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+):
+    """
+    Extract user message and agent response from task for title generation.
+    
+    This endpoint extracts the first user message and final agent response from:
+    1. The Task table (initial_request_text for user message)
+    2. The SSE event buffer (final response for agent response)
+    
+    Used for background task title generation when the frontend was not watching.
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/title-data] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+    
+    try:
+        from ..repository.task_repository import TaskRepository
+        from ..repository.sse_event_buffer_repository import SSEEventBufferRepository
+        from ..repository.chat_task_repository import ChatTaskRepository
+        import json
+        
+        task_repo = TaskRepository()
+        buffer_repo = SSEEventBufferRepository()
+        chat_task_repo = ChatTaskRepository()
+        
+        # Get task for initial_request_text (user message) and session_id
+        task = task_repo.find_by_id(db, task_id)
+        if not task:
+            log.warning("%sTask %s not found", log_prefix, task_id)
+            return {
+                "user_message": None,
+                "agent_response": None,
+                "error": "Task not found"
+            }
+        
+        user_message = None
+        agent_response = None
+        
+        try:
+            chat_task = chat_task_repo.find_by_id(db, task_id, user_id)
+            if chat_task:
+                log.info("%sPrimary: Found chat_task for task %s", log_prefix, task_id)
+                
+                # Use the clean user_message from chat_task
+                user_message = chat_task.user_message
+                
+                # Extract agent response from message_bubbles
+                if chat_task.message_bubbles:
+                    bubbles = json.loads(chat_task.message_bubbles)
+                    for bubble in reversed(bubbles):  # Start from most recent
+                        if bubble.get("direction") == "agent" or bubble.get("sender") == "agent":
+                            # Look for text parts in the bubble
+                            parts = bubble.get("parts", [])
+                            for part in parts:
+                                if part.get("type") == "text" or part.get("kind") == "text":
+                                    text = part.get("text", "")
+                                    if text and len(text) > 10:
+                                        agent_response = text
+                                        break
+                            if agent_response:
+                                break
+                                
+                if user_message and agent_response:
+                    log.info("%sUsing chat_task data: user=%d chars, agent=%d chars",
+                             log_prefix, len(user_message), len(agent_response))
+        except Exception as e:
+            log.warning("%sError reading from chat_tasks: %s", log_prefix, e)
+        
+        # Fallback to task.initial_request_text if no user_message from chat_task
+        if not user_message:
+            user_message = task.initial_request_text
+        
+        # FALLBACK: SSE event buffer (if chat_task didn't have agent response)
+        # This handles cases where task completed but FE hasn't saved chat_task yet
+        if not agent_response:
+            try:
+                events = buffer_repo.get_buffered_events(db, task_id, mark_consumed=False)
+                log.info("%sFallback SSE buffer: Found %d buffered events for task %s", log_prefix, len(events), task_id)
+                
+                # Collect streaming text fragments from status-update events (agent_progress_update)
+                # In streaming mode, text is sent incrementally, not in the final task response
+                streaming_text_parts = []
+                
+                # Look for final "task" event with response text OR accumulate streaming text
+                for event in events:  # Process in sequence order for streaming text
+                    event_data = event.get("data", "")
+                    if isinstance(event_data, str):
+                        try:
+                            parsed = json.loads(event_data)
+                        except json.JSONDecodeError:
+                            continue
+                    else:
+                        parsed = event_data
+                    
+                    # Check if this is an SSE wrapper with nested data
+                    if "data" in parsed and isinstance(parsed.get("data"), str):
+                        try:
+                            inner_data = json.loads(parsed["data"])
+                            parsed = inner_data
+                        except json.JSONDecodeError:
+                            pass
+                        
+                    # Check for task response with text parts (non-streaming final response)
+                    result = parsed.get("result", {})
+                    if result.get("kind") == "task":
+                        task_data = result.get("task", {})
+                        artifacts = task_data.get("artifacts", [])
+                        for artifact in artifacts:
+                            parts = artifact.get("parts", [])
+                            for part in parts:
+                                if part.get("kind") == "text":
+                                    text = part.get("text", "")
+                                    if text and len(text) > 10:  # Meaningful response
+                                        agent_response = text
+                                        break
+                            if agent_response:
+                                break
+                        if agent_response:
+                            break
+                            
+                    # Collect streaming text from status updates (agent_progress_update)
+                    if result.get("kind") == "status-update":
+                        status = result.get("status", {})
+                        message = status.get("message", {})
+                        if message:
+                            parts = message.get("parts", [])
+                            for part in parts:
+                                if part.get("kind") == "text":
+                                    text = part.get("text", "")
+                                    if text:
+                                        streaming_text_parts.append(text)
+                                        
+                    # Also check for agent_progress_update type (direct SSE event type)
+                    if parsed.get("type") == "agent_progress_update":
+                        text = parsed.get("text", "")
+                        if text:
+                            streaming_text_parts.append(text)
+                
+                # If no bundled response, use accumulated streaming text
+                if not agent_response and streaming_text_parts:
+                    agent_response = "".join(streaming_text_parts)
+                    log.info("%sReconstructed agent response from %d streaming fragments (%d chars)",
+                             log_prefix, len(streaming_text_parts), len(agent_response))
+                        
+            except Exception as e:
+                log.warning("%sError extracting agent response from SSE buffer: %s", log_prefix, e)
+        
+        
+        log.info(
+            "%sExtracted title data: user_message=%s, agent_response=%s",
+            log_prefix,
+            "yes" if user_message else "no",
+            "yes" if agent_response else "no"
+        )
+        
+        return {
+            "user_message": user_message,
+            "agent_response": agent_response,
+            "task_id": task_id,
+            "session_id": task.session_id,
+        }
+        
+    except Exception as e:
+        log.exception("%sError extracting title data: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while extracting title data.",
+        )
+
+
 @router.get("/tasks/{task_id}", tags=["Tasks"])
 async def get_task_as_stim_file(
     task_id: str,

@@ -144,7 +144,8 @@ class SSEManager:
                         task_id,
                     )
             else:
-                log.warning(
+                # This can happen due to timing - task may have been cleaned up already
+                log.debug(
                     "%s Attempted to remove queue for non-existent Task ID: %s.",
                     self.log_identifier,
                     task_id,

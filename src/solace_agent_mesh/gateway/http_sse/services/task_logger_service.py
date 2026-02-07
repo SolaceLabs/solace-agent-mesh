@@ -75,7 +75,7 @@ class TaskLoggerService:
             repo = TaskRepository()
 
             # Infer details from the parsed event
-            direction, task_id, user_id = self._infer_event_details(
+            direction, task_id, user_id, session_id = self._infer_event_details(
                 topic, parsed_event, user_properties
             )
 
@@ -146,12 +146,14 @@ class TaskLoggerService:
                         last_activity_time=current_time,
                         background_execution_enabled=background_execution_enabled,
                         max_execution_time_ms=max_execution_time_ms,
+                        session_id=session_id,  # Store session_id for persistent event buffering
                     )
                     repo.save_task(db, new_task)
                     log.info(
                         f"{self.log_identifier} Created new task record for ID: {task_id}"
                         + (f" with parent: {parent_task_id}" if parent_task_id else "")
                         + (f" (background execution enabled)" if background_execution_enabled else "")
+                        + (f" (session: {session_id})" if session_id else "")
                     )
                 else:
                     # We received an event for a task we haven't seen the start of.
@@ -166,6 +168,7 @@ class TaskLoggerService:
                         execution_mode="foreground",
                         last_activity_time=current_time,
                         background_execution_enabled=False,
+                        session_id=session_id,  # Store session_id for persistent event buffering
                     )
                     repo.save_task(db, placeholder_task)
                     log.info(
@@ -173,8 +176,18 @@ class TaskLoggerService:
                     )
             else:
                 # Update last activity time for existing task
-                task.last_activity_time = now_epoch_ms()
-                repo.save_task(db, task)
+                # This is a non-critical update that can fail due to cross-process SQLite concurrency
+                try:
+                    task.last_activity_time = now_epoch_ms()
+                    repo.save_task(db, task)
+                except Exception as activity_update_error:
+                    # StaleDataError or other concurrency issues - log and continue
+                    # The task may have been modified/deleted by another process (FastAPI vs SAC)
+                    log.debug(
+                        f"{self.log_identifier} Non-critical: Failed to update last_activity_time for task {task_id}: {activity_update_error}"
+                    )
+                    # Refresh the session to clear the stale state for subsequent operations
+                    db.rollback()
 
             # Create and save the event using the sanitized raw payload
             task_event = TaskEvent(
@@ -275,10 +288,15 @@ class TaskLoggerService:
 
     def _infer_event_details(
         self, topic: str, parsed_event: Any, user_props: Dict | None
-    ) -> tuple[str, str | None, str | None]:
-        """Infers direction, task_id, and user_id from a parsed A2A event."""
+    ) -> tuple[str, str | None, str | None, str | None]:
+        """Infers direction, task_id, user_id, and session_id from a parsed A2A event.
+        
+        Returns:
+            Tuple of (direction, task_id, user_id, session_id)
+        """
         direction = "unknown"
         task_id = None
+        session_id = None  # Will be extracted from context_id
         # Ensure user_props is a dict, not None
         user_props = user_props or {}
         user_id = user_props.get("userId")
@@ -286,6 +304,10 @@ class TaskLoggerService:
         if isinstance(parsed_event, A2ARequest):
             direction = "request"
             task_id = a2a.get_request_id(parsed_event)
+            # Extract session_id from context_id in the message
+            message = a2a.get_message_from_send_request(parsed_event)
+            if message:
+                session_id = a2a.get_context_id(message)
         elif isinstance(
             parsed_event, (A2ATask, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
         ):
@@ -293,10 +315,13 @@ class TaskLoggerService:
             task_id = getattr(parsed_event, "task_id", None) or getattr(
                 parsed_event, "id", None
             )
+            # Extract session_id from context_id
+            session_id = getattr(parsed_event, "context_id", None)
         elif isinstance(parsed_event, JSONRPCError):
             direction = "error"
             if isinstance(parsed_event.data, dict):
                 task_id = parsed_event.data.get("taskId")
+                session_id = parsed_event.data.get("contextId")
 
         if not user_id:
             user_config = user_props.get("a2aUserConfig") or user_props.get("a2a_user_config")
@@ -305,7 +330,7 @@ class TaskLoggerService:
                 if isinstance(user_profile, dict):
                     user_id = user_profile.get("id")
 
-        return direction, str(task_id) if task_id else None, user_id
+        return direction, str(task_id) if task_id else None, user_id, session_id
 
     def _extract_initial_text(self, parsed_event: Any) -> str | None:
         """Extracts the initial text from a send message request."""
