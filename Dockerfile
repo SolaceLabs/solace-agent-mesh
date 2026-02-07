@@ -152,7 +152,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
 
 # Fix CVE-2026-25547: Upgrade npm to 11.9.0+ (includes @isaacs/brace-expansion@5.0.1)
 # Node 25.5.0 bundles npm 11.8.0 which has vulnerable @isaacs/brace-expansion@5.0.0
-RUN npm install -g npm@11.9.0
+RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.9.0
 
 
 # Install playwright temporarily just for browser installation (cached layer)
