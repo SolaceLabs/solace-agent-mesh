@@ -96,6 +96,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
     const messagesRef = useRef<MessageFE[]>([]);
 
+    // Ref to hold the replay function - allows calling from loadSessionTasks which is defined earlier
+    const replayBufferedEventsRef = useRef<((taskId: string) => Promise<boolean>) | null>(null);
+
+    // Track if we're currently replaying buffered events
+    // When true, handleSseMessage will skip save operations since the data is already persisted
+    const isReplayingEventsRef = useRef(false);
+
     // Track query history for deep research progress timeline
     // This accumulates queries and their URLs as they come in via deep_research_progress events
     const deepResearchQueryHistoryRef = useRef<
@@ -528,9 +535,40 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Deserialize all tasks to messages
             const allMessages: MessageFE[] = [];
+
+            // Track which tasks have been replayed from buffered events
+            // so we can skip deserializing those from chat_tasks
+            const replayedTaskIds = new Set<string>();
+
+            // Try to replay buffered events for each task
+            // This will use resolved embeds instead of raw markers from chat_tasks
+            if (replayBufferedEventsRef.current && backgroundTasksEnabled) {
+                for (const task of migratedTasks) {
+                    try {
+                        // Check if this task has buffered events and replay them
+                        const response = await api.webui.get(`/api/v1/tasks/${task.taskId}/events/buffered`);
+                        if (response.events_buffered && response.events.length > 0) {
+                            console.log(`[loadSessionTasks] Task ${task.taskId} has ${response.events.length} buffered events, will replay`);
+                            replayedTaskIds.add(task.taskId);
+                        }
+                    } catch (error) {
+                        // Ignore errors - task may not have buffered events or endpoint may not exist
+                        console.debug(`[loadSessionTasks] Could not check buffered events for task ${task.taskId}:`, error);
+                    }
+                }
+            }
+
             for (const task of migratedTasks) {
-                const taskMessages = deserializeTaskToMessages(task, sessionId);
-                allMessages.push(...taskMessages);
+                // Skip deserialization for tasks that will be replayed
+                if (replayedTaskIds.has(task.taskId)) {
+                    // Add user messages only from chat_tasks since they're not in SSE events
+                    const taskMessages = deserializeTaskToMessages(task, sessionId);
+                    const userMessages = taskMessages.filter(m => m.isUser);
+                    allMessages.push(...userMessages);
+                } else {
+                    const taskMessages = deserializeTaskToMessages(task, sessionId);
+                    allMessages.push(...taskMessages);
+                }
             }
 
             // Extract feedback state from task metadata
@@ -581,8 +619,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const mostRecentTask = migratedTasks[migratedTasks.length - 1];
                 setTaskIdInSidePanel(mostRecentTask.taskId);
             }
+
+            // Now replay buffered events for tasks that have them
+            // This is done after setting initial messages so user messages are visible
+            if (replayBufferedEventsRef.current && replayedTaskIds.size > 0) {
+                console.log(`[loadSessionTasks] Replaying buffered events for ${replayedTaskIds.size} tasks`);
+                for (const taskId of replayedTaskIds) {
+                    const replayed = await replayBufferedEventsRef.current(taskId);
+                    if (replayed) {
+                        console.log(`[loadSessionTasks] Successfully replayed buffered events for task ${taskId}`);
+                    } else {
+                        console.warn(`[loadSessionTasks] Failed to replay buffered events for task ${taskId}`);
+                    }
+                }
+            }
         },
-        [deserializeTaskToMessages, setRagData]
+        [deserializeTaskToMessages, setRagData, backgroundTasksEnabled]
     );
 
     // Session State
@@ -1307,7 +1359,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Save complete task when agent response is done (Step 10.5-10.9)
                 // Note: For background tasks, the backend TaskLoggerService handles saving automatically
                 // For non-background tasks, we save here
-                if (currentTaskIdFromResult) {
+                // Skip save operations when replaying buffered events (data is already persisted)
+                if (currentTaskIdFromResult && !isReplayingEventsRef.current) {
                     const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
 
                     // Only save non-background tasks from frontend
@@ -1559,6 +1612,76 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         ]
     );
 
+    // Helper function to replay buffered SSE events for a background task
+    // This is used when a background task completed while the user was away
+    const replayBufferedEvents = useCallback(
+        async (taskId: string): Promise<boolean> => {
+            try {
+                console.log(`[ChatProvider] Fetching buffered events for task ${taskId}`);
+                const response = await api.webui.get(`/api/v1/tasks/${taskId}/events/buffered`);
+
+                if (!response.events_buffered || response.events.length === 0) {
+                    console.log(`[ChatProvider] No buffered events for task ${taskId}`);
+                    return false;
+                }
+
+                console.log(`[ChatProvider] Replaying ${response.events.length} buffered events for task ${taskId}`);
+
+                // Reset the SSE event sequence counter for replay
+                // This ensures proper sequencing during replay
+                const originalSequence = sseEventSequenceRef.current;
+                sseEventSequenceRef.current = 0;
+
+                // Clear any existing AGENT messages for this task before replaying
+                // Keep user messages since they're not in the SSE events
+                // This prevents duplicate content when replaying while preserving user input
+                setMessages(prev => prev.filter(msg => msg.taskId !== taskId || msg.isUser));
+
+                // Set the replay flag to prevent save operations during replay
+                // The data is already persisted, so we don't want to re-save and update timestamps
+                isReplayingEventsRef.current = true;
+
+                try {
+                    // Process each buffered event through the SSE handler
+                    for (const bufferedEvent of response.events) {
+                        // The buffered event data contains the full SSE payload
+                        // which has {event: "message", data: "...serialized JSON..."}
+                        const ssePayload = bufferedEvent.data;
+
+                        if (ssePayload && ssePayload.data) {
+                            // Create a synthetic MessageEvent-like object
+                            const syntheticEvent = {
+                                data: ssePayload.data, // This is the serialized JSON string
+                            } as MessageEvent;
+
+                            // Process through the SSE handler
+                            handleSseMessage(syntheticEvent);
+                        }
+                    }
+                } finally {
+                    // Always reset the replay flag, even if an error occurred
+                    isReplayingEventsRef.current = false;
+                }
+
+                // Restore the sequence counter (or keep the new value if higher)
+                sseEventSequenceRef.current = Math.max(originalSequence, sseEventSequenceRef.current);
+
+                console.log(`[ChatProvider] Finished replaying buffered events for task ${taskId}`);
+                return true;
+            } catch (error) {
+                console.error(`[ChatProvider] Error replaying buffered events for task ${taskId}:`, error);
+                isReplayingEventsRef.current = false; // Reset flag on error
+                return false;
+            }
+        },
+        [handleSseMessage]
+    );
+
+    // Keep the ref in sync with the latest replayBufferedEvents function
+    useEffect(() => {
+        replayBufferedEventsRef.current = replayBufferedEvents;
+    }, [replayBufferedEvents]);
+
     const handleNewSession = useCallback(
         async (preserveProjectContext: boolean = false) => {
             const log_prefix = "ChatProvider.handleNewSession:";
@@ -1754,8 +1877,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             break;
                         } else {
                             // Task is no longer running - it completed while we were away
-                            // Unregister it and trigger title generation if needed
-                            console.log(`[ChatProvider] Background task ${bgTask.taskId} completed while away, unregistering`);
+                            // Try to replay buffered events to get properly resolved content
+                            console.log(`[ChatProvider] Background task ${bgTask.taskId} completed while away, attempting to replay buffered events`);
+
+                            // Replay buffered events to get properly resolved embeds
+                            const replayedSuccessfully = await replayBufferedEvents(bgTask.taskId);
+                            if (replayedSuccessfully) {
+                                console.log(`[ChatProvider] Successfully replayed buffered events for task ${bgTask.taskId}`);
+                            } else {
+                                console.log(`[ChatProvider] No buffered events for task ${bgTask.taskId}, using loadSessionTasks data`);
+                            }
+
+                            // Unregister the background task
                             unregisterBackgroundTask(bgTask.taskId);
 
                             // Trigger title generation for completed background task (if feature is enabled)
@@ -1831,6 +1964,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             autoTitleGenerationEnabled,
             generateTitle,
             isTaskRunningInBackground,
+            replayBufferedEvents,
         ]
     );
 
@@ -2409,7 +2543,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // Reload the session if it's currently active
                     if (currentSessionIdRef.current === completedTask.sessionId) {
                         console.log(`[ChatProvider] Reloading current session ${completedTask.sessionId} to get latest data`);
-                        await loadSessionTasks(completedTask.sessionId);
+
+                        // Try to replay buffered events first (new single-path approach)
+                        // This ensures embeds and templates are properly resolved through the frontend's SSE processing
+                        const replayedSuccessfully = await replayBufferedEvents(completedTaskId);
+
+                        if (!replayedSuccessfully) {
+                            // Fall back to loading from chat_tasks if no buffered events
+                            console.log(`[ChatProvider] No buffered events, falling back to loadSessionTasks`);
+                            await loadSessionTasks(completedTask.sessionId);
+                        }
                     }
                 }, 1500); // Increased delay to ensure save completes
             }
@@ -2419,7 +2562,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         return () => {
             window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
-    }, [loadSessionTasks]);
+    }, [loadSessionTasks, replayBufferedEvents]);
 
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate

@@ -395,6 +395,10 @@ class TaskLoggerService:
         Save chat messages for a completed background task by reconstructing them from task events.
         This ensures chat history is available when users return to a session after a background task completes.
         Uses upsert to avoid duplicates.
+        
+        NOTE: Even if SSE events are buffered (task.events_buffered=True), we still save to chat_tasks
+        from task_events. The chat_tasks data will have unresolved embeds, but this serves as a fallback.
+        The frontend should prefer replaying from sse_event_buffer when available.
         """
         try:
             # Get all events for this task

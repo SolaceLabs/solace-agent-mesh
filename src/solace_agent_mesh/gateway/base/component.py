@@ -1363,6 +1363,14 @@ class BaseGatewayComponent(SamComponentBase):
                 text_to_resolve = current_buffer + part.text
                 current_buffer = ""  # Buffer is now being processed
 
+                # Debug: Log the text before embed resolution
+                log.debug(
+                    "%s Input text for embed resolution (len=%d): %s",
+                    log_id_prefix,
+                    len(text_to_resolve),
+                    text_to_resolve[:500] + "..." if len(text_to_resolve) > 500 else text_to_resolve,
+                )
+
                 (
                     resolved_text,
                     processed_idx,
@@ -1375,6 +1383,16 @@ class BaseGatewayComponent(SamComponentBase):
                     resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
                     log_identifier=log_id_prefix,
                     config=embed_eval_config,
+                )
+
+                # Debug: Log the resolved text
+                log.debug(
+                    "%s Resolved text (processed_idx=%d, signals=%d, len=%d): %s",
+                    log_id_prefix,
+                    processed_idx,
+                    len(signals_with_placeholders),
+                    len(resolved_text),
+                    resolved_text[:500] + "..." if len(resolved_text) > 500 else resolved_text,
                 )
 
                 if not signals_with_placeholders:

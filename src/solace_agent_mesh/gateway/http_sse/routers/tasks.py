@@ -539,6 +539,29 @@ async def _submit_task(
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
 
+        # Register task for persistent SSE event buffering if it's a background task
+        if additional_metadata.get("backgroundExecutionEnabled"):
+            try:
+                sse_manager = component.sse_manager
+                if sse_manager:
+                    sse_manager.register_task_for_persistent_buffer(
+                        task_id=task_id,
+                        session_id=session_id,
+                        user_id=user_id,
+                    )
+                    log.info(
+                        "%sRegistered background task %s for persistent SSE buffering (session=%s)",
+                        log_prefix,
+                        task_id,
+                        session_id,
+                    )
+            except Exception as e:
+                log.warning(
+                    "%sFailed to register task for persistent buffering: %s",
+                    log_prefix,
+                    e,
+                )
+
         task_object = a2a.create_initial_task(
             task_id=task_id,
             context_id=session_id,
@@ -872,6 +895,123 @@ async def get_task_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while retrieving the task events.",
+        )
+
+
+@router.get("/tasks/{task_id}/events/buffered", tags=["Tasks"])
+async def get_buffered_task_events(
+    task_id: str,
+    request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+    mark_consumed: bool = Query(
+        default=True,
+        description="Whether to mark events as consumed after fetching"
+    ),
+):
+    """
+    Retrieves buffered SSE events for a background task.
+    
+    This endpoint is used by the frontend to replay SSE events for background tasks
+    that completed while the user was disconnected. The events are returned in the
+    same format as the live SSE stream, allowing the frontend to process them
+    through its existing event handling logic.
+    
+    Args:
+        task_id: The ID of the task to fetch buffered events for
+        mark_consumed: If True, marks events as consumed after fetching (default: True)
+    
+    Returns:
+        A list of buffered SSE events in sequence order, ready for frontend replay
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/events/buffered] "
+    log.info("%sRequest from user %s, mark_consumed=%s", log_prefix, user_id, mark_consumed)
+
+    try:
+        # First verify the task exists and user has permission
+        result = repo.find_by_id_with_events(db, task_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        task, _ = result
+
+        can_read_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+        if task.user_id != user_id and not can_read_all:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to view this task.",
+            )
+
+        # Fetch buffered events from the persistent buffer
+        # Note: We query the sse_event_buffer table directly instead of relying on
+        # task.events_buffered flag, which may not be set if the task was created
+        # after events started being buffered (timing issue)
+        from ..repository.sse_event_buffer_repository import SSEEventBufferRepository
+        
+        buffer_repo = SSEEventBufferRepository()
+        
+        # Check if this task has buffered events by querying the buffer table directly
+        has_buffered = buffer_repo.has_unconsumed_events(db, task_id)
+        if not has_buffered:
+            # Also check for consumed events (already replayed but still stored)
+            event_count = buffer_repo.get_event_count(db, task_id)
+            if event_count == 0:
+                log.info("%sTask %s does not have buffered events", log_prefix, task_id)
+                return {
+                    "task_id": task_id,
+                    "events": [],
+                    "has_more": False,
+                    "events_buffered": False,
+                    "events_consumed": task.events_consumed or False,
+                }
+        
+        if mark_consumed:
+            # Get unconsumed events and mark them as consumed
+            # Note: We use task_id directly, not session_id, since session_id might not be set
+            events = buffer_repo.get_buffered_events(
+                db=db,
+                task_id=task_id,
+                mark_consumed=True,
+            )
+            
+            # The repository already marks events as consumed
+        else:
+            # Get all buffered events without marking as consumed
+            events = buffer_repo.get_buffered_events(
+                db=db,
+                task_id=task_id,
+                mark_consumed=False,
+            )
+
+        # events is already a list of dicts with keys: type, data, sequence
+        # Just pass them through, the format matches what frontend expects
+        log.info(
+            "%sReturning %d buffered events for task %s",
+            log_prefix,
+            len(events),
+            task_id,
+        )
+
+        return {
+            "task_id": task_id,
+            "events": events,
+            "has_more": False,
+            "events_buffered": len(events) > 0,
+            "events_consumed": mark_consumed and len(events) > 0,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError retrieving buffered events: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving buffered events.",
         )
 
 
