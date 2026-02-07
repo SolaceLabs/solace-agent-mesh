@@ -135,6 +135,10 @@ COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
 COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
 COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
 
+# Fix CVE-2026-25547: Upgrade npm to 11.9.0+ (includes @isaacs/brace-expansion@5.0.1)
+# Node 25.5.0 bundles npm 11.8.0 which has vulnerable @isaacs/brace-expansion@5.0.0
+RUN npm install -g npm@11.9.0
+
 # Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
 # Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
