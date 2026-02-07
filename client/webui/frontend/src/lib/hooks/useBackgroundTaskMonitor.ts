@@ -3,7 +3,7 @@
  * Stores active background tasks in localStorage and automatically reconnects on session load.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import type { BackgroundTaskState, BackgroundTaskStatusResponse, ActiveBackgroundTasksResponse, BackgroundTaskNotification } from "@/lib/types/background-tasks";
 
@@ -18,6 +18,7 @@ interface UseBackgroundTaskMonitorProps {
 
 export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed }: UseBackgroundTaskMonitorProps) {
     const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTaskState[]>([]);
+    const backgroundTasksRef = useRef<BackgroundTaskState[]>(backgroundTasks);
     const [notifications, setNotifications] = useState<BackgroundTaskNotification[]>([]);
 
     // Load background tasks from localStorage on mount
@@ -33,6 +34,11 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
             }
         }
     }, []);
+
+    // Keep the ref in sync with state
+    useEffect(() => {
+        backgroundTasksRef.current = backgroundTasks;
+    }, [backgroundTasks]);
 
     // Save background tasks to localStorage whenever they change
     useEffect(() => {
@@ -96,12 +102,14 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
     );
 
     // Check all background tasks and update their status
+    // Uses backgroundTasksRef to read current tasks, making this callback stable
     const checkAllBackgroundTasks = useCallback(async () => {
-        if (backgroundTasks.length === 0) {
+        const tasks = backgroundTasksRef.current;
+        if (tasks.length === 0) {
             return;
         }
 
-        for (const task of backgroundTasks) {
+        for (const task of tasks) {
             const status = await checkTaskStatus(task.taskId);
 
             if (!status) {
@@ -144,7 +152,7 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
                 unregisterBackgroundTask(task.taskId);
             }
         }
-    }, [backgroundTasks, checkTaskStatus, onTaskCompleted, onTaskFailed, unregisterBackgroundTask]);
+    }, [checkTaskStatus, onTaskCompleted, onTaskFailed, unregisterBackgroundTask]);
 
     const fetchActiveBackgroundTasks = useCallback(async (): Promise<BackgroundTaskState[]> => {
         if (!userId) {
@@ -195,8 +203,10 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
 
     // Periodic checking to detect background task completion when not connected to SSE
     // This handles the case where a task completes while the user is on a different session
+    const hasBackgroundTasks = backgroundTasks.length > 0;
+
     useEffect(() => {
-        if (backgroundTasks.length === 0) {
+        if (!hasBackgroundTasks) {
             return;
         }
 
@@ -211,7 +221,7 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
         return () => {
             clearInterval(intervalId);
         };
-    }, [backgroundTasks.length, checkAllBackgroundTasks]);
+    }, [hasBackgroundTasks, checkAllBackgroundTasks]);
 
     // Dismiss a notification
     const dismissNotification = useCallback((taskId: string) => {
