@@ -27,7 +27,7 @@
   <a href="#️-next-steps">Next Steps</a>
 </p>
 
-test to trigger scan
+
 ---
 
 **Solace Agent Mesh** is a framework that supports building AI applications where multiple specialized AI agents work together to solve complex problems. It uses the event messaging of [Solace Platform](https://solace.com) for true scalability and reliability.
