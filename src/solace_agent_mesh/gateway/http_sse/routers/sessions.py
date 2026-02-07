@@ -367,20 +367,42 @@ async def save_task(
         try:
             from ..dependencies import get_sac_component
             component = get_sac_component()
+            # Use INFO level to ensure we see this in normal logging
+            log.info(
+                "[BufferCleanup] Task %s: Starting cleanup. component=%s, sse_manager=%s",
+                request.task_id,
+                component is not None,
+                component.sse_manager is not None if component else False,
+            )
             if component and component.sse_manager:
                 persistent_buffer = component.sse_manager._persistent_buffer
+                log.info(
+                    "[BufferCleanup] Task %s: persistent_buffer=%s, is_enabled=%s",
+                    request.task_id,
+                    persistent_buffer is not None,
+                    persistent_buffer.is_enabled() if persistent_buffer else False,
+                )
                 if persistent_buffer and persistent_buffer.is_enabled():
                     deleted_count = persistent_buffer.delete_events_for_task(request.task_id)
-                    if deleted_count > 0:
-                        log.info(
-                            "Cleared %d buffered SSE events for task %s after chat_task save",
-                            deleted_count,
-                            request.task_id,
-                        )
+                    log.info(
+                        "[BufferCleanup] Task %s: Cleared %d buffered SSE events after chat_task save",
+                        request.task_id,
+                        deleted_count,
+                    )
+                else:
+                    log.info(
+                        "[BufferCleanup] Task %s: Buffer disabled or not available, skipping cleanup",
+                        request.task_id,
+                    )
+            else:
+                log.info(
+                    "[BufferCleanup] Task %s: No component or sse_manager available",
+                    request.task_id,
+                )
         except Exception as buffer_error:
             # Non-critical - buffer will be cleaned up by retention policy
             log.warning(
-                "Failed to clear SSE event buffer for task %s: %s",
+                "[BufferCleanup] Task %s: Failed to clear buffer: %s",
                 request.task_id,
                 buffer_error,
             )

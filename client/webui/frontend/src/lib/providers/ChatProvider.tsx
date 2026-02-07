@@ -99,6 +99,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Ref to hold the replay function - allows calling from loadSessionTasks which is defined earlier
     const replayBufferedEventsRef = useRef<((taskId: string) => Promise<boolean>) | null>(null);
 
+    // Ref to hold handleSseMessage - allows calling from loadSessionTasks for buffer replay
+    const handleSseMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
+
     // Track if we're currently replaying buffered events
     // When true, handleSseMessage will skip save operations since the data is already persisted
     const isReplayingEventsRef = useRef(false);
@@ -505,109 +508,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [extractArtifactMarkers]
     );
 
-    // Helper function to reconstruct an agent message from buffered SSE events
-    // This is used during session loading to rebuild responses from background tasks
-    const reconstructAgentMessageFromBuffer = useCallback((taskId: string, bufferedEvents: any[], sessionId: string): MessageFE | null => {
-        try {
-            // Process buffered events to extract content parts
-            const allTextParts: string[] = [];
-            const allArtifactParts: PartFE[] = [];
-            let contextId: string | undefined;
-            let isFailed = false;
-            let errorMessage = "";
-
-            for (const bufferedEvent of bufferedEvents) {
-                const ssePayload = bufferedEvent.data;
-                if (!ssePayload?.data) continue;
-
-                try {
-                    const parsedData = typeof ssePayload.data === "string" ? JSON.parse(ssePayload.data) : ssePayload.data;
-                    const result = parsedData?.result;
-                    if (!result) continue;
-
-                    // Extract context ID for metadata
-                    if (result.contextId && !contextId) {
-                        contextId = result.contextId;
-                    }
-
-                    // Check for failed task
-                    if (result.kind === "task" && result.status?.state === "failed") {
-                        isFailed = true;
-                        errorMessage = result.status?.message?.parts?.[0]?.text || "Task failed";
-                    }
-
-                    // Extract message parts
-                    const message = result.status?.message || result.message;
-                    if (message?.parts) {
-                        for (const part of message.parts) {
-                            if (part.kind === "text" && part.text) {
-                                // Skip status_update markers
-                                const text = part.text.replace(/«status_update:[^»]+»\n?/g, "").trim();
-                                if (text && !allTextParts.includes(text)) {
-                                    allTextParts.push(text);
-                                }
-                            } else if (part.kind === "file" || part.kind === "artifact") {
-                                // Add artifact/file parts
-                                allArtifactParts.push({
-                                    kind: "artifact",
-                                    name: part.name || part.filename,
-                                    status: "completed",
-                                    sessionId: sessionId,
-                                } as PartFE);
-                            }
-                        }
-                    }
-                } catch (parseError) {
-                    console.debug(`[reconstructAgentMessageFromBuffer] Error parsing event:`, parseError);
-                }
-            }
-
-            // If we didn't extract any content, return null
-            if (allTextParts.length === 0 && allArtifactParts.length === 0 && !isFailed) {
-                return null;
-            }
-
-            // Build the message parts
-            const messageParts: PartFE[] = [];
-
-            // Add text parts (combine into one)
-            if (allTextParts.length > 0) {
-                messageParts.push({
-                    kind: "text",
-                    text: allTextParts.join("\n"),
-                } as PartFE);
-            } else if (isFailed) {
-                messageParts.push({
-                    kind: "text",
-                    text: errorMessage || "An error occurred",
-                } as PartFE);
-            }
-
-            // Add artifact parts
-            messageParts.push(...allArtifactParts);
-
-            // Create the message
-            const agentMessage: MessageFE = {
-                role: "agent",
-                parts: messageParts,
-                taskId: taskId,
-                isUser: false,
-                isComplete: true,
-                isError: isFailed,
-                metadata: {
-                    messageId: `reconstructed-${taskId}`,
-                    sessionId: contextId || sessionId,
-                    lastProcessedEventSequence: 0,
-                },
-            };
-
-            return agentMessage;
-        } catch (error) {
-            console.error(`[reconstructAgentMessageFromBuffer] Error reconstructing message for task ${taskId}:`, error);
-            return null;
-        }
-    }, []);
-
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
@@ -723,39 +623,148 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Build the complete message array with proper ordering
                 const finalMessages: MessageFE[] = [];
 
+                // Track tasks where we used buffer reconstruction (need save + cleanup)
+                const tasksNeedingSaveAndCleanup: string[] = [];
+                // Track tasks where chat_tasks already exists but buffer needs cleanup (cleanup only, no save)
+                const tasksNeedingBufferCleanupOnly: string[] = [];
+
+                // Collect tasks that need buffer replay (no saved agent response)
+                const tasksNeedingReplay: Array<{ taskId: string; events: any[] }> = [];
+
                 for (const task of migratedTasks) {
                     const taskMessages = deserializeTaskToMessages(task, sessionId);
                     const bufferedData = tasksWithBufferedEvents.get(task.taskId);
+                    const agentMessagesFromChatTasks = taskMessages.filter(m => !m.isUser);
+                    const userMessages = taskMessages.filter(m => m.isUser);
 
-                    if (bufferedData) {
-                        // Task has buffered events - add user message first
-                        const userMessages = taskMessages.filter(m => m.isUser);
+                    // IMPORTANT: If chat_tasks already has agent messages, PREFER them over buffer replay.
+                    // The buffer should only be used when:
+                    // 1. There are no agent messages saved yet (task was running when user switched away)
+                    // 2. Buffer replay is needed for incomplete saves
+                    // This prevents issues with complex parsing of SSE events.
+                    if (bufferedData && agentMessagesFromChatTasks.length === 0) {
+                        // Task has buffered events AND no saved agent response yet - need replay
+                        console.debug(`[loadSessionTasks] Task ${task.taskId} has buffered events and no saved agent response, will replay through handleSseMessage`);
+                        // Add user messages first
                         finalMessages.push(...userMessages);
-
-                        // Then reconstruct agent response from buffered events
-                        const agentMessage = reconstructAgentMessageFromBuffer(task.taskId, bufferedData.events, sessionId);
-                        if (agentMessage) {
-                            finalMessages.push(agentMessage);
-                        } else {
-                            // Fallback to chat_tasks agent messages if reconstruction fails
-                            console.warn(`[loadSessionTasks] Failed to reconstruct agent message for task ${task.taskId}`);
-                            const agentMessages = taskMessages.filter(m => !m.isUser);
-                            finalMessages.push(...agentMessages);
-                        }
+                        // Store for replay after we set initial messages
+                        tasksNeedingReplay.push({ taskId: task.taskId, events: bufferedData.events });
+                        // Mark this task for save and cleanup (will update session modified date)
+                        tasksNeedingSaveAndCleanup.push(task.taskId);
                     } else {
-                        // No buffered events - add all messages from chat_tasks
+                        // Either no buffered events OR chat_tasks already has the agent response
+                        // Use the saved data from chat_tasks (it has correct ordering)
+                        if (bufferedData && agentMessagesFromChatTasks.length > 0) {
+                            console.debug(`[loadSessionTasks] Task ${task.taskId} has buffered events but also has ${agentMessagesFromChatTasks.length} saved agent messages - preferring chat_tasks data, scheduling buffer cleanup only`);
+                            // Chat task already exists - only clean up the buffer (don't re-save to avoid updating modified date)
+                            tasksNeedingBufferCleanupOnly.push(task.taskId);
+                        }
                         finalMessages.push(...taskMessages);
                     }
                 }
 
                 // Set all messages in ONE batch to avoid scroll issues
                 setMessages(finalMessages);
+
+                // Replay buffered events through handleSseMessage (uses exact same code path as live streaming!)
+                // This is done AFTER setting initial messages so user messages are visible first
+                if (tasksNeedingReplay.length > 0) {
+                    console.debug(`[loadSessionTasks] Replaying ${tasksNeedingReplay.length} tasks through handleSseMessage`);
+
+                    // Use setTimeout to not block the UI update
+                    setTimeout(async () => {
+                        // Get the current handleSseMessage function via ref
+                        const handleSseMessageFn = handleSseMessageRef.current;
+                        if (!handleSseMessageFn) {
+                            console.error(`[loadSessionTasks] handleSseMessageRef not available for replay`);
+                            return;
+                        }
+
+                        for (const { taskId, events } of tasksNeedingReplay) {
+                            console.debug(`[loadSessionTasks] Replaying ${events.length} events for task ${taskId}`);
+
+                            // Set replay flag to prevent saves during replay (state updates are async)
+                            isReplayingEventsRef.current = true;
+
+                            try {
+                                // Process each buffered event through handleSseMessage
+                                // This is the EXACT same code path as live SSE streaming!
+                                for (const bufferedEvent of events) {
+                                    const ssePayload = bufferedEvent.data;
+                                    if (ssePayload?.data) {
+                                        // Create a synthetic MessageEvent-like object
+                                        const syntheticEvent = {
+                                            data: ssePayload.data,
+                                        } as MessageEvent;
+
+                                        // Process through SSE handler - exact same as live streaming
+                                        handleSseMessageFn(syntheticEvent);
+                                    }
+                                }
+                            } finally {
+                                isReplayingEventsRef.current = false;
+                            }
+                        }
+
+                        // After replay, wait for React state to settle then save
+                        // Use setTimeout to ensure setMessages batches have been processed
+                        setTimeout(async () => {
+                            for (const { taskId } of tasksNeedingReplay) {
+                                // messagesRef should now be updated
+                                const taskMessages = messagesRef.current.filter(m => m.taskId === taskId && !m.isStatusBubble);
+                                if (taskMessages.length > 0) {
+                                    console.debug(`[loadSessionTasks] Saving task ${taskId} after replay (${taskMessages.length} messages)`);
+                                    const messageBubbles = taskMessages.map(serializeMessageBubble);
+                                    const userMessage = taskMessages.find(m => m.isUser);
+                                    const userMessageText =
+                                        userMessage?.parts
+                                            ?.filter(p => p.kind === "text")
+                                            .map(p => (p as TextPart).text)
+                                            .join("") || "";
+                                    const hasError = taskMessages.some(m => m.isError);
+                                    const taskStatus = hasError ? "error" : "completed";
+
+                                    await saveTaskToBackend(
+                                        {
+                                            task_id: taskId,
+                                            user_message: userMessageText,
+                                            message_bubbles: messageBubbles,
+                                            task_metadata: {
+                                                schema_version: CURRENT_SCHEMA_VERSION,
+                                                status: taskStatus,
+                                            },
+                                        },
+                                        sessionId
+                                    );
+                                } else {
+                                    console.warn(`[loadSessionTasks] No messages found for task ${taskId} after replay`);
+                                }
+                            }
+                        }, 100); // Wait for React state to settle
+                    }, 50);
+                }
+
+                // Trigger buffer cleanup only (no save) for tasks where chat_tasks already exists
+                // This avoids updating the session's modified date just from visiting it
+                if (tasksNeedingBufferCleanupOnly.length > 0) {
+                    console.debug(`[loadSessionTasks] Scheduling buffer cleanup only for ${tasksNeedingBufferCleanupOnly.length} tasks`);
+                    setTimeout(async () => {
+                        for (const taskId of tasksNeedingBufferCleanupOnly) {
+                            try {
+                                await api.webui.delete(`/api/v1/tasks/${taskId}/events/buffered`);
+                                console.debug(`[loadSessionTasks] Buffer cleanup successful for task ${taskId}`);
+                            } catch (error) {
+                                console.error(`[loadSessionTasks] Failed to clean up buffer for task ${taskId}:`, error);
+                            }
+                        }
+                    }, 100);
+                }
             } else {
                 // No tasks with buffered events - just set all messages at once
                 setMessages(allMessages);
             }
         },
-        [deserializeTaskToMessages, setRagData, backgroundTasksEnabled]
+        [deserializeTaskToMessages, setRagData, backgroundTasksEnabled, serializeMessageBubble, saveTaskToBackend]
     );
 
     // Session State
@@ -1477,7 +1486,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setIsCancelling(false);
                 }
 
-                // Skip save operations when replaying buffered events (data is already persisted)
+                // Save on final event - the save is idempotent (upsert) and will trigger buffer cleanup
+                // SKIP save during buffer replay because messagesRef won't have the updated messages yet
+                // (React state updates are async). The save will happen in loadSessionTasks after replay.
                 if (currentTaskIdFromResult && !isReplayingEventsRef.current) {
                     const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
                     const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
@@ -1908,8 +1919,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             break;
                         } else {
                             // Task is no longer running - it completed while we were away
-                            // loadSessionTasks has already handled buffered events via reconstructAgentMessageFromBuffer
-                            // so we just need to unregister the background task
                             console.log(`[ChatProvider] Background task ${bgTask.taskId} completed while away, already reconstructed in loadSessionTasks`);
 
                             // Unregister the background task
@@ -2552,8 +2561,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     useEffect(() => {
         // Listen for background task completion events
-        // When a background task completes, reload ANY session it belongs to (not just current)
-        // This ensures we get the latest data even if the task completed while we were in a different session
+        // When a background task completes, reload the session if it's currently active
+        // If the user is on a different session, the buffer stays until they switch back
+        // (buffer cleanup happens after replay + save)
         const handleBackgroundTaskCompleted = async (event: Event) => {
             const customEvent = event as CustomEvent;
             const { taskId: completedTaskId } = customEvent.detail;
@@ -2561,13 +2571,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Find the completed task
             const completedTask = backgroundTasksRef.current.find(t => t.taskId === completedTaskId);
             if (completedTask) {
-                console.log(`[ChatProvider] Background task ${completedTaskId} completed, will reload session ${completedTask.sessionId} after delay`);
-                // Wait a bit to ensure any pending operations complete
-                setTimeout(async () => {
-                    // Reload the session if it's currently active
-                    if (currentSessionIdRef.current === completedTask.sessionId) {
-                        console.log(`[ChatProvider] Reloading current session ${completedTask.sessionId} to get latest data`);
+                console.log(`[ChatProvider] Background task ${completedTaskId} completed for session ${completedTask.sessionId}`);
 
+                // Only replay if the user is currently viewing the session where the task completed
+                if (currentSessionIdRef.current === completedTask.sessionId) {
+                    console.log(`[ChatProvider] User is on same session - will replay buffered events after delay`);
+                    // Wait a bit to ensure any pending operations complete
+                    setTimeout(async () => {
                         // Try to replay buffered events first (new single-path approach)
                         // This ensures embeds and templates are properly resolved through the frontend's SSE processing
                         const replayedSuccessfully = await replayBufferedEvents(completedTaskId);
@@ -2577,8 +2587,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             console.log(`[ChatProvider] No buffered events, falling back to loadSessionTasks`);
                             await loadSessionTasks(completedTask.sessionId);
                         }
-                    }
-                }, 1500); // Increased delay to ensure save completes
+                    }, 1500); // Delay to ensure save completes
+                } else {
+                    // User is on a different session - buffer stays until they switch back to that session
+                    // When they switch back, handleSwitchSession will detect buffered events and replay them
+                    console.log(`[ChatProvider] User is on different session (${currentSessionIdRef.current}) - buffer preserved for later replay when they switch back to ${completedTask.sessionId}`);
+                }
             }
         };
 
@@ -2667,7 +2681,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject]);
 
     // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
-    const handleSseMessageRef = useRef(handleSseMessage);
+    // Note: handleSseMessageRef is declared earlier (line ~103) for use in loadSessionTasks
     const handleSseOpenRef = useRef(handleSseOpen);
     const handleSseErrorRef = useRef(handleSseError);
 
@@ -2719,7 +2733,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             };
 
             const wrappedHandleSseMessage = (event: MessageEvent) => {
-                handleSseMessageRef.current(event);
+                if (handleSseMessageRef.current) {
+                    handleSseMessageRef.current(event);
+                }
             };
 
             eventSource.onopen = wrappedHandleSseOpen;

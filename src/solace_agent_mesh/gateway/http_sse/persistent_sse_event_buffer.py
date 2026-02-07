@@ -356,7 +356,14 @@ class PersistentSSEEventBuffer:
         Returns:
             Number of events deleted
         """
+        log.debug(
+            "%s [BufferCleanup] delete_events_for_task called for task_id=%s, is_enabled=%s",
+            self.log_identifier,
+            task_id,
+            self.is_enabled(),
+        )
         if not self.is_enabled():
+            log.debug("%s [BufferCleanup] Buffer not enabled, returning 0", self.log_identifier)
             return 0
         
         try:
@@ -367,6 +374,13 @@ class PersistentSSEEventBuffer:
                 repo = SSEEventBufferRepository()
                 deleted = repo.delete_events_for_task(db, task_id)
                 db.commit()
+                
+                log.debug(
+                    "%s [BufferCleanup] Deleted %d events for task %s from database",
+                    self.log_identifier,
+                    deleted,
+                    task_id,
+                )
                 
                 # Clear cached metadata
                 self.clear_task_metadata(task_id)
