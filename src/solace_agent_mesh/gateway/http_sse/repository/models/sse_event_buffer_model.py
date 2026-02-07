@@ -7,7 +7,6 @@ and can be fetched and replayed through the frontend's existing SSE processing.
 """
 
 from sqlalchemy import BigInteger, Boolean, Column, Integer, JSON, String
-from sqlalchemy.orm import relationship
 
 from .base import Base
 

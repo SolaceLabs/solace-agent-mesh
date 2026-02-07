@@ -997,6 +997,10 @@ async def get_buffered_task_events(
             task_id,
         )
 
+        # Commit the transaction to persist the consumed state
+        if mark_consumed and events:
+            db.commit()
+
         return {
             "task_id": task_id,
             "events": events,

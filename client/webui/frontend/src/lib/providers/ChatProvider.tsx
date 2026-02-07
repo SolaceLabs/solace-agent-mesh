@@ -1648,7 +1648,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         // which has {event: "message", data: "...serialized JSON..."}
                         const ssePayload = bufferedEvent.data;
 
-                        if (ssePayload && ssePayload.data) {
+                        if (ssePayload?.data) {
                             // Create a synthetic MessageEvent-like object
                             const syntheticEvent = {
                                 data: ssePayload.data, // This is the serialized JSON string

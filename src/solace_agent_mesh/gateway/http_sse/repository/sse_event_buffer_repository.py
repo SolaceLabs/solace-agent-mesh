@@ -158,7 +158,7 @@ class SSEEventBufferRepository:
         """
         query = db.query(SSEEventBufferModel)\
             .filter(SSEEventBufferModel.session_id == session_id)\
-            .filter(SSEEventBufferModel.consumed == False)
+            .filter(SSEEventBufferModel.consumed.is_(False))
         
         if task_id:
             query = query.filter(SSEEventBufferModel.task_id == task_id)
@@ -199,7 +199,7 @@ class SSEEventBufferRepository:
         """
         count = db.query(func.count(SSEEventBufferModel.id))\
             .filter(SSEEventBufferModel.task_id == task_id)\
-            .filter(SSEEventBufferModel.consumed == False)\
+            .filter(SSEEventBufferModel.consumed.is_(False))\
             .scalar()
         
         return count > 0
@@ -239,7 +239,7 @@ class SSEEventBufferRepository:
             Number of events deleted
         """
         deleted = db.query(SSEEventBufferModel)\
-            .filter(SSEEventBufferModel.consumed == True)\
+            .filter(SSEEventBufferModel.consumed.is_(True))\
             .filter(SSEEventBufferModel.consumed_at < older_than_ms)\
             .delete()
         

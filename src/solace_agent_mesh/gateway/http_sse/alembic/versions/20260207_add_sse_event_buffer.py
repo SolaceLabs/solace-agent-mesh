@@ -46,6 +46,8 @@ def upgrade():
     op.create_index('idx_sse_event_buffer_session_id', 'sse_event_buffer', ['session_id'])
     op.create_index('idx_sse_event_buffer_consumed', 'sse_event_buffer', ['consumed'])
     op.create_index('idx_sse_event_buffer_created_at', 'sse_event_buffer', ['created_at'])
+    # Composite index for has_unconsumed_events query optimization
+    op.create_index('idx_sse_event_buffer_task_consumed', 'sse_event_buffer', ['task_id', 'consumed'])
     
     # Add columns to tasks table for tracking event buffer state
     op.add_column('tasks', sa.Column('session_id', sa.String(255), nullable=True))
@@ -68,6 +70,7 @@ def downgrade():
     op.drop_column('tasks', 'session_id')
     
     # Remove indexes from sse_event_buffer table
+    op.drop_index('idx_sse_event_buffer_task_consumed', table_name='sse_event_buffer')
     op.drop_index('idx_sse_event_buffer_created_at', table_name='sse_event_buffer')
     op.drop_index('idx_sse_event_buffer_consumed', table_name='sse_event_buffer')
     op.drop_index('idx_sse_event_buffer_session_id', table_name='sse_event_buffer')
