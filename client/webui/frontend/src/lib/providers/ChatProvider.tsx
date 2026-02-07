@@ -706,41 +706,44 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             }
                         }
 
-                        // After replay, wait for React state to settle then save
-                        // Use setTimeout to ensure setMessages batches have been processed
-                        setTimeout(async () => {
-                            for (const { taskId } of tasksNeedingReplay) {
-                                // messagesRef should now be updated
-                                const taskMessages = messagesRef.current.filter(m => m.taskId === taskId && !m.isStatusBubble);
-                                if (taskMessages.length > 0) {
-                                    console.debug(`[loadSessionTasks] Saving task ${taskId} after replay (${taskMessages.length} messages)`);
-                                    const messageBubbles = taskMessages.map(serializeMessageBubble);
-                                    const userMessage = taskMessages.find(m => m.isUser);
-                                    const userMessageText =
-                                        userMessage?.parts
-                                            ?.filter(p => p.kind === "text")
-                                            .map(p => (p as TextPart).text)
-                                            .join("") || "";
-                                    const hasError = taskMessages.some(m => m.isError);
-                                    const taskStatus = hasError ? "error" : "completed";
+                        // After replay, get messages and save using setMessages functional updater
+                        const taskIdsToSave = tasksNeedingReplay.map(t => t.taskId);
+                        setMessages(currentMessages => {
+                            setTimeout(async () => {
+                                for (const taskId of taskIdsToSave) {
+                                    const taskMessages = currentMessages.filter(m => m.taskId === taskId && !m.isStatusBubble);
+                                    if (taskMessages.length > 0) {
+                                        console.debug(`[loadSessionTasks] Saving task ${taskId} after replay (${taskMessages.length} messages)`);
+                                        const messageBubbles = taskMessages.map(serializeMessageBubble);
+                                        const userMessage = taskMessages.find(m => m.isUser);
+                                        const userMessageText =
+                                            userMessage?.parts
+                                                ?.filter(p => p.kind === "text")
+                                                .map(p => (p as TextPart).text)
+                                                .join("") || "";
+                                        const hasError = taskMessages.some(m => m.isError);
+                                        const taskStatus = hasError ? "error" : "completed";
 
-                                    await saveTaskToBackend(
-                                        {
-                                            task_id: taskId,
-                                            user_message: userMessageText,
-                                            message_bubbles: messageBubbles,
-                                            task_metadata: {
-                                                schema_version: CURRENT_SCHEMA_VERSION,
-                                                status: taskStatus,
+                                        await saveTaskToBackend(
+                                            {
+                                                task_id: taskId,
+                                                user_message: userMessageText,
+                                                message_bubbles: messageBubbles,
+                                                task_metadata: {
+                                                    schema_version: CURRENT_SCHEMA_VERSION,
+                                                    status: taskStatus,
+                                                },
                                             },
-                                        },
-                                        sessionId
-                                    );
-                                } else {
-                                    console.warn(`[loadSessionTasks] No messages found for task ${taskId} after replay`);
+                                            sessionId
+                                        );
+                                    } else {
+                                        console.warn(`[loadSessionTasks] No messages found for task ${taskId} after replay`);
+                                    }
                                 }
-                            }
-                        }, 100); // Wait for React state to settle
+                            }, 0);
+                            // Return unchanged - we're just reading state
+                            return currentMessages;
+                        });
                     }, 50);
                 }
 
