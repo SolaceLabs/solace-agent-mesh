@@ -268,6 +268,39 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
 }
 
 /**
+ * Converts an ArrayBuffer to a base64 encoded string.
+ * Useful for encoding binary data (images, audio, etc.) for use with ContentRenderer.
+ *
+ * @param buffer The ArrayBuffer to encode.
+ * @returns The base64 encoded string.
+ */
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+/**
+ * Encodes a UTF-8 string to base64.
+ * Useful for re-encoding text content after truncation.
+ *
+ * @param text The string to encode.
+ * @returns The base64 encoded string.
+ */
+export function encodeBase64Content(text: string): string {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(text);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+/**
  * Decodes a base64 encoded string into a UTF-8 string.
  * Attempts to use TextDecoder for proper UTF-8 handling, falls back to simple atob
  * if TextDecoder fails (e.g., for non-UTF8 binary data represented as base64).
