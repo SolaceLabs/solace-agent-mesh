@@ -362,6 +362,29 @@ async def save_task(
             session_id,
         )
 
+        # Clear SSE event buffer for this task (implicit cleanup)
+        # This is atomic with the save operation
+        try:
+            from ..dependencies import get_sac_component
+            component = get_sac_component()
+            if component and component.sse_manager:
+                persistent_buffer = component.sse_manager._persistent_buffer
+                if persistent_buffer and persistent_buffer.is_enabled():
+                    deleted_count = persistent_buffer.delete_events_for_task(request.task_id)
+                    if deleted_count > 0:
+                        log.info(
+                            "Cleared %d buffered SSE events for task %s after chat_task save",
+                            deleted_count,
+                            request.task_id,
+                        )
+        except Exception as buffer_error:
+            # Non-critical - buffer will be cleaned up by retention policy
+            log.warning(
+                "Failed to clear SSE event buffer for task %s: %s",
+                request.task_id,
+                buffer_error,
+            )
+
         # Convert to response DTO
         response = TaskResponse(
             task_id=saved_task.id,

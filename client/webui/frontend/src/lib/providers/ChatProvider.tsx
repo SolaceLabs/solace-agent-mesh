@@ -1399,15 +1399,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         )
                             .then(async saved => {
                                 if (saved) {
-                                    // Clear the SSE event buffer after successful save
-                                    // This prevents duplicate data and signals the task is fully persisted
-                                    try {
-                                        await api.webui.delete(`/api/v1/tasks/${currentTaskIdFromResult}/events/buffered`);
-                                    } catch (bufferClearError) {
-                                        // Non-critical - buffer will be cleaned up by retention policy
-                                        console.warn(`[ChatProvider] Failed to clear event buffer for task ${currentTaskIdFromResult}:`, bufferClearError);
-                                    }
-
                                     if (typeof window !== "undefined") {
                                         window.dispatchEvent(new CustomEvent("new-chat-session"));
                                     }

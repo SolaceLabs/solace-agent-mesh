@@ -158,7 +158,7 @@ class SSEManager:
         The order of checks is:
         1. Cache (fastest)
         2. Persistent buffer metadata (registered when task is submitted - before DB record exists)
-        3. Database query (fallback)
+        3. Database query (fallback) - also reconstructs metadata if found
         
         Args:
             task_id: The ID of the task to check
@@ -199,6 +199,24 @@ class SSEManager:
                 
                 # Cache the result
                 self._background_task_cache[task_id] = is_background
+                
+                # If this is a background task found via DB, reconstruct metadata
+                # This handles the case where metadata was lost (e.g., due to worker restart)
+                # and allows events to be properly buffered
+                if is_background and task:
+                    # Try to get session_id and user_id from the task
+                    session_id = getattr(task, 'session_id', None)
+                    user_id = getattr(task, 'user_id', None)
+                    
+                    if session_id and user_id:
+                        self._persistent_buffer.set_task_metadata(task_id, session_id, user_id)
+                        log.info(
+                            "%s Reconstructed metadata for background task %s from database: session=%s, user=%s",
+                            self.log_identifier,
+                            task_id,
+                            session_id,
+                            user_id,
+                        )
                 
                 return is_background
             finally:
