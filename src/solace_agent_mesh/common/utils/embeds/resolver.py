@@ -550,11 +550,12 @@ async def resolve_embeds_in_string(
 
         if embed_type in types_to_resolve:
             log.info(
-                "%s Found embed type '%s' to resolve: expr='%s', fmt='%s'",
+                "%s Found embed type '%s' to resolve: expr='%s', fmt='%s', types_to_resolve=%s",
                 log_identifier,
                 embed_type,
                 expression,
                 format_spec,
+                types_to_resolve,
             )
             resolved_value = await resolver_func(
                 embed_type,
@@ -614,9 +615,10 @@ async def resolve_embeds_in_string(
 
         else:
             log.debug(
-                "%s Skipping embed type '%s' (not in types_to_resolve)",
+                "%s Skipping embed type '%s' (not in types_to_resolve=%s)",
                 log_identifier,
                 embed_type,
+                types_to_resolve,
             )
             resolved_parts.append(match.group(0))
 

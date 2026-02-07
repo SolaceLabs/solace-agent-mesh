@@ -16,6 +16,7 @@ from .chat_task_repository import ChatTaskRepository
 from .feedback_repository import FeedbackRepository
 from .project_repository import ProjectRepository
 from .session_repository import SessionRepository
+from .sse_event_buffer_repository import SSEEventBufferRepository
 from .task_repository import TaskRepository
 
 # Entities (re-exported for convenience)
@@ -24,6 +25,7 @@ from .entities.session import Session
 # Models (re-exported for convenience)
 from .models.base import Base
 from .models.session_model import SessionModel
+from .models.sse_event_buffer_model import SSEEventBufferModel
 
 __all__ = [
     # Interfaces
@@ -37,10 +39,12 @@ __all__ = [
     "FeedbackRepository",
     "ProjectRepository",
     "SessionRepository",
+    "SSEEventBufferRepository",
     "TaskRepository",
     # Entities
     "Session",
     # Models
     "Base",
     "SessionModel",
+    "SSEEventBufferModel",
 ]

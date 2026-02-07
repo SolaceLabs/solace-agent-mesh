@@ -33,6 +33,10 @@ class TaskRepository(ITaskRepository):
             model.last_activity_time = task.last_activity_time
             model.background_execution_enabled = task.background_execution_enabled
             model.max_execution_time_ms = task.max_execution_time_ms
+            # SSE event buffer state
+            model.session_id = task.session_id
+            model.events_buffered = task.events_buffered
+            model.events_consumed = task.events_consumed
         else:
             model = TaskModel(
                 id=task.id,
@@ -50,6 +54,10 @@ class TaskRepository(ITaskRepository):
                 last_activity_time=task.last_activity_time,
                 background_execution_enabled=task.background_execution_enabled,
                 max_execution_time_ms=task.max_execution_time_ms,
+                # SSE event buffer state
+                session_id=task.session_id,
+                events_buffered=task.events_buffered,
+                events_consumed=task.events_consumed,
             )
             session.add(model)
 
@@ -70,8 +78,9 @@ class TaskRepository(ITaskRepository):
         )
         session.add(model)
         session.flush()
-        session.refresh(model)
-        return self._event_model_to_entity(model)
+        # Note: We don't refresh here since we already have all the data,
+        # and refresh can fail in certain edge cases (e.g., foreign key constraints)
+        return event
 
     def find_by_id(self, session: DBSession, task_id: str) -> Task | None:
         """Find a task by its ID."""

@@ -27,6 +27,11 @@ class Task(BaseModel):
     last_activity_time: int | None = None
     background_execution_enabled: bool | None = False
     max_execution_time_ms: int | None = None
+    
+    # SSE event buffer fields
+    session_id: str | None = None
+    events_buffered: bool | None = False
+    events_consumed: bool | None = False
 
     class Config:
         from_attributes = True
