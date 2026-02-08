@@ -12,6 +12,7 @@ import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/li
 import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useAuthContext } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
     CancelTaskRequest,
@@ -139,6 +140,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Pending prompt state for starting new chat with a prompt template
     const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
+
+    // Running task navigation warning state
+    // Used when background tasks are disabled and user tries to switch sessions while a task is running
+    const [runningTaskWarningOpen, setRunningTaskWarningOpen] = useState<boolean>(false);
+    const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
 
     // Notification Helper
     const addNotification = useCallback((message: string, type?: "success" | "info" | "warning") => {
@@ -1741,7 +1747,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         replayBufferedEventsRef.current = replayBufferedEvents;
     }, [replayBufferedEvents]);
 
-    const handleNewSession = useCallback(
+    // Core implementation - called directly or after confirmation
+    const handleNewSessionCore = useCallback(
         async (preserveProjectContext: boolean = false) => {
             const log_prefix = "ChatProvider.handleNewSession:";
 
@@ -1806,6 +1813,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData]
     );
 
+    // Wrapper that shows confirmation when task is running and background tasks are disabled
+    const handleNewSession = useCallback(
+        async (preserveProjectContext: boolean = false) => {
+            // Check if we need to warn the user about losing a running task
+            if (isResponding && backgroundTasksEnabled === false) {
+                // Store the action to execute after confirmation
+                setPendingNavigationAction(() => () => handleNewSessionCore(preserveProjectContext));
+                setRunningTaskWarningOpen(true);
+                return;
+            }
+            // No warning needed - proceed directly
+            await handleNewSessionCore(preserveProjectContext);
+        },
+        [isResponding, backgroundTasksEnabled, handleNewSessionCore]
+    );
+
     // Start a new chat session with a prompt template pre-filled
     const startNewChatWithPrompt = useCallback(
         (promptData: PendingPromptData) => {
@@ -1822,7 +1845,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setPendingPrompt(null);
     }, []);
 
-    const handleSwitchSession = useCallback(
+    // Core implementation - called directly or after confirmation
+    const handleSwitchSessionCore = useCallback(
         async (newSessionId: string) => {
             const log_prefix = "ChatProvider.handleSwitchSession:";
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
@@ -2016,6 +2040,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isTaskRunningInBackground,
             replayBufferedEvents,
         ]
+    );
+
+    // Wrapper that shows confirmation when task is running and background tasks are disabled
+    const handleSwitchSession = useCallback(
+        async (newSessionId: string) => {
+            // Check if we need to warn the user about losing a running task
+            if (isResponding && backgroundTasksEnabled === false) {
+                // Store the action to execute after confirmation
+                setPendingNavigationAction(() => () => handleSwitchSessionCore(newSessionId));
+                setRunningTaskWarningOpen(true);
+                return;
+            }
+            // No warning needed - proceed directly
+            await handleSwitchSessionCore(newSessionId);
+        },
+        [isResponding, backgroundTasksEnabled, handleSwitchSessionCore]
     );
 
     const updateSessionName = useCallback(
@@ -2862,10 +2902,37 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isTaskRunningInBackground,
     };
 
+    // Handlers for the running task warning dialog
+    const handleConfirmNavigation = useCallback(() => {
+        setRunningTaskWarningOpen(false);
+        if (pendingNavigationAction) {
+            pendingNavigationAction();
+            setPendingNavigationAction(null);
+        }
+    }, [pendingNavigationAction]);
+
+    const handleCancelNavigation = useCallback(() => {
+        setRunningTaskWarningOpen(false);
+        setPendingNavigationAction(null);
+    }, []);
+
     return (
         <ChatContext.Provider value={contextValue}>
             {children}
             <ErrorDialog />
+            {/* Warning dialog when user tries to navigate away while a task is running and background tasks are disabled */}
+            <ConfirmationDialog
+                open={runningTaskWarningOpen}
+                title="Task in Progress"
+                description="A task is currently running. If you navigate away now, you may lose the response. Are you sure you want to leave?"
+                onOpenChange={setRunningTaskWarningOpen}
+                onConfirm={handleConfirmNavigation}
+                onCancel={handleCancelNavigation}
+                actionLabels={{
+                    cancel: "Stay",
+                    confirm: "Leave Anyway",
+                }}
+            />
         </ChatContext.Provider>
     );
 };
