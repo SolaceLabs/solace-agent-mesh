@@ -1161,6 +1161,20 @@ async def get_task_title_data(
                 "error": "Task not found"
             }
         
+        # Authorization: Verify user owns this task
+        if task.user_id and task.user_id != user_id:
+            log.warning(
+                "%sUser %s attempted to access title-data for task %s owned by %s",
+                log_prefix,
+                user_id,
+                task_id,
+                task.user_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this task's data",
+            )
+        
         user_message = None
         agent_response = None
         
@@ -1248,8 +1262,8 @@ async def get_task_title_data(
                             
                     # Collect streaming text from status updates (agent_progress_update)
                     if result.get("kind") == "status-update":
-                        status = result.get("status", {})
-                        message = status.get("message", {})
+                        status_data = result.get("status", {})
+                        message = status_data.get("message", {})
                         if message:
                             parts = message.get("parts", [])
                             for part in parts:
@@ -1288,6 +1302,8 @@ async def get_task_title_data(
             "session_id": task.session_id,
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         log.exception("%sError extracting title data: %s", log_prefix, e)
         raise HTTPException(
