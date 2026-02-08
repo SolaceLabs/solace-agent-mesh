@@ -9,6 +9,7 @@ import logging
 from typing import List, Optional
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
 from .models.sse_event_buffer_model import SSEEventBufferModel
@@ -16,6 +17,9 @@ from .models.task_model import TaskModel
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 log = logging.getLogger(__name__)
+
+# Maximum retry attempts for sequence number race condition
+MAX_SEQUENCE_RETRIES = 3
 
 
 class SSEEventBufferRepository:
@@ -37,6 +41,17 @@ class SSEEventBufferRepository:
         """
         Buffer an SSE event for later replay.
         
+        Uses retry logic to handle rare race conditions where concurrent writes
+        could result in duplicate sequence numbers. The unique constraint on
+        (task_id, event_sequence) ensures data integrity.
+        
+        Note: In practice, this race condition is extremely unlikely because:
+        1. Events for each task flow through a single-threaded message processor
+        2. Each task has its own event stream arriving sequentially
+        
+        The retry logic is a defensive measure for edge cases like hybrid mode
+        RAM buffer flush coinciding with a new event, or multi-worker deployments.
+        
         Args:
             db: Database session
             task_id: The task ID this event belongs to
@@ -49,41 +64,77 @@ class SSEEventBufferRepository:
             
         Returns:
             The created SSEEventBufferModel instance
+            
+        Raises:
+            IntegrityError: If all retry attempts fail (should be extremely rare)
         """
-        # Get next sequence number for this task
-        max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
-            .filter(SSEEventBufferModel.task_id == task_id)\
-            .scalar() or 0
+        last_error = None
         
-        # Create buffer entry
-        buffer_entry = SSEEventBufferModel(
-            task_id=task_id,
-            session_id=session_id,
-            user_id=user_id,
-            event_sequence=max_seq + 1,
-            event_type=event_type,
-            event_data=event_data,
-            created_at=created_time if created_time is not None else now_epoch_ms(),
-            consumed=False,
-        )
-        db.add(buffer_entry)
+        for attempt in range(MAX_SEQUENCE_RETRIES):
+            try:
+                # Get next sequence number for this task
+                max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
+                    .filter(SSEEventBufferModel.task_id == task_id)\
+                    .scalar() or 0
+                
+                # Create buffer entry
+                buffer_entry = SSEEventBufferModel(
+                    task_id=task_id,
+                    session_id=session_id,
+                    user_id=user_id,
+                    event_sequence=max_seq + 1,
+                    event_type=event_type,
+                    event_data=event_data,
+                    created_at=created_time if created_time is not None else now_epoch_ms(),
+                    consumed=False,
+                )
+                db.add(buffer_entry)
+                
+                # Mark task as having buffered events
+                task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+                if task and not task.events_buffered:
+                    task.events_buffered = True
+                
+                db.flush()  # Flush to get the ID and trigger constraint check
+                
+                log.debug(
+                    "%s Buffered event for task %s: sequence=%d, type=%s",
+                    self.log_identifier,
+                    task_id,
+                    buffer_entry.event_sequence,
+                    event_type,
+                )
+                
+                return buffer_entry
+                
+            except IntegrityError as e:
+                # Rollback the failed transaction
+                db.rollback()
+                last_error = e
+                
+                # Check if this is a sequence number collision
+                if "sse_event_buffer_task_seq_unique" in str(e) or "UNIQUE constraint" in str(e):
+                    log.warning(
+                        "%s Sequence number race condition detected for task %s (attempt %d/%d), retrying...",
+                        self.log_identifier,
+                        task_id,
+                        attempt + 1,
+                        MAX_SEQUENCE_RETRIES,
+                    )
+                    continue
+                else:
+                    # Some other integrity error, re-raise
+                    raise
         
-        # Mark task as having buffered events
-        task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
-        if task and not task.events_buffered:
-            task.events_buffered = True
-        
-        db.flush()  # Flush to get the ID
-        
-        log.debug(
-            "%s Buffered event for task %s: sequence=%d, type=%s",
+        # All retries failed - this should be extremely rare
+        log.error(
+            "%s Failed to buffer event after %d attempts for task %s: %s",
             self.log_identifier,
+            MAX_SEQUENCE_RETRIES,
             task_id,
-            buffer_entry.event_sequence,
-            event_type,
+            last_error,
         )
-        
-        return buffer_entry
+        raise last_error
 
     def get_buffered_events(
         self,
