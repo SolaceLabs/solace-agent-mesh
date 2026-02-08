@@ -186,8 +186,9 @@ class TaskLoggerService:
                     log.debug(
                         f"{self.log_identifier} Non-critical: Failed to update last_activity_time for task {task_id}: {activity_update_error}"
                     )
-                    # Refresh the session to clear the stale state for subsequent operations
+                    # Rollback and begin a new transaction so subsequent operations can continue
                     db.rollback()
+                    db.begin()
 
             # Create and save the event using the sanitized raw payload
             task_event = TaskEvent(
