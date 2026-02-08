@@ -3,12 +3,13 @@ API Router for agent discovery and management.
 """
 
 import logging
+from typing import Any
+
+from a2a.types import AgentCard
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Any, Dict, List
 
 from ....common.agent_registry import AgentRegistry
 from ....common.middleware.registry import MiddlewareRegistry
-from a2a.types import AgentCard
 from ..dependencies import get_agent_registry, get_user_config
 
 log = logging.getLogger(__name__)
@@ -17,15 +18,38 @@ router = APIRouter()
 
 # URI for the SAM tools extension in agent capabilities
 TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
+DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name"
+
+
+def _get_agent_display_name(agent: AgentCard) -> str:
+    """
+    Extract the display name from an agent card's extensions.
+    Falls back to the agent's name if no display name is found.
+
+    Args:
+        agent: The agent card to extract display name from
+
+    Returns:
+        The display name if found in extensions, otherwise the agent's name
+    """
+    if agent.capabilities and agent.capabilities.extensions:
+        for ext in agent.capabilities.extensions:
+            if (
+                ext.uri == DISPLAY_NAME_EXTENSION_URI
+                and ext.params
+                and ext.params.get("display_name")
+            ):
+                return ext.params["display_name"]
+    return agent.name
 
 
 def _filter_tools_by_user_scopes(
-    tools: List[Dict[str, Any]],
-    user_config: Dict[str, Any],
+    tools: list[dict[str, Any]],
+    user_config: dict[str, Any],
     config_resolver: Any,
     agent_name: str,
     log_prefix: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Filter tools based on user's scopes.
 
@@ -77,7 +101,7 @@ def _filter_tools_by_user_scopes(
 
 def _filter_agent_tools(
     agent: AgentCard,
-    user_config: Dict[str, Any],
+    user_config: dict[str, Any],
     config_resolver: Any,
     log_prefix: str,
 ) -> AgentCard:
@@ -143,10 +167,10 @@ def _filter_agent_tools(
     return agent_copy
 
 
-@router.get("/agentCards", response_model=List[AgentCard])
+@router.get("/agentCards", response_model=list[AgentCard])
 async def get_discovered_agent_cards(
     agent_registry: AgentRegistry = Depends(get_agent_registry),
-    user_config: Dict[str, Any] = Depends(get_user_config),
+    user_config: dict[str, Any] = Depends(get_user_config),
 ):
     """
     Retrieves a list of discovered A2A agents filtered by user permissions.
@@ -201,10 +225,15 @@ async def get_discovered_agent_cards(
             for agent in filtered_agents
         ]
 
+        # Sort agents alphabetically by display name (case-insensitive)
+        agents_with_filtered_tools.sort(
+            key=lambda agent: _get_agent_display_name(agent).lower()
+        )
+
         return agents_with_filtered_tools
     except Exception as e:
         log.exception("%sError retrieving discovered agent cards: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error retrieving agent list.",
-        )
+        ) from e
