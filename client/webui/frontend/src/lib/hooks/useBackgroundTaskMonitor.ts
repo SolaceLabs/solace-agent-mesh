@@ -16,6 +16,10 @@ interface UseBackgroundTaskMonitorProps {
     onTaskFailed?: (taskId: string, error: string, sessionId: string) => void;
 }
 
+/**
+ * Hook for monitoring and reconnecting to background tasks.
+ * Stores active background tasks in localStorage and automatically reconnects on session load.
+ */
 export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed }: UseBackgroundTaskMonitorProps) {
     const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTaskState[]>([]);
     const backgroundTasksRef = useRef<BackgroundTaskState[]>(backgroundTasks);
@@ -47,6 +51,11 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
         } else {
             localStorage.removeItem(STORAGE_KEY);
         }
+    }, [backgroundTasks]);
+
+    // Keep ref in sync with state for use in stable callbacks
+    useEffect(() => {
+        backgroundTasksRef.current = backgroundTasks;
     }, [backgroundTasks]);
 
     // Register a background task
@@ -210,7 +219,7 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
             return;
         }
 
-        // Check immediately on mount/change
+        // Check immediately when polling starts
         checkAllBackgroundTasks();
 
         // Then check periodically (every 5 seconds)
