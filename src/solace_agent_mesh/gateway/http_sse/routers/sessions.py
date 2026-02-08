@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import ValidationError
@@ -290,7 +291,6 @@ async def save_task(
                                 )
                             
                             # Strip status_update embeds (they're for real-time display only)
-                            import re
                             status_update_pattern = r'«status_update:[^»]+»\n?'
                             resolved_text = re.sub(status_update_pattern, '', resolved_text)
                             
@@ -367,16 +367,15 @@ async def save_task(
         try:
             from ..dependencies import get_sac_component
             component = get_sac_component()
-            # Use INFO level to ensure we see this in normal logging
-            log.info(
+            log.debug(
                 "[BufferCleanup] Task %s: Starting cleanup. component=%s, sse_manager=%s",
                 request.task_id,
                 component is not None,
                 component.sse_manager is not None if component else False,
             )
             if component and component.sse_manager:
-                persistent_buffer = component.sse_manager._persistent_buffer
-                log.info(
+                persistent_buffer = component.sse_manager.get_persistent_buffer()
+                log.debug(
                     "[BufferCleanup] Task %s: persistent_buffer=%s, is_enabled=%s",
                     request.task_id,
                     persistent_buffer is not None,
@@ -384,18 +383,19 @@ async def save_task(
                 )
                 if persistent_buffer and persistent_buffer.is_enabled():
                     deleted_count = persistent_buffer.delete_events_for_task(request.task_id)
-                    log.info(
-                        "[BufferCleanup] Task %s: Cleared %d buffered SSE events after chat_task save",
-                        request.task_id,
-                        deleted_count,
-                    )
+                    if deleted_count > 0:
+                        log.info(
+                            "[BufferCleanup] Task %s: Cleared %d buffered SSE events after chat_task save",
+                            request.task_id,
+                            deleted_count,
+                        )
                 else:
-                    log.info(
+                    log.debug(
                         "[BufferCleanup] Task %s: Buffer disabled or not available, skipping cleanup",
                         request.task_id,
                     )
             else:
-                log.info(
+                log.debug(
                     "[BufferCleanup] Task %s: No component or sse_manager available",
                     request.task_id,
                 )
@@ -594,8 +594,10 @@ async def get_session_history(
 @router.get("/sessions/{session_id}/events/unconsumed")
 async def get_session_unconsumed_events(
     session_id: str,
+    include_events: bool = False,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
 ):
     """
     Check for unconsumed buffered SSE events for a session.
@@ -605,19 +607,24 @@ async def get_session_unconsumed_events(
     
     In the unified event buffer architecture:
     1. Frontend switches to a session
-    2. Frontend calls this endpoint to check for unconsumed events
-    3. If events exist, frontend replays them via /api/v1/tasks/{task_id}/events/buffered
-    4. Frontend saves to chat_tasks
-    5. Frontend clears buffer via DELETE /api/v1/tasks/{task_id}/events/buffered
+    2. Frontend calls this endpoint with include_events=true to get all buffered events in one request
+    3. Frontend replays events through handleSseMessage
+    4. Frontend saves to chat_tasks (which implicitly cleans up buffer)
+    
+    Query Parameters:
+        include_events: If true, include the actual event data in the response.
+                       This enables batched retrieval to avoid N+1 queries.
     
     Returns:
         JSON object with:
         - has_events: boolean indicating if there are unconsumed events
         - task_ids: list of task IDs with unconsumed events
+        - events_by_task: (only if include_events=true) dict mapping task_id to list of events
     """
     user_id = user.get("id")
     log.info(
-        "User %s checking for unconsumed events in session %s", user_id, session_id
+        "User %s checking for unconsumed events in session %s (include_events=%s)",
+        user_id, session_id, include_events
     )
 
     try:
@@ -630,6 +637,15 @@ async def get_session_unconsumed_events(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
+        # Verify user owns this session
+        session_domain = session_service.get_session_details(
+            db=db, session_id=session_id, user_id=user_id
+        )
+        if not session_domain:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+
         # Get the SSE manager to access the persistent buffer
         from ..dependencies import get_sac_component
         from ..component import WebUIBackendComponent
@@ -638,15 +654,16 @@ async def get_session_unconsumed_events(
         
         if component is None:
             log.warning("WebUI backend component not available")
-            return {"has_events": False, "task_ids": []}
+            return {"has_events": False, "task_ids": [], "events_by_task": {} if include_events else None}
         
         sse_manager = component.sse_manager
-        if sse_manager is None or sse_manager._persistent_buffer is None:
+        persistent_buffer = sse_manager.get_persistent_buffer() if sse_manager else None
+        if persistent_buffer is None:
             log.debug("Persistent buffer not available")
-            return {"has_events": False, "task_ids": []}
+            return {"has_events": False, "task_ids": [], "events_by_task": {} if include_events else None}
         
-        # Get unconsumed events for this session
-        unconsumed_by_task = sse_manager._persistent_buffer.get_unconsumed_events_for_session(session_id)
+        # Get unconsumed events for this session (already grouped by task_id)
+        unconsumed_by_task = persistent_buffer.get_unconsumed_events_for_session(session_id)
         
         task_ids = list(unconsumed_by_task.keys())
         has_events = len(task_ids) > 0
@@ -658,11 +675,32 @@ async def get_session_unconsumed_events(
             task_ids
         )
         
-        return {
+        response = {
             "has_events": has_events,
             "task_ids": task_ids,
             "session_id": session_id
         }
+        
+        # Include actual events if requested (enables batched retrieval)
+        if include_events:
+            # Convert events to the format expected by frontend
+            # Format matches the per-task endpoint: {events_buffered: bool, events: [...]}
+            events_by_task = {}
+            for task_id, events in unconsumed_by_task.items():
+                events_by_task[task_id] = {
+                    "events_buffered": len(events) > 0,
+                    "events": [
+                        {
+                            "sequence": event.get("event_sequence", 0),
+                            "event_type": event.get("event_type", "message"),
+                            "data": event.get("event_data", {}),
+                        }
+                        for event in events
+                    ]
+                }
+            response["events_by_task"] = events_by_task
+        
+        return response
 
     except HTTPException:
         raise

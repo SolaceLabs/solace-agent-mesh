@@ -271,7 +271,7 @@ class PersistentSSEEventBuffer:
             # Check if we should flush
             if buffer_size >= self._hybrid_flush_threshold:
                 should_flush = True
-                log.info(
+                log.debug(
                     "%s [Hybrid] RAM buffer for task %s reached threshold (%d >= %d), will flush to DB",
                     self.log_identifier,
                     task_id,
@@ -283,7 +283,7 @@ class PersistentSSEEventBuffer:
         if should_flush:
             self.flush_task_buffer(task_id)
         
-        log.info(
+        log.debug(
             "%s [Hybrid] Buffered event to RAM for task %s (type=%s, ram_buffer_size=%d)",
             self.log_identifier,
             task_id,
@@ -587,7 +587,22 @@ class PersistentSSEEventBuffer:
             db = self._session_factory()
             try:
                 repo = SSEEventBufferRepository()
-                return repo.get_unconsumed_events_for_session(db, session_id)
+                # Repository returns List[SSEEventBufferModel], we need to convert to Dict[task_id, List[events]]
+                events = repo.get_unconsumed_events_for_session(db, session_id)
+                
+                # Group events by task_id
+                result: Dict[str, List[Dict[str, Any]]] = {}
+                for event in events:
+                    task_id = event.task_id
+                    if task_id not in result:
+                        result[task_id] = []
+                    result[task_id].append({
+                        "event_type": event.event_type,
+                        "event_data": event.event_data,
+                        "event_sequence": event.event_sequence,
+                        "created_at": event.created_at,
+                    })
+                return result
             finally:
                 db.close()
         except Exception as e:
@@ -611,7 +626,7 @@ class PersistentSSEEventBuffer:
         Returns:
             Number of events deleted
         """
-        log.info(
+        log.debug(
             "%s [BufferCleanup] delete_events_for_task called for task_id=%s, is_enabled=%s, hybrid_mode=%s",
             self.log_identifier,
             task_id,
@@ -619,7 +634,7 @@ class PersistentSSEEventBuffer:
             self.is_hybrid_mode_enabled(),
         )
         if not self.is_enabled():
-            log.info("%s [BufferCleanup] Buffer not enabled, returning 0", self.log_identifier)
+            log.debug("%s [BufferCleanup] Buffer not enabled, returning 0", self.log_identifier)
             return 0
         
         # In hybrid mode, clear RAM buffer first (discard without flushing to DB)
@@ -629,7 +644,7 @@ class PersistentSSEEventBuffer:
                 events = self._ram_buffer.pop(task_id, [])
                 ram_cleared = len(events)
                 if ram_cleared > 0:
-                    log.info(
+                    log.debug(
                         "%s [BufferCleanup] Cleared %d events from RAM buffer for task %s (discarded, not flushed)",
                         self.log_identifier,
                         ram_cleared,

@@ -64,7 +64,7 @@ apps:
       task_logging:
         enabled: true
         hybrid_buffer:
-          enabled: false   # Enable so events are buffered in RAM first
+          enabled: false   # false=events go directly to DB (default); true=buffer in RAM first, then flush to DB
           flush_threshold: 10     # Flush to DB after N events (lower for easier testing)
         log_status_updates: true
         log_artifact_events: true

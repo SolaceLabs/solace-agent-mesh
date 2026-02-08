@@ -536,20 +536,34 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Track which tasks have buffered events (need replay)
             const tasksWithBufferedEvents = new Map<string, { events_buffered: boolean; events: any[] }>();
 
-            // Check which tasks have buffered events (do this upfront to determine replay strategy)
             if (replayBufferedEventsRef.current && backgroundTasksEnabled) {
-                for (const task of migratedTasks) {
-                    try {
-                        // Check if this task has buffered events
-                        // Use mark_consumed=false to just peek at the events
-                        const response = await api.webui.get(`/api/v1/tasks/${task.taskId}/events/buffered?mark_consumed=false`);
-                        if (response.events_buffered && response.events.length > 0) {
-                            console.debug(`[loadSessionTasks] Task ${task.taskId} has ${response.events.length} buffered events`);
-                            tasksWithBufferedEvents.set(task.taskId, response);
+                try {
+                    // Use include_events=true to get all events in one batch
+                    const response = await api.webui.get(`/api/v1/sessions/${sessionId}/events/unconsumed?include_events=true`);
+                    if (response.has_events && response.events_by_task) {
+                        // Populate the map from the batched response
+                        for (const [taskId, taskEvents] of Object.entries(response.events_by_task)) {
+                            const typedEvents = taskEvents as { events_buffered: boolean; events: any[] };
+                            if (typedEvents.events_buffered && typedEvents.events.length > 0) {
+                                console.debug(`[loadSessionTasks] Task ${taskId} has ${typedEvents.events.length} buffered events (batched)`);
+                                tasksWithBufferedEvents.set(taskId, typedEvents);
+                            }
                         }
-                    } catch (error) {
-                        // Ignore errors - task may not have buffered events or endpoint may not exist
-                        console.debug(`[loadSessionTasks] Could not check buffered events for task ${task.taskId}:`, error);
+                        console.debug(`[loadSessionTasks] Loaded buffered events for ${tasksWithBufferedEvents.size} tasks in single request`);
+                    }
+                } catch (error) {
+                    // Fall back to per-task queries if batched endpoint fails
+                    console.warn(`[loadSessionTasks] Batched event fetch failed, falling back to per-task queries:`, error);
+                    for (const task of migratedTasks) {
+                        try {
+                            const response = await api.webui.get(`/api/v1/tasks/${task.taskId}/events/buffered?mark_consumed=false`);
+                            if (response.events_buffered && response.events.length > 0) {
+                                console.debug(`[loadSessionTasks] Task ${task.taskId} has ${response.events.length} buffered events (fallback)`);
+                                tasksWithBufferedEvents.set(task.taskId, response);
+                            }
+                        } catch (taskError) {
+                            console.debug(`[loadSessionTasks] Could not check buffered events for task ${task.taskId}:`, taskError);
+                        }
                     }
                 }
             }

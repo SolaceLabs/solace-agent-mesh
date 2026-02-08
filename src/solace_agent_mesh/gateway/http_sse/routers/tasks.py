@@ -1033,20 +1033,20 @@ async def clear_buffered_task_events(
     """
     Clear all buffered SSE events for a task.
     
-    This endpoint is called by the frontend after successfully saving
-    a chat task to clear the temporary event buffer.
+    This endpoint is used to clean up orphan buffered events without
+    triggering a chat_task save. Use cases:
+    1. Clean up leftover events when a chat_task already exists
+    2. Explicitly clear buffer without updating session modified time
     
-    In the unified event buffer architecture:
-    1. Events are always buffered to the database
-    2. Frontend replays events on session switch
-    3. Frontend saves to chat_tasks
-    4. Frontend calls this endpoint to clear the buffer
+    NOTE: Buffer cleanup also happens implicitly in save_task endpoint
+    (POST /sessions/{session_id}/chat-tasks), so this endpoint is only
+    needed when you want cleanup without a save operation.
     
     Returns:
         JSON object with the number of events deleted
     """
     log_prefix = f"[DELETE /api/v1/tasks/{task_id}/events/buffered] "
-    log.info("%sRequest from user %s to clear buffered events", log_prefix, user_id)
+    log.debug("%sRequest from user %s to clear buffered events", log_prefix, user_id)
 
     try:
         # Get the SSE manager to access the persistent buffer
@@ -1059,14 +1059,54 @@ async def clear_buffered_task_events(
             )
         
         sse_manager = component.sse_manager
-        if sse_manager is None or sse_manager._persistent_buffer is None:
-            log.warning("%sPersistent buffer not available", log_prefix)
+        persistent_buffer = sse_manager.get_persistent_buffer() if sse_manager else None
+        if persistent_buffer is None:
+            log.debug("%sPersistent buffer not available", log_prefix)
             return {"deleted": 0, "message": "Persistent buffer not enabled"}
         
-        # Delete all events for this task
-        deleted_count = sse_manager._persistent_buffer.delete_events_for_task(task_id)
+        # Verify user owns this task by checking the task's user_id in the buffer metadata
+        # or the task itself in the database
+        task_metadata = persistent_buffer.get_task_metadata(task_id)
+        if task_metadata:
+            task_user_id = task_metadata.get("user_id")
+            if task_user_id and task_user_id != user_id:
+                log.warning(
+                    "%sUser %s attempted to clear buffer for task %s owned by %s",
+                    log_prefix,
+                    user_id,
+                    task_id,
+                    task_user_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have permission to clear events for this task",
+                )
+        else:
+            # No metadata found, try to verify via database task record
+            from .dto.responses.task_responses import Task
+            from ..repository.task_repository import TaskRepository
+            
+            repo = TaskRepository()
+            task = repo.find_by_id(db, task_id)
+            if task and hasattr(task, 'user_id') and task.user_id:
+                if task.user_id != user_id:
+                    log.warning(
+                        "%sUser %s attempted to clear buffer for task %s owned by %s",
+                        log_prefix,
+                        user_id,
+                        task_id,
+                        task.user_id,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You do not have permission to clear events for this task",
+                    )
         
-        log.info("%sDeleted %d buffered events for task %s", log_prefix, deleted_count, task_id)
+        # Delete all events for this task
+        deleted_count = persistent_buffer.delete_events_for_task(task_id)
+        
+        if deleted_count > 0:
+            log.info("%sDeleted %d buffered events for task %s", log_prefix, deleted_count, task_id)
         
         return {
             "deleted": deleted_count,
