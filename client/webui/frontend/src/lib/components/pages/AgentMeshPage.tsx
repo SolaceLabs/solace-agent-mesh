@@ -45,6 +45,7 @@ export function AgentMeshPage() {
             label: "Workflows",
             isActive: activeTab === "workflows",
             onClick: () => setActiveTab("workflows"),
+            badge: "EXPERIMENTAL",
         },
     ];
 

@@ -266,7 +266,7 @@ class TestLoadMcpToolFiltering:
         result = await _load_mcp_tool(mock_component, tool_config)
 
         # Verify result structure
-        assert len(result) == 3  # tools, builtins, cleanups
+        assert len(result) == 4  # tools, builtins, cleanups, tool_scopes_map
         assert len(result[0]) == 1
         assert result[0][0] is mock_toolset_instance
         assert result[0][0].origin == "mcp"
