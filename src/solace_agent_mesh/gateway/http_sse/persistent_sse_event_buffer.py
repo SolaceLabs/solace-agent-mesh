@@ -258,6 +258,7 @@ class PersistentSSEEventBuffer:
         """
         timestamp = int(time.time() * 1000)  # milliseconds
         should_flush = False
+        buffer_size_before_flush = 0
         
         with self._lock:
             # Add to RAM buffer
@@ -266,16 +267,16 @@ class PersistentSSEEventBuffer:
             
             self._ram_buffer[task_id].append((event_type, event_data, timestamp, session_id, user_id))
             
-            buffer_size = len(self._ram_buffer[task_id])
+            buffer_size_before_flush = len(self._ram_buffer[task_id])
             
             # Check if we should flush
-            if buffer_size >= self._hybrid_flush_threshold:
+            if buffer_size_before_flush >= self._hybrid_flush_threshold:
                 should_flush = True
                 log.debug(
                     "%s [Hybrid] RAM buffer for task %s reached threshold (%d >= %d), will flush to DB",
                     self.log_identifier,
                     task_id,
-                    buffer_size,
+                    buffer_size_before_flush,
                     self._hybrid_flush_threshold,
                 )
         
@@ -283,12 +284,15 @@ class PersistentSSEEventBuffer:
         if should_flush:
             self.flush_task_buffer(task_id)
         
+        # Get actual current buffer size for accurate logging
+        current_buffer_size = self.get_ram_buffer_size(task_id)
+        
         log.debug(
             "%s [Hybrid] Buffered event to RAM for task %s (type=%s, ram_buffer_size=%d)",
             self.log_identifier,
             task_id,
             event_type,
-            buffer_size if not should_flush else 0,  # After flush, buffer is empty
+            current_buffer_size,
         )
         
         return True
