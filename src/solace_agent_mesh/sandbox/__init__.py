@@ -37,6 +37,16 @@ Example:
     app.run()
 """
 
+# Lazy imports: heavy modules (app, component, nsjail_runner) pull in the full
+# SAM + Google ADK dependency chain.  When tool_runner.py runs inside nsjail
+# via `python -m solace_agent_mesh.sandbox.tool_runner`, this __init__.py is
+# executed first.  Eagerly importing app/component would add ~5 seconds of
+# import time.  Instead we use lazy imports so the cost is only paid when those
+# symbols are actually accessed.
+
+import importlib as _importlib
+
+# Light-weight protocol types are always available
 from .protocol import (
     ArtifactReference,
     CreatedArtifact,
@@ -50,44 +60,37 @@ from .protocol import (
     SandboxToolInvocationResponse,
 )
 
-# Import app and component - these may fail if SAM dependencies aren't available
-# (e.g., when just importing protocol types)
-try:
-    from .app import SandboxWorkerApp
-    from .component import SandboxWorkerComponent
-    from .nsjail_runner import NsjailRunner
-    from .context_facade import SandboxToolContextFacade
+__all__ = [
+    # App and Component (lazy)
+    "SandboxWorkerApp",
+    "SandboxWorkerComponent",
+    "NsjailRunner",
+    "SandboxToolContextFacade",
+    # Protocol types (eager)
+    "ArtifactReference",
+    "CreatedArtifact",
+    "PreloadedArtifact",
+    "SandboxError",
+    "SandboxErrorCodes",
+    "SandboxInvokeParams",
+    "SandboxInvokeResult",
+    "SandboxStatusUpdate",
+    "SandboxToolInvocationRequest",
+    "SandboxToolInvocationResponse",
+]
 
-    __all__ = [
-        # App and Component
-        "SandboxWorkerApp",
-        "SandboxWorkerComponent",
-        # nsjail execution
-        "NsjailRunner",
-        "SandboxToolContextFacade",
-        # Protocol types
-        "ArtifactReference",
-        "CreatedArtifact",
-        "PreloadedArtifact",
-        "SandboxError",
-        "SandboxErrorCodes",
-        "SandboxInvokeParams",
-        "SandboxInvokeResult",
-        "SandboxStatusUpdate",
-        "SandboxToolInvocationRequest",
-        "SandboxToolInvocationResponse",
-    ]
-except ImportError:
-    # Allow importing protocol types even without full SAM installation
-    __all__ = [
-        "ArtifactReference",
-        "CreatedArtifact",
-        "PreloadedArtifact",
-        "SandboxError",
-        "SandboxErrorCodes",
-        "SandboxInvokeParams",
-        "SandboxInvokeResult",
-        "SandboxStatusUpdate",
-        "SandboxToolInvocationRequest",
-        "SandboxToolInvocationResponse",
-    ]
+# Map of lazy attribute name -> (submodule, attribute)
+_LAZY_IMPORTS = {
+    "SandboxWorkerApp": (".app", "SandboxWorkerApp"),
+    "SandboxWorkerComponent": (".component", "SandboxWorkerComponent"),
+    "NsjailRunner": (".nsjail_runner", "NsjailRunner"),
+    "SandboxToolContextFacade": (".context_facade", "SandboxToolContextFacade"),
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY_IMPORTS:
+        module_path, attr = _LAZY_IMPORTS[name]
+        module = _importlib.import_module(module_path, __name__)
+        return getattr(module, attr)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

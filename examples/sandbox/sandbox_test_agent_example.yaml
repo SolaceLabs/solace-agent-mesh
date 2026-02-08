@@ -37,13 +37,21 @@ apps:
       model: *planning_model
 
       instruction: |
-        You are an agent that helps test sandboxed tool execution. You have access
-        to tools that run in an isolated container environment for security.
+        You are an agent that can execute Python code in a secure sandbox environment.
+        You have access to tools that run in an isolated container via nsjail.
 
-        When asked to use a sandboxed tool, you will invoke it and the execution
-        will happen in a secure nsjail sandbox inside a container.
+        When asked to run code, write data analysis, or perform computations, use
+        the execute_python tool. You can write full Python programs including imports
+        from the standard library.
 
-        You should provide verbose status updates about what you're doing.
+        To return a value from your code, assign it to a variable called `result`.
+        Anything printed to stdout is also captured.
+
+        To create file artifacts, use `save_artifact(filename, content_bytes)`.
+        To send progress updates, use `send_status(message)`.
+
+        If artifacts are provided, their file paths are available in the
+        `artifact_files` dict keyed by parameter name.
 
       # Tools configuration - mix of builtin and sandboxed tools
       tools:
@@ -68,6 +76,24 @@ apps:
             message:
               type: string
               description: "The message to echo back"
+
+        # Sandboxed Python code execution - runs arbitrary code in nsjail
+        - tool_type: sandboxed_python
+          tool_name: "execute_python"
+          tool_description: "Execute arbitrary Python code in a secure sandbox. Assign to `result` to return a value. Use `print()` for stdout. Use `save_artifact(filename, bytes)` to create files. Use `send_status(msg)` for progress. Artifact file paths are in `artifact_files` dict."
+          component_module: example_sandbox_tools
+          function_name: execute_python
+          sandbox_worker_id: sandbox-worker-001
+          timeout_seconds: 60
+          sandbox_profile: standard
+          parameters:
+            code:
+              type: string
+              description: "Python source code to execute"
+            artifacts:
+              type: array
+              description: "Optional list of artifact parameter names whose files should be available"
+              required: false
 
       session_service:
         type: "memory"

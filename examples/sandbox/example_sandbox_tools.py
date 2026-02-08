@@ -161,3 +161,83 @@ def failing_tool(ctx: Any, error_message: str = "Intentional failure") -> Dict[s
     """
     ctx.send_status("About to fail...")
     raise RuntimeError(error_message)
+
+
+def execute_python(
+    ctx: Any,
+    code: str,
+    artifacts: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Execute arbitrary Python code in the sandbox.
+
+    The code runs in a restricted namespace with access to:
+    - All Python builtins
+    - Pre-loaded artifacts (available as file paths in the `artifact_files` dict)
+    - A `save_artifact(filename, content_bytes)` helper to create output artifacts
+    - A `send_status(message)` helper for progress updates
+
+    The code's return value (if any) is captured by assigning to a `result`
+    variable.  Anything printed to stdout is also captured.
+
+    Args:
+        ctx: Tool context
+        code: Python source code to execute
+        artifacts: Optional list of artifact parameter names to load
+
+    Returns:
+        Dict with execution output, stdout, and any created artifacts
+    """
+    import io
+    import sys
+    import traceback as _tb
+
+    ctx.send_status("Executing Python code...")
+
+    # Load requested artifacts into the work directory
+    artifact_files: Dict[str, str] = {}
+    for name in (artifacts or []):
+        path = ctx._artifact_paths.get(name)
+        if path:
+            artifact_files[name] = path
+
+    # Build the execution namespace
+    namespace: Dict[str, Any] = {
+        "__builtins__": __builtins__,
+        "artifact_files": artifact_files,
+        "save_artifact": lambda fn, data: ctx.save_artifact(fn, data if isinstance(data, bytes) else data.encode("utf-8")),
+        "send_status": ctx.send_status,
+    }
+
+    # Capture stdout
+    old_stdout = sys.stdout
+    captured = io.StringIO()
+    sys.stdout = captured
+
+    error = None
+    try:
+        exec(code, namespace)  # noqa: S102
+    except Exception:
+        error = _tb.format_exc()
+    finally:
+        sys.stdout = old_stdout
+
+    stdout_text = captured.getvalue()
+    result_value = namespace.get("result")
+
+    output_artifacts = ctx.list_output_artifacts()
+
+    if error:
+        return {
+            "status": "error",
+            "error": error,
+            "stdout": stdout_text,
+            "created_artifacts": output_artifacts,
+        }
+
+    return {
+        "status": "success",
+        "result": result_value if result_value is not None else stdout_text,
+        "stdout": stdout_text,
+        "created_artifacts": output_artifacts,
+    }
