@@ -134,86 +134,210 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
     React.useEffect(() => {
         if (!highlightedText || !contentRef.current) return;
 
-        // Find and highlight the text using TreeWalker to search text nodes
-        const treeWalker = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT, null);
-        let node: Text | null;
-        let highlightSpan: HTMLElement | null = null;
+        // No padding or border-radius to avoid layout shifts and ensure connected highlighting across DOM boundaries
+        const highlightStyle = "background-color: rgba(250, 204, 21, 0.4); color: inherit; transition: background-color 0.5s ease-out;";
+        const highlightMarks: HTMLElement[] = [];
 
-        // First, try to find an exact match within a single text node
-        while ((node = treeWalker.nextNode() as Text | null)) {
-            const text = node.textContent || "";
-            const index = text.indexOf(highlightedText);
+        // Normalize text for matching (collapse whitespace, handle line breaks)
+        const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim();
+        const searchTextNormalized = normalizeText(highlightedText);
 
-            if (index !== -1) {
-                // Found exact match - wrap it in a highlight span
-                const range = document.createRange();
-                range.setStart(node, index);
-                range.setEnd(node, index + highlightedText.length);
+        // Helper: Collect all text nodes and build a position map
+        const collectTextNodes = (container: HTMLElement): { node: Text; start: number; end: number }[] => {
+            const textNodes: { node: Text; start: number; end: number }[] = [];
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+            let node: Text | null;
+            let position = 0;
 
-                highlightSpan = document.createElement("mark");
-                highlightSpan.style.cssText = "background-color: rgba(250, 204, 21, 0.4); color: inherit; border-radius: 2px; padding: 0 2px; transition: background-color 0.5s ease-out;";
-
-                try {
-                    range.surroundContents(highlightSpan);
-                    break;
-                } catch {
-                    // surroundContents can fail if the range spans multiple elements
-                    highlightSpan = null;
+            while ((node = walker.nextNode() as Text | null)) {
+                const text = node.textContent || "";
+                if (text.length > 0) {
+                    textNodes.push({
+                        node,
+                        start: position,
+                        end: position + text.length,
+                    });
+                    position += text.length;
                 }
             }
-        }
+            return textNodes;
+        };
 
-        // If no exact match found, try progressively shorter prefixes
-        if (!highlightSpan) {
-            const words = highlightedText.split(/\s+/);
+        // Helper: Find text position within text nodes using simple string search
+        const findTextInNodes = (textNodes: { node: Text; start: number; end: number }[], searchText: string): { found: boolean; nodeRanges: { node: Text; startOffset: number; endOffset: number }[] } => {
+            // Concatenate all text from text nodes
+            const fullText = textNodes.map(t => t.node.textContent || "").join("");
 
-            // Try different lengths: first 3 words, first 2 words, first word
-            for (const wordCount of [3, 2, 1]) {
-                if (highlightSpan) break;
+            // Normalize both texts for comparison
+            const normalizedFullText = normalizeText(fullText);
+            const normalizedSearchText = normalizeText(searchText);
+
+            // Find the normalized search text in the normalized full text
+            const normalizedIndex = normalizedFullText.indexOf(normalizedSearchText);
+
+            if (normalizedIndex === -1) {
+                // Try case-insensitive search
+                const lowerNormalizedIndex = normalizedFullText.toLowerCase().indexOf(normalizedSearchText.toLowerCase());
+                if (lowerNormalizedIndex === -1) {
+                    return { found: false, nodeRanges: [] };
+                }
+            }
+
+            // Build mapping from normalized positions back to original positions
+            // This handles collapsed whitespace
+            const normalizedToOriginal: number[] = [];
+            let lastWasSpace = false;
+
+            for (let i = 0; i < fullText.length; i++) {
+                const char = fullText[i];
+                const isSpace = /\s/.test(char);
+
+                if (isSpace) {
+                    if (!lastWasSpace) {
+                        // This is the first space in a sequence - maps to a single space in normalized
+                        normalizedToOriginal.push(i);
+                    }
+                    // Subsequent spaces don't add to normalizedToOriginal
+                    lastWasSpace = true;
+                } else {
+                    normalizedToOriginal.push(i);
+                    lastWasSpace = false;
+                }
+            }
+
+            // Skip leading whitespace in mapping (since normalizeText trims)
+            let leadingSpaceCount = 0;
+            for (const char of fullText) {
+                if (/\s/.test(char)) leadingSpaceCount++;
+                else break;
+            }
+
+            // Adjust mapping for leading whitespace
+            const trimmedMapping = normalizedToOriginal.filter(pos => pos >= leadingSpaceCount);
+
+            // Find the actual index (using case-insensitive if needed)
+            let actualNormalizedIndex = normalizedFullText.indexOf(normalizedSearchText);
+            if (actualNormalizedIndex === -1) {
+                actualNormalizedIndex = normalizedFullText.toLowerCase().indexOf(normalizedSearchText.toLowerCase());
+            }
+
+            if (actualNormalizedIndex === -1 || actualNormalizedIndex >= trimmedMapping.length) {
+                return { found: false, nodeRanges: [] };
+            }
+
+            // Map normalized positions to original positions
+            const searchEndIndex = Math.min(actualNormalizedIndex + normalizedSearchText.length - 1, trimmedMapping.length - 1);
+
+            if (searchEndIndex < 0 || actualNormalizedIndex < 0) {
+                return { found: false, nodeRanges: [] };
+            }
+
+            const originalStart = trimmedMapping[actualNormalizedIndex];
+            const originalEnd = trimmedMapping[searchEndIndex] + 1;
+
+            // Find which text nodes contain this range
+            const nodeRanges: { node: Text; startOffset: number; endOffset: number }[] = [];
+            let currentPos = 0;
+
+            for (const { node } of textNodes) {
+                const text = node.textContent || "";
+                const nodeStart = currentPos;
+                const nodeEnd = currentPos + text.length;
+
+                if (nodeEnd > originalStart && nodeStart < originalEnd) {
+                    // This node overlaps with our search range
+                    const startOffset = Math.max(0, originalStart - nodeStart);
+                    const endOffset = Math.min(text.length, originalEnd - nodeStart);
+
+                    if (startOffset < endOffset) {
+                        nodeRanges.push({ node, startOffset, endOffset });
+                    }
+                }
+
+                currentPos = nodeEnd;
+            }
+
+            return { found: nodeRanges.length > 0, nodeRanges };
+        };
+
+        // Helper: Highlight portions of text nodes
+        const highlightNodeRanges = (nodeRanges: { node: Text; startOffset: number; endOffset: number }[]): HTMLElement[] => {
+            const marks: HTMLElement[] = [];
+
+            for (const { node, startOffset, endOffset } of nodeRanges) {
+                const text = node.textContent || "";
+                const parent = node.parentNode;
+                if (!parent) continue;
+
+                // Get the text to be highlighted
+                const highlightText = text.slice(startOffset, endOffset);
+
+                // Skip whitespace-only nodes to prevent visual glitches
+                if (/^\s*$/.test(highlightText)) {
+                    continue;
+                }
+
+                // Create document fragment with before, highlighted, and after parts
+                const frag = document.createDocumentFragment();
+
+                if (startOffset > 0) {
+                    frag.appendChild(document.createTextNode(text.slice(0, startOffset)));
+                }
+
+                const mark = document.createElement("mark");
+                mark.style.cssText = highlightStyle;
+                mark.textContent = highlightText;
+                frag.appendChild(mark);
+                marks.push(mark);
+
+                if (endOffset < text.length) {
+                    frag.appendChild(document.createTextNode(text.slice(endOffset)));
+                }
+
+                parent.replaceChild(frag, node);
+            }
+
+            return marks;
+        };
+
+        // Main logic: Try to find and highlight the text
+        const textNodes = collectTextNodes(contentRef.current);
+
+        // Strategy 1: Try exact match (handles multi-node spanning)
+        let result = findTextInNodes(textNodes, highlightedText);
+
+        // Strategy 2: If not found, try progressively shorter versions
+        if (!result.found) {
+            const words = searchTextNormalized.split(/\s+/);
+            for (const wordCount of [Math.min(5, words.length), 4, 3, 2, 1]) {
+                if (result.found) break;
                 if (words.length < wordCount) continue;
 
                 const searchText = words.slice(0, wordCount).join(" ");
-                if (searchText.length < 3) continue; // Skip very short searches
+                if (searchText.length < 3) continue;
 
-                const treeWalker2 = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT, null);
-                while ((node = treeWalker2.nextNode() as Text | null)) {
-                    const text = node.textContent || "";
-                    const index = text.indexOf(searchText);
-
-                    if (index !== -1) {
-                        const range = document.createRange();
-                        range.setStart(node, index);
-                        range.setEnd(node, index + searchText.length);
-
-                        highlightSpan = document.createElement("mark");
-                        highlightSpan.style.cssText = "background-color: rgba(250, 204, 21, 0.4); color: inherit; border-radius: 2px; padding: 0 2px; transition: background-color 0.5s ease-out;";
-
-                        try {
-                            range.surroundContents(highlightSpan);
-                            break;
-                        } catch {
-                            highlightSpan = null;
-                        }
-                    }
-                }
+                // Re-collect text nodes (in case DOM was modified)
+                const freshTextNodes = collectTextNodes(contentRef.current!);
+                result = findTextInNodes(freshTextNodes, searchText);
             }
         }
 
-        // Last resort: find any text node that contains the first word and highlight the whole node
-        if (!highlightSpan && highlightedText.length > 0) {
-            const firstWord = highlightedText.split(/\s+/)[0];
-            if (firstWord && firstWord.length >= 2) {
-                const treeWalker3 = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT, null);
-                while ((node = treeWalker3.nextNode() as Text | null)) {
-                    const text = node.textContent || "";
-                    if (text.includes(firstWord) && text.trim().length > 0) {
-                        // Highlight the entire text node content
-                        const parent = node.parentNode;
-                        if (parent) {
-                            highlightSpan = document.createElement("mark");
-                            highlightSpan.style.cssText = "background-color: rgba(250, 204, 21, 0.4); color: inherit; border-radius: 2px; padding: 0 2px; transition: background-color 0.5s ease-out;";
-                            highlightSpan.textContent = text;
-                            parent.replaceChild(highlightSpan, node);
+        // Strategy 3: Fuzzy match - find text containing most of the words
+        if (!result.found && searchTextNormalized.length > 0) {
+            const words = searchTextNormalized.split(/\s+/).filter(w => w.length >= 2);
+            if (words.length > 0) {
+                const freshTextNodes = collectTextNodes(contentRef.current!);
+                const fullText = freshTextNodes.map(t => t.node.textContent || "").join("");
+                const normalizedFullText = normalizeText(fullText).toLowerCase();
+
+                // Find the best matching region that contains the most consecutive words
+                for (let startWord = 0; startWord < words.length && !result.found; startWord++) {
+                    for (let endWord = words.length; endWord > startWord && !result.found; endWord--) {
+                        const searchPhrase = words.slice(startWord, endWord).join(" ").toLowerCase();
+                        if (normalizedFullText.includes(searchPhrase)) {
+                            // Found a match! Now find it properly
+                            const latestTextNodes = collectTextNodes(contentRef.current!);
+                            result = findTextInNodes(latestTextNodes, words.slice(startWord, endWord).join(" "));
                             break;
                         }
                     }
@@ -221,23 +345,33 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
             }
         }
 
-        if (highlightSpan) {
-            // Scroll the highlight into view
-            highlightSpan.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Apply highlights if we found matches
+        if (result.found && result.nodeRanges.length > 0) {
+            const marks = highlightNodeRanges(result.nodeRanges);
+            highlightMarks.push(...marks);
+        }
 
-            // Fade out the highlight after 2 seconds
-            const span = highlightSpan;
-            setTimeout(() => {
-                span.style.backgroundColor = "transparent";
-            }, 2000);
+        // Scroll and fade handling
+        if (highlightMarks.length > 0) {
+            // Scroll the first highlight into view
+            highlightMarks[0].scrollIntoView({ behavior: "smooth", block: "center" });
 
-            // Remove the mark element after fade completes
+            // Fade out all highlights after 3 seconds
             setTimeout(() => {
-                if (span.parentNode) {
-                    const textNode = document.createTextNode(span.textContent || "");
-                    span.parentNode.replaceChild(textNode, span);
-                }
-            }, 2500);
+                highlightMarks.forEach(mark => {
+                    mark.style.backgroundColor = "transparent";
+                });
+            }, 3000);
+
+            // Remove all mark elements after fade completes
+            setTimeout(() => {
+                highlightMarks.forEach(mark => {
+                    if (mark.parentNode) {
+                        const textNode = document.createTextNode(mark.textContent || "");
+                        mark.parentNode.replaceChild(textNode, mark);
+                    }
+                });
+            }, 3500);
         }
     }, [highlightedText]);
 
