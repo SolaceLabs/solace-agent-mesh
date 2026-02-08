@@ -6,11 +6,23 @@ and can be replayed when the user returns to the session. It works alongside
 the in-memory SSEEventBuffer - the in-memory buffer handles short-term buffering
 for race conditions, while this persistent buffer handles long-term storage
 for background tasks.
+
+HYBRID MODE:
+When hybrid_mode_enabled=True, events are first buffered in RAM and only
+flushed to the database when:
+1. The RAM buffer reaches the flush threshold (default: 10 events)
+2. The SSE connection is closed (client disconnects)
+3. The task completes
+4. Explicit flush is requested
+
+This reduces database write pressure for short-lived tasks while maintaining
+durability for longer-running background tasks.
 """
 
 import logging
 import threading
-from typing import Any, Callable, Dict, List, Optional
+import time
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
 
@@ -22,12 +34,19 @@ class PersistentSSEEventBuffer:
     This buffer stores events in the database for background tasks that need
     to be replayed when the user returns. It's designed to work with the
     SSEManager to provide persistent event storage.
+    
+    HYBRID MODE :
+    When enabled, events are buffered in RAM first and batched to DB to reduce
+    database write pressure. This is off by default for safety but can be
+    enabled via config for performance optimization.
     """
 
     def __init__(
         self,
         session_factory: Optional[Callable] = None,
         enabled: bool = True,
+        hybrid_mode_enabled: bool = False,
+        hybrid_flush_threshold: int = 10,
     ):
         """
         Initialize the persistent event buffer.
@@ -35,25 +54,40 @@ class PersistentSSEEventBuffer:
         Args:
             session_factory: Factory function to create database sessions
             enabled: Whether persistent buffering is enabled
+            hybrid_mode_enabled: Whether to use RAM-first buffering (default: False)
+            hybrid_flush_threshold: Number of events before flushing RAM to DB (default: 10)
         """
         self._session_factory = session_factory
         self._enabled = enabled
         self._lock = threading.Lock()
         self.log_identifier = "[PersistentSSEEventBuffer]"
         
+        # Hybrid mode configuration
+        self._hybrid_mode_enabled = hybrid_mode_enabled
+        self._hybrid_flush_threshold = hybrid_flush_threshold
+        
         # Cache for task metadata to avoid repeated DB queries
         self._task_metadata_cache: Dict[str, Dict[str, str]] = {}
         
+        # RAM buffer for hybrid mode: task_id -> list of (event_type, event_data, timestamp)
+        self._ram_buffer: Dict[str, List[Tuple[str, Dict[str, Any], int]]] = {}
+        
         log.info(
-            "%s Initialized (enabled=%s, has_session_factory=%s)",
+            "%s Initialized (enabled=%s, has_session_factory=%s, hybrid_mode=%s, flush_threshold=%d)",
             self.log_identifier,
             self._enabled,
             self._session_factory is not None,
+            self._hybrid_mode_enabled,
+            self._hybrid_flush_threshold,
         )
 
     def is_enabled(self) -> bool:
         """Check if persistent buffering is enabled and configured."""
         return self._enabled and self._session_factory is not None
+
+    def is_hybrid_mode_enabled(self) -> bool:
+        """Check if hybrid RAM+DB buffering mode is enabled."""
+        return self._hybrid_mode_enabled and self.is_enabled()
 
     def set_task_metadata(
         self,
@@ -161,7 +195,10 @@ class PersistentSSEEventBuffer:
         user_id: Optional[str] = None,
     ) -> bool:
         """
-        Buffer an SSE event to the database.
+        Buffer an SSE event.
+        
+        In normal mode: writes directly to database.
+        In hybrid mode: buffers to RAM first, flushes to DB when threshold reached.
         
         Args:
             task_id: The task ID this event belongs to
@@ -191,6 +228,92 @@ class PersistentSSEEventBuffer:
             )
             return False
         
+        # HYBRID MODE: Buffer to RAM first, flush to DB on threshold
+        if self.is_hybrid_mode_enabled():
+            return self._buffer_event_hybrid(task_id, event_type, event_data, session_id, user_id)
+        
+        # NORMAL MODE: Write directly to database
+        return self._buffer_event_to_db(task_id, event_type, event_data, session_id, user_id)
+    
+    def _buffer_event_hybrid(
+        self,
+        task_id: str,
+        event_type: str,
+        event_data: Dict[str, Any],
+        session_id: str,
+        user_id: str,
+    ) -> bool:
+        """
+        Buffer event to RAM, flush to DB when threshold reached.
+        
+        Args:
+            task_id: The task ID
+            event_type: The SSE event type
+            event_data: The event payload
+            session_id: The session ID
+            user_id: The user ID
+            
+        Returns:
+            True if buffered successfully
+        """
+        timestamp = int(time.time() * 1000)  # milliseconds
+        should_flush = False
+        
+        with self._lock:
+            # Add to RAM buffer
+            if task_id not in self._ram_buffer:
+                self._ram_buffer[task_id] = []
+            
+            self._ram_buffer[task_id].append((event_type, event_data, timestamp, session_id, user_id))
+            
+            buffer_size = len(self._ram_buffer[task_id])
+            
+            # Check if we should flush
+            if buffer_size >= self._hybrid_flush_threshold:
+                should_flush = True
+                log.info(
+                    "%s [Hybrid] RAM buffer for task %s reached threshold (%d >= %d), will flush to DB",
+                    self.log_identifier,
+                    task_id,
+                    buffer_size,
+                    self._hybrid_flush_threshold,
+                )
+        
+        # Flush outside the lock to avoid holding it during DB operations
+        if should_flush:
+            self.flush_task_buffer(task_id)
+        
+        log.info(
+            "%s [Hybrid] Buffered event to RAM for task %s (type=%s, ram_buffer_size=%d)",
+            self.log_identifier,
+            task_id,
+            event_type,
+            buffer_size if not should_flush else 0,  # After flush, buffer is empty
+        )
+        
+        return True
+    
+    def _buffer_event_to_db(
+        self,
+        task_id: str,
+        event_type: str,
+        event_data: Dict[str, Any],
+        session_id: str,
+        user_id: str,
+    ) -> bool:
+        """
+        Buffer event directly to database (normal mode).
+        
+        Args:
+            task_id: The task ID
+            event_type: The SSE event type
+            event_data: The event payload
+            session_id: The session ID
+            user_id: The user ID
+            
+        Returns:
+            True if buffered successfully
+        """
         try:
             from .repository.sse_event_buffer_repository import SSEEventBufferRepository
             
@@ -229,6 +352,121 @@ class PersistentSSEEventBuffer:
                 e,
             )
             return False
+    
+    def flush_task_buffer(self, task_id: str) -> int:
+        """
+        Flush RAM buffer for a specific task to database.
+        
+        This is called:
+        1. When RAM buffer reaches threshold
+        2. When SSE connection is closed
+        3. When task completes
+        
+        Args:
+            task_id: The task ID to flush
+            
+        Returns:
+            Number of events flushed
+        """
+        if not self.is_hybrid_mode_enabled():
+            return 0
+        
+        # Extract events from RAM buffer under lock
+        events_to_flush = []
+        with self._lock:
+            events_to_flush = self._ram_buffer.pop(task_id, [])
+        
+        if not events_to_flush:
+            return 0
+        
+        # Flush to database outside the lock
+        try:
+            from .repository.sse_event_buffer_repository import SSEEventBufferRepository
+            
+            db = self._session_factory()
+            try:
+                repo = SSEEventBufferRepository()
+                
+                for event_type, event_data, timestamp, session_id, user_id in events_to_flush:
+                    repo.buffer_event(
+                        db=db,
+                        task_id=task_id,
+                        session_id=session_id,
+                        user_id=user_id,
+                        event_type=event_type,
+                        event_data=event_data,
+                        created_time=timestamp,
+                    )
+                
+                db.commit()
+                
+                log.info(
+                    "%s [Hybrid] Flushed %d events for task %s from RAM to DB",
+                    self.log_identifier,
+                    len(events_to_flush),
+                    task_id,
+                )
+                
+                return len(events_to_flush)
+            finally:
+                db.close()
+        except Exception as e:
+            log.error(
+                "%s [Hybrid] Failed to flush events for task %s: %s. Events lost: %d",
+                self.log_identifier,
+                task_id,
+                e,
+                len(events_to_flush),
+            )
+            # Re-add events to buffer on failure for retry
+            with self._lock:
+                if task_id not in self._ram_buffer:
+                    self._ram_buffer[task_id] = []
+                # Prepend the failed events (they came first)
+                self._ram_buffer[task_id] = events_to_flush + self._ram_buffer[task_id]
+            return 0
+    
+    def flush_all_buffers(self) -> int:
+        """
+        Flush all RAM buffers to database.
+        
+        This is called during shutdown to ensure no events are lost.
+        
+        Returns:
+            Total number of events flushed
+        """
+        if not self.is_hybrid_mode_enabled():
+            return 0
+        
+        # Get all task IDs with buffered events
+        with self._lock:
+            task_ids = list(self._ram_buffer.keys())
+        
+        total_flushed = 0
+        for task_id in task_ids:
+            total_flushed += self.flush_task_buffer(task_id)
+        
+        if total_flushed > 0:
+            log.info(
+                "%s [Hybrid] Flushed all buffers: %d total events",
+                self.log_identifier,
+                total_flushed,
+            )
+        
+        return total_flushed
+    
+    def get_ram_buffer_size(self, task_id: str) -> int:
+        """
+        Get the number of events in RAM buffer for a task.
+        
+        Args:
+            task_id: The task ID
+            
+        Returns:
+            Number of events in RAM buffer
+        """
+        with self._lock:
+            return len(self._ram_buffer.get(task_id, []))
 
     def get_buffered_events(
         self,
@@ -237,6 +475,9 @@ class PersistentSSEEventBuffer:
     ) -> List[Dict[str, Any]]:
         """
         Get all buffered events for a task.
+        
+        In hybrid mode: first flushes RAM buffer to DB, then retrieves from DB.
+        This ensures all events are returned in correct order.
         
         Args:
             task_id: The task ID
@@ -247,6 +488,10 @@ class PersistentSSEEventBuffer:
         """
         if not self.is_enabled():
             return []
+        
+        # In hybrid mode, flush RAM buffer first to ensure all events are in DB
+        if self.is_hybrid_mode_enabled():
+            self.flush_task_buffer(task_id)
         
         try:
             from .repository.sse_event_buffer_repository import SSEEventBufferRepository
@@ -285,6 +530,8 @@ class PersistentSSEEventBuffer:
         """
         Check if a task has unconsumed buffered events.
         
+        In hybrid mode, also checks RAM buffer.
+        
         Args:
             task_id: The task ID
             
@@ -293,6 +540,12 @@ class PersistentSSEEventBuffer:
         """
         if not self.is_enabled():
             return False
+        
+        # In hybrid mode, check RAM buffer first
+        if self.is_hybrid_mode_enabled():
+            with self._lock:
+                if self._ram_buffer.get(task_id):
+                    return True
         
         try:
             from .repository.sse_event_buffer_repository import SSEEventBufferRepository
@@ -350,21 +603,38 @@ class PersistentSSEEventBuffer:
         """
         Delete all buffered events for a task.
         
+        In hybrid mode, also clears RAM buffer.
+        
         Args:
             task_id: The task ID
             
         Returns:
             Number of events deleted
         """
-        log.debug(
-            "%s [BufferCleanup] delete_events_for_task called for task_id=%s, is_enabled=%s",
+        log.info(
+            "%s [BufferCleanup] delete_events_for_task called for task_id=%s, is_enabled=%s, hybrid_mode=%s",
             self.log_identifier,
             task_id,
             self.is_enabled(),
+            self.is_hybrid_mode_enabled(),
         )
         if not self.is_enabled():
-            log.debug("%s [BufferCleanup] Buffer not enabled, returning 0", self.log_identifier)
+            log.info("%s [BufferCleanup] Buffer not enabled, returning 0", self.log_identifier)
             return 0
+        
+        # In hybrid mode, clear RAM buffer first (discard without flushing to DB)
+        ram_cleared = 0
+        if self.is_hybrid_mode_enabled():
+            with self._lock:
+                events = self._ram_buffer.pop(task_id, [])
+                ram_cleared = len(events)
+                if ram_cleared > 0:
+                    log.info(
+                        "%s [BufferCleanup] Cleared %d events from RAM buffer for task %s (discarded, not flushed)",
+                        self.log_identifier,
+                        ram_cleared,
+                        task_id,
+                    )
         
         try:
             from .repository.sse_event_buffer_repository import SSEEventBufferRepository
@@ -376,16 +646,17 @@ class PersistentSSEEventBuffer:
                 db.commit()
                 
                 log.debug(
-                    "%s [BufferCleanup] Deleted %d events for task %s from database",
+                    "%s [BufferCleanup] Deleted %d events for task %s from database (+ %d from RAM)",
                     self.log_identifier,
                     deleted,
                     task_id,
+                    ram_cleared,
                 )
                 
                 # Clear cached metadata
                 self.clear_task_metadata(task_id)
                 
-                return deleted
+                return deleted + ram_cleared
             finally:
                 db.close()
         except Exception as e:
@@ -395,7 +666,7 @@ class PersistentSSEEventBuffer:
                 task_id,
                 e,
             )
-            return 0
+            return ram_cleared  # Still return RAM cleared count
 
     def cleanup_old_events(self, days: int = 7) -> int:
         """

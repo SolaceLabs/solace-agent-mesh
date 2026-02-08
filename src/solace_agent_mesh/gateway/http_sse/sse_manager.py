@@ -32,6 +32,8 @@ class SSEManager:
         event_buffer: SSEEventBuffer,
         session_factory: Optional[Callable] = None,
         persistent_buffer_enabled: bool = True,
+        hybrid_buffer_enabled: bool = False,
+        hybrid_buffer_threshold: int = 10,
     ):
         self._connections: Dict[str, List[asyncio.Queue]] = {}
         self._event_buffer = event_buffer
@@ -44,10 +46,21 @@ class SSEManager:
         self._tasks_with_prior_connection: set = set()  # Track tasks that have had at least one SSE connection
         
         # Initialize persistent buffer for background tasks
+        # Hybrid mode enables RAM-first buffering
+        # to reduce database writes for short-lived tasks
         self._persistent_buffer = PersistentSSEEventBuffer(
             session_factory=session_factory,
             enabled=persistent_buffer_enabled,
+            hybrid_mode_enabled=hybrid_buffer_enabled,
+            hybrid_flush_threshold=hybrid_buffer_threshold,
         )
+        
+        if hybrid_buffer_enabled:
+            log.info(
+                "%s Hybrid buffer mode ENABLED (threshold=%d events)",
+                self.log_identifier,
+                hybrid_buffer_threshold,
+            )
 
     def _sanitize_json(self, obj):
         if isinstance(obj, dict):
@@ -115,11 +128,15 @@ class SSEManager:
     ):
         """
         Removes a specific SSE connection queue for a task.
+        
+        In hybrid mode, flushes RAM buffer to DB when last connection is removed.
 
         Args:
             task_id: The ID of the task.
             connection_queue: The specific queue instance to remove.
         """
+        should_flush_ram_buffer = False
+        
         with self._lock:
             if task_id in self._connections:
                 try:
@@ -137,6 +154,10 @@ class SSEManager:
                             self.log_identifier,
                             task_id,
                         )
+                        # In hybrid mode, flush RAM buffer when last connection is removed
+                        # This ensures events are persisted to DB before the client disconnects
+                        if self._persistent_buffer.is_hybrid_mode_enabled():
+                            should_flush_ram_buffer = True
                 except ValueError:
                     log.debug(
                         "%s Attempted to remove an already removed queue for Task ID: %s.",
@@ -148,6 +169,17 @@ class SSEManager:
                 log.debug(
                     "%s Attempted to remove queue for non-existent Task ID: %s.",
                     self.log_identifier,
+                    task_id,
+                )
+        
+        # Flush RAM buffer outside the lock to avoid holding it during DB operations
+        if should_flush_ram_buffer:
+            flushed = self._persistent_buffer.flush_task_buffer(task_id)
+            if flushed > 0:
+                log.info(
+                    "%s [Hybrid] Flushed %d events from RAM buffer on connection close for task %s",
+                    self.log_identifier,
+                    flushed,
                     task_id,
                 )
 
@@ -504,9 +536,24 @@ class SSEManager:
         Closes all SSE connections associated with a specific task.
         If a connection existed, it also cleans up the event buffer.
         If no connection ever existed, the buffer is left for a late-connecting client.
+        
+        In hybrid mode: always flushes RAM buffer to DB to ensure events that came in
+        after SSE disconnect are persisted for later retrieval.
         """
         queues_to_close = None
         should_remove_buffer = False
+
+        # In hybrid mode, flush RAM buffer to DB BEFORE closing connections
+        # This ensures any events that arrived after client disconnect are persisted
+        if self._persistent_buffer.is_hybrid_mode_enabled():
+            flushed = self._persistent_buffer.flush_task_buffer(task_id)
+            if flushed > 0:
+                log.info(
+                    "%s [Hybrid] Flushed %d events from RAM buffer on task close for task %s",
+                    self.log_identifier,
+                    flushed,
+                    task_id,
+                )
 
         with self._lock:
             if task_id in self._connections:
@@ -575,8 +622,21 @@ class SSEManager:
         pass
 
     async def close_all(self):
-        """Closes all active SSE connections managed by this instance."""
+        """Closes all active SSE connections managed by this instance.
+        
+        In hybrid mode, flushes all RAM buffers to DB before closing to ensure no events are lost.
+        """
         self.cleanup_old_locks()
+        
+        # In hybrid mode, flush all RAM buffers first to ensure no events are lost
+        if self._persistent_buffer.is_hybrid_mode_enabled():
+            flushed = self._persistent_buffer.flush_all_buffers()
+            if flushed > 0:
+                log.info(
+                    "%s [Hybrid] Flushed %d events from RAM buffers during shutdown",
+                    self.log_identifier,
+                    flushed,
+                )
 
         # Collect all queues to close under the lock
         all_queues_to_close = []

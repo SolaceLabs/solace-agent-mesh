@@ -32,6 +32,7 @@ class SSEEventBufferRepository:
         user_id: str,
         event_type: str,
         event_data: dict,
+        created_time: int | None = None,
     ) -> SSEEventBufferModel:
         """
         Buffer an SSE event for later replay.
@@ -43,6 +44,8 @@ class SSEEventBufferRepository:
             user_id: The user ID
             event_type: The SSE event type (e.g., 'message')
             event_data: The event data payload
+            created_time: Optional timestamp for when the event was originally created
+                         (used by hybrid mode when flushing RAM buffer)
             
         Returns:
             The created SSEEventBufferModel instance
@@ -60,7 +63,7 @@ class SSEEventBufferRepository:
             event_sequence=max_seq + 1,
             event_type=event_type,
             event_data=event_data,
-            created_at=now_epoch_ms(),
+            created_at=created_time if created_time is not None else now_epoch_ms(),
             consumed=False,
         )
         db.add(buffer_entry)
