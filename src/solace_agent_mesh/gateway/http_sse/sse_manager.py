@@ -183,21 +183,29 @@ class SSEManager:
                     task_id,
                 )
 
-    def _is_background_task(self, task_id: str) -> bool:
+    def _is_task_registered_for_buffering(self, task_id: str) -> bool:
         """
-        Check if a task is a background task.
-        Uses caching and checks registered metadata first, then database.
+        Check if a task is registered for persistent event buffering.
+        
+        Note: All tasks get registered for buffering when they're submitted. 
+        This enables session switching, browser refresh recovery, and reconnection
+        for all tasks.
+        
+        This method returns True if the task has metadata registered, which means events
+        will be persisted to the database for later replay. The in-memory buffer can
+        safely drop events for these tasks when the client disconnects since the events
+        are already persisted.
         
         The order of checks is:
         1. Cache (fastest)
-        2. Persistent buffer metadata (registered when task is submitted - before DB record exists)
-        3. Database query (fallback) - also reconstructs metadata if found
+        2. Persistent buffer metadata (registered when task is submitted)
+        3. Database query (fallback for legacy tasks or worker restarts)
         
         Args:
             task_id: The ID of the task to check
             
         Returns:
-            True if the task is a background task, False otherwise
+            True if the task is registered for persistent buffering, False otherwise
         """
         # Check cache first
         if task_id in self._background_task_cache:
@@ -207,17 +215,17 @@ class SSEManager:
         # This is set when the task is submitted (before the task record is created in DB)
         metadata = self._persistent_buffer.get_task_metadata(task_id)
         if metadata is not None:
-            # If metadata exists, this is a background task
+            # Metadata exists - this task is registered for buffering
             self._background_task_cache[task_id] = True
             log.debug(
-                "%s Task %s identified as background task from registered metadata",
+                "%s Task %s is registered for persistent buffering (has metadata)",
                 self.log_identifier,
                 task_id,
             )
             return True
         
         # Fallback to database query
-        # (for tasks that were submitted before we had the persistent buffer metadata)
+        # (for legacy tasks or tasks that were submitted before metadata was registered)
         if not self._session_factory:
             return False
         
@@ -228,35 +236,35 @@ class SSEManager:
             try:
                 repo = TaskRepository()
                 task = repo.find_by_id(db, task_id)
-                is_background = task and task.background_execution_enabled
+                # For legacy compatibility, also check background_execution_enabled
+                # These tasks should also have their events persisted
+                is_registered = task and (task.session_id or task.background_execution_enabled)
                 
                 # Cache the result
-                self._background_task_cache[task_id] = is_background
+                self._background_task_cache[task_id] = is_registered
                 
-                # If this is a background task found via DB, reconstruct metadata
-                # This handles the case where metadata was lost (e.g., due to worker restart)
-                # and allows events to be properly buffered
-                if is_background and task:
-                    # Try to get session_id and user_id from the task
+                # If found in DB with session_id, reconstruct metadata for buffering
+                # This handles worker restarts where in-memory metadata was lost
+                if is_registered and task:
                     session_id = getattr(task, 'session_id', None)
                     user_id = getattr(task, 'user_id', None)
                     
                     if session_id and user_id:
                         self._persistent_buffer.set_task_metadata(task_id, session_id, user_id)
                         log.info(
-                            "%s Reconstructed metadata for background task %s from database: session=%s, user=%s",
+                            "%s Reconstructed metadata for task %s from database: session=%s, user=%s",
                             self.log_identifier,
                             task_id,
                             session_id,
                             user_id,
                         )
                 
-                return is_background
+                return is_registered
             finally:
                 db.close()
         except Exception as e:
             log.warning(
-                "%s Failed to check if task %s is a background task: %s",
+                "%s Failed to check if task %s is registered for buffering: %s",
                 self.log_identifier,
                 task_id,
                 e,
@@ -320,8 +328,8 @@ class SSEManager:
 
         sse_payload = {"event": event_type, "data": serialized_data}
 
-        # Check if this is a background task (for compatibility during migration)
-        is_background_task = self._is_background_task(task_id)
+        # Check if this task is registered for persistent buffering
+        is_registered = self._is_task_registered_for_buffering(task_id)
         
         # UNIFIED ARCHITECTURE: Always buffer to persistent storage for replay
         # This enables session switching, browser refresh recovery, and reconnection for ALL tasks
@@ -338,18 +346,18 @@ class SSEManager:
                     event_data=sse_payload,  # Store the full SSE payload
                 )
                 log.debug(
-                    "%s Buffered event for task %s: type=%s, is_background=%s, result=%s",
+                    "%s Buffered event for task %s: type=%s, registered=%s, result=%s",
                     self.log_identifier,
                     task_id,
                     event_type,
-                    is_background_task,
+                    is_registered,
                     buffered,
                 )
-            elif is_background_task:
-                # Fallback for background tasks without registered metadata
+            elif is_registered:
+                # Fallback for registered tasks without metadata in cache
                 # This shouldn't happen in normal flow but provides safety
                 log.warning(
-                    "%s Background task %s has no registered metadata, attempting to buffer anyway",
+                    "%s Registered task %s has no metadata in cache, attempting to buffer anyway",
                     self.log_identifier,
                     task_id,
                 )
@@ -369,13 +377,12 @@ class SSEManager:
                 # Check if this task has ever had a connection
                 has_had_connection = task_id in self._tasks_with_prior_connection
 
-                # Only drop events for background tasks that have HAD a connection before
+                # For registered tasks that have HAD a connection before, drop in-memory events
+                # Events are already persisted to database, so we don't need in-memory buffer
                 # If no connection has ever been made, we must buffer so the first client gets the events
-                if is_background_task and has_had_connection:
-                    # For background tasks where client disconnected, drop events to prevent buffer overflow
-                    # Events are already persisted to database, so we don't need in-memory buffer
+                if is_registered and has_had_connection:
                     log.debug(
-                        "%s No active SSE connections for background task %s (had prior connection). "
+                        "%s No active SSE connections for registered task %s (had prior connection). "
                         "Events persisted to database for replay.",
                         self.log_identifier,
                         task_id,
