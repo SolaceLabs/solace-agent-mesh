@@ -107,7 +107,7 @@ describe("ProjectCard", () => {
             expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
 
             expect(screen.queryByText("You are the owner of this project")).toBeNull();
-            expect(screen.queryByText("You can view this project")).toBeNull();
+            expect(screen.queryByText("You are a viewer of this project")).toBeNull();
         });
     });
 
