@@ -148,6 +148,45 @@ def _determine_auto_title_generation_enabled(
     return True
 
 
+def _determine_mentions_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if mentions (@user) feature should be enabled.
+    
+    Logic:
+    1. Check if identity_service is configured (required for user search)
+    2. Check explicit mentions.enabled config (must be explicitly enabled, defaults to False)
+    3. Check frontend_feature_enablement.mentions override
+    
+    Returns:
+        bool: True if mentions should be enabled
+    """
+    # Mentions require identity_service to be configured for user search
+    if component.identity_service is None:
+        log.debug("%s Mentions disabled: no identity_service configured", log_prefix)
+        return False
+    
+    # Check explicit mentions config - disabled by default
+    mentions_config = component.get_config("mentions", {})
+    explicitly_enabled = False
+    if isinstance(mentions_config, dict):
+        explicitly_enabled = mentions_config.get("enabled", False)
+    
+    # Check frontend_feature_enablement override
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    if "mentions" in feature_flags:
+        explicitly_enabled = feature_flags.get("mentions", False)
+    
+    if not explicitly_enabled:
+        log.debug("%s Mentions disabled: not explicitly enabled in config", log_prefix)
+        return False
+    
+    log.debug("%s Mentions enabled: identity_service configured and explicitly enabled", log_prefix)
+    return True
+
+
 def _determine_projects_enabled(
     component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
@@ -204,6 +243,9 @@ async def get_app_config(
     try:
         # Start with explicitly defined feature flags
         feature_enablement = component.get_config("frontend_feature_enablement", {})
+
+        identity_service_config = component.get_config("identity_service", None)
+        identity_service_type = identity_service_config.get("type") if identity_service_config else None
 
         # Manually check for the task_logging feature and add it
         task_logging_config = component.get_config("task_logging", {})
@@ -319,13 +361,9 @@ async def get_app_config(
             log.debug("%s Background tasks feature flag is disabled.", log_prefix)
 
         # Determine if mentions (@user) should be enabled
-        # Mentions require identity_service to be configured for user search
-        mentions_enabled = component.identity_service is not None
+        # Mentions require identity_service AND explicit enablement (defaults to False)
+        mentions_enabled = _determine_mentions_enabled(component, log_prefix)
         feature_enablement["mentions"] = mentions_enabled
-        if mentions_enabled:
-            log.debug("%s Mentions feature flag is enabled (identity_service configured).", log_prefix)
-        else:
-            log.debug("%s Mentions feature flag is disabled (no identity_service configured).", log_prefix)
         
         # Determine if auto title generation should be enabled
         auto_title_generation_enabled = _determine_auto_title_generation_enabled(component, api_config, log_prefix)
@@ -430,6 +468,7 @@ async def get_app_config(
             "tool_config_status": tool_config_status,
             "tts_settings": tts_settings,
             "background_tasks_config": _get_background_tasks_config(component, log_prefix),
+            "identity_service_type": identity_service_type
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data

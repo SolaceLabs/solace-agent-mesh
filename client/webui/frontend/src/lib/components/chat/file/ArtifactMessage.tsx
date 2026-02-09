@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { api, getErrorFromResponse } from "@/lib/api";
+import { Spinner } from "@/lib/components/ui/spinner";
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment, MessageFE } from "@/lib/types";
-import { api } from "@/lib/api";
+import { downloadFile, getErrorMessage, parseArtifactUri } from "@/lib/utils";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
-import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
-import { Spinner } from "@/lib/components/ui/spinner";
 
 import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
@@ -71,9 +71,15 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const fileMimeType = fileAttachment?.mime_type;
 
     // Detect if artifact has been deleted: completed but not in artifacts list
+    // However, don't mark as deleted if we have a valid fileAttachment with a URI -
+    // that means the artifact exists on the backend but just hasn't been fetched into the local list yet
     const isDeleted = useMemo(() => {
-        return props.status === "completed" && !artifact;
-    }, [props.status, artifact]);
+        if (props.status !== "completed") return false;
+        if (artifact) return false; // Found in list, not deleted
+        // If we have a fileAttachment with a URI, the artifact exists on backend (just not fetched yet)
+        if (fileAttachment?.uri) return false;
+        return true; // Completed, not in list, no URI = likely deleted
+    }, [props.status, artifact, fileAttachment?.uri]);
 
     // Determine if this should auto-expand based on context
     const shouldAutoExpand = useMemo(() => {
@@ -217,7 +223,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Fetch content from URI for completed artifacts when needed for rendering
     useEffect(() => {
         const fetchContentFromUri = async () => {
-            if (isLoading || !shouldRender) {
+            if (isLoading || !shouldRender || error) {
                 return;
             }
 
@@ -282,7 +288,10 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 }
 
                 const response = await api.webui.get(apiUrl, { fullResponse: true });
-                if (!response.ok) throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
+                if (!response.ok) {
+                    const errorMessage = await getErrorFromResponse(response);
+                    throw new Error(`Failed to fetch artifact content: ${errorMessage}`);
+                }
 
                 const blob = await response.blob();
                 const base64data = await new Promise<string>((resolve, reject) => {
@@ -302,15 +311,14 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
                 setFetchedContent(base64data);
             } catch (e) {
-                console.error("Error fetching inline content:", e);
-                setError(e instanceof Error ? e.message : "Unknown error fetching content.");
+                setError(getErrorMessage(e, "Failed to fetch artifact content."));
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchContentFromUri();
-    }, [props.status, shouldRender, fileAttachment, sessionId, activeProject?.id, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact]);
+    }, [props.status, shouldRender, fileAttachment, sessionId, activeProject?.id, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact, error]);
 
     // Get ragData for this task if message is provided
     const taskRagData = useMemo(() => {

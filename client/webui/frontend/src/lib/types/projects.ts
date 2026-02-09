@@ -72,3 +72,51 @@ export interface ProjectContextValue extends UseProjectsReturn {
     setSearchQuery: (query: string) => void;
     filteredProjects: Project[];
 }
+
+// Project Sharing Types
+
+export interface ShareResponse {
+    id: string;
+    projectId: string;
+    userEmail: string;
+    accessLevel: string;
+    sharedByEmail: string;
+    createdAt: string; // ISO 8601 datetime
+    updatedAt: string; // ISO 8601 datetime
+}
+
+export interface ProjectSharesResponse {
+    projectId: string;
+    ownerEmail: string;
+    shares: ShareResponse[];
+}
+
+export interface BatchShareRequest {
+    shares: {
+        userEmail: string;
+        accessLevel: "RESOURCE_VIEWER";
+    }[];
+}
+
+export interface BatchShareResponse {
+    projectId: string;
+    created: ShareResponse[];
+    updated: ShareResponse[];
+    totalProcessed: number;
+}
+
+export interface BatchDeleteRequest {
+    userEmails: string[];
+}
+
+export interface BatchDeleteResponse {
+    projectId: string;
+    deletedCount: number;
+    deletedEmails: string[];
+}
+
+export interface UpdateShareRequest {
+    accessLevel: "RESOURCE_VIEWER";
+}
+
+export type AccessLevel = "RESOURCE_VIEWER";

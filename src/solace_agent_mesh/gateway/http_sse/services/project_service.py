@@ -29,6 +29,8 @@ except ImportError:
 
 
 from ....common.a2a.types import ArtifactInfo
+from ....common.middleware.registry import MiddlewareRegistry
+from ....services.resource_sharing_service import ResourceSharingService, ResourceType
 from ..repository.interfaces import IProjectRepository
 from ..repository.entities.project import Project
 
@@ -54,16 +56,24 @@ class ProjectService:
     def __init__(
         self,
         component: "WebUIBackendComponent" = None,
+        resource_sharing_service: ResourceSharingService = None,
     ):
         self.component = component
         self.artifact_service = component.get_shared_artifact_service() if component else None
         self.app_name = component.get_config("name", "WebUIBackendApp") if component else "WebUIBackendApp"
         self.logger = logging.getLogger(__name__)
 
+        # Initialize resource sharing service
+        if resource_sharing_service:
+            self._resource_sharing_service = resource_sharing_service
+        else:
+            # Get from registry (returns class, need to instantiate)
+            service_class = MiddlewareRegistry.get_resource_sharing_service()
+            self._resource_sharing_service = service_class()
+
         max_per_file_upload_config = (
             component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
             if component else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
-        )
         self.max_per_file_upload_size_bytes = int(max_per_file_upload_config) if isinstance(max_per_file_upload_config, (int, float)) else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
 
         max_batch_upload_config = (
@@ -317,8 +327,8 @@ class ProjectService:
 
         project_repository = self._get_repositories(db)
 
-        # Check for duplicate project name for this user
-        existing_projects = project_repository.get_user_projects(user_id)
+        # Check for duplicate project name for this user (only owned projects)
+        existing_projects = project_repository.get_accessible_projects(user_id, shared_project_ids=[])
         if any(p.name.lower() == name.strip().lower() for p in existing_projects):
             raise ValueError(f"A project with the name '{name.strip()}' already exists")
 
@@ -373,39 +383,62 @@ class ProjectService:
         Returns:
             Optional[Project]: The project if found and accessible, None otherwise
         """
-        project_repository = self._get_repositories(db)
-        return project_repository.get_by_id(project_id, user_id)
+        from ..repository.models import ProjectModel
 
-    def get_user_projects(self, db, user_id: str) -> List[Project]:
+        # Get project without user filter
+        project_model = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
+
+        if not project_model:
+            return None
+
+        # Check if user has access (owner OR shared access via resource sharing service)
+        if not self._has_view_access(db, project_id, user_id):
+            return None
+
+        # Convert to domain entity
+        project_repository = self._get_repositories(db)
+        return project_repository._model_to_entity(project_model)
+
+    def get_user_projects(self, db, user_email: str) -> List[Project]:
         """
-        Get all projects owned by a specific user.
+        Get all projects accessible by a specific user (owned + shared).
 
         Args:
             db: Database session
-            user_id: The user ID
-            
-        Returns:
-            List[DomainProject]: List of user's projects
-        """
-        self.logger.debug(f"Retrieving projects for user {user_id}")
-        project_repository = self._get_repositories(db)
-        db_projects = project_repository.get_user_projects(user_id)
-        return db_projects
+            user_email: The user's email
 
-    async def get_user_projects_with_counts(self, db, user_id: str) -> List[tuple[Project, int]]:
+        Returns:
+            List[Project]: List of user's accessible projects (owned + shared)
         """
-        Get all projects owned by a specific user with artifact counts.
+        self.logger.debug(f"Retrieving accessible projects for user {user_email}")
+
+        # Get shared project IDs from enterprise service (empty list for community)
+        shared_project_ids = self._resource_sharing_service.get_shared_resource_ids(
+            session=db,
+            user_email=user_email,
+            resource_type=ResourceType.PROJECT
+        )
+
+        # Get all accessible projects (owned + shared)
+        project_repository = self._get_repositories(db)
+        return project_repository.get_accessible_projects(user_email, shared_project_ids)
+
+    async def get_user_projects_with_counts(self, db, user_email: str) -> List[tuple[Project, int]]:
+        """
+        Get all projects accessible by a specific user with artifact counts.
         Uses batch counting for efficiency.
 
         Args:
             db: Database session
-            user_id: The user ID
-            
+            user_email: The user's email
+
         Returns:
             List[tuple[Project, int]]: List of tuples (project, artifact_count)
         """
-        self.logger.debug(f"Retrieving projects with artifact counts for user {user_id}")
-        projects = self.get_user_projects(db, user_id)
+        self.logger.debug(f"Retrieving projects with artifact counts for user {user_email}")
+        projects = self.get_user_projects(db, user_email)
         
         if not self.artifact_service or not projects:
             # If no artifact service or no projects, return projects with 0 counts
@@ -419,7 +452,7 @@ class ProjectService:
             counts_by_session = await get_artifact_counts_batch(
                 artifact_service=self.artifact_service,
                 app_name=self.app_name,
-                user_id=user_id,
+                user_id=user_email,
                 session_ids=session_ids,
             )
             
@@ -503,6 +536,10 @@ class ProjectService:
         project = self.get_project(db, project_id, user_id)
         if not project:
             raise ValueError("Project not found or access denied")
+
+        # Only owners can modify artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to modify artifacts")
 
         if not self.artifact_service:
             self.logger.warning(f"Attempted to add artifacts to project {project_id} but no artifact service is configured.")
@@ -588,6 +625,10 @@ class ProjectService:
         if not project:
             return False
 
+        # Only owners can edit artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to edit artifacts")
+
         if not self.artifact_service:
             self.logger.warning(f"Attempted to update artifact metadata in project {project_id} but no artifact service is configured.")
             raise ValueError("Artifact service is not configured")
@@ -654,6 +695,10 @@ class ProjectService:
         if not project:
             return False
 
+        # Only owners can delete artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to delete artifacts")
+
         if not self.artifact_service:
             self.logger.warning(f"Attempted to delete artifact from project {project_id} but no artifact service is configured.")
             raise ValueError("Artifact service is not configured")
@@ -707,9 +752,16 @@ class ProjectService:
             # Nothing to update - get existing project
             return self.get_project(db, project_id, user_id)
 
+        # First check if user can view the project (404 if not)
+        if not self._has_view_access(db, project_id, user_id):
+            return None
+
+        # Only owners can edit projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to edit project")
+
         project_repository = self._get_repositories(db)
-        self.logger.info(f"Updating project {project_id} for user {user_id}")
-        updated_project = project_repository.update(project_id, user_id, update_data)
+        updated_project = project_repository.update(project_id, update_data)
 
         if updated_project:
             self.logger.info(f"Successfully updated project {project_id}")
@@ -728,19 +780,24 @@ class ProjectService:
         Returns:
             bool: True if deleted successfully, False otherwise
         """
-        # First verify the project exists and user has access
-        existing_project = self.get_project(db, project_id, user_id)
-        if not existing_project:
+        # Only owners can delete projects
+        if not self._is_project_owner(db, project_id, user_id):
             return False
 
-        project_repository = self._get_repositories(db)
-        self.logger.info(f"Deleting project {project_id} for user {user_id}")
-        success = project_repository.delete(project_id, user_id)
+        # Delete all shares for this project (cascade)
+        self._resource_sharing_service.delete_resource_shares(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT
+        )
 
-        if success:
+        project_repository = self._get_repositories(db)
+        deleted = project_repository.delete(project_id)
+
+        if deleted:
             self.logger.info(f"Successfully deleted project {project_id}")
 
-        return success
+        return deleted
 
     def soft_delete_project(self, db, project_id: str, user_id: str) -> bool:
         """
@@ -753,27 +810,44 @@ class ProjectService:
             user_id: The requesting user ID
 
         Returns:
-            bool: True if soft deleted successfully, False otherwise
+            bool: True if soft deleted successfully, False if not found
+
+        Raises:
+            ValueError: If user lacks permission to delete
         """
-        # First verify the project exists and user has access
-        existing_project = self.get_project(db, project_id, user_id)
-        if not existing_project:
-            self.logger.warning(f"Attempted to soft delete non-existent project {project_id} by user {user_id}")
+        # First check if user can view the project (404 if not)
+        if not self._has_view_access(db, project_id, user_id):
             return False
+
+        # Only owners can delete projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to delete project")
 
         self.logger.info(f"Soft deleting project {project_id} and its associated sessions for user {user_id}")
 
         project_repository = self._get_repositories(db)
-        # Soft delete the project
-        success = project_repository.soft_delete(project_id, user_id)
+        soft_deleted = project_repository.soft_delete(project_id, user_id)
 
-        if success:
-            from ..repository.session_repository import SessionRepository
-            session_repo = SessionRepository()
-            deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
-            self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+        if not soft_deleted:
+            return False
 
-        return success
+        from ..repository.session_repository import SessionRepository
+        session_repo = SessionRepository()
+
+        owner_deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
+
+        self._resource_sharing_service.delete_resource_shares(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT
+        )
+
+        self.logger.info(
+            f"Successfully soft deleted project {project_id} and {owner_deleted_count} owner sessions "
+            f"(shared users handled by sharing service)"
+        )
+
+        return True
 
     async def export_project_as_zip(
         self, db, project_id: str, user_id: str
@@ -797,6 +871,10 @@ class ProjectService:
         project = self.get_project(db, project_id, user_id)
         if not project:
             raise ValueError("Project not found or access denied")
+
+        # Only owners can export projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to export project")
         
         # Get artifacts
         artifacts = await self.get_project_artifacts(db, project_id, user_id)
@@ -1085,7 +1163,8 @@ class ProjectService:
             str: A unique project name
         """
         project_repository = self._get_repositories(db)
-        existing_projects = project_repository.get_user_projects(user_id)
+        # Get only owned projects for name conflict checking
+        existing_projects = project_repository.get_accessible_projects(user_id, shared_project_ids=[])
         existing_names = {p.name.lower() for p in existing_projects}
         
         if desired_name.lower() not in existing_names:
@@ -1100,3 +1179,52 @@ class ProjectService:
             counter += 1
             if counter > 100:  # Safety limit
                 raise ValueError("Unable to resolve name conflict")
+
+    def _is_project_owner(self, db, project_id: str, user_id: str) -> bool:
+        """
+        Check if user is the owner of the project.
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID (email)
+
+        Returns:
+            bool: True if user is the project owner, False otherwise
+        """
+        from ..repository.models import ProjectModel
+
+        project = db.query(ProjectModel).filter_by(
+            id=project_id, user_id=user_id, deleted_at=None
+        ).first()
+        return project is not None
+
+    def _has_view_access(self, db, project_id: str, user_id: str) -> bool:
+        """
+        Check if user can view the project.
+
+        Returns True if user is owner OR has any shared access level (viewer).
+        Since we only support "viewer" access level for sharing:
+        - Owner = full access (edit, delete, share, export, artifacts)
+        - Shared viewer = view only
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID (email)
+
+        Returns:
+            bool: True if user can view the project, False otherwise
+        """
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+
+        # Check for shared access (viewer level)
+        access_level = self._resource_sharing_service.check_user_access(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT,
+            user_email=user_id
+        )
+        return access_level is not None
+

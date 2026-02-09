@@ -147,6 +147,7 @@ async def _create_user_state(
 
     return {
         "id": final_user_id,
+        "user_id": final_user_id,
         "email": email_from_auth or final_user_id,
         "name": display_name or final_user_id,
         "authenticated": True,
@@ -254,7 +255,6 @@ def create_oauth_middleware(component):
             # are set on the component by enterprise initialization code.
             # If not present, we safely skip to IdP validation.
             trust_manager = getattr(self.component, "trust_manager", None)
-            authorization_service = getattr(self.component, "authorization_service", None)
 
             if trust_manager and is_sam_token_enabled(self.component):
                 try:
@@ -262,41 +262,33 @@ def create_oauth_middleware(component):
                     claims = trust_manager.verify_user_claims_without_task_binding(access_token)
                     user_identifier = claims.get("sam_user_id")
                     # Success! It's a valid sam_access_token
-                    # Extract roles from token, resolve scopes at request time
-                    roles = claims.get("roles", [])
-                    scopes = []
-                    if authorization_service:
-                        # Use existing get_scopes_for_user with roles param to skip role lookup
-                        scopes = await authorization_service.get_scopes_for_user(
-                            user_identity=user_identifier,
-                            gateway_context={},
-                            roles=roles,
-                        )
-                    else:
-                        log.warning(
-                            "AuthMiddleware: Access token is enabled and provided but authorization service not available. "
-                            "Cannot resolve scopes for sam_access_token."
-                        )
+                    # Extract roles from token, resolve scopes at request
 
-                    request.state.user = {
+                    user_state = {
                         "id": user_identifier,
+                        "user_id": user_identifier,
                         "email": claims.get("email", user_identifier),
                         "name": claims.get("name", user_identifier),
                         "authenticated": True,
                         "auth_method": "sam_access_token",
-                        "roles": roles,
-                        "scopes": scopes,
                     }
+
+                    claim_roles = claims.get("roles")
+                    if claim_roles:
+                        user_state["roles"] = claim_roles
+                    request.state.user  = user_state
+
                     log.debug(
                         f"AuthMiddleware: Validated sam_access_token for user '{user_identifier}' "
-                        f"with roles={roles}, resolved scopes={len(scopes)}"
+                        f"with roles={claim_roles}"
                     )
                     return False  # Success - continue to app
 
                 except Exception as e:
                     # Not a sam_access_token or verification failed
                     # Fall through to IdP token validation below
-                    log.error(f"AuthMiddleware: Token is not a valid sam_access_token: {e}")
+                    # TODO - distinguish invalid sam_access_token vs not a sam_access_token?
+                    log.warning(f"AuthMiddleware: Token is not a valid sam_access_token: {e}")
 
             # EXISTING: Fall back to IdP token validation (unchanged logic)
             auth_service_url = getattr(self.component, "external_auth_service_url", None)

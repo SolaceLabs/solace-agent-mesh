@@ -285,6 +285,10 @@ class SamAgentAppConfig(SamConfigBase):
         description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
+    agent_type: Literal["standard", "workflow"] = Field(
+        default="standard",
+        description="Type of agent: 'standard' (default) or 'workflow'.",
+    )
     display_name: str = Field(
         default=None,
         description="Human-friendly display name for this ADK agent instance.",
@@ -401,6 +405,14 @@ class SamAgentAppConfig(SamConfigBase):
         default=True,
         description="Inject instructions about the 'artifact_content' embed type.",
     )
+    input_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent input when used as a workflow node.",
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent output when used as a workflow node.",
+    )
     agent_card: AgentCardConfig = Field(
         ..., description="Static definition of this agent's capabilities for discovery."
     )
@@ -444,6 +456,14 @@ class SamAgentAppConfig(SamConfigBase):
     max_llm_calls_per_task: int = Field(
         default=20,
         description="Maximum number of LLM calls allowed for a single A2A task.",
+    )
+    max_call_depth: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Maximum allowed call depth for incoming requests. "
+            "Prevents infinite recursion in agent-to-agent or workflow-to-agent calls."
+        ),
     )
     data_tools_config: DataToolsConfig = Field(
         default_factory=DataToolsConfig,
