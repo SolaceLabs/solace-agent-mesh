@@ -5,7 +5,7 @@ import { useConfigContext, useDownload } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
-import { formatRelativeTime, validateFileSizes, validateTotalUploadSize, calculateTotalFileSize } from "@/lib/utils";
+import { formatRelativeTime, validateFileSizes, validateBatchUploadSize, validateProjectSizeLimit, calculateTotalFileSize } from "@/lib/utils";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
@@ -26,9 +26,10 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const { onDownload } = useDownload(project.id);
     const { validationLimits } = useConfigContext();
 
-    // Get max upload size from config - if not available, skip client-side validation
-    const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
-    const maxTotalUploadSizeBytes = validationLimits?.maxTotalUploadSizeBytes;
+    // Get validation limits from config - if not available, skip client-side validation
+    const maxPerFileUploadSizeBytes = validationLimits?.maxPerFileUploadSizeBytes;
+    const maxBatchUploadSizeBytes = validationLimits?.maxBatchUploadSizeBytes;
+    const maxProjectSizeBytes = validationLimits?.maxProjectSizeBytes;
 
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,19 +55,27 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
     const handleValidateFileSizes = useCallback(
         (files: FileList) => {
-            const fileSizeResult = validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
+            // Validate per-file sizes
+            const fileSizeResult = validateFileSizes(files, { maxSizeBytes: maxPerFileUploadSizeBytes });
             if (!fileSizeResult.valid) {
                 return fileSizeResult;
             }
 
-            const totalUploadSizeResult = validateTotalUploadSize(currentProjectArtifactSizeBytes, files, maxTotalUploadSizeBytes);
-            if (!totalUploadSizeResult.valid) {
-                return { valid: false, error: totalUploadSizeResult.error };
+            // Validate batch upload size
+            const batchSizeResult = validateBatchUploadSize(files, maxBatchUploadSizeBytes);
+            if (!batchSizeResult.valid) {
+                return batchSizeResult;
+            }
+
+            // Validate project total size
+            const projectSizeLimitResult = validateProjectSizeLimit(currentProjectArtifactSizeBytes, files, maxProjectSizeBytes);
+            if (!projectSizeLimitResult.valid) {
+                return { valid: false, error: projectSizeLimitResult.error };
             }
 
             return { valid: true };
         },
-        [maxUploadSizeBytes, maxTotalUploadSizeBytes, currentProjectArtifactSizeBytes]
+        [maxPerFileUploadSizeBytes, maxBatchUploadSizeBytes, maxProjectSizeBytes, currentProjectArtifactSizeBytes]
     );
 
     const handleFileUploadChange = (files: FileList | null) => {

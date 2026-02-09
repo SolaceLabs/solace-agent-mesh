@@ -21,7 +21,7 @@ export interface FileSizeValidationOptions {
     maxFilesToList?: number;
 }
 
-export interface TotalUploadSizeValidationResult {
+export interface ProjectSizeLimitResult {
     valid: boolean;
     error?: string;
     currentSize: number;
@@ -95,6 +95,34 @@ export function validateFileSizes(files: FileList | File[], options: FileSizeVal
 }
 
 /**
+ * Validates that the batch upload size doesn't exceed the limit.
+ * This is independent of the total project size.
+ *
+ * @param files - FileList or array of Files to validate
+ * @param maxBatchUploadSizeBytes - Maximum batch upload size limit
+ * @returns Validation result with error message if batch exceeds limit
+ */
+export function validateBatchUploadSize(files: FileList | File[], maxBatchUploadSizeBytes?: number): FileSizeValidationResult {
+    if (!maxBatchUploadSizeBytes) {
+        return { valid: true };
+    }
+
+    const totalBatchSize = calculateTotalFileSize(files);
+
+    if (totalBatchSize <= maxBatchUploadSizeBytes) {
+        return { valid: true };
+    }
+
+    const totalBatchWithUnit = formatBytes(totalBatchSize, 2);
+    const limitWithUnit = formatBytes(maxBatchUploadSizeBytes, 0);
+
+    return {
+        valid: false,
+        error: `Batch upload size (${totalBatchWithUnit}) exceeds limit of ${limitWithUnit}. Please upload fewer files at once.`,
+    };
+}
+
+/**
  * Calculates the total size of multiple files in bytes.
  *
  * @param files - Some list of Files, or Array of objects with size property
@@ -133,36 +161,36 @@ export function createFileSizeErrorMessage(filename: string, actualSize: number,
 }
 
 /**
- * Validates total upload size: existing files + new files <= maxTotalUploadSizeBytes
+ * Validates total project size: existing files + new files <= maxProjectSizeBytes
  * This enforces a project-level storage limit, not a per-request limit.
  *
  * @param currentProjectSizeBytes - Current total size of project artifacts in bytes
  * @param newFiles - FileList or array of Files to be uploaded
- * @param maxTotalUploadSizeBytes - Maximum total upload size limit per project
+ * @param maxProjectSizeBytes - Maximum total project size limit
  * @returns Validation result with error message if limit would be exceeded
  */
-export function validateTotalUploadSize(currentProjectSizeBytes: number, newFiles: FileList | File[], maxTotalUploadSizeBytes?: number): TotalUploadSizeValidationResult {
+export function validateProjectSizeLimit(currentProjectSizeBytes: number, newFiles: FileList | File[], maxProjectSizeBytes?: number): ProjectSizeLimitResult {
     const newSize = calculateTotalFileSize(newFiles);
     const totalSize = currentProjectSizeBytes + newSize;
 
-    if (!maxTotalUploadSizeBytes) {
+    if (!maxProjectSizeBytes) {
         return { valid: true, currentSize: currentProjectSizeBytes, newSize, totalSize };
     }
 
-    if (totalSize <= maxTotalUploadSizeBytes) {
+    if (totalSize <= maxProjectSizeBytes) {
         return { valid: true, currentSize: currentProjectSizeBytes, newSize, totalSize };
     }
 
     const currentWithUnit = formatBytes(currentProjectSizeBytes, 2);
     const newWithUnit = formatBytes(newSize, 2);
     const totalWithUnit = formatBytes(totalSize, 2);
-    const limitWithUnit = formatBytes(maxTotalUploadSizeBytes, 0);
+    const limitWithUnit = formatBytes(maxProjectSizeBytes, 0);
 
     return {
         valid: false,
         currentSize: currentProjectSizeBytes,
         newSize,
         totalSize,
-        error: `Total upload size limit exceeded. Current: ${currentWithUnit}, New files: ${newWithUnit}, Total: ${totalWithUnit} exceeds limit of ${limitWithUnit}.`,
+        error: `Project size limit exceeded. Current: ${currentWithUnit}, New files: ${newWithUnit}, Total: ${totalWithUnit} exceeds limit of ${limitWithUnit}.`,
     };
 }
