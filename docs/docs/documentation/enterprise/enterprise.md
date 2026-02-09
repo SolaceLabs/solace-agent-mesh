@@ -5,19 +5,19 @@ sidebar_position: 700
 
 # Agent Mesh Enterprise
 
-Agent Mesh Enterprise extends the open-source framework with production-ready features that enterprise environments require. This version provides enhanced security through single sign-on integration, granular access control through role-based permissions, intelligent data management for cost optimization, and comprehensive observability tools for monitoring agent workflows and system performance.
+Agent Mesh Enterprise extends the open-source framework with features that enterprise environments require. This version provides security through single sign-on integration, access control through role-based permissions, data management for cost optimization, and observability tools for monitoring agent workflows and system performance.
 
 Enterprise is available as a self-managed container image that you can deploy in your own infrastructure. You can obtain access by joining the pilot program at [solace.com/solace-agent-mesh-pilot-registration](https://solace.com/solace-agent-mesh-pilot-registration/).
 
 ## Enterprise Features
 
-The Enterprise version delivers several capabilities that distinguish it from the Community edition.
+The Enterprise version includes several capabilities beyond the Community edition.
 
-Authentication and authorization integrate with your existing identity systems through SSO, eliminating the need for separate credentials while maintaining security standards. You can configure role-based access control to implement granular authorization policies that determine which agents and resources each user can access through the Agent Mesh Gateways.
+Authentication and authorization integrate with your existing identity systems through SSO, eliminating the need for separate credentials and maintaining security standards. You can configure role-based access control to implement authorization policies that determine which agents and resources each user can access through the Agent Mesh Gateways.
 
-Data management features help you optimize costs and improve accuracy. Smart filtering capabilities reduce unnecessary compute expenses while precise data governance helps prevent hallucinations by controlling what information reaches your language models.
+Data management features help you optimize costs and improve accuracy. Filtering capabilities reduce unnecessary compute expenses, and data governance helps prevent hallucinations by controlling what information reaches your language models.
 
-Observability tools provide complete visibility into your agent ecosystem. The built-in workflow viewer tracks LLM interactions and agent communications in real time, giving you the insights needed to monitor performance, diagnose issues, and understand system behavior.
+Observability tools provide visibility into your agent ecosystem. The built-in workflow viewer tracks LLM interactions and agent communications in real time, allowing you to monitor performance, diagnose issues, and understand system behavior.
 
 ## Getting Started with Enterprise
 
@@ -49,4 +49,4 @@ Gateways connect external systems to your Agent Mesh deployment, enabling users 
 
 ## What's Next
 
-After you complete the initial setup and create agents using Agent Builder, you can begin deploying them to make them available for user interactions. You can also create gateways to connect Agent Mesh with external systems like Slack workspaces and Event Mesh brokers. The Enterprise features operate transparently—your agents and tools work the same way, but with the added security, governance, and observability that production environments demand.
+After you complete the initial setup and create agents using Agent Builder, you can begin deploying them to make them available for user interactions. You can also create gateways to connect Agent Mesh with external systems like Slack workspaces and Event Mesh brokers. The Enterprise features operate transparently—your agents and tools work the same way, but with the added security, governance, and observability that production environments require.

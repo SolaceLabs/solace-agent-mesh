@@ -17,15 +17,15 @@ Socket Mode establishes a WebSocket connection from the gateway to Slack's serve
 
 ## Prerequisites
 
-Before creating a Slack gateway, ensure you have the following:
+Before creating a Slack gateway, verify that you have the following:
 
 ### Slack App Configuration
 
 You need a Slack App created in your workspace with the following:
 
-1. **Bot Token Scopes**: The app must have appropriate OAuth scopes for messaging
-2. **Socket Mode**: Socket Mode must be enabled for the app
-3. **Event Subscriptions**: The app must subscribe to message events
+1. Bot Token Scopes: The app must have appropriate OAuth scopes for messaging.
+2. Socket Mode: Socket Mode must be enabled for the app.
+3. Event Subscriptions: The app must subscribe to message events.
 
 ### Required Slack Tokens
 
@@ -38,22 +38,22 @@ You need two tokens from your Slack App configuration:
 
 ### Slack App Setup Steps
 
-If you haven't created a Slack App yet, follow these steps:
+If you have not created a Slack App yet, follow these steps:
 
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click "Create New App"
 2. Choose "From scratch" and provide an app name and workspace
-3. Navigate to **Socket Mode** and enable it. Create an app-level token with `connections:write` scope. Save this token (starts with `xapp-`)
-4. Navigate to **OAuth & Permissions** and add the following Bot Token Scopes:
-   - `app_mentions:read` - Receive mention events
-   - `channels:history` - Read channel messages
-   - `chat:write` - Send messages
-   - `im:history` - Read direct messages
-   - `im:write` - Send direct messages
-   - `users:read` - Read user information
-5. Navigate to **Event Subscriptions** and enable events. Subscribe to bot events:
-   - `app_mention` - When the bot is mentioned
-   - `message.channels` - Messages in public channels
-   - `message.im` - Direct messages to the bot
+3. Navigate to Socket Mode and enable it. Create an app-level token with `connections:write` scope. Save this token (starts with `xapp-`).
+4. Navigate to OAuth & Permissions and add the following Bot Token Scopes:
+   - `app_mentions:read`—Receive mention events
+   - `channels:history`—Read channel messages
+   - `chat:write`—Send messages
+   - `im:history`—Read direct messages
+   - `im:write`—Send direct messages
+   - `users:read`—Read user information
+5. Navigate to Event Subscriptions and enable events. Subscribe to bot events:
+   - `app_mention`—When the bot is mentioned
+   - `message.channels`—Messages in public channels
+   - `message.im`—Direct messages to the bot
 6. Install the app to your workspace. Save the Bot User OAuth Token (starts with `xoxb-`)
 
 ## Creating a Slack Gateway
@@ -92,9 +92,9 @@ Example: `xapp-your-app-token`
 
 ##### Default Agent
 
-The agent that handles incoming messages when no specific routing applies. Select from available deployed agents in your Agent Mesh deployment.
+The agent that handles incoming messages. Select from available deployed agents in your Agent Mesh deployment. This field is optional—if you do not select an agent, messages are routed to the Orchestrator, which determines the appropriate agent based on the message content.
 
-When a user sends a message to the Slack bot, the gateway forwards the message to this default agent for processing. The agent's response is sent back to the user in Slack.
+When a user sends a message to the Slack bot, the gateway forwards the message to the selected agent (or the Orchestrator) for processing. The agent's response is sent back to the user in Slack.
 
 ### Example Configuration
 
@@ -113,21 +113,17 @@ Slack Configuration:
 
 After you successfully create the gateway, it appears in the Gateways list with "Not Deployed" status. At this point you can:
 
-1. **Edit Configuration**: Modify settings before deployment
-2. **Download YAML**: Export the configuration for version control
-3. **Deploy**: Create a running gateway instance
+1. Edit the configuration to modify settings before deployment.
+2. Download YAML to export the configuration for version control.
+3. Deploy to create a running gateway instance.
 
-To deploy the gateway, click the Deploy button in the gateway details panel. The gateway status changes to "Deploying" while the Deployer creates the instance, then to "Deployed" when successful.
+To deploy the gateway, click the Deploy button in the gateway details panel. The gateway status changes to "Deploying" as the Deployer creates the instance, then to "Deployed" when the process completes.
 
-Once deployed, the gateway connects to Slack via Socket Mode. Users can then interact with the bot by:
-- Mentioning the bot in channels where it's been added
-- Sending direct messages to the bot
-
-For detailed information about gateway deployment and lifecycle management, see [Gateways](gateways.md).
+Once deployed, the gateway connects to Slack through Socket Mode. Users can then interact with the bot by mentioning it in channels where it has been added, or by sending direct messages to it. For detailed information about gateway deployment and lifecycle management, see [Gateways](gateways.md).
 
 ## How Message Processing Works
 
-When a user sends a message to the Slack bot:
+The following diagram shows the message processing flow when a user sends a message to the Slack bot.
 
 ```mermaid
 sequenceDiagram
@@ -150,12 +146,12 @@ sequenceDiagram
     Slack->>User: Display Reply
 ```
 
-1. **Message Sent**: User sends a message mentioning the bot or as a direct message
-2. **Event Delivery**: Slack delivers the event via Socket Mode WebSocket
-3. **Message Parsing**: The gateway extracts message text and user context
-4. **Stimulus Creation**: The gateway creates an Agent Mesh stimulus
-5. **Agent Processing**: The default agent processes the request
-6. **Response Delivery**: The agent's response is posted back to Slack
+1. The user sends a message mentioning the bot or as a direct message.
+2. Slack delivers the event through the Socket Mode WebSocket.
+3. The gateway extracts message text and user context.
+4. The gateway creates an Agent Mesh stimulus.
+5. The default agent processes the request.
+6. The agent's response is posted back to Slack.
 
 ## Security Considerations
 
@@ -173,7 +169,7 @@ Never commit downloaded YAML files containing actual tokens to version control. 
 
 ### Workspace Access
 
-The Slack bot has access to messages in channels where it's been added and direct messages sent to it. Consider the following:
+The Slack bot has access to messages in channels where it has been added and direct messages sent to it. Consider the following:
 
 - Only add the bot to channels where agent access is appropriate
 - Users should be aware that messages to the bot are processed by Agent Mesh

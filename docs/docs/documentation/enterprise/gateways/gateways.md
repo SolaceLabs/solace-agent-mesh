@@ -13,11 +13,11 @@ Gateways are the entry points that connect external systems to your Agent Mesh, 
 
 ## Gateway Types
 
-Agent Mesh Enterprise provides multiple gateway types. Each type integrates with different external systems.
+Agent Mesh Enterprise provides multiple gateway types, each integrating with a different external system.
 
 ### Event Mesh Gateway
 
-Event Mesh gateways enable Agent Mesh to consume events from Solace PubSub+ Event Mesh brokers and route them to agents. This gateway type demonstrates event-driven architecture by triggering agent workflows in response to business events in real-time. For detailed information about creating and configuring Event Mesh gateways, see [Event Mesh Gateway](event-mesh-gateway.md).
+Event Mesh gateways connect Agent Mesh to Solace PubSub+ Event Mesh brokers, enabling agents to process or enrich events in real time. You can configure event rules that subscribe to topics and route incoming events to specific agents, with optional response publishing back to the event mesh. For detailed information about creating and configuring Event Mesh gateways, see [Event Mesh Gateway](event-mesh-gateway.md).
 
 ### Slack Gateway
 
@@ -85,10 +85,11 @@ Gateways move through distinct states as you create, edit, and deploy them.
 |-------|-------------|-------------------|
 | Not Deployed | Initial status for newly created gateways | Edit, Download, Deploy, Delete |
 | Deploying | In-progress while the Deployer creates the instance | View status only |
-| Deployed | Gateway is active and processing requests | Edit, Undeploy, View metrics |
-| Deployment Failed | Deployment operation failed | Edit, Retry Deploy, Delete |
+| Deployed | Gateway is active and processing requests | Edit, Update, Undeploy, View metrics |
+| Deploy Failed | Deployment operation failed | Edit, Retry Deploy, Delete |
 | Undeploying | In-progress while the Deployer removes the instance | View status only |
 | Undeployed | Previously deployed but has been stopped | Edit, Deploy, Delete |
+| Undeploy Failed | Undeploy operation failed | Edit, Undeploy, Delete |
 
 :::warning
 You cannot delete a gateway while it is deployed. You must undeploy it first.
@@ -98,14 +99,14 @@ You cannot delete a gateway while it is deployed. You must undeploy it first.
 
 ### Configuration Drift Detection
 
-When you deploy a gateway, the system records its configuration as a snapshot. If you later edit the gateway's configuration, the system detects this mismatch and displays "Undeployed changes" on the gateway tile. The running gateway continues using its deployed configuration until you explicitly deploy the updates.
+When you deploy a gateway, the system records its configuration as a snapshot. If you later edit the gateway's configuration, the system detects this mismatch and displays "Undeployed changes" on the gateway tile. The running gateway continues using its deployed configuration until you explicitly update the deployment. To apply the new configuration, use the Update action on the deployed gateway, which redeploys it with the current settings.
 
 ### Connection Status Monitoring
 
 Deployed gateways report their connection status through heartbeat messages:
 
-- **Connected**: The gateway is running and responsive
-- **Disconnected**: The gateway is deployed but not responding to heartbeats
+- Connected: The gateway is running and responsive
+- Disconnected: The gateway is deployed but not responding to heartbeats
 
 ### Downloading Gateway Configurations
 
@@ -117,19 +118,18 @@ Gateway operations require specific RBAC capabilities. For detailed information 
 
 | Capability | Purpose |
 |------------|---------|
-| `sam:gateway_builder:create` | Create new gateways |
-| `sam:gateway_builder:read` | View gateway configurations and status |
-| `sam:gateway_builder:update` | Edit existing gateway configurations |
-| `sam:gateway_builder:delete` | Delete gateways (must undeploy first) |
-| `sam:deployments:create` | Deploy gateways to make them active |
-| `sam:deployments:read` | View deployment status and history |
+| `sam:gateways:create` | Create new gateways |
+| `sam:gateways:read` | View gateway configurations, status, and schemas |
+| `sam:gateways:update` | Edit existing gateway configurations |
+| `sam:gateways:delete` | Delete gateways (must undeploy first) |
+| `sam:gateways:deploy` | Deploy, update, and undeploy gateways |
 
 ## Limitations
 
 The current gateway implementation has the following limitations:
 
-- **Single Replica Deployment**: Gateways deploy as single replicas with some downtime during updates
-- **No Configuration Rollback**: To revert changes, manually update the configuration to previous values
-- **No Hot-Reload**: Configuration changes require gateway restart
-- **Manual Ingress Configuration**: Inbound network access requires separate infrastructure configuration
-- **Deployer Dependency**: The Deployer service must be online to deploy or undeploy gateways
+- Gateways deploy as single replicas with some downtime during updates.
+- No configuration rollback is available. To revert changes, you must manually update the configuration to previous values.
+- Configuration changes require a gateway restart because there is no hot-reload capability.
+- Inbound network access requires separate infrastructure configuration for ingress.
+- The Deployer service must be online to deploy or undeploy gateways.

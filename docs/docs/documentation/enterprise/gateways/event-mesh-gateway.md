@@ -5,19 +5,19 @@ sidebar_position: 1
 
 # Event Mesh Gateway
 
-Event Mesh gateways enable Agent Mesh to consume events from Solace PubSub+ Event Mesh brokers and route them to agents. This gateway type demonstrates event-driven architecture by triggering agent workflows in response to business events in real-time.
+Event Mesh gateways enable Agent Mesh to consume events from Solace PubSub+ Event Mesh brokers and route them to agents. This gateway type triggers agent workflows in response to business events in real time.
 
 ## Overview
 
-Event Mesh gateways subscribe to topics on Solace brokers and transform incoming events into agent requests. When an event arrives, the gateway applies configured routing rules to determine which agent should process the event, then forwards the event payload as a stimulus to the Agent Mesh.
+Event Mesh gateways subscribe to topics on Solace brokers and transform incoming events into agent requests. When an event arrives, the gateway applies configured event rules to determine which agent should process the event, then forwards the event payload as a stimulus to the Agent Mesh. Agents can process or enrich the event data, and the gateway can optionally publish the agent's response back to the event mesh.
 
-This integration enables reactive AI systems that respond to business events automatically. For example, you can configure a gateway to listen for order events and trigger an agent that processes order data, or subscribe to sensor readings and route them to an analytics agent.
+You can use this integration to build systems that respond to business events automatically. For example, you can configure a gateway to listen for order events and trigger an agent that processes order data, or subscribe to sensor readings and route them to an analytics agent.
 
 The gateway supports connecting to either the default SAM broker (the same broker Agent Mesh uses internally) or a custom external broker with separate connection credentials.
 
 ## Prerequisites
 
-Before creating an Event Mesh gateway, ensure you have the following:
+Before creating an Event Mesh gateway, verify that you have the following:
 
 ### Solace Broker Access
 
@@ -29,7 +29,7 @@ The broker credentials you configure must have permission to subscribe to the to
 
 ### Network Connectivity
 
-If connecting to an external broker, verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your broker on the appropriate ports. Default ports are 55555 for SMF and 55443 for Secure SMF.
+If connecting to an external broker, verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your broker on the appropriate ports. The gateway supports tcp, tcps, ws, and wss protocols. Default ports are 55555 for SMF and 55443 for Secure SMF.
 
 ## Creating an Event Mesh Gateway
 
@@ -58,7 +58,7 @@ A description explaining what the gateway does and its intended use case. This h
 Select whether to use the default SAM broker or configure a custom external broker connection.
 
 - Default Broker: Uses the same Solace broker that Agent Mesh uses for internal communication. No additional connection configuration required.
-- Custom Broker: Requires you to provide host, port, VPN name, and credentials for an external broker.
+- Custom Broker: Requires you to provide a Broker URL, VPN name, and credentials for an external broker.
 
 ##### Custom Broker Settings
 
@@ -66,19 +66,22 @@ When not using the default broker, you must provide the following connection det
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| Host | Hostname or IP address of the broker | `broker.example.com` |
-| Port | SMF port for broker connections | `55555` or `55443` for secure |
+| Broker URL | URI with protocol prefix (tcp, tcps, ws, wss), hostname, and port | `tcps://broker.example.com:55443` |
 | VPN Name | Message VPN to connect to | `default` |
-| Username | Broker authentication username | `event-gateway-user` |
-| Password | Broker authentication password | (stored securely) |
+| Username | Client username for broker authentication | `event-gateway-user` |
+| Password | Client password for broker authentication | (stored securely) |
 
 #### Event Rules
 
-Event rules define which topics to subscribe to and how to route incoming events to agents. You can configure multiple event rules for a single gateway.
+Event rules define which topics to subscribe to and how to route incoming events to agents. You can configure multiple event rules for a single gateway, and each rule must have a unique name.
 
-##### Topic Subscription
+##### Rule Name
 
-The topic pattern to subscribe to. Solace wildcard syntax is supported:
+Each event rule requires a name that is unique within the gateway. The name must start with a letter and contain only letters, numbers, and underscores (matching the pattern `^[a-zA-Z][a-zA-Z0-9_]*$`). Rule names are compared case-insensitively, so `OrderRule` and `orderrule` are treated as the same name.
+
+##### Subscriptions
+
+Each rule defines one or more topic subscriptions that determine which events the rule processes. Solace wildcard syntax is supported:
 - `*` matches exactly one level
 - `>` matches one or more levels
 
@@ -91,18 +94,44 @@ Examples:
 
 Select how incoming events should be routed:
 
-- Orchestrator: Route events to the main Orchestrator, which determines the appropriate agent based on event content
-- Specific Agent: Route events directly to a named agent, bypassing the Orchestrator
+- Orchestrator: Route events to the main Orchestrator, which determines the appropriate agent based on event content.
+- Specific Agent: Route events directly to a named agent, bypassing the Orchestrator.
 
-##### Payload Format
+##### Message Format
 
 Configure how the gateway interprets incoming event payloads:
 
 | Format | Description |
 |--------|-------------|
-| JSON | Parse payload as JSON object |
-| Text | Treat payload as plain text string |
-| UTF-8 | Decode payload using UTF-8 encoding |
+| JSON | Parse payload as a JSON object |
+| Text | Treat payload as a plain text string |
+
+##### Additional Instructions
+
+The Additional Instructions field defines how the event payload is presented to the target agent. You can use template variables to include event data in the instructions:
+- `{payload}`—The full event payload
+- `{topic}`—The topic the event was received on
+- `{payload.field}`—A specific field from a JSON payload
+
+##### Response Output (Optional)
+
+You can optionally configure the gateway to publish agent responses back to the event mesh:
+
+- Success Output: The topic where the agent's response is published when processing succeeds.
+- Error Output: The topic where error information is published when processing fails.
+
+If you do not configure output topics, the gateway processes events without publishing responses.
+
+##### Response Type
+
+When output topics are configured, you can control the format of the published response:
+
+| Type | Description |
+|------|-------------|
+| Text | Publish the agent's text response |
+| Full JSON | Publish the complete response as a JSON object |
+| Error JSON | Publish error details as a JSON object |
+| Custom | Use a custom response format |
 
 ### Example Configuration
 
@@ -114,32 +143,33 @@ Basic Details:
 
 Broker Connection:
 - Use Default Broker: No
-- Host: `commerce-broker.example.com`
-- Port: `55443`
+- Broker URL: `tcps://commerce-broker.example.com:55443`
 - VPN Name: `commerce`
 - Username: `sam-gateway`
 - Password: (configured securely)
 
 Event Rules:
-- Topic: `commerce/orders/>`
+- Rule Name: `process_orders`
+- Subscriptions: `commerce/orders/>`
 - Target: Specific Agent—`order-processor`
-- Payload Format: JSON
+- Message Format: JSON
+- Additional Instructions: `Process the following order event: {payload}`
+- Success Output: `commerce/orders/processed`
+- Response Type: Full JSON
 
 ## After Creating the Gateway
 
 After you successfully create the gateway, it appears in the Gateways list with "Not Deployed" status. At this point you can:
 
-1. **Edit Configuration**: Modify settings before deployment
-2. **Download YAML**: Export the configuration for version control
-3. **Deploy**: Create a running gateway instance
+1. Edit the configuration to modify settings before deployment.
+2. Download YAML to export the configuration for version control.
+3. Deploy to create a running gateway instance.
 
-To deploy the gateway, click the Deploy button in the gateway details panel. The gateway status changes to "Deploying" while the Deployer creates the instance, then to "Deployed" when successful.
-
-For detailed information about gateway deployment and lifecycle management, see [Gateways](gateways.md).
+To deploy the gateway, click the Deploy button in the gateway details panel. The gateway status changes to "Deploying" as the Deployer creates the instance, then to "Deployed" when the process completes. For detailed information about gateway deployment and lifecycle management, see [Gateways](gateways.md).
 
 ## How Event Processing Works
 
-When the gateway receives an event from the broker:
+The following diagram shows the event processing flow when the gateway receives an event from the broker.
 
 ```mermaid
 sequenceDiagram
@@ -164,12 +194,12 @@ sequenceDiagram
     Agent->>Agent: Process Event
 ```
 
-1. **Event Delivery**: The broker delivers events matching subscribed topics
-2. **Rule Matching**: The gateway matches the topic against configured event rules
-3. **Payload Parsing**: The event payload is parsed according to the configured format
-4. **Stimulus Creation**: The gateway creates an Agent Mesh stimulus from the event
-5. **Routing**: The stimulus is routed to the Orchestrator or directly to a specific agent
-6. **Processing**: The target agent processes the event and performs configured actions
+1. The broker delivers events matching subscribed topics.
+2. The gateway matches the topic against configured event rules.
+3. The event payload is parsed according to the configured format.
+4. The gateway creates an Agent Mesh stimulus from the event.
+5. The stimulus is routed to the Orchestrator or directly to a specific agent.
+6. The target agent processes the event and performs configured actions.
 
 ## Security Considerations
 
