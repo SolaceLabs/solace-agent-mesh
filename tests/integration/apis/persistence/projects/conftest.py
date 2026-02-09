@@ -72,7 +72,10 @@ def _create_custom_config_client(
         if key == "gateway_max_upload_size_bytes":
             # Test override: 1MB per-file limit for projects tests
             return 1024 * 1024  # 1MB
-        if key == "gateway_max_total_upload_size_bytes":
+        if key == "gateway_max_batch_upload_size_bytes":
+            # Test override: 2MB batch upload limit for projects tests
+            return 2097152  # 2MB
+        if key == "gateway_max_project_size_bytes":
             # Test override: 3MB total project size limit
             return 3145728  # 3MB
 

@@ -21,7 +21,7 @@ export interface FileSizeValidationOptions {
     maxFilesToList?: number;
 }
 
-export interface ProjectSizeLimitResult {
+export interface ProjectSizeLimitValidationResult {
     valid: boolean;
     error?: string;
     currentSize: number;
@@ -169,7 +169,7 @@ export function createFileSizeErrorMessage(filename: string, actualSize: number,
  * @param maxProjectSizeBytes - Maximum total project size limit
  * @returns Validation result with error message if limit would be exceeded
  */
-export function validateProjectSizeLimit(currentProjectSizeBytes: number, newFiles: FileList | File[], maxProjectSizeBytes?: number): ProjectSizeLimitResult {
+export function validateProjectSizeLimit(currentProjectSizeBytes: number, newFiles: FileList | File[], maxProjectSizeBytes?: number): ProjectSizeLimitValidationResult {
     const newSize = calculateTotalFileSize(newFiles);
     const totalSize = currentProjectSizeBytes + newSize;
 
