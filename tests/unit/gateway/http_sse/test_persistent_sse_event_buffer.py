@@ -359,3 +359,521 @@ class TestMissingMetadata:
             )
 
             assert result is True
+
+
+class TestFlushTaskBuffer:
+    """Tests for flush_task_buffer RAM to DB flushing."""
+
+    def test_flush_when_hybrid_disabled_returns_zero(self):
+        """flush_task_buffer should return 0 when hybrid mode disabled."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=True,
+            hybrid_mode_enabled=False,
+        )
+
+        result = buffer.flush_task_buffer("task-123")
+        assert result == 0
+
+    def test_flush_empty_buffer_returns_zero(self):
+        """flush_task_buffer should return 0 when buffer is empty."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=True,
+            hybrid_mode_enabled=True,
+        )
+
+        result = buffer.flush_task_buffer("nonexistent-task")
+        assert result == 0
+
+    def test_auto_flush_at_threshold(self):
+        """Events should auto-flush to DB when threshold reached."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+            hybrid_mode_enabled=True,
+            hybrid_flush_threshold=3,
+        )
+
+        # Mock repository
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
+        ) as MockRepo:
+            mock_repo_instance = Mock()
+            MockRepo.return_value = mock_repo_instance
+
+            # Add 3 events (threshold)
+            for i in range(3):
+                buffer._buffer_event_hybrid(
+                    task_id="task-123",
+                    event_type="message",
+                    event_data={"text": f"Event {i}"},
+                    session_id="session-abc",
+                    user_id="user-xyz",
+                )
+
+            # Should have flushed (called buffer_event 3 times on repo)
+            assert mock_repo_instance.buffer_event.call_count == 3
+
+    def test_flush_failure_readds_to_buffer(self):
+        """Failed flush should re-add events to buffer for retry."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session_factory.side_effect = Exception("DB connection failed")
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+            hybrid_mode_enabled=True,
+            hybrid_flush_threshold=100,
+        )
+
+        # Add events to RAM manually
+        buffer._ram_buffer["task-123"] = [
+            ("message", {"text": "Event 1"}, 1000, "session-abc", "user-xyz"),
+            ("message", {"text": "Event 2"}, 2000, "session-abc", "user-xyz"),
+        ]
+
+        # Flush should fail
+        result = buffer.flush_task_buffer("task-123")
+        assert result == 0
+
+        # Events should be back in buffer
+        assert buffer.get_ram_buffer_size("task-123") == 2
+
+
+class TestFlushAllBuffers:
+    """Tests for flush_all_buffers batch flushing."""
+
+    def test_flush_all_when_hybrid_disabled_returns_zero(self):
+        """flush_all_buffers should return 0 when hybrid mode disabled."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=True,
+            hybrid_mode_enabled=False,
+        )
+
+        result = buffer.flush_all_buffers()
+        assert result == 0
+
+    def test_flush_all_multiple_tasks(self):
+        """flush_all_buffers should flush all tasks."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+            hybrid_mode_enabled=True,
+            hybrid_flush_threshold=100,
+        )
+
+        # Add events to RAM for multiple tasks
+        buffer._ram_buffer["task-1"] = [
+            ("message", {"text": "Event 1"}, 1000, "session-abc", "user-xyz"),
+        ]
+        buffer._ram_buffer["task-2"] = [
+            ("message", {"text": "Event 2"}, 2000, "session-abc", "user-xyz"),
+            ("message", {"text": "Event 3"}, 3000, "session-abc", "user-xyz"),
+        ]
+
+        # Mock repository
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
+        ) as MockRepo:
+            mock_repo_instance = Mock()
+            MockRepo.return_value = mock_repo_instance
+
+            result = buffer.flush_all_buffers()
+
+            # Should have flushed 3 total events (1 + 2)
+            assert result == 3
+            assert mock_repo_instance.buffer_event.call_count == 3
+
+
+class TestGetBufferedEvents:
+    """Tests for get_buffered_events retrieval."""
+
+    def test_get_buffered_events_when_disabled_returns_empty(self):
+        """get_buffered_events should return empty list when disabled."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=False,
+        )
+
+        result = buffer.get_buffered_events("task-123")
+        assert result == []
+
+    def test_get_buffered_events_flushes_ram_first_in_hybrid(self):
+        """get_buffered_events should flush RAM to DB first in hybrid mode."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+            hybrid_mode_enabled=True,
+        )
+
+        with patch.object(buffer, 'flush_task_buffer') as mock_flush:
+            with patch(
+                'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
+            ) as MockRepo:
+                mock_repo_instance = Mock()
+                mock_repo_instance.get_buffered_events.return_value = []
+                MockRepo.return_value = mock_repo_instance
+
+                buffer.get_buffered_events("task-123")
+
+                # flush_task_buffer should be called first
+                mock_flush.assert_called_once_with("task-123")
+
+
+class TestHasUnconsumedEvents:
+    """Tests for has_unconsumed_events checking."""
+
+    def test_has_unconsumed_when_disabled_returns_false(self):
+        """has_unconsumed_events should return False when disabled."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=False,
+        )
+
+        result = buffer.has_unconsumed_events("task-123")
+        assert result is False
+
+    def test_has_unconsumed_checks_ram_in_hybrid_mode(self):
+        """has_unconsumed_events should check RAM buffer first in hybrid mode."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=True,
+            hybrid_mode_enabled=True,
+        )
+
+        # Add events to RAM
+        buffer._ram_buffer["task-123"] = [
+            ("message", {"text": "Event 1"}, 1000, "session-abc", "user-xyz"),
+        ]
+
+        # Should return True without hitting DB because RAM has events
+        result = buffer.has_unconsumed_events("task-123")
+        assert result is True
+
+    def test_has_unconsumed_checks_db_when_ram_empty(self):
+        """has_unconsumed_events should check DB when RAM is empty in hybrid mode."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+            hybrid_mode_enabled=True,
+        )
+
+        # Mock repository
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
+        ) as MockRepo:
+            mock_repo_instance = Mock()
+            mock_repo_instance.has_unconsumed_events.return_value = True
+            MockRepo.return_value = mock_repo_instance
+
+            result = buffer.has_unconsumed_events("task-123")
+
+            # Should check DB
+            mock_repo_instance.has_unconsumed_events.assert_called_once()
+            assert result is True
+
+
+class TestGetUnconsumedEventsForSession:
+    """Tests for get_unconsumed_events_for_session session-level retrieval."""
+
+    def test_get_unconsumed_for_session_when_disabled_returns_empty(self):
+        """get_unconsumed_events_for_session should return empty dict when disabled."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=False,
+        )
+
+        result = buffer.get_unconsumed_events_for_session("session-abc")
+        assert result == {}
+
+    def test_get_unconsumed_for_session_groups_by_task(self):
+        """get_unconsumed_events_for_session should group events by task_id."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+        )
+
+        # Mock repository to return events from multiple tasks
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
+        ) as MockRepo:
+            # Create mock event objects
+            mock_event_1 = Mock()
+            mock_event_1.task_id = "task-1"
+            mock_event_1.event_type = "message"
+            mock_event_1.event_data = {"text": "Hello"}
+            mock_event_1.event_sequence = 1
+            mock_event_1.created_at = 1000
+
+            mock_event_2 = Mock()
+            mock_event_2.task_id = "task-1"
+            mock_event_2.event_type = "message"
+            mock_event_2.event_data = {"text": "World"}
+            mock_event_2.event_sequence = 2
+            mock_event_2.created_at = 2000
+
+            mock_event_3 = Mock()
+            mock_event_3.task_id = "task-2"
+            mock_event_3.event_type = "artifact"
+            mock_event_3.event_data = {"name": "file.txt"}
+            mock_event_3.event_sequence = 1
+            mock_event_3.created_at = 3000
+
+            mock_repo_instance = Mock()
+            mock_repo_instance.get_unconsumed_events_for_session.return_value = [
+                mock_event_1, mock_event_2, mock_event_3
+            ]
+            MockRepo.return_value = mock_repo_instance
+
+            result = buffer.get_unconsumed_events_for_session("session-abc")
+
+            # Should have 2 tasks
+            assert len(result) == 2
+            assert "task-1" in result
+            assert "task-2" in result
+
+            # task-1 should have 2 events
+            assert len(result["task-1"]) == 2
+            # task-2 should have 1 event
+            assert len(result["task-2"]) == 1
+
+
+class TestDeleteEventsForTask:
+    """Tests for delete_events_for_task cleanup."""
+
+    def test_delete_when_disabled_returns_zero(self):
+        """delete_events_for_task should return 0 when disabled."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=False,
+        )
+
+        result = buffer.delete_events_for_task("task-123")
+        assert result == 0
+
+    def test_delete_clears_metadata(self):
+        """delete_events_for_task should clear task metadata cache."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+        )
+
+        # Set metadata
+        buffer.set_task_metadata("task-123", "session-abc", "user-xyz")
+        assert buffer.get_task_metadata("task-123") is not None
+
+        # Mock repository
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
+        ) as MockRepo:
+            mock_repo_instance = Mock()
+            mock_repo_instance.delete_events_for_task.return_value = 5
+            MockRepo.return_value = mock_repo_instance
+
+            buffer.delete_events_for_task("task-123")
+
+            # Metadata should be cleared
+            assert buffer.get_task_metadata("task-123") is None
+
+
+class TestCleanupOldEvents:
+    """Tests for cleanup_old_events scheduled cleanup."""
+
+    def test_cleanup_when_disabled_returns_zero(self):
+        """cleanup_old_events should return 0 when disabled."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=Mock(),
+            enabled=False,
+        )
+
+        result = buffer.cleanup_old_events(days=7)
+        assert result == 0
+
+    def test_cleanup_calls_repository(self):
+        """cleanup_old_events should call repository cleanup method."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+        )
+
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
+        ) as MockRepo:
+            with patch(
+                'solace_agent_mesh.shared.utils.timestamp_utils.now_epoch_ms',
+                return_value=1000000000  # Mock timestamp
+            ):
+                mock_repo_instance = Mock()
+                mock_repo_instance.cleanup_consumed_events.return_value = 42
+                MockRepo.return_value = mock_repo_instance
+
+                result = buffer.cleanup_old_events(days=7)
+
+                # Should call repository cleanup
+                mock_repo_instance.cleanup_consumed_events.assert_called_once()
+                assert result == 42
+
+
+class TestGetTaskMetadataDbFallback:
+    """Tests for get_task_metadata database fallback."""
+
+    def test_metadata_fallback_to_db_when_not_in_cache(self):
+        """get_task_metadata should fall back to DB when not in cache."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+        )
+
+        # Mock TaskRepository
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.repository.task_repository.TaskRepository'
+        ) as MockRepo:
+            mock_task = Mock()
+            mock_task.session_id = "session-from-db"
+            mock_task.user_id = "user-from-db"
+
+            mock_repo_instance = Mock()
+            mock_repo_instance.find_by_id.return_value = mock_task
+            MockRepo.return_value = mock_repo_instance
+
+            # Should return data from DB
+            metadata = buffer.get_task_metadata("task-123")
+
+            assert metadata is not None
+            assert metadata["session_id"] == "session-from-db"
+            assert metadata["user_id"] == "user-from-db"
+
+            # Should now be in cache
+            assert "task-123" in buffer._task_metadata_cache
+
+    def test_metadata_db_fallback_returns_none_if_not_found(self):
+        """get_task_metadata should return None if not in cache or DB."""
+        from solace_agent_mesh.gateway.http_sse.persistent_sse_event_buffer import (
+            PersistentSSEEventBuffer,
+        )
+
+        mock_session_factory = Mock()
+        mock_session = Mock()
+        mock_session_factory.return_value = mock_session
+
+        buffer = PersistentSSEEventBuffer(
+            session_factory=mock_session_factory,
+            enabled=True,
+        )
+
+        # Mock TaskRepository to return None
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.repository.task_repository.TaskRepository'
+        ) as MockRepo:
+            mock_repo_instance = Mock()
+            mock_repo_instance.find_by_id.return_value = None
+            MockRepo.return_value = mock_repo_instance
+
+            metadata = buffer.get_task_metadata("task-unknown")
+            assert metadata is None
