@@ -153,10 +153,14 @@ class SSEEventBufferRepository:
         Returns:
             List of event dictionaries with type, data, and sequence
         """
-        events = db.query(SSEEventBufferModel)\
-            .filter(SSEEventBufferModel.task_id == task_id)\
-            .order_by(SSEEventBufferModel.event_sequence)\
-            .all()
+        query = db.query(SSEEventBufferModel)\
+            .filter(SSEEventBufferModel.task_id == task_id)
+        
+        # Lock rows when we plan to update them to prevent concurrent read-then-update race
+        if mark_consumed:
+            query = query.with_for_update()
+        
+        events = query.order_by(SSEEventBufferModel.event_sequence).all()
         
         event_data = [
             {
