@@ -1,3 +1,8 @@
+/**
+ * Hook for monitoring and reconnecting to background tasks.
+ * Stores active background tasks in localStorage and automatically reconnects on session load.
+ */
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import type { BackgroundTaskState, BackgroundTaskStatusResponse, ActiveBackgroundTasksResponse, BackgroundTaskNotification } from "@/lib/types/background-tasks";
@@ -17,8 +22,8 @@ interface UseBackgroundTaskMonitorProps {
  */
 export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed }: UseBackgroundTaskMonitorProps) {
     const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTaskState[]>([]);
+    const backgroundTasksRef = useRef<BackgroundTaskState[]>(backgroundTasks);
     const [notifications, setNotifications] = useState<BackgroundTaskNotification[]>([]);
-    const backgroundTasksRef = useRef<BackgroundTaskState[]>([]);
 
     // Load background tasks from localStorage on mount
     useEffect(() => {
@@ -33,6 +38,11 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
             }
         }
     }, []);
+
+    // Keep the ref in sync with state
+    useEffect(() => {
+        backgroundTasksRef.current = backgroundTasks;
+    }, [backgroundTasks]);
 
     // Save background tasks to localStorage whenever they change
     useEffect(() => {
@@ -101,6 +111,7 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
     );
 
     // Check all background tasks and update their status
+    // Uses backgroundTasksRef to read current tasks, making this callback stable
     const checkAllBackgroundTasks = useCallback(async () => {
         const tasks = backgroundTasksRef.current;
         if (tasks.length === 0) {
@@ -202,6 +213,7 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
     // Periodic checking to detect background task completion when not connected to SSE
     // This handles the case where a task completes while the user is on a different session
     const hasBackgroundTasks = backgroundTasks.length > 0;
+
     useEffect(() => {
         if (!hasBackgroundTasks) {
             return;
