@@ -148,15 +148,19 @@ class SSEEventBufferRepository:
         Args:
             db: Database session
             task_id: The task ID to get events for
-            mark_consumed: Whether to mark events as consumed
+            mark_consumed: Whether to mark events as consumed 
             
         Returns:
             List of event dictionaries with type, data, and sequence
         """
-        events = db.query(SSEEventBufferModel)\
-            .filter(SSEEventBufferModel.task_id == task_id)\
-            .order_by(SSEEventBufferModel.event_sequence)\
-            .all()
+        query = db.query(SSEEventBufferModel)\
+            .filter(SSEEventBufferModel.task_id == task_id)
+        
+        if mark_consumed:
+            query = query.filter(SSEEventBufferModel.consumed.is_(False))
+            query = query.with_for_update()
+        
+        events = query.order_by(SSEEventBufferModel.event_sequence).all()
         
         event_data = [
             {
