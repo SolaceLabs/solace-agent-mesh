@@ -27,12 +27,7 @@ interface BezierPath {
  *
  * @param scale - The current zoom scale factor (to convert screen coordinates to SVG coordinates)
  */
-function generateBezierPath(
-    sourceRect: DOMRect,
-    targetRect: DOMRect,
-    containerRect: DOMRect,
-    scale: number = 1
-): string {
+function generateBezierPath(sourceRect: DOMRect, targetRect: DOMRect, containerRect: DOMRect, scale: number = 1): string {
     // Source: bottom center of the source element
     // Divide by scale to convert from screen coordinates (affected by zoom) to SVG coordinates
     const x1 = (sourceRect.left + sourceRect.width / 2 - containerRect.left) / scale;
@@ -71,7 +66,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
     const isCollapsed = node.data.isCollapsed;
     const isExpanded = node.data.isExpanded;
     const isProcessing = node.data.hasProcessingChildren;
-    const haloClass = isProcessing ? 'processing-halo' : '';
+    const haloClass = isProcessing ? "processing-halo" : "";
 
     // Function to calculate bezier paths
     const calculateBezierPaths = useCallback(() => {
@@ -90,12 +85,12 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
         const paths: BezierPath[] = [];
 
         // Find all parallel blocks and their preceding/following nodes
-        const parallelBlocks = container.querySelectorAll('[data-parallel-block]');
+        const parallelBlocks = container.querySelectorAll("[data-parallel-block]");
 
-        parallelBlocks.forEach((blockEl) => {
-            const blockId = blockEl.getAttribute('data-parallel-block');
-            const precedingNodeId = blockEl.getAttribute('data-preceding-node');
-            const followingNodeId = blockEl.getAttribute('data-following-node');
+        parallelBlocks.forEach(blockEl => {
+            const blockId = blockEl.getAttribute("data-parallel-block");
+            const precedingNodeId = blockEl.getAttribute("data-preceding-node");
+            const followingNodeId = blockEl.getAttribute("data-following-node");
 
             // Draw lines FROM preceding node TO branch starts
             if (precedingNodeId) {
@@ -159,7 +154,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
 
         // Observe the container and all nodes within it
         resizeObserver.observe(containerRef.current);
-        const nodes = containerRef.current.querySelectorAll('[data-node-id]');
+        const nodes = containerRef.current.querySelectorAll("[data-node-id]");
         nodes.forEach(node => resizeObserver.observe(node));
 
         return () => resizeObserver.disconnect();
@@ -172,15 +167,15 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
 
         // Find the TransformComponent wrapper by looking for an ancestor with transform style
         let transformedParent: Element | null = containerRef.current.parentElement;
-        while (transformedParent && !transformedParent.hasAttribute('style')) {
+        while (transformedParent && !transformedParent.hasAttribute("style")) {
             transformedParent = transformedParent.parentElement;
         }
 
         if (!transformedParent) return;
 
-        const mutationObserver = new MutationObserver((mutations) => {
+        const mutationObserver = new MutationObserver(mutations => {
             // Check if any mutation is a style change (which includes transform changes)
-            const hasStyleChange = mutations.some(m => m.attributeName === 'style');
+            const hasStyleChange = mutations.some(m => m.attributeName === "style");
             if (hasStyleChange) {
                 setResizeCounter(c => c + 1);
             }
@@ -190,7 +185,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
         // (react-zoom-pan-pinch may apply transforms at different levels)
         let current: Element | null = transformedParent;
         while (current && current !== document.body) {
-            mutationObserver.observe(current, { attributes: true, attributeFilter: ['style'] });
+            mutationObserver.observe(current, { attributes: true, attributeFilter: ["style"] });
             current = current.parentElement;
         }
 
@@ -207,38 +202,42 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
         };
 
         switch (child.type) {
-            case 'agent':
+            case "agent":
                 return (
                     <div key={child.id} data-node-id={child.id}>
                         <AgentNode {...childProps} onChildClick={onChildClick} />
                     </div>
                 );
-            case 'switch':
+            case "switch":
                 return (
                     <div key={child.id} data-node-id={child.id}>
                         <SwitchNode {...childProps} />
                     </div>
                 );
-            case 'loop':
+            case "loop":
                 return (
                     <div key={child.id} data-node-id={child.id}>
                         <LoopNode {...childProps} onChildClick={onChildClick} />
                     </div>
                 );
-            case 'map':
+            case "map":
                 return (
                     <div key={child.id} data-node-id={child.id}>
                         <MapNode {...childProps} onChildClick={onChildClick} />
                     </div>
                 );
-            case 'group':
+            case "group":
                 // Nested workflow group - render recursively
                 return (
                     <div key={child.id} data-node-id={child.id}>
                         <WorkflowGroup {...childProps} onChildClick={onChildClick} />
                     </div>
                 );
-            case 'parallelBlock': {
+            case "parallelBlock": {
+                // Don't render empty parallel blocks
+                if (child.children.length === 0) {
+                    return null;
+                }
                 // Group children by iterationIndex (branch index) for proper chain visualization
                 const branches = new Map<number, LayoutNode[]>();
                 for (const parallelChild of child.children) {
@@ -255,28 +254,16 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                 // Render parallel block - branches side-by-side, nodes within each branch stacked vertically
                 // Container is invisible - connectors are drawn via SVG bezier paths
                 return (
-                    <div
-                        key={child.id}
-                        data-parallel-block={child.id}
-                        data-preceding-node={precedingNodeId}
-                        data-following-node={followingNodeId}
-                        className="flex flex-row items-start gap-4 my-12"
-                    >
+                    <div key={child.id} data-parallel-block={child.id} data-preceding-node={precedingNodeId} data-following-node={followingNodeId} className="my-12 flex flex-row items-start gap-4">
                         {sortedBranches.map(([branchIdx, branchChildren]) => (
                             <div key={`branch-${branchIdx}`} className="flex flex-col items-center gap-2">
                                 {branchChildren.map((branchChild, nodeIdx) => (
                                     <React.Fragment key={branchChild.id}>
-                                        <div
-                                            data-node-id={branchChild.id}
-                                            data-branch-start={nodeIdx === 0 ? "true" : undefined}
-                                            data-branch-end={nodeIdx === branchChildren.length - 1 ? "true" : undefined}
-                                        >
+                                        <div data-node-id={branchChild.id} data-branch-start={nodeIdx === 0 ? "true" : undefined} data-branch-end={nodeIdx === branchChildren.length - 1 ? "true" : undefined}>
                                             {renderChild(branchChild)}
                                         </div>
                                         {/* Connector line to next node in branch */}
-                                        {nodeIdx < branchChildren.length - 1 && (
-                                            <div className="w-0.5 h-3 bg-gray-400 dark:bg-gray-600" />
-                                        )}
+                                        {nodeIdx < branchChildren.length - 1 && <div className="h-3 w-0.5 bg-gray-400 dark:bg-gray-600" />}
                                     </React.Fragment>
                                 ))}
                             </div>
@@ -293,8 +280,9 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
     if (isCollapsed) {
         return (
             <div
-                className={`group relative rounded-md border-2 border-dashed border-purple-500 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 ${isSelected ? "ring-2 ring-blue-500" : ""
-                    } ${haloClass}`}
+                className={`group relative rounded-md border-2 border-dashed border-purple-500 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 ${
+                    isSelected ? "ring-2 ring-blue-500" : ""
+                } ${haloClass}`}
                 style={{
                     minWidth: "180px",
                 }}
@@ -303,8 +291,8 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                 {onExpand && (
                     <span title="Expand workflow" className="absolute top-2 right-2 z-10">
                         <Maximize2
-                            className="h-3.5 w-3.5 text-purple-400 dark:text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-purple-600 dark:hover:text-purple-300"
-                            onClick={(e) => {
+                            className="h-3.5 w-3.5 cursor-pointer text-purple-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-purple-600 dark:text-purple-500 dark:hover:text-purple-300"
+                            onClick={e => {
                                 e.stopPropagation();
                                 onExpand(node.id);
                             }}
@@ -313,8 +301,8 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                 )}
                 {/* Header */}
                 <div
-                    className="cursor-pointer bg-purple-50 px-4 py-3 dark:bg-gray-700 rounded-md"
-                    onClick={(e) => {
+                    className="cursor-pointer rounded-md bg-purple-50 px-4 py-3 dark:bg-gray-700"
+                    onClick={e => {
                         e.stopPropagation();
                         onClick?.(node);
                     }}
@@ -322,9 +310,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                 >
                     <div className="flex items-center justify-center gap-2">
                         <Workflow className="h-4 w-4 flex-shrink-0 text-purple-600 dark:text-purple-400" />
-                        <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
-                            {node.data.label}
-                        </div>
+                        <div className="truncate text-sm font-semibold text-gray-800 dark:text-gray-200">{node.data.label}</div>
                     </div>
                 </div>
             </div>
@@ -335,8 +321,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
     return (
         <div
             ref={containerRef}
-            className={`group rounded-lg border-2 border-dashed border-gray-400 bg-gray-50/50 dark:border-gray-600 dark:bg-gray-900/50 ${isSelected ? "ring-2 ring-blue-500" : ""
-                }`}
+            className={`group rounded-lg border-2 border-dashed border-gray-400 bg-gray-50/50 dark:border-gray-600 dark:bg-gray-900/50 ${isSelected ? "ring-2 ring-blue-500" : ""}`}
             style={{
                 minWidth: "200px",
                 position: "relative",
@@ -344,19 +329,9 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
         >
             {/* SVG overlay for bezier connectors */}
             {bezierPaths.length > 0 && (
-                <svg
-                    className="absolute inset-0 pointer-events-none z-10"
-                    style={{ width: '100%', height: '100%', overflow: 'visible' }}
-                >
-                    {bezierPaths.map((path) => (
-                        <path
-                            key={path.id}
-                            d={path.d}
-                            stroke="#9CA3AF"
-                            strokeWidth={2}
-                            fill="none"
-                            className="dark:stroke-gray-500"
-                        />
+                <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                    {bezierPaths.map(path => (
+                        <path key={path.id} d={path.d} stroke="#9CA3AF" strokeWidth={2} fill="none" className="dark:stroke-gray-500" />
                     ))}
                 </svg>
             )}
@@ -365,8 +340,8 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
             {isExpanded && onCollapse && (
                 <span title="Collapse workflow" className="absolute top-2 right-2 z-10">
                     <Minimize2
-                        className="h-3.5 w-3.5 text-purple-400 dark:text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-purple-600 dark:hover:text-purple-300"
-                        onClick={(e) => {
+                        className="h-3.5 w-3.5 cursor-pointer text-purple-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-purple-600 dark:text-purple-500 dark:hover:text-purple-300"
+                        onClick={e => {
                             e.stopPropagation();
                             onCollapse(node.id);
                         }}
@@ -376,8 +351,8 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
             {/* Label - clickable */}
             {node.data.label && (
                 <div
-                    className="absolute -top-3 left-4 px-2 text-xs font-bold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-md border border-gray-200 dark:border-gray-700 flex items-center gap-1.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    onClick={(e) => {
+                    className="absolute -top-3 left-4 flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 text-xs font-bold text-gray-500 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
+                    onClick={e => {
                         e.stopPropagation();
                         onClick?.(node);
                     }}
@@ -389,7 +364,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
             )}
 
             {/* Children with inline connectors */}
-            <div className="p-6 flex flex-col items-center">
+            <div className="flex flex-col items-center p-6">
                 {node.children.map((child, index) => {
                     // Track the preceding and following nodes for parallel blocks
                     const precedingNode = index > 0 ? node.children[index - 1] : null;
@@ -401,11 +376,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                         <React.Fragment key={child.id}>
                             {renderChild(child, precedingNodeId, followingNodeId)}
                             {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
-                            {index < node.children.length - 1 &&
-                                child.type !== 'parallelBlock' &&
-                                node.children[index + 1].type !== 'parallelBlock' && (
-                                    <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
-                                )}
+                            {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
                         </React.Fragment>
                     );
                 })}

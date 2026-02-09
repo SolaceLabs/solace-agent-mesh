@@ -5,6 +5,10 @@ sidebar_position: 425
 
 # Creating Workflows
 
+:::warning Experimental Feature
+Workflows is currently an experimental feature. Expect this feature to change and improve in future releases.
+:::
+
 This guide walks through building workflows that orchestrate multiple agents. You'll learn how to define execution sequences, pass data between nodes, handle branching logic, and process collections.
 
 ## Prerequisites
@@ -144,7 +148,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "TextAnalysisWorkflow"
+      name: "TextAnalysisWorkflow"
 
       workflow:
         description: "Analyzes text and produces a summary"
@@ -503,7 +507,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "RequestRouterWorkflow"
+      name: "RequestRouterWorkflow"
 
       workflow:
         description: "Routes support requests to appropriate handlers"
@@ -654,7 +658,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "BatchProcessorWorkflow"
+      name: "BatchProcessorWorkflow"
 
       workflow:
         description: "Processes a batch of items in parallel"
@@ -780,7 +784,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "PollingWorkflow"
+      name: "PollingWorkflow"
 
       workflow:
         description: "Polls until a task is ready"

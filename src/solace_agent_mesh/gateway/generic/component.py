@@ -128,15 +128,57 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
 
         # --- GatewayContext properties ---
         adapter_config_dict = self.get_config("adapter_config", {})
+
+        # Get component-level default_user_identity for enterprise auth
+        default_user_identity = self.get_config("default_user_identity")
+
         if self.adapter.ConfigModel:
             log.info(
                 "%s Validating adapter_config against %s...",
                 self.log_identifier,
                 self.adapter.ConfigModel.__name__,
             )
-            self.adapter_config = self.adapter.ConfigModel(**adapter_config_dict)
+            # Create the Pydantic model without extra fields
+            pydantic_config = self.adapter.ConfigModel(**adapter_config_dict)
+
+            # Always wrap the config to provide default_user_identity via getattr
+            # Enterprise auth extractors use getattr(config, "default_user_identity", "http_user")
+            class ConfigWrapper:
+                """Wrapper that provides both Pydantic model fields and component-level config."""
+                def __init__(self, pydantic_model, extra_attrs):
+                    self._pydantic_model = pydantic_model
+                    self._extra_attrs = extra_attrs
+
+                def __getattr__(self, name):
+                    # Check extra attributes first
+                    if name.startswith('_'):
+                        # Avoid infinite recursion for private attributes
+                        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+                    if name in self._extra_attrs:
+                        return self._extra_attrs[name]
+                    # Delegate to Pydantic model
+                    return getattr(self._pydantic_model, name)
+
+                def get(self, name, default=None):
+                    """Dict-like get method for compatibility."""
+                    try:
+                        return getattr(self, name)
+                    except AttributeError:
+                        return default
+
+                def __repr__(self):
+                    return f"ConfigWrapper({self._pydantic_model!r}, extra={self._extra_attrs})"
+
+            extra_attrs = {}
+            if default_user_identity:
+                extra_attrs["default_user_identity"] = default_user_identity
+
+            self.adapter_config = ConfigWrapper(pydantic_config, extra_attrs)
         else:
+            # Plain dict config - add default_user_identity directly
             self.adapter_config = adapter_config_dict
+            if default_user_identity:
+                self.adapter_config["default_user_identity"] = default_user_identity
 
         self.artifact_service = self.shared_artifact_service
         # `gateway_id`, `namespace`, `config` are available from base classes.
@@ -262,19 +304,33 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         log_id_prefix = f"{self.log_identifier}[GetUserIdentity]"
         user_identity = None
         # 1. Authentication & Enrichment
-        # Try enterprise authentication first, fallback to adapter-based auth
-        try:
-            from solace_agent_mesh_enterprise.gateway.auth import authenticate_request
+        # Check if enterprise auth is enabled before trying to use it
+        enable_auth = False
+        if hasattr(self.adapter_config, 'enable_auth'):
+            enable_auth = getattr(self.adapter_config, 'enable_auth', False)
+        elif isinstance(self.adapter_config, dict):
+            enable_auth = self.adapter_config.get('enable_auth', False)
 
-            auth_claims = await authenticate_request(
-                adapter=self.adapter,
-                external_input=external_input,
-                endpoint_context=endpoint_context,
-            )
-            log.debug("%s Using enterprise authentication", log_id_prefix)
-        except ImportError:
-            # Enterprise package not available, use adapter-based auth
-            log.debug("%s Enterprise package not available, using adapter auth", log_id_prefix)
+        # Only use enterprise auth if explicitly enabled
+        if enable_auth:
+            try:
+                from solace_agent_mesh_enterprise.gateway.auth import authenticate_request
+
+                auth_claims = await authenticate_request(
+                    adapter=self.adapter,
+                    external_input=external_input,
+                    endpoint_context=endpoint_context,
+                )
+                log.debug("%s Using enterprise authentication", log_id_prefix)
+            except ImportError:
+                # Enterprise package not available, use adapter-based auth
+                log.debug("%s Enterprise package not available, using adapter auth", log_id_prefix)
+                auth_claims = await self.adapter.extract_auth_claims(
+                    external_input, endpoint_context
+                )
+        else:
+            # Enterprise auth not enabled, use adapter-based auth
+            log.debug("%s Enterprise auth not enabled, using adapter auth", log_id_prefix)
             auth_claims = await self.adapter.extract_auth_claims(
                 external_input, endpoint_context
             )

@@ -47,6 +47,7 @@ from ...common.a2a import (
     get_discovery_subscription_topic,
     get_sam_events_subscription_topic,
     get_text_from_message,
+    is_gateway_card,
     topic_matches_subscription,
     translate_a2a_to_adk_content,
 )
@@ -1215,6 +1216,16 @@ def handle_agent_card_message(component, message: SolaceMessage):
         self_agent_name = component.get_config("agent_name")
 
         if agent_name == self_agent_name:
+            message.call_acknowledgements()
+            return
+
+        # Filter out gateway cards
+        if is_gateway_card(agent_card):
+            log.debug(
+                "%s Ignoring gateway card '%s'",
+                component.log_identifier,
+                agent_name,
+            )
             message.call_acknowledgements()
             return
 

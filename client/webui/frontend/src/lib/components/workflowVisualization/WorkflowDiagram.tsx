@@ -133,13 +133,16 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     const highlightedNodeIds = controlledHighlightedNodeIds ?? internalHighlightedNodeIds;
 
     // Handle highlighting nodes when hovering over expressions
-    const handleHighlightNodes = useCallback((nodeIds: string[]) => {
-        if (controlledOnHighlightNodes) {
-            controlledOnHighlightNodes(nodeIds);
-        } else {
-            setInternalHighlightedNodeIds(new Set(nodeIds));
-        }
-    }, [controlledOnHighlightNodes]);
+    const handleHighlightNodes = useCallback(
+        (nodeIds: string[]) => {
+            if (controlledOnHighlightNodes) {
+                controlledOnHighlightNodes(nodeIds);
+            } else {
+                setInternalHighlightedNodeIds(new Set(nodeIds));
+            }
+        },
+        [controlledOnHighlightNodes]
+    );
 
     // Calculate edges from layout positions (not DOM measurements)
     // This avoids issues with pan/zoom transforms affecting edge positions
@@ -148,6 +151,10 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
 
         // Build flat map of all node positions from layout tree
         const nodePositions = buildNodePositionMap(layout.nodes);
+
+        // Offset to ensure arrowheads are visible above nodes
+        // The arrowhead marker is 12px tall, so we end edges slightly above the node
+        const arrowheadOffset = 4;
 
         // Calculate edges based on layout positions
         const edges: Edge[] = [];
@@ -161,7 +168,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
                     sourceX: sourcePos.x + sourcePos.width / 2,
                     sourceY: sourcePos.y + sourcePos.height,
                     targetX: targetPos.x + targetPos.width / 2,
-                    targetY: targetPos.y,
+                    // End edge slightly above the node so arrowhead is fully visible
+                    targetY: targetPos.y - arrowheadOffset,
                 });
             }
         }
@@ -246,21 +254,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     }, [onNodeSelect]);
 
     return (
-        <div
-            className="relative h-full w-full bg-card-background"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onClick={handleBackgroundClick}
-        >
-            <PanZoomCanvas
-                ref={canvasRef}
-                initialScale={1}
-                minScale={0.25}
-                maxScale={2}
-                sidePanelWidth={sidePanelWidth}
-                onUserInteraction={handleUserInteraction}
-                onTransformChange={onTransformChange}
-            >
+        <div className="bg-card-background relative h-full w-full" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onClick={handleBackgroundClick}>
+            <PanZoomCanvas ref={canvasRef} initialScale={1} minScale={0.25} maxScale={2} sidePanelWidth={sidePanelWidth} onUserInteraction={handleUserInteraction} onTransformChange={onTransformChange}>
                 <div
                     ref={containerRef}
                     className="relative"

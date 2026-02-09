@@ -294,14 +294,16 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     const renderWorkflowNodeStartData = (data: WorkflowNodeExecutionStartData) => (
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             <div className="mb-1 flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">{data.nodeType} Node</span>
-                {(data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === 'number') && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-800 dark:bg-blue-900 dark:text-blue-200">Iter #{data.iterationIndex}</span>}
+                <span className="text-[10px] font-bold text-gray-500 uppercase dark:text-gray-400">{data.nodeType} Node</span>
+                {data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === "number" && (
+                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-800 dark:bg-blue-900 dark:text-blue-200">Iter #{data.iterationIndex}</span>
+                )}
             </div>
 
             {data.condition && (
                 <div className="mt-1">
                     <p className="mb-0.5 font-semibold">Condition:</p>
-                    <code className="block break-all rounded border border-gray-200 bg-gray-100 p-1.5 font-mono text-xs dark:border-gray-600 dark:bg-gray-800">{data.condition}</code>
+                    <code className="block rounded border border-gray-200 bg-gray-100 p-1.5 font-mono text-xs break-all dark:border-gray-600 dark:bg-gray-800">{data.condition}</code>
                 </div>
             )}
             {data.trueBranch && (
@@ -325,12 +327,13 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
             {data.metadata?.condition && (
                 <div className="mt-1 mb-1">
                     <p className="mb-0.5 font-semibold">Condition:</p>
-                    <code className="block break-all rounded border border-gray-200 bg-gray-100 p-1.5 font-mono text-xs dark:border-gray-600 dark:bg-gray-800">{data.metadata.condition}</code>
+                    <code className="block rounded border border-gray-200 bg-gray-100 p-1.5 font-mono text-xs break-all dark:border-gray-600 dark:bg-gray-800">{data.metadata.condition}</code>
                 </div>
             )}
             {data.metadata?.condition_result !== undefined && (
                 <p className="mt-1">
-                    <strong>Condition Result:</strong> <span className={data.metadata.condition_result ? "font-bold text-green-600 dark:text-green-400" : "font-bold text-orange-600 dark:text-orange-400"}>{data.metadata.condition_result ? "True" : "False"}</span>
+                    <strong>Condition Result:</strong>{" "}
+                    <span className={data.metadata.condition_result ? "font-bold text-green-600 dark:text-green-400" : "font-bold text-orange-600 dark:text-orange-400"}>{data.metadata.condition_result ? "True" : "False"}</span>
                 </p>
             )}
             {data.outputArtifactRef && (

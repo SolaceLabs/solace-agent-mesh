@@ -60,7 +60,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "SimpleChildWorkflow"
+      name: "SimpleChildWorkflow"
       display_name: "Simple Child Workflow"
 
       workflow:
@@ -113,7 +113,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "SimpleParentWorkflow"
+      name: "SimpleParentWorkflow"
       display_name: "Simple Parent Workflow"
 
       workflow:

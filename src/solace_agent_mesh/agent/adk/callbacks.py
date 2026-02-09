@@ -2632,20 +2632,31 @@ def sanitize_tool_names_callback(
         return None
     
     # Find all function calls and check for invalid tool names
-    invalid_calls = []
+    invalid_calls = []  # Calls that need error responses
+    silently_dropped_calls = []  # Calls to drop without error (e.g., redundant internal tool calls)
     valid_parts = []
-    
+
     for part in llm_response.content.parts:
         if part.function_call:
             tool_name = part.function_call.name
-            
+            function_call_id = part.function_call.id or ""
+
             # Check for placeholder patterns (tool names starting with $)
             # This catches $FUNCTION_NAME, $ARTIFACT_TOOL, $TOOL_NAME, etc.
             is_placeholder = tool_name.startswith('$')
-            
+
             # Check against Bedrock's validation pattern
             is_valid_format = VALID_TOOL_NAME_PATTERN.match(tool_name) is not None
-            
+
+            # Check for unauthorized _notify_artifact_save calls
+            # This tool should only be called by the system with host-notify- prefix
+            # LLM-generated calls (without this prefix) should be silently dropped
+            # since the artifact was already saved and a system call was injected
+            is_unauthorized_internal_tool = (
+                tool_name == "_notify_artifact_save"
+                and not function_call_id.startswith("host-notify-")
+            )
+
             if is_placeholder:
                 log.warning(
                     "%s Detected hallucinated placeholder tool name: '%s'. "
@@ -2654,6 +2665,18 @@ def sanitize_tool_names_callback(
                     tool_name,
                 )
                 invalid_calls.append((part.function_call, "placeholder_hallucination"))
+            elif is_unauthorized_internal_tool:
+                # Silently drop LLM-generated _notify_artifact_save calls
+                # The system already injected a valid call, so this is redundant
+                log.info(
+                    "%s Silently dropping redundant LLM-generated call to internal tool: '%s' (id=%s). "
+                    "The system already injected a valid call for this artifact save.",
+                    log_identifier,
+                    tool_name,
+                    function_call_id,
+                )
+                silently_dropped_calls.append(part.function_call)
+                # Don't add to invalid_calls - we don't want to send an error response
             elif not is_valid_format:
                 log.warning(
                     "%s Detected invalid tool name format: '%s'. "
@@ -2668,10 +2691,28 @@ def sanitize_tool_names_callback(
         else:
             # Non-function-call parts (text, etc.) are always kept
             valid_parts.append(part)
-    
-    if not invalid_calls:
+
+    if not invalid_calls and not silently_dropped_calls:
         # All tool names are valid, no modification needed
         return None
+
+    # If we only have silently dropped calls (no invalid calls needing error responses),
+    # just return a modified response without forcing another turn
+    if not invalid_calls and silently_dropped_calls:
+        log.info(
+            "%s Silently dropped %d redundant internal tool call(s). No error response needed.",
+            log_identifier,
+            len(silently_dropped_calls),
+        )
+        # Return modified response with the dropped calls removed, preserving turn_complete
+        return LlmResponse(
+            content=adk_types.Content(
+                role="model",
+                parts=valid_parts if valid_parts else [adk_types.Part(text=" ")],
+            ),
+            partial=False,
+            turn_complete=llm_response.turn_complete,  # Preserve original turn_complete
+        )
     
     # Log the invalid calls for debugging
     for fc, reason in invalid_calls:

@@ -32,6 +32,7 @@ export interface WorkflowNodeConfig {
     items?: string;
     condition?: string;
     max_iterations?: number;
+    delay?: string;
 }
 
 /**
@@ -68,7 +69,7 @@ export function getWorkflowConfig(agent: AgentCardInfo): WorkflowConfig | null {
     if (!vizExtension?.params) return null;
 
     const workflowConfig = vizExtension.params.workflow_config;
-    if (!workflowConfig || typeof workflowConfig !== 'object') return null;
+    if (!workflowConfig || typeof workflowConfig !== "object") return null;
 
     return workflowConfig as WorkflowConfig;
 }

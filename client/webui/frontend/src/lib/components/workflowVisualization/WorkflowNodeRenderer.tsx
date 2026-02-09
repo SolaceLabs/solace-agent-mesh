@@ -29,19 +29,7 @@ interface WorkflowNodeRendererProps {
  * WorkflowNodeRenderer - Renders positioned nodes at their absolute positions
  * Handles recursive rendering for container nodes
  */
-const WorkflowNodeRenderer: React.FC<WorkflowNodeRendererProps> = ({
-    nodes,
-    selectedNodeId,
-    highlightedNodeIds,
-    onNodeClick,
-    onExpand,
-    onCollapse,
-    onHighlightNodes,
-    knownNodeIds,
-    nodeRefs,
-    currentWorkflowName,
-    parentPath,
-}) => {
+const WorkflowNodeRenderer: React.FC<WorkflowNodeRendererProps> = ({ nodes, selectedNodeId, highlightedNodeIds, onNodeClick, onExpand, onCollapse, onHighlightNodes, knownNodeIds, nodeRefs, currentWorkflowName, parentPath }) => {
     // Track mounted node IDs for cleanup
     const mountedNodeIds = useRef<Set<string>>(new Set());
 

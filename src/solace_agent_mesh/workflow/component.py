@@ -79,14 +79,14 @@ class WorkflowExecutorComponent(SamComponentBase):
         Initialize workflow executor component.
         """
         if "component_config" in kwargs and "app_config" in kwargs["component_config"]:
-            name = kwargs["component_config"]["app_config"].get("agent_name")
+            name = kwargs["component_config"]["app_config"].get("name")
             if name:
                 kwargs.setdefault("name", name)
 
         super().__init__(info, **kwargs)
 
         # Configuration
-        self.workflow_name = self.get_config("agent_name")
+        self.workflow_name = self.get_config("name")
         self.namespace = self.get_config("namespace")
         workflow_config = self.get_config("workflow")
 
@@ -265,6 +265,8 @@ class WorkflowExecutorComponent(SamComponentBase):
                     node_dict["condition"] = node.condition
                 if node.max_iterations:
                     node_dict["max_iterations"] = node.max_iterations
+                if node.delay:
+                    node_dict["delay"] = node.delay
             elif node.type == "workflow":
                 node_dict["workflow_name"] = node.workflow_name
                 if node.input:

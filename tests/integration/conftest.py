@@ -1164,7 +1164,7 @@ def shared_solace_connector(
             "name": "TestSimpleWorkflowApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "SimpleTestWorkflow",
+                "name": "SimpleTestWorkflow",
                 "display_name": "Simple Test Workflow",
                 "artifact_scope": "namespace",
                 "workflow": {
@@ -1218,7 +1218,7 @@ def shared_solace_connector(
             "name": "TestStructuredWorkflowApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "StructuredTestWorkflow",
+                "name": "StructuredTestWorkflow",
                 "display_name": "Structured Test Workflow with Validation",
                 "artifact_scope": "namespace",
                 "workflow": {
@@ -1327,7 +1327,7 @@ def shared_solace_connector(
             "name": "TestConditionalWorkflowApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "ConditionalTestWorkflow",
+                "name": "ConditionalTestWorkflow",
                 "display_name": "Conditional Test Workflow",
                 "artifact_scope": "namespace",
                 "workflow": {
@@ -1411,7 +1411,7 @@ def shared_solace_connector(
             "name": "TestMapWorkflowApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "MapTestWorkflow",
+                "name": "MapTestWorkflow",
                 "display_name": "Map Test Workflow",
                 "artifact_scope": "namespace",
                 "workflow": {
@@ -1468,7 +1468,7 @@ def shared_solace_connector(
             "name": "TestSwitchWorkflowApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "SwitchTestWorkflow",
+                "name": "SwitchTestWorkflow",
                 "display_name": "Switch Test Workflow",
                 "artifact_scope": "namespace",
                 "workflow": {
@@ -1567,7 +1567,7 @@ def shared_solace_connector(
             "name": "TestLoopWorkflowApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "LoopTestWorkflow",
+                "name": "LoopTestWorkflow",
                 "display_name": "Loop Test Workflow",
                 "artifact_scope": "namespace",
                 "workflow": {
@@ -1621,7 +1621,7 @@ def shared_solace_connector(
             "name": "TestInstructionWorkflowApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "InstructionTestWorkflow",
+                "name": "InstructionTestWorkflow",
                 "display_name": "Instruction Test Workflow",
                 "artifact_scope": "namespace",
                 "workflow": {
@@ -1668,7 +1668,7 @@ def shared_solace_connector(
             "name": "TestSubWorkflowInvokeApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "SubWorkflowInvokeTestWorkflow",
+                "name": "SubWorkflowInvokeTestWorkflow",
                 "display_name": "Sub-Workflow Invoke Test Workflow",
                 "artifact_scope": "namespace",
                 "workflow": {
@@ -1732,7 +1732,7 @@ def shared_solace_connector(
             "name": "TestRecursiveWorkflowApp",
             "app_config": {
                 "namespace": "test_namespace",
-                "agent_name": "RecursiveTestWorkflow",
+                "name": "RecursiveTestWorkflow",
                 "display_name": "Recursive Test Workflow (for testing recursion prevention)",
                 "artifact_scope": "namespace",
                 "workflow": {

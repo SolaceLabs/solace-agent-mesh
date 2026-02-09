@@ -100,6 +100,9 @@ export interface BuildContext {
     // Agent name display map
     agentNameMap: Record<string, string>;
 
+    // Callback when agent display name lookup fails
+    onUnknownAgent?: (agentName: string) => void;
+
     // Map workflow nodeId to Map/Fork node for parallel branch tracking
     parallelContainerMap: Map<string, LayoutNode>;
 
