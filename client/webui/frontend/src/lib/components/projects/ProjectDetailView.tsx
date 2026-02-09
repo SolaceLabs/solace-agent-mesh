@@ -6,7 +6,7 @@ import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext, useIsProjectOwner } from "@/lib/hooks";
+import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
@@ -27,8 +27,8 @@ interface ProjectDetailViewProps {
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, onShare }) => {
     const isOwner = useIsProjectOwner(project.userId);
     const { updateProject, projects, deleteProject } = useProjectContext();
-    const { validationLimits, configFeatureEnablement } = useConfigContext();
-    const isProjectSharingEnabled = configFeatureEnablement?.projectSharingEnabled ?? false;
+    const { validationLimits } = useConfigContext();
+    const isProjectSharingEnabled = useIsProjectSharingEnabled();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
