@@ -1083,7 +1083,6 @@ async def clear_buffered_task_events(
                 )
         else:
             # No metadata found, try to verify via database task record
-            from .dto.responses.task_responses import Task
             from ..repository.task_repository import TaskRepository
             
             repo = TaskRepository()
