@@ -35,7 +35,7 @@ from .base import (
 )
 
 from .python_executor import LocalPythonExecutor
-from .sandboxed_executor import SandboxedPythonExecutor
+from .sandboxed_executor import SamRemoteExecutor
 from .unified_python_executor import UnifiedPythonExecutor
 
 from .executor_tool import (
@@ -54,7 +54,7 @@ __all__ = [
     "list_executor_types",
     # Executor implementations
     "LocalPythonExecutor",
-    "SandboxedPythonExecutor",
+    "SamRemoteExecutor",
     "UnifiedPythonExecutor",
     # Tool class
     "ExecutorBasedTool",

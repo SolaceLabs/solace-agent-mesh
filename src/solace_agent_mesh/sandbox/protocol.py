@@ -49,8 +49,6 @@ class SandboxInvokeParams(BaseModel):
 
     task_id: str = Field(..., description="Unique task identifier")
     tool_name: str = Field(..., description="Name of the tool being invoked")
-    module: str = Field(..., description="Python module path containing the tool")
-    function: str = Field(..., description="Function name within the module")
     args: Dict[str, Any] = Field(
         default_factory=dict, description="Arguments to pass to the tool"
     )
@@ -79,7 +77,7 @@ class SandboxInvokeParams(BaseModel):
     )
     sandbox_profile: str = Field(
         default="standard",
-        description="nsjail profile to use (restrictive, standard, permissive)",
+        description="Sandbox profile to use (restrictive, standard, permissive)",
     )
 
 
@@ -87,13 +85,13 @@ class SandboxToolInvocationRequest(BaseModel):
     """
     JSON-RPC 2.0 style request for sandbox tool execution.
 
-    Published to: {namespace}/a2a/v1/sandbox/request/{sandbox_worker_id}
-    User properties carry replyTo and a2aStatusTopic for response routing.
+    Published to: {namespace}/a2a/v1/sam_remote_tool/invoke/{tool_name}
+    User properties carry replyTo and statusTo for response routing.
     """
 
     jsonrpc: Literal["2.0"] = "2.0"
     id: str = Field(..., description="Correlation ID (matches replyTo topic suffix)")
-    method: Literal["sandbox/invoke"] = "sandbox/invoke"
+    method: Literal["sam_remote_tool/invoke"] = "sam_remote_tool/invoke"
     params: SandboxInvokeParams
 
 
@@ -191,13 +189,8 @@ class SandboxToolInvocationResponse(BaseModel):
         )
 
 
-class SandboxStatusUpdate(BaseModel):
-    """
-    Status update during tool execution.
-
-    Published to: a2aStatusTopic from request user properties.
-    Mirrors TaskStatusUpdateEvent pattern from A2A protocol.
-    """
+class SandboxStatusUpdateParams(BaseModel):
+    """Parameters for a status update notification."""
 
     task_id: str = Field(..., description="Task ID this status belongs to")
     status_text: str = Field(..., description="Status message from the tool")
@@ -207,13 +200,27 @@ class SandboxStatusUpdate(BaseModel):
     )
 
 
+class SandboxStatusUpdate(BaseModel):
+    """
+    JSON-RPC 2.0 notification for status updates during tool execution.
+
+    Published to: statusTo from request user properties.
+    Notifications have no 'id' field (no response expected).
+    """
+
+    jsonrpc: Literal["2.0"] = "2.0"
+    method: Literal["sam_remote_tool/status"] = "sam_remote_tool/status"
+    params: SandboxStatusUpdateParams
+
+
 # Error codes for sandbox execution
 class SandboxErrorCodes:
     """Standard error codes for sandbox execution failures."""
 
     TIMEOUT = "SANDBOX_TIMEOUT"
-    NSJAIL_FAILED = "NSJAIL_FAILED"
+    SANDBOX_FAILED = "SANDBOX_FAILED"
     TOOL_NOT_FOUND = "TOOL_NOT_FOUND"
+    TOOL_NOT_AVAILABLE = "TOOL_NOT_AVAILABLE"
     IMPORT_ERROR = "IMPORT_ERROR"
     EXECUTION_ERROR = "EXECUTION_ERROR"
     TOOL_ERROR = "TOOL_ERROR"

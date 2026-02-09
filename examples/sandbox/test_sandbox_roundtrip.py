@@ -91,7 +91,7 @@ def main():
 
     user_properties = {
         "replyTo": reply_topic,
-        "a2aStatusTopic": status_topic,
+        "statusTo": status_topic,
         "clientId": agent_name,
         "userId": "test-user",
     }

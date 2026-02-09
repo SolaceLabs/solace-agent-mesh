@@ -73,31 +73,17 @@ class McpToolConfig(BaseToolConfig):
         return self
 
 
-class SandboxedPythonToolConfig(BaseToolConfig):
-    """Configuration for a sandboxed Python tool executed via nsjail in a container."""
+class SamRemoteToolConfig(BaseToolConfig):
+    """Configuration for a SAM remote tool executed via broker on a remote worker."""
 
-    tool_type: Literal["sandboxed_python"]
-    component_module: str = Field(
+    tool_type: Literal["sam_remote"]
+    tool_name: str = Field(
         ...,
-        description="Python module path (e.g., 'mytools.data_processor')",
-    )
-    function_name: str = Field(
-        ...,
-        description="Name of the function to call within the module",
-    )
-    tool_name: Optional[str] = Field(
-        default=None,
-        description="Override name for the tool (defaults to function_name)",
+        description="Name of the tool (used for topic-based routing to the worker)",
     )
     tool_description: Optional[str] = Field(
         default=None,
         description="Description of what the tool does",
-    )
-
-    # Sandbox configuration
-    sandbox_worker_id: str = Field(
-        default="sandbox-worker-001",
-        description="ID of the sandbox worker to route requests to",
     )
     timeout_seconds: int = Field(
         default=300,
@@ -105,19 +91,13 @@ class SandboxedPythonToolConfig(BaseToolConfig):
     )
     sandbox_profile: str = Field(
         default="standard",
-        description="nsjail profile to use (restrictive, standard, permissive)",
+        description="Execution profile hint (restrictive, standard, permissive)",
     )
 
     # Tool parameters for LLM schema generation
     parameters: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Parameter definitions for the tool (used to build LLM schema)",
-    )
-
-    # Development mode
-    dev_mode: bool = Field(
-        default=False,
-        description="If True, skip sandboxing and run tools locally",
     )
 
 
@@ -156,7 +136,7 @@ AnyToolConfig = Union[
     BuiltinToolConfig,
     BuiltinGroupToolConfig,
     PythonToolConfig,
-    SandboxedPythonToolConfig,
+    SamRemoteToolConfig,
     McpToolConfig,
     OpenApiToolConfig,
 ]

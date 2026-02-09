@@ -46,8 +46,8 @@ from ...common.a2a import (
     get_client_response_topic,
     get_discovery_subscription_topic,
     get_sam_events_subscription_topic,
-    get_sandbox_response_subscription_topic,
-    get_sandbox_status_subscription_topic,
+    get_sam_remote_tool_response_subscription,
+    get_sam_remote_tool_status_subscription,
     get_text_from_message,
     extract_task_id_from_topic,
     topic_matches_subscription,
@@ -178,10 +178,10 @@ async def process_event(component, event: Event):
             agent_status_sub_prefix = (
                 get_agent_status_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
-            sandbox_response_sub = get_sandbox_response_subscription_topic(
+            sandbox_response_sub = get_sam_remote_tool_response_subscription(
                 namespace, agent_name
             )
-            sandbox_status_sub = get_sandbox_status_subscription_topic(
+            sandbox_status_sub = get_sam_remote_tool_status_subscription(
                 namespace, agent_name
             )
             sandbox_response_sub_prefix = sandbox_response_sub[:-2] + "/"
@@ -341,7 +341,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
 
         # Extract properties from message user properties
         client_id = message.get_user_properties().get("clientId", "default_client")
-        status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
+        status_topic_from_peer = message.get_user_properties().get("statusTo")
         reply_topic_from_peer = message.get_user_properties().get("replyTo")
         namespace = component.get_config("namespace")
         a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
@@ -1328,7 +1328,12 @@ def handle_sandbox_status(component, message: SolaceMessage, topic: str, subscri
             return
 
         payload = message.get_payload()
-        status_text = payload.get("status_text", "") if isinstance(payload, dict) else ""
+        # JSON-RPC 2.0 notification: status_text is in params
+        if isinstance(payload, dict) and "params" in payload:
+            params = payload["params"]
+            status_text = params.get("status_text", "") if isinstance(params, dict) else ""
+        else:
+            status_text = payload.get("status_text", "") if isinstance(payload, dict) else ""
         log.info(
             "%s Sandbox status received for correlation_id=%s: %s",
             component.log_identifier,

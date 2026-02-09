@@ -219,7 +219,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                     "user_id": message.get_user_properties().get(
                         "userId", "default_user"
                     ),
-                    "status_topic": message.get_user_properties().get("a2aStatusTopic"),
+                    "status_topic": message.get_user_properties().get("statusTo"),
                     "reply_to_topic": message.get_user_properties().get("replyTo"),
                     "is_streaming": isinstance(a2a_request.root, SendStreamingMessageRequest),
                     "user_properties": message.get_user_properties(),

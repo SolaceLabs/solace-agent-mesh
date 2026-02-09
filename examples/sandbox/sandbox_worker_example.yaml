@@ -1,7 +1,7 @@
 # Sandbox Worker Configuration Example
 #
 # This configuration runs a sandbox worker that executes Python tools
-# in an isolated nsjail environment. The worker communicates with SAM
+# in an isolated bubblewrap (bwrap) sandbox. The worker communicates with SAM
 # agents via Solace broker.
 #
 # For local testing with dev broker:
@@ -39,12 +39,10 @@ apps:
       # Default timeout for tool executions (in seconds)
       default_timeout_seconds: 300
 
-      # nsjail configuration
-      nsjail:
-        # Path to nsjail binary
-        nsjail_bin: /usr/bin/nsjail
-        # Directory containing nsjail config profiles
-        config_dir: /etc/nsjail
+      # Sandbox (bubblewrap) configuration
+      sandbox:
+        # Path to bubblewrap binary
+        bwrap_bin: /usr/bin/bwrap
         # Python binary to use inside the sandbox
         python_bin: /usr/local/bin/python3
         # Working directory for sandbox executions

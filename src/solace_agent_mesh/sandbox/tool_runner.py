@@ -1,7 +1,7 @@
 """
-Tool Runner - Executes tools inside the nsjail sandbox.
+Tool Runner - Executes tools inside the bubblewrap (bwrap) sandbox.
 
-This module is invoked by nsjail to run a Python tool function within
+This module is invoked by bwrap to run a Python tool function within
 the sandboxed environment. It:
 1. Reads invocation parameters from a JSON file
 2. Sets up the SandboxToolContextFacade

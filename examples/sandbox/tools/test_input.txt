@@ -1,0 +1,8 @@
+Hello from the artifact test!
+This is a sample input file with multiple lines.
+It contains some text for the process_file tool to analyze.
+The tool should count words, lines, and characters.
+Then it creates a summary output artifact.
+Line six.
+Line seven.
+The end.

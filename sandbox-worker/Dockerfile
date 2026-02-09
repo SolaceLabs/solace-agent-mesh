@@ -1,5 +1,5 @@
 # SAM Sandbox Worker Container
-# This container runs Python tools in a sandboxed environment using nsjail.
+# This container runs Python tools in a sandboxed environment using bubblewrap (bwrap).
 # Works with both Podman and Docker.
 #
 # Quick start (using helper scripts):
@@ -11,55 +11,29 @@
 #   docker build -t sam-sandbox-worker .
 #
 # Manual run:
-#   podman run -d --privileged --name sandbox-worker \
+#   podman run -d --name sandbox-worker \
 #     -e SAM_NAMESPACE=myorg/dev \
 #     -e SOLACE_HOST=host.containers.internal:55554 \
 #     -e SOLACE_VPN=default \
 #     -e SOLACE_USERNAME=admin \
 #     -e SOLACE_PASSWORD=admin \
 #     sam-sandbox-worker
+#
+# Note: With Kubernetes 1.33+ user namespaces (hostUsers: false, procMount: Unmasked),
+# bwrap only needs the SETFCAP capability instead of --privileged.
 
 FROM python:3.11-slim-bookworm
 
-# Install system dependencies
+# Install system dependencies including bubblewrap for sandboxing
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # nsjail build dependencies
-    build-essential \
-    git \
-    autoconf \
-    bison \
-    flex \
-    pkg-config \
-    libnl-3-dev \
-    libnl-route-3-dev \
-    libprotobuf-dev \
-    protobuf-compiler \
-    # Runtime dependencies
-    libcap2 \
-    libcap-dev \
-    libnl-3-200 \
-    libnl-route-3-200 \
-    libprotobuf32 \
-    # Useful tools
+    bubblewrap \
     procps \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Build and install nsjail from source
-RUN git clone https://github.com/google/nsjail.git /tmp/nsjail \
-    && cd /tmp/nsjail \
-    && make \
-    && cp nsjail /usr/bin/nsjail \
-    && chmod +x /usr/bin/nsjail \
-    && rm -rf /tmp/nsjail
-
 # Create sandbox directories
 RUN mkdir -p /sandbox/work \
-    && mkdir -p /etc/nsjail \
     && mkdir -p /app
-
-# Copy nsjail configuration profiles
-COPY sandbox-worker/nsjail-configs/*.cfg /etc/nsjail/
 
 # Install SAM and dependencies
 WORKDIR /app

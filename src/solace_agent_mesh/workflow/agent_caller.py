@@ -491,7 +491,7 @@ This is MANDATORY for the workflow to continue.
         # User properties
         user_properties = {
             "replyTo": reply_to_topic,
-            "a2aStatusTopic": status_topic,
+            "statusTo": status_topic,
             "userId": workflow_context.a2a_context["user_id"],
             "a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {}),
             "callDepth": current_depth + 1,

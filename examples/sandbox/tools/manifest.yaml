@@ -1,0 +1,41 @@
+# Tool Manifest for Sandbox Worker
+#
+# This file declares what tools are available in this sandbox worker.
+# The worker subscribes to one topic per tool and resolves module/function
+# from this manifest when a request arrives.
+#
+# Mount this file at /tools/manifest.yaml inside the container
+# (or set MANIFEST_PATH env var to a different location).
+
+version: 1
+
+tools:
+  echo_tool:
+    runtime: python
+    module: example_sandbox_tools
+    function: echo_tool
+    description: "Echo back a message from the secure sandbox environment"
+
+  execute_python:
+    runtime: python
+    module: example_sandbox_tools
+    function: execute_python
+    description: "Execute arbitrary Python code in a sandbox"
+    timeout_seconds: 60
+    sandbox_profile: standard
+
+  # Artifact test - accepts an input artifact, processes it, creates output artifact.
+  process_file:
+    runtime: python
+    module: process_file_tool
+    function: process_file
+    description: "Process an input file and produce a summary (tests artifact pipeline)"
+
+  # Package loading test - pyfiglet is NOT pre-installed in the container.
+  # The worker auto-installs it on startup via ensure_packages_installed().
+  render_ascii_art:
+    runtime: python
+    module: package_test_tool
+    function: render_ascii_art
+    package: pyfiglet
+    description: "Render text as ASCII art (tests package auto-install)"

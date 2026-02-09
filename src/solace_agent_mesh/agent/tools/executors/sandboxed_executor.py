@@ -1,8 +1,9 @@
 """
-Sandboxed Python Executor.
+SAM Remote Tool Executor.
 
-This executor delegates tool execution to a sandbox worker running in a
-container. It communicates via Solace broker using the A2A protocol patterns.
+This executor delegates tool execution to a remote worker (e.g., sandbox worker)
+via Solace broker using topic-based routing. The agent only needs to know the
+tool name - routing and module resolution happen on the worker side.
 """
 
 import asyncio
@@ -17,11 +18,14 @@ from google.adk.tools import ToolContext
 from .base import ToolExecutor, ToolExecutionResult, register_executor
 from ..tool_result import ToolResult
 from ....common.a2a import (
-    get_sandbox_request_topic,
-    get_sandbox_response_topic,
-    get_sandbox_status_topic,
+    get_sam_remote_tool_invoke_topic,
+    get_sam_remote_tool_response_topic,
+    get_sam_remote_tool_status_topic,
 )
+from ..artifact_types import Artifact
+from ...utils.context_helpers import get_original_session_id
 from ....sandbox.protocol import (
+    ArtifactReference,
     SandboxErrorCodes,
     SandboxInvokeParams,
     SandboxToolInvocationRequest,
@@ -34,68 +38,45 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-@register_executor("sandboxed_python")
-class SandboxedPythonExecutor(ToolExecutor):
+@register_executor("sam_remote")
+class SamRemoteExecutor(ToolExecutor):
     """
-    Executor that runs Python tools in a sandboxed container environment.
+    Executor that runs tools on a remote worker via Solace broker.
 
-    This executor sends tool invocation requests to a sandbox worker via
-    Solace broker and waits for the response. It supports:
-    - Configurable timeout
-    - Status message forwarding during execution
-    - Artifact pre-loading and result processing
-    - Dev mode fallback to local execution
+    This executor sends tool invocation requests to a worker using
+    topic-based routing (one topic per tool name). Workers subscribe
+    to topics for tools they support based on their manifest.
+
+    On TOOL_NOT_AVAILABLE errors, the executor retries once after a
+    short delay to handle tool migration between workers.
 
     Configuration:
-        module: The Python module path (e.g., "mypackage.tools.data_tools")
-        function: The function name within the module
-        sandbox_worker_id: ID of the sandbox worker to route to
+        tool_name: Name of the tool (used for topic routing)
         timeout_seconds: Maximum execution time (default: 300)
-        sandbox_profile: nsjail profile (restrictive, standard, permissive)
-        dev_mode: Skip sandboxing and run locally (default: False)
+        sandbox_profile: Execution profile hint (default: standard)
     """
 
     def __init__(
         self,
-        module: str,
-        function: str,
-        sandbox_worker_id: str = "sandbox-worker-001",
+        tool_name: str,
         timeout_seconds: int = 300,
         sandbox_profile: str = "standard",
-        dev_mode: bool = False,
     ):
-        """
-        Initialize the sandboxed executor.
-
-        Args:
-            module: Python module path containing the tool
-            function: Name of the function to call
-            sandbox_worker_id: ID of the sandbox worker instance
-            timeout_seconds: Maximum execution time in seconds
-            sandbox_profile: nsjail profile to use
-            dev_mode: If True, fall back to local execution
-        """
-        self._module_path = module
-        self._function_name = function
-        self._sandbox_worker_id = sandbox_worker_id
+        self._tool_name = tool_name
         self._timeout_seconds = timeout_seconds
         self._sandbox_profile = sandbox_profile
-        self._dev_mode = dev_mode
 
         # Will be set during initialize()
         self._component: Optional["SamAgentComponent"] = None
         self._namespace: Optional[str] = None
         self._agent_name: Optional[str] = None
 
-        # For dev mode fallback
-        self._local_executor: Optional[ToolExecutor] = None
-
         # Track pending requests (thread-safe concurrent futures)
         self._pending_responses: Dict[str, concurrent.futures.Future] = {}
 
     @property
     def executor_type(self) -> str:
-        return "sandboxed_python"
+        return "sam_remote"
 
     async def initialize(
         self,
@@ -103,39 +84,19 @@ class SandboxedPythonExecutor(ToolExecutor):
         executor_config: Dict[str, Any],
     ) -> None:
         """
-        Initialize the executor.
-
-        Sets up the connection to the host component for publishing
-        and subscribing to Solace topics.
-
-        Args:
-            component: The host SamAgentComponent
-            executor_config: Executor-specific configuration
+        Initialize the executor with the host component for publishing.
         """
-        log_id = f"[SandboxedExecutor:{self._module_path}.{self._function_name}]"
+        log_id = f"[SamRemoteExecutor:{self._tool_name}]"
         log.info("%s Initializing...", log_id)
 
         self._component = component
         self._namespace = component.namespace
         self._agent_name = component.agent_name
 
-        # If dev_mode is enabled, initialize local executor as fallback
-        if self._dev_mode:
-            log.info("%s Dev mode enabled, setting up local executor fallback", log_id)
-            from .python_executor import LocalPythonExecutor
-
-            self._local_executor = LocalPythonExecutor(
-                module=self._module_path,
-                function=self._function_name,
-            )
-            await self._local_executor.initialize(component, executor_config)
-
         log.info(
-            "%s Initialized (sandbox_worker=%s, timeout=%ds, dev_mode=%s)",
+            "%s Initialized (timeout=%ds)",
             log_id,
-            self._sandbox_worker_id,
             self._timeout_seconds,
-            self._dev_mode,
         )
 
     async def execute(
@@ -145,25 +106,36 @@ class SandboxedPythonExecutor(ToolExecutor):
         tool_config: Dict[str, Any],
     ) -> Union[ToolExecutionResult, ToolResult]:
         """
-        Execute the tool in the sandbox.
+        Execute the tool on a remote worker.
 
-        Sends an invocation request to the sandbox worker via Solace
-        and waits for the response.
-
-        Args:
-            args: The arguments passed to the tool
-            tool_context: The ADK ToolContext for accessing services
-            tool_config: Tool-specific configuration
-
-        Returns:
-            ToolExecutionResult or ToolResult from the sandboxed execution
+        Sends an invocation request via Solace and waits for the response.
+        Retries once on TOOL_NOT_AVAILABLE (handles tool migration).
         """
-        log_id = f"[SandboxedExecutor:{self._module_path}.{self._function_name}]"
+        result = await self._execute_once(args, tool_context, tool_config)
 
-        # Dev mode fallback
-        if self._dev_mode and self._local_executor:
-            log.debug("%s Using local executor (dev mode)", log_id)
-            return await self._local_executor.execute(args, tool_context, tool_config)
+        # Retry once on TOOL_NOT_AVAILABLE
+        if (
+            isinstance(result, ToolExecutionResult)
+            and not result.success
+            and result.error_code == SandboxErrorCodes.TOOL_NOT_AVAILABLE
+        ):
+            log.info(
+                "[SamRemoteExecutor:%s] Got TOOL_NOT_AVAILABLE, retrying in 1s...",
+                self._tool_name,
+            )
+            await asyncio.sleep(1.0)
+            result = await self._execute_once(args, tool_context, tool_config)
+
+        return result
+
+    async def _execute_once(
+        self,
+        args: Dict[str, Any],
+        tool_context: ToolContext,
+        tool_config: Dict[str, Any],
+    ) -> Union[ToolExecutionResult, ToolResult]:
+        """Execute a single attempt at running the tool."""
+        log_id = f"[SamRemoteExecutor:{self._tool_name}]"
 
         if not self._component:
             return ToolExecutionResult.fail(
@@ -181,23 +153,48 @@ class SandboxedPythonExecutor(ToolExecutor):
             if invocation_context:
                 app_name = getattr(invocation_context, "app_name", self._agent_name)
                 user_id = getattr(invocation_context, "user_id", "unknown")
-                session_id = getattr(invocation_context, "session_id", "unknown")
+                session_id = get_original_session_id(invocation_context)
             else:
                 app_name = self._agent_name
                 user_id = "unknown"
                 session_id = "unknown"
 
+            # Extract artifact references from args (DynamicTool pre-loads
+            # Artifact objects; we convert them to references so the worker
+            # loads from its own artifact service instead of sending bytes
+            # over the broker).
+            artifact_references = {}
+            clean_args = {}
+            for key, value in args.items():
+                if isinstance(value, Artifact):
+                    artifact_references[key] = ArtifactReference(
+                        filename=value.filename,
+                        version=value.version,
+                    )
+                    # Pass filename string to the tool args
+                    clean_args[key] = value.filename
+                elif isinstance(value, list) and value and isinstance(value[0], Artifact):
+                    # List[Artifact] - convert each to a reference
+                    for idx, art in enumerate(value):
+                        ref_key = f"{key}[{idx}]"
+                        artifact_references[ref_key] = ArtifactReference(
+                            filename=art.filename,
+                            version=art.version,
+                        )
+                    clean_args[key] = [art.filename for art in value]
+                else:
+                    clean_args[key] = value
+
             # Build the invocation request
             params = SandboxInvokeParams(
                 task_id=correlation_id,
-                tool_name=f"{self._module_path}.{self._function_name}",
-                module=self._module_path,
-                function=self._function_name,
-                args=args,
+                tool_name=self._tool_name,
+                args=clean_args,
                 tool_config=tool_config,
                 app_name=app_name,
                 user_id=user_id,
                 session_id=session_id,
+                artifact_references=artifact_references,
                 timeout_seconds=self._timeout_seconds,
                 sandbox_profile=self._sandbox_profile,
             )
@@ -207,34 +204,33 @@ class SandboxedPythonExecutor(ToolExecutor):
                 params=params,
             )
 
-            # Build topics
-            request_topic = get_sandbox_request_topic(
-                self._namespace, self._sandbox_worker_id
+            # Build topics - route by tool name
+            request_topic = get_sam_remote_tool_invoke_topic(
+                self._namespace, self._tool_name
             )
-            reply_to = get_sandbox_response_topic(
+            reply_to = get_sam_remote_tool_response_topic(
                 self._namespace, self._agent_name, correlation_id
             )
-            status_topic = get_sandbox_status_topic(
+            status_topic = get_sam_remote_tool_status_topic(
                 self._namespace, self._agent_name, correlation_id
             )
 
             # User properties for routing (following A2A patterns)
             user_properties = {
                 "replyTo": reply_to,
-                "a2aStatusTopic": status_topic,
+                "statusTo": status_topic,
                 "clientId": self._agent_name,
                 "userId": user_id,
             }
 
             log.info(
-                "%s Sending request to sandbox worker: id=%s, topic=%s",
+                "%s Sending request: id=%s, topic=%s",
                 log_id,
                 correlation_id,
                 request_topic,
             )
 
             # Create a thread-safe future for the response
-            # (message handler may run in a different thread/event loop)
             response_future = concurrent.futures.Future()
             self._pending_responses[correlation_id] = response_future
 
@@ -246,12 +242,12 @@ class SandboxedPythonExecutor(ToolExecutor):
                     user_properties=user_properties,
                 )
 
-                # Wait for response with timeout using asyncio-compatible wrapper
+                # Wait for response with timeout
                 try:
                     asyncio_future = asyncio.wrap_future(response_future)
                     response_payload = await asyncio.wait_for(
                         asyncio_future,
-                        timeout=self._timeout_seconds + 10,  # Buffer for network
+                        timeout=self._timeout_seconds + 10,
                     )
 
                     response = SandboxToolInvocationResponse.model_validate(
@@ -283,7 +279,7 @@ class SandboxedPythonExecutor(ToolExecutor):
                         )
 
                     return ToolExecutionResult.fail(
-                        error="Empty response from sandbox worker",
+                        error="Empty response from remote worker",
                         error_code=SandboxErrorCodes.INTERNAL_ERROR,
                     )
 
@@ -296,7 +292,7 @@ class SandboxedPythonExecutor(ToolExecutor):
                         execution_time_ms,
                     )
                     return ToolExecutionResult.fail(
-                        error=f"No response from sandbox worker within {self._timeout_seconds}s",
+                        error=f"No response from remote worker within {self._timeout_seconds}s",
                         error_code=SandboxErrorCodes.TIMEOUT,
                         metadata={"execution_time_ms": execution_time_ms},
                     )
@@ -309,51 +305,38 @@ class SandboxedPythonExecutor(ToolExecutor):
             execution_time_ms = int((time.time() - start_time) * 1000)
             log.exception("%s Execution failed: %s", log_id, e)
             return ToolExecutionResult.fail(
-                error=f"Sandbox execution failed: {str(e)}",
+                error=f"Remote tool execution failed: {str(e)}",
                 error_code=SandboxErrorCodes.EXECUTION_ERROR,
                 metadata={"execution_time_ms": execution_time_ms},
             )
 
     def handle_response(self, correlation_id: str, payload: Dict[str, Any]) -> None:
         """
-        Handle a response from the sandbox worker.
+        Handle a response from the remote worker.
 
-        This method should be called by the agent component when it receives
-        a message on the sandbox response topic.
-
-        Args:
-            correlation_id: The correlation ID from the response
-            payload: The response payload
+        Called by the agent component when it receives a message on the
+        sam_remote_tool response topic.
         """
         future = self._pending_responses.get(correlation_id)
         if future and not future.done():
             log.info(
-                "[SandboxedExecutor] Resolving future for correlation_id=%s",
+                "[SamRemoteExecutor] Resolving future for correlation_id=%s",
                 correlation_id,
             )
             future.set_result(payload)
         else:
             log.warning(
-                "[SandboxedExecutor] Received response for unknown or completed "
+                "[SamRemoteExecutor] Received response for unknown or completed "
                 "request: correlation_id=%s",
                 correlation_id,
             )
 
     def handle_status(self, correlation_id: str, status_text: str) -> None:
         """
-        Handle a status update from the sandbox worker.
-
-        This method should be called by the agent component when it receives
-        a status message during tool execution.
-
-        Args:
-            correlation_id: The correlation ID (task_id)
-            status_text: The status message
+        Handle a status update from the remote worker.
         """
-        # TODO: Forward status to the appropriate handler
-        # This could be used to update UI or send progress to the client
         log.debug(
-            "[SandboxedExecutor] Status update for %s: %s",
+            "[SamRemoteExecutor] Status update for %s: %s",
             correlation_id,
             status_text,
         )
@@ -363,14 +346,8 @@ class SandboxedPythonExecutor(ToolExecutor):
         component: "SamAgentComponent",
         executor_config: Dict[str, Any],
     ) -> None:
-        """
-        Clean up executor resources.
-
-        Args:
-            component: The host SamAgentComponent
-            executor_config: Executor-specific configuration
-        """
-        log_id = f"[SandboxedExecutor:{self._module_path}.{self._function_name}]"
+        """Clean up executor resources."""
+        log_id = f"[SamRemoteExecutor:{self._tool_name}]"
 
         # Cancel any pending requests
         for correlation_id, future in self._pending_responses.items():
@@ -379,10 +356,5 @@ class SandboxedPythonExecutor(ToolExecutor):
                 log.debug("%s Cancelled pending request: %s", log_id, correlation_id)
 
         self._pending_responses.clear()
-
-        # Clean up local executor if used
-        if self._local_executor:
-            await self._local_executor.cleanup(component, executor_config)
-
         self._component = None
         log.info("%s Cleaned up", log_id)

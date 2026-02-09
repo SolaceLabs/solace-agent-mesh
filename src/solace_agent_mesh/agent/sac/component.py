@@ -3181,7 +3181,7 @@ class SamAgentComponent(SamComponentBase):
 
         user_properties = {
             "replyTo": reply_to_topic,
-            "a2aStatusTopic": status_topic,
+            "statusTo": status_topic,
             "userId": user_id,
             "delegating_agent_name": delegating_agent_name,
         }

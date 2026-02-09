@@ -1,7 +1,7 @@
 """
 Example sandboxed tools for testing.
 
-These tools are designed to run inside the nsjail sandbox within the
+These tools are designed to run inside the bubblewrap (bwrap) sandbox within the
 sandbox worker container. They demonstrate various capabilities:
 - Simple computation
 - Status updates via context

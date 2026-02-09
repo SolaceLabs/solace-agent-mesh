@@ -3,7 +3,7 @@ Sandbox Worker Application.
 
 This module defines the SandboxWorkerApp class which configures the
 sandbox worker component with appropriate Solace subscriptions and
-broker settings.
+broker settings. Subscriptions are derived from the tool manifest.
 """
 
 import logging
@@ -13,33 +13,30 @@ from pydantic import Field, ValidationError
 
 from ..common.app_base import SamAppBase
 from ..common.a2a import (
-    get_sandbox_request_topic,
+    get_sam_remote_tool_invoke_topic,
     get_discovery_subscription_topic,
 )
 from ..common.utils.pydantic_utils import SamConfigBase
 from .component import SandboxWorkerComponent
+from .manifest import ToolManifest
 
 log = logging.getLogger(__name__)
 
 info = {
     "class_name": "SandboxWorkerApp",
-    "description": "Application for running sandboxed Python tools via nsjail.",
+    "description": "Application for running sandboxed Python tools via bubblewrap (bwrap).",
 }
 
 
 # --- Pydantic Models for Configuration Validation ---
 
 
-class NsjailConfig(SamConfigBase):
-    """Configuration for nsjail execution."""
+class SandboxConfig(SamConfigBase):
+    """Configuration for bubblewrap sandbox execution."""
 
     default_profile: str = Field(
         default="standard",
-        description="Default nsjail profile to use (restrictive, standard, permissive).",
-    )
-    config_dir: str = Field(
-        default="/etc/nsjail",
-        description="Directory containing nsjail configuration files.",
+        description="Default sandbox profile to use (restrictive, standard, permissive).",
     )
     max_concurrent_executions: int = Field(
         default=4,
@@ -79,6 +76,14 @@ class SandboxWorkerAppConfig(SamConfigBase):
         default="sandbox-worker-001",
         description="Unique identifier for this sandbox worker instance.",
     )
+    manifest_path: str = Field(
+        default="/tools/manifest.yaml",
+        description="Path to the tool manifest YAML file.",
+    )
+    tools_python_dir: str = Field(
+        default="/tools/python",
+        description="Directory containing Python tool modules.",
+    )
     max_message_size_bytes: int = Field(
         default=10_000_000,
         description="Maximum message size in bytes.",
@@ -87,9 +92,9 @@ class SandboxWorkerAppConfig(SamConfigBase):
         default=300,
         description="Default timeout for tool executions in seconds.",
     )
-    nsjail: NsjailConfig = Field(
-        default_factory=NsjailConfig,
-        description="Configuration for nsjail execution.",
+    sandbox: SandboxConfig = Field(
+        default_factory=SandboxConfig,
+        description="Configuration for bubblewrap sandbox execution.",
     )
     artifact_service: ArtifactServiceConfig = Field(
         default_factory=lambda: ArtifactServiceConfig(type="memory"),
@@ -102,20 +107,13 @@ class SandboxWorkerApp(SamAppBase):
     Application class for the Sandbox Worker.
 
     Configures the sandbox worker component with appropriate Solace
-    subscriptions and broker settings. Uses the same SAM infrastructure
-    as agents and gateways.
+    subscriptions and broker settings. Subscriptions are derived from
+    the tool manifest - one topic per tool.
     """
 
     app_schema = {}
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
-        """
-        Initialize the sandbox worker application.
-
-        Args:
-            app_info: Application info dictionary containing configuration
-            **kwargs: Additional keyword arguments passed to parent class
-        """
         log.debug("Initializing SandboxWorkerApp...")
 
         app_config_dict = app_info.get("app_config", {})
@@ -134,6 +132,7 @@ class SandboxWorkerApp(SamAppBase):
 
         namespace = app_config.get("namespace")
         worker_id = app_config.get("worker_id")
+        manifest_path = app_config.get("manifest_path")
 
         log.info(
             "Configuring SandboxWorkerApp: worker_id='%s' in namespace='%s'",
@@ -141,13 +140,20 @@ class SandboxWorkerApp(SamAppBase):
             namespace,
         )
 
-        # Generate required topic subscriptions
-        required_topics = [
-            # Tool invocation requests for this worker
-            get_sandbox_request_topic(namespace, worker_id),
-            # Discovery messages (to track available agents if needed)
-            get_discovery_subscription_topic(namespace),
-        ]
+        # Read manifest to build initial per-tool subscriptions
+        manifest = ToolManifest(manifest_path)
+        tool_names = manifest.get_tool_names()
+
+        required_topics = []
+
+        # One subscription per tool from the manifest
+        for tool_name in sorted(tool_names):
+            required_topics.append(
+                get_sam_remote_tool_invoke_topic(namespace, tool_name)
+            )
+
+        # Discovery messages (to track available agents if needed)
+        required_topics.append(get_discovery_subscription_topic(namespace))
 
         generated_subs = [{"topic": topic} for topic in required_topics]
         log.info(

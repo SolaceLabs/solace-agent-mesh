@@ -73,6 +73,8 @@ def build_app_info() -> Dict[str, Any]:
             "dev_mode": True,
             "dev_broker_host": dev_broker_host,
             "dev_broker_port": dev_broker_port,
+            "connect_retries": get_env_int("CONNECT_RETRIES", 0),
+            "connect_retry_delay_ms": get_env_int("CONNECT_RETRY_DELAY_MS", 3000),
         }
     else:
         # Use real Solace broker
@@ -103,14 +105,13 @@ def build_app_info() -> Dict[str, Any]:
         if client_key_path:
             broker_config["client_key_path"] = client_key_path
 
-    # nsjail configuration
-    nsjail_config = {
-        "nsjail_bin": get_env("NSJAIL_BIN", "/usr/bin/nsjail"),
-        "config_dir": get_env("NSJAIL_CONFIG_DIR", "/etc/nsjail"),
-        "python_bin": get_env("NSJAIL_PYTHON_BIN", "/usr/bin/python3"),
-        "work_base_dir": get_env("NSJAIL_WORK_DIR", "/sandbox/work"),
-        "default_profile": get_env("NSJAIL_DEFAULT_PROFILE", "standard"),
-        "max_concurrent_executions": get_env_int("NSJAIL_MAX_CONCURRENT", 4),
+    # Sandbox (bubblewrap) configuration
+    sandbox_config = {
+        "bwrap_bin": get_env("SANDBOX_BWRAP_BIN", "/usr/bin/bwrap"),
+        "python_bin": get_env("SANDBOX_PYTHON_BIN", "/usr/bin/python3"),
+        "work_base_dir": get_env("SANDBOX_WORK_DIR", "/sandbox/work"),
+        "default_profile": get_env("SANDBOX_DEFAULT_PROFILE", "standard"),
+        "max_concurrent_executions": get_env_int("SANDBOX_MAX_CONCURRENT", 4),
     }
 
     # Artifact service configuration
@@ -125,14 +126,20 @@ def build_app_info() -> Dict[str, Any]:
     elif artifact_type == "gcs":
         artifact_config["bucket_name"] = get_env("ARTIFACT_GCS_BUCKET", required=True)
 
+    # Tool manifest configuration
+    manifest_path = get_env("MANIFEST_PATH", "/tools/manifest.yaml")
+    tools_python_dir = get_env("TOOLS_PYTHON_DIR", "/tools/python")
+
     # Build app info
     app_info: Dict[str, Any] = {
         "name": f"sandbox-worker-{worker_id}",
         "app_config": {
             "namespace": namespace,
             "worker_id": worker_id,
+            "manifest_path": manifest_path,
+            "tools_python_dir": tools_python_dir,
             "default_timeout_seconds": get_env_int("DEFAULT_TIMEOUT_SECONDS", 300),
-            "nsjail": nsjail_config,
+            "sandbox": sandbox_config,
             "artifact_service": artifact_config,
         },
         "broker": broker_config,

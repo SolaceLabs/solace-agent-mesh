@@ -293,32 +293,35 @@ def extract_trust_card_info_from_topic(topic: str) -> tuple[str, str]:
     return component_type, component_id
 
 
-# --- Sandbox Topic Helpers ---
+# --- SAM Remote Tool Topic Helpers ---
 
 
-def get_sandbox_request_topic(namespace: str, sandbox_worker_id: str) -> str:
+def get_sam_remote_tool_invoke_topic(namespace: str, tool_name: str) -> str:
     """
-    Returns the topic for sending tool invocation requests to a sandbox worker.
+    Returns the topic for invoking a specific SAM remote tool.
+
+    Each tool has its own invoke topic. Workers subscribe to the topics
+    for tools they support (based on their manifest).
 
     Args:
         namespace: SAM namespace
-        sandbox_worker_id: Unique identifier for the sandbox worker instance
+        tool_name: Name of the tool to invoke
 
     Returns:
-        Topic string: {namespace}/a2a/v1/sandbox/request/{sandbox_worker_id}
+        Topic string: {namespace}/a2a/v1/sam_remote_tool/invoke/{tool_name}
     """
     if not namespace:
         raise ValueError("Namespace cannot be empty.")
-    if not sandbox_worker_id:
-        raise ValueError("Sandbox worker ID cannot be empty.")
-    return f"{get_a2a_base_topic(namespace)}/sandbox/request/{sandbox_worker_id}"
+    if not tool_name:
+        raise ValueError("Tool name cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/invoke/{tool_name}"
 
 
-def get_sandbox_response_topic(
+def get_sam_remote_tool_response_topic(
     namespace: str, agent_name: str, correlation_id: str
 ) -> str:
     """
-    Returns the topic for sandbox worker to publish tool execution responses
+    Returns the topic for a worker to publish tool execution responses
     back to the requesting agent.
 
     Args:
@@ -327,7 +330,7 @@ def get_sandbox_response_topic(
         correlation_id: Unique correlation ID for the request
 
     Returns:
-        Topic string: {namespace}/a2a/v1/sandbox/response/{agent_name}/{correlation_id}
+        Topic string: {namespace}/a2a/v1/sam_remote_tool/response/{agent_name}/{correlation_id}
     """
     if not namespace:
         raise ValueError("Namespace cannot be empty.")
@@ -335,67 +338,69 @@ def get_sandbox_response_topic(
         raise ValueError("Agent name cannot be empty.")
     if not correlation_id:
         raise ValueError("Correlation ID cannot be empty.")
-    return f"{get_a2a_base_topic(namespace)}/sandbox/response/{agent_name}/{correlation_id}"
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/response/{agent_name}/{correlation_id}"
 
 
-def get_sandbox_status_topic(namespace: str, agent_name: str, task_id: str) -> str:
+def get_sam_remote_tool_status_topic(
+    namespace: str, agent_name: str, correlation_id: str
+) -> str:
     """
-    Returns the topic for sandbox worker to publish status updates during
+    Returns the topic for a worker to publish status updates during
     tool execution back to the requesting agent.
 
     Args:
         namespace: SAM namespace
         agent_name: Name of the agent that requested the tool execution
-        task_id: Task ID for the tool execution
+        correlation_id: Correlation ID for the request
 
     Returns:
-        Topic string: {namespace}/a2a/v1/sandbox/status/{agent_name}/{task_id}
+        Topic string: {namespace}/a2a/v1/sam_remote_tool/status/{agent_name}/{correlation_id}
     """
     if not namespace:
         raise ValueError("Namespace cannot be empty.")
     if not agent_name:
         raise ValueError("Agent name cannot be empty.")
-    if not task_id:
-        raise ValueError("Task ID cannot be empty.")
-    return f"{get_a2a_base_topic(namespace)}/sandbox/status/{agent_name}/{task_id}"
+    if not correlation_id:
+        raise ValueError("Correlation ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/status/{agent_name}/{correlation_id}"
 
 
-def get_sandbox_response_subscription_topic(namespace: str, agent_name: str) -> str:
+def get_sam_remote_tool_response_subscription(namespace: str, agent_name: str) -> str:
     """
-    Returns the wildcard subscription topic for an agent to receive sandbox
-    tool execution responses.
+    Returns the wildcard subscription topic for an agent to receive
+    SAM remote tool execution responses.
 
     Args:
         namespace: SAM namespace
         agent_name: Name of the subscribing agent
 
     Returns:
-        Subscription pattern: {namespace}/a2a/v1/sandbox/response/{agent_name}/>
+        Subscription pattern: {namespace}/a2a/v1/sam_remote_tool/response/{agent_name}/>
     """
     if not namespace:
         raise ValueError("Namespace cannot be empty.")
     if not agent_name:
         raise ValueError("Agent name cannot be empty.")
-    return f"{get_a2a_base_topic(namespace)}/sandbox/response/{agent_name}/>"
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/response/{agent_name}/>"
 
 
-def get_sandbox_status_subscription_topic(namespace: str, agent_name: str) -> str:
+def get_sam_remote_tool_status_subscription(namespace: str, agent_name: str) -> str:
     """
-    Returns the wildcard subscription topic for an agent to receive sandbox
-    tool execution status updates.
+    Returns the wildcard subscription topic for an agent to receive
+    SAM remote tool execution status updates.
 
     Args:
         namespace: SAM namespace
         agent_name: Name of the subscribing agent
 
     Returns:
-        Subscription pattern: {namespace}/a2a/v1/sandbox/status/{agent_name}/>
+        Subscription pattern: {namespace}/a2a/v1/sam_remote_tool/status/{agent_name}/>
     """
     if not namespace:
         raise ValueError("Namespace cannot be empty.")
     if not agent_name:
         raise ValueError("Agent name cannot be empty.")
-    return f"{get_a2a_base_topic(namespace)}/sandbox/status/{agent_name}/>"
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/status/{agent_name}/>"
 
 
 # --- Topic Utility Functions ---

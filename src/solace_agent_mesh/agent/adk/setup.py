@@ -44,7 +44,7 @@ from ..tools.tool_config_types import (
     BuiltinToolConfig,
     McpToolConfig,
     PythonToolConfig,
-    SandboxedPythonToolConfig,
+    SamRemoteToolConfig,
 )
 from ..tools.executors import UnifiedPythonExecutor
 from ..tools.tool_definition import BuiltinTool
@@ -264,15 +264,15 @@ async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -
     return loaded_python_tools, [], cleanup_hooks
 
 
-async def _load_sandboxed_python_tool(
+async def _load_sam_remote_tool(
     component: "SamAgentComponent", tool_config: Dict
 ) -> ToolLoadingResult:
     """
-    Load a sandboxed Python tool using the SandboxedPythonExecutor.
+    Load a SAM remote tool using the SamRemoteExecutor.
 
-    This function creates an executor that sends tool invocations to a sandbox
-    worker running in a container via Solace broker. The sandbox worker executes
-    the tool in an nsjail environment for security isolation.
+    This function creates an executor that sends tool invocations to a remote
+    worker via Solace broker using topic-based routing. The worker resolves
+    the tool implementation from its manifest.
 
     Args:
         component: The SamAgentComponent instance
@@ -283,39 +283,30 @@ async def _load_sandboxed_python_tool(
     """
     from pydantic import TypeAdapter
 
-    from ..tools.executors import SandboxedPythonExecutor, ExecutorBasedTool
+    from ..tools.executors import SamRemoteExecutor, ExecutorBasedTool
     from ..tools.executors.executor_tool import _build_schema_from_config
 
-    sandboxed_tool_adapter = TypeAdapter(SandboxedPythonToolConfig)
-    tool_config_model = sandboxed_tool_adapter.validate_python(tool_config)
+    sam_remote_adapter = TypeAdapter(SamRemoteToolConfig)
+    tool_config_model = sam_remote_adapter.validate_python(tool_config)
 
-    module_name = tool_config_model.component_module
-    function_name = tool_config_model.function_name
+    tool_name = tool_config_model.tool_name
+    if not tool_name:
+        raise ValueError("'tool_name' is required for sam_remote tools.")
 
-    if not module_name:
-        raise ValueError("'component_module' is required for sandboxed_python tools.")
-    if not function_name:
-        raise ValueError("'function_name' is required for sandboxed_python tools.")
-
-    # Create the sandboxed executor
-    executor = SandboxedPythonExecutor(
-        module=module_name,
-        function=function_name,
-        sandbox_worker_id=tool_config_model.sandbox_worker_id,
+    # Create the remote executor - only needs tool_name for routing
+    executor = SamRemoteExecutor(
+        tool_name=tool_name,
         timeout_seconds=tool_config_model.timeout_seconds,
         sandbox_profile=tool_config_model.sandbox_profile,
-        dev_mode=tool_config_model.dev_mode,
     )
 
     # Initialize the executor
     await executor.initialize(component, tool_config_model.model_dump())
 
-    # Register executor with component for sandbox response routing
+    # Register executor with component for response routing
     component.register_sandbox_executor(executor)
 
-    # The tool name defaults to function_name if not specified
-    tool_name = tool_config_model.tool_name or function_name
-    tool_description = tool_config_model.tool_description or f"Sandboxed tool: {tool_name}"
+    tool_description = tool_config_model.tool_description or f"Remote tool: {tool_name}"
 
     # Build parameter schema from config
     params_config = tool_config_model.parameters or {}
@@ -332,13 +323,10 @@ async def _load_sandboxed_python_tool(
     )
 
     log.info(
-        "%s Loaded sandboxed Python tool: %s (module=%s.%s, worker=%s, dev_mode=%s)",
+        "%s Loaded SAM remote tool: %s (timeout=%ds)",
         component.log_identifier,
         tool_name,
-        module_name,
-        function_name,
-        tool_config_model.sandbox_worker_id,
-        tool_config_model.dev_mode,
+        tool_config_model.timeout_seconds,
     )
 
     # Create cleanup hook for the executor
@@ -888,12 +876,12 @@ async def load_adk_tools(
                         new_builtins,
                         new_cleanups,
                     ) = await _load_openapi_tool(component, tool_config)
-                elif tool_type == "sandboxed_python":
+                elif tool_type == "sam_remote":
                     (
                         new_tools,
                         new_builtins,
                         new_cleanups,
-                    ) = await _load_sandboxed_python_tool(component, tool_config)
+                    ) = await _load_sam_remote_tool(component, tool_config)
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",

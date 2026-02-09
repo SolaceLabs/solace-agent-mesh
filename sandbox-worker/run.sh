@@ -89,7 +89,10 @@ if [ -n "$ARTIFACT_MOUNT" ]; then
 fi
 
 # Run the container
-$CONTAINER_CMD run -d --privileged \
+# CAP_SYS_ADMIN is required for bubblewrap to create user namespaces.
+# The bwrap command uses --ro-bind / / (no --proc or --dev mounts),
+# so --privileged is NOT needed.
+$CONTAINER_CMD run -d --cap-add=SYS_ADMIN \
     --name "$CONTAINER_NAME" \
     "${ENV_ARGS[@]}" \
     "${VOLUME_ARGS[@]}" \

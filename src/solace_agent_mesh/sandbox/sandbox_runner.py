@@ -1,23 +1,28 @@
 """
-NsjailRunner - Subprocess management for nsjail execution.
+SandboxRunner - Subprocess management for bubblewrap (bwrap) sandbox execution.
 
-This module provides the NsjailRunner class which manages the lifecycle of
-nsjail subprocesses for executing Python tools in a sandboxed environment.
+This module provides the SandboxRunner class which manages the lifecycle of
+bwrap subprocesses for executing Python tools in a sandboxed environment.
+
+Bubblewrap provides lightweight namespace-based sandboxing. Resource limits
+(memory, CPU time, file size, open files) are enforced via Python's
+resource.setrlimit() in a preexec_fn, since bwrap itself does not provide
+resource control.
 """
 
 import asyncio
 import json
 import logging
 import os
+import resource
 import shutil
-import subprocess
-import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
+from .manifest import ManifestEntry
 from .protocol import (
     ArtifactReference,
     CreatedArtifact,
@@ -35,59 +40,88 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 # Default paths inside the container
-DEFAULT_NSJAIL_BIN = "/usr/bin/nsjail"
-DEFAULT_NSJAIL_CONFIG_DIR = "/etc/nsjail"
+DEFAULT_BWRAP_BIN = "/usr/bin/bwrap"
 DEFAULT_PYTHON_BIN = "/usr/local/bin/python3"
 DEFAULT_WORK_BASE_DIR = "/sandbox/work"
+DEFAULT_TOOLS_PYTHON_DIR = "/tools/python"
 
 # Status pipe protocol
 STATUS_PIPE_FILENAME = "status.pipe"
 RESULT_FILENAME = "result.json"
 TOOL_RUNNER_MODULE = "solace_agent_mesh.sandbox.tool_runner"
 
+# Sandbox profiles define resource limits and isolation levels.
+# Resource limits are enforced via resource.setrlimit() in preexec_fn.
+# Namespace isolation and filesystem mounts are handled in _build_bwrap_command().
+#
+# All profiles use --ro-bind / / (entire root filesystem read-only) as the base,
+# which avoids needing --proc or --dev mounts that require elevated privileges.
+# The container only needs CAP_SYS_ADMIN (not --privileged).
+SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
+    "restrictive": {
+        "rlimit_as_mb": 512,
+        "rlimit_cpu_sec": 60,
+        "rlimit_fsize_mb": 64,
+        "rlimit_nofile": 128,
+        "network_isolated": True,
+        "keep_env": False,
+        "writable_var": False,
+    },
+    "standard": {
+        "rlimit_as_mb": 1024,
+        "rlimit_cpu_sec": 300,
+        "rlimit_fsize_mb": 256,
+        "rlimit_nofile": 512,
+        "network_isolated": False,
+        "keep_env": True,
+        "writable_var": False,
+    },
+    "permissive": {
+        "rlimit_as_mb": 4096,
+        "rlimit_cpu_sec": 600,
+        "rlimit_fsize_mb": 1024,
+        "rlimit_nofile": 1024,
+        "network_isolated": False,
+        "keep_env": True,
+        "writable_var": True,
+    },
+}
+
 
 @dataclass
-class NsjailConfig:
-    """Configuration for nsjail execution."""
+class SandboxRunnerConfig:
+    """Configuration for bubblewrap sandbox execution."""
 
-    nsjail_bin: str = DEFAULT_NSJAIL_BIN
-    config_dir: str = DEFAULT_NSJAIL_CONFIG_DIR
+    bwrap_bin: str = DEFAULT_BWRAP_BIN
     python_bin: str = DEFAULT_PYTHON_BIN
     work_base_dir: str = DEFAULT_WORK_BASE_DIR
+    tools_python_dir: str = DEFAULT_TOOLS_PYTHON_DIR
     default_profile: str = "standard"
     max_concurrent_executions: int = 4
-    # Additional mounts to pass to nsjail
-    extra_mounts: List[Dict[str, str]] = field(default_factory=list)
 
 
-class NsjailRunner:
+class SandboxRunner:
     """
-    Manages nsjail subprocess execution for sandboxed Python tools.
+    Manages bubblewrap (bwrap) subprocess execution for sandboxed Python tools.
 
     This class handles:
     - Setting up work directories for each invocation
     - Creating named pipes for status message forwarding
-    - Spawning nsjail with appropriate configuration
-    - Enforcing timeouts at multiple levels
+    - Spawning bwrap with appropriate namespace isolation and mounts
+    - Enforcing resource limits via setrlimit() in preexec_fn
+    - Enforcing timeouts via asyncio.wait_for()
     - Collecting results and cleaning up
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        Initialize the NsjailRunner.
-
-        Args:
-            config: Optional configuration dictionary with nsjail settings
-        """
         config = config or {}
-        self._config = NsjailConfig(
-            nsjail_bin=config.get("nsjail_bin", DEFAULT_NSJAIL_BIN),
-            config_dir=config.get("config_dir", DEFAULT_NSJAIL_CONFIG_DIR),
+        self._config = SandboxRunnerConfig(
+            bwrap_bin=config.get("bwrap_bin", DEFAULT_BWRAP_BIN),
             python_bin=config.get("python_bin", DEFAULT_PYTHON_BIN),
             work_base_dir=config.get("work_base_dir", DEFAULT_WORK_BASE_DIR),
+            tools_python_dir=config.get("tools_python_dir", DEFAULT_TOOLS_PYTHON_DIR),
             default_profile=config.get("default_profile", "standard"),
             max_concurrent_executions=config.get("max_concurrent_executions", 4),
-            extra_mounts=config.get("extra_mounts", []),
         )
 
         # Semaphore to limit concurrent executions
@@ -96,14 +130,21 @@ class NsjailRunner:
         )
 
         log.info(
-            "NsjailRunner initialized: config_dir=%s, max_concurrent=%d",
-            self._config.config_dir,
+            "SandboxRunner initialized: bwrap=%s, max_concurrent=%d",
+            self._config.bwrap_bin,
             self._config.max_concurrent_executions,
         )
 
-    def _get_nsjail_config_path(self, profile: str) -> str:
-        """Get the path to an nsjail configuration file."""
-        return os.path.join(self._config.config_dir, f"{profile}.cfg")
+    def _get_profile(self, profile_name: str) -> Dict[str, Any]:
+        """Get a sandbox profile by name, falling back to standard."""
+        profile = SANDBOX_PROFILES.get(profile_name)
+        if not profile:
+            log.warning(
+                "Unknown sandbox profile '%s', falling back to 'standard'",
+                profile_name,
+            )
+            profile = SANDBOX_PROFILES["standard"]
+        return profile
 
     def _setup_work_directory(self, task_id: str) -> Path:
         """
@@ -362,30 +403,68 @@ class NsjailRunner:
         thread.start()
         return thread
 
-    def _build_nsjail_command(
+    @staticmethod
+    def _make_preexec_fn(profile: Dict[str, Any]) -> Callable[[], None]:
+        """
+        Return a preexec_fn that sets resource limits before exec.
+
+        This runs in the child process after fork() but before exec(), so
+        limits are inherited by bwrap and the sandboxed tool process.
+        """
+
+        def _set_limits():
+            if profile.get("rlimit_as_mb"):
+                limit = profile["rlimit_as_mb"] * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+            if profile.get("rlimit_cpu_sec"):
+                limit = profile["rlimit_cpu_sec"]
+                resource.setrlimit(resource.RLIMIT_CPU, (limit, limit))
+            if profile.get("rlimit_fsize_mb"):
+                limit = profile["rlimit_fsize_mb"] * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+            if profile.get("rlimit_nofile"):
+                limit = profile["rlimit_nofile"]
+                resource.setrlimit(resource.RLIMIT_NOFILE, (limit, limit))
+            # No core dumps
+            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+        return _set_limits
+
+    def _build_bwrap_command(
         self,
         work_dir: Path,
         params: SandboxInvokeParams,
+        manifest_entry: ManifestEntry,
         artifact_paths: Dict[str, str],
+        profile: Dict[str, Any],
     ) -> List[str]:
         """
-        Build the nsjail command line.
+        Build the bubblewrap command line.
+
+        Uses --ro-bind / / to bind the entire root filesystem read-only, then
+        overlays writable mounts for /tmp and the work directory. This avoids
+        needing --proc /proc or --dev /dev (which require elevated privileges
+        beyond CAP_SYS_ADMIN on most container runtimes).
+
+        Module and function are resolved from the manifest entry (not from the
+        request params), so the agent doesn't need to know implementation details.
 
         Args:
             work_dir: The work directory path
             params: The invocation parameters
+            manifest_entry: The manifest entry for the tool being invoked
             artifact_paths: Mapping of param names to artifact file paths
+            profile: The resolved sandbox profile dict
 
         Returns:
             Command line as list of strings
         """
-        profile = params.sandbox_profile or self._config.default_profile
-        config_path = self._get_nsjail_config_path(profile)
+        tools_python_dir = self._config.tools_python_dir
 
-        # Build the tool runner command that runs inside nsjail
+        # Build the tool runner args (same IPC contract as before)
         tool_runner_args = {
-            "module": params.module,
-            "function": params.function,
+            "module": manifest_entry.module,
+            "function": manifest_entry.function,
             "args": params.args,
             "tool_config": params.tool_config,
             "artifact_paths": artifact_paths,
@@ -400,37 +479,70 @@ class NsjailRunner:
         args_file = work_dir / "runner_args.json"
         args_file.write_text(json.dumps(tool_runner_args))
 
-        cmd = [
-            self._config.nsjail_bin,
-            "--config",
-            config_path,
-            # Time limit in seconds
-            "--time_limit",
-            str(params.timeout_seconds),
-            # Mount the work directory
-            "--bindmount",
-            f"{work_dir}:{work_dir}:rw",
-            # Run Python with the tool runner module
-            "--",
+        # Start building the bwrap command
+        cmd: List[str] = [self._config.bwrap_bin]
+
+        # Namespace isolation
+        cmd.extend([
+            "--die-with-parent",
+            "--new-session",
+            "--unshare-pid",
+            "--unshare-ipc",
+            "--unshare-uts",
+        ])
+
+        if profile.get("network_isolated"):
+            cmd.append("--unshare-net")
+
+        # Base filesystem: bind entire root read-only.
+        # This provides /proc, /dev, /lib, /usr, /etc, etc. without needing
+        # --proc or --dev mounts that require elevated privileges.
+        cmd.extend(["--ro-bind", "/", "/"])
+
+        # Writable overlays
+        cmd.extend(["--tmpfs", "/tmp"])
+        cmd.extend(["--bind", str(work_dir), str(work_dir)])
+
+        if profile.get("writable_var"):
+            cmd.extend(["--tmpfs", "/var"])
+
+        # Working directory inside the sandbox
+        cmd.extend(["--chdir", str(work_dir)])
+
+        # Environment variables
+        if not profile.get("keep_env"):
+            cmd.append("--clearenv")
+            cmd.extend(["--setenv", "PATH", "/usr/bin:/usr/local/bin"])
+            cmd.extend(["--setenv", "HOME", "/sandbox"])
+            cmd.extend(["--setenv", "TMPDIR", "/tmp"])
+            cmd.extend(["--setenv", "LANG", "C.UTF-8"])
+
+        cmd.extend(["--setenv", "PYTHONPATH", tools_python_dir])
+
+        # Separator and Python command
+        cmd.append("--")
+        cmd.extend([
             self._config.python_bin,
             "-m",
             TOOL_RUNNER_MODULE,
             str(args_file),
-        ]
+        ])
 
         return cmd
 
     async def execute_tool(
         self,
         request: SandboxToolInvocationRequest,
+        manifest_entry: ManifestEntry,
         artifact_service: Optional["BaseArtifactService"] = None,
         status_callback: Optional[Callable[[str], None]] = None,
     ) -> SandboxToolInvocationResponse:
         """
-        Execute a tool invocation in the nsjail sandbox.
+        Execute a tool invocation in the bwrap sandbox.
 
         Args:
             request: The tool invocation request
+            manifest_entry: The manifest entry for the tool (provides module/function)
             artifact_service: Optional artifact service for loading/saving artifacts
             status_callback: Optional callback for status messages
 
@@ -439,7 +551,7 @@ class NsjailRunner:
         """
         params = request.params
         task_id = params.task_id
-        log_id = f"[NsjailRunner:{task_id}]"
+        log_id = f"[SandboxRunner:{task_id}]"
         start_time = time.time()
 
         log.info(
@@ -448,6 +560,14 @@ class NsjailRunner:
             params.tool_name,
             params.timeout_seconds,
         )
+
+        # Resolve profile
+        profile_name = (
+            manifest_entry.sandbox_profile
+            or params.sandbox_profile
+            or self._config.default_profile
+        )
+        profile = self._get_profile(profile_name)
 
         # Acquire semaphore to limit concurrent executions
         async with self._execution_semaphore:
@@ -477,20 +597,23 @@ class NsjailRunner:
                         status_pipe_path, status_callback, stop_event
                     )
 
-                # Build and execute nsjail command
-                cmd = self._build_nsjail_command(work_dir, params, artifact_paths)
+                # Build and execute bwrap command
+                cmd = self._build_bwrap_command(
+                    work_dir, params, manifest_entry, artifact_paths, profile
+                )
                 log.debug("%s Running command: %s", log_id, " ".join(cmd))
 
-                # Run nsjail subprocess
+                # Run bwrap subprocess with resource limits applied via preexec_fn
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=str(work_dir),
+                    preexec_fn=self._make_preexec_fn(profile),
                 )
 
                 try:
-                    # Wait with timeout (add buffer for nsjail overhead)
+                    # Wait with timeout (add buffer for bwrap overhead)
                     timeout = params.timeout_seconds + 5
                     stdout, stderr = await asyncio.wait_for(
                         process.communicate(), timeout=timeout
@@ -502,7 +625,9 @@ class NsjailRunner:
                     execution_time_ms = int((time.time() - start_time) * 1000)
 
                     log.warning(
-                        "%s Execution timed out after %ds", log_id, params.timeout_seconds
+                        "%s Execution timed out after %ds",
+                        log_id,
+                        params.timeout_seconds,
                     )
 
                     return SandboxToolInvocationResponse(
@@ -526,7 +651,7 @@ class NsjailRunner:
                 if process.returncode != 0:
                     stderr_text = stderr.decode("utf-8", errors="replace")
                     log.error(
-                        "%s nsjail failed with code %d: %s",
+                        "%s Sandbox execution failed with code %d: %s",
                         log_id,
                         process.returncode,
                         stderr_text,
@@ -536,7 +661,7 @@ class NsjailRunner:
                         id=request.id,
                         error={
                             "code": SandboxErrorCodes.EXECUTION_ERROR,
-                            "message": f"nsjail execution failed: {stderr_text[:500]}",
+                            "message": f"Sandbox execution failed: {stderr_text[:500]}",
                         },
                     )
 

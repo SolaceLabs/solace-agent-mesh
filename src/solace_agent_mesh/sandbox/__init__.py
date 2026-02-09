@@ -1,14 +1,14 @@
 """
 Sandbox Worker Package.
 
-This package provides sandboxed execution of Python tools using nsjail
+This package provides sandboxed execution of Python tools using bubblewrap (bwrap)
 within a container environment. It enables secure execution of user-generated
 code with process isolation, filesystem sandboxing, and resource limits.
 
 Components:
 - SandboxWorkerApp: App class for broker configuration and subscriptions
 - SandboxWorkerComponent: Main component handling tool invocations
-- NsjailRunner: Subprocess management for nsjail execution (Phase 2)
+- SandboxRunner: Subprocess management for bubblewrap sandbox execution
 - SandboxToolContextFacade: Tool interface within the sandbox (Phase 3)
 
 Usage:
@@ -37,8 +37,8 @@ Example:
     app.run()
 """
 
-# Lazy imports: heavy modules (app, component, nsjail_runner) pull in the full
-# SAM + Google ADK dependency chain.  When tool_runner.py runs inside nsjail
+# Lazy imports: heavy modules (app, component, sandbox_runner) pull in the full
+# SAM + Google ADK dependency chain.  When tool_runner.py runs inside bwrap
 # via `python -m solace_agent_mesh.sandbox.tool_runner`, this __init__.py is
 # executed first.  Eagerly importing app/component would add ~5 seconds of
 # import time.  Instead we use lazy imports so the cost is only paid when those
@@ -56,6 +56,7 @@ from .protocol import (
     SandboxInvokeParams,
     SandboxInvokeResult,
     SandboxStatusUpdate,
+    SandboxStatusUpdateParams,
     SandboxToolInvocationRequest,
     SandboxToolInvocationResponse,
 )
@@ -64,7 +65,7 @@ __all__ = [
     # App and Component (lazy)
     "SandboxWorkerApp",
     "SandboxWorkerComponent",
-    "NsjailRunner",
+    "SandboxRunner",
     "SandboxToolContextFacade",
     # Protocol types (eager)
     "ArtifactReference",
@@ -75,6 +76,7 @@ __all__ = [
     "SandboxInvokeParams",
     "SandboxInvokeResult",
     "SandboxStatusUpdate",
+    "SandboxStatusUpdateParams",
     "SandboxToolInvocationRequest",
     "SandboxToolInvocationResponse",
 ]
@@ -83,7 +85,7 @@ __all__ = [
 _LAZY_IMPORTS = {
     "SandboxWorkerApp": (".app", "SandboxWorkerApp"),
     "SandboxWorkerComponent": (".component", "SandboxWorkerComponent"),
-    "NsjailRunner": (".nsjail_runner", "NsjailRunner"),
+    "SandboxRunner": (".sandbox_runner", "SandboxRunner"),
     "SandboxToolContextFacade": (".context_facade", "SandboxToolContextFacade"),
 }
 

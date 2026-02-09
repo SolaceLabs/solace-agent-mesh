@@ -1,7 +1,7 @@
 """
 SandboxToolContextFacade - Tool context interface for sandboxed execution.
 
-This module provides a context facade that tools use inside the nsjail sandbox.
+This module provides a context facade that tools use inside the bwrap sandbox.
 It provides the same interface as ToolContextFacade but uses local filesystem
 and named pipes instead of broker communication.
 """
@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 class SandboxToolContextFacade:
     """
-    Provides tool context interface inside the nsjail sandbox.
+    Provides tool context interface inside the bwrap sandbox.
 
     This facade gives tools access to:
     - Status message sending (via named pipe)
