@@ -22,6 +22,7 @@ DEFAULT_GATEWAY_MAX_MESSAGE_SIZE_BYTES = 10_000_000  # 10MB - max message size f
 # ===== FILE UPLOAD SIZE LIMITS =====
 
 # Production defaults
-DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800  # 50MB - per-file upload limit
+DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES = 52428800  # 50MB - per-file upload limit
+DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES = 104857600  # 100MB - batch upload limit (sum of files in one upload)
 DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 104857600  # 100MB - ZIP import limit
-DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES = 104857600  # 100MB - total project limit
+DEFAULT_MAX_PROJECT_SIZE_BYTES = 104857600  # 100MB - total project size limit
