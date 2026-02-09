@@ -35,7 +35,7 @@ def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[st
     create_fields = CreateProjectRequest.model_fields
 
     max_per_file_upload_size_bytes = (
-        component.get_config("gateway_max_per_file_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
+        component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
         if component else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
     )
 

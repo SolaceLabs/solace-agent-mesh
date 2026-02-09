@@ -112,15 +112,22 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "name": "gateway_max_upload_size_bytes",
             "required": False,
             "type": "integer",
-            "default": constants.DEFAULT_MAX_UPLOAD_SIZE_BYTES,
+            "default": constants.DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
             "description": "Maximum file upload size in bytes. Validated before reading file content to prevent memory exhaustion.",
         },
         {
-            "name": "gateway_max_total_upload_size_bytes",
+            "name": "gateway_max_project_size_bytes",
             "required": False,
             "type": "integer",
-            "default": constants.DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES,
-            "description": "Maximum total upload size limit per project in bytes. Limits the combined size of all artifacts in a project to prevent resource exhaustion.",
+            "default": constants.DEFAULT_MAX_PROJECT_SIZE_BYTES,
+            "description": "Maximum total upload size limit per project in bytes.",
+        },
+        {
+            "name": "gateway_max_batch_upload_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": constants.DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
+            "description": "Maximum total size in bytes for all files in a single batch upload request.",
         },
         # --- Default User Identity Configuration ---
         {
@@ -314,10 +321,13 @@ class BaseGatewayApp(SamAppBase):
             "gateway_max_message_size_bytes", constants.DEFAULT_GATEWAY_MAX_MESSAGE_SIZE_BYTES
         )
         self.gateway_max_upload_size_bytes: int = resolved_app_config_block.get(
-            "gateway_max_upload_size_bytes", constants.DEFAULT_MAX_UPLOAD_SIZE_BYTES
+            "gateway_max_upload_size_bytes", constants.DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
         )
-        self.gateway_max_total_upload_size_bytes: int = resolved_app_config_block.get(
-            "gateway_max_total_upload_size_bytes", constants.DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES
+        self.gateway_max_project_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_project_size_bytes", constants.DEFAULT_MAX_PROJECT_SIZE_BYTES
+        )
+        self.gateway_max_batch_upload_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_batch_upload_size_bytes", constants.DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES
         )
 
         modified_app_info = app_info.copy()

@@ -61,7 +61,7 @@ class ProjectService:
         self.logger = logging.getLogger(__name__)
 
         max_per_file_upload_config = (
-            component.get_config("gateway_max_per_file_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
+            component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
             if component else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
         )
         self.max_per_file_upload_size_bytes = int(max_per_file_upload_config) if isinstance(max_per_file_upload_config, (int, float)) else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
