@@ -56,19 +56,16 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
     const handleValidateFileSizes = useCallback(
         (files: FileList) => {
-            // Validate per-file sizes
             const fileSizeResult = validateFileSizes(files, { maxSizeBytes: maxPerFileUploadSizeBytes });
             if (!fileSizeResult.valid) {
                 return fileSizeResult;
             }
 
-            // Validate batch upload size
             const batchSizeResult = validateBatchUploadSize(files, maxBatchUploadSizeBytes);
             if (!batchSizeResult.valid) {
                 return batchSizeResult;
             }
 
-            // Validate project total size
             const projectSizeLimitResult = validateProjectSizeLimit(currentProjectArtifactSizeBytes, files, maxProjectSizeBytes);
             if (!projectSizeLimitResult.valid) {
                 return { valid: false, error: projectSizeLimitResult.error };

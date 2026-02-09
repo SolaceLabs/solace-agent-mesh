@@ -71,9 +71,11 @@ class ProjectService:
             service_class = MiddlewareRegistry.get_resource_sharing_service()
             self._resource_sharing_service = service_class()
 
+        # Get config values, with fallback to default (ensure values are integers for proper formatting)
         max_per_file_upload_config = (
             component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
             if component else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
+        )
         self.max_per_file_upload_size_bytes = int(max_per_file_upload_config) if isinstance(max_per_file_upload_config, (int, float)) else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
 
         max_batch_upload_config = (
