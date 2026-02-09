@@ -35,7 +35,7 @@ export const useTitleGeneration = () => {
                 }
             }
 
-            console.log(`[useTitleGeneration] Initial title: "${initialTitle}"`);
+            console.debug(`[useTitleGeneration] Initial title: "${initialTitle}"`);
 
             // Dispatch event to indicate title generation is starting
             if (typeof window !== "undefined") {
@@ -66,7 +66,7 @@ export const useTitleGeneration = () => {
                 return;
             }
 
-            console.log("[useTitleGeneration] Title generation triggered, polling for update...");
+            console.debug("[useTitleGeneration] Title generation triggered, polling for update...");
 
             // Poll for title update with exponential backoff
             const pollForTitle = async () => {
