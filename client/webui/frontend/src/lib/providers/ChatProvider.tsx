@@ -657,14 +657,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const agentMessagesFromChatTasks = taskMessages.filter(m => !m.isUser);
                     const userMessages = taskMessages.filter(m => m.isUser);
 
+                    // Check if any agent messages have artifact parts with "in-progress" status
+                    // This indicates the artifact was being created when the user switched away
+                    // and the buffer may contain completion events we need to replay
+                    const hasIncompleteArtifacts = agentMessagesFromChatTasks.some(msg => msg.parts?.some(part => part.kind === "artifact" && (part as ArtifactPart).status === "in-progress"));
+
                     // IMPORTANT: If chat_tasks already has agent messages, PREFER them over buffer replay.
                     // The buffer should only be used when:
                     // 1. There are no agent messages saved yet (task was running when user switched away)
                     // 2. Buffer replay is needed for incomplete saves
+                    // 3. There are incomplete artifacts that need status updates from buffered events
                     // This prevents issues with complex parsing of SSE events.
-                    if (bufferedData && agentMessagesFromChatTasks.length === 0) {
-                        // Task has buffered events AND no saved agent response yet - need replay
-                        console.debug(`[loadSessionTasks] Task ${task.taskId} has buffered events and no saved agent response, will replay through handleSseMessage`);
+                    const needsBufferReplay = bufferedData && (agentMessagesFromChatTasks.length === 0 || hasIncompleteArtifacts);
+
+                    if (needsBufferReplay) {
+                        // Task has buffered events AND either no saved agent response OR incomplete artifacts - need replay
+                        const reason = agentMessagesFromChatTasks.length === 0 ? "no saved agent response" : "incomplete artifacts";
+                        console.debug(`[loadSessionTasks] Task ${task.taskId} has buffered events and ${reason}, will replay through handleSseMessage`);
                         // Add user messages first
                         finalMessages.push(...userMessages);
                         // Store for replay after we set initial messages
@@ -672,10 +681,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         // Mark this task for save and cleanup (will update session modified date)
                         tasksNeedingSaveAndCleanup.push(task.taskId);
                     } else {
-                        // Either no buffered events OR chat_tasks already has the agent response
+                        // Either no buffered events OR chat_tasks already has the agent response with complete artifacts
                         // Use the saved data from chat_tasks (it has correct ordering)
                         if (bufferedData && agentMessagesFromChatTasks.length > 0) {
-                            console.debug(`[loadSessionTasks] Task ${task.taskId} has buffered events but also has ${agentMessagesFromChatTasks.length} saved agent messages - preferring chat_tasks data, scheduling buffer cleanup only`);
+                            console.debug(
+                                `[loadSessionTasks] Task ${task.taskId} has buffered events but also has ${agentMessagesFromChatTasks.length} saved agent messages with complete artifacts - preferring chat_tasks data, scheduling buffer cleanup only`
+                            );
                             // Chat task already exists - only clean up the buffer (don't re-save to avoid updating modified date)
                             tasksNeedingBufferCleanupOnly.push(task.taskId);
                         }
