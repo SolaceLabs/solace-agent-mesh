@@ -217,6 +217,7 @@ export const ProjectsPage: React.FC = () => {
                 onConfirm={handleDeleteConfirm}
                 project={projectToDelete}
                 isDeleting={isDeleting}
+                isProjectSharingEnabled={isSharingEnabled}
             />
 
             {/* Import Project Dialog */}

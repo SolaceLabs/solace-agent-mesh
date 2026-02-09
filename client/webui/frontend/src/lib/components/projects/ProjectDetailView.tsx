@@ -27,7 +27,8 @@ interface ProjectDetailViewProps {
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, onShare }) => {
     const isOwner = useIsProjectOwner(project.userId);
     const { updateProject, projects, deleteProject } = useProjectContext();
-    const { validationLimits } = useConfigContext();
+    const { validationLimits, configFeatureEnablement } = useConfigContext();
+    const isProjectSharingEnabled = configFeatureEnablement?.projectSharingEnabled ?? false;
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -235,7 +236,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
             </Dialog>
 
             {/* Delete Project Dialog */}
-            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} isDeleting={isDeleting} />
+            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} isProjectSharingEnabled={isProjectSharingEnabled} isDeleting={isDeleting} />
         </div>
     );
 };
