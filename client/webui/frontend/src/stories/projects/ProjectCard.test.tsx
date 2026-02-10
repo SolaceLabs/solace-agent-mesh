@@ -6,6 +6,7 @@ import { describe, test, expect, vi } from "vitest";
 import meta from "./ProjectCard.stories";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import type { Project } from "@/lib/types/projects";
+import { ownerWithSharingEnabled, viewerWithSharingEnabled, ownerWithAuthorization } from "@/stories/data/parameters";
 
 expect.extend(matchers);
 
@@ -29,17 +30,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                            configFeatureEnablement: {
-                                projectSharingEnabled: true,
-                            },
-                        },
-                    },
+                    parameters: ownerWithSharingEnabled("owner-user"),
                 },
                 meta
             );
@@ -63,17 +54,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "different-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                            configFeatureEnablement: {
-                                projectSharingEnabled: true,
-                            },
-                        },
-                    },
+                    parameters: viewerWithSharingEnabled(),
                 },
                 meta
             );
@@ -96,17 +77,7 @@ describe("ProjectCard", () => {
                         project: mockProject,
                         onDelete: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                            configFeatureEnablement: {
-                                projectSharingEnabled: true,
-                            },
-                        },
-                    },
+                    parameters: ownerWithSharingEnabled("owner-user"),
                 },
                 meta
             );
@@ -128,17 +99,7 @@ describe("ProjectCard", () => {
                         project: mockProject,
                         onDelete: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "different-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                            configFeatureEnablement: {
-                                projectSharingEnabled: true,
-                            },
-                        },
-                    },
+                    parameters: viewerWithSharingEnabled(),
                 },
                 meta
             );
@@ -163,14 +124,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: mockOnShare,
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: ownerWithAuthorization("owner-user"),
                 },
                 meta
             );
@@ -191,17 +145,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "different-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                            configFeatureEnablement: {
-                                projectSharingEnabled: true,
-                            },
-                        },
-                    },
+                    parameters: viewerWithSharingEnabled(),
                 },
                 meta
             );
@@ -223,14 +167,7 @@ describe("ProjectCard", () => {
                         project: mockProject,
                         onDelete: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: ownerWithAuthorization("owner-user"),
                 },
                 meta
             );
@@ -258,14 +195,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: mockOnShare,
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: ownerWithAuthorization("owner-user"),
                 },
                 meta
             );
