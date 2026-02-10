@@ -366,6 +366,10 @@ The `description` field is optional but recommended. It helps you document the p
 
 Create a file named `enterprise_config.yaml` in the `sam-enterprise/config` directory (not in the `auth` subdirectory). This file tells Agent Mesh Enterprise where to find your RBAC configuration files and how to use them.
 
+:::info
+The `enterprise_config.yaml` file controls authorization for both the WebUI Gateway and the Platform Service. Both services read from the same configuration through a shared `MiddlewareRegistry`, so RBAC rules you define here apply uniformly to all API endpoints. For details on how this works, see [Authentication and Authorization](platform-service-auth.md).
+:::
+
 :::tip Optional Configuration
 The `authorization_service` configuration block is **optional**. If omitted, the system defaults to `deny_all` (secure by default) and logs a WARNING message. You must explicitly configure authorization to grant access to users.
 :::

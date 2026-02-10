@@ -196,6 +196,10 @@ The `session` configuration determines how long authenticated sessions remain va
 
 The `security` section configures Cross-Origin Resource Sharing (CORS) and rate limiting. CORS allows the web UI to communicate with the OAuth2 service from different origins, while rate limiting prevents abuse by restricting the number of authentication requests per minute.
 
+:::info
+The Platform Service shares this same SSO infrastructure. When you configure the WebUI Gateway for OAuth2 authentication, the Platform Service automatically uses the same token validation and the same OAuth2 provider. For details, see [Authentication and Authorization](platform-service-auth.md).
+:::
+
 ### Update Your WebUI Gateway
 
 Update your WebUI Gateway to configure login as follows:

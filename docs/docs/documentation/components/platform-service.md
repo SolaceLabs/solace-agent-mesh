@@ -38,3 +38,9 @@ The service runs on **port 8001** by default.
 A Platform Service instance is only required when running the WebUI Gateway in combination with Agent Mesh Enterprise.
 :::
 
+## Authentication and Authorization
+
+The Platform Service shares the same authentication and authorization infrastructure as the WebUI Gateway. Both services use the same OAuth2 middleware to validate bearer tokens and the same RBAC configuration to enforce permissions. When you enable SSO and configure RBAC for the WebUI Gateway, the Platform Service inherits the same security enforcement automatically.
+
+No separate auth configuration is needed for the Platform Service. For details on how this shared model works and how to troubleshoot it, see [Authentication and Authorization](../enterprise/platform-service-auth.md).
+
