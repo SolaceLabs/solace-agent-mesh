@@ -446,6 +446,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Helper function to deserialize task data to MessageFE objects
     const deserializeTaskToMessages = useCallback(
         (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
+            console.log(`[DEBUG deserializeTaskToMessages] Task ${task.taskId}: Converting ${task.messageBubbles.length} bubbles`);
             return task.messageBubbles.map(bubble => {
                 // Process parts to handle markers and reconstruct artifact parts if needed
                 const processedParts: any[] = [];
@@ -517,7 +518,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
+            console.log(`[DEBUG loadSessionTasks] Starting load for session: ${sessionId}`);
             const data = await api.webui.get(`/api/v1/sessions/${sessionId}/chat-tasks`);
+            console.log(`[DEBUG loadSessionTasks] Fetched ${data.tasks?.length || 0} tasks from API`);
 
             // Check if this session is still active before processing
             if (currentSessionIdRef.current !== sessionId) {
@@ -576,15 +579,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             for (const task of migratedTasks) {
                 const taskMessages = deserializeTaskToMessages(task, sessionId);
+                console.log(`[DEBUG loadSessionTasks] Task ${task.taskId}: deserialized ${taskMessages.length} messages (${taskMessages.filter(m => m.isUser).length} user, ${taskMessages.filter(m => !m.isUser).length} agent)`);
 
                 if (tasksWithBufferedEvents.has(task.taskId)) {
                     const userMessages = taskMessages.filter(m => m.isUser);
+                    console.log(`[DEBUG loadSessionTasks] Task ${task.taskId} has buffered events, adding only ${userMessages.length} user messages to allMessages`);
                     allMessages.push(...userMessages);
                 } else {
                     // No buffered events - add all messages from chat_tasks
+                    console.log(`[DEBUG loadSessionTasks] Task ${task.taskId} has no buffered events, adding all ${taskMessages.length} messages to allMessages`);
                     allMessages.push(...taskMessages);
                 }
             }
+            console.log(`[DEBUG loadSessionTasks] Total messages in allMessages before setMessages: ${allMessages.length}`);
 
             // Extract feedback state from task metadata
             const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
@@ -669,6 +676,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // 3. There are incomplete artifacts that need status updates from buffered events
                     // This prevents issues with complex parsing of SSE events.
                     const needsBufferReplay = bufferedData && (agentMessagesFromChatTasks.length === 0 || hasIncompleteArtifacts);
+                    console.log(`[DEBUG loadSessionTasks] Task ${task.taskId} buffer replay decision:`, {
+                        hasBufferedData: !!bufferedData,
+                        bufferedEventCount: bufferedData?.events?.length || 0,
+                        agentMessagesCount: agentMessagesFromChatTasks.length,
+                        hasIncompleteArtifacts,
+                        needsBufferReplay
+                    });
 
                     if (needsBufferReplay) {
                         // Task has buffered events AND either no saved agent response OR incomplete artifacts - need replay
@@ -695,6 +709,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Set all messages in ONE batch to avoid scroll issues
+                console.log(`[DEBUG loadSessionTasks] Setting ${finalMessages.length} finalMessages to state (${finalMessages.filter(m => m.isUser).length} user, ${finalMessages.filter(m => !m.isUser).length} agent)`);
                 setMessages(finalMessages);
 
                 // Replay buffered events through handleSseMessage (uses exact same code path as live streaming!)
@@ -713,6 +728,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                         for (const { taskId, events } of tasksNeedingReplay) {
                             console.debug(`[loadSessionTasks] Replaying ${events.length} events for task ${taskId}`);
+                            console.log(`[DEBUG loadSessionTasks] About to replay ${events.length} events for task ${taskId}`);
 
                             // Set replay flag to prevent saves during replay (state updates are async)
                             isReplayingEventsRef.current = true;
@@ -720,6 +736,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             try {
                                 // Process each buffered event through handleSseMessage
                                 // This is the EXACT same code path as live SSE streaming!
+                                let processedCount = 0;
                                 for (const bufferedEvent of events) {
                                     const ssePayload = bufferedEvent.data;
                                     if (ssePayload?.data) {
@@ -730,8 +747,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                         // Process through SSE handler - exact same as live streaming
                                         handleSseMessageFn(syntheticEvent);
+                                        processedCount++;
                                     }
                                 }
+                                console.log(`[DEBUG loadSessionTasks] Completed replaying ${processedCount}/${events.length} events for task ${taskId}`);
                             } finally {
                                 isReplayingEventsRef.current = false;
                             }
@@ -795,6 +814,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
             } else {
                 // No tasks with buffered events - just set all messages at once
+                console.log(`[DEBUG loadSessionTasks] No buffered events path - Setting ${allMessages.length} allMessages to state (${allMessages.filter(m => m.isUser).length} user, ${allMessages.filter(m => !m.isUser).length} agent)`);
                 setMessages(allMessages);
             }
         },
@@ -837,10 +857,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         (event: MessageEvent) => {
             sseEventSequenceRef.current += 1;
             const currentEventSequence = sseEventSequenceRef.current;
+            console.log(`[DEBUG handleSseMessage] Processing event #${currentEventSequence}, isReplaying=${isReplayingEventsRef.current}`);
             let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
             try {
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
+                const result = 'result' in rpcResponse ? rpcResponse.result : null;
+                console.log(`[DEBUG handleSseMessage] Parsed event kind: ${(result as any)?.kind}, taskId: ${(result as any)?.task_id || (result as any)?.id}`);
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
                 return;
@@ -1046,8 +1069,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     }
 
                                     setMessages(prev => {
+                                        console.log(`[DEBUG handleSseMessage] status-update: Updating messages state (prev.length=${prev.length})`);
                                         const newMessages = [...prev];
                                         let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+                                        console.log(`[DEBUG handleSseMessage] status-update: agentMessageIndex=${agentMessageIndex} for task ${currentTaskIdFromResult}`);
 
                                         if (agentMessageIndex === -1) {
                                             const newAgentMessage: MessageFE = {
@@ -1509,6 +1534,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
                 }
 
+                console.log(`[DEBUG handleSseMessage] status-update: Returning ${newMessages.length} messages (${newMessages.filter(m => !m.isUser).length} agent messages)`);
                 return newMessages;
             });
 
