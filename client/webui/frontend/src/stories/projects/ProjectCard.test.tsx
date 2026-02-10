@@ -35,6 +35,9 @@ describe("ProjectCard", () => {
                         },
                         configContext: {
                             configUseAuthorization: true,
+                            configFeatureEnablement: {
+                                projectSharingEnabled: true,
+                            },
                         },
                     },
                 },
@@ -45,7 +48,7 @@ describe("ProjectCard", () => {
 
             expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
 
-            const ownerIcon = document.querySelector(".lucide-user-cog");
+            const ownerIcon = document.querySelector(".lucide-user");
             expect(ownerIcon).toBeInTheDocument();
 
             const viewerIcon = document.querySelector(".lucide-user-search");
@@ -66,6 +69,9 @@ describe("ProjectCard", () => {
                         },
                         configContext: {
                             configUseAuthorization: true,
+                            configFeatureEnablement: {
+                                projectSharingEnabled: true,
+                            },
                         },
                     },
                 },
@@ -96,6 +102,9 @@ describe("ProjectCard", () => {
                         },
                         configContext: {
                             configUseAuthorization: true,
+                            configFeatureEnablement: {
+                                projectSharingEnabled: true,
+                            },
                         },
                     },
                 },
@@ -125,6 +134,9 @@ describe("ProjectCard", () => {
                         },
                         configContext: {
                             configUseAuthorization: true,
+                            configFeatureEnablement: {
+                                projectSharingEnabled: true,
+                            },
                         },
                     },
                 },
@@ -185,6 +197,9 @@ describe("ProjectCard", () => {
                         },
                         configContext: {
                             configUseAuthorization: true,
+                            configFeatureEnablement: {
+                                projectSharingEnabled: true,
+                            },
                         },
                     },
                 },

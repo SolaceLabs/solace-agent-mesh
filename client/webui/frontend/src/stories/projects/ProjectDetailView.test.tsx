@@ -26,6 +26,9 @@ describe("ProjectDetailView", () => {
                         },
                         configContext: {
                             configUseAuthorization: true,
+                            configFeatureEnablement: {
+                                projectSharingEnabled: true,
+                            },
                         },
                     },
                 },
@@ -64,6 +67,9 @@ describe("ProjectDetailView", () => {
                         },
                         configContext: {
                             configUseAuthorization: true,
+                            configFeatureEnablement: {
+                                projectSharingEnabled: true,
+                            },
                         },
                     },
                 },
