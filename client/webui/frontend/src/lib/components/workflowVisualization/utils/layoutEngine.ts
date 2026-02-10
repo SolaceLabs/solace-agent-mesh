@@ -388,6 +388,7 @@ function createLayoutNode(procNode: ProcessedNode, nodeMap: Map<string, Processe
             {
                 baseNode.data.condition = config.condition;
                 baseNode.data.maxIterations = config.max_iterations;
+                baseNode.data.delay = config.delay;
                 baseNode.data.childNodeId = config.node;
 
                 // Get child node if exists

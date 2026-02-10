@@ -237,7 +237,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "ConditionalBranchingWorkflow"
+      name: "ConditionalBranchingWorkflow"
       display_name: "Conditional Branching Workflow"
 
       # Timeout configurations

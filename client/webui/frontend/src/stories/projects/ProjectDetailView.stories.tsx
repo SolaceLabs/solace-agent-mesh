@@ -108,7 +108,14 @@ export const Default: Story = {
         onStartNewChat: () => alert("Will start a new chat"),
         onChatClick: (sessionId: string) => alert("Will open chat " + sessionId),
     },
-    parameters: {},
+    parameters: {
+        authContext: {
+            userInfo: { username: "user-id" },
+        },
+        configContext: {
+            configUseAuthorization: true,
+        },
+    },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         expect(await canvas.findByTestId("editDetailsButton")).toBeVisible();

@@ -309,6 +309,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        # Initialize system (including any installed plugins/enterprise features)
+        # This must happen before migrations so plugins can register migration hooks
+        from ...common.utils.initializer import initialize
+        initialize()
+        log.info("%s System initialization completed", self.log_identifier)
+
+        # Run database migrations (any registered hooks will execute automatically)
         if self.database_url:
             log.info("%s Running database migrations...", self.log_identifier)
             self._run_database_migrations()
@@ -1325,17 +1332,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
             # This must be done *after* setup_dependencies has run.
             session_factory = dependencies.SessionLocal if self.database_url else None
             
+            # Get task logging config for hybrid buffer settings
+            # Hybrid buffer is OFF by default for safety - it buffers events in RAM
+            # before flushing to DB to reduce database writes
+            task_logging_config = self.get_config("task_logging", {})
+            hybrid_buffer_config = task_logging_config.get("hybrid_buffer", {})
+            hybrid_buffer_enabled = hybrid_buffer_config.get("enabled", False)
+            hybrid_buffer_threshold = hybrid_buffer_config.get("flush_threshold", 10)
+            
             # Initialize SSE manager with session factory for background task detection
             self.sse_manager = SSEManager(
                 max_queue_size=self.sse_max_queue_size,
                 event_buffer=self.sse_event_buffer,
-                session_factory=session_factory
+                session_factory=session_factory,
+                hybrid_buffer_enabled=hybrid_buffer_enabled,
+                hybrid_buffer_threshold=hybrid_buffer_threshold,
             )
             log.debug(
-                "%s SSE manager initialized with database session factory.",
+                "%s SSE manager initialized with database session factory (hybrid_buffer=%s, threshold=%d).",
                 self.log_identifier,
+                hybrid_buffer_enabled,
+                hybrid_buffer_threshold,
             )
-            task_logging_config = self.get_config("task_logging", {})
+            # task_logging_config already obtained above for hybrid_buffer settings
             self.task_logger_service = TaskLoggerService(
                 session_factory=session_factory, config=task_logging_config
             )

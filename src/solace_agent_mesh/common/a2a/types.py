@@ -12,12 +12,20 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 ContentPart = Union[TextPart, DataPart, FilePart]
 
 
+class SamAgentSkill(AgentSkill):
+    """
+    SAM extension of AgentSkill that includes required_scopes for access control.
+    """
+
+    required_scopes: List[str] = Field(default_factory=list)
+
+
 class ToolsExtensionParams(BaseModel):
     """
     The parameters for the custom 'tools' AgentCard extension.
     """
 
-    tools: list[AgentSkill]
+    tools: list[SamAgentSkill]
 
 
 class SchemasExtensionParams(BaseModel):
