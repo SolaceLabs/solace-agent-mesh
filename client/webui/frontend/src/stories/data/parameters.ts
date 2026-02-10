@@ -80,12 +80,12 @@ export const withoutIdentityService = {
     },
 };
 
-export const ownerWithSharingEnabled = (ownerUsername: string = "owner-user") => ({
+export const ownerWithProjectSharingEnabled = (ownerUsername: string = "owner-user") => ({
     ...withProjectSharingEnabled,
     ...asOwner(ownerUsername),
 });
 
-export const viewerWithSharingEnabled = (viewerUsername: string = "different-user") => ({
+export const viewerWithProjectSharingEnabled = (viewerUsername: string = "different-user") => ({
     ...withProjectSharingEnabled,
     ...asViewer(viewerUsername),
 });

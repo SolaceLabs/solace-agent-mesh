@@ -6,7 +6,7 @@ import { describe, test, expect, vi } from "vitest";
 import meta from "./ProjectCard.stories";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import type { Project } from "@/lib/types/projects";
-import { ownerWithSharingEnabled, viewerWithSharingEnabled, ownerWithAuthorization } from "@/stories/data/parameters";
+import { ownerWithProjectSharingEnabled, viewerWithProjectSharingEnabled, ownerWithAuthorization } from "@/stories/data/parameters";
 
 expect.extend(matchers);
 
@@ -30,7 +30,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: ownerWithSharingEnabled("owner-user"),
+                    parameters: ownerWithProjectSharingEnabled("owner-user"),
                 },
                 meta
             );
@@ -54,7 +54,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: viewerWithSharingEnabled(),
+                    parameters: viewerWithProjectSharingEnabled(),
                 },
                 meta
             );
@@ -77,7 +77,7 @@ describe("ProjectCard", () => {
                         project: mockProject,
                         onDelete: () => {},
                     },
-                    parameters: ownerWithSharingEnabled("owner-user"),
+                    parameters: ownerWithProjectSharingEnabled("owner-user"),
                 },
                 meta
             );
@@ -99,7 +99,7 @@ describe("ProjectCard", () => {
                         project: mockProject,
                         onDelete: () => {},
                     },
-                    parameters: viewerWithSharingEnabled(),
+                    parameters: viewerWithProjectSharingEnabled(),
                 },
                 meta
             );
@@ -145,7 +145,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: viewerWithSharingEnabled(),
+                    parameters: viewerWithProjectSharingEnabled(),
                 },
                 meta
             );

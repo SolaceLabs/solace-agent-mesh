@@ -5,7 +5,7 @@ import { describe, test, expect, vi } from "vitest";
 import meta from "./ProjectDetailView.stories";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { populatedProject } from "../data/projects";
-import { viewerWithSharingEnabled, ownerWithSharingEnabled } from "../data/parameters";
+import { viewerWithProjectSharingEnabled, ownerWithProjectSharingEnabled } from "../data/parameters";
 
 expect.extend(matchers);
 
@@ -21,7 +21,7 @@ describe("ProjectDetailView", () => {
                         onChatClick: () => {},
                         onShare: () => {},
                     },
-                    parameters: viewerWithSharingEnabled(),
+                    parameters: viewerWithProjectSharingEnabled(),
                 },
                 meta
             );
@@ -52,7 +52,7 @@ describe("ProjectDetailView", () => {
                         onChatClick: () => {},
                         onShare: mockOnShare,
                     },
-                    parameters: ownerWithSharingEnabled("user-id"),
+                    parameters: ownerWithProjectSharingEnabled("user-id"),
                 },
                 meta
             );
