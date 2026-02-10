@@ -123,6 +123,134 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         return self._agent_config_by_name.get(agent_name)
 
+    def _get_stream_batching_threshold(self, agent_name: str) -> int:
+        """
+        Gets the effective stream batching threshold for a specific agent.
+
+        Resolution order:
+        1. Per-agent override (stream_batching_threshold_bytes in agent config)
+        2. Proxy-level default (stream_batching_threshold_bytes in proxy config)
+
+        Args:
+            agent_name: The name of the agent.
+
+        Returns:
+            The batching threshold in bytes. 0 means batching is disabled.
+        """
+        agent_config = self._get_agent_config(agent_name)
+        if agent_config:
+            # Check for per-agent override
+            agent_threshold = agent_config.get("stream_batching_threshold_bytes")
+            if agent_threshold is not None:
+                return agent_threshold
+
+        # Fall back to proxy-level default
+        return self.get_config("stream_batching_threshold_bytes", 0)
+
+    def _extract_text_from_status_update(
+        self, event: TaskStatusUpdateEvent
+    ) -> Optional[str]:
+        """
+        Extracts text content from a TaskStatusUpdateEvent's message parts.
+
+        Args:
+            event: The TaskStatusUpdateEvent to extract text from.
+
+        Returns:
+            Concatenated text from all TextParts, or None if no text found.
+        """
+        if not event.status or not event.status.message:
+            return None
+
+        parts = a2a.get_parts_from_message(event.status.message)
+        if not parts:
+            return None
+
+        text_chunks = []
+        for part in parts:
+            if isinstance(part, TextPart) and part.text:
+                text_chunks.append(part.text)
+
+        return "".join(text_chunks) if text_chunks else None
+
+    def _create_batched_status_update(
+        self,
+        batched_text: str,
+        original_event: TaskStatusUpdateEvent,
+        task_context: "ProxyTaskContext",
+    ) -> TaskStatusUpdateEvent:
+        """
+        Creates a new TaskStatusUpdateEvent with batched text content.
+
+        Args:
+            batched_text: The accumulated text to include in the event.
+            original_event: The original event to preserve metadata from.
+            task_context: The task context containing task ID.
+
+        Returns:
+            A new TaskStatusUpdateEvent with the batched text.
+        """
+        # Create a text message with the batched content
+        batched_message = a2a.create_agent_text_message(
+            text=batched_text,
+            task_id=task_context.task_id,
+            context_id=task_context.a2a_context.get("session_id"),
+        )
+
+        # Preserve task status but use the batched message
+        batched_status = TaskStatus(
+            state=original_event.status.state if original_event.status else TaskState.running,
+            message=batched_message,
+        )
+
+        # Create new event with batched content
+        return TaskStatusUpdateEvent(
+            task_id=task_context.task_id,
+            context_id=task_context.a2a_context.get("session_id"),
+            status=batched_status,
+            final=False,  # Batched updates are never final
+            metadata=original_event.metadata,
+        )
+
+    async def _flush_remaining_buffer(
+        self, task_context: "ProxyTaskContext", agent_name: str
+    ) -> None:
+        """
+        Flushes any remaining buffered content before task cleanup.
+        This prevents data loss when a task completes with buffered content.
+
+        Args:
+            task_context: The task context to flush.
+            agent_name: The name of the agent (for logging).
+        """
+        buffer_content = task_context.get_streaming_buffer_content()
+        if not buffer_content:
+            return
+
+        log_identifier = f"{self.log_identifier}[FlushBuffer:{agent_name}:{task_context.task_id}]"
+        log.debug(
+            "%s Flushing remaining buffer content (%d bytes) before task cleanup",
+            log_identifier,
+            len(buffer_content.encode("utf-8")),
+        )
+
+        # Create a minimal TaskStatusUpdateEvent for the remaining content
+        flushed_text = task_context.flush_streaming_buffer()
+        batched_message = a2a.create_agent_text_message(
+            text=flushed_text,
+            task_id=task_context.task_id,
+            context_id=task_context.a2a_context.get("session_id"),
+        )
+
+        flush_event = TaskStatusUpdateEvent(
+            task_id=task_context.task_id,
+            context_id=task_context.a2a_context.get("session_id"),
+            status=TaskStatus(state=TaskState.running, message=batched_message),
+            final=False,
+        )
+
+        await self._publish_status_update(flush_event, task_context.a2a_context)
+
     def _get_effective_agent_card_auth(
         self, agent_config: Dict[str, Any]
     ) -> Tuple[Optional[Dict[str, Any]], bool]:
