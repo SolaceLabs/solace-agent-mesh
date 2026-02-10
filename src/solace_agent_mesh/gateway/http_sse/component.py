@@ -758,10 +758,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                 is_working_state = payload_dict.get("result", {}).get("status", {}).get('state') == "working"
                 parts = payload_dict.get("result", {}).get("status", {}).get("message", {}).get("parts", [])
-                is_in_progress_data = all(
+                is_in_progress_data = bool(parts) and all(
                     part.get("data", {}).get("status") == "in-progress" for part in parts
                 )
-                is_text_update = all(part.get("kind") == "text" for part in parts)
+                is_text_update = bool(parts) and all(part.get("kind") == "text" for part in parts)
 
                 # Ignoring discovery messages and in-progress updates for files and LLM stream to reduce noise in visualization streams
                 if ("/a2a/v1/discovery/" in topic) or (
