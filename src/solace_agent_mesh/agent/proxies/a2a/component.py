@@ -2012,11 +2012,73 @@ class A2AProxyComponent(BaseProxyComponent):
             )
 
         elif isinstance(event_payload, TaskStatusUpdateEvent):
-            # Forward status update to status topic
-            await self._publish_status_update(event_payload, task_context.a2a_context)
+            # Handle streaming response batching for non-final events
+            if not event_payload.final:
+                # Extract text content from the event
+                text_content = self._extract_text_from_status_update(event_payload)
 
-            # Check if final event - construct and send Task
+                if text_content:
+                    # Append to streaming buffer
+                    task_context.append_to_streaming_buffer(text_content)
+
+                    # Get batching threshold for this agent
+                    threshold = self._get_stream_batching_threshold(agent_name)
+                    buffer_content = task_context.get_streaming_buffer_content()
+                    buffer_size = len(buffer_content.encode("utf-8"))
+
+                    # Determine if we should flush
+                    batching_disabled = threshold <= 0
+                    threshold_met = buffer_size >= threshold
+
+                    log.debug(
+                        "%s Buffered %d bytes of text (total buffer: %d bytes, threshold: %d, disabled: %s)",
+                        log_identifier,
+                        len(text_content.encode("utf-8")),
+                        buffer_size,
+                        threshold,
+                        batching_disabled,
+                    )
+
+                    if batching_disabled or threshold_met:
+                        # Flush the buffer and publish
+                        flushed_text = task_context.flush_streaming_buffer()
+                        batched_event = self._create_batched_status_update(
+                            flushed_text, event_payload, task_context
+                        )
+                        await self._publish_status_update(batched_event, task_context.a2a_context)
+                        log.debug(
+                            "%s Flushed buffer and published batched status update (%d bytes)",
+                            log_identifier,
+                            len(flushed_text.encode("utf-8")),
+                        )
+                    else:
+                        # Continue buffering - don't publish yet
+                        log.debug(
+                            "%s Continuing to buffer (threshold not met)",
+                            log_identifier,
+                        )
+                    # Early return - we've handled this event
+                    return
+                else:
+                    # No text content (DataParts only) - publish immediately without batching
+                    await self._publish_status_update(event_payload, task_context.a2a_context)
+                    return
+
+            # Handle final events - flush any remaining buffer first
             if event_payload.final:
+                # Flush remaining buffer before processing final event
+                buffer_content = task_context.get_streaming_buffer_content()
+                if buffer_content:
+                    log.debug(
+                        "%s Flushing remaining buffer (%d bytes) before final event",
+                        log_identifier,
+                        len(buffer_content.encode("utf-8")),
+                    )
+                    flushed_text = task_context.flush_streaming_buffer()
+                    batched_event = self._create_batched_status_update(
+                        flushed_text, event_payload, task_context
+                    )
+                    await self._publish_status_update(batched_event, task_context.a2a_context)
                 log.info(
                     "%s Received final status update (final=true). Constructing completed Task.",
                     log_identifier,
@@ -2099,6 +2161,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 log_identifier,
                 task_context.task_id,
             )
+            # Flush any remaining buffered content before cleanup
+            await self._flush_remaining_buffer(task_context, agent_name)
             self._cleanup_task_state(task_context.task_id)
 
     def clear_client_cache(self):
