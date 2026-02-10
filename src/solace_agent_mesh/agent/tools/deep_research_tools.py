@@ -1624,8 +1624,10 @@ async def deep_research(
     
     # Resolve max_iterations
     if max_iterations is None:
-        max_iterations = config.get("max_iterations")
-        if max_iterations is not None:
+        config_max_iterations = config.get("max_iterations")
+        if config_max_iterations is not None:
+            # Convert to int in case config value is a string
+            max_iterations = int(config_max_iterations)
             log.info("%s Using max_iterations from tool_config: %d", log_identifier, max_iterations)
         else:
             # Fallback to research_type translation
@@ -1636,15 +1638,17 @@ async def deep_research(
                 max_iterations = 3
                 log.info("%s Using max_iterations from research_type 'quick': %d", log_identifier, max_iterations)
     else:
+        max_iterations = int(max_iterations)
         log.info("%s Using explicit max_iterations parameter: %d", log_identifier, max_iterations)
     
     # Resolve max_runtime_seconds (with priority: max_runtime_minutes > max_runtime_seconds > tool_config > research_type)
     # First, check if max_runtime_minutes was provided (LLM-friendly parameter)
     if max_runtime_minutes is not None:
-        max_runtime_seconds = max_runtime_minutes * 60
+        max_runtime_seconds = int(max_runtime_minutes) * 60
         log.info("%s Using explicit max_runtime_minutes parameter: %d minutes (%d seconds)",
                 log_identifier, max_runtime_minutes, max_runtime_seconds)
     elif max_runtime_seconds is not None:
+        max_runtime_seconds = int(max_runtime_seconds)
         log.info("%s Using explicit max_runtime_seconds parameter: %d", log_identifier, max_runtime_seconds)
     else:
         # Check tool_config (support both seconds and minutes)
@@ -1652,10 +1656,10 @@ async def deep_research(
         config_duration_minutes = config.get("duration_minutes")
         
         if config_duration is not None:
-            max_runtime_seconds = config_duration
+            max_runtime_seconds = int(config_duration)
             log.info("%s Using max_runtime_seconds from tool_config: %d", log_identifier, max_runtime_seconds)
         elif config_duration_minutes is not None:
-            max_runtime_seconds = config_duration_minutes * 60
+            max_runtime_seconds = int(config_duration_minutes) * 60
             log.info("%s Using duration_minutes from tool_config: %d minutes (%d seconds)",
                     log_identifier, config_duration_minutes, max_runtime_seconds)
         else:

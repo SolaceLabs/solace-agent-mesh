@@ -1,23 +1,39 @@
 import React, { useState } from "react";
-import { FileText, FolderOpen, MoreHorizontal, Download, Trash2 } from "lucide-react";
+import { FileText, FolderOpen, MoreHorizontal, Download, Trash2, Share2, UserCog, UserSearch } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
-import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu } from "@/lib/components/ui";
+import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
+import { useIsProjectOwner } from "@/lib/hooks";
 
 interface ProjectCardProps {
     project: Project;
     onClick?: () => void;
     onDelete?: (project: Project) => void;
     onExport?: (project: Project) => void;
+    onShare?: (project: Project) => void;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, onShare }) => {
     const [menuOpen, setMenuOpen] = useState(false);
+    const isOwner = useIsProjectOwner(project.userId);
 
     const menuActions: MenuAction[] = [
+        ...(isOwner && onShare
+            ? [
+                  {
+                      id: "share",
+                      label: "Share Project",
+                      icon: <Share2 size={14} />,
+                      onClick: () => {
+                          setMenuOpen(false);
+                          onShare(project);
+                      },
+                  },
+              ]
+            : []),
         ...(onExport
             ? [
                   {
@@ -53,7 +69,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                         <div className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">{project.name}</div>
                     </CardTitle>
                     <div className="flex shrink-0 items-center gap-1">
-                        {onDelete && (
+                        {isOwner && onDelete && (
                             <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                                 <PopoverTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8" tooltip="More options" onClick={e => e.stopPropagation()}>
@@ -82,18 +98,26 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
 
                 <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1">
-                        Created: {formatTimestamp(project.createdAt)}
+                        Created: {formatTimestamp(project.createdAt, "date")}
                         <div>|</div>
-                        <div className="max-w-[80px] truncate" title={project.userId}>
+                        <div className="max-w-[100px] truncate" title={project.userId}>
                             {project.userId}
                         </div>
                     </div>
-                    <div>
-                        {project.artifactCount !== undefined && project.artifactCount !== null && (
+                    <div className="flex items-center gap-2">
+                        {project.artifactCount !== undefined && project.artifactCount !== null && isOwner && (
                             <Badge variant="secondary" className="flex h-6 items-center gap-1" title={`${project.artifactCount} ${project.artifactCount === 1 ? "file" : "files"}`}>
                                 <FileText className="h-3.5 w-3.5" />
                                 <span>{project.artifactCount}</span>
                             </Badge>
+                        )}
+                        {onShare && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="cursor-default">{isOwner ? <UserCog className="h-4 w-4" /> : <UserSearch className="h-4 w-4" />}</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">{isOwner ? "You are the owner of this project" : "You can view this project"}</TooltipContent>
+                            </Tooltip>
                         )}
                     </div>
                 </div>

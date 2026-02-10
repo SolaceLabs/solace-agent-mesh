@@ -5,6 +5,10 @@ sidebar_position: 425
 
 # Creating Workflows
 
+:::warning Experimental Feature
+Workflows is currently an experimental feature. Expect this feature to change and improve in future releases.
+:::
+
 This guide walks through building workflows that orchestrate multiple agents. You'll learn how to define execution sequences, pass data between nodes, handle branching logic, and process collections.
 
 ## Prerequisites

@@ -10,6 +10,8 @@ from typing import Any, Dict
 
 import uvicorn
 from solace_ai_connector.common.message import Message as SolaceMessage
+
+from solace_agent_mesh.common.middleware import MiddlewareRegistry
 from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
 from solace_agent_mesh.core_a2a.service import CoreA2AService
@@ -152,8 +154,7 @@ class PlatformServiceComponent(SamComponentBase):
         self.uvicorn_server = None
         self.fastapi_thread = None
 
-        # Config resolver (permissive default - allows all features/scopes)
-        self.config_resolver = ConfigResolver()
+        self.config_resolver = MiddlewareRegistry.get_config_resolver()
 
         # Legacy router compatibility
         # webui_backend routers were originally designed for WebUI gateway context
@@ -661,13 +662,6 @@ class PlatformServiceComponent(SamComponentBase):
     def get_config_resolver(self) -> ConfigResolver:
         """
         Return the ConfigResolver instance.
-
-        The default ConfigResolver is permissive and allows all features/scopes.
-        This enables webui_backend routers (which use ValidatedUserConfig) to work
-        in platform mode without custom authorization logic.
-
-        Returns:
-            ConfigResolver instance.
         """
         return self.config_resolver
 

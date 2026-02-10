@@ -163,7 +163,7 @@ Tests are configured for CI/CD with:
 
 Ensure the following are installed:
 
-- Node.js (>=20.8.10)
+- Node.js version >=25.5.0 and <26.0.0
 - npm or yarn
 - Cypress dependencies (`npm ci`)
 

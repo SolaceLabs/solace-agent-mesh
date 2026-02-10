@@ -265,6 +265,8 @@ class WorkflowExecutorComponent(SamComponentBase):
                     node_dict["condition"] = node.condition
                 if node.max_iterations:
                     node_dict["max_iterations"] = node.max_iterations
+                if node.delay:
+                    node_dict["delay"] = node.delay
             elif node.type == "workflow":
                 node_dict["workflow_name"] = node.workflow_name
                 if node.input:
