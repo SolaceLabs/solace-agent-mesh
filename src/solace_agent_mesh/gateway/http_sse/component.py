@@ -769,7 +769,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                 log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
 
-                if "/a2a/v1/discovery/" in topic:
+                is_working_state = payload_dict.get("result", {}).get("status", {}).get('state') == "working"
+                is_in_progress_data = payload_dict.get("result", {}).get("status", {}).get("message", {}).get("parts", [{}])[0].get("data", {}).get("status") == "in-progress"
+                is_text_update = payload_dict.get("result", {}).get("status", {}).get("message", {}).get("parts", [{}])[0].get("kind") == "text"
+
+                # Ignoring discovery messages and in-progress updates for files and LLM stream to reduce noise in visualization streams
+                if ("/a2a/v1/discovery/" in topic) or (
+                    is_working_state and (is_in_progress_data or is_text_update)
+                ):
                     self._visualization_message_queue.task_done()
                     continue
 
