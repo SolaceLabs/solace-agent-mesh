@@ -2419,6 +2419,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("Backend did not return a valid taskId.");
                 }
 
+                // FIX: Assign taskId to userMsg SYNCHRONOUSLY to prevent race condition
+                // This ensures the user message has taskId set before the final save filter executes
+                // Without this, fast SSE completion can trigger final save before React flushes the async state update at line 2522
+                userMsg.taskId = taskId;
+
+                // Also update messagesRef synchronously for consistency
+                messagesRef.current = messagesRef.current.map(msg =>
+                    msg.metadata?.messageId === userMsg.metadata?.messageId
+                        ? { ...msg, taskId: taskId }
+                        : msg
+                );
+
                 // Update session ID if backend provided one (for new sessions)
                 console.log(`ChatProvider handleSubmit: Checking session update condition - responseSessionId: ${responseSessionId}, sessionId: ${sessionId}, different: ${responseSessionId !== sessionId}`);
                 const isNewSession = !sessionId || sessionId === "";
