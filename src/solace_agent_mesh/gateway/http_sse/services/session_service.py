@@ -122,7 +122,7 @@ class SessionService:
                             metadata = json.loads(chat_task.task_metadata) if isinstance(chat_task.task_metadata, str) else chat_task.task_metadata
                             task_status = metadata.get("status")
                             is_completed = task_status in ["completed", "error", "failed"]
-                            log.info(f"[get_user_sessions] Task {chat_task.id} metadata status: {task_status}, is_completed: {is_completed}")
+                            log.debug(f"[get_user_sessions] Task {chat_task.id} metadata status: {task_status}, is_completed: {is_completed}")
                         except Exception as e:
                             log.warning(f"[get_user_sessions] Failed to parse task metadata for {chat_task.id}: {e}")
                     
@@ -137,7 +137,7 @@ class SessionService:
         for session in sessions:
             session.has_running_background_task = session_task_map.get(session.id, False)
             if session.has_running_background_task:
-                log.info(f"[get_user_sessions] Marking session {session.id} as having running background task")
+                log.debug(f"[get_user_sessions] Marking session {session.id} as having running background task")
 
         return PaginatedResponse.create(sessions, total_count, pagination)
 
