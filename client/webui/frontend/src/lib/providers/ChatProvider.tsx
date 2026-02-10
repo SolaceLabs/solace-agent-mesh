@@ -1522,95 +1522,97 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setIsCancelling(false);
                 }
 
-                // Save on final event - uses messagesRef.current
+                // Save on final event
                 // SKIP save during buffer replay - the save happens in loadSessionTasks after replay.
                 if (currentTaskIdFromResult && !isReplayingEventsRef.current) {
                     const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
                     const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
 
-                    // Use messagesRef to get the latest messages (synchronously updated above)
-                    const taskMessages = messagesRef.current.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
-                    if (taskMessages.length > 0) {
-                        // Serialize all message bubbles
-                        const messageBubbles = taskMessages.map(serializeMessageBubble);
+                    setTimeout(() => {
+                        // Use messagesRef to get the latest messages (now guaranteed fresh after React flush)
+                        const taskMessages = messagesRef.current.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
+                        if (taskMessages.length > 0) {
+                            // Serialize all message bubbles
+                            const messageBubbles = taskMessages.map(serializeMessageBubble);
 
-                        // Extract user message text
-                        const userMessage = taskMessages.find(m => m.isUser);
-                        const userMessageText =
-                            userMessage?.parts
-                                ?.filter(p => p.kind === "text")
-                                .map(p => (p as TextPart).text)
-                                .join("") || "";
+                            // Extract user message text
+                            const userMessage = taskMessages.find(m => m.isUser);
+                            const userMessageText =
+                                userMessage?.parts
+                                    ?.filter(p => p.kind === "text")
+                                    .map(p => (p as TextPart).text)
+                                    .join("") || "";
 
-                        // Determine task status
-                        const hasError = taskMessages.some(m => m.isError);
-                        const taskStatus = hasError ? "error" : "completed";
+                            // Determine task status
+                            const hasError = taskMessages.some(m => m.isError);
+                            const taskStatus = hasError ? "error" : "completed";
 
-                        const taskRagData = ragDataRef.current.filter(r => r.taskId === currentTaskIdFromResult);
+                            const taskRagData = ragDataRef.current.filter(r => r.taskId === currentTaskIdFromResult);
 
-                        // Save complete task
-                        saveTaskToBackend(
-                            {
-                                task_id: currentTaskIdFromResult,
-                                user_message: userMessageText,
-                                message_bubbles: messageBubbles,
-                                task_metadata: {
-                                    schema_version: CURRENT_SCHEMA_VERSION,
-                                    status: taskStatus,
-                                    agent_name: selectedAgentName,
-                                    rag_data: taskRagData.length > 0 ? taskRagData : undefined, // Persist RAG data
+                            // Save complete task
+                            saveTaskToBackend(
+                                {
+                                    task_id: currentTaskIdFromResult,
+                                    user_message: userMessageText,
+                                    message_bubbles: messageBubbles,
+                                    task_metadata: {
+                                        schema_version: CURRENT_SCHEMA_VERSION,
+                                        status: taskStatus,
+                                        agent_name: selectedAgentName,
+                                        rag_data: taskRagData.length > 0 ? taskRagData : undefined, // Persist RAG data
+                                    },
                                 },
-                            },
-                            taskSessionId
-                        )
-                            .then(async saved => {
-                                if (saved) {
-                                    if (typeof window !== "undefined") {
-                                        window.dispatchEvent(new CustomEvent("new-chat-session"));
-                                    }
-                                }
-
-                                // Unregister background task after save completes
-                                if (isBackgroundTask) {
-                                    unregisterBackgroundTask(currentTaskIdFromResult);
-                                }
-
-                                // Handle session title based on feature flag
-                                if (taskSessionId && !sessionsWithAutoGeneratedTitles.current.has(taskSessionId)) {
-                                    if (autoTitleGenerationEnabled) {
-                                        // Extract agent response text for title generation
-                                        const agentMessage = taskMessages.find(m => !m.isUser);
-                                        const agentResponseText =
-                                            agentMessage?.parts
-                                                ?.filter(p => p.kind === "text")
-                                                .map(p => (p as TextPart).text)
-                                                .join("") || "";
-
-                                        // Pass messages directly - no database dependency, no delays needed
-                                        if (userMessageText && agentResponseText) {
-                                            // Mark this session as having had AUTOMATIC title generation attempted
-                                            sessionsWithAutoGeneratedTitles.current.add(taskSessionId);
-                                            generateTitle(taskSessionId, userMessageText, agentResponseText).catch(error => {
-                                                console.error("[ChatProvider] Title generation failed:", error);
-                                            });
+                                taskSessionId
+                            )
+                                .then(async saved => {
+                                    if (saved) {
+                                        if (typeof window !== "undefined") {
+                                            window.dispatchEvent(new CustomEvent("new-chat-session"));
                                         }
                                     }
-                                }
-                            })
-                            .catch(error => {
-                                console.error(`[ChatProvider] Error saving task ${currentTaskIdFromResult}:`, error);
-                                // Still unregister background task even on save error
-                                if (isBackgroundTask) {
-                                    unregisterBackgroundTask(currentTaskIdFromResult);
-                                }
-                            });
-                    } else if (isBackgroundTask) {
-                        // No messages but task was background - still unregister
-                        unregisterBackgroundTask(currentTaskIdFromResult);
-                        if (typeof window !== "undefined") {
-                            window.dispatchEvent(new CustomEvent("new-chat-session"));
+
+                                    // Unregister background task after save completes
+                                    if (isBackgroundTask) {
+                                        unregisterBackgroundTask(currentTaskIdFromResult);
+                                    }
+
+                                    // Handle session title based on feature flag
+                                    if (taskSessionId && !sessionsWithAutoGeneratedTitles.current.has(taskSessionId)) {
+                                        if (autoTitleGenerationEnabled) {
+                                            // Extract agent response text for title generation
+                                            const agentMessage = taskMessages.find(m => !m.isUser);
+                                            const agentResponseText =
+                                                agentMessage?.parts
+                                                    ?.filter(p => p.kind === "text")
+                                                    .map(p => (p as TextPart).text)
+                                                    .join("") || "";
+
+                                            // Pass messages directly - no database dependency, no delays needed
+                                            if (userMessageText && agentResponseText) {
+                                                // Mark this session as having had AUTOMATIC title generation attempted
+                                                sessionsWithAutoGeneratedTitles.current.add(taskSessionId);
+                                                generateTitle(taskSessionId, userMessageText, agentResponseText).catch(error => {
+                                                    console.error("[ChatProvider] Title generation failed:", error);
+                                                });
+                                            }
+                                        }
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error(`[ChatProvider] Error saving task ${currentTaskIdFromResult}:`, error);
+                                    // Still unregister background task even on save error
+                                    if (isBackgroundTask) {
+                                        unregisterBackgroundTask(currentTaskIdFromResult);
+                                    }
+                                });
+                        } else if (isBackgroundTask) {
+                            // No messages but task was background - still unregister
+                            unregisterBackgroundTask(currentTaskIdFromResult);
+                            if (typeof window !== "undefined") {
+                                window.dispatchEvent(new CustomEvent("new-chat-session"));
+                            }
                         }
-                    }
+                    }, 0);
                 }
 
                 // Mark all in-progress artifacts as completed when task finishes
