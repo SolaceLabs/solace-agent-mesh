@@ -2,11 +2,12 @@
 SAM lifecycle manager for running SAM programmatically.
 """
 import logging
-import os
 from pathlib import Path
 from typing import List, Optional
 
 from dotenv import find_dotenv, load_dotenv
+
+from cli.utils import discover_config_files  # noqa: F401 - re-exported for backwards compat
 
 
 log = logging.getLogger(__name__)
@@ -124,61 +125,3 @@ class SAMRunner:
         return False  # Don't suppress exceptions
 
 
-def discover_config_files(
-    paths: tuple,
-    skip_files: tuple = (),
-) -> List[str]:
-    """
-    Discover YAML config files from paths.
-
-    Reuses logic from run_cmd.py for consistency.
-
-    Args:
-        paths: Tuple of file/directory paths. If empty, discovers from configs/
-        skip_files: Tuple of file basenames to skip
-
-    Returns:
-        List of resolved config file paths
-    """
-    config_files = []
-    project_root = Path.cwd()
-    configs_dir = project_root / "configs"
-
-    if not paths:
-        # Auto-discover from configs/ directory
-        if not configs_dir.is_dir():
-            raise FileNotFoundError(
-                f"Configuration directory '{configs_dir}' not found. "
-                "Please run 'sam init' first or provide specific config files with --config."
-            )
-
-        for yaml_ext in ("*.yaml", "*.yml"):
-            for filepath in configs_dir.rglob(yaml_ext):
-                if filepath.name.startswith("_") or filepath.name.startswith("shared_config"):
-                    continue
-                config_files.append(str(filepath.resolve()))
-    else:
-        # Process provided paths
-        processed_files = set()
-        for path_str in paths:
-            path = Path(path_str)
-            if path.is_dir():
-                for yaml_ext in ("*.yaml", "*.yml"):
-                    for filepath in path.rglob(yaml_ext):
-                        if filepath.name.startswith("_") or filepath.name.startswith("shared_config"):
-                            continue
-                        processed_files.add(str(filepath.resolve()))
-            elif path.is_file():
-                if path.suffix in [".yaml", ".yml"]:
-                    processed_files.add(str(path.resolve()))
-        config_files = sorted(list(processed_files))
-
-    # Apply skip filters
-    if skip_files:
-        skipped_basenames = [os.path.basename(s) for s in skip_files]
-        config_files = [
-            cf for cf in config_files
-            if os.path.basename(cf) not in skipped_basenames
-        ]
-
-    return config_files

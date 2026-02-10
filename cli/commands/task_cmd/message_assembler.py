@@ -32,7 +32,6 @@ class MessageAssembler:
 
     def __init__(self):
         self._text_parts: List[str] = []
-        self._last_text_length: int = 0
         self._artifacts: List[Dict[str, Any]] = []
         self._is_complete = False
         self._is_error = False
@@ -193,7 +192,6 @@ class MessageAssembler:
     def reset(self):
         """Reset the assembler for a new message."""
         self._text_parts = []
-        self._last_text_length = 0
         self._artifacts = []
         self._is_complete = False
         self._is_error = False

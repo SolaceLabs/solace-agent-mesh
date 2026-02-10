@@ -16,14 +16,9 @@ from cli.utils import error_exit
 from .common import (
     fetch_available_agents,
     get_agent_name_from_cards,
-    build_file_parts,
-    download_stim_file,
+    execute_task,
 )
 from .sam_runner import SAMRunner, discover_config_files
-from .sse_client import SSEClient
-from .message_assembler import MessageAssembler
-from .event_recorder import EventRecorder
-from .artifact_handler import ArtifactHandler
 
 
 async def wait_for_agents(
@@ -85,197 +80,6 @@ async def wait_for_agents(
         await asyncio.sleep(poll_interval)
 
     raise TimeoutError(f"Timeout waiting for agent '{target_agent}' after {timeout}s")
-
-
-async def run_task_async(
-    message: str,
-    url: str,
-    agent: str,
-    session_id: Optional[str],
-    token: Optional[str],
-    files: List[str],
-    timeout: int,
-    output_dir: Path,
-    quiet: bool,
-    no_stim: bool,
-    debug: bool,
-) -> int:
-    """
-    Send a task and stream the response.
-
-    This is adapted from send.py's _send_task_async but assumes agents are already ready.
-
-    Returns:
-        Exit code (0 for success, 1 for failure)
-    """
-
-    def _debug(msg: str):
-        if debug:
-            click.echo(click.style(f"[DEBUG] {msg}", fg="yellow"), err=True)
-
-    # Generate session ID if not provided
-    effective_session_id = session_id or str(uuid.uuid4())
-
-    # Build message parts
-    parts = [{"kind": "text", "text": message}]
-
-    # Add file parts if files were provided
-    if files:
-        file_parts = build_file_parts(files)
-        parts.extend(file_parts)
-        if not quiet:
-            click.echo(click.style(f"Attached {len(file_parts)} file(s)", fg="blue"))
-
-    # Build JSON-RPC request payload
-    payload = {
-        "jsonrpc": "2.0",
-        "id": f"req-{uuid.uuid4()}",
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "parts": parts,
-                "messageId": f"msg-{uuid.uuid4()}",
-                "kind": "message",
-                "contextId": effective_session_id,
-                "metadata": {"agent_name": agent},
-            }
-        },
-    }
-
-    # Build headers
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
-    if not quiet:
-        click.echo(click.style(f"Sending task to {agent}...", fg="blue"))
-
-    _debug(f"POST {url}/api/v1/message:stream")
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{url}/api/v1/message:stream",
-                json=payload,
-                headers=headers,
-            )
-            _debug(f"Response status: {response.status_code}")
-            response.raise_for_status()
-            result = response.json()
-    except httpx.ConnectError:
-        click.echo(click.style(f"Failed to connect to {url}", fg="red"), err=True)
-        return 1
-    except httpx.HTTPStatusError as e:
-        click.echo(click.style(f"HTTP error {e.response.status_code}: {e.response.text}", fg="red"), err=True)
-        return 1
-
-    # Extract task ID from response
-    task_result = result.get("result", {})
-    task_id = task_result.get("id")
-
-    if not task_id:
-        click.echo(click.style(f"No task ID in response: {result}", fg="red"), err=True)
-        return 1
-
-    if not quiet:
-        click.echo(click.style(f"Task ID: {task_id}", fg="blue"))
-        click.echo()
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Initialize components
-    assembler = MessageAssembler()
-    recorder = EventRecorder(output_dir)
-    sse_client = SSEClient(url, timeout, token, debug=debug)
-
-    _debug(f"Subscribing to SSE events for task {task_id}")
-
-    # Track response text for saving
-    response_text_parts = []
-
-    # Subscribe to SSE and process events
-    try:
-        async for event in sse_client.subscribe(task_id):
-            # Record ALL events
-            recorder.record_event(event.event_type, event.data)
-
-            # Process event and get new text to print
-            msg, new_text = assembler.process_event(event.event_type, event.data)
-
-            if new_text:
-                response_text_parts.append(new_text)
-                if not quiet:
-                    click.echo(new_text, nl=False)
-                    sys.stdout.flush()
-
-            if msg.is_complete:
-                _debug("Task is complete")
-                break
-
-    except httpx.HTTPStatusError as e:
-        click.echo(click.style(f"\nSSE connection error: {e}", fg="red"), err=True)
-        return 1
-    except asyncio.TimeoutError as e:
-        click.echo(click.style(f"\nTimeout: {e}", fg="yellow"), err=True)
-    except Exception as e:
-        click.echo(click.style(f"\nSSE error: {e}", fg="red"), err=True)
-        return 1
-
-    # Ensure newline after streaming
-    if not quiet and response_text_parts:
-        click.echo()
-
-    # Get final message state
-    final_msg = assembler.get_message()
-
-    # Save recorded events
-    recorder.save()
-
-    # Save response text
-    response_text = "".join(response_text_parts)
-    response_path = output_dir / "response.txt"
-    with open(response_path, "w") as f:
-        f.write(response_text)
-
-    # Download artifacts
-    artifact_handler = ArtifactHandler(url, effective_session_id, output_dir, token)
-    try:
-        downloaded_artifacts = await artifact_handler.download_all_artifacts()
-        if downloaded_artifacts and not quiet:
-            click.echo()
-            click.echo(click.style("Downloaded artifacts:", fg="green"))
-            for artifact in downloaded_artifacts:
-                click.echo(f"  - {artifact.filename} ({artifact.size} bytes)")
-    except Exception as e:
-        if not quiet:
-            click.echo(click.style(f"Warning: Could not download artifacts: {e}", fg="yellow"))
-
-    # Fetch STIM file
-    if not no_stim:
-        try:
-            await download_stim_file(url, task_id, output_dir, headers)
-        except Exception as e:
-            if not quiet:
-                click.echo(click.style(f"Warning: Could not download STIM file: {e}", fg="yellow"))
-
-    # Print summary
-    click.echo()
-    click.echo(click.style("---", fg="cyan"))
-
-    if final_msg.is_error:
-        click.echo(click.style("Task failed.", fg="red", bold=True))
-        exit_code = 1
-    else:
-        click.echo(click.style("Task completed successfully.", fg="green", bold=True))
-        exit_code = 0
-
-    click.echo(f"Session ID: {click.style(effective_session_id, fg='cyan')}")
-    click.echo(f"Task ID: {task_id}")
-    click.echo(f"Output directory: {output_dir}")
-    click.echo(f"Events recorded: {recorder.get_event_count()}")
-
-    return exit_code
 
 
 @click.command("run")
@@ -528,7 +332,7 @@ async def _run_task_main(
         _info("")
 
         # Send the task
-        exit_code = await run_task_async(
+        exit_code = await execute_task(
             message=message,
             url=url,
             agent=resolved_agent,
