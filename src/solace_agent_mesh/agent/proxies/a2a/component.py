@@ -245,7 +245,7 @@ class A2AProxyComponent(BaseProxyComponent):
         flush_event = TaskStatusUpdateEvent(
             task_id=task_context.task_id,
             context_id=task_context.a2a_context.get("session_id"),
-            status=TaskStatus(state=TaskState.running, message=batched_message),
+            status=TaskStatus(state=TaskState.working, message=batched_message),
             final=False,
         )
 
