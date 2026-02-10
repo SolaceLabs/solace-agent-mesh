@@ -43,13 +43,6 @@ def bytes_to_mb(size_bytes: int) -> float:
     return size_bytes / (1024 * 1024)
 
 
-def sanitize_for_log(value: str) -> str:
-    """Strip control characters to prevent log injection."""
-    if not value:
-        return ""
-    return "".join(c for c in str(value) if c >= " ")
-
-
 class ProjectService:
     """Service layer for project business logic."""
 
@@ -297,7 +290,7 @@ class ProjectService:
         Raises:
             ValueError: If project name is invalid, user_id is missing, or file size exceeds limit
         """
-        log_prefix = f"[ProjectService:create_project] User {sanitize_for_log(user_id)}:"
+        log_prefix = f"[ProjectService:create_project] User {user_id}:"
         self.logger.info(f"Creating new project '{name}' for user {user_id}")
 
         # Business validation
@@ -533,7 +526,7 @@ class ProjectService:
         Raises:
             ValueError: If project not found, access denied, or file size exceeds limit
         """
-        log_prefix = f"[ProjectService:add_artifacts] Project {sanitize_for_log(project_id)}, User {sanitize_for_log(user_id)}:"
+        log_prefix = f"[ProjectService:add_artifacts] Project {project_id}, User {user_id}:"
         
         project = self.get_project(db, project_id, user_id)
         if not project:
@@ -974,7 +967,7 @@ class ProjectService:
         Raises:
             ValueError: If ZIP is invalid, import fails, or file size exceeds limit
         """
-        log_prefix = f"[ProjectService:import_project] User {sanitize_for_log(user_id)}:"
+        log_prefix = f"[ProjectService:import_project] User {user_id}:"
         warnings = []
         
         # Read ZIP file content with size validation
