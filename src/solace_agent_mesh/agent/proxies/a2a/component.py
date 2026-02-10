@@ -1778,12 +1778,21 @@ class A2AProxyComponent(BaseProxyComponent):
                 task_context.task_id,
             )
 
-        # Replace the downstream task ID with SAM's task ID for upstream responses
+        # Replace the downstream task ID and context_id with SAM's values for upstream responses
         original_task_id = task_context.task_id
+        sam_session_id = task_context.a2a_context.get("session_id")
         if hasattr(event_payload, "task_id") and event_payload.task_id:
             event_payload.task_id = original_task_id
         elif hasattr(event_payload, "id") and event_payload.id:
             event_payload.id = original_task_id
+        
+        if hasattr(event_payload, "context_id"):
+            event_payload.context_id = sam_session_id
+        
+        if hasattr(event_payload, "status") and event_payload.status:
+            if hasattr(event_payload.status, "message") and event_payload.status.message:
+                if hasattr(event_payload.status.message, "context_id"):
+                    event_payload.status.message.context_id = sam_session_id
 
         if isinstance(event_payload, Task) and event_payload.artifacts:
             text_only_artifacts_content = []
