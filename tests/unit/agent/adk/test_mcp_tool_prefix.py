@@ -93,10 +93,11 @@ async def test_load_mcp_tool_passes_prefix():
         },
     }
 
-    tools, builtins, cleanups = await _load_mcp_tool(component, tool_config)
+    tools, builtins, cleanups, scopes_map = await _load_mcp_tool(component, tool_config)
 
     assert len(tools) == 1
     toolset = tools[0]
     assert isinstance(toolset, EmbedResolvingMCPToolset)
     assert toolset.tool_name_prefix == "fs"
     assert toolset._tool_config == tool_config
+    assert scopes_map == {}  # No scopes configured in this test

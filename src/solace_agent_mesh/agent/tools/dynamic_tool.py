@@ -186,9 +186,10 @@ class DynamicTool(BaseTool, ABC):
         Generate the FunctionDeclaration for this dynamic tool.
         This follows the same pattern as PeerAgentTool and MCP tools.
         """
-        # Update the tool name to match what the module defines
+        # Update the tool name and description to match what the module defines
         self.name = self.tool_name
-
+        self.description = self.tool_description
+        
         return adk_types.FunctionDeclaration(
             name=self.tool_name,
             description=self.tool_description,

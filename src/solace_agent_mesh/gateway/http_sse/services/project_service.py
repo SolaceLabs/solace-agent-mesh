@@ -693,11 +693,21 @@ class ProjectService:
         if not soft_deleted:
             return False
 
-        # Cascade to sessions
         from ..repository.session_repository import SessionRepository
         session_repo = SessionRepository()
-        deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
-        self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+
+        owner_deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
+
+        self._resource_sharing_service.delete_resource_shares(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT
+        )
+
+        self.logger.info(
+            f"Successfully soft deleted project {project_id} and {owner_deleted_count} owner sessions "
+            f"(shared users handled by sharing service)"
+        )
 
         return True
 

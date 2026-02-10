@@ -11,6 +11,7 @@ import datetime
 import math
 
 from .sse_event_buffer import SSEEventBuffer
+from .persistent_sse_event_buffer import PersistentSSEEventBuffer
 
 log = logging.getLogger(__name__)
 trace_logger = logging.getLogger("sam_trace")
@@ -25,7 +26,15 @@ class SSEManager:
     different event loops (e.g., FastAPI event loop and SAC component event loop).
     """
 
-    def __init__(self, max_queue_size: int, event_buffer: SSEEventBuffer, session_factory: Optional[Callable] = None):
+    def __init__(
+        self,
+        max_queue_size: int,
+        event_buffer: SSEEventBuffer,
+        session_factory: Optional[Callable] = None,
+        persistent_buffer_enabled: bool = True,
+        hybrid_buffer_enabled: bool = False,
+        hybrid_buffer_threshold: int = 10,
+    ):
         self._connections: Dict[str, List[asyncio.Queue]] = {}
         self._event_buffer = event_buffer
         # Use a single threading lock for cross-event-loop synchronization
@@ -35,6 +44,23 @@ class SSEManager:
         self._session_factory = session_factory
         self._background_task_cache: Dict[str, bool] = {}  # Cache to avoid repeated DB queries
         self._tasks_with_prior_connection: set = set()  # Track tasks that have had at least one SSE connection
+        
+        # Initialize persistent buffer for background tasks
+        # Hybrid mode enables RAM-first buffering
+        # to reduce database writes for short-lived tasks
+        self._persistent_buffer = PersistentSSEEventBuffer(
+            session_factory=session_factory,
+            enabled=persistent_buffer_enabled,
+            hybrid_mode_enabled=hybrid_buffer_enabled,
+            hybrid_flush_threshold=hybrid_buffer_threshold,
+        )
+        
+        if hybrid_buffer_enabled:
+            log.info(
+                "%s Hybrid buffer mode ENABLED (threshold=%d events)",
+                self.log_identifier,
+                hybrid_buffer_threshold,
+            )
 
     def _sanitize_json(self, obj):
         if isinstance(obj, dict):
@@ -102,11 +128,15 @@ class SSEManager:
     ):
         """
         Removes a specific SSE connection queue for a task.
+        
+        In hybrid mode, flushes RAM buffer to DB when last connection is removed.
 
         Args:
             task_id: The ID of the task.
             connection_queue: The specific queue instance to remove.
         """
+        should_flush_ram_buffer = False
+        
         with self._lock:
             if task_id in self._connections:
                 try:
@@ -124,6 +154,10 @@ class SSEManager:
                             self.log_identifier,
                             task_id,
                         )
+                        # In hybrid mode, flush RAM buffer when last connection is removed
+                        # This ensures events are persisted to DB before the client disconnects
+                        if self._persistent_buffer.is_hybrid_mode_enabled():
+                            should_flush_ram_buffer = True
                 except ValueError:
                     log.debug(
                         "%s Attempted to remove an already removed queue for Task ID: %s.",
@@ -131,28 +165,67 @@ class SSEManager:
                         task_id,
                     )
             else:
-                log.warning(
+                # This can happen due to timing - task may have been cleaned up already
+                log.debug(
                     "%s Attempted to remove queue for non-existent Task ID: %s.",
                     self.log_identifier,
                     task_id,
                 )
+        
+        # Flush RAM buffer outside the lock to avoid holding it during DB operations
+        if should_flush_ram_buffer:
+            flushed = self._persistent_buffer.flush_task_buffer(task_id)
+            if flushed > 0:
+                log.info(
+                    "%s [Hybrid] Flushed %d events from RAM buffer on connection close for task %s",
+                    self.log_identifier,
+                    flushed,
+                    task_id,
+                )
 
-    def _is_background_task(self, task_id: str) -> bool:
+    def _is_task_registered_for_buffering(self, task_id: str) -> bool:
         """
-        Check if a task is a background task by querying the database.
-        Uses caching to avoid repeated queries.
+        Check if a task is registered for persistent event buffering.
+        
+        Note: All tasks get registered for buffering when they're submitted. 
+        This enables session switching, browser refresh recovery, and reconnection
+        for all tasks.
+        
+        This method returns True if the task has metadata registered, which means events
+        will be persisted to the database for later replay. The in-memory buffer can
+        safely drop events for these tasks when the client disconnects since the events
+        are already persisted.
+        
+        The order of checks is:
+        1. Cache (fastest)
+        2. Persistent buffer metadata (registered when task is submitted)
+        3. Database query (fallback for legacy tasks or worker restarts)
         
         Args:
             task_id: The ID of the task to check
             
         Returns:
-            True if the task is a background task, False otherwise
+            True if the task is registered for persistent buffering, False otherwise
         """
         # Check cache first
         if task_id in self._background_task_cache:
             return self._background_task_cache[task_id]
         
-        # If no session factory, assume not a background task
+        # Check if task has metadata registered for persistent buffering
+        # This is set when the task is submitted (before the task record is created in DB)
+        metadata = self._persistent_buffer.get_task_metadata(task_id)
+        if metadata is not None:
+            # Metadata exists - this task is registered for buffering
+            self._background_task_cache[task_id] = True
+            log.debug(
+                "%s Task %s is registered for persistent buffering (has metadata)",
+                self.log_identifier,
+                task_id,
+            )
+            return True
+        
+        # Fallback to database query
+        # (for legacy tasks or tasks that were submitted before metadata was registered)
         if not self._session_factory:
             return False
         
@@ -163,22 +236,69 @@ class SSEManager:
             try:
                 repo = TaskRepository()
                 task = repo.find_by_id(db, task_id)
-                is_background = task and task.background_execution_enabled
+                # For legacy compatibility, also check background_execution_enabled
+                # These tasks should also have their events persisted
+                is_registered = task and (task.session_id or task.background_execution_enabled)
                 
                 # Cache the result
-                self._background_task_cache[task_id] = is_background
+                self._background_task_cache[task_id] = is_registered
                 
-                return is_background
+                # If found in DB with session_id, reconstruct metadata for buffering
+                # This handles worker restarts where in-memory metadata was lost
+                if is_registered and task:
+                    session_id = getattr(task, 'session_id', None)
+                    user_id = getattr(task, 'user_id', None)
+                    
+                    if session_id and user_id:
+                        self._persistent_buffer.set_task_metadata(task_id, session_id, user_id)
+                        log.info(
+                            "%s Reconstructed metadata for task %s from database: session=%s, user=%s",
+                            self.log_identifier,
+                            task_id,
+                            session_id,
+                            user_id,
+                        )
+                
+                return is_registered
             finally:
                 db.close()
         except Exception as e:
             log.warning(
-                "%s Failed to check if task %s is a background task: %s",
+                "%s Failed to check if task %s is registered for buffering: %s",
                 self.log_identifier,
                 task_id,
                 e,
             )
             return False
+
+    def register_task_for_persistent_buffer(
+        self,
+        task_id: str,
+        session_id: str,
+        user_id: str,
+    ) -> None:
+        """
+        Register task metadata for persistent buffering.
+        
+        This should be called when a background task is created so we have
+        the session_id and user_id available when buffering events.
+        
+        Args:
+            task_id: The task ID
+            session_id: The session ID
+            user_id: The user ID
+        """
+        self._persistent_buffer.set_task_metadata(task_id, session_id, user_id)
+        log.debug(
+            "%s Registered task %s for persistent buffering (session=%s)",
+            self.log_identifier,
+            task_id,
+            session_id,
+        )
+
+    def get_persistent_buffer(self) -> PersistentSSEEventBuffer:
+        """Get the persistent buffer instance."""
+        return self._persistent_buffer
 
     async def send_event(
         self, task_id: str, event_data: Dict[str, Any], event_type: str = "message"
@@ -208,6 +328,45 @@ class SSEManager:
 
         sse_payload = {"event": event_type, "data": serialized_data}
 
+        # Check if this task is registered for persistent buffering
+        is_registered = self._is_task_registered_for_buffering(task_id)
+        
+        # UNIFIED ARCHITECTURE: Always buffer to persistent storage for replay
+        # This enables session switching, browser refresh recovery, and reconnection for ALL tasks
+        # The FE will clear the buffer after successfully saving the chat_task
+        # Note: We check is_enabled() which is tied to the background_tasks feature flag
+        if self._persistent_buffer.is_enabled():
+            # Check if this task has metadata registered (ensures we have session_id/user_id)
+            # All tasks with registered metadata get buffered
+            task_metadata = self._persistent_buffer.get_task_metadata(task_id)
+            if task_metadata is not None:
+                buffered = self._persistent_buffer.buffer_event(
+                    task_id=task_id,
+                    event_type=event_type,
+                    event_data=sse_payload,  # Store the full SSE payload
+                )
+                log.debug(
+                    "%s Buffered event for task %s: type=%s, registered=%s, result=%s",
+                    self.log_identifier,
+                    task_id,
+                    event_type,
+                    is_registered,
+                    buffered,
+                )
+            elif is_registered:
+                # Fallback for registered tasks without metadata in cache
+                # This shouldn't happen in normal flow but provides safety
+                log.warning(
+                    "%s Registered task %s has no metadata in cache, attempting to buffer anyway",
+                    self.log_identifier,
+                    task_id,
+                )
+                self._persistent_buffer.buffer_event(
+                    task_id=task_id,
+                    event_type=event_type,
+                    event_data=sse_payload,
+                )
+
         # Get queues and decide action under the lock
         queues_copy = None
 
@@ -215,19 +374,16 @@ class SSEManager:
             queues = self._connections.get(task_id)
 
             if not queues:
-                # Check if this is a background task (outside lock would be better,
-                # but we need the decision to be atomic with the buffering)
-                is_background_task = self._is_background_task(task_id)
-
                 # Check if this task has ever had a connection
                 has_had_connection = task_id in self._tasks_with_prior_connection
 
-                # Only drop events for background tasks that have HAD a connection before
+                # For registered tasks that have HAD a connection before, drop in-memory events
+                # Events are already persisted to database, so we don't need in-memory buffer
                 # If no connection has ever been made, we must buffer so the first client gets the events
-                if is_background_task and has_had_connection:
-                    # For background tasks where client disconnected, drop events to prevent buffer overflow
+                if is_registered and has_had_connection:
                     log.debug(
-                        "%s No active SSE connections for background task %s (had prior connection). Dropping event to prevent buffer overflow.",
+                        "%s No active SSE connections for registered task %s (had prior connection). "
+                        "Events persisted to database for replay.",
                         self.log_identifier,
                         task_id,
                     )
@@ -387,9 +543,24 @@ class SSEManager:
         Closes all SSE connections associated with a specific task.
         If a connection existed, it also cleans up the event buffer.
         If no connection ever existed, the buffer is left for a late-connecting client.
+        
+        In hybrid mode: always flushes RAM buffer to DB to ensure events that came in
+        after SSE disconnect are persisted for later retrieval.
         """
         queues_to_close = None
         should_remove_buffer = False
+
+        # In hybrid mode, flush RAM buffer to DB BEFORE closing connections
+        # This ensures any events that arrived after client disconnect are persisted
+        if self._persistent_buffer.is_hybrid_mode_enabled():
+            flushed = self._persistent_buffer.flush_task_buffer(task_id)
+            if flushed > 0:
+                log.info(
+                    "%s [Hybrid] Flushed %d events from RAM buffer on task close for task %s",
+                    self.log_identifier,
+                    flushed,
+                    task_id,
+                )
 
         with self._lock:
             if task_id in self._connections:
@@ -458,8 +629,21 @@ class SSEManager:
         pass
 
     async def close_all(self):
-        """Closes all active SSE connections managed by this instance."""
+        """Closes all active SSE connections managed by this instance.
+        
+        In hybrid mode, flushes all RAM buffers to DB before closing to ensure no events are lost.
+        """
         self.cleanup_old_locks()
+        
+        # In hybrid mode, flush all RAM buffers first to ensure no events are lost
+        if self._persistent_buffer.is_hybrid_mode_enabled():
+            flushed = self._persistent_buffer.flush_all_buffers()
+            if flushed > 0:
+                log.info(
+                    "%s [Hybrid] Flushed %d events from RAM buffers during shutdown",
+                    self.log_identifier,
+                    flushed,
+                )
 
         # Collect all queues to close under the lock
         all_queues_to_close = []

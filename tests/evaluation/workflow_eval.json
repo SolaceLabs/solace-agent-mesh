@@ -1,13 +1,13 @@
 {
   "agents": [
     "examples/agents/orchestrator_example.yaml",
-    "examples/agents/eval_workflows/level1_simple_sequential.yaml",
-    "examples/agents/eval_workflows/level2_parallel_execution.yaml",
-    "examples/agents/eval_workflows/level3_conditional_branching.yaml",
-    "examples/agents/eval_workflows/level4_map_iteration.yaml",
-    "examples/agents/eval_workflows/level5_loop_polling.yaml",
-    "examples/agents/eval_workflows/level6_workflow_composition.yaml",
-    "examples/agents/eval_workflows/level7_error_handling.yaml"
+    "examples/workflows/level1_simple_sequential.yaml",
+    "examples/workflows/level2_parallel_execution.yaml",
+    "examples/workflows/level3_conditional_branching.yaml",
+    "examples/workflows/level4_map_iteration.yaml",
+    "examples/workflows/level5_loop_polling.yaml",
+    "examples/workflows/level6_workflow_composition.yaml",
+    "examples/workflows/level7_error_handling.yaml"
   ],
   "broker": {
     "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
