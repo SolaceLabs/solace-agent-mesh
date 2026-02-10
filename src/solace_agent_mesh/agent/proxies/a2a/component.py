@@ -1778,12 +1778,21 @@ class A2AProxyComponent(BaseProxyComponent):
                 task_context.task_id,
             )
 
-        # Replace the downstream task ID with SAM's task ID for upstream responses
+        # Replace the downstream task ID and context_id with SAM's values for upstream responses
         original_task_id = task_context.task_id
+        sam_session_id = task_context.a2a_context.get("session_id")
         if hasattr(event_payload, "task_id") and event_payload.task_id:
             event_payload.task_id = original_task_id
         elif hasattr(event_payload, "id") and event_payload.id:
             event_payload.id = original_task_id
+        
+        if hasattr(event_payload, "context_id"):
+            event_payload.context_id = sam_session_id
+        
+        if hasattr(event_payload, "status") and event_payload.status:
+            if hasattr(event_payload.status, "message") and event_payload.status.message:
+                if hasattr(event_payload.status.message, "context_id"):
+                    event_payload.status.message.context_id = sam_session_id
 
         if isinstance(event_payload, Task) and event_payload.artifacts:
             text_only_artifacts_content = []
@@ -1842,15 +1851,17 @@ class A2AProxyComponent(BaseProxyComponent):
                 text_content = "\n".join(a2a.get_text_content_from_artifact(artifact))
 
                 # Convert to status update
+                # Use SAM's session_id, not the remote agent's context_id
+                sam_session_id = task_context.a2a_context.get("session_id")
                 text_message = a2a.create_agent_text_message(
                     text=text_content,
-                    task_id=event_payload.task_id,
-                    context_id=event_payload.context_id,
+                    task_id=task_context.task_id,
+                    context_id=sam_session_id,
                 )
 
                 status_event = TaskStatusUpdateEvent(
-                    task_id=event_payload.task_id,
-                    context_id=event_payload.context_id,
+                    task_id=task_context.task_id,
+                    context_id=sam_session_id,
                     kind="status-update",
                     status=TaskStatus(state=TaskState.working, message=text_message),
                     final=False,
@@ -1910,9 +1921,10 @@ class A2AProxyComponent(BaseProxyComponent):
                     message=event_payload.status.message if event_payload.status else None,
                 )
 
+                # Use SAM's task_id and session_id, not the remote agent's values
                 final_task = Task(
-                    id=event_payload.task_id,
-                    context_id=event_payload.context_id,
+                    id=task_context.task_id,
+                    context_id=task_context.a2a_context.get("session_id"),
                     status=final_task_status,
                     artifacts=None,  # Artifacts come via separate events
                     metadata=event_payload.metadata,
