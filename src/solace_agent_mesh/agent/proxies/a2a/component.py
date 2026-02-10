@@ -953,6 +953,16 @@ class A2AProxyComponent(BaseProxyComponent):
                     auth_retry_count == 0
                 )
 
+                log.debug(
+                    "%s SSE error check: Content-Type=%s, text/event-stream=%s, Invalid SSE=%s, retry_count=%s, result=%s",
+                    log_identifier,
+                    "Content-Type" in error_str,
+                    "text/event-stream" in error_str,
+                    "Invalid SSE response" in error_str,
+                    auth_retry_count,
+                    is_sse_content_type_error
+                )
+
                 if is_sse_content_type_error:
                     # Provide user-friendly error explaining common causes
                     from ....common.a2a import create_error_response
