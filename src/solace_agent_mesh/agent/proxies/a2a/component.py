@@ -1708,20 +1708,11 @@ class A2AProxyComponent(BaseProxyComponent):
 
         # Convert TextParts to AgentProgressUpdateData for intermediate status updates if configured
         # Only convert non-final status updates; final status updates are used to construct the final Task
+        # NOTE: This is disabled by default (False) to allow the UI's TaskVisualizer to properly aggregate
+        # streaming text chunks into a single AGENT_RESPONSE_TEXT step, matching local agent behavior.
         if isinstance(event_payload, TaskStatusUpdateEvent) and not event_payload.final:
             agent_config = self._get_agent_config(agent_name)
-            convert_progress = agent_config.get("convert_progress_updates", True) if agent_config else True
-
-            # DEBUG: Log config lookup results
-            log.info(
-                "%s DEBUG convert_progress_updates: agent_name='%s', agent_config_name='%s', agent_config_keys=%s, convert_progress_value=%s, convert_progress=%s",
-                log_identifier,
-                agent_name,
-                agent_config.get('name') if agent_config else None,
-                list(agent_config.keys()) if agent_config else None,
-                agent_config.get("convert_progress_updates") if agent_config else None,
-                convert_progress,
-            )
+            convert_progress = agent_config.get("convert_progress_updates", False) if agent_config else False
 
             if convert_progress and event_payload.status and event_payload.status.message:
                 message = event_payload.status.message
