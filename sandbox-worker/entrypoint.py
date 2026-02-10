@@ -114,9 +114,17 @@ def build_app_info() -> Dict[str, Any]:
         "max_concurrent_executions": get_env_int("SANDBOX_MAX_CONCURRENT", 4),
     }
 
-    # Artifact service configuration
+    # Artifact service configuration — must match the agent's settings for shared access.
     artifact_type = get_env("ARTIFACT_SERVICE_TYPE", "memory")
     artifact_config: Dict[str, Any] = {"type": artifact_type}
+
+    # Scoping — must match the agent's artifact_scope for shared access
+    artifact_scope = get_env("ARTIFACT_SCOPE", "namespace")
+    artifact_config["artifact_scope"] = artifact_scope
+    if artifact_scope == "custom":
+        artifact_config["artifact_scope_value"] = get_env(
+            "ARTIFACT_SCOPE_VALUE", required=True
+        )
 
     if artifact_type == "filesystem":
         artifact_config["base_path"] = get_env("ARTIFACT_BASE_PATH", "/sam/artifacts")

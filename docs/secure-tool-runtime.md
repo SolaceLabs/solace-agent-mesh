@@ -176,9 +176,14 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 ### Container Privileges
 
-Bubblewrap uses Linux namespaces for process isolation. The bwrap command uses `--ro-bind / /` to bind-mount the entire root filesystem read-only (instead of `--proc /proc` or `--dev /dev` which require elevated privileges), so the container only needs `CAP_SYS_ADMIN` for namespace creation — `--privileged` is **not required**.
+Bubblewrap uses Linux namespaces for process isolation. The bwrap command mounts a fresh procfs (`--proc /proc`) for PID namespace isolation and minimal device nodes (`--dev /dev`). The container needs:
 
-On Docker/Podman: `--cap-add=SYS_ADMIN`
+- **`CAP_SYS_ADMIN`** — for namespace creation (user, PID, mount, IPC, UTS, net)
+- **`--security-opt label=disable`** — disables SELinux labeling so bwrap can mount procfs inside its PID namespace. Without this, SELinux's `container_t` domain blocks the mount syscall.
+
+`--privileged` is **not required**.
+
+On Docker/Podman: `--cap-add=SYS_ADMIN --security-opt label=disable`
 
 On Kubernetes 1.33+ with user namespaces (`hostUsers: false`, `procMount: Unmasked`), even `SYS_ADMIN` can be dropped — bwrap only needs `SETFCAP`.
 
@@ -496,15 +501,18 @@ Agent                          Broker                         STR
    ```bash
    bwrap --die-with-parent --new-session --unshare-pid --unshare-ipc --unshare-uts \
      [--unshare-net]                          # restrictive profile only
-     [--clearenv]                             # restrictive profile only
      --ro-bind / /                            # entire root filesystem read-only
+     --proc /proc                             # fresh procfs (PID namespace isolation)
+     --dev /dev                               # minimal device nodes
      --tmpfs /tmp                             # writable tmp
      --bind {work_dir} {work_dir}             # writable work directory
      [--tmpfs /var]                           # writable var (permissive only)
+     --clearenv                               # always clear env
+     --setenv PATH /usr/local/bin:/usr/bin:/bin \
      --setenv PYTHONPATH {tools_dir} --chdir {work_dir} \
      -- python -m solace_agent_mesh.sandbox.tool_runner {runner_args.json}
    ```
-   The `--ro-bind / /` approach avoids `--proc /proc` and `--dev /dev` mounts that require elevated privileges beyond `CAP_SYS_ADMIN`. Resource limits (memory, CPU time, file size, open files) are enforced via `resource.setrlimit()` in a `preexec_fn` that runs before exec — since bwrap does not provide built-in resource control.
+   The `--proc /proc` mount creates a fresh procfs scoped to the new PID namespace — the sandboxed process can only see its own PIDs and cannot read `/proc/<pid>/environ` of other processes. The bwrap process itself is started with a minimal environment (only `PATH`) so that `/proc/1/environ` inside the namespace doesn't expose container secrets. Resource limits (memory, CPU time, file size, open files) are enforced via `resource.setrlimit()` in a `preexec_fn` that runs before exec — since bwrap does not provide built-in resource control.
 
 8. **Status updates**: The tool writes status messages to a named pipe (`status.pipe`). A background thread reads the pipe and publishes `SandboxStatusUpdate` messages to the `statusTo` topic.
 
@@ -652,11 +660,14 @@ Three security profiles are available:
 
 ### 9.2 Filesystem Isolation
 
-All sandbox profiles use `--ro-bind / /` as the base filesystem mount, which makes the entire container filesystem visible read-only inside the bwrap sandbox. Writable areas are layered on top:
+All sandbox profiles use `--ro-bind / /` as the base filesystem mount, which makes the entire container filesystem visible read-only inside the bwrap sandbox. Isolated mounts for `/proc` and `/dev` are layered on top, followed by writable areas:
+
+**Isolated mounts** (overlay the bind-mounted root):
+- **`/proc`** — Fresh procfs scoped to the new PID namespace. The sandboxed process can only see its own PIDs (not container processes) and cannot read `/proc/<pid>/environ` of outer processes.
+- **`/dev`** — Minimal device nodes (null, zero, urandom, etc.) instead of the container's `/dev`.
 
 **Read-only** (tools cannot modify):
-- Everything inherited from `--ro-bind / /` — system libraries, Python installation, `/proc`, `/dev`, `/etc`, tool source code
-- This approach avoids `--proc` and `--dev` mounts that require elevated container privileges
+- Everything else inherited from `--ro-bind / /` — system libraries, Python installation, `/etc`, tool source code
 
 **Read-write** (isolated per execution):
 - `/sandbox/work/{task_id}/` — Work directory with `input/`, `output/`, and temp files
@@ -664,10 +675,10 @@ All sandbox profiles use `--ro-bind / /` as the base filesystem mount, which mak
 - `/var` — tmpfs (permissive profile only, for logs and runtime)
 
 **Isolation boundaries**:
-- **PID namespace** (`--unshare-pid`): Tools cannot see or signal processes outside the sandbox
+- **PID namespace** (`--unshare-pid` + `--proc /proc`): Tools can only see their own processes. `ps`, `kill`, and subprocess management all work correctly within the namespace.
 - **IPC namespace** (`--unshare-ipc`): No shared memory or semaphore access
 - **Network namespace** (`--unshare-net`, restrictive only): No network interfaces
-- **Environment** (`--clearenv`, restrictive only): Only explicitly set variables are visible
+- **Environment** (`--clearenv`): All profiles use `--clearenv` with explicit `--setenv` for safe variables. The bwrap process itself is started with a minimal env to prevent secret leakage via `/proc/1/environ`.
 
 **Per-execution lifecycle**: The work directory is created before execution and deleted immediately after. No state persists between tool executions.
 
@@ -713,7 +724,7 @@ The following are known gaps in the current implementation. They are listed here
 | **No request signing** | A compromised or rogue broker subscriber could forge invocation requests with arbitrary `user_id`/`session_id` | Add HMAC-SHA256 signature over request payload using shared secret |
 | **No per-user rate limiting** | A single user could monopolize STR resources | Track invocations per `user_id` per time window; reject above threshold |
 | **No artifact access audit trail** | No record of which user accessed which artifacts | Append-only audit log of artifact operations |
-| **Environment variable leakage** | Standard/permissive profiles inherit all container env vars, potentially exposing secrets | Use restrictive profile for untrusted tools; inject secrets via `tool_config` instead of env vars |
+| **SELinux requirement** | `--security-opt label=disable` needed for procfs mounts inside bwrap | In K8s, use `procMount: Unmasked` or SELinux policy allowing `container_t` to mount proc |
 | **No payload size limits** | Oversized request payloads could exhaust memory | Add `max_payload_size` validation in executor |
 | **No tool code verification** | Modified tool source executes without detection | Store code hashes in manifest; verify before loading |
 | **No auto-reconnect (dev mode)** | NetworkDevBroker does not reconnect after connection loss | Add reconnection logic to NetworkDevBroker |
@@ -862,7 +873,7 @@ Dev mode enables rapid iteration without a production Solace broker. The STR con
 
 2. **Start the STR container**:
    ```bash
-   podman run --rm --cap-add=SYS_ADMIN \
+   podman run --rm --cap-add=SYS_ADMIN --security-opt label=disable \
      --name sam-sandbox-worker \
      -e SAM_NAMESPACE=ed_test/ \
      -e DEV_BROKER_HOST=host.containers.internal \

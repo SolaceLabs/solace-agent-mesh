@@ -86,7 +86,9 @@ apps:
               description: "Python source code to execute"
             artifacts:
               type: array
-              description: "Optional list of artifact parameter names whose files should be available"
+              items:
+                type: artifact
+              description: "Optional list of artifact filenames to make available in the sandbox"
               required: false
 
         # Remote file processing - tests artifact input/output pipeline

@@ -90,9 +90,11 @@ fi
 
 # Run the container
 # CAP_SYS_ADMIN is required for bubblewrap to create user namespaces.
-# The bwrap command uses --ro-bind / / (no --proc or --dev mounts),
-# so --privileged is NOT needed.
+# label=disable disables SELinux labeling so bwrap can mount a fresh procfs
+# inside its PID namespace (--proc /proc). Without this, SELinux's container_t
+# domain blocks the mount syscall. --privileged is NOT needed.
 $CONTAINER_CMD run -d --cap-add=SYS_ADMIN \
+    --security-opt label=disable \
     --name "$CONTAINER_NAME" \
     "${ENV_ARGS[@]}" \
     "${VOLUME_ARGS[@]}" \

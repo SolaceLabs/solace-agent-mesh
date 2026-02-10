@@ -99,12 +99,13 @@ class CreatedArtifact(BaseModel):
     """
     Metadata for an artifact created by the sandboxed tool.
 
-    The actual artifact content is saved to the artifact service by the worker.
-    This metadata is returned to the agent for reference.
+    The actual artifact content is saved to the shared artifact service by the
+    worker. This metadata is returned to the agent so it can reference the
+    artifact by filename and version.
     """
 
     filename: str = Field(..., description="Artifact filename")
-    version: int = Field(..., description="Version number assigned")
+    version: int = Field(..., description="Version number assigned by artifact service")
     mime_type: str = Field(..., description="MIME type of the content")
     size_bytes: int = Field(..., description="Size in bytes")
     description: Optional[str] = Field(default=None, description="Artifact description")

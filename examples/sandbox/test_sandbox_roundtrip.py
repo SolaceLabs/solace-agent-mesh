@@ -46,11 +46,12 @@ def send_cmd(sock, sock_file, cmd: dict) -> dict:
 def main():
     correlation_id = str(uuid.uuid4())
     agent_name = "test-script"
+    tool_name = "echo_tool"
 
-    # Topics following A2A conventions
-    request_topic = f"{NAMESPACE}a2a/v1/sandbox/request/{WORKER_ID}"
-    reply_topic = f"{NAMESPACE}a2a/v1/sandbox/response/{agent_name}/{correlation_id}"
-    status_topic = f"{NAMESPACE}a2a/v1/sandbox/status/{agent_name}/{correlation_id}"
+    # Topics following A2A conventions (sam_remote_tool)
+    request_topic = f"{NAMESPACE}a2a/v1/sam_remote_tool/invoke/{tool_name}"
+    reply_topic = f"{NAMESPACE}a2a/v1/sam_remote_tool/response/{agent_name}/{correlation_id}"
+    status_topic = f"{NAMESPACE}a2a/v1/sam_remote_tool/status/{agent_name}/{correlation_id}"
 
     log.info("Connecting to dev broker at %s:%d...", DEV_BROKER_HOST, DEV_BROKER_PORT)
 
@@ -69,16 +70,14 @@ def main():
     })
     log.info("Connected: %s", response)
 
-    # Build the tool invocation request
+    # Build the tool invocation request (JSON-RPC 2.0 format)
     request_payload = {
         "jsonrpc": "2.0",
         "id": correlation_id,
-        "method": "sandbox/invoke",
+        "method": "sam_remote_tool/invoke",
         "params": {
             "task_id": correlation_id,
-            "tool_name": "example_sandbox_tools.echo_tool",
-            "module": "example_sandbox_tools",
-            "function": "echo_tool",
+            "tool_name": tool_name,
             "args": {"message": "Hello from test script!"},
             "tool_config": {},
             "app_name": agent_name,

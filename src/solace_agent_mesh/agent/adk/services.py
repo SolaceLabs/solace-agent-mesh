@@ -82,7 +82,8 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
 
         if scope_type == "namespace":
             # For namespace scope, the value is always the component's namespace.
-            return self.component.namespace
+            # Strip trailing slashes to avoid os.path.basename() returning "".
+            return self.component.namespace.rstrip("/")
 
         # For 'app' scope, use the app_name that was passed into the method, which is
         # typically the agent_name or gateway_id.

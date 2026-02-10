@@ -95,12 +95,17 @@ class SandboxWorkerComponent(SamComponentBase):
         # Track which tool topics we're currently subscribed to
         self._subscribed_tools: Set[str] = set()
 
-        # Sandbox configuration
-        self.sandbox_config: Dict[str, Any] = self.get_config("sandbox", {})
+        # Sandbox configuration - merge app-level tools_python_dir into runner config
+        sandbox_cfg = self.get_config("sandbox", {})
+        if hasattr(sandbox_cfg, "model_dump"):
+            sandbox_cfg = sandbox_cfg.model_dump()
+        sandbox_cfg["tools_python_dir"] = self.get_config(
+            "tools_python_dir", "/tools/python"
+        )
         self.default_timeout_seconds: int = self.get_config("default_timeout_seconds", 300)
 
         # Initialize sandbox runner
-        self.sandbox_runner = SandboxRunner(self.sandbox_config)
+        self.sandbox_runner = SandboxRunner(sandbox_cfg)
 
         # Track active executions for cleanup
         self._active_executions: Dict[str, Any] = {}

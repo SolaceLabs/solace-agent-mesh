@@ -8,26 +8,31 @@ tool name - routing and module resolution happen on the worker side.
 
 import asyncio
 import concurrent.futures
+import json
 import logging
 import time
 import uuid
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, Union
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from google.adk.tools import ToolContext
+from google.genai import types as genai_types
 
 from .base import ToolExecutor, ToolExecutionResult, register_executor
-from ..tool_result import ToolResult
 from ....common.a2a import (
     get_sam_remote_tool_invoke_topic,
     get_sam_remote_tool_response_topic,
     get_sam_remote_tool_status_topic,
 )
+from ....common.a2a.types import ArtifactInfo
 from ..artifact_types import Artifact
+from ...utils.artifact_helpers import METADATA_SUFFIX
 from ...utils.context_helpers import get_original_session_id
 from ....sandbox.protocol import (
-    ArtifactReference,
+    PreloadedArtifact,
     SandboxErrorCodes,
     SandboxInvokeParams,
+    SandboxInvokeResult,
     SandboxToolInvocationRequest,
     SandboxToolInvocationResponse,
 )
@@ -104,7 +109,7 @@ class SamRemoteExecutor(ToolExecutor):
         args: Dict[str, Any],
         tool_context: ToolContext,
         tool_config: Dict[str, Any],
-    ) -> Union[ToolExecutionResult, ToolResult]:
+    ) -> ToolExecutionResult:
         """
         Execute the tool on a remote worker.
 
@@ -115,8 +120,7 @@ class SamRemoteExecutor(ToolExecutor):
 
         # Retry once on TOOL_NOT_AVAILABLE
         if (
-            isinstance(result, ToolExecutionResult)
-            and not result.success
+            not result.success
             and result.error_code == SandboxErrorCodes.TOOL_NOT_AVAILABLE
         ):
             log.info(
@@ -133,7 +137,7 @@ class SamRemoteExecutor(ToolExecutor):
         args: Dict[str, Any],
         tool_context: ToolContext,
         tool_config: Dict[str, Any],
-    ) -> Union[ToolExecutionResult, ToolResult]:
+    ) -> ToolExecutionResult:
         """Execute a single attempt at running the tool."""
         log_id = f"[SamRemoteExecutor:{self._tool_name}]"
 
@@ -159,26 +163,31 @@ class SamRemoteExecutor(ToolExecutor):
                 user_id = "unknown"
                 session_id = "unknown"
 
-            # Extract artifact references from args (DynamicTool pre-loads
-            # Artifact objects; we convert them to references so the worker
-            # loads from its own artifact service instead of sending bytes
-            # over the broker).
-            artifact_references = {}
+            # Extract artifacts from args (DynamicTool pre-loads Artifact
+            # objects). We embed the content in preloaded_artifacts so the
+            # worker doesn't need access to the same artifact service.
+            import base64
+
+            preloaded_artifacts = {}
             clean_args = {}
             for key, value in args.items():
                 if isinstance(value, Artifact):
-                    artifact_references[key] = ArtifactReference(
+                    preloaded_artifacts[key] = PreloadedArtifact(
                         filename=value.filename,
+                        content=base64.b64encode(value.as_bytes()).decode("ascii"),
+                        mime_type=value.mime_type,
                         version=value.version,
                     )
                     # Pass filename string to the tool args
                     clean_args[key] = value.filename
                 elif isinstance(value, list) and value and isinstance(value[0], Artifact):
-                    # List[Artifact] - convert each to a reference
+                    # List[Artifact] - embed each artifact's content
                     for idx, art in enumerate(value):
                         ref_key = f"{key}[{idx}]"
-                        artifact_references[ref_key] = ArtifactReference(
+                        preloaded_artifacts[ref_key] = PreloadedArtifact(
                             filename=art.filename,
+                            content=base64.b64encode(art.as_bytes()).decode("ascii"),
+                            mime_type=art.mime_type,
                             version=art.version,
                         )
                     clean_args[key] = [art.filename for art in value]
@@ -194,7 +203,7 @@ class SamRemoteExecutor(ToolExecutor):
                 app_name=app_name,
                 user_id=user_id,
                 session_id=session_id,
-                artifact_references=artifact_references,
+                preloaded_artifacts=preloaded_artifacts,
                 timeout_seconds=self._timeout_seconds,
                 sandbox_profile=self._sandbox_profile,
             )
@@ -267,14 +276,29 @@ class SamRemoteExecutor(ToolExecutor):
                                 error_code=SandboxErrorCodes.TIMEOUT,
                             )
 
+                        # If the tool created output artifacts, register them
+                        # in the framework (metadata + artifact_delta) without
+                        # re-saving data — the container already saved to the
+                        # shared artifact store.
+                        if response.result.created_artifacts:
+                            log.info(
+                                "%s Response contains %d created artifact(s), "
+                                "registering in framework...",
+                                log_id,
+                                len(response.result.created_artifacts),
+                            )
+                            await self._register_sandbox_artifacts(
+                                response.result,
+                                tool_context=tool_context,
+                                app_name=app_name,
+                                user_id=user_id,
+                                session_id=session_id,
+                            )
+
                         return ToolExecutionResult.ok(
                             data=response.result.tool_result,
                             metadata={
                                 "execution_time_ms": response.result.execution_time_ms,
-                                "created_artifacts": [
-                                    a.model_dump()
-                                    for a in response.result.created_artifacts
-                                ],
                             },
                         )
 
@@ -309,6 +333,112 @@ class SamRemoteExecutor(ToolExecutor):
                 error_code=SandboxErrorCodes.EXECUTION_ERROR,
                 metadata={"execution_time_ms": execution_time_ms},
             )
+
+    async def _register_sandbox_artifacts(
+        self,
+        result: SandboxInvokeResult,
+        tool_context: ToolContext,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+    ) -> None:
+        """
+        Register sandbox-created artifacts in the framework without re-saving data.
+
+        The container already saved the artifact data to the shared artifact store.
+        This method:
+        1. Saves only the metadata companion file (.metadata.json)
+        2. Populates artifact_delta so after_tool callbacks work
+        3. Publishes artifact saved notifications for the UI
+        """
+        log_id = f"[SamRemoteExecutor:{self._tool_name}]"
+        artifact_service = getattr(self._component, "artifact_service", None)
+
+        if not artifact_service:
+            log.warning(
+                "%s No artifact service on component — cannot register artifacts",
+                log_id,
+            )
+            return
+
+        for artifact_meta in result.created_artifacts:
+            try:
+                # Save the metadata companion file (the container only saves
+                # the raw data artifact, not the .metadata.json that the
+                # framework's after_tool callbacks expect).
+                metadata_dict = {
+                    "filename": artifact_meta.filename,
+                    "mime_type": artifact_meta.mime_type,
+                    "size_bytes": artifact_meta.size_bytes,
+                    "timestamp_utc": datetime.now(timezone.utc).timestamp(),
+                    "source": "sandbox_tool",
+                }
+                metadata_bytes = json.dumps(metadata_dict, indent=2).encode("utf-8")
+                metadata_filename = f"{artifact_meta.filename}{METADATA_SUFFIX}"
+
+                await artifact_service.save_artifact(
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=metadata_filename,
+                    artifact=genai_types.Part.from_bytes(
+                        data=metadata_bytes, mime_type="application/json"
+                    ),
+                )
+
+                # Register in artifact_delta so after_tool callbacks
+                # (metadata injection, artifact tracking) work correctly.
+                if (
+                    hasattr(tool_context, "actions")
+                    and hasattr(tool_context.actions, "artifact_delta")
+                ):
+                    tool_context.actions.artifact_delta[
+                        artifact_meta.filename
+                    ] = artifact_meta.version
+
+                # Publish artifact saved notification for the UI
+                try:
+                    a2a_context = tool_context.state.get("a2a_context")
+                    if a2a_context and self._component:
+                        artifact_info = ArtifactInfo(
+                            filename=artifact_meta.filename,
+                            version=artifact_meta.version,
+                            mime_type=artifact_meta.mime_type,
+                            size=artifact_meta.size_bytes,
+                        )
+                        function_call_id = (
+                            tool_context.state.get("function_call_id")
+                            or getattr(tool_context, "function_call_id", None)
+                        )
+                        await self._component.notify_artifact_saved(
+                            artifact_info=artifact_info,
+                            a2a_context=a2a_context,
+                            function_call_id=function_call_id,
+                        )
+                except Exception as notify_err:
+                    log.warning(
+                        "%s Failed to publish artifact notification for %s: %s",
+                        log_id,
+                        artifact_meta.filename,
+                        notify_err,
+                    )
+
+                log.info(
+                    "%s Registered sandbox artifact: %s (v%d, %d bytes)",
+                    log_id,
+                    artifact_meta.filename,
+                    artifact_meta.version,
+                    artifact_meta.size_bytes,
+                )
+
+            except Exception as e:
+                log.error(
+                    "%s Failed to register sandbox artifact %s: %s",
+                    log_id,
+                    artifact_meta.filename,
+                    e,
+                    exc_info=True,
+                )
 
     def handle_response(self, correlation_id: str, payload: Dict[str, Any]) -> None:
         """

@@ -54,9 +54,10 @@ TOOL_RUNNER_MODULE = "solace_agent_mesh.sandbox.tool_runner"
 # Resource limits are enforced via resource.setrlimit() in preexec_fn.
 # Namespace isolation and filesystem mounts are handled in _build_bwrap_command().
 #
-# All profiles use --ro-bind / / (entire root filesystem read-only) as the base,
-# which avoids needing --proc or --dev mounts that require elevated privileges.
-# The container only needs CAP_SYS_ADMIN (not --privileged).
+# All profiles use --ro-bind / / as the base filesystem, then overlay --proc /proc
+# (fresh procfs for PID namespace isolation) and --dev /dev (minimal device nodes).
+# The container needs CAP_SYS_ADMIN and --security-opt label=disable (to allow
+# procfs mounts inside bwrap).
 SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
     "restrictive": {
         "rlimit_as_mb": 512,
@@ -215,17 +216,20 @@ class SandboxRunner:
         input_dir = work_dir / "input"
         artifact_paths: Dict[str, str] = {}
 
-        # Write preloaded artifacts
+        # Write preloaded artifacts (content is base64-encoded)
+        import base64
+
         for param_name, artifact in preloaded_artifacts.items():
             file_path = input_dir / artifact.filename
-            content = (
-                artifact.content.encode()
-                if isinstance(artifact.content, str)
-                else artifact.content
-            )
+            content = base64.b64decode(artifact.content)
             file_path.write_bytes(content)
             artifact_paths[param_name] = str(file_path)
-            log.debug("Wrote preloaded artifact: %s -> %s", param_name, file_path)
+            log.debug(
+                "Wrote preloaded artifact: %s -> %s (%d bytes)",
+                param_name,
+                file_path,
+                len(content),
+            )
 
         # Load referenced artifacts via artifact service
         if artifact_service and artifact_references:
@@ -266,11 +270,11 @@ class SandboxRunner:
         session_id: str,
     ) -> List[CreatedArtifact]:
         """
-        Collect artifacts created by the tool and save to artifact service.
+        Collect artifacts created by the tool and save to the shared artifact service.
 
         Args:
             work_dir: The work directory path
-            artifact_service: The artifact service for saving artifacts
+            artifact_service: The shared artifact service for saving artifacts
             app_name: App name for artifact scoping
             user_id: User ID for artifact scoping
             session_id: Session ID for artifact scoping
@@ -304,7 +308,6 @@ class SandboxRunner:
                         mime_type = "image/jpeg"
 
                     if artifact_service:
-                        # Import Part for creating artifact
                         from google.genai import types as genai_types
 
                         version = await artifact_service.save_artifact(
@@ -325,18 +328,16 @@ class SandboxRunner:
                                 size_bytes=len(content),
                             )
                         )
-                        log.debug(
-                            "Saved output artifact: %s (version=%s)", filename, version
+                        log.info(
+                            "Saved output artifact: %s (version=%d, %d bytes)",
+                            filename,
+                            version,
+                            len(content),
                         )
                     else:
-                        # No artifact service - just report the file
-                        created_artifacts.append(
-                            CreatedArtifact(
-                                filename=filename,
-                                version=0,
-                                mime_type=mime_type,
-                                size_bytes=len(content),
-                            )
+                        log.warning(
+                            "No artifact service configured — cannot save output artifact: %s",
+                            filename,
                         )
                 except Exception as e:
                     log.error("Failed to save output artifact %s: %s", file_path.name, e)
@@ -441,10 +442,19 @@ class SandboxRunner:
         """
         Build the bubblewrap command line.
 
-        Uses --ro-bind / / to bind the entire root filesystem read-only, then
-        overlays writable mounts for /tmp and the work directory. This avoids
-        needing --proc /proc or --dev /dev (which require elevated privileges
-        beyond CAP_SYS_ADMIN on most container runtimes).
+        Uses --ro-bind / / as the base filesystem, then overlays:
+        - --proc /proc  — fresh procfs scoped to the new PID namespace
+        - --dev /dev    — minimal device nodes (null, zero, urandom, etc.)
+        - --tmpfs /tmp  — writable temp directory
+        - --bind work_dir — writable work directory for tool I/O
+
+        The --proc /proc mount provides proper PID namespace isolation: the
+        sandboxed process can only see its own PIDs, cannot read environment
+        variables of container processes, and tools like ``ps`` work correctly.
+
+        The container must be started with:
+        - --cap-add=SYS_ADMIN (for user namespace creation)
+        - --security-opt label=disable (to allow procfs mounts)
 
         Module and function are resolved from the manifest entry (not from the
         request params), so the agent doesn't need to know implementation details.
@@ -494,10 +504,18 @@ class SandboxRunner:
         if profile.get("network_isolated"):
             cmd.append("--unshare-net")
 
-        # Base filesystem: bind entire root read-only.
-        # This provides /proc, /dev, /lib, /usr, /etc, etc. without needing
-        # --proc or --dev mounts that require elevated privileges.
+        # Base filesystem: bind entire root read-only, then overlay proc/dev.
+        # Order matters: --ro-bind / / first, then --proc and --dev overlay
+        # the bind-mounted /proc and /dev with fresh isolated mounts.
         cmd.extend(["--ro-bind", "/", "/"])
+
+        # Fresh procfs scoped to new PID namespace — sandboxed process can only
+        # see its own PIDs and cannot read /proc/<pid>/environ of other processes.
+        # Requires --security-opt label=disable on the container.
+        cmd.extend(["--proc", "/proc"])
+
+        # Minimal /dev with only essential device nodes
+        cmd.extend(["--dev", "/dev"])
 
         # Writable overlays
         cmd.extend(["--tmpfs", "/tmp"])
@@ -509,15 +527,25 @@ class SandboxRunner:
         # Working directory inside the sandbox
         cmd.extend(["--chdir", str(work_dir)])
 
-        # Environment variables
-        if not profile.get("keep_env"):
-            cmd.append("--clearenv")
-            cmd.extend(["--setenv", "PATH", "/usr/bin:/usr/local/bin"])
-            cmd.extend(["--setenv", "HOME", "/sandbox"])
-            cmd.extend(["--setenv", "TMPDIR", "/tmp"])
-            cmd.extend(["--setenv", "LANG", "C.UTF-8"])
-
+        # Environment variables — bwrap always uses --clearenv + explicit --setenv
+        # to prevent any env vars from leaking into the sandbox. The bwrap process
+        # itself is also started with a minimal env (see execute_tool) so that
+        # /proc/1/environ inside the PID namespace doesn't expose secrets.
+        cmd.append("--clearenv")
+        cmd.extend(["--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin"])
+        cmd.extend(["--setenv", "HOME", "/tmp"])
+        cmd.extend(["--setenv", "TMPDIR", "/tmp"])
+        cmd.extend(["--setenv", "LANG", "C.UTF-8"])
         cmd.extend(["--setenv", "PYTHONPATH", tools_python_dir])
+
+        if profile.get("keep_env"):
+            # For standard/permissive profiles, forward specific safe env vars
+            # that the tool may need (e.g., API keys set via tool_config).
+            # Note: container secrets like SOLACE_PASSWORD are NOT forwarded.
+            for key in ("PYTHONDONTWRITEBYTECODE", "PYTHONUNBUFFERED"):
+                val = os.environ.get(key)
+                if val:
+                    cmd.extend(["--setenv", key, val])
 
         # Separator and Python command
         cmd.append("--")
@@ -603,12 +631,19 @@ class SandboxRunner:
                 )
                 log.debug("%s Running command: %s", log_id, " ".join(cmd))
 
-                # Run bwrap subprocess with resource limits applied via preexec_fn
+                # Run bwrap subprocess with resource limits applied via preexec_fn.
+                # Pass a minimal env so that /proc/1/environ inside the PID
+                # namespace (which is bwrap's own process) doesn't expose
+                # container secrets like SOLACE_PASSWORD.
+                bwrap_env = {
+                    "PATH": "/usr/local/bin:/usr/bin:/bin",
+                }
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=str(work_dir),
+                    env=bwrap_env,
                     preexec_fn=self._make_preexec_fn(profile),
                 )
 
@@ -699,7 +734,7 @@ class SandboxRunner:
                         },
                     )
 
-                # Collect output artifacts
+                # Collect output artifacts and save to shared artifact service
                 created_artifacts = await self._collect_output_artifacts(
                     work_dir=work_dir,
                     artifact_service=artifact_service,
