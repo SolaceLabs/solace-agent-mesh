@@ -24,11 +24,11 @@ export const DeleteProjectDialog = ({ isOpen, onClose, onConfirm, project, isPro
                 <>
                     {isProjectSharingEnabled ? (
                         <>
-                            Chat sessions in (<strong>{project.name}</strong>) will be permanently deleted for all users this project is shared with.
+                            Chat sessions and artifacts in (<strong>{project.name}</strong>) will be permanently deleted for all users this project is shared with.
                         </>
                     ) : (
                         <>
-                            All chat sessions inside this project (<strong>{project.name}</strong>) will be permanently deleted.
+                            All chat sessions and artifacts inside this project (<strong>{project.name}</strong>) will be permanently deleted.
                         </>
                     )}
                     <br />
