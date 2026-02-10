@@ -182,9 +182,6 @@ async def run_task_async(
         click.echo(click.style(f"Task ID: {task_id}", fg="blue"))
         click.echo()
 
-    # Update output directory with task ID if using default
-    if str(output_dir).endswith("-pending"):
-        output_dir = Path(str(output_dir).replace("-pending", f"-{task_id}"))
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize components
@@ -485,8 +482,8 @@ async def _run_task_main(
     for cf in config_files:
         _debug(f"  Config: {cf}")
 
-    # Create output directory (use pending suffix until we have task ID)
-    output_path = Path(output_dir) if output_dir else Path(f"/tmp/sam-task-run-pending")
+    # Create output directory with unique name to avoid collisions between concurrent runs
+    output_path = Path(output_dir) if output_dir else Path(f"/tmp/sam-task-run-{uuid.uuid4()}")
     output_path.mkdir(parents=True, exist_ok=True)
     log_file = output_path / "sam.log"
 

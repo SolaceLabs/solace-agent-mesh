@@ -4,7 +4,7 @@ SSE client using httpx for streaming Server-Sent Events.
 import asyncio
 import json
 import time
-from typing import AsyncGenerator, Dict, Any, Optional, Callable
+from typing import AsyncGenerator, Dict, Any, Optional
 from dataclasses import dataclass
 
 import click
@@ -58,10 +58,6 @@ class SSEClient:
         """
         url = f"{self.base_url}/api/v1/sse/subscribe/{task_id}"
 
-        # Add token as query parameter if provided
-        if self.token:
-            url = f"{url}?token={self.token}"
-
         self._debug(f"Connecting to SSE endpoint: {url}")
 
         # Use a longer timeout for the connection, but we'll handle read timeouts ourselves
@@ -72,11 +68,15 @@ class SSEClient:
             pool=30.0,
         )
 
+        headers = {}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+
         start_time = time.time()
 
         async with httpx.AsyncClient(timeout=client_timeout) as client:
             self._debug("Opening SSE stream...")
-            async with client.stream("GET", url) as response:
+            async with client.stream("GET", url, headers=headers) as response:
                 self._debug(f"SSE connection established, status: {response.status_code}")
                 response.raise_for_status()
 

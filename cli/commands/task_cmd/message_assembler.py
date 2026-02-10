@@ -172,7 +172,7 @@ class MessageAssembler:
                     self._error_message = part.get("text")
                     return f"\nTask failed: {self._error_message}"
 
-            self._error_message = status.get("message", {}).get("parts", [{}])[0].get("text", "Unknown error")
+            self._error_message = "Unknown error"
             return f"\nTask failed: {self._error_message}"
 
         return None
