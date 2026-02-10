@@ -83,3 +83,10 @@ class BaseProxyAppConfig(SamConfigBase):
         gt=0,
         description="Default timeout in seconds for requests to downstream agents.",
     )
+    stream_batching_threshold_bytes: int = Field(
+        default=0,
+        ge=0,
+        description="Default batching threshold for streaming responses. 0 disables batching. "
+        "When enabled, text chunks from remote agents are buffered until the threshold is met, "
+        "reducing the number of status update events published.",
+    )

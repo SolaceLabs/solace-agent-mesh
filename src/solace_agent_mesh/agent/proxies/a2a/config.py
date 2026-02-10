@@ -240,6 +240,12 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         description="Display name for this agent shown in UI. If not provided, uses fetched card's name. "
                     "Stored in agent card's display-name extension (https://solace.com/a2a/extensions/display-name).",
     )
+    stream_batching_threshold_bytes: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Override batching threshold for this agent's streaming responses. "
+        "If not set, uses the proxy-level default. 0 disables batching.",
+    )
 
     @model_validator(mode="after")
     def validate_auth_configuration(self) -> "A2AProxiedAgentConfig":
