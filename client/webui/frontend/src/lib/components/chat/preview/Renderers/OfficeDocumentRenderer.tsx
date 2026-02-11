@@ -21,15 +21,84 @@ interface ConversionResponse {
     error: string | null;
 }
 
-// Cache for converted PDFs to avoid re-converting on tab switches
+// LRU Cache for converted PDFs to avoid re-converting on tab switches
 // Key: hash of content + filename, Value: PDF data URL
-const pdfConversionCache = new Map<string, string>();
+// Limited to prevent unbounded memory growth
+const PDF_CACHE_MAX_ENTRIES = 10;
 
-// Simple hash function for cache key
+interface CacheEntry {
+    value: string;
+    lastAccessed: number;
+}
+
+class LRUCache {
+    private cache = new Map<string, CacheEntry>();
+    private maxSize: number;
+
+    constructor(maxSize: number) {
+        this.maxSize = maxSize;
+    }
+
+    get(key: string): string | undefined {
+        const entry = this.cache.get(key);
+        if (entry) {
+            // Update last accessed time
+            entry.lastAccessed = Date.now();
+            return entry.value;
+        }
+        return undefined;
+    }
+
+    set(key: string, value: string): void {
+        // If we're at capacity, remove least recently used
+        if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
+            let oldestKey: string | null = null;
+            let oldestTime = Infinity;
+
+            for (const [k, v] of this.cache.entries()) {
+                if (v.lastAccessed < oldestTime) {
+                    oldestTime = v.lastAccessed;
+                    oldestKey = k;
+                }
+            }
+
+            if (oldestKey) {
+                console.log("[OfficeDocumentRenderer] Evicting LRU cache entry to make room for new entry");
+                this.cache.delete(oldestKey);
+            }
+        }
+
+        this.cache.set(key, { value, lastAccessed: Date.now() });
+    }
+
+    has(key: string): boolean {
+        return this.cache.has(key);
+    }
+
+    size(): number {
+        return this.cache.size;
+    }
+}
+
+const pdfConversionCache = new LRUCache(PDF_CACHE_MAX_ENTRIES);
+
+// Improved hash function for cache key using djb2 algorithm
+// Uses more content and includes a proper hash to reduce collision risk
 const hashContent = (content: string, filename: string): string => {
-    // Use first 100 chars + length + filename for a quick hash
-    const sample = content.substring(0, 100);
-    return `${filename}:${content.length}:${sample}`;
+    // Use djb2 hash algorithm on content sample
+    const sampleSize = Math.min(content.length, 1000); // Use up to 1000 chars
+    const sample = content.substring(0, sampleSize);
+
+    let hash = 5381;
+    for (let i = 0; i < sample.length; i++) {
+        hash = (hash * 33) ^ sample.charCodeAt(i);
+    }
+
+    // Convert to unsigned 32-bit integer and then to base36 string
+    const hashStr = (hash >>> 0).toString(36);
+
+    // Include filename, content length, and hash for uniqueness
+    return `${filename}:${content.length}:${hashStr}`;
 };
 
 /**

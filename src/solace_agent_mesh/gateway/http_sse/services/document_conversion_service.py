@@ -16,6 +16,9 @@ from typing import Optional
 
 log = logging.getLogger(__name__)
 
+# Default maximum file size for conversion (50MB)
+DEFAULT_MAX_CONVERSION_SIZE_BYTES = 50 * 1024 * 1024
+
 
 class DocumentConversionService:
     """Service for converting documents to PDF using LibreOffice."""
@@ -33,15 +36,22 @@ class DocumentConversionService:
         "ods": "application/vnd.oasis.opendocument.spreadsheet",
     }
 
-    def __init__(self, libreoffice_path: Optional[str] = None, timeout_seconds: int = 60):
+    def __init__(
+        self,
+        libreoffice_path: Optional[str] = None,
+        timeout_seconds: int = 60,
+        max_file_size_bytes: int = DEFAULT_MAX_CONVERSION_SIZE_BYTES,
+    ):
         """
         Initialize the document conversion service.
 
         Args:
             libreoffice_path: Path to LibreOffice executable. If None, will search common locations.
             timeout_seconds: Maximum time to wait for conversion (default: 60 seconds)
+            max_file_size_bytes: Maximum file size allowed for conversion (default: 50MB)
         """
         self.timeout_seconds = timeout_seconds
+        self.max_file_size_bytes = max_file_size_bytes
         self.libreoffice_path = libreoffice_path or self._find_libreoffice()
         self._available = self.libreoffice_path is not None
 
@@ -128,6 +138,22 @@ class DocumentConversionService:
                 "Document conversion is not available. LibreOffice is not installed."
             )
 
+        # Check file size before processing
+        input_size = len(input_data)
+        if input_size > self.max_file_size_bytes:
+            max_mb = self.max_file_size_bytes / (1024 * 1024)
+            actual_mb = input_size / (1024 * 1024)
+            log.warning(
+                "Document conversion rejected: file too large (%s is %.1fMB, max is %.1fMB)",
+                input_filename,
+                actual_mb,
+                max_mb,
+            )
+            raise ValueError(
+                f"File too large for conversion. Maximum size is {max_mb:.0f}MB, "
+                f"but file is {actual_mb:.1f}MB."
+            )
+
         ext = Path(input_filename).suffix.lower().lstrip(".")
         if ext not in self.SUPPORTED_FORMATS:
             raise ValueError(
@@ -182,6 +208,11 @@ class DocumentConversionService:
                         timeout=self.timeout_seconds,
                     )
                 except asyncio.TimeoutError:
+                    log.error(
+                        "Document conversion timed out for %s after %d seconds",
+                        input_filename,
+                        self.timeout_seconds,
+                    )
                     process.kill()
                     await process.wait()
                     raise RuntimeError(
@@ -277,6 +308,7 @@ _conversion_service: Optional[DocumentConversionService] = None
 def get_document_conversion_service(
     libreoffice_path: Optional[str] = None,
     timeout_seconds: int = 60,
+    max_file_size_bytes: int = DEFAULT_MAX_CONVERSION_SIZE_BYTES,
 ) -> DocumentConversionService:
     """
     Get or create the document conversion service singleton.
@@ -284,6 +316,7 @@ def get_document_conversion_service(
     Args:
         libreoffice_path: Optional path to LibreOffice executable
         timeout_seconds: Conversion timeout in seconds
+        max_file_size_bytes: Maximum file size allowed for conversion (default: 50MB)
 
     Returns:
         DocumentConversionService instance
@@ -293,5 +326,6 @@ def get_document_conversion_service(
         _conversion_service = DocumentConversionService(
             libreoffice_path=libreoffice_path,
             timeout_seconds=timeout_seconds,
+            max_file_size_bytes=max_file_size_bytes,
         )
     return _conversion_service
