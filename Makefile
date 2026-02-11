@@ -82,7 +82,7 @@ test-eval: test-eval-local
 # Run local evaluation tests
 test-eval-local: eval-setup
 	@echo "Running local evaluation tests..."
-	@echo "Note: Ensure environment variables are set in .env file:"
+	@echo "Note: Ensure environment variables are set on your local system:"
 	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
 	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
@@ -91,7 +91,7 @@ test-eval-local: eval-setup
 # Run workflow evaluation tests
 test-eval-workflow: eval-setup
 	@echo "Running workflow evaluation tests..."
-	@echo "Note: Ensure environment variables are set in .env file:"
+	@echo "Note: Ensure environment variables are set on your local system:"
 	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
 	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
@@ -100,7 +100,7 @@ test-eval-workflow: eval-setup
 # Run remote evaluation tests
 test-eval-remote: eval-setup
 	@echo "Running remote evaluation tests..."
-	@echo "Note: Ensure environment variables are set in .env file:"
+	@echo "Note: Ensure environment variables are set on your local system:"
 	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
 	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
