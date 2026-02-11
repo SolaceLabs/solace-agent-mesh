@@ -67,9 +67,9 @@ The second step configures how the agent appears in your mesh and how task invoc
 
 #### Agent Display Name
 
-If the external agent has an agent card, the wizard displays the external agent's name as read-only. You can customize the name that appears in your Agent Mesh deployment by clicking the Customize button and entering a different display name. The display name must be unique within your deployment.
+If the external agent has an agent card, the wizard displays the external agent's name as read-only. You can customize the name that appears in your Agent Mesh deployment by clicking the Customize button and entering a different display name. Unique names make it easier for others in your organization to find the correct agent.
 
-If you selected "No Agent Card" in the previous step, you enter the agent's name and description manually. The name you provide becomes the identifier that other agents use when delegating tasks.
+If you selected "No Agent Card" in the previous step, you enter the agent's name and description manually. The name you provide becomes the identifier that other agents use when delegating tasks. Unique names are recommended for the same reason.
 
 #### Skills and Communication Modes
 
