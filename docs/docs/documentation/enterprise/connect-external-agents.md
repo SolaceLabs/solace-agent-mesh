@@ -107,8 +107,6 @@ If you need to make changes, use the Back button to return to previous steps. Wh
 
 After you connect an external agent, it appears in the Inactive tab of the Agents page with Not Deployed status. You must deploy the agent before other agents can discover and use it. The deployment and management workflow for external agents follows the same patterns as agents created through Agent Builder. For detailed information about deployment states, managing deployed agents, and downloading configurations, see the [Deploying and Managing Agents](agent-builder.md#deploying-and-managing-agents) section in Agent Builder.
 
-You can edit an external agent's configuration at any time by clicking the Edit button on the agent's tile. When you edit authentication credentials, the existing secret values are not displayed for security reasons. If you leave a credential field empty, the system preserves the existing credential.
-
 ### Status for Agents Without Agent Cards
 
 External agents that have an agent card publish periodic heartbeats that allow the system to track their liveness. When deployed, these agents appear in the Active tab with standard status indicators.
