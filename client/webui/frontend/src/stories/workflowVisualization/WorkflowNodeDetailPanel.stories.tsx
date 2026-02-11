@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen } from "storybook/test";
+import { expect, screen, within } from "storybook/test";
 import WorkflowNodeDetailPanel from "@/lib/components/workflowVisualization/WorkflowNodeDetailPanel";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
@@ -110,17 +110,19 @@ export const MapNode: Story = {
         workflowConfig: null,
         agents: [],
     },
-    play: async () => {
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
         // Verify node ID appears in the panel
-        const processItemsElements = screen.getAllByText("process_items");
+        const processItemsElements = canvas.getAllByText("process_items");
         expect(processItemsElements.length).toBeGreaterThanOrEqual(2);
 
         // Verify description for map nodes is rendered
-        expect(screen.getByText("Executes a node for each item in a collection. Items are processed in parallel by default.")).toBeInTheDocument();
+        expect(canvas.getByText("Executes a node for each item in a collection. Items are processed in parallel by default.")).toBeInTheDocument();
 
         // Verify items property is rendered
-        expect(screen.getByText("Items")).toBeInTheDocument();
-        expect(screen.getByText("{{input.items}}")).toBeInTheDocument();
+        expect(canvas.getByText("Items")).toBeInTheDocument();
+        expect(canvas.getByText("{{input.items}}")).toBeInTheDocument();
     },
 };
 
@@ -130,15 +132,17 @@ export const SwitchNode: Story = {
         workflowConfig: null,
         agents: [],
     },
-    play: async () => {
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
         // Verify node ID appears in the panel
-        const routeRequestElements = screen.getAllByText("route_request");
+        const routeRequestElements = canvas.getAllByText("route_request");
         expect(routeRequestElements.length).toBeGreaterThanOrEqual(2);
 
         // Verify description for switch nodes is rendered
-        expect(screen.getByText("Routes execution based on conditions. Cases are evaluated in order; the first match wins.")).toBeInTheDocument();
+        expect(canvas.getByText("Routes execution based on conditions. Cases are evaluated in order; the first match wins.")).toBeInTheDocument();
 
         // Verify cases are rendered
-        expect(screen.getByText("Cases")).toBeInTheDocument();
+        expect(canvas.getByText("Cases")).toBeInTheDocument();
     },
 };
