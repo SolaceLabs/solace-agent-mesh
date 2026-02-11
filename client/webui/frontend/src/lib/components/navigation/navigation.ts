@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText, FileStack } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText, FileBox } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -33,11 +33,12 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             icon: FolderOpen,
         });
 
-        // Add artifacts (available when projects is enabled)
+        // Add assets (available when projects is enabled)
         items.push({
             id: "artifacts",
             label: "Artifacts",
-            icon: FileStack,
+            icon: FileBox,
+            badge: "EXPERIMENTAL",
         });
     }
 
