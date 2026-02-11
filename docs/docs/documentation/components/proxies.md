@@ -13,6 +13,10 @@ A single proxy instance can manage multiple external agents, each with its own U
 Proxies are protocol bridges that connect multiple external A2A-over-HTTPS agents to the Solace event mesh, enabling hybrid agent architectures.
 :::
 
+:::info[Agent Mesh Enterprise]
+If you are using Agent Mesh Enterprise, you can connect external agents through a guided wizard interface instead of writing YAML configuration files. For more information, see [Connect External Agents](../enterprise/connect-external-agents.md).
+:::
+
 ## Key Functions
 
 1. **Protocol Translation**: Proxies translate between A2A over HTTPS and A2A over Solace event mesh, enabling external agents to communicate with agents on the mesh without modification.
