@@ -129,30 +129,6 @@ FROM python:3.13.11-slim-trixie AS runtime
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
-<<<<<<< HEAD
-# Copy Node.js 25 from the official node image
-COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
-COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
-COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
-
-# Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
-# LibreOffice is installed for document conversion (DOCX/PPTX to PDF for preview)
-# Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
-RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
-    printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ffmpeg=7:7.1.3-0+deb13u1 \
-    git \
-    libatomic1 \
-    libreoffice-writer-nogui \
-    libreoffice-impress-nogui \
-    libreoffice-calc-nogui \
-    libtasn1-6/unstable \
-    libssl3t64=3.5.4-1~deb13u2 \
-    openssl=3.5.4-1~deb13u2 && \
-=======
 # Build argument to control LibreOffice installation for binary artifact preview
 # LibreOffice is NOT installed by default to keep image size smaller
 # To enable binary artifact preview (DOCX/PPTX), set:
@@ -165,12 +141,25 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
 # Source code: https://www.libreoffice.org/download/source-code/
 ARG INSTALL_LIBREOFFICE
 
-# Install minimal runtime dependencies (no uv for licensing compliance)
+# Copy Node.js 25 from the official node image
+COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+# Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
 # LibreOffice is optionally installed for document conversion (DOCX/PPTX to PDF for preview)
-RUN apt-get update && \
+# Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
+RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
+    printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     ffmpeg=7:7.1.3-0+deb13u1 \
-    git && \
+    git \
+    libatomic1 \
+    libtasn1-6/unstable \
+    libssl3t64=3.5.4-1~deb13u2 \
+    openssl=3.5.4-1~deb13u2 && \
     if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
         echo "============================================================" && \
         echo "NOTICE: Installing LibreOffice - a separate open-source application" && \
@@ -186,9 +175,6 @@ RUN apt-get update && \
     else \
         echo "Skipping LibreOffice installation (set INSTALL_LIBREOFFICE=true to enable binary artifact preview)"; \
     fi && \
-    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
->>>>>>> a75a95774 (fix: add feature flag and default to false)
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1
 
