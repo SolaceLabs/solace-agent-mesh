@@ -5,7 +5,7 @@ sidebar_position: 17
 
 # MCP Gateway
 
-This tutorial walks you through setting up the MCP Gateway, which exposes Solace Agent Mesh agents as a Model Context Protocol (MCP) server. This allows any MCP-compatible client (such as Claude Desktop, MCP Inspector, or custom applications) to interact with Solace Agent Mesh agents through a standardized interface.
+This tutorial walks you through setting up the MCP Gateway, which exposes Solace Agent Mesh agents as a Model Context Protocol (MCP) server. This allows MCP-compatible client (such as Claude Desktop, MCP Inspector, or custom applications) to interact with Solace Agent Mesh agents through a standardized interface.
 
 :::info[Learn about gateways]
 Read about [Gateways](../../components/gateways.md) before you start this tutorial.
@@ -14,11 +14,11 @@ Read about [Gateways](../../components/gateways.md) before you start this tutori
 ## Overview
 
 The MCP Gateway adapter:
-- **Dynamically discovers agents** from the Solace Agent Mesh agent registry
-- **Creates MCP tools automatically** based on agent skills
-- **Streams responses** in real-time back to MCP clients
-- **Handles files intelligently** by returning inline content or resource links based on size
-- **Maintains session isolation** ensuring secure multi-client access
+- Dynamically discovers agents from the Solace Agent Mesh agent registry
+- Creates MCP tools automatically based on agent skills
+- Streams responses in real-time back to MCP clients
+- Handles files intelligently by returning inline content or resource links based on size
+- Maintains session isolation ensuring secure multi-client access
 
 ## Setting Up the Environment
 
@@ -35,8 +35,8 @@ sam plugin add my-mcp-gateway --plugin sam-mcp-server-gateway-adapter
 You can use any name for your gateway. In this tutorial we use `my-mcp-gateway`.
 
 This command:
-1. Installs the `sam-mcp-server-gateway-adapter` plugin
-2. Creates a new gateway configuration named `my-mcp-gateway` in your `configs/gateways/` directory
+1. Installs the `sam-mcp-server-gateway-adapter` plugin.
+2. Creates a gateway configuration named `my-mcp-gateway` in your `configs/gateways/` directory.
 
 ## Configuration
 
@@ -179,9 +179,9 @@ sam run configs/gateways/my-mcp-gateway.yaml
 ```
 
 The gateway starts and automatically:
-1. Queries the agent registry for available agents
-2. Creates MCP tools for each agent skill
-3. Starts listening for MCP client connections
+1. Queries the agent registry for available agents.
+2. Creates MCP tools for each agent skill.
+3. Starts listening for MCP client connections.
 
 ## Connecting MCP Clients
 
@@ -335,23 +335,25 @@ When a tool response includes both text and files, the MCP gateway returns a lis
 
 ## Troubleshooting
 
-### No tools appearing in MCP client
+### Issue: No tools appearing in MCP client
+#### Possible Solutions:
 
-- Check that agents are registered in the agent registry
-- Verify agents have skills defined in their AgentCard
-- Check gateway logs for tool registration messages
-- Review tool filter configuration if using `include_tools` or `exclude_tools`
+- Check that agents are registered in the agent registry.
+- Verify agents have skills defined in their AgentCard.
+- Check gateway logs for tool registration messages.
+- Review tool filter configuration if using `include_tools` or `exclude_tools`.
 - If authentication is enabled, ensure RBAC permissions are set correctly.
 
-### Connection refused
+### Issue: Connection refused
+#### Possible Solutions:
 
-- Verify the MCP server is running (check logs)
-- Ensure the configured port is not in use
-- Check firewall settings (for HTTP transport)
+- Verify the MCP server is running (check logs).
+- Ensure the configured port is not in use.
+- Check firewall settings (for HTTP transport).
 
+### Issue: Files not appearing or timing out
+#### Possible Solutions:
 
-### Files not appearing or timing out
-
-- Check file size thresholds in configuration
-- Verify artifact service is configured correctly
-- Review session management in logs
+- Check file size thresholds in configuration.
+- Verify artifact service is configured correctly.
+- Review session management in logs.

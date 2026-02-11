@@ -55,59 +55,228 @@ To run the REST Gateway, use the following command:
 sam run configs/gateways/my-http-rest.yaml
 ```
 
-## Sending a Request via REST API
+## REST API Reference
 
-You can also interact with Agent Mesh via the **REST API**.
+This section provides detailed curl commands for interacting with the Solace Agent Mesh v2 REST API.
 
-The REST API gateway runs on `http://localhost:8080` by default. You can use either the legacy v1 API or the modern async v2 API.
+### Setup
 
-### Modern API (v2) - Asynchronous
+Set the required environment variables:
+
 ```sh
-# Submit task
-curl --location 'http://localhost:8080/api/v2/tasks' \
---header 'Authorization: Bearer token' \
---form 'agent_name="OrchestratorAgent"' \
---form 'prompt="Hi\!"'
-
-# Poll for result using returned task ID
-curl --location 'http://localhost:8080/api/v2/tasks/{taskId}' \
---header 'Authorization: Bearer token'
+export SAM_TOKEN="your-access-token"
+export SAM_HOST="http://localhost:8000"  # adjust for your environment
 ```
+
+:::note[Getting Your Access Token]
+You can retrieve your access token from the WebUI gateway by opening the browser developer console and entering:
+
+```javascript
+console.log(window.localStorage.access_token)
+```
+
+Copy the displayed token and use it as your `SAM_TOKEN` value.
+:::
+
+### API Operations
+
+#### 1. Create Task
+
+Create a new task with a prompt.
+
+```sh
+curl -s -X POST "${SAM_HOST}/api/v2/tasks" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -F "agent_name=OrchestratorAgent" \
+    -F "prompt=Hi!"
+```
+
+**Parameters:**
+- `agent_name` - The agent to handle the task (e.g., OrchestratorAgent)
+- `prompt` - The task prompt/question
+
+**Response:**
+
+```json
+{
+  "taskId": "abc123-def456",
+  ...
+}
+```
+
+#### 2. Create Task with Artifact Generation
+
+Create a task that generates an artifact (file).
+
+```sh
+curl -s -X POST "${SAM_HOST}/api/v2/tasks" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -F "agent_name=OrchestratorAgent" \
+    -F "prompt=Create a csv file with 10 mock employees. Make sure to provide the created artifact."
+```
+
+#### 3. Create Task with File Input
+
+Create a task with a file attachment.
+
+```sh
+curl -s -X POST "${SAM_HOST}/api/v2/tasks" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -F "agent_name=OrchestratorAgent" \
+    -F "prompt=Give a summary of the attached file" \
+    -F "files=@/path/to/your/file.pdf"
+```
+
+**Parameters:**
+- `files` - File attachment (use @ prefix for file path)
+
+#### 4. Poll Task Status
+
+Poll the status of a task until completion.
+
+```sh
+curl -s -X GET "${SAM_HOST}/api/v2/tasks/${TASK_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}"
+```
+
+**Response includes:**
+- `taskId` - The task identifier
+- `contextId` - Context ID (use this value for the `session_id` parameter in artifact operations)
+- `status` - Task status (e.g., `completed`, `in_progress`)
 
 :::warning
 It might take a while for the system to respond. See the [observability](../../deploying/observability.md) page for more information about monitoring the system while it processes the request.
 :::
 
-Sample output:
+#### 5. List Artifacts
 
-From `api/v2/tasks`
+List all artifacts for a context.
+
+```sh
+curl -s -X GET "${SAM_HOST}/api/v2/artifacts/?session_id=${CONTEXT_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}"
+```
+
+:::info
+The query parameter is `session_id`, but the value comes from `contextId` in the poll response.
+:::
+
+**Response:**
+
+```json
+[
+  {
+    "filename": "employees.csv",
+    ...
+  }
+]
+```
+
+#### 6. Get Artifact
+
+Download a specific artifact and save to a file.
+
+```sh
+# Save to file (works for binary files like images)
+curl -s -X GET "${SAM_HOST}/api/v2/artifacts/${FILENAME}?session_id=${CONTEXT_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -o "${FILENAME}"
+```
+
+**Examples:**
+
+```sh
+# Download a CSV file
+curl -s -X GET "${SAM_HOST}/api/v2/artifacts/report.csv?session_id=${CONTEXT_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -o "report.csv"
+
+# Download a PNG image
+curl -s -X GET "${SAM_HOST}/api/v2/artifacts/chart.png?session_id=${CONTEXT_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -o "chart.png"
+
+# Output text file to stdout (for piping)
+curl -s -X GET "${SAM_HOST}/api/v2/artifacts/data.json?session_id=${CONTEXT_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}"
+```
+
+#### 7. Refresh Token
+
+Refresh an access token.
+
+```sh
+curl -s -X POST "${SAM_HOST}/refresh_token" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "provider": "azure",
+        "refresh_token": "your-refresh-token"
+    }'
+```
+
+**Response:**
+
 ```json
 {
-  "taskId":"task-6a0e682f4f6c4927a5997e4fd06eea83"
+  "access_token": "new-access-token",
+  "refresh_token": "new-refresh-token"
 }
 ```
 
-From `api/v2/tasks/{taskId}`
+### Typical Workflow
 
-```json
-{
-  "id": "task-6a0e682f4f6c4927a5997e4fd06eea83",
-  "sessionId": "rest-session-4df0c24fcecc45fcb69692db9876bc5c",
-  "status": {
-    "state": "completed",
-    "message": {
-      "role": "agent",
-      "parts": [{ "type": "text", "text": "Outdoor Activities in London: Spring Edition. Today's Perfect Activities (13°C, Light Cloud): - Royal Parks Exploration : Hyde Park and Kensington Gardens..." }]
-    },
-    "timestamp": "2025-07-03T16:54:15.273085"
-  },
-  "artifacts": [],
-  "metadata": { "agent_name": "OrchestratorAgent" }
-}
+```sh
+# 1. Set your token
+export SAM_TOKEN="your-token"
+export SAM_HOST="http://localhost:8000"
+
+# 2. Create a task
+RESPONSE=$(curl -s -X POST "${SAM_HOST}/api/v2/tasks" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -F "agent_name=OrchestratorAgent" \
+    -F "prompt=Create a CSV with 5 products")
+
+TASK_ID=$(echo $RESPONSE | jq -r '.taskId')
+echo "Task ID: $TASK_ID"
+
+# 3. Poll until complete
+POLL_RESPONSE=$(curl -s -X GET "${SAM_HOST}/api/v2/tasks/${TASK_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}")
+
+echo $POLL_RESPONSE | jq .
+
+# 4. Get context ID from poll response, then list artifacts
+CONTEXT_ID=$(echo $POLL_RESPONSE | jq -r '.contextId')
+
+curl -s -X GET "${SAM_HOST}/api/v2/artifacts/?session_id=${CONTEXT_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" | jq .
+
+# 5. Download artifact
+FILENAME="products.csv"
+curl -s -X GET "${SAM_HOST}/api/v2/artifacts/${FILENAME}?session_id=${CONTEXT_ID}" \
+    -H "Authorization: Bearer ${SAM_TOKEN}" \
+    -o "${FILENAME}"
+
+echo "Saved to: ${FILENAME}"
 ```
 
+### API Endpoints Summary
 
-### Legacy API (v1) - Synchronous
+| Operation | Method | Endpoint |
+|-----------|--------|----------|
+| Create Task | POST | `/api/v2/tasks` |
+| Poll Task | GET | `/api/v2/tasks/{taskId}` |
+| List Artifacts | GET | `/api/v2/artifacts/?session_id={contextId}` |
+| Get Artifact | GET | `/api/v2/artifacts/{filename}?session_id={contextId}` |
+| Refresh Token | POST | `/refresh_token` |
+
+## Legacy API (v1) - Synchronous
+
+:::warning[Deprecated]
+The v1 API is deprecated. Please use the v2 API for new integrations.
+:::
+
 ```sh
 curl --location 'http://localhost:8080/api/v1/invoke' \
 --header 'Authorization: Bearer None' \
@@ -116,7 +285,7 @@ curl --location 'http://localhost:8080/api/v1/invoke' \
 --form 'stream="false"'
 ```
 
-Sample output:
+**Sample output:**
 
 ```json
 {
