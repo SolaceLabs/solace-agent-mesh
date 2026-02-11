@@ -657,14 +657,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const agentMessagesFromChatTasks = taskMessages.filter(m => !m.isUser);
                     const userMessages = taskMessages.filter(m => m.isUser);
 
+                    // Check if any agent messages have artifact parts with "in-progress" status
+                    // This indicates the artifact was being created when the user switched away
+                    // and the buffer may contain completion events we need to replay
+                    const hasIncompleteArtifacts = agentMessagesFromChatTasks.some(msg => msg.parts?.some(part => part.kind === "artifact" && (part as ArtifactPart).status === "in-progress"));
+
                     // IMPORTANT: If chat_tasks already has agent messages, PREFER them over buffer replay.
                     // The buffer should only be used when:
                     // 1. There are no agent messages saved yet (task was running when user switched away)
                     // 2. Buffer replay is needed for incomplete saves
+                    // 3. There are incomplete artifacts that need status updates from buffered events
                     // This prevents issues with complex parsing of SSE events.
-                    if (bufferedData && agentMessagesFromChatTasks.length === 0) {
-                        // Task has buffered events AND no saved agent response yet - need replay
-                        console.debug(`[loadSessionTasks] Task ${task.taskId} has buffered events and no saved agent response, will replay through handleSseMessage`);
+                    const needsBufferReplay = bufferedData && (agentMessagesFromChatTasks.length === 0 || hasIncompleteArtifacts);
+
+                    if (needsBufferReplay) {
+                        // Task has buffered events AND either no saved agent response OR incomplete artifacts - need replay
+                        const reason = agentMessagesFromChatTasks.length === 0 ? "no saved agent response" : "incomplete artifacts";
+                        console.debug(`[loadSessionTasks] Task ${task.taskId} has buffered events and ${reason}, will replay through handleSseMessage`);
                         // Add user messages first
                         finalMessages.push(...userMessages);
                         // Store for replay after we set initial messages
@@ -672,10 +681,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         // Mark this task for save and cleanup (will update session modified date)
                         tasksNeedingSaveAndCleanup.push(task.taskId);
                     } else {
-                        // Either no buffered events OR chat_tasks already has the agent response
+                        // Either no buffered events OR chat_tasks already has the agent response with complete artifacts
                         // Use the saved data from chat_tasks (it has correct ordering)
                         if (bufferedData && agentMessagesFromChatTasks.length > 0) {
-                            console.debug(`[loadSessionTasks] Task ${task.taskId} has buffered events but also has ${agentMessagesFromChatTasks.length} saved agent messages - preferring chat_tasks data, scheduling buffer cleanup only`);
+                            console.debug(
+                                `[loadSessionTasks] Task ${task.taskId} has buffered events but also has ${agentMessagesFromChatTasks.length} saved agent messages with complete artifacts - preferring chat_tasks data, scheduling buffer cleanup only`
+                            );
                             // Chat task already exists - only clean up the buffer (don't re-save to avoid updating modified date)
                             tasksNeedingBufferCleanupOnly.push(task.taskId);
                         }
@@ -1498,33 +1509,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
                 }
 
-                return newMessages;
-            });
+                // Synchronously update messagesRef so other code reads correct state
+                messagesRef.current = newMessages;
 
-            // Finalization logic
-            if (isFinalEvent) {
-                if (isCancellingRef.current) {
-                    addNotification("Task cancelled.", "success");
-                    if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
-                    setIsCancelling(false);
-                }
+                // Save task on final event directly from inside this callback.
+                if (isFinalEvent && currentTaskIdFromResult && !isReplayingEventsRef.current) {
+                    const taskMessagesToSave = newMessages.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
+                    if (taskMessagesToSave.length > 0) {
+                        const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
+                        const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
 
-                // Save on final event - the save is idempotent (upsert) and will trigger buffer cleanup
-                // SKIP save during buffer replay because messagesRef won't have the updated messages yet
-                // (React state updates are async). The save will happen in loadSessionTasks after replay.
-                if (currentTaskIdFromResult && !isReplayingEventsRef.current) {
-                    const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
-                    const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
-
-                    // Use messagesRef to get the latest messages
-                    const taskMessages = messagesRef.current.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
-
-                    if (taskMessages.length > 0) {
                         // Serialize all message bubbles
-                        const messageBubbles = taskMessages.map(serializeMessageBubble);
+                        const messageBubbles = taskMessagesToSave.map(serializeMessageBubble);
 
                         // Extract user message text
-                        const userMessage = taskMessages.find(m => m.isUser);
+                        const userMessage = taskMessagesToSave.find(m => m.isUser);
                         const userMessageText =
                             userMessage?.parts
                                 ?.filter(p => p.kind === "text")
@@ -1532,12 +1531,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 .join("") || "";
 
                         // Determine task status
-                        const hasError = taskMessages.some(m => m.isError);
+                        const hasError = taskMessagesToSave.some(m => m.isError);
                         const taskStatus = hasError ? "error" : "completed";
 
                         const taskRagData = ragDataRef.current.filter(r => r.taskId === currentTaskIdFromResult);
 
-                        // Save complete task
+                        // Save complete task (async - fires fetch, returns Promise immediately)
                         saveTaskToBackend(
                             {
                                 task_id: currentTaskIdFromResult,
@@ -1547,7 +1546,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     schema_version: CURRENT_SCHEMA_VERSION,
                                     status: taskStatus,
                                     agent_name: selectedAgentName,
-                                    rag_data: taskRagData.length > 0 ? taskRagData : undefined, // Persist RAG data
+                                    rag_data: taskRagData.length > 0 ? taskRagData : undefined,
                                 },
                             },
                             taskSessionId
@@ -1567,21 +1566,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 // Handle session title based on feature flag
                                 if (taskSessionId && !sessionsWithAutoGeneratedTitles.current.has(taskSessionId)) {
                                     if (autoTitleGenerationEnabled) {
-                                        // Trigger automatic title generation for new sessions (if feature is enabled)
-                                        // Only trigger once per session (tracked by sessionsWithAutoGeneratedTitles ref)
-                                        // The generateTitle function will check the actual session name from the API
-                                        // and skip generation if the session already has a meaningful title
-                                        // Extract agent response text for title generation
-                                        const agentMessage = taskMessages.find(m => !m.isUser);
+                                        const agentMessage = taskMessagesToSave.find(m => !m.isUser);
                                         const agentResponseText =
                                             agentMessage?.parts
                                                 ?.filter(p => p.kind === "text")
                                                 .map(p => (p as TextPart).text)
                                                 .join("") || "";
 
-                                        // Pass messages directly - no database dependency, no delays needed
                                         if (userMessageText && agentResponseText) {
-                                            // Mark this session as having had AUTOMATIC title generation attempted
                                             sessionsWithAutoGeneratedTitles.current.add(taskSessionId);
                                             generateTitle(taskSessionId, userMessageText, agentResponseText).catch(error => {
                                                 console.error("[ChatProvider] Title generation failed:", error);
@@ -1592,18 +1584,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             })
                             .catch(error => {
                                 console.error(`[ChatProvider] Error saving task ${currentTaskIdFromResult}:`, error);
-                                // Still unregister background task even on save error
                                 if (isBackgroundTask) {
                                     unregisterBackgroundTask(currentTaskIdFromResult);
                                 }
                             });
-                    } else if (isBackgroundTask) {
+                    } else if (isTaskRunningInBackground(currentTaskIdFromResult)) {
                         // No messages but task was background - still unregister
                         unregisterBackgroundTask(currentTaskIdFromResult);
                         if (typeof window !== "undefined") {
                             window.dispatchEvent(new CustomEvent("new-chat-session"));
                         }
                     }
+                }
+
+                return newMessages;
+            });
+
+            // Finalization logic (non-save operations only — save is inside setMessages above)
+            if (isFinalEvent) {
+                if (isCancellingRef.current) {
+                    addNotification("Task cancelled.", "success");
+                    if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+                    setIsCancelling(false);
                 }
 
                 // Mark all in-progress artifacts as completed when task finishes

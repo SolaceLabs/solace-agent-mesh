@@ -3,6 +3,7 @@ import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { ProjectDetailView } from "@/lib";
 import { populatedProject, emptyProject } from "../data/projects";
+import { ownerWithAuthorization } from "../data/parameters";
 import { pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact } from "../data/artifactInfo";
 import type { Session } from "@/lib/types/fe";
 import { getMockAgentCards, mockAgentCards } from "../mocks/data";
@@ -108,14 +109,7 @@ export const Default: Story = {
         onStartNewChat: () => alert("Will start a new chat"),
         onChatClick: (sessionId: string) => alert("Will open chat " + sessionId),
     },
-    parameters: {
-        authContext: {
-            userInfo: { username: "user-id" },
-        },
-        configContext: {
-            configUseAuthorization: true,
-        },
-    },
+    parameters: ownerWithAuthorization("user-id"),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         expect(await canvas.findByTestId("editDetailsButton")).toBeVisible();
