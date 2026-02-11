@@ -134,8 +134,7 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
     React.useEffect(() => {
         if (!highlightedText || !contentRef.current) return;
 
-        // No padding or border-radius to avoid layout shifts and ensure connected highlighting across DOM boundaries
-        const highlightStyle = "background-color: rgba(250, 204, 21, 0.4); color: inherit; transition: background-color 0.5s ease-out;";
+        const highlightStyle = "background-color: color-mix(in srgb, var(--color-brand-wMain) 30%, transparent); color: inherit; transition: background-color 0.5s ease-out;";
         const highlightMarks: HTMLElement[] = [];
 
         // Normalize text for matching (collapse whitespace, handle line breaks)
