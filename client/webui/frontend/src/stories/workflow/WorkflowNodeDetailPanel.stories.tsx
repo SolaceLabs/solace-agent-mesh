@@ -4,7 +4,7 @@ import WorkflowNodeDetailPanel from "@/lib/components/workflowVisualization/Work
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta: Meta<typeof WorkflowNodeDetailPanel> = {
-    title: "Workflow Visualization/WorkflowNodeDetailPanel",
+    title: "Workflow/WorkflowNodeDetailPanel",
     component: WorkflowNodeDetailPanel,
     tags: ["autodocs"],
     decorators: [
