@@ -223,7 +223,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "ErrorHandlingWorkflow"
+      name: "ErrorHandlingWorkflow"
       display_name: "Error Handling Workflow"
 
       # Timeout configurations

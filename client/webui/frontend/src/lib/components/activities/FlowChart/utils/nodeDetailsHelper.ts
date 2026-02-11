@@ -90,8 +90,34 @@ function findUserNodeDetails(node: LayoutNode, primaryStep: VisualizerStep, allS
 
     // Bottom user node: show final response
     if (node.data.isBottomNode) {
-        // Find the last AGENT_RESPONSE_TEXT at nesting level 0
-        const finalResponse = [...allSteps].reverse().find(s => s.type === "AGENT_RESPONSE_TEXT" && s.nestingLevel === 0);
+        // Find ALL AGENT_RESPONSE_TEXT steps at nesting level 0 (not just consecutive ones)
+        // These steps can be scattered throughout due to LLM calls, tool invocations, etc.
+        const topLevelResponses = allSteps.filter(s => s.type === "AGENT_RESPONSE_TEXT" && s.nestingLevel === 0);
+
+        // If we found multiple response steps, create a synthetic step with combined text
+        if (topLevelResponses.length > 1) {
+            const combinedText = topLevelResponses.map(s => s.data.text || "").join("");
+            const lastResponse = topLevelResponses[topLevelResponses.length - 1];
+
+            // Create synthetic step with combined text
+            const syntheticStep: VisualizerStep = {
+                ...lastResponse,
+                id: `synthetic-combined-response-${lastResponse.id}`,
+                data: {
+                    ...lastResponse.data,
+                    text: combinedText,
+                },
+            };
+
+            return {
+                nodeType: "user",
+                label: "Final Output",
+                resultStep: syntheticStep,
+            };
+        }
+
+        // Single response or no responses - use as-is
+        const finalResponse = topLevelResponses[0];
 
         return {
             nodeType: "user",

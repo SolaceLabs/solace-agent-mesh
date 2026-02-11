@@ -170,7 +170,12 @@ class TestSanitizeToolNamesCallback:
             parts=[
                 self._create_function_call_part("search_database"),
                 self._create_function_call_part("peer_AgentName-get_info"),
-                self._create_function_call_part("_notify_artifact_save"),
+                # Note: _notify_artifact_save requires host-notify- prefix to be valid
+                self._create_function_call_part(
+                    "_notify_artifact_save",
+                    {"filename": "test.txt", "version": 0, "status": "success"},
+                    "host-notify-abc123",
+                ),
             ],
             partial=False,
         )
@@ -327,6 +332,134 @@ class TestSanitizeToolNamesCallback:
 
         assert result is not None
         assert "sanitized_tool_error_content" in callback_context.state
+
+    # =========================================================================
+    # Tests for unauthorized internal tool detection (silently dropped)
+    # =========================================================================
+
+    def test_silently_drops_llm_generated_notify_artifact_save(self):
+        """_notify_artifact_save without host-notify- prefix should be silently dropped."""
+        callback_context = self._create_mock_callback_context()
+        host_component = self._create_mock_host_component()
+
+        # LLM-generated function call ID (without host-notify- prefix)
+        llm_response = self._create_llm_response(
+            parts=[
+                self._create_function_call_part(
+                    "_notify_artifact_save",
+                    {"filename": "test.txt", "version": 0, "status": "success"},
+                    "tooluse_1kCZhrpGSJimkvMPmtmtpA",  # LLM-generated ID
+                )
+            ],
+            partial=False,
+            turn_complete=True,
+        )
+
+        result = sanitize_tool_names_callback(
+            callback_context, llm_response, host_component
+        )
+
+        assert result is not None
+        # Should NOT have error content - silently dropped, no error response
+        assert "sanitized_tool_error_content" not in callback_context.state
+        # Should preserve turn_complete since no error response is needed
+        assert result.turn_complete is True
+        # The function call should be removed
+        valid_function_calls = [
+            p for p in result.content.parts if p.function_call
+        ]
+        assert len(valid_function_calls) == 0
+
+    def test_allows_system_generated_notify_artifact_save(self):
+        """_notify_artifact_save with host-notify- prefix should be allowed."""
+        callback_context = self._create_mock_callback_context()
+        host_component = self._create_mock_host_component()
+
+        # System-generated function call ID (with host-notify- prefix)
+        llm_response = self._create_llm_response(
+            parts=[
+                self._create_function_call_part(
+                    "_notify_artifact_save",
+                    {"filename": "test.txt", "version": 0, "status": "success"},
+                    "host-notify-587adf00-1ef4-480e-bbb9-792677a5a39d",
+                )
+            ],
+            partial=False,
+        )
+
+        result = sanitize_tool_names_callback(
+            callback_context, llm_response, host_component
+        )
+
+        # Should not be modified (returns None)
+        assert result is None
+
+    def test_filters_duplicate_notify_artifact_save_calls(self):
+        """Only system-generated _notify_artifact_save calls should be preserved."""
+        callback_context = self._create_mock_callback_context()
+        host_component = self._create_mock_host_component()
+
+        llm_response = self._create_llm_response(
+            parts=[
+                # System-generated call (should be kept)
+                self._create_function_call_part(
+                    "_notify_artifact_save",
+                    {"filename": "test.txt", "version": 0, "status": "success"},
+                    "host-notify-abc123",
+                ),
+                # LLM-generated call (should be silently dropped)
+                self._create_function_call_part(
+                    "_notify_artifact_save",
+                    {"filename": "test.txt", "version": 0, "status": "success"},
+                    "tooluse_xyz789",
+                ),
+            ],
+            partial=False,
+            turn_complete=True,
+        )
+
+        result = sanitize_tool_names_callback(
+            callback_context, llm_response, host_component
+        )
+
+        assert result is not None
+        # Should have only the system-generated call remaining
+        valid_function_calls = [
+            p for p in result.content.parts if p.function_call
+        ]
+        assert len(valid_function_calls) == 1
+        assert valid_function_calls[0].function_call.id == "host-notify-abc123"
+        # Should NOT have error content - silently dropped
+        assert "sanitized_tool_error_content" not in callback_context.state
+        # Should preserve turn_complete
+        assert result.turn_complete is True
+
+    def test_silently_drops_notify_artifact_save_with_no_id(self):
+        """_notify_artifact_save with no function_call_id should be silently dropped."""
+        callback_context = self._create_mock_callback_context()
+        host_component = self._create_mock_host_component()
+
+        # Create a function call without an ID
+        fc = adk_types.FunctionCall(
+            name="_notify_artifact_save",
+            args={"filename": "test.txt", "version": 0, "status": "success"},
+            id=None,
+        )
+        part = adk_types.Part(function_call=fc)
+
+        llm_response = self._create_llm_response(
+            parts=[part], partial=False, turn_complete=True
+        )
+
+        result = sanitize_tool_names_callback(
+            callback_context, llm_response, host_component
+        )
+
+        assert result is not None
+        # Should NOT have error content - silently dropped
+        assert "sanitized_tool_error_content" not in callback_context.state
+        # Should preserve turn_complete
+        assert result.turn_complete is True
 
     # =========================================================================
     # Tests for mixed valid/invalid calls

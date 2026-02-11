@@ -128,7 +128,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "SimpleSequentialWorkflow"
+      name: "SimpleSequentialWorkflow"
       display_name: "Simple Sequential Workflow"
 
       # Timeout configurations

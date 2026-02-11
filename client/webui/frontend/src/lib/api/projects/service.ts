@@ -1,6 +1,6 @@
 import { api, getErrorFromResponse } from "@/lib/api";
 import { getApiBearerToken } from "@/lib/utils/api";
-import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData, ProjectSharesResponse, BatchShareRequest, BatchShareResponse, BatchDeleteRequest, BatchDeleteResponse, UpdateShareRequest, ShareResponse } from "@/lib";
+import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData, ProjectSharesResponse, BatchShareRequest, BatchShareResponse, BatchDeleteRequest, BatchDeleteResponse } from "@/lib";
 import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionList";
 
 export const getProjects = async () => {
@@ -99,8 +99,4 @@ export const deleteProjectShares = async (projectId: string, data: BatchDeleteRe
     }
 
     return (await response.json()) as BatchDeleteResponse;
-};
-
-export const updateProjectShare = async (projectId: string, shareId: string, data: UpdateShareRequest) => {
-    return api.webui.put<ShareResponse>(`/api/v1/projects/${projectId}/shares/${shareId}`, data);
 };

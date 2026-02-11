@@ -199,15 +199,17 @@ def _run_community_migrations(database_url: str) -> None:
 
 
 def _setup_database(database_url: str) -> None:
-    """
-    Initialize database and run migrations for WebUI Gateway.
+    """Initialize database and run migrations."""
+    from ...common.middleware.registry import MiddlewareRegistry
 
-    Args:
-        database_url: Chat database URL (sessions, tasks, feedback)
-    """
     dependencies.init_database(database_url)
-    log.info("[WebUI Gateway] Running database migrations...")
+    log.info("[WebUI Gateway] Running community database migrations...")
     _run_community_migrations(database_url)
+    log.info("[WebUI Gateway] Community migrations completed")
+
+    # Run any registered post-migration hooks (e.g., enterprise migrations)
+    MiddlewareRegistry.run_post_migration_hooks(database_url)
+    log.info("[WebUI Gateway] Database setup complete")
 
 
 def _get_app_config(component: "WebUIBackendComponent") -> dict:

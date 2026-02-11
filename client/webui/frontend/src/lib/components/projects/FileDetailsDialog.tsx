@@ -9,7 +9,7 @@ interface FileDetailsDialogProps {
     isOpen: boolean;
     artifact: ArtifactInfo | null;
     onClose: () => void;
-    onEdit: () => void;
+    onEdit?: () => void;
 }
 
 export const FileDetailsDialog: React.FC<FileDetailsDialogProps> = ({ isOpen, artifact, onClose, onEdit }) => {
@@ -21,10 +21,12 @@ export const FileDetailsDialog: React.FC<FileDetailsDialogProps> = ({ isOpen, ar
                 <DialogHeader>
                     <div className="flex justify-between">
                         <h2 className="text-lg font-semibold">Project File Details</h2>
-                        <Button variant="ghost" size="sm" onClick={onEdit} className="flex-shrink-0 gap-2 text-sm">
-                            <Pencil className="h-4 w-4" />
-                            Edit Description
-                        </Button>
+                        {onEdit && (
+                            <Button variant="ghost" size="sm" onClick={onEdit} className="flex-shrink-0 gap-2 text-sm">
+                                <Pencil className="h-4 w-4" />
+                                Edit Description
+                            </Button>
+                        )}
                     </div>
                     <VisuallyHidden>
                         <DialogTitle>Project File Details</DialogTitle>

@@ -59,12 +59,13 @@ class TestOpenApiToolDelegation:
             result = await _load_openapi_tool(mock_component, tool_config)
 
         # Verify result structure
-        assert len(result) == 3  # tools, builtins, cleanups
+        assert len(result) == 4  # tools, builtins, cleanups, tool_scopes_map
         assert len(result[0]) == 1  # one toolset
         assert result[0][0] is mock_toolset
         assert result[0][0].origin == "openapi"
         assert result[1] == []  # no builtins
         assert result[2] == []  # no cleanups
+        assert result[3] == {}  # no scopes for openapi
 
         # Verify configurator was called correctly
         mock_configurator.assert_called_once_with(
@@ -109,7 +110,7 @@ class TestOpenApiToolDelegation:
             result = await _load_openapi_tool(mock_component, tool_config)
 
         # Should return empty result and log warning
-        assert result == ([], [], [])
+        assert result == ([], [], [], {})
 
     @pytest.mark.asyncio
     async def test_config_validation_with_allow_list(self, mock_component, mock_enterprise_modules):

@@ -18,6 +18,7 @@ from a2a.types import (
     Message as A2AMessage,
 )
 from ...common import a2a
+from ...common.a2a import is_gateway_card
 from ...common.data_parts import WorkflowExecutionStartData
 from ..workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 
@@ -484,6 +485,17 @@ def handle_agent_card_message(component: "WorkflowExecutorComponent", message: S
     try:
         payload = message.get_payload()
         agent_card = AgentCard.model_validate(payload)
+
+        # Filter out gateway cards
+        if is_gateway_card(agent_card):
+            log.debug(
+                "%s Ignoring gateway card '%s'",
+                component.log_identifier,
+                agent_card.name,
+            )
+            message.call_acknowledgements()
+            return
+
         component.agent_registry.add_or_update_agent(agent_card)
         message.call_acknowledgements()
     except Exception as e:

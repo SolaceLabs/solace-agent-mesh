@@ -55,7 +55,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             <div className="border-b p-4">
                 <div className="mb-2 flex items-center justify-between">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <NotepadText className="text-muted-foreground h-5 w-5 flex-shrink-0" />
+                        <NotepadText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                         <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                                 <h2 className="cursor-default truncate text-lg font-semibold">{prompt.name}</h2>
