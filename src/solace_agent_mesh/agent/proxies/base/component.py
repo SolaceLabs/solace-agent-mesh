@@ -77,6 +77,10 @@ class BaseProxyComponent(ComponentBase, ABC):
         super().__init__(info, **kwargs)
         self.namespace = self.get_config("namespace")
         self.proxied_agents_config = self.get_config("proxied_agents", [])
+        # Normalize URLs by stripping trailing slashes to avoid double slashes when concatenating paths
+        for agent_config in self.proxied_agents_config:
+            if "url" in agent_config and agent_config["url"]:
+                agent_config["url"] = agent_config["url"].rstrip("/")
         self.artifact_service_config = self.get_config(
             "artifact_service", {"type": "memory"}
         )
@@ -428,8 +432,6 @@ class BaseProxyComponent(ComponentBase, ABC):
                     )
                     continue
 
-                # Strip trailing slash from URL to avoid double slashes when concatenating
-                agent_url = agent_url.rstrip("/")
                 try:
                     # Build headers using common utility (sync context - OAuth2 not supported)
                     use_auth = agent_config.get("use_auth_for_agent_card", False)
