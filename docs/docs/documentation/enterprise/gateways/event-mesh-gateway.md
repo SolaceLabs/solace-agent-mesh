@@ -11,8 +11,6 @@ Event Mesh gateways enable Agent Mesh to consume events from Solace PubSub+ Even
 
 Event Mesh gateways subscribe to topics on Solace brokers and transform incoming events into agent requests. When an event arrives, the gateway applies configured event rules to determine which agent should process the event, then forwards the event payload as a stimulus to the Agent Mesh. Agents can process or enrich the event data, and the gateway can optionally publish the agent's response back to the event mesh.
 
-You can use this integration to build systems that respond to business events automatically. For example, you can configure a gateway to listen for order events and trigger an agent that processes order data, or subscribe to sensor readings and route them to an analytics agent.
-
 The gateway supports connecting to either the default SAM broker (the same broker Agent Mesh uses internally) or a custom external broker with separate connection credentials.
 
 ## Prerequisites
@@ -41,15 +39,7 @@ The Event Mesh gateway creation form requires the following information:
 
 #### Basic Details
 
-##### Gateway Name
-
-A unique identifier for this gateway within your Agent Mesh deployment. Choose a descriptive name that indicates the gateway's purpose, such as `Order Events Gateway` or `IoT Sensor Gateway`. This name appears in the gateway list and deployment status.
-
-The gateway name must be unique across all gateways in your deployment. Names must be 3–255 characters.
-
-##### Description
-
-A description explaining what the gateway does and its intended use case. This helps administrators understand the gateway's purpose. Descriptions must be 10–1000 characters.
+Provide a unique gateway name (3–255 characters) and a description of its purpose (10–1000 characters).
 
 #### Broker Connection
 
@@ -120,6 +110,11 @@ You can optionally configure the gateway to publish agent responses back to the 
 - Success Output: The topic where the agent's response is published when processing succeeds.
 - Error Output: The topic where error information is published when processing fails.
 
+Each output topic has a topic type that controls how the topic string is resolved:
+
+- Static: The topic string is used as-is for every response.
+- Dynamic: The topic string is treated as a template and resolved at runtime using response data.
+
 If you do not configure output topics, the gateway processes events without publishing responses.
 
 ##### Response Type
@@ -159,13 +154,7 @@ Event Rules:
 
 ## After Creating the Gateway
 
-After you successfully create the gateway, it appears in the Gateways list with "Not Deployed" status. At this point you can:
-
-1. Edit the configuration to modify settings before deployment.
-2. Download YAML to export the configuration for version control.
-3. Deploy to create a running gateway instance.
-
-To deploy the gateway, click the Deploy button in the gateway details panel. The gateway status changes to "Deploying" as the Deployer creates the instance, then to "Deployed" when the process completes. For detailed information about gateway deployment and lifecycle management, see [Gateways](gateways.md).
+After you save the gateway, it appears in the Gateways list with "Not Deployed" status. You can edit, download the YAML configuration, or deploy it. For details on deployment, states, and lifecycle management, see [Gateways](gateways.md).
 
 ## How Event Processing Works
 
@@ -194,22 +183,11 @@ sequenceDiagram
     Agent->>Agent: Process Event
 ```
 
-1. The broker delivers events matching subscribed topics.
-2. The gateway matches the topic against configured event rules.
-3. The event payload is parsed according to the configured format.
-4. The gateway creates an Agent Mesh stimulus from the event.
-5. The stimulus is routed to the Orchestrator or directly to a specific agent.
-6. The target agent processes the event and performs configured actions.
-
 ## Security Considerations
 
 ### Broker Credentials
 
-Event Mesh gateway configurations contain broker credentials when using custom broker connections. These credentials are:
-
-- Stored encrypted in the Platform Service database
-- Redacted from API responses (displayed as `********`)
-- Injected at deployment time through Kubernetes Secrets
+When using a custom broker connection, the gateway configuration contains broker credentials. These credentials are stored encrypted, redacted from API responses, and injected at deployment time through Kubernetes Secrets. For more details on credential handling, see [Gateways](gateways.md).
 
 :::warning[Credential Security]
 Never commit downloaded YAML files containing actual credentials to version control. Use environment variable placeholders and inject secrets through your deployment pipeline.
@@ -217,11 +195,7 @@ Never commit downloaded YAML files containing actual credentials to version cont
 
 ### Topic Access Control
 
-The gateway can only subscribe to topics that the configured broker credentials are authorized to access. Work with your Solace administrator to:
-
-- Create dedicated credentials for the gateway
-- Configure appropriate ACLs for topic subscriptions
-- Limit access to only the topics the gateway needs
+The gateway can only subscribe to topics that the configured broker credentials are authorized to access. Work with your Solace administrator to create dedicated credentials with appropriate ACLs limited to the topics the gateway needs.
 
 ### Event Validation
 

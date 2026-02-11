@@ -7,10 +7,6 @@ sidebar_position: 10
 
 Gateways connect your Agent Mesh deployment to external systems, enabling agents to receive requests from and send responses to platforms like Slack, Microsoft Teams, and Solace Event Mesh brokers. You configure each gateway with connection details and routing rules for a specific integration target.
 
-:::tip[In one sentence]
-Gateways are the entry points that connect external systems to your Agent Mesh, allowing users and applications to interact with agents through familiar interfaces.
-:::
-
 ## Gateway Types
 
 Agent Mesh Enterprise provides multiple gateway types, each integrating with a different external system.
@@ -33,7 +29,7 @@ REST gateways expose Agent Mesh capabilities through REST API endpoints, enablin
 
 ## Creating Gateways
 
-You create gateways through the Gateways section of the Agent Mesh Enterprise web interface. Navigate to the Gateways page and click the Create Gateway button to begin the creation process. The creation process varies depending on the gateway type. All gateways require a unique name and connection credentials appropriate for the target system.
+You create gateways through the Gateways section of the Agent Mesh Enterprise web interface. Navigate to the Gateways page and click the Create Gateway button. The workflow varies depending on the gateway type, but all gateways require a unique name and connection credentials appropriate for the target system.
 
 ### Gateway Configuration Workflow
 
@@ -84,29 +80,33 @@ Gateways move through distinct states as you create, edit, and deploy them.
 | State | Description | Available Actions |
 |-------|-------------|-------------------|
 | Not Deployed | Initial status for newly created gateways | Edit, Download, Deploy, Delete |
-| Deploying | In-progress while the Deployer creates the instance | View status only |
-| Deployed | Gateway is active and processing requests | Edit, Update, Undeploy, View metrics |
-| Deploy Failed | Deployment operation failed | Edit, Retry Deploy, Delete |
-| Undeploying | In-progress while the Deployer removes the instance | View status only |
-| Undeployed | Previously deployed but has been stopped | Edit, Deploy, Delete |
-| Undeploy Failed | Undeploy operation failed | Edit, Undeploy, Delete |
+| Deploying | In-progress while the Deployer creates the instance | Edit only (no deploy or delete) |
+| Deployed | Gateway is active and processing requests | Edit, Download, Update, Undeploy, Delete (if disconnected) |
+| Deploy Failed | Deployment operation failed | Edit, Download, Deploy, Update, Delete |
+| Undeploying | In-progress while the Deployer removes the instance | Edit only (no deploy or delete) |
+| Undeployed | Previously deployed but has been stopped | Edit, Download, Deploy, Delete |
+| Undeploy Failed | Undeploy operation failed | Edit, Download, Update, Undeploy, Delete |
 
 :::warning
-You cannot delete a gateway while it is deployed. You must undeploy it first.
+You cannot delete a gateway that is deployed and connected. Undeploy the gateway first, or wait until it shows a disconnected status before deleting.
 :::
 
 ## Managing Deployed Gateways
 
 ### Configuration Drift Detection
 
-When you deploy a gateway, the system records its configuration as a snapshot. If you later edit the gateway's configuration, the system detects this mismatch and displays "Undeployed changes" on the gateway tile. The running gateway continues using its deployed configuration until you explicitly update the deployment. To apply the new configuration, use the Update action on the deployed gateway, which redeploys it with the current settings.
+When you deploy a gateway, the system records its configuration as a snapshot. If you later edit the gateway's description or configuration values, the system detects this mismatch and marks the gateway as out of sync. The system also detects drift when the Deployer version changes after a gateway was deployed. The running gateway continues using its deployed configuration until you explicitly update the deployment. To apply the new configuration, use the Update action on the deployed gateway, which redeploys it with the current settings.
 
 ### Connection Status Monitoring
 
-Deployed gateways report their connection status through heartbeat messages:
+Deployed gateways publish a discovery card to the broker every 30 seconds. The Platform Service tracks these cards and considers a gateway connected if it received a card within the last 90 seconds:
 
-- Connected: The gateway is running and responsive
-- Disconnected: The gateway is deployed but not responding to heartbeats
+- Connected: The gateway is running and has reported within the TTL window
+- Disconnected: The gateway is deployed but has not reported within the TTL window
+
+### Credential Handling
+
+Gateway configurations that contain secrets (broker passwords, Slack tokens) are stored encrypted in the Platform Service database. API responses redact these values, displaying `********` instead. At deployment time, the actual values are injected through Kubernetes Secrets so they never appear in plain text in configuration files or API traffic.
 
 ### Downloading Gateway Configurations
 
@@ -121,7 +121,7 @@ Gateway operations require specific RBAC capabilities. For detailed information 
 | `sam:gateways:create` | Create new gateways |
 | `sam:gateways:read` | View gateway configurations, status, and schemas |
 | `sam:gateways:update` | Edit existing gateway configurations |
-| `sam:gateways:delete` | Delete gateways (must undeploy first) |
+| `sam:gateways:delete` | Delete gateways |
 | `sam:gateways:deploy` | Deploy, update, and undeploy gateways |
 
 ## Limitations

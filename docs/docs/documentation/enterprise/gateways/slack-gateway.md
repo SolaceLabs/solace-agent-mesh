@@ -11,9 +11,7 @@ Slack gateways integrate Agent Mesh with Slack workspaces, enabling users to int
 
 Slack gateways connect to Slack workspaces using the Slack Events API and Socket Mode. When users send messages in configured channels or direct messages to the bot, the gateway receives these events and forwards them to Agent Mesh as stimuli. Agent responses are sent back to Slack as reply messages.
 
-This integration allows teams to interact with agents through their existing Slack workflows. Users can ask questions, request information, and trigger agent actions without leaving Slack.
-
-Socket Mode establishes a WebSocket connection from the gateway to Slack's servers, eliminating the need for public-facing endpoints or webhook URLs. This simplifies deployment and improves security.
+Socket Mode establishes a WebSocket connection from the gateway to Slack's servers, eliminating the need for public-facing endpoints or webhook URLs.
 
 ## Prerequisites
 
@@ -66,15 +64,7 @@ The Slack gateway creation form requires the following information:
 
 #### Basic Details
 
-##### Gateway Name
-
-A unique identifier for this gateway within your Agent Mesh deployment. Choose a descriptive name that indicates the gateway's purpose, such as `Engineering Slack Bot` or `Support Channel Gateway`. This name appears in the gateway list and deployment status.
-
-The gateway name must be unique across all gateways in your deployment. Names must be 3–255 characters.
-
-##### Description
-
-A description explaining what the gateway does and its intended use case. This helps administrators understand the gateway's purpose. Descriptions must be 10–1000 characters.
+Provide a unique gateway name (3–255 characters) and a description of its purpose (10–1000 characters).
 
 #### Slack Configuration
 
@@ -94,8 +84,6 @@ Example: `xapp-your-app-token`
 
 The agent that handles incoming messages. Select from available deployed agents in your Agent Mesh deployment. This field is optional—if you do not select an agent, messages are routed to the Orchestrator, which determines the appropriate agent based on the message content.
 
-When a user sends a message to the Slack bot, the gateway forwards the message to the selected agent (or the Orchestrator) for processing. The agent's response is sent back to the user in Slack.
-
 ### Example Configuration
 
 The following example shows a configuration for a Slack gateway:
@@ -111,15 +99,7 @@ Slack Configuration:
 
 ## After Creating the Gateway
 
-After you successfully create the gateway, it appears in the Gateways list with "Not Deployed" status. At this point you can:
-
-1. Edit the configuration to modify settings before deployment.
-2. Download YAML to export the configuration for version control.
-3. Deploy to create a running gateway instance.
-
-To deploy the gateway, click the Deploy button in the gateway details panel. The gateway status changes to "Deploying" as the Deployer creates the instance, then to "Deployed" when the process completes.
-
-Once deployed, the gateway connects to Slack through Socket Mode. Users can then interact with the bot by mentioning it in channels where it has been added, or by sending direct messages to it. For detailed information about gateway deployment and lifecycle management, see [Gateways](gateways.md).
+After you save the gateway, it appears in the Gateways list with "Not Deployed" status. You can edit, download the YAML configuration, or deploy it. Once deployed, the gateway connects to Slack through Socket Mode and users can interact with the bot by mentioning it in channels or sending direct messages. For details on deployment, states, and lifecycle management, see [Gateways](gateways.md).
 
 ## How Message Processing Works
 
@@ -146,22 +126,11 @@ sequenceDiagram
     Slack->>User: Display Reply
 ```
 
-1. The user sends a message mentioning the bot or as a direct message.
-2. Slack delivers the event through the Socket Mode WebSocket.
-3. The gateway extracts message text and user context.
-4. The gateway creates an Agent Mesh stimulus.
-5. The default agent processes the request.
-6. The agent's response is posted back to Slack.
-
 ## Security Considerations
 
 ### Token Security
 
-Slack gateway configurations contain sensitive tokens that provide access to your Slack workspace. These tokens are:
-
-- Stored encrypted in the Platform Service database
-- Redacted from API responses (displayed as `********`)
-- Injected at deployment time through Kubernetes Secrets
+Slack tokens provide access to your workspace. These tokens are stored encrypted, redacted from API responses, and injected at deployment time through Kubernetes Secrets. For more details on credential handling, see [Gateways](gateways.md).
 
 :::warning[Token Security]
 Never commit downloaded YAML files containing actual tokens to version control. Never share Bot or App tokens publicly. If tokens are compromised, regenerate them immediately in your Slack App settings.
