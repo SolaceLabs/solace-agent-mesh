@@ -5,7 +5,7 @@ Initializes ADK Services based on configuration.
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from google.adk.artifacts import (
     BaseArtifactService,
@@ -24,10 +24,12 @@ from google.adk.memory import (
     InMemoryMemoryService,
     VertexAiRagMemoryService,
 )
+from google.adk.events import Event as ADKEvent
 from google.adk.sessions import (
     BaseSessionService,
     DatabaseSessionService,
     InMemorySessionService,
+    Session as ADKSession,
     VertexAiSessionService,
 )
 from google.genai import types as adk_types
@@ -466,3 +468,107 @@ def initialize_credential_service(component) -> BaseCredentialService | None:
         raise ValueError(
             f"{component.log_identifier} Unsupported credential service type: {service_type}"
         )
+
+
+# Constants for stale session retry logic
+STALE_SESSION_MAX_RETRIES = 3
+STALE_SESSION_ERROR_SUBSTRING = "earlier than the update_time in the storage_session"
+
+
+async def append_event_with_retry(
+    session_service: BaseSessionService,
+    session: ADKSession,
+    event: ADKEvent,
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    max_retries: int = STALE_SESSION_MAX_RETRIES,
+    log_identifier: str = "",
+) -> ADKEvent:
+    """
+    Appends an event to a session with automatic retry on stale session errors.
+    
+    The Google ADK's DatabaseSessionService validates that the session object's
+    `last_update_time` is not older than the database's `update_timestamp_tz`.
+    When another process updates the session between when we fetch it and when
+    we call append_event, this validation fails with a "stale session" error.
+    
+    This helper function handles this race condition by:
+    1. Attempting to append the event
+    2. On stale session error, re-fetching the session from the database
+    3. Retrying the append with the fresh session
+    
+    Args:
+        session_service: The session service instance
+        session: The ADK session object (may become stale)
+        event: The event to append
+        app_name: The application/agent name for session lookup
+        user_id: The user ID for session lookup
+        session_id: The session ID for session lookup
+        max_retries: Maximum number of retry attempts (default: 3)
+        log_identifier: Optional log identifier for debugging
+        
+    Returns:
+        The appended event (from the session service)
+        
+    Raises:
+        ValueError: If the stale session error persists after max_retries
+        Exception: Any other exception from append_event
+    """
+    current_session = session
+    last_error = None
+    
+    for attempt in range(max_retries + 1):
+        try:
+            return await session_service.append_event(
+                session=current_session, event=event
+            )
+        except ValueError as e:
+            error_message = str(e)
+            
+            # Check if this is a stale session error
+            if STALE_SESSION_ERROR_SUBSTRING not in error_message:
+                # Not a stale session error, re-raise immediately
+                raise
+            
+            last_error = e
+            
+            if attempt < max_retries:
+                log.warning(
+                    "%s Stale session detected on attempt %d/%d. Re-fetching session '%s' and retrying. Error: %s",
+                    log_identifier,
+                    attempt + 1,
+                    max_retries + 1,
+                    session_id,
+                    error_message,
+                )
+                
+                # Re-fetch the session from the database to get the latest timestamp
+                current_session = await session_service.get_session(
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                
+                if current_session is None:
+                    log.error(
+                        "%s Failed to re-fetch session '%s' during stale session retry.",
+                        log_identifier,
+                        session_id,
+                    )
+                    raise ValueError(
+                        f"Session '{session_id}' not found during stale session retry"
+                    ) from e
+            else:
+                log.error(
+                    "%s Stale session error persisted after %d attempts for session '%s'. Error: %s",
+                    log_identifier,
+                    max_retries + 1,
+                    session_id,
+                    error_message,
+                )
+    
+    # This should not be reached, but just in case
+    if last_error:
+        raise last_error
+    raise RuntimeError("Unexpected state in append_event_with_retry")

@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from "react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
-import { useConfigContext, useDownload, useProjectArtifacts } from "@/lib/hooks";
+import { useConfigContext, useDownload, useIsProjectOwner } from "@/lib/hooks";
+import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
 import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
@@ -20,7 +21,8 @@ interface KnowledgeSectionProps {
 }
 
 export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
-    const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
+    const isOwner = useIsProjectOwner(project.userId);
+    const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
     const { validationLimits } = useConfigContext();
@@ -163,11 +165,11 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                     </div>
                 )}
 
-                {error && <MessageBanner variant="error" message={`Error loading files: ${error}`} />}
+                {error && <MessageBanner variant="error" message={`Error loading files: ${error.message}`} />}
 
                 {!isLoading && !error && (
                     <>
-                        {filesToUpload ? null : <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />}
+                        {isOwner && (filesToUpload ? null : <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />)}
                         {artifacts.length > 0 && (
                             <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t">
                                 {sortedArtifacts.map(artifact => {
@@ -189,10 +191,12 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                                                 expandedContent={expandedContent}
                                                 actions={{
                                                     onInfo: () => handleToggleExpand(artifact.filename),
-                                                    onEdit: () => handleEditDescription(artifact),
-                                                    onDownload: () => onDownload(artifact),
-                                                    onDelete: () => handleDeleteClick(artifact),
                                                     onPreview: () => handleFileClick(artifact), // preview opens the details for projects instead of seeing the content
+                                                    ...(isOwner && {
+                                                        onEdit: () => handleEditDescription(artifact),
+                                                        onDownload: () => onDownload(artifact),
+                                                        onDelete: () => handleDeleteClick(artifact),
+                                                    }),
                                                 }}
                                             />
                                         </div>
@@ -204,10 +208,10 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                 )}
             </div>
 
-            <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />
-            <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={handleEditFromDetails} />
-            <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />
-            <DeleteProjectFileDialog isOpen={!!fileToDelete} fileToDelete={fileToDelete} handleConfirmDelete={handleConfirmDelete} setFileToDelete={setFileToDelete} />
+            {isOwner && <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />}
+            <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={isOwner ? handleEditFromDetails : undefined} />
+            {isOwner && <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />}
+            {isOwner && <DeleteProjectFileDialog isOpen={!!fileToDelete} fileToDelete={fileToDelete} handleConfirmDelete={handleConfirmDelete} setFileToDelete={setFileToDelete} />}
         </div>
     );
 };

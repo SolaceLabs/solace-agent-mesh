@@ -60,6 +60,29 @@ export function ChatPage() {
     const chatSidePanelRef = useRef<ImperativePanelHandle>(null);
     const lastExpandedSizeRef = useRef<number | null>(null);
 
+    // Track which session started the response to avoid pulsing when switching to old sessions
+    // We use a Map to track task ID -> session ID relationships, plus a version counter to trigger re-renders
+    const taskToSessionRef = useRef<Map<string, string>>(new Map());
+    const [taskMapVersion, setTaskMapVersion] = useState(0);
+
+    // When a new task starts, remember which session it belongs to
+    // Don't rely on currentTaskId changes during session switches
+    useEffect(() => {
+        if (currentTaskId && !taskToSessionRef.current.has(currentTaskId)) {
+            // This is a genuinely new task - capture which session it started in
+            taskToSessionRef.current.set(currentTaskId, sessionId);
+            // Trigger a re-render so respondingSessionId useMemo recomputes
+            setTaskMapVersion(v => v + 1);
+        }
+    }, [currentTaskId, sessionId]);
+
+    // Derive respondingSessionId from the current task's owning session
+    const respondingSessionId = useMemo(() => {
+        if (!currentTaskId) return null;
+        return taskToSessionRef.current.get(currentTaskId) || null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTaskId, taskMapVersion]);
+
     const { chatPanelSizes, sidePanelSizes } = useMemo(() => {
         return isSessionSidePanelCollapsed ? PANEL_SIZES_CLOSED : PANEL_SIZES_OPEN;
     }, [isSessionSidePanelCollapsed]);
@@ -113,8 +136,10 @@ export function ChatPage() {
             return false;
         }
         const isNewChat = !sessionName || sessionName === "New Chat";
-        return (isNewChat && isResponding) || isTitleGenerating;
-    }, [sessionName, isResponding, isTitleGenerating, autoTitleGenerationEnabled]);
+        // Only pulse if THIS session started the response (prevents pulsing when viewing old sessions)
+        const isThisSessionResponding = respondingSessionId === sessionId;
+        return (isNewChat && isThisSessionResponding) || isTitleGenerating;
+    }, [sessionName, sessionId, respondingSessionId, isTitleGenerating, autoTitleGenerationEnabled]);
 
     // Determine the appropriate animation class
     const titleAnimationClass = useMemo(() => {
@@ -183,7 +208,7 @@ export function ChatPage() {
 
         return () => {
             setTaskIdInSidePanel(currentTaskId);
-            openSidePanelTab("workflow");
+            openSidePanelTab("activity");
         };
     }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
 

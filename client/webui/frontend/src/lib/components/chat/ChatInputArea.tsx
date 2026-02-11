@@ -20,7 +20,7 @@ import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -208,7 +208,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 if (autoSubmit) {
                     // Small delay to ensure state is updated
                     setTimeout(async () => {
-                        const fullMessage = `${prompt}\n\nContext: "${text}"`;
+                        const fullMessage = `${prompt}\n\nContext: "${escapeMarkdown(text)}"`;
                         const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
@@ -343,7 +343,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             const displayHtml = chatInputRef.current?.innerHTML || null;
 
             if (contextText && showContextBadge) {
-                fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
+                fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
 
             // Upload all pending pasted text items as artifacts, then create references
@@ -527,14 +527,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
         const cursorPosition = getCursorPosition();
         const textBeforeCursor = value.substring(0, cursorPosition);
-        const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
-        const charBeforeLast = textBeforeCursor[textBeforeCursor.length - 2];
 
-        // Check if "/" is typed at start or after space
-        if (lastChar === "/" && (!charBeforeLast || charBeforeLast === " " || charBeforeLast === "\n")) {
+        // Check if "/" is typed as the first character (position 0)
+        // Only trigger prompt popover when "/" is at the very start of the input
+        if (textBeforeCursor === "/") {
             setShowPromptsCommand(true);
             setShowMentionsCommand(false); // Close mentions if open
-        } else if (showPromptsCommand && !textBeforeCursor.includes("/")) {
+        } else if (showPromptsCommand && !textBeforeCursor.startsWith("/")) {
             setShowPromptsCommand(false);
         }
 
@@ -701,10 +700,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
-                <div className="mb-2">
-                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                <div className="mb-2 overflow-hidden">
+                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
                         <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                        <span className="text-muted-foreground truncate italic">"{contextText}"</span>
+                        <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
                             className="h-5 w-5 shrink-0"
@@ -903,6 +902,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onPromptSelect={handlePromptSelect}
                 messages={messages}
                 onReservedCommand={handleChatCommand}
+                onBackspaceClose={() => {
+                    // Remove the "/" trigger character from the input
+                    // Since "/" only triggers at position 0, we just remove the first character
+                    if (inputValue.startsWith("/")) {
+                        setInputValue(inputValue.substring(1));
+                    }
+                    setShowPromptsCommand(false);
+                }}
             />
 
             {/* Mentions Command Popover */}
@@ -940,7 +947,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 mentionMap={mentionMap}
                 disambiguatedIds={disambiguatedIds}
                 placeholder={isRecording ? "Recording..." : mentionsEnabled ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)" : "How can I help you today? (Type '/' to insert a prompt)"}
-                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
+                className="max-h-50 resize-none overflow-y-auto rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
                 onPaste={handlePaste}
                 disabled={isRecording}
                 onKeyDown={event => {
@@ -973,11 +980,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         <SelectValue placeholder="Select an agent..." />
                     </SelectTrigger>
                     <SelectContent>
-                        {agents.map(agent => (
-                            <SelectItem key={agent.name} value={agent.name}>
-                                {agent.displayName || agent.name}
-                            </SelectItem>
-                        ))}
+                        {agents
+                            .filter(agent => !agent.isWorkflow)
+                            .map(agent => (
+                                <SelectItem key={agent.name} value={agent.name}>
+                                    {agent.displayName || agent.name}
+                                </SelectItem>
+                            ))}
                     </SelectContent>
                 </Select>
 

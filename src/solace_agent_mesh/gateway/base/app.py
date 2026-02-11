@@ -8,7 +8,7 @@ from abc import abstractmethod
 from typing import Any, Dict, List, Type
 
 from solace_ai_connector.common.utils import deep_merge
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ...common.a2a import (
@@ -182,7 +182,7 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
 }
 
 
-class BaseGatewayApp(App):
+class BaseGatewayApp(SamAppBase):
     """
     Base class for Gateway applications.
 
@@ -241,7 +241,7 @@ class BaseGatewayApp(App):
         """
         log.debug(
             "Initializing BaseGatewayApp with app_info: %s",
-            app_info.get("name", "Unnamed App"),
+            app_info.get("name"),
         )
 
         code_config_app_block = getattr(self.__class__, "app_config", {}).get(
@@ -260,9 +260,11 @@ class BaseGatewayApp(App):
 
         self.gateway_id: str = resolved_app_config_block.get("gateway_id")
         if not self.gateway_id:
-            self.gateway_id = f"gdk-gateway-{uuid.uuid4().hex[:8]}"
+            self.gateway_id = app_info.get("name")
             resolved_app_config_block["gateway_id"] = self.gateway_id
-            log.info("Generated unique gateway_id: %s", self.gateway_id)
+            log.warning(
+                "No `gateway_id` provided; defaulting to `apps.name`. Ensure `apps.name` is unique across all gateways or specify a unique `gateway_id` to prevent conflicts."
+            )
 
         self.artifact_service_config: Dict = resolved_app_config_block.get(
             "artifact_service", {}

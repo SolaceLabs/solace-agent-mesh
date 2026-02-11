@@ -75,7 +75,7 @@ class TaskLoggerService:
             repo = TaskRepository()
 
             # Infer details from the parsed event
-            direction, task_id, user_id = self._infer_event_details(
+            direction, task_id, user_id, session_id = self._infer_event_details(
                 topic, parsed_event, user_properties
             )
 
@@ -146,12 +146,14 @@ class TaskLoggerService:
                         last_activity_time=current_time,
                         background_execution_enabled=background_execution_enabled,
                         max_execution_time_ms=max_execution_time_ms,
+                        session_id=session_id,  # Store session_id for persistent event buffering
                     )
                     repo.save_task(db, new_task)
                     log.info(
                         f"{self.log_identifier} Created new task record for ID: {task_id}"
                         + (f" with parent: {parent_task_id}" if parent_task_id else "")
                         + (f" (background execution enabled)" if background_execution_enabled else "")
+                        + (f" (session: {session_id})" if session_id else "")
                     )
                 else:
                     # We received an event for a task we haven't seen the start of.
@@ -166,6 +168,7 @@ class TaskLoggerService:
                         execution_mode="foreground",
                         last_activity_time=current_time,
                         background_execution_enabled=False,
+                        session_id=session_id,  # Store session_id for persistent event buffering
                     )
                     repo.save_task(db, placeholder_task)
                     log.info(
@@ -173,8 +176,19 @@ class TaskLoggerService:
                     )
             else:
                 # Update last activity time for existing task
-                task.last_activity_time = now_epoch_ms()
-                repo.save_task(db, task)
+                # This is a non-critical update that can fail due to cross-process SQLite concurrency
+                try:
+                    task.last_activity_time = now_epoch_ms()
+                    repo.save_task(db, task)
+                except Exception as activity_update_error:
+                    # StaleDataError or other concurrency issues - log and continue
+                    # The task may have been modified/deleted by another process (FastAPI vs SAC)
+                    log.debug(
+                        f"{self.log_identifier} Non-critical: Failed to update last_activity_time for task {task_id}: {activity_update_error}"
+                    )
+                    # Rollback and begin a new transaction so subsequent operations can continue
+                    db.rollback()
+                    db.begin()
 
             # Create and save the event using the sanitized raw payload
             task_event = TaskEvent(
@@ -218,19 +232,6 @@ class TaskLoggerService:
                         f"{self.log_identifier} Finalized task record for ID: {task_id} with status: {final_status}"
                     )
                     
-                    # For background tasks, save chat messages when task completes
-                    # Only save for top-level tasks (no parent_task_id) to avoid duplicates
-                    # Sub-tasks (delegated by orchestrator) have parent_task_id set and contain system prompts
-                    if task_to_update.background_execution_enabled and not task_to_update.parent_task_id:
-                        self._save_chat_messages_for_background_task(db, task_id, task_to_update, repo)
-                        
-                        # Note: The frontend will detect task completion through:
-                        # 1. SSE final_response event (if connected to that task)
-                        # 2. Session list refresh triggered by the ChatProvider
-                        # 3. Database status check when loading sessions
-                        log.info(
-                            f"{self.log_identifier} Background task {task_id} completed and chat messages saved"
-                        )
             
             db.commit()
         except Exception as e:
@@ -288,10 +289,15 @@ class TaskLoggerService:
 
     def _infer_event_details(
         self, topic: str, parsed_event: Any, user_props: Dict | None
-    ) -> tuple[str, str | None, str | None]:
-        """Infers direction, task_id, and user_id from a parsed A2A event."""
+    ) -> tuple[str, str | None, str | None, str | None]:
+        """Infers direction, task_id, user_id, and session_id from a parsed A2A event.
+        
+        Returns:
+            Tuple of (direction, task_id, user_id, session_id)
+        """
         direction = "unknown"
         task_id = None
+        session_id = None  # Will be extracted from context_id
         # Ensure user_props is a dict, not None
         user_props = user_props or {}
         user_id = user_props.get("userId")
@@ -299,6 +305,10 @@ class TaskLoggerService:
         if isinstance(parsed_event, A2ARequest):
             direction = "request"
             task_id = a2a.get_request_id(parsed_event)
+            # Extract session_id from context_id in the message
+            message = a2a.get_message_from_send_request(parsed_event)
+            if message:
+                session_id = a2a.get_context_id(message)
         elif isinstance(
             parsed_event, (A2ATask, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
         ):
@@ -306,10 +316,13 @@ class TaskLoggerService:
             task_id = getattr(parsed_event, "task_id", None) or getattr(
                 parsed_event, "id", None
             )
+            # Extract session_id from context_id
+            session_id = getattr(parsed_event, "context_id", None)
         elif isinstance(parsed_event, JSONRPCError):
             direction = "error"
             if isinstance(parsed_event.data, dict):
                 task_id = parsed_event.data.get("taskId")
+                session_id = parsed_event.data.get("contextId")
 
         if not user_id:
             user_config = user_props.get("a2aUserConfig") or user_props.get("a2a_user_config")
@@ -318,7 +331,7 @@ class TaskLoggerService:
                 if isinstance(user_profile, dict):
                     user_id = user_profile.get("id")
 
-        return direction, str(task_id) if task_id else None, user_id
+        return direction, str(task_id) if task_id else None, user_id, session_id
 
     def _extract_initial_text(self, parsed_event: Any) -> str | None:
         """Extracts the initial text from a send message request."""
@@ -395,6 +408,10 @@ class TaskLoggerService:
         Save chat messages for a completed background task by reconstructing them from task events.
         This ensures chat history is available when users return to a session after a background task completes.
         Uses upsert to avoid duplicates.
+        
+        NOTE: Even if SSE events are buffered (task.events_buffered=True), we still save to chat_tasks
+        from task_events. The chat_tasks data will have unresolved embeds, but this serves as a fallback.
+        The frontend should prefer replaying from sse_event_buffer when available.
         """
         try:
             # Get all events for this task
@@ -417,6 +434,8 @@ class TaskLoggerService:
             message_bubbles = []
             artifacts = []  # Track artifacts - only from final task response to avoid duplicates
             rag_data = []  # Track RAG metadata from tool results
+            accumulated_agent_text = []  # Accumulate text from all status updates
+            accumulated_agent_parts = []  # Accumulate parts from all status updates
             
             for event in events:
                 try:
@@ -459,37 +478,61 @@ class TaskLoggerService:
                                         "parts": filtered_parts,
                                     })
                     
-                    # Collect RAG metadata from status events (but NOT artifacts to avoid duplicates)
+                    # Collect text content AND RAG metadata from status events
+                    # Text is accumulated to reconstruct the full agent response
                     elif event.direction == "status":
                         if "result" in payload:
                             result = payload["result"]
-                            # Only extract RAG metadata, skip artifact collection from status events
-                            # Artifacts will be collected from the final task response only
                             
-                            # Extract RAG metadata from tool_result data parts
+                            # Extract text content from status updates
                             status = result.get("status", {})
                             if isinstance(status, dict):
                                 message = status.get("message", {})
                                 if isinstance(message, dict):
                                     parts = message.get("parts", [])
                                     for part in parts:
-                                        if isinstance(part, dict) and part.get("kind") == "data":
-                                            data = part.get("data", {})
-                                            if isinstance(data, dict) and data.get("type") == "tool_result":
-                                                result_data = data.get("result_data", {})
-                                                if isinstance(result_data, dict) and "rag_metadata" in result_data:
-                                                    rag_metadata = result_data["rag_metadata"]
-                                                    if isinstance(rag_metadata, dict):
-                                                        # Add taskId to the RAG metadata
-                                                        rag_metadata["taskId"] = task_id
-                                                        rag_data.append(rag_metadata)
-                                                        log.info(
-                                                            f"{self.log_identifier} Extracted RAG metadata for task {task_id}: "
-                                                            f"searchType={rag_metadata.get('searchType')}, "
-                                                            f"sources_count={len(rag_metadata.get('sources', []))}"
-                                                        )
+                                        if isinstance(part, dict):
+                                            part_kind = part.get("kind")
+                                            if part_kind == "text":
+                                                text = part.get("text", "")
+                                                if text:
+                                                    accumulated_agent_text.append(text)
+                                                    accumulated_agent_parts.append(part)
+                                            elif part_kind == "data":
+                                                # Extract RAG metadata from tool_result data parts
+                                                data = part.get("data", {})
+                                                if isinstance(data, dict):
+                                                    data_type = data.get("type")
+                                                    
+                                                    if data_type == "tool_result":
+                                                        result_data = data.get("result_data", {})
+                                                        if isinstance(result_data, dict) and "rag_metadata" in result_data:
+                                                            rag_metadata = result_data["rag_metadata"]
+                                                            if isinstance(rag_metadata, dict):
+                                                                # Add taskId to the RAG metadata
+                                                                rag_metadata["taskId"] = task_id
+                                                                rag_data.append(rag_metadata)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted RAG metadata for task {task_id}: "
+                                                                    f"searchType={rag_metadata.get('searchType')}, "
+                                                                    f"sources_count={len(rag_metadata.get('sources', []))}"
+                                                                )
+                                                    elif data_type == "artifact_creation_progress":
+                                                        # Handle cancelled artifacts with rolled back text
+                                                        if data.get("status") == "cancelled":
+                                                            rolled_back_text = data.get("rolled_back_text")
+                                                            if rolled_back_text:
+                                                                accumulated_agent_text.append(rolled_back_text)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted rolled_back_text from cancelled artifact event for task {task_id}"
+                                                                )
+                                                
+                                                accumulated_agent_parts.append(part)
+                                            else:
+                                                # Accumulate other non-text, non-data parts
+                                                accumulated_agent_parts.append(part)
                     
-                    # Extract agent response messages - only from final task response
+                    # Extract artifacts and any additional text from final task response
                     elif event.direction == "response":
                         if "result" in payload:
                             result = payload["result"]
@@ -519,7 +562,7 @@ class TaskLoggerService:
                                                         }
                                                     })
                                 
-                                # Final task object - extract the complete message
+                                # Final task object - extract any additional text not in status updates
                                 status = result.get("status", {})
                                 if isinstance(status, dict):
                                     message = status.get("message", {})
@@ -546,59 +589,60 @@ class TaskLoggerService:
                                                                     f"sources_count={len(rag_metadata.get('sources', []))}"
                                                                 )
                                         
-                                        # Filter out data parts (status updates, tool invocations, etc.)
-                                        content_parts = [p for p in parts if p.get("kind") != "data"]
                                         
-                                        if content_parts or artifacts:
-                                            text_parts = [p.get("text", "") for p in content_parts if p.get("kind") == "text"]
-                                            combined_text = "".join(text_parts).strip()
-                                            
-                                            # Check if artifact markers are already in the text
-                                            # (they might be included in the final response text parts)
-                                            import re
-                                            existing_markers = set()
-                                            marker_pattern = r'«artifact_return:([^»]+)»'
-                                            for match in re.finditer(marker_pattern, combined_text):
-                                                # Normalize the artifact name (strip version suffix)
-                                                artifact_ref = match.group(1)
-                                                if ':' in artifact_ref:
-                                                    base_name = artifact_ref.rsplit(':', 1)[0]
-                                                    try:
-                                                        int(artifact_ref.rsplit(':', 1)[1])
-                                                        # Add the base name (without version) to existing markers
-                                                        # so we don't add a duplicate marker later
-                                                        existing_markers.add(base_name)
-                                                    except ValueError:
-                                                        # Not a version number, treat the whole thing as the artifact name
-                                                        existing_markers.add(artifact_ref)
-                                                else:
-                                                    existing_markers.add(artifact_ref)
-                                            
-                                            # Only add artifact markers if they're not already present
-                                            for artifact in artifacts:
-                                                artifact_name = artifact['name']
-                                                if artifact_name not in existing_markers:
-                                                    combined_text += f"«artifact_return:{artifact_name}»"
-                                                    log.info(
-                                                        f"{self.log_identifier} Adding artifact marker for {artifact_name}"
-                                                    )
-                                                else:
-                                                    log.info(
-                                                        f"{self.log_identifier} Skipping duplicate artifact marker for {artifact_name} (already in text)"
-                                                    )
-                                            
-                                            message_bubbles.append({
-                                                "id": f"msg-{uuid.uuid4()}",
-                                                "type": "agent",
-                                                "text": combined_text,
-                                                "parts": content_parts,  # Only content parts, no artifacts
-                                            })
-                
                 except Exception as e:
                     log.warning(
                         f"{self.log_identifier} Error parsing event for chat message reconstruction: {e}"
                     )
                     continue
+            
+            # After processing all events, create the agent message bubble from accumulated content
+            if accumulated_agent_text or artifacts:
+                combined_text = "".join(accumulated_agent_text).strip()
+                
+                # Check if artifact markers are already in the texts
+                import re
+                existing_markers = set()
+                marker_pattern = r'«artifact_return:([^»]+)»'
+                for match in re.finditer(marker_pattern, combined_text):
+                    # Normalize the artifact name (strip version suffix)
+                    artifact_ref = match.group(1)
+                    if ':' in artifact_ref:
+                        base_name = artifact_ref.rsplit(':', 1)[0]
+                        try:
+                            int(artifact_ref.rsplit(':', 1)[1])
+                            # Add the base name (without version) to existing markers
+                            # so we don't add a duplicate marker later
+                            existing_markers.add(base_name)
+                        except ValueError:
+                            # Not a version number, treat the whole thing as the artifact name
+                            existing_markers.add(artifact_ref)
+                    else:
+                        existing_markers.add(artifact_ref)
+                
+                # Only add artifact markers if they're not already present
+                for artifact in artifacts:
+                    artifact_name = artifact['name']
+                    if artifact_name not in existing_markers:
+                        combined_text += f"«artifact_return:{artifact_name}»"
+                        log.info(
+                            f"{self.log_identifier} Adding artifact marker for {artifact_name}"
+                        )
+                    else:
+                        log.info(
+                            f"{self.log_identifier} Skipping duplicate artifact marker for {artifact_name} (already in text)"
+                        )
+                
+                # Filter out data parts from accumulated parts
+                content_parts = [p for p in accumulated_agent_parts if p.get("kind") != "data"]
+                
+                message_bubbles.append({
+                    "id": f"msg-{uuid.uuid4()}",
+                    "type": "agent",
+                    "text": combined_text,
+                    "parts": content_parts,  # Only content parts, no artifacts
+                })
+                
             
             # Only save if we have a session_id and at least one message
             if not session_id:

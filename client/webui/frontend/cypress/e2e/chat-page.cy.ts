@@ -5,13 +5,13 @@ describe("Chat Page - Navigation and Layout", { tags: ["@community"] }, () => {
 
     it("should display main navigation", () => {
         cy.findByRole("button", { name: "Chat" }).should("be.visible");
-        cy.findByRole("button", { name: "Agents" }).should("be.visible");
+        cy.findByRole("button", { name: "Agent Mesh" }).should("be.visible");
     });
 
     it("should display side panel buttons", () => {
         cy.findByRole("button", { name: "Expand Panel" }).should("be.visible");
         cy.findByRole("button", { name: "Files" }).should("be.visible");
-        cy.findByRole("button", { name: "Workflow" }).should("be.visible");
+        cy.findByRole("button", { name: "Activity" }).should("be.visible");
     });
 
     it("should display files panel", () => {
@@ -20,7 +20,7 @@ describe("Chat Page - Navigation and Layout", { tags: ["@community"] }, () => {
     });
 
     it("should display workflow panel", () => {
-        cy.findByRole("button", { name: "Workflow" }).should("be.visible").click();
+        cy.findByRole("button", { name: "Activity" }).should("be.visible").click();
         cy.findByText("No task selected to display").should("be.visible");
     });
 
@@ -47,21 +47,21 @@ describe("Chat Page - Messaging Functionality", { tags: ["@community"] }, () => 
         cy.startNewChat();
 
         // Verify no workflow button exists initially
-        cy.findByRole("button", { name: "View Agent Workflow" }).should("not.exist");
+        cy.findByRole("button", { name: "View Activity" }).should("not.exist");
 
         // Send a test message
         cy.findByTestId("chat-input").should("be.visible").type("Hello SAM{enter}");
 
         // Wait for the agent response - workflow button should appear
-        cy.findByRole("button", { name: "View Agent Workflow" }).should("be.visible");
+        cy.findByRole("button", { name: "View Activity" }).should("be.visible");
 
         // Check workflow panel shows execution details
-        cy.findByRole("button", { name: "Workflow" }).should("be.visible").click();
+        cy.findByRole("button", { name: "View Activity" }).should("be.visible").click();
         cy.findByText("No task selected to display").should("not.exist");
         cy.findByText("Completed").should("be.visible");
 
         // Verify workflow nodes are present
-        cy.findAllByRole("group").should("have.length.greaterThan", 0);
+        cy.findAllByTestId("userNode").should("have.length.greaterThan", 0);
     });
 
     it("should handle multiple messages in a conversation", () => {
@@ -69,7 +69,7 @@ describe("Chat Page - Messaging Functionality", { tags: ["@community"] }, () => 
 
         // Send first message
         cy.findByTestId("chat-input").type("First message{enter}");
-        cy.findByRole("button", { name: "View Agent Workflow" }).should("be.visible");
+        cy.findByRole("button", { name: "View Activity" }).should("be.visible");
 
         // Send second message
         cy.findByRole("button", { name: "Send message" }).should("be.visible");
@@ -77,13 +77,7 @@ describe("Chat Page - Messaging Functionality", { tags: ["@community"] }, () => 
 
         // Wait for the second agent response by checking for the workflow button again
         // This ensures both user messages and agent responses are present
-        cy.findByRole("button", { name: "View Agent Workflow" }).should("be.visible");
-
-        // Scroll to top to ensure all messages are visible (in case of scroll issues)
-        //cy.get('[data-testid*="message"]').first().scrollIntoView();
-
-        // Should have multiple messages (at least user + agent for first exchange, plus user message for second)
-        //cy.get('[data-testid*="message"]').should("have.length.greaterThan", 1);
+        cy.findAllByRole("button", { name: "View Activity" }).should("have.length.greaterThan", 1);
     });
 });
 
@@ -97,7 +91,7 @@ describe("Chat Page - Theme and Responsive Design", { tags: ["@community"] }, ()
 
         // All main elements should be visible
         cy.findByRole("button", { name: "Chat" }).should("be.visible");
-        cy.findByRole("button", { name: "Agents" }).should("be.visible");
+        cy.findByRole("button", { name: "Agent Mesh" }).should("be.visible");
         cy.findByTestId("chat-input").should("be.visible");
     });
 });
