@@ -116,9 +116,7 @@ export const MapNode: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Verify node ID appears in the panel
-        const processItemsElements = canvas.getAllByText("process_items");
-        expect(processItemsElements.length).toBeGreaterThanOrEqual(2);
+        expect(canvas.getByText("process_items")).toBeInTheDocument();
 
         // Verify description for map nodes is rendered
         expect(canvas.getByText("Executes a node for each item in a collection. Items are processed in parallel by default.")).toBeInTheDocument();
@@ -138,9 +136,7 @@ export const SwitchNode: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Verify node ID appears in the panel
-        const routeRequestElements = canvas.getAllByText("route_request");
-        expect(routeRequestElements.length).toBeGreaterThanOrEqual(2);
+        expect(canvas.getByText("route_request")).toBeInTheDocument();
 
         // Verify description for switch nodes is rendered
         expect(canvas.getByText("Routes execution based on conditions. Cases are evaluated in order; the first match wins.")).toBeInTheDocument();
