@@ -112,7 +112,6 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
             };
 
             eventSource.onopen = () => {
-                console.log(`[SSEProvider] Connection opened: ${endpoint}`);
                 entry.retryCount = 0;
                 entry.retryDelay = INITIAL_RETRY_DELAY;
                 updateConnectionState(endpoint, "connected");
@@ -143,14 +142,11 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
                     entry.retryCount++;
                     entry.retryDelay = Math.min(entry.retryDelay * 2, MAX_RETRY_DELAY);
 
-                    console.log(`[SSEProvider] Scheduling reconnection attempt ${entry.retryCount}/${MAX_RETRY_ATTEMPTS} in ${currentDelay}ms`);
-
                     entry.retryTimeoutId = setTimeout(() => {
                         entry.retryTimeoutId = null;
 
                         // Only reconnect if we still have subscribers
                         if (entry.subscribers?.size > 0) {
-                            console.log(`[SSEProvider] Attempting reconnection: ${endpoint}`);
                             const newUrl = buildUrlWithAuth(endpoint);
                             const newEventSource = new EventSource(newUrl, { withCredentials: true });
 
@@ -205,8 +201,6 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
 
                 // If no more subscribers, close connection
                 if (currentEntry.subscribers.size === 0) {
-                    console.log(`[SSEProvider] No more subscribers, closing connection: ${endpoint}`);
-
                     if (currentEntry.retryTimeoutId) {
                         clearTimeout(currentEntry.retryTimeoutId);
                     }
@@ -279,8 +273,7 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
         const connections = connectionsRef.current;
         return () => {
             // Close all connections
-            connections.forEach((entry, endpoint) => {
-                console.log(`[SSEProvider] Cleanup: closing connection ${endpoint}`);
+            connections.forEach(entry => {
                 if (entry.retryTimeoutId) {
                     clearTimeout(entry.retryTimeoutId);
                 }
