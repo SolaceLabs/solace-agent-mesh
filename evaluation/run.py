@@ -49,7 +49,7 @@ def _error_exit(message: str):
 def _ensure_eval_backend_config_exists():
     """Checks for eval_backend.yaml and creates it from a template if missing."""
     project_root = Path.cwd()
-    configs_dir = project_root / "configs"
+    configs_dir = project_root / ".configs"
     eval_backend_config_path = configs_dir / "eval_backend.yaml"
 
     if eval_backend_config_path.exists():
