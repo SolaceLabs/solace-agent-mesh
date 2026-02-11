@@ -67,7 +67,11 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
                         >
                             <span className="flex items-center gap-2">
                                 {tab.label}
-                                {tab.badge && <ExperimentalBadge variant="transparent" className="text-[8px] px-1 py-0">{tab.badge}</ExperimentalBadge>}
+                                {tab.badge && (
+                                    <ExperimentalBadge variant="transparent" className="px-1 py-0 text-[8px]">
+                                        {tab.badge}
+                                    </ExperimentalBadge>
+                                )}
                             </span>
                             {tab.isActive && <div className="absolute right-0 bottom-0 left-0 h-0.5" />}
                         </button>

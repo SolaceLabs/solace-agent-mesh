@@ -43,7 +43,7 @@ class TestADKSetup:
         assert component is not None, f"Scenario {scenario_id}: Component not found"
         
         # Load tools
-        loaded_tools, builtin_tools, cleanup_hooks = await load_adk_tools(component)
+        loaded_tools, builtin_tools, cleanup_hooks, tool_scopes_map = await load_adk_tools(component)
         
         # Verify tools were loaded
         assert len(loaded_tools) > 0, f"Scenario {scenario_id}: No tools loaded"
@@ -65,7 +65,7 @@ class TestADKSetup:
         assert component is not None
         
         # Load tools first
-        loaded_tools, builtin_tools, _ = await load_adk_tools(component)
+        loaded_tools, builtin_tools, _, _ = await load_adk_tools(component)
         
         # Initialize agent
         agent = initialize_adk_agent(component, loaded_tools, builtin_tools)

@@ -3,7 +3,7 @@ Prompt SQLAlchemy models for prompt library feature.
 """
 
 from enum import Enum
-from sqlalchemy import BigInteger, Column, String, Text, Integer, Boolean, ForeignKey, UniqueConstraint, Enum as SQLEnum
+from sqlalchemy import BigInteger, Column, String, Text, Integer, Boolean, ForeignKey, UniqueConstraint, Index, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
@@ -22,6 +22,11 @@ class PromptGroupModel(Base):
     
     __tablename__ = "prompt_groups"
     
+    # Composite unique constraint: command must be unique per user, not globally
+    __table_args__ = (
+        Index('ix_prompt_groups_command_user_id', 'command', 'user_id', unique=True),
+    )
+    
     # Primary key - String type (not UUID)
     id = Column(String, primary_key=True)
     
@@ -29,7 +34,8 @@ class PromptGroupModel(Base):
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)
     category = Column(String(100), nullable=True, index=True)
-    command = Column(String(50), nullable=True, unique=True, index=True)
+    # Note: unique=False here because uniqueness is enforced by composite index above
+    command = Column(String(50), nullable=True, index=True)
     
     # Ownership
     user_id = Column(String, nullable=False, index=True)

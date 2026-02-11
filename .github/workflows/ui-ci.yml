@@ -91,7 +91,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: "25.5.0"
           cache: "npm"
           cache-dependency-path: client/webui/frontend/package-lock.json
           registry-url: https://npm.pkg.github.com/
@@ -131,6 +131,10 @@ jobs:
 
       - name: Run Storybook Tests
         run: npm run ci:storybook
+        env:
+          # Workaround for Node.js 25 Web Storage API breaking jsdom tests
+          # See: https://github.com/vitest-dev/vitest/issues/8757
+          NODE_OPTIONS: "--no-webstorage"
 
       - name: Build UI package
         run: npm run build-package
@@ -276,7 +280,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: "25.5.0"
 
       - name: "Automated Version Bump"
         id: bump
