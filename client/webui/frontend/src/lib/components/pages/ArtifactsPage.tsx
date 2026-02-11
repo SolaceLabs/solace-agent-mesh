@@ -673,6 +673,17 @@ export const ArtifactsPage: React.FC = () => {
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [previewArtifact, setPreviewArtifact] = useState<ArtifactWithSession | null>(null);
 
+    // Get feature flags from config context
+    const config = useContext(ConfigContext);
+    const artifactsPageEnabled = config?.configFeatureEnablement?.artifactsPage ?? false;
+
+    // Redirect to chat if feature is disabled
+    useEffect(() => {
+        if (!artifactsPageEnabled && config !== null) {
+            navigate("/chat", { replace: true });
+        }
+    }, [artifactsPageEnabled, navigate, config]);
+
     // Get unique project names from artifacts, sorted alphabetically
     const projectNames = useMemo(() => {
         const uniqueProjectNames = new Set<string>();

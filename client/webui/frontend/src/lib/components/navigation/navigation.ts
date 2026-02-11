@@ -32,8 +32,12 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             label: "Projects",
             icon: FolderOpen,
         });
+    }
 
-        // Add assets (available when projects is enabled)
+    // Add artifacts page only if explicitly enabled (separate from projects)
+    // Default to false - this is an experimental feature
+    const artifactsPageEnabled = featureFlags?.artifactsPage ?? false;
+    if (artifactsPageEnabled) {
         items.push({
             id: "artifacts",
             label: "Artifacts",
