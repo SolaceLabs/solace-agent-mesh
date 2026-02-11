@@ -488,9 +488,16 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
         // Strip out any embedded context quote HTML from displayHtml
         // (for backward compatibility with old messages that had context embedded in displayHtml)
         // The context quote is now rendered separately above the message bubble
-        let htmlToRender = message.displayHtml;
-        // Remove context-quote-badge div and its contents
-        htmlToRender = htmlToRender.replace(/<div class="context-quote-badge">[\s\S]*?<\/div>/g, "");
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(message.displayHtml, "text/html");
+
+        // Remove all context-quote-badge elements
+        const quoteBadges = doc.querySelectorAll(".context-quote-badge");
+        quoteBadges.forEach(badge => badge.remove());
+
+        // Get the cleaned HTML from body
+        const htmlToRender = doc.body.innerHTML;
 
         // Sanitize the HTML to prevent XSS
         // Allow mention chips and their data attributes
