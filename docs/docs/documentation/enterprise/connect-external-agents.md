@@ -20,7 +20,7 @@ The proxy handles several responsibilities on your behalf:
 - It translates artifact references between the mesh format and the external agent's format.
 - It forwards task requests and streams responses back to the requesting agent.
 
-Once connected, the external agent appears in your agents list and other agents can delegate tasks to it through natural language requests. For detailed technical information about how proxies work, see [Proxies](../components/proxies.md).
+Once connected, the external agent appears in your agents list and other agents can delegate tasks to it through natural language requests. For more information about how proxies work, see [Proxies](../components/proxies.md).
 
 ## Connecting an External Agent
 
@@ -105,7 +105,7 @@ If you need to make changes, use the Back button to return to previous steps. Wh
 
 ## Deploying and Managing External Agents
 
-After you connect an external agent, it appears in the Inactive tab of the Agents page with Not Deployed status. You must deploy the agent before other agents can discover and use it. The deployment and management workflow for external agents follows the same patterns as agents created through Agent Builder. For detailed information about deployment states, managing deployed agents, and downloading configurations, see the [Deploying and Managing Agents](agent-builder.md#deploying-and-managing-agents) section in Agent Builder.
+After you connect an external agent, it appears in the Inactive tab of the Agents page with Not Deployed status. You must deploy the agent before other agents can discover and use it. The deployment and management workflow for external agents follows the same patterns as agents created through Agent Builder. For more information about deployment states, managing deployed agents, and downloading configurations, see [Deploying and Managing Agents](agent-builder.md#deploying-and-managing-agents).
 
 ### Status for Agents Without Agent Cards
 
@@ -134,4 +134,4 @@ If tasks fail with authentication errors after connecting, verify that the task 
 
 ## Access Control
 
-External agent operations use the same RBAC capabilities as Agent Builder. For the list of required capabilities and detailed information about configuring role-based access control, see [Access Control](agent-builder.md#access-control) in Agent Builder.
+External agent operations use the same RBAC capabilities as Agent Builder. For the list of required capabilities and information about configuring role-based access control, see [Access Control](agent-builder.md#access-control).
