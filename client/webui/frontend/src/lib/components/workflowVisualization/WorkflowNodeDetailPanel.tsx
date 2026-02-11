@@ -197,12 +197,14 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     const agentDescription = agentInfo?.description;
 
     // Get the title (always show node name, regardless of view mode)
-    const title =
-        node.type === "agent"
-            ? agentDisplayName || node.data.agentName || node.id
-            : node.type === "map" || node.type === "switch" || node.type === "loop"
-            ? getTypeLabel()
-            : node.data.workflowName || node.id;
+    let title: string;
+    if (node.type === "agent") {
+        title = agentDisplayName || node.data.agentName || node.id;
+    } else if (node.type === "map" || node.type === "switch" || node.type === "loop") {
+        title = getTypeLabel();
+    } else {
+        title = node.data.workflowName || node.id;
+    }
 
     return (
         <div className="bg-background flex h-full flex-col">
