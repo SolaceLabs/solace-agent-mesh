@@ -1,9 +1,5 @@
 """Unit tests for A2A proxy configuration models."""
 
-"""
-Unit tests for A2A proxy configuration models with separate authentication.
-"""
-
 import pytest
 from pydantic import ValidationError
 
@@ -11,6 +7,7 @@ from solace_agent_mesh.agent.proxies.a2a.config import (
     A2AProxiedAgentConfig,
     A2AProxyAppConfig,
 )
+
 
 class TestA2AProxiedAgentConfigSSLVerify:
     """Tests for the ssl_verify configuration option."""
