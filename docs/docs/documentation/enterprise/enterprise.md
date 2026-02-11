@@ -13,7 +13,7 @@ Enterprise is available as a self-managed container image that you can deploy in
 
 The Enterprise version delivers several capabilities that distinguish it from the Community edition.
 
-Authentication and authorization integrate with your existing identity systems through SSO, eliminating the need for separate credentials while maintaining security standards. You can configure role-based access control to implement granular authorization policies that determine which agents and resources each user can access through the Agent Mesh Gateways.
+Authentication and authorization integrate with your existing identity systems through SSO, eliminating the need for separate credentials while maintaining security standards. You can configure role-based access control to implement authorization policies that determine which agents and resources each user can access through the Agent Mesh Gateways. The Platform Service shares this same authentication and authorization stack with the WebUI Gateway, so a single configuration secures both services. For details, see [Authentication and Authorization](platform-service-auth.md).
 
 Data management features help you optimize costs and improve accuracy. Smart filtering capabilities reduce unnecessary compute expenses while precise data governance helps prevent hallucinations by controlling what information reaches your language models.
 
