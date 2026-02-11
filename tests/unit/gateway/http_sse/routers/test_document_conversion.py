@@ -182,7 +182,7 @@ class TestConvertToPdfEndpoint:
         service.is_available = True
         service.is_format_supported = MagicMock(return_value=True)
         service.get_supported_extensions = MagicMock(return_value=["docx", "pptx", "xlsx"])
-        service.convert_base64_to_pdf_base64 = AsyncMock()
+        service.convert_binary_to_pdf = AsyncMock()
         return service
 
     @pytest.fixture
@@ -194,8 +194,9 @@ class TestConvertToPdfEndpoint:
     @pytest.mark.asyncio
     async def test_convert_to_pdf_success(self, mock_service, valid_request):
         """Test successful PDF conversion."""
-        expected_pdf = base64.b64encode(b"%PDF-1.4 test").decode("utf-8")
-        mock_service.convert_base64_to_pdf_base64.return_value = (expected_pdf, "")
+        expected_pdf_bytes = b"%PDF-1.4 test"
+        expected_pdf_base64 = base64.b64encode(expected_pdf_bytes).decode("utf-8")
+        mock_service.convert_binary_to_pdf.return_value = (expected_pdf_bytes, None)
         
         with patch('solace_agent_mesh.gateway.http_sse.routers.document_conversion.get_document_conversion_service', return_value=mock_service):
             result = await convert_to_pdf(
@@ -206,7 +207,7 @@ class TestConvertToPdfEndpoint:
             
             assert isinstance(result, ConversionResponse)
             assert result.success is True
-            assert result.pdf_content == expected_pdf
+            assert result.pdf_content == expected_pdf_base64
             assert result.error is None
 
     @pytest.mark.asyncio
@@ -271,7 +272,7 @@ class TestConvertToPdfEndpoint:
     @pytest.mark.asyncio
     async def test_convert_to_pdf_conversion_error(self, mock_service, valid_request):
         """Test handling of conversion errors."""
-        mock_service.convert_base64_to_pdf_base64.return_value = ("", "LibreOffice conversion failed")
+        mock_service.convert_binary_to_pdf.return_value = (None, "LibreOffice conversion failed")
         
         with patch('solace_agent_mesh.gateway.http_sse.routers.document_conversion.get_document_conversion_service', return_value=mock_service):
             result = await convert_to_pdf(
@@ -283,12 +284,13 @@ class TestConvertToPdfEndpoint:
             assert isinstance(result, ConversionResponse)
             assert result.success is False
             assert result.pdf_content == ""
-            assert "LibreOffice conversion failed" in result.error
+            # Router returns generic error message for security
+            assert "Document conversion failed" in result.error
 
     @pytest.mark.asyncio
     async def test_convert_to_pdf_unexpected_exception(self, mock_service, valid_request):
         """Test handling of unexpected exceptions."""
-        mock_service.convert_base64_to_pdf_base64.side_effect = RuntimeError("Unexpected error")
+        mock_service.convert_binary_to_pdf.side_effect = RuntimeError("Unexpected error")
         
         with patch('solace_agent_mesh.gateway.http_sse.routers.document_conversion.get_document_conversion_service', return_value=mock_service):
             with pytest.raises(HTTPException) as exc_info:
@@ -299,13 +301,14 @@ class TestConvertToPdfEndpoint:
                 )
             
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-            assert "Conversion failed" in str(exc_info.value.detail)
+            # Router returns generic error message for security
+            assert "Document conversion failed" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
     async def test_convert_to_pdf_various_formats(self, mock_service):
         """Test conversion with various supported formats."""
-        expected_pdf = base64.b64encode(b"%PDF-1.4 test").decode("utf-8")
-        mock_service.convert_base64_to_pdf_base64.return_value = (expected_pdf, "")
+        expected_pdf_bytes = b"%PDF-1.4 test"
+        mock_service.convert_binary_to_pdf.return_value = (expected_pdf_bytes, None)
         
         formats = [
             "presentation.pptx",
@@ -336,8 +339,8 @@ class TestConvertToPdfEndpoint:
     @pytest.mark.asyncio
     async def test_convert_to_pdf_logs_user_activity(self, mock_service, valid_request):
         """Test that conversion logs user activity."""
-        expected_pdf = base64.b64encode(b"%PDF-1.4 test").decode("utf-8")
-        mock_service.convert_base64_to_pdf_base64.return_value = (expected_pdf, "")
+        expected_pdf_bytes = b"%PDF-1.4 test"
+        mock_service.convert_binary_to_pdf.return_value = (expected_pdf_bytes, None)
         
         with patch('solace_agent_mesh.gateway.http_sse.routers.document_conversion.get_document_conversion_service', return_value=mock_service):
             with patch('solace_agent_mesh.gateway.http_sse.routers.document_conversion.log') as mock_log:
@@ -364,7 +367,7 @@ class TestConvertToPdfEndpointSecurity:
         service.is_available = True
         service.is_format_supported = MagicMock(return_value=True)
         service.get_supported_extensions = MagicMock(return_value=["docx"])
-        service.convert_base64_to_pdf_base64 = AsyncMock(return_value=("pdf", ""))
+        service.convert_binary_to_pdf = AsyncMock(return_value=(b"pdf", None))
         return service
 
     @pytest.mark.asyncio
@@ -438,7 +441,7 @@ class TestConversionRequestEdgeCases:
         service.is_available = True
         service.is_format_supported = MagicMock(return_value=True)
         service.get_supported_extensions = MagicMock(return_value=["docx"])
-        service.convert_base64_to_pdf_base64 = AsyncMock(return_value=("pdf", ""))
+        service.convert_binary_to_pdf = AsyncMock(return_value=(b"pdf", None))
         return service
 
     @pytest.mark.asyncio
@@ -458,24 +461,23 @@ class TestConversionRequestEdgeCases:
             assert result is not None
 
     @pytest.mark.asyncio
-    async def test_convert_large_content_passes_to_service(self, mock_service):
-        """Test that large content is passed to service for validation."""
-        # 10MB of content - service should handle size validation
+    async def test_convert_large_content_rejected_by_router(self, mock_service):
+        """Test that large content is rejected by the router before reaching service."""
+        # 10MB of content - router has 5MB limit, should reject before service
         large_content = base64.b64encode(b"x" * (10 * 1024 * 1024)).decode("utf-8")
         request = ConversionRequest(content=large_content, filename="large.docx")
         
-        mock_service.convert_base64_to_pdf_base64.return_value = ("", "File too large")
-        
         with patch('solace_agent_mesh.gateway.http_sse.routers.document_conversion.get_document_conversion_service', return_value=mock_service):
-            result = await convert_to_pdf(
-                request=request,
-                user_id="test-user",
-                user_config={"tool:artifact:load": True},
-            )
+            with pytest.raises(HTTPException) as exc_info:
+                await convert_to_pdf(
+                    request=request,
+                    user_id="test-user",
+                    user_config={"tool:artifact:load": True},
+                )
             
-            # Service returns error, not HTTP exception
-            assert result.success is False
-            assert "too large" in result.error
+            # Router enforces 5MB limit with HTTP 413
+            assert exc_info.value.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            assert "too large" in str(exc_info.value.detail).lower()
 
     @pytest.mark.asyncio
     async def test_convert_filename_with_path(self, mock_service):
