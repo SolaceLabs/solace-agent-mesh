@@ -130,7 +130,7 @@ The default token TTL is 3600 seconds (1 hour), configurable through the `sam_ac
 
 Each gateway generates an ephemeral EC key pair at startup. It publishes a Trust Card (containing the public key in JWKS format) to the broker and re-publishes it periodically (default every 60 seconds). Other components subscribe to Trust Card topics and store the public keys in a Trust Registry.
 
-Only components with `component_type: "gateway"` can sign user identity JWTs. This restriction is enforced at both signing time and verification time. Task ID binding prevents cross-task replay on per-request user identity JWTs. SAM Access Tokens use an empty `task_id` since they are session-level tokens, not bound to a specific task.
+Only components with `component_type: "gateway"` can sign user identity JWTs. This restriction is enforced at both signing time and verification time. Task ID binding prevents cross-task replay on per-request user identity JWTs. SAM Access Tokens use an empty `task_id` because they are session-level tokens, not bound to a specific task.
 
 When verifying a SAM Access Token, the trust manager decodes the JWT header, looks up the issuer in the Trust Registry, verifies the issuer is a gateway, retrieves the matching public key by `kid`, and validates the signature. Expiration and issuance time are checked with a configurable clock skew tolerance (default 300 seconds).
 

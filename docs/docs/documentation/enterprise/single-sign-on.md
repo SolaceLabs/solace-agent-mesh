@@ -177,7 +177,7 @@ security:
     requests_per_minute: ${OAUTH2_RATE_LIMIT_RPM:60}
 ```
 
-This configuration file provides several important features:
+This configuration file provides several features:
 
 The `enabled` setting controls whether the OAuth2 service is active. You can enable it by setting the OAUTH2_ENABLED environment variable to true.
 
@@ -458,7 +458,7 @@ The EXTERNAL_AUTH_CALLBACK is the URL where your OAuth2 provider redirects users
 
 ### Port Mapping and Volume Mount
 
-Two additional configuration elements are essential for SSO to function:
+Two additional configuration elements are required for SSO to function:
 
 ```bash
 -p 8000:8000 -p 8080:8080 \
@@ -503,9 +503,9 @@ When using SSO, it’s important to understand how the authentication flow works
 5. After successful login, the IdP redirects the user back to `EXTERNAL_AUTH_CALLBACK` (for example, `http://localhost:8000/api/v1/auth/callback`), which is handled by the WebUI Gateway.
 6. The WebUI Gateway receives the authorization code and calls the OAuth2 service's `/exchange-code` endpoint (server-to-server) to exchange it for tokens. The OAuth2 service returns the tokens and user info to the WebUI Gateway, which then mints a SAM Access Token (if enabled) and returns it to the frontend.
 
-> **Note:**  
-> You do *not* need to manually append `client_id`, `scope`, or `redirect_uri` query parameters to the login URL.  
-> The OAuth2 service automatically handles these based on the selected provider in `oauth2_config.yaml`.
+:::info
+You do not need to manually append `client_id`, `scope`, or `redirect_uri` query parameters to the login URL. The OAuth2 service automatically handles these based on the selected provider in `oauth2_config.yaml`.
+:::
 
 ### Common Environment Variables
 

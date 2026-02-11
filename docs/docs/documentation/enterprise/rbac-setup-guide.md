@@ -94,7 +94,7 @@ Common tool scopes include:
 - `tool:data:*` - All permissions for data-related tools
 - `tool:advanced:read` - Permission to read advanced tools
 
-**Custom Tool Scopes with `required_scopes`:**
+#### Custom Tool Scopes with `required_scopes`
 
 When you create a custom tool in Agent Mesh Enterprise, you can specify a `required_scopes` field in the tool's configuration that defines what permissions a user needs to access that tool. The field accepts a list of scope strings. This allows you to create fine-grained access controls for specific tools.
 
@@ -146,7 +146,7 @@ This role would have access to any tool with `required_scopes` containing `tool:
 
 Agent scopes control access to specific agents and follow the pattern `agent:<agent_name>:delegate`. These scopes allow you to control which users can interact with which agents in your Agent Mesh Enterprise deployment.
 
-**How Agent Scopes Work:**
+#### How Agent Scopes Work
 
 Unlike tools (which use an explicit `required_scopes` field), agent scopes are **automatically derived from the agent's `agent_name` configuration field**. When you define an agent, the system automatically enforces the scope `agent:<agent_name>:delegate` for access control.
 
@@ -168,7 +168,7 @@ The system automatically requires users to have the scope `agent:customer_suppor
 
 When a user attempts to send a message to an agent or invoke an agent's capabilities, the system checks whether the user has the appropriate agent scope. The `<agent_name>` in the scope must match the name of the agent being accessed.
 
-**Example: Controlling Access to Specific Agents**
+#### Example: Controlling Access to Specific Agents
 
 Suppose you have three agents in your system:
 - `customer_support_agent` - Handles customer inquiries
@@ -206,7 +206,7 @@ With this configuration:
 - A user with the `data_analyst` role can only interact with `data_analysis_agent`
 - A user with the `system_admin` role can interact with any agent
 
-**Using Wildcards for Agent Access:**
+#### Using Wildcards for Agent Access
 
 You can use wildcards to grant access to multiple agents:
 
