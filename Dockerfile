@@ -135,6 +135,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 #   docker build --build-arg INSTALL_LIBREOFFICE=true -t sam .
 # Or via environment variable:
 #   INSTALL_LIBREOFFICE=true docker build --build-arg INSTALL_LIBREOFFICE -t sam .
+#
+# IMPORTANT: LibreOffice is a separate open-source application licensed under MPL-2.0.
+# See THIRD_PARTY_LICENSES/LIBREOFFICE.md for full license and attribution details.
+# Source code: https://www.libreoffice.org/download/source-code/
 ARG INSTALL_LIBREOFFICE
 
 # Copy Node.js 25 from the official node image
@@ -153,7 +157,13 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     ffmpeg=7:7.1.3-0+deb13u1 \
     git && \
     if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
-        echo "Installing LibreOffice for binary artifact preview (INSTALL_LIBREOFFICE=true)..." && \
+        echo "============================================================" && \
+        echo "NOTICE: Installing LibreOffice - a separate open-source application" && \
+        echo "LibreOffice is licensed under Mozilla Public License 2.0 (MPL-2.0)" && \
+        echo "License: https://www.mozilla.org/en-US/MPL/2.0/" && \
+        echo "Source:  https://www.libreoffice.org/download/source-code/" && \
+        echo "See THIRD_PARTY_LICENSES/LIBREOFFICE.md for full attribution" && \
+        echo "============================================================" && \
         apt-get install -y --no-install-recommends \
         libreoffice-writer-nogui \
         libreoffice-impress-nogui \
