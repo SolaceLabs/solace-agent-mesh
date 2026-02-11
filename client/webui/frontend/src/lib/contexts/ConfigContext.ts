@@ -67,6 +67,12 @@ export interface ConfigContextValue {
     autoTitleGenerationEnabled?: boolean;
 
     /**
+     * Whether Identity Service is configured.
+     * When null, Identity Service is not configured.
+     */
+    identityServiceType: string | null;
+
+    /**
      * Whether binary artifact preview is enabled.
      * When true, Office documents can be previewed in the browser via PDF conversion.
      * Requires LibreOffice to be installed on the server.

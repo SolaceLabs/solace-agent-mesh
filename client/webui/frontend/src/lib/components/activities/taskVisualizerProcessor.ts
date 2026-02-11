@@ -70,9 +70,15 @@ const getEventTimestamp = (event: A2AEventSSEPayload): string => {
  * @param allMonitoredTasks A record of all monitored tasks.
  * @param taskNestingLevels A map to store the nesting level of each task ID.
  * @param currentLevel The current nesting level for currentTaskId.
+ * @param visitedTaskIds A set of task IDs that have already been visited to prevent cycles/duplication.
  * @returns An array of A2AEventSSEPayload objects from the task and its descendants.
  */
-const collectAllDescendantEvents = (currentTaskId: string, allMonitoredTasks: Record<string, TaskFE>, taskNestingLevels: Map<string, number>, currentLevel: number): A2AEventSSEPayload[] => {
+const collectAllDescendantEvents = (currentTaskId: string, allMonitoredTasks: Record<string, TaskFE>, taskNestingLevels: Map<string, number>, currentLevel: number, visitedTaskIds: Set<string> = new Set()): A2AEventSSEPayload[] => {
+    if (visitedTaskIds.has(currentTaskId)) {
+        return [];
+    }
+    visitedTaskIds.add(currentTaskId);
+
     const task = allMonitoredTasks[currentTaskId];
     if (!task) {
         console.warn(`[collectAllDescendantEvents] Task not found in allMonitoredTasks: ${currentTaskId}`);
@@ -91,7 +97,7 @@ const collectAllDescendantEvents = (currentTaskId: string, allMonitoredTasks: Re
         const childsParentId = getParentTaskIdFromTaskObject(potentialChildTask);
 
         if (childsParentId === currentTaskId) {
-            events = events.concat(collectAllDescendantEvents(potentialChildTask.taskId, allMonitoredTasks, taskNestingLevels, currentLevel + 1));
+            events = events.concat(collectAllDescendantEvents(potentialChildTask.taskId, allMonitoredTasks, taskNestingLevels, currentLevel + 1, visitedTaskIds));
         }
     }
     return events;
@@ -223,7 +229,8 @@ export const processTaskForVisualization = (
         parentTaskObject.taskId,
         allMonitoredTasks,
         taskNestingLevels,
-        0 // Root task is at level 0
+        0, // Root task is at level 0
+        new Set() // visitedTaskIds
     );
 
     if (combinedEvents.length === 0) {
@@ -252,6 +259,7 @@ export const processTaskForVisualization = (
     const subTaskToFunctionCallIdMap = new Map<string, string>();
     const functionCallIdToDelegationInfoMap = new Map<string, DelegationInfo>();
     const activeFunctionCallIdByTask = new Map<string, string>();
+    const processedWorkflowEvents = new Set<string>();
 
     const flushAggregatedTextStep = (currentEventOwningTaskId?: string) => {
         if (currentAggregatedText.trim() && aggregatedTextSourceAgent && aggregatedTextTimestamp) {
@@ -270,6 +278,9 @@ export const processTaskForVisualization = (
             const nestingLevelForFlush = taskNestingLevels.get(owningTaskIdForFlush) ?? 0;
             const functionCallIdForStep = subTaskToFunctionCallIdMap.get(owningTaskIdForFlush) || activeFunctionCallIdByTask.get(owningTaskIdForFlush);
 
+            const taskForFlush = allMonitoredTasks[owningTaskIdForFlush];
+            const parentTaskIdForFlush = getParentTaskIdFromTaskObject(taskForFlush);
+
             visualizerSteps.push({
                 id: `vstep-agenttext-${visualizerSteps.length}-${aggregatedRawEventIds[0] || "unknown"}`,
                 type: "AGENT_RESPONSE_TEXT",
@@ -282,6 +293,7 @@ export const processTaskForVisualization = (
                 isSubTaskStep: nestingLevelForFlush > 0,
                 nestingLevel: nestingLevelForFlush,
                 owningTaskId: owningTaskIdForFlush,
+                parentTaskId: parentTaskIdForFlush || undefined,
                 functionCallId: functionCallIdForStep,
             });
             lastFlushedAgentResponseText = textToFlush;
@@ -300,6 +312,9 @@ export const processTaskForVisualization = (
         const payload = event.full_payload;
         const currentEventOwningTaskId = event.task_id || parentTaskObject.taskId;
         const currentEventNestingLevel = taskNestingLevels.get(currentEventOwningTaskId) ?? 0;
+
+        const currentTask = allMonitoredTasks[currentEventOwningTaskId];
+        const parentTaskId = getParentTaskIdFromTaskObject(currentTask);
 
         // Determine agent name
         let eventAgentName = event.source_entity || "UnknownAgent";
@@ -329,14 +344,99 @@ export const processTaskForVisualization = (
 
         // Handle sub-task creation requests to establish the mapping early
         if (event.direction === "request" && currentEventNestingLevel > 0) {
-            const metadata = payload.params?.metadata as any;
-            const functionCallId = metadata?.function_call_id;
+            // Note: metadata can be at params level (for tool delegation) or message level (for workflow agent calls)
+            const paramsMetadata = payload.params?.metadata as any;
+            const messageMetadata = payload.params?.message?.metadata as any;
+            const functionCallId = paramsMetadata?.function_call_id || messageMetadata?.function_call_id;
             const subTaskId = event.task_id;
 
             if (subTaskId && functionCallId) {
                 subTaskToFunctionCallIdMap.set(subTaskId, functionCallId);
                 // This event's only purpose is to create the mapping.
                 // It doesn't create a visual step itself, so we return.
+                return;
+            }
+
+            // Check if this is a workflow agent request (has workflow_name in message metadata)
+            const workflowName = messageMetadata?.workflow_name;
+            const nodeId = messageMetadata?.node_id;
+            if (workflowName && nodeId) {
+                // This is a workflow agent invocation - create a WORKFLOW_AGENT_REQUEST step
+                const params = payload.params as any;
+                let inputText: string | undefined;
+                let instruction: string | undefined;
+                let inputArtifactRef: { name: string; version?: number; uri?: string; mimeType?: string } | undefined;
+                let inputSchema: Record<string, any> | undefined;
+                let outputSchema: Record<string, any> | undefined;
+                let suggestedOutputFilename: string | undefined;
+
+                if (params?.message?.parts) {
+                    // Extract structured_invocation_request data part
+                    const structuredInvocationPart = params.message.parts.find((p: any) => p.kind === "data" && p.data?.type === "structured_invocation_request");
+                    if (structuredInvocationPart) {
+                        const invocationData = structuredInvocationPart.data;
+                        inputSchema = invocationData.input_schema;
+                        outputSchema = invocationData.output_schema;
+                        suggestedOutputFilename = invocationData.suggested_output_filename;
+                    }
+
+                    // Extract text parts (skip the reminder text)
+                    // The first non-reminder text part is the instruction if present
+                    const textParts = params.message.parts.filter((p: any) => p.kind === "text" && p.text && !p.text.includes("REMINDER:"));
+                    if (textParts.length > 0) {
+                        // First text part is the instruction
+                        instruction = textParts[0].text;
+                    }
+
+                    // Extract file parts (artifact references) - this is the structured input
+                    const fileParts = params.message.parts.filter((p: any) => p.kind === "file" && p.file);
+                    if (fileParts.length > 0) {
+                        const file = fileParts[0].file;
+                        inputArtifactRef = {
+                            name: file.name || "input",
+                            version: file.version,
+                            uri: file.uri,
+                            mimeType: file.mimeType,
+                        };
+                    }
+
+                    // If no file part but text parts exist after instruction, that's the inputText
+                    // (for simple text schemas where input is sent as text, not artifact)
+                    if (!inputArtifactRef && textParts.length > 1) {
+                        inputText = textParts[1].text;
+                    } else if (!inputArtifactRef && textParts.length === 1 && !instruction) {
+                        // Single text part that's not instruction - it's the input
+                        inputText = textParts[0].text;
+                    }
+                }
+
+                const stepData = {
+                    id: `vstep-wfagentreq-${visualizerSteps.length}-${eventId}`,
+                    type: "WORKFLOW_AGENT_REQUEST" as const,
+                    timestamp: eventTimestamp,
+                    title: `Workflow Request to ${event.target_entity || eventAgentName}`,
+                    source: "Workflow",
+                    target: event.target_entity || eventAgentName,
+                    data: {
+                        workflowAgentRequest: {
+                            agentName: event.target_entity || eventAgentName || "Unknown",
+                            nodeId,
+                            workflowName,
+                            inputText,
+                            inputArtifactRef,
+                            instruction,
+                            inputSchema,
+                            outputSchema,
+                            suggestedOutputFilename,
+                        },
+                    },
+                    rawEventIds: [eventId],
+                    isSubTaskStep: true,
+                    nestingLevel: currentEventNestingLevel,
+                    owningTaskId: currentEventOwningTaskId,
+                    parentTaskId: parentTaskId || undefined,
+                };
+                visualizerSteps.push(stepData);
                 return;
             }
         }
@@ -353,8 +453,20 @@ export const processTaskForVisualization = (
             let userText = "User request";
             if (params?.message?.parts) {
                 const textParts = params.message.parts.filter((p: any) => p.kind === "text" && p.text);
-                if (textParts.length > 0) {
-                    userText = textParts[textParts.length - 1].text;
+                // Filter out gateway timestamp parts (they appear like "Request received by gateway at: 2025-12-19T22:46:16.994017+00:00")
+                // The gateway prepends this as the first part, so we can skip parts that match this pattern
+                const gatewayTimestampPattern = /^Request received by gateway at:/;
+                const filteredParts = textParts.filter((p: any) => !gatewayTimestampPattern.test(p.text.trim()));
+                if (filteredParts.length > 0) {
+                    // Join remaining text parts
+                    userText = filteredParts.map((p: any) => p.text).join("\n");
+                } else if (textParts.length > 0) {
+                    // Fallback: if all parts were filtered, use the last part but strip the gateway prefix
+                    const lastPart = textParts[textParts.length - 1].text;
+                    // Try to extract text after the timestamp line
+                    const lines = lastPart.split("\n");
+                    const nonGatewayLines = lines.filter((line: string) => !gatewayTimestampPattern.test(line.trim()));
+                    userText = nonGatewayLines.length > 0 ? nonGatewayLines.join("\n") : lastPart;
                 }
             }
             visualizerSteps.push({
@@ -380,9 +492,11 @@ export const processTaskForVisualization = (
             const messageMetadata = statusMessage?.metadata as any;
 
             let statusUpdateAgentName: string;
-            const isForwardedMessage = !!messageMetadata?.forwarded_from_peer;
+            // Check both message metadata and result metadata for forwarding flag
+            const isForwardedMessage = !!messageMetadata?.forwarded_from_peer || !!result.metadata?.forwarded_from_peer;
+
             if (isForwardedMessage) {
-                statusUpdateAgentName = messageMetadata.forwarded_from_peer;
+                statusUpdateAgentName = messageMetadata?.forwarded_from_peer || result.metadata?.forwarded_from_peer;
             } else if (result.metadata?.agent_name) {
                 statusUpdateAgentName = result.metadata.agent_name as string;
             } else if (messageMetadata?.agent_name) {
@@ -400,7 +514,7 @@ export const processTaskForVisualization = (
                         if (data.type === "agent_progress_update") {
                             lastStatusText = data.status_text;
                         } else if (data.type === "artifact_creation_progress") {
-                            lastStatusText = `Saving artifact: ${data.filename} (${data.bytes_saved} bytes)`;
+                            lastStatusText = `Saving artifact: ${data.filename} (${data.bytes_transferred} bytes)`;
                         }
                     }
                     if (part.kind === "data") {
@@ -410,6 +524,171 @@ export const processTaskForVisualization = (
                         const signalType = signalData?.type as string;
 
                         switch (signalType) {
+                            case "workflow_execution_start": {
+                                const dedupKey = `start:${signalData.execution_id}`;
+
+                                if (processedWorkflowEvents.has(dedupKey)) {
+                                    break;
+                                }
+                                processedWorkflowEvents.add(dedupKey);
+
+                                const stepId = `vstep-wfstart-${visualizerSteps.length}-${eventId}`;
+                                visualizerSteps.push({
+                                    id: stepId,
+                                    type: "WORKFLOW_EXECUTION_START",
+                                    timestamp: eventTimestamp,
+                                    title: `Workflow Started: ${signalData.workflow_name}`,
+                                    source: "System",
+                                    target: "Workflow",
+                                    data: {
+                                        workflowExecutionStart: {
+                                            workflowName: signalData.workflow_name,
+                                            executionId: signalData.execution_id,
+                                            inputArtifactRef: signalData.input_artifact_ref,
+                                            workflowInput: signalData.workflow_input,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    parentTaskId: parentTaskId || undefined,
+                                    functionCallId: functionCallIdForStep,
+                                });
+                                break;
+                            }
+                            case "workflow_node_execution_start": {
+                                const dedupKey = `node_start:${currentEventOwningTaskId}:${signalData.sub_task_id || signalData.node_id}:${signalData.iteration_index || 0}`;
+                                if (processedWorkflowEvents.has(dedupKey)) break;
+                                processedWorkflowEvents.add(dedupKey);
+
+                                visualizerSteps.push({
+                                    id: `vstep-wfnode-start-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_NODE_EXECUTION_START",
+                                    timestamp: eventTimestamp,
+                                    title: `Node Started: ${signalData.node_id} (${signalData.node_type})`,
+                                    source: "Workflow",
+                                    target: signalData.agent_name || signalData.node_id,
+                                    data: {
+                                        workflowNodeExecutionStart: {
+                                            nodeId: signalData.node_id,
+                                            nodeType: signalData.node_type,
+                                            agentName: signalData.agent_name,
+                                            inputArtifactRef: signalData.input_artifact_ref,
+                                            iterationIndex: signalData.iteration_index,
+                                            // Conditional node fields
+                                            condition: signalData.condition,
+                                            trueBranch: signalData.true_branch,
+                                            falseBranch: signalData.false_branch,
+                                            trueBranchLabel: signalData.true_branch_label,
+                                            falseBranchLabel: signalData.false_branch_label,
+                                            // Switch node fields
+                                            cases: signalData.cases,
+                                            defaultBranch: signalData.default_branch,
+                                            // Join node fields
+                                            waitFor: signalData.wait_for,
+                                            joinStrategy: signalData.join_strategy,
+                                            joinN: signalData.join_n,
+                                            // Loop node fields
+                                            maxIterations: signalData.max_iterations,
+                                            loopDelay: signalData.loop_delay,
+                                            // Common fields
+                                            subTaskId: signalData.sub_task_id,
+                                            parentNodeId: signalData.parent_node_id,
+                                            // Parallel grouping
+                                            parallelGroupId: signalData.parallel_group_id,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    functionCallId: functionCallIdForStep,
+                                });
+                                break;
+                            }
+                            case "workflow_node_execution_result": {
+                                const dedupKey = `node_result:${currentEventOwningTaskId}:${signalData.node_id}:${signalData.status}`;
+                                if (processedWorkflowEvents.has(dedupKey)) break;
+                                processedWorkflowEvents.add(dedupKey);
+
+                                visualizerSteps.push({
+                                    id: `vstep-wfnode-result-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_NODE_EXECUTION_RESULT",
+                                    timestamp: eventTimestamp,
+                                    title: `Node Completed: ${signalData.node_id} (${signalData.status})`,
+                                    source: signalData.node_id,
+                                    target: "Workflow",
+                                    data: {
+                                        workflowNodeExecutionResult: {
+                                            nodeId: signalData.node_id,
+                                            status: signalData.status,
+                                            outputArtifactRef: signalData.output_artifact_ref,
+                                            errorMessage: signalData.error_message,
+                                            metadata: signalData.metadata,
+                                            conditionResult: signalData.metadata?.condition_result,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    functionCallId: functionCallIdForStep,
+                                });
+                                break;
+                            }
+                            case "workflow_map_progress": {
+                                visualizerSteps.push({
+                                    id: `vstep-wfmap-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_MAP_PROGRESS",
+                                    timestamp: eventTimestamp,
+                                    title: `Map Progress: ${signalData.node_id} (${signalData.completed_items}/${signalData.total_items})`,
+                                    source: signalData.node_id,
+                                    target: "Workflow",
+                                    data: {
+                                        workflowMapProgress: {
+                                            nodeId: signalData.node_id,
+                                            totalItems: signalData.total_items,
+                                            completedItems: signalData.completed_items,
+                                            status: signalData.status,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    functionCallId: functionCallIdForStep,
+                                });
+                                break;
+                            }
+                            case "workflow_execution_result": {
+                                const dedupKey = `result:${currentEventOwningTaskId}:${signalData.status}`;
+                                if (processedWorkflowEvents.has(dedupKey)) break;
+                                processedWorkflowEvents.add(dedupKey);
+
+                                visualizerSteps.push({
+                                    id: `vstep-wfresult-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_EXECUTION_RESULT",
+                                    timestamp: eventTimestamp,
+                                    title: `Workflow Finished: ${signalData.status}`,
+                                    source: "Workflow",
+                                    target: "User",
+                                    data: {
+                                        workflowExecutionResult: {
+                                            status: signalData.status,
+                                            outputArtifactRef: signalData.output_artifact_ref,
+                                            errorMessage: signalData.error_message,
+                                            workflowOutput: signalData.workflow_output,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                    functionCallId: functionCallIdForStep,
+                                });
+                                break;
+                            }
                             case "agent_progress_update": {
                                 visualizerSteps.push({
                                     id: `vstep-progress-${visualizerSteps.length}-${eventId}`,
@@ -431,13 +710,84 @@ export const processTaskForVisualization = (
                                 const llmData = signalData.request as any;
                                 let promptText = "System-initiated LLM call";
                                 if (llmData?.contents && Array.isArray(llmData.contents) && llmData.contents.length > 0) {
-                                    // Find the last user message in the history to use as the prompt preview.
-                                    const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
-                                    if (lastUserContent && lastUserContent.parts) {
-                                        promptText = lastUserContent.parts
-                                            .map((p: any) => p.text || "") // Handle cases where text might be null/undefined
-                                            .join("\n")
-                                            .trim();
+                                    // Get the last message in the conversation to understand what triggered this LLM call
+                                    const lastContent = llmData.contents[llmData.contents.length - 1];
+                                    const lastRole = lastContent?.role;
+
+                                    // Check if this LLM call is following tool results
+                                    // Tool results can be: role="tool", role="function", or parts with function_response
+                                    const toolResultContents = llmData.contents.filter((c: any) => c.role === "tool" || c.role === "function" || (c.parts && c.parts.some((p: any) => p.function_response)));
+                                    const hasToolResults = toolResultContents.length > 0;
+
+                                    if (hasToolResults && lastRole !== "user") {
+                                        // This is a follow-up LLM call after tool execution
+                                        // Count only the tool results from the CURRENT turn, not the entire conversation history
+                                        // Find the index of the last "model" role message (the LLM's response that called tools)
+                                        let lastModelIndex = -1;
+                                        for (let i = llmData.contents.length - 1; i >= 0; i--) {
+                                            if (llmData.contents[i].role === "model") {
+                                                lastModelIndex = i;
+                                                break;
+                                            }
+                                        }
+
+                                        // Count function_response parts that come AFTER the last model message
+                                        // Also collect summaries of the tool results
+                                        let actualToolResultCount = 0;
+                                        const toolResultSummaries: string[] = [];
+                                        const startIndex = lastModelIndex + 1;
+                                        for (let i = startIndex; i < llmData.contents.length; i++) {
+                                            const content = llmData.contents[i];
+                                            if (content.parts && Array.isArray(content.parts)) {
+                                                for (const part of content.parts) {
+                                                    if (part.function_response) {
+                                                        actualToolResultCount++;
+                                                        const toolName = part.function_response.name || "unknown";
+                                                        const response = part.function_response.response;
+                                                        // Create a brief summary of the response
+                                                        let summary: string;
+                                                        if (typeof response === "string") {
+                                                            summary = response.substring(0, 200);
+                                                        } else if (typeof response === "object" && response !== null) {
+                                                            const jsonStr = JSON.stringify(response);
+                                                            summary = jsonStr.substring(0, 200);
+                                                        } else {
+                                                            summary = String(response).substring(0, 200);
+                                                        }
+                                                        if (summary.length === 200) summary += "...";
+                                                        toolResultSummaries.push(`- ${toolName}: ${summary}`);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        // If no function_response parts found after last model, fall back to 0 (shouldn't happen)
+                                        const toolResultCount = actualToolResultCount > 0 ? actualToolResultCount : 0;
+
+                                        // Find the LAST user message (which is the current turn's request)
+                                        const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
+                                        const userPromptFull =
+                                            lastUserContent?.parts
+                                                ?.map((p: any) => p.text || "")
+                                                .join(" ")
+                                                .trim() || "";
+                                        const userPromptSnippet = userPromptFull.substring(0, 5000);
+
+                                        // Build prompt text with tool result summaries
+                                        let toolResultsSection = "";
+                                        if (toolResultSummaries.length > 0) {
+                                            toolResultsSection = "\n\nTool Results:\n" + toolResultSummaries.join("\n");
+                                        }
+
+                                        promptText = `[Following ${toolResultCount} tool result(s)]\nOriginal request: ${userPromptSnippet || "N/A"}${userPromptFull.length > 5000 ? "..." : ""}${toolResultsSection}`;
+                                    } else {
+                                        // Regular LLM call - find the last user message
+                                        const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
+                                        if (lastUserContent && lastUserContent.parts) {
+                                            promptText = lastUserContent.parts
+                                                .map((p: any) => p.text || "") // Handle cases where text might be null/undefined
+                                                .join("\n")
+                                                .trim();
+                                        }
                                     }
                                 }
                                 const llmCallData: LLMCallData = {
@@ -472,7 +822,7 @@ export const processTaskForVisualization = (
                                 }
 
                                 const llmResponseData = signalData.data as any;
-                                const contentParts = llmResponseData.content?.parts as any[];
+                                const contentParts = llmResponseData?.content?.parts as any[];
                                 const functionCallParts = contentParts?.filter(p => p.function_call);
 
                                 if (functionCallParts && functionCallParts.length > 0) {
@@ -484,24 +834,47 @@ export const processTaskForVisualization = (
                                         functionCallId: p.function_call.id,
                                         toolName: p.function_call.name,
                                         toolArguments: p.function_call.args || {},
-                                        isPeerDelegation: p.function_call.name?.startsWith("peer_"),
+                                        isPeerDelegation: p.function_call.name?.startsWith("peer_") || p.function_call.name?.startsWith("workflow_"),
                                     }));
                                     const toolDecisionData: ToolDecisionData = { decisions, isParallel: decisions.length > 1 };
 
                                     const delegationInfos: DelegationInfo[] = [];
                                     const claimedSubTaskIds = new Set<string>();
+                                    // Look for matching sub-tasks for ALL tool calls, not just those with peer_/workflow_ prefix
+                                    // If a matching sub-task is found, it's a peer delegation regardless of tool name
                                     decisions.forEach(decision => {
-                                        if (decision.isPeerDelegation) {
-                                            const peerAgentActualName = decision.toolName.substring(5);
-                                            for (const stId in allMonitoredTasks) {
-                                                const candSubTask = allMonitoredTasks[stId];
-                                                if (claimedSubTaskIds.has(candSubTask.taskId)) continue;
+                                        // Determine the agent name (strip peer_/workflow_ prefix if present)
+                                        let peerAgentActualName = decision.toolName;
+                                        if (decision.toolName.startsWith("peer_")) {
+                                            peerAgentActualName = decision.toolName.substring(5);
+                                        } else if (decision.toolName.startsWith("workflow_")) {
+                                            peerAgentActualName = decision.toolName.substring(9);
+                                        }
 
-                                                const candSubTaskParentId = getParentTaskIdFromTaskObject(candSubTask);
+                                        // Search for a sub-task that matches this function call
+                                        for (const stId in allMonitoredTasks) {
+                                            const candSubTask = allMonitoredTasks[stId];
+                                            if (claimedSubTaskIds.has(candSubTask.taskId)) continue;
 
-                                                if (candSubTaskParentId === currentEventOwningTaskId && candSubTask.events && candSubTask.events.length > 0) {
-                                                    const subTaskCreationRequest = candSubTask.events.find(e => e.direction === "request" && e.full_payload?.params?.message?.metadata?.function_call_id === decision.functionCallId);
-                                                    if (subTaskCreationRequest && new Date(getEventTimestamp(subTaskCreationRequest)).getTime() >= new Date(eventTimestamp).getTime()) {
+                                            const candSubTaskParentId = getParentTaskIdFromTaskObject(candSubTask);
+
+                                            if (candSubTaskParentId === currentEventOwningTaskId && candSubTask.events && candSubTask.events.length > 0) {
+                                                const subTaskCreationRequest = candSubTask.events.find(e => {
+                                                    const fcId = e.full_payload?.params?.message?.metadata?.function_call_id;
+                                                    return e.direction === "request" && fcId === decision.functionCallId;
+                                                });
+                                                if (subTaskCreationRequest) {
+                                                    // Validate timestamp if available, but don't fail if timestamp is undefined
+                                                    // (request events may not have result.status.timestamp, causing getEventTimestamp to return undefined)
+                                                    const subTaskTimestamp = getEventTimestamp(subTaskCreationRequest);
+                                                    const eventTimestampMs = new Date(eventTimestamp).getTime();
+                                                    const subTaskTimestampMs = subTaskTimestamp ? new Date(subTaskTimestamp).getTime() : NaN;
+                                                    // If we can't determine the sub-task timestamp (NaN), trust the function_call_id match
+                                                    // Otherwise, require the sub-task to be created at or after the LLM response
+                                                    const isValidMatch = Number.isNaN(subTaskTimestampMs) || subTaskTimestampMs >= eventTimestampMs;
+                                                    if (isValidMatch) {
+                                                        // Found a matching sub-task - this is a peer delegation
+                                                        decision.isPeerDelegation = true;
                                                         const delInfo: DelegationInfo = {
                                                             functionCallId: decision.functionCallId,
                                                             peerAgentName: peerAgentActualName,
@@ -567,6 +940,7 @@ export const processTaskForVisualization = (
                                             .join("\n") || "";
                                     const llmResponseToAgentData: LLMResponseToAgentData = {
                                         responsePreview: llmResponseText.substring(0, 200) + (llmResponseText.length > 200 ? "..." : ""),
+                                        response: llmResponseText, // Store full response
                                         isFinalResponse: llmResponseData?.partial === false,
                                     };
                                     visualizerSteps.push({
@@ -587,12 +961,18 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "tool_invocation_start": {
+                                // Get delegation info first - if it exists, this is a peer agent invocation
+                                const delegationInfo = functionCallIdToDelegationInfoMap.get(signalData.function_call_id);
+
                                 const invocationData: ToolInvocationStartData = {
                                     functionCallId: signalData.function_call_id,
                                     toolName: signalData.tool_name,
                                     toolArguments: signalData.tool_args,
-                                    isPeerInvocation: signalData.tool_name?.startsWith("peer_"),
+                                    // Peer invocation if: tool_name has peer_/workflow_ prefix, OR delegation info exists (agent was invoked)
+                                    isPeerInvocation: signalData.tool_name?.startsWith("peer_") || signalData.tool_name?.startsWith("workflow_") || !!delegationInfo,
+                                    parallelGroupId: signalData.parallel_group_id,
                                 };
+
                                 visualizerSteps.push({
                                     id: `vstep-toolinvokestart-${visualizerSteps.length}-${eventId}`,
                                     type: "AGENT_TOOL_INVOCATION_START",
@@ -602,6 +982,7 @@ export const processTaskForVisualization = (
                                     target: invocationData.toolName,
                                     data: { toolInvocationStart: invocationData },
                                     rawEventIds: [eventId],
+                                    delegationInfo: delegationInfo ? [delegationInfo] : undefined,
                                     isSubTaskStep: currentEventNestingLevel > 0,
                                     nestingLevel: currentEventNestingLevel,
                                     owningTaskId: currentEventOwningTaskId,
@@ -617,12 +998,21 @@ export const processTaskForVisualization = (
                                     const duration = new Date(eventTimestamp).getTime() - new Date(openToolCallForPerf.timestamp).getTime();
                                     const invokingAgentMetrics = report.agents[openToolCallForPerf.invokingAgentInstanceId];
                                     if (invokingAgentMetrics) {
+                                        let peerAgentName: string | undefined;
+                                        if (openToolCallForPerf.isPeer) {
+                                            if (openToolCallForPerf.toolName.startsWith("peer_")) {
+                                                peerAgentName = openToolCallForPerf.toolName.substring(5);
+                                            } else if (openToolCallForPerf.toolName.startsWith("workflow_")) {
+                                                peerAgentName = openToolCallForPerf.toolName.substring(9);
+                                            }
+                                        }
+
                                         const toolCallPerf: ToolCallPerformance = {
                                             toolName: openToolCallForPerf.toolName,
                                             durationMs: duration,
                                             isPeer: openToolCallForPerf.isPeer,
                                             timestamp: openToolCallForPerf.timestamp,
-                                            peerAgentName: openToolCallForPerf.isPeer ? openToolCallForPerf.toolName.substring(5) : undefined,
+                                            peerAgentName: peerAgentName,
                                             subTaskId: openToolCallForPerf.subTaskId,
                                             parallelBlockId: openToolCallForPerf.parallelBlockId,
                                         };
@@ -636,7 +1026,7 @@ export const processTaskForVisualization = (
                                     toolName: signalData.tool_name,
                                     functionCallId: functionCallId,
                                     resultData: signalData.result_data,
-                                    isPeerResponse: signalData.tool_name?.startsWith("peer_"),
+                                    isPeerResponse: signalData.tool_name?.startsWith("peer_") || signalData.tool_name?.startsWith("workflow_"),
                                 };
                                 visualizerSteps.push({
                                     id: `vstep-toolresult-${visualizerSteps.length}-${eventId}`,
@@ -738,6 +1128,9 @@ export const processTaskForVisualization = (
                                 }
                                 break;
                             }
+                            default:
+                                console.log(`Received unknown data part type: ${signalType}`, signalData);
+                                break;
                         }
                     } else if (part.kind === "text" && part.text) {
                         if (aggregatedTextSourceAgent && aggregatedTextSourceAgent !== statusUpdateAgentName) {
@@ -811,7 +1204,7 @@ export const processTaskForVisualization = (
             const finalState = result.status.state as string;
             const responseAgentName = result.metadata?.agent_name || result.status?.message?.metadata?.agent_name || event.source_entity || "Agent";
 
-            if (["completed", "failed", "canceled"].includes(finalState) && currentEventNestingLevel == 0) {
+            if (["completed", "failed", "canceled"].includes(finalState)) {
                 const stepType: VisualizerStepType = finalState === "completed" ? "TASK_COMPLETED" : "TASK_FAILED";
                 const title = `${responseAgentName}: Task ${finalState.charAt(0).toUpperCase() + finalState.slice(1)}`;
                 let dataPayload: any = {};

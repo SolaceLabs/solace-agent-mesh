@@ -563,14 +563,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
         const cursorPosition = getCursorPosition();
         const textBeforeCursor = value.substring(0, cursorPosition);
-        const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
-        const charBeforeLast = textBeforeCursor[textBeforeCursor.length - 2];
 
-        // Check if "/" is typed at start or after space
-        if (lastChar === "/" && (!charBeforeLast || charBeforeLast === " " || charBeforeLast === "\n")) {
+        // Check if "/" is typed as the first character (position 0)
+        // Only trigger prompt popover when "/" is at the very start of the input
+        if (textBeforeCursor === "/") {
             setShowPromptsCommand(true);
             setShowMentionsCommand(false); // Close mentions if open
-        } else if (showPromptsCommand && !textBeforeCursor.includes("/")) {
+        } else if (showPromptsCommand && !textBeforeCursor.startsWith("/")) {
             setShowPromptsCommand(false);
         }
 
@@ -939,6 +938,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onPromptSelect={handlePromptSelect}
                 messages={messages}
                 onReservedCommand={handleChatCommand}
+                onBackspaceClose={() => {
+                    // Remove the "/" trigger character from the input
+                    // Since "/" only triggers at position 0, we just remove the first character
+                    if (inputValue.startsWith("/")) {
+                        setInputValue(inputValue.substring(1));
+                    }
+                    setShowPromptsCommand(false);
+                }}
             />
 
             {/* Mentions Command Popover */}
@@ -976,7 +983,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 mentionMap={mentionMap}
                 disambiguatedIds={disambiguatedIds}
                 placeholder={isRecording ? "Recording..." : mentionsEnabled ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)" : "How can I help you today? (Type '/' to insert a prompt)"}
-                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
+                className="max-h-50 resize-none overflow-y-auto rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
                 onPaste={handlePaste}
                 disabled={isRecording}
                 onKeyDown={event => {
@@ -1009,11 +1016,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         <SelectValue placeholder="Select an agent..." />
                     </SelectTrigger>
                     <SelectContent>
-                        {agents.map(agent => (
-                            <SelectItem key={agent.name} value={agent.name}>
-                                {agent.displayName || agent.name}
-                            </SelectItem>
-                        ))}
+                        {agents
+                            .filter(agent => !agent.isWorkflow)
+                            .map(agent => (
+                                <SelectItem key={agent.name} value={agent.name}>
+                                    {agent.displayName || agent.name}
+                                </SelectItem>
+                            ))}
                     </SelectContent>
                 </Select>
 

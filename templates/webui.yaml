@@ -63,6 +63,9 @@ apps:
 
       task_logging:
         enabled: true
+        hybrid_buffer:
+          enabled: false   # false=events go directly to DB (default); true=buffer in RAM first, then flush to DB
+          flush_threshold: 10     # Flush to DB after N events (lower for easier testing)
         log_status_updates: true
         log_artifact_events: true
         log_file_parts: true
@@ -71,8 +74,8 @@ apps:
       # --- Frontend Feature Flags ---
       # Uncomment to control speech features in the UI
       frontend_feature_enablement:
-      #   speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
-      #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
+        speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
+        textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
       #   projects: true
       #   promptLibrary: true
         background_tasks: true  # NOTE: task_logging must also be enabled for background tasks to work

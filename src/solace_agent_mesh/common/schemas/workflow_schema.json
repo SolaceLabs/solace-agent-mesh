@@ -1,0 +1,562 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://solace.com/schemas/sam/workflow-definition",
+  "title": "SAM Workflow Definition Schema",
+  "description": "JSON Schema for Solace Agent Mesh Prescriptive Workflow definitions. Supports Argo Workflows-compatible syntax with SAM extensions.",
+  "type": "object",
+  "anyOf": [
+    { "required": ["description", "nodes", "outputMapping"] },
+    { "required": ["description", "nodes", "output_mapping"] }
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "type": "string",
+      "description": "Human-readable workflow description explaining what the workflow does."
+    },
+    "version": {
+      "type": "string",
+      "default": "1.0.0",
+      "description": "User-defined version of the workflow (semantic versioning recommended, e.g., '1.0.0')."
+    },
+    "inputSchema": {
+      "$ref": "#/$defs/jsonSchema",
+      "description": "JSON Schema defining the expected workflow input structure."
+    },
+    "input_schema": {
+      "$ref": "#/$defs/jsonSchema",
+      "description": "Alias for inputSchema (snake_case)."
+    },
+    "outputSchema": {
+      "$ref": "#/$defs/jsonSchema",
+      "description": "JSON Schema defining the workflow output structure."
+    },
+    "output_schema": {
+      "$ref": "#/$defs/jsonSchema",
+      "description": "Alias for outputSchema (snake_case)."
+    },
+    "nodes": {
+      "type": "array",
+      "description": "List of workflow nodes forming the DAG (Directed Acyclic Graph).",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/workflowNode"
+      }
+    },
+    "outputMapping": {
+      "type": "object",
+      "description": "Mapping from node outputs to final workflow output. Supports template expressions like '{{node_id.output.field}}'.",
+      "additionalProperties": true
+    },
+    "output_mapping": {
+      "type": "object",
+      "description": "Alias for outputMapping (snake_case).",
+      "additionalProperties": true
+    },
+    "skills": {
+      "type": "array",
+      "description": "Workflow skills for agent card discovery.",
+      "items": {
+        "$ref": "#/$defs/skill"
+      }
+    },
+    "onExit": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Node ID to execute on workflow completion (regardless of outcome)."
+        },
+        {
+          "$ref": "#/$defs/exitHandler"
+        }
+      ],
+      "description": "Exit handler configuration for cleanup/notification on workflow completion."
+    },
+    "on_exit": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Node ID to execute on workflow completion (regardless of outcome)."
+        },
+        {
+          "$ref": "#/$defs/exitHandler"
+        }
+      ],
+      "description": "Alias for onExit (snake_case)."
+    },
+    "failFast": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true, stop scheduling new nodes when one fails. Running nodes continue to completion."
+    },
+    "fail_fast": {
+      "type": "boolean",
+      "default": true,
+      "description": "Alias for failFast (snake_case)."
+    },
+    "maxCallDepth": {
+      "type": "integer",
+      "default": 10,
+      "minimum": 1,
+      "description": "Maximum allowed call depth for sub-workflow/agent invocations. Prevents infinite recursion."
+    },
+    "max_call_depth": {
+      "type": "integer",
+      "default": 10,
+      "minimum": 1,
+      "description": "Alias for maxCallDepth (snake_case)."
+    },
+    "retryStrategy": {
+      "$ref": "#/$defs/retryStrategy",
+      "description": "Default retry strategy for all nodes (can be overridden per-node)."
+    },
+    "retry_strategy": {
+      "$ref": "#/$defs/retryStrategy",
+      "description": "Alias for retryStrategy (snake_case)."
+    }
+  },
+  "$defs": {
+    "workflowNode": {
+      "oneOf": [
+        { "$ref": "#/$defs/agentNode" },
+        { "$ref": "#/$defs/switchNode" },
+        { "$ref": "#/$defs/loopNode" },
+        { "$ref": "#/$defs/mapNode" },
+        { "$ref": "#/$defs/workflowInvokeNode" }
+      ]
+    },
+    "baseNode": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique node identifier within the workflow.",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of node IDs this node depends on. Node executes only after all dependencies complete."
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Alias for depends_on (Argo-style)."
+        }
+      },
+      "required": ["id"]
+    },
+    "agentNode": {
+      "type": "object",
+      "description": "Agent invocation node. Calls an external agent and captures its output.",
+      "allOf": [{ "$ref": "#/$defs/baseNode" }],
+      "properties": {
+        "id": { "$ref": "#/$defs/baseNode/properties/id" },
+        "type": {
+          "const": "agent",
+          "description": "Node type identifier."
+        },
+        "agent_name": {
+          "type": "string",
+          "description": "Name of the agent to invoke. Must match a registered agent in the namespace."
+        },
+        "input": {
+          "type": "object",
+          "description": "Input mapping for the agent. Supports template expressions like '{{workflow.input.field}}' or '{{other_node.output.field}}'. If omitted, inferred from dependencies.",
+          "additionalProperties": true
+        },
+        "instruction": {
+          "type": "string",
+          "description": "Optional instruction/guidance text sent to the target agent. Supports template expressions like '{{workflow.input.context}}' or '{{previous_node.output.instructions}}'. Provides context for how the agent should process the request."
+        },
+        "input_schema_override": {
+          "$ref": "#/$defs/jsonSchema",
+          "description": "Override the agent's default input schema for this invocation."
+        },
+        "output_schema_override": {
+          "$ref": "#/$defs/jsonSchema",
+          "description": "Override the agent's default output schema for this invocation."
+        },
+        "when": {
+          "type": "string",
+          "description": "Conditional execution expression (Argo-style). Node only executes if expression evaluates to true. Example: '{{previous_node.output.status}} == \"success\"'"
+        },
+        "retryStrategy": {
+          "$ref": "#/$defs/retryStrategy",
+          "description": "Retry configuration for this node (overrides workflow-level default)."
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Node-specific timeout. Format: '30s', '5m', '1h'.",
+          "pattern": "^\\d+[smh]$"
+        },
+        "depends_on": { "$ref": "#/$defs/baseNode/properties/depends_on" },
+        "dependencies": { "$ref": "#/$defs/baseNode/properties/dependencies" }
+      },
+      "required": ["id", "type", "agent_name"],
+      "additionalProperties": false
+    },
+    "switchNode": {
+      "type": "object",
+      "description": "Multi-way conditional branching node. Cases are evaluated in order; first match wins.",
+      "allOf": [{ "$ref": "#/$defs/baseNode" }],
+      "properties": {
+        "id": { "$ref": "#/$defs/baseNode/properties/id" },
+        "type": {
+          "const": "switch",
+          "description": "Node type identifier."
+        },
+        "cases": {
+          "type": "array",
+          "description": "Ordered list of condition/node pairs. First matching condition wins.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/switchCase"
+          }
+        },
+        "default": {
+          "type": "string",
+          "description": "Node ID to execute if no cases match."
+        },
+        "depends_on": { "$ref": "#/$defs/baseNode/properties/depends_on" },
+        "dependencies": { "$ref": "#/$defs/baseNode/properties/dependencies" }
+      },
+      "required": ["id", "type", "cases"],
+      "additionalProperties": false
+    },
+    "switchCase": {
+      "type": "object",
+      "description": "A single case in a switch node.",
+      "properties": {
+        "condition": {
+          "type": "string",
+          "description": "Expression to evaluate for this case."
+        },
+        "when": {
+          "type": "string",
+          "description": "Alias for condition (Argo-style)."
+        },
+        "node": {
+          "type": "string",
+          "description": "Node ID to execute if condition matches."
+        },
+        "then": {
+          "type": "string",
+          "description": "Alias for node (Argo-style)."
+        }
+      },
+      "oneOf": [
+        { "required": ["condition", "node"] },
+        { "required": ["when", "then"] },
+        { "required": ["condition", "then"] },
+        { "required": ["when", "node"] }
+      ],
+      "additionalProperties": false
+    },
+    "loopNode": {
+      "type": "object",
+      "description": "While-loop node for iterative execution until condition is met. Repeats a node until a condition becomes false.",
+      "allOf": [{ "$ref": "#/$defs/baseNode" }],
+      "properties": {
+        "id": { "$ref": "#/$defs/baseNode/properties/id" },
+        "type": {
+          "const": "loop",
+          "description": "Node type identifier."
+        },
+        "node": {
+          "type": "string",
+          "description": "Node ID to execute repeatedly."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Continue looping while this expression is true. Example: '{{check_status.output.ready}} == false'"
+        },
+        "max_iterations": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 1,
+          "description": "Safety limit on number of iterations."
+        },
+        "maxIterations": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Alias for max_iterations (camelCase)."
+        },
+        "delay": {
+          "type": "string",
+          "description": "Delay between iterations. Format: '5s', '1m'.",
+          "pattern": "^\\d+[smh]$"
+        },
+        "depends_on": { "$ref": "#/$defs/baseNode/properties/depends_on" },
+        "dependencies": { "$ref": "#/$defs/baseNode/properties/dependencies" }
+      },
+      "required": ["id", "type", "node", "condition"],
+      "additionalProperties": false
+    },
+    "mapNode": {
+      "type": "object",
+      "description": "Map (parallel iteration) node. Executes a node for each item in an array. Supports SAM syntax and Argo-style withItems/withParam.",
+      "allOf": [{ "$ref": "#/$defs/baseNode" }],
+      "properties": {
+        "id": { "$ref": "#/$defs/baseNode/properties/id" },
+        "type": {
+          "const": "map",
+          "description": "Node type identifier."
+        },
+        "items": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object" }
+          ],
+          "description": "Array template reference or expression to iterate over. Example: '{{workflow.input.items}}'"
+        },
+        "withParam": {
+          "type": "string",
+          "description": "Argo-style: JSON array from previous step output."
+        },
+        "withItems": {
+          "type": "array",
+          "description": "Argo-style: Static list of items to iterate over.",
+          "items": {}
+        },
+        "node": {
+          "type": "string",
+          "description": "Node ID to execute for each item. The target node can access current item via '{{_map_item}}' or '{{_map_item.field}}'."
+        },
+        "max_items": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 1,
+          "description": "Maximum items to process (safety limit)."
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Alias for max_items (camelCase)."
+        },
+        "concurrency_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum concurrent executions. Null/omitted means unlimited."
+        },
+        "concurrencyLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Alias for concurrency_limit (camelCase)."
+        },
+        "depends_on": { "$ref": "#/$defs/baseNode/properties/depends_on" },
+        "dependencies": { "$ref": "#/$defs/baseNode/properties/dependencies" }
+      },
+      "required": ["id", "type", "node"],
+      "oneOf": [
+        { "required": ["items"] },
+        { "required": ["withParam"] },
+        { "required": ["withItems"] }
+      ],
+      "additionalProperties": false
+    },
+    "workflowInvokeNode": {
+      "type": "object",
+      "description": "Workflow invocation node. Calls another workflow as a sub-workflow.",
+      "allOf": [{ "$ref": "#/$defs/baseNode" }],
+      "properties": {
+        "id": { "$ref": "#/$defs/baseNode/properties/id" },
+        "type": {
+          "const": "workflow",
+          "description": "Node type identifier."
+        },
+        "workflow_name": {
+          "type": "string",
+          "description": "Name of the workflow to invoke. Must match a registered workflow in the namespace."
+        },
+        "input": {
+          "type": "object",
+          "description": "Input mapping for the sub-workflow. Supports template expressions like '{{workflow.input.field}}' or '{{other_node.output.field}}'. If omitted, inferred from dependencies.",
+          "additionalProperties": true
+        },
+        "instruction": {
+          "type": "string",
+          "description": "Optional instruction/guidance text sent to the target workflow. Supports template expressions."
+        },
+        "input_schema_override": {
+          "$ref": "#/$defs/jsonSchema",
+          "description": "Override the sub-workflow's default input schema for this invocation."
+        },
+        "output_schema_override": {
+          "$ref": "#/$defs/jsonSchema",
+          "description": "Override the sub-workflow's default output schema for this invocation."
+        },
+        "when": {
+          "type": "string",
+          "description": "Conditional execution expression (Argo-style). Node only executes if expression evaluates to true. Example: '{{previous_node.output.status}} == \"success\"'"
+        },
+        "retryStrategy": {
+          "$ref": "#/$defs/retryStrategy",
+          "description": "Retry configuration for this node (overrides workflow-level default)."
+        },
+        "retry_strategy": {
+          "$ref": "#/$defs/retryStrategy",
+          "description": "Alias for retryStrategy (snake_case)."
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Node-specific timeout. Format: '30s', '5m', '1h'.",
+          "pattern": "^\\d+[smh]$"
+        },
+        "depends_on": { "$ref": "#/$defs/baseNode/properties/depends_on" },
+        "dependencies": { "$ref": "#/$defs/baseNode/properties/dependencies" }
+      },
+      "required": ["id", "type", "workflow_name"],
+      "additionalProperties": false
+    },
+    "retryStrategy": {
+      "type": "object",
+      "description": "Retry configuration for workflow nodes. Argo-compatible with extensions.",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 0,
+          "description": "Maximum number of retry attempts."
+        },
+        "retryPolicy": {
+          "type": "string",
+          "enum": ["Always", "OnFailure", "OnError"],
+          "default": "OnFailure",
+          "description": "When to retry: Always (retry on any outcome), OnFailure (retry on failure), OnError (retry on error only)."
+        },
+        "retry_policy": {
+          "type": "string",
+          "enum": ["Always", "OnFailure", "OnError"],
+          "description": "Alias for retryPolicy (snake_case)."
+        },
+        "backoff": {
+          "$ref": "#/$defs/backoffStrategy",
+          "description": "Exponential backoff configuration."
+        }
+      },
+      "additionalProperties": false
+    },
+    "backoffStrategy": {
+      "type": "object",
+      "description": "Exponential backoff configuration for retries.",
+      "properties": {
+        "duration": {
+          "type": "string",
+          "default": "1s",
+          "description": "Initial backoff duration. Supports: '5s', '1m', '1h'.",
+          "pattern": "^\\d+[smh]$"
+        },
+        "factor": {
+          "type": "number",
+          "default": 2.0,
+          "minimum": 1,
+          "description": "Multiplier for exponential backoff."
+        },
+        "maxDuration": {
+          "type": "string",
+          "description": "Maximum backoff duration cap.",
+          "pattern": "^\\d+[smh]$"
+        },
+        "max_duration": {
+          "type": "string",
+          "description": "Alias for maxDuration (snake_case).",
+          "pattern": "^\\d+[smh]$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "exitHandler": {
+      "type": "object",
+      "description": "Exit handler configuration for cleanup/notification on workflow completion. Supports conditional handlers for different outcomes.",
+      "properties": {
+        "always": {
+          "type": "string",
+          "description": "Node ID to execute regardless of workflow outcome."
+        },
+        "onSuccess": {
+          "type": "string",
+          "description": "Node ID to execute only on successful completion."
+        },
+        "on_success": {
+          "type": "string",
+          "description": "Alias for onSuccess (snake_case)."
+        },
+        "onFailure": {
+          "type": "string",
+          "description": "Node ID to execute only on failure."
+        },
+        "on_failure": {
+          "type": "string",
+          "description": "Alias for onFailure (snake_case)."
+        },
+        "onCancel": {
+          "type": "string",
+          "description": "Node ID to execute only on cancellation."
+        },
+        "on_cancel": {
+          "type": "string",
+          "description": "Alias for onCancel (snake_case)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "skill": {
+      "type": "object",
+      "description": "Workflow skill definition for agent card discovery.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique skill identifier."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable skill name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of what this skill does."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tags for categorizing and discovering this skill."
+        }
+      },
+      "required": ["id", "name", "description"],
+      "additionalProperties": true
+    },
+    "jsonSchema": {
+      "type": "object",
+      "description": "A JSON Schema object (draft-07 or later).",
+      "properties": {
+        "type": { "type": "string" },
+        "properties": { "type": "object" },
+        "required": { "type": "array", "items": { "type": "string" } },
+        "items": {},
+        "additionalProperties": {},
+        "description": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "templateExpression": {
+      "type": "string",
+      "description": "Template expression for referencing workflow data. Formats: '{{workflow.input.field}}' for workflow input, '{{node_id.output.field}}' for node output, '{{_map_item}}' for current map iteration item, '{{_loop_iteration}}' for loop counter.",
+      "pattern": "\\{\\{[^}]+\\}\\}"
+    },
+    "coalesceExpression": {
+      "type": "object",
+      "description": "Returns the first non-null value from a list of template expressions.",
+      "properties": {
+        "coalesce": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "List of template expressions. First non-null value is used."
+        }
+      },
+      "required": ["coalesce"],
+      "additionalProperties": false
+    }
+  }
+}

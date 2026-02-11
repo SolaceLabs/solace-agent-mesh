@@ -1322,7 +1322,7 @@ async def import_prompt(
             prompt_text = prompt_text[:9997] + "..."
             warnings.append("Prompt text was truncated to 10000 characters")
         
-        # Handle command conflicts
+        # Handle command conflicts (command should be unique per user)
         if command:
             original_command = command
             existing = db.query(PromptGroupModel).filter(
