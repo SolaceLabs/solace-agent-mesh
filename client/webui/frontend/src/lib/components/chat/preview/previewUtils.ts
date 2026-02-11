@@ -400,9 +400,28 @@ export const getFileContent = (file: FileAttachment | null) => {
     }
 };
 
-// Configuration constants
-const MAX_ARTIFACT_SIZE = 5 * 1024 * 1024; // configurable limit for content-based renderers
-const MAX_ARTIFACT_SIZE_URL_BASED = 100 * 1024 * 1024; // 100 MB limit for URL-based renderers (PDF)
+/**
+ * Preview Size Limits
+ *
+ * The preview system has different size limits based on the rendering approach:
+ *
+ * 1. CONTENT-BASED RENDERERS (5MB default):
+ *    - These renderers load the entire artifact content into memory and render it in the browser
+ *    - Examples: CSV, JSON, Markdown, YAML, HTML, Mermaid, Text
+ *
+ * 2. URL-BASED RENDERERS (50MB default):
+ *    - These renderers use object URLs and stream content as needed
+ *    - Examples: PDF (native browser viewer), Images, Audio
+ *    - The limit is higher because content is streamed from a URL, not loaded entirely into memory
+ *
+ * 3. CONVERSION-BASED RENDERERS (5MB default):
+ *    - These send content to backend for conversion (DOCX/PPTX → PDF)
+ *    - Then use URL-based rendering for the result
+ *
+ * Note: These limits are enforced client-side for UX. Backend has its own limits.
+ */
+const MAX_ARTIFACT_SIZE = 5 * 1024 * 1024; // 5 MB for content-based and conversion-based renderers
+const MAX_ARTIFACT_SIZE_URL_BASED = 50 * 1024 * 1024; // 50 MB for URL-based renderers (streaming)
 const MAX_ARTIFACT_SIZE_HUMAN = formatBytes(MAX_ARTIFACT_SIZE);
 const MAX_ARTIFACT_SIZE_URL_BASED_HUMAN = formatBytes(MAX_ARTIFACT_SIZE_URL_BASED);
 

@@ -9,7 +9,6 @@ import base64
 import logging
 import os
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -18,6 +17,14 @@ log = logging.getLogger(__name__)
 
 # Default maximum file size for conversion (50MB)
 DEFAULT_MAX_CONVERSION_SIZE_BYTES = 50 * 1024 * 1024
+
+# Default conversion timeout (30 seconds)
+DEFAULT_CONVERSION_TIMEOUT_SECONDS = 30
+
+# Retry configuration for finding output PDF
+MAX_OUTPUT_RETRIES = 10
+INITIAL_RETRY_DELAY = 0.2  # seconds
+MAX_RETRY_DELAY = 2.0  # seconds
 
 
 class DocumentConversionService:
@@ -39,7 +46,7 @@ class DocumentConversionService:
     def __init__(
         self,
         libreoffice_path: Optional[str] = None,
-        timeout_seconds: int = 60,
+        timeout_seconds: int = DEFAULT_CONVERSION_TIMEOUT_SECONDS,
         max_file_size_bytes: int = DEFAULT_MAX_CONVERSION_SIZE_BYTES,
     ):
         """
@@ -47,7 +54,7 @@ class DocumentConversionService:
 
         Args:
             libreoffice_path: Path to LibreOffice executable. If None, will search common locations.
-            timeout_seconds: Maximum time to wait for conversion (default: 60 seconds)
+            timeout_seconds: Maximum time to wait for conversion (default: 30 seconds)
             max_file_size_bytes: Maximum file size allowed for conversion (default: 50MB)
         """
         self.timeout_seconds = timeout_seconds
@@ -57,8 +64,9 @@ class DocumentConversionService:
 
         if self._available:
             log.info(
-                "DocumentConversionService initialized with LibreOffice at: %s",
+                "DocumentConversionService initialized with LibreOffice at: %s (timeout: %ds)",
                 self.libreoffice_path,
+                self.timeout_seconds,
             )
         else:
             log.warning(
@@ -114,29 +122,61 @@ class DocumentConversionService:
         ext = Path(filename).suffix.lower().lstrip(".")
         return ext in self.SUPPORTED_FORMATS
 
-    async def convert_to_pdf(
+    async def convert_binary_to_pdf(
         self,
         input_data: bytes,
         input_filename: str,
-    ) -> tuple[bytes, str]:
+    ) -> tuple[bytes | None, str | None]:
         """
-        Convert a document to PDF.
+        Convert binary document data to PDF bytes.
+        
+        This method accepts raw binary data directly, avoiding unnecessary
+        base64 encode/decode operations.
 
         Args:
             input_data: The document content as bytes
             input_filename: Original filename (used to determine format)
 
         Returns:
-            Tuple of (pdf_bytes, error_message). If successful, error_message is empty.
+            Tuple of (pdf_bytes, error_message). 
+            If successful, pdf_bytes contains the PDF and error_message is None.
+            If failed, pdf_bytes is None and error_message contains the error.
+        """
+        try:
+            # Wrap the conversion in a timeout
+            pdf_bytes, error = await asyncio.wait_for(
+                self._do_conversion(input_data, input_filename),
+                timeout=self.timeout_seconds,
+            )
+            return pdf_bytes, error
+        except asyncio.TimeoutError:
+            log.error(
+                "Conversion timeout for %s after %d seconds",
+                input_filename,
+                self.timeout_seconds,
+            )
+            return None, "Conversion timed out. The document may be too large or complex."
+        except Exception as e:
+            log.exception("Unexpected conversion error for %s: %s", input_filename, e)
+            return None, "Conversion failed due to an internal error."
 
-        Raises:
-            ValueError: If format is not supported or LibreOffice is not available
-            RuntimeError: If conversion fails
+    async def _do_conversion(
+        self,
+        input_data: bytes,
+        input_filename: str,
+    ) -> tuple[bytes | None, str | None]:
+        """
+        Internal conversion logic.
+        
+        Args:
+            input_data: The document content as bytes
+            input_filename: Original filename (used to determine format)
+
+        Returns:
+            Tuple of (pdf_bytes, error_message).
         """
         if not self._available:
-            raise ValueError(
-                "Document conversion is not available. LibreOffice is not installed."
-            )
+            return None, "Document conversion is not available. LibreOffice is not installed."
 
         # Check file size before processing
         input_size = len(input_data)
@@ -149,16 +189,11 @@ class DocumentConversionService:
                 actual_mb,
                 max_mb,
             )
-            raise ValueError(
-                f"File too large for conversion. Maximum size is {max_mb:.0f}MB, "
-                f"but file is {actual_mb:.1f}MB."
-            )
+            return None, f"File too large for conversion. Maximum size is {max_mb:.0f}MB."
 
         ext = Path(input_filename).suffix.lower().lstrip(".")
         if ext not in self.SUPPORTED_FORMATS:
-            raise ValueError(
-                f"Unsupported format: {ext}. Supported formats: {', '.join(self.SUPPORTED_FORMATS.keys())}"
-            )
+            return None, f"Unsupported format: {ext}. Supported formats: {', '.join(self.SUPPORTED_FORMATS.keys())}"
 
         # Create temporary directory for conversion
         with tempfile.TemporaryDirectory(prefix="doc_convert_") as temp_dir:
@@ -202,53 +237,39 @@ class DocumentConversionService:
                     cwd=str(temp_dir_path),
                 )
 
+                # Wait for process with subprocess-level timeout
+                # (This is separate from the overall method timeout)
+                subprocess_timeout = min(self.timeout_seconds, 60)
                 try:
                     stdout, stderr = await asyncio.wait_for(
                         process.communicate(),
-                        timeout=self.timeout_seconds,
+                        timeout=subprocess_timeout,
                     )
                 except asyncio.TimeoutError:
                     log.error(
-                        "Document conversion timed out for %s after %d seconds",
+                        "LibreOffice subprocess timed out for %s after %d seconds",
                         input_filename,
-                        self.timeout_seconds,
+                        subprocess_timeout,
                     )
                     process.kill()
                     await process.wait()
-                    raise RuntimeError(
-                        f"Conversion timed out after {self.timeout_seconds} seconds"
-                    )
+                    return None, f"Conversion subprocess timed out after {subprocess_timeout} seconds"
 
                 if process.returncode != 0:
                     error_msg = stderr.decode("utf-8", errors="replace")
                     log.error(
                         "LibreOffice conversion failed (exit code %d): %s",
                         process.returncode,
-                        error_msg,
+                        error_msg[:500],  # Truncate for logging
                     )
-                    raise RuntimeError(f"Conversion failed: {error_msg}")
+                    return None, "LibreOffice conversion failed"
 
-                # Find the output PDF file
-                # LibreOffice may take a moment to write the file, so we retry a few times
-                output_path = None
-                for attempt in range(5):
-                    candidate_path = temp_dir_path / "input.pdf"
-                    if candidate_path.exists():
-                        output_path = candidate_path
-                        break
-                    # Sometimes LibreOffice uses the original filename
-                    possible_outputs = list(temp_dir_path.glob("*.pdf"))
-                    if possible_outputs:
-                        output_path = possible_outputs[0]
-                        break
-                    # Wait a bit before retrying
-                    if attempt < 4:
-                        await asyncio.sleep(0.2)
+                # Find the output PDF file with exponential backoff retry
+                # LibreOffice may take a moment to write the file, especially for large docs
+                output_path = await self._find_output_pdf(temp_dir_path, input_filename)
 
                 if output_path is None:
-                    raise RuntimeError(
-                        "Conversion completed but no PDF output was generated"
-                    )
+                    return None, "Conversion completed but no PDF output was generated"
 
                 # Read the PDF content
                 pdf_bytes = output_path.read_bytes()
@@ -259,13 +280,101 @@ class DocumentConversionService:
                     len(pdf_bytes),
                 )
 
-                return pdf_bytes, ""
+                return pdf_bytes, None
 
-            except RuntimeError:
-                raise
             except Exception as e:
                 log.exception("Unexpected error during document conversion: %s", e)
-                raise RuntimeError(f"Conversion failed: {str(e)}")
+                return None, "Conversion failed due to an internal error"
+
+    async def _find_output_pdf(
+        self,
+        temp_dir_path: Path,
+        input_filename: str,
+    ) -> Optional[Path]:
+        """
+        Find the output PDF file with exponential backoff retry.
+        
+        LibreOffice may take some time to write the output file, especially
+        for large or complex documents. This method uses exponential backoff
+        to wait for the file to appear.
+        
+        Args:
+            temp_dir_path: Directory where output should be written
+            input_filename: Original filename (for logging)
+            
+        Returns:
+            Path to the output PDF, or None if not found after retries
+        """
+        total_wait_time = 0.0
+        delay = INITIAL_RETRY_DELAY
+
+        for attempt in range(MAX_OUTPUT_RETRIES):
+            # Check for expected output filename
+            candidate_path = temp_dir_path / "input.pdf"
+            if candidate_path.exists():
+                if attempt > 0:
+                    log.debug(
+                        "Found PDF output for %s after %d retries (%.1fs)",
+                        input_filename,
+                        attempt,
+                        total_wait_time,
+                    )
+                return candidate_path
+
+            # Sometimes LibreOffice uses the original filename
+            possible_outputs = list(temp_dir_path.glob("*.pdf"))
+            if possible_outputs:
+                if attempt > 0:
+                    log.debug(
+                        "Found PDF output for %s after %d retries (%.1fs)",
+                        input_filename,
+                        attempt,
+                        total_wait_time,
+                    )
+                return possible_outputs[0]
+
+            # Wait before retrying with exponential backoff
+            if attempt < MAX_OUTPUT_RETRIES - 1:
+                await asyncio.sleep(delay)
+                total_wait_time += delay
+                # Exponential backoff: 0.2, 0.4, 0.8, 1.6, 2.0, 2.0, ...
+                delay = min(delay * 2, MAX_RETRY_DELAY)
+
+        log.warning(
+            "PDF output not found for %s after %d retries (%.1fs total wait)",
+            input_filename,
+            MAX_OUTPUT_RETRIES,
+            total_wait_time,
+        )
+        return None
+
+    async def convert_to_pdf(
+        self,
+        input_data: bytes,
+        input_filename: str,
+    ) -> tuple[bytes, str]:
+        """
+        Convert a document to PDF.
+
+        Args:
+            input_data: The document content as bytes
+            input_filename: Original filename (used to determine format)
+
+        Returns:
+            Tuple of (pdf_bytes, error_message). If successful, error_message is empty.
+
+        Raises:
+            ValueError: If format is not supported or LibreOffice is not available
+            RuntimeError: If conversion fails
+        """
+        pdf_bytes, error = await self.convert_binary_to_pdf(input_data, input_filename)
+        
+        if error:
+            if "not available" in error or "not installed" in error:
+                raise ValueError(error)
+            raise RuntimeError(error)
+        
+        return pdf_bytes, ""
 
     async def convert_base64_to_pdf_base64(
         self,
@@ -287,7 +396,7 @@ class DocumentConversionService:
             input_data = base64.b64decode(input_base64)
 
             # Convert
-            pdf_bytes, error = await self.convert_to_pdf(input_data, input_filename)
+            pdf_bytes, error = await self.convert_binary_to_pdf(input_data, input_filename)
 
             if error:
                 return "", error
@@ -307,7 +416,7 @@ _conversion_service: Optional[DocumentConversionService] = None
 
 def get_document_conversion_service(
     libreoffice_path: Optional[str] = None,
-    timeout_seconds: int = 60,
+    timeout_seconds: int = DEFAULT_CONVERSION_TIMEOUT_SECONDS,
     max_file_size_bytes: int = DEFAULT_MAX_CONVERSION_SIZE_BYTES,
 ) -> DocumentConversionService:
     """
@@ -315,7 +424,7 @@ def get_document_conversion_service(
 
     Args:
         libreoffice_path: Optional path to LibreOffice executable
-        timeout_seconds: Conversion timeout in seconds
+        timeout_seconds: Conversion timeout in seconds (default: 30)
         max_file_size_bytes: Maximum file size allowed for conversion (default: 50MB)
 
     Returns:

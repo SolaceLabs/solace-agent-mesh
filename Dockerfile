@@ -147,7 +147,7 @@ COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
 COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
 COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
 
-# Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
+# Install minimal runtime dependencies
 # Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
 # LibreOffice is optionally installed for document conversion (DOCX/PPTX to PDF for preview)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
@@ -171,8 +171,6 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     else \
         echo "Skipping LibreOffice installation (set INSTALL_LIBREOFFICE=true to enable binary artifact preview)"; \
     fi && \
-    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1
 
