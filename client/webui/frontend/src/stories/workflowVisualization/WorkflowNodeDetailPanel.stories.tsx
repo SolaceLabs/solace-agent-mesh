@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen } from "storybook/test";
+import { expect, screen, within } from "storybook/test";
 import WorkflowNodeDetailPanel from "@/lib/components/workflowVisualization/WorkflowNodeDetailPanel";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
@@ -35,6 +35,37 @@ const createLoopNode = (delay?: string): LayoutNode => ({
     },
 });
 
+const createMapNode = (): LayoutNode => ({
+    id: "process_items",
+    type: "map",
+    x: 0,
+    y: 0,
+    width: 200,
+    height: 60,
+    children: [],
+    data: {
+        label: "Process Items",
+        items: "{{input.items}}",
+    },
+});
+
+const createSwitchNode = (): LayoutNode => ({
+    id: "route_request",
+    type: "switch",
+    x: 0,
+    y: 0,
+    width: 200,
+    height: 60,
+    children: [],
+    data: {
+        label: "Route Request",
+        cases: [
+            { condition: "{{input.type}} == 'A'", node: "handle_a" },
+            { condition: "{{input.type}} == 'B'", node: "handle_b" },
+        ],
+    },
+});
+
 export const LoopNodeWithDelay: Story = {
     args: {
         node: createLoopNode("5s"),
@@ -67,8 +98,54 @@ export const LoopNodeWithoutDelay: Story = {
         expect(screen.getByText("10")).toBeInTheDocument();
         expect(screen.getByText("Condition")).toBeInTheDocument();
 
+        // Verify description for loop nodes is rendered
+        expect(screen.getByText("Repeats a node until a condition becomes false. The first iteration always runs; the condition is checked before subsequent iterations.")).toBeInTheDocument();
+
         // Verify delay is NOT rendered
         const delayLabel = screen.queryByText("Delay");
         expect(delayLabel).not.toBeInTheDocument();
+    },
+};
+
+export const MapNode: Story = {
+    args: {
+        node: createMapNode(),
+        workflowConfig: null,
+        agents: [],
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify node ID appears in the panel
+        const processItemsElements = canvas.getAllByText("process_items");
+        expect(processItemsElements.length).toBeGreaterThanOrEqual(2);
+
+        // Verify description for map nodes is rendered
+        expect(canvas.getByText("Executes a node for each item in a collection. Items are processed in parallel by default.")).toBeInTheDocument();
+
+        // Verify items property is rendered
+        expect(canvas.getByText("Items")).toBeInTheDocument();
+        expect(canvas.getByText("{{input.items}}")).toBeInTheDocument();
+    },
+};
+
+export const SwitchNode: Story = {
+    args: {
+        node: createSwitchNode(),
+        workflowConfig: null,
+        agents: [],
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify node ID appears in the panel
+        const routeRequestElements = canvas.getAllByText("route_request");
+        expect(routeRequestElements.length).toBeGreaterThanOrEqual(2);
+
+        // Verify description for switch nodes is rendered
+        expect(canvas.getByText("Routes execution based on conditions. Cases are evaluated in order; the first match wins.")).toBeInTheDocument();
+
+        // Verify cases are rendered
+        expect(canvas.getByText("Cases")).toBeInTheDocument();
     },
 };
