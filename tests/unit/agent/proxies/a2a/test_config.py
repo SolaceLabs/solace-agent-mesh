@@ -550,4 +550,3 @@ class TestDisplayNameField:
             display_name="   My Agent   ",
         )
         assert config.display_name == "   My Agent   "
->>>>>>> main
