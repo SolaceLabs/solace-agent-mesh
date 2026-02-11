@@ -72,14 +72,14 @@ export function validateFileSizes(files: FileList | File[], options: FileSizeVal
     if (oversizedFiles.length === 1) {
         const file = oversizedFiles[0];
         if (includeFileSizes) {
-            const fileSizeWithUnit = formatBytes(file.size, 2);
+            const fileSizeWithUnit = formatBytes(file.size);
             errorMsg = `File "${file.name}" (${fileSizeWithUnit}) exceeds the maximum size of ${maxSizeWithUnit}.`;
         } else {
             errorMsg = `File "${file.name}" exceeds the maximum size of ${maxSizeWithUnit}.`;
         }
     } else {
         const fileList = oversizedFiles.slice(0, maxFilesToList);
-        const fileNames = includeFileSizes ? fileList.map(f => `${f.name} (${formatBytes(f.size, 2)})`) : fileList.map(f => f.name);
+        const fileNames = includeFileSizes ? fileList.map(f => `${f.name} (${formatBytes(f.size)})`) : fileList.map(f => f.name);
 
         const remaining = oversizedFiles.length - maxFilesToList;
         const suffix = remaining > 0 ? ` and ${remaining} more` : "";
@@ -113,7 +113,7 @@ export function validateBatchUploadSize(files: FileList | File[], maxBatchUpload
         return { valid: true };
     }
 
-    const totalBatchWithUnit = formatBytes(totalBatchSize, 2);
+    const totalBatchWithUnit = formatBytes(totalBatchSize);
     const limitWithUnit = formatBytes(maxBatchUploadSizeBytes, 0);
 
     return {
@@ -155,8 +155,8 @@ export function isFileSizeValid(file: File, maxSizeBytes?: number): boolean {
  * @returns Formatted error message
  */
 export function createFileSizeErrorMessage(filename: string, actualSize: number, maxSize: number): string {
-    const actualSizeWithUnit = formatBytes(actualSize, 2);
-    const maxSizeWithUnit = formatBytes(maxSize, 2);
+    const actualSizeWithUnit = formatBytes(actualSize);
+    const maxSizeWithUnit = formatBytes(maxSize);
     return `File "${filename}" is too large: ${actualSizeWithUnit} exceeds the maximum allowed size of ${maxSizeWithUnit}.`;
 }
 
@@ -181,9 +181,9 @@ export function validateProjectSizeLimit(currentProjectSizeBytes: number, newFil
         return { valid: true, currentSize: currentProjectSizeBytes, newSize, totalSize };
     }
 
-    const currentWithUnit = formatBytes(currentProjectSizeBytes, 2);
-    const newWithUnit = formatBytes(newSize, 2);
-    const totalWithUnit = formatBytes(totalSize, 2);
+    const currentWithUnit = formatBytes(currentProjectSizeBytes);
+    const newWithUnit = formatBytes(newSize);
+    const totalWithUnit = formatBytes(totalSize);
     const limitWithUnit = formatBytes(maxProjectSizeBytes, 0);
 
     return {
