@@ -365,10 +365,6 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                 data-testid="chat-input"
                 data-placeholder={placeholder}
                 suppressContentEditableWarning
-                style={{
-                    minHeight: "inherit",
-                    maxHeight: "inherit",
-                }}
             />
 
             {/* Show placeholder when empty */}

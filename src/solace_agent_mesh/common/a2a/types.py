@@ -2,7 +2,7 @@
 Custom type aliases for the A2A helper layer.
 """
 
-from typing import Union, Optional, Dict, Any
+from typing import Union, Optional, Dict, Any, List
 from a2a.types import TextPart, DataPart, FilePart, AgentSkill
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
@@ -12,12 +12,29 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 ContentPart = Union[TextPart, DataPart, FilePart]
 
 
+class SamAgentSkill(AgentSkill):
+    """
+    SAM extension of AgentSkill that includes required_scopes for access control.
+    """
+
+    required_scopes: List[str] = Field(default_factory=list)
+
+
 class ToolsExtensionParams(BaseModel):
     """
     The parameters for the custom 'tools' AgentCard extension.
     """
 
-    tools: list[AgentSkill]
+    tools: list[SamAgentSkill]
+
+
+class SchemasExtensionParams(BaseModel):
+    """
+    The parameters for the custom 'schemas' AgentCard extension.
+    """
+
+    input_schema: Optional[Dict[str, Any]] = None
+    output_schema: Optional[Dict[str, Any]] = None
 
 
 class ArtifactInfo(BaseModel):

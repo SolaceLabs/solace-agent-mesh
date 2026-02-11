@@ -1,1 +1,1 @@
-export { JSONViewer } from "./JSONViewer";
+export { type JSONValue, JSONViewer } from "./JSONViewer";

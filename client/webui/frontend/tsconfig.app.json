@@ -6,6 +6,8 @@
         "lib": ["ES2023", "DOM", "DOM.Iterable"],
         "module": "ESNext",
         "skipLibCheck": true,
+        "types": [],
+        "typeRoots": [],
 
         /* Bundler mode */
         "moduleResolution": "bundler",

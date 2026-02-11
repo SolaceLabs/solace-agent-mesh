@@ -6,6 +6,7 @@ import type { AgentCard, AgentExtension, AgentCardInfo, AgentSkill } from "@/lib
 const DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name";
 const PEER_AGENT_TOPOLOGY_EXTENSION_URI = "https://solace.com/a2a/extensions/peer-agent-topology";
 const TOOL_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools";
+const AGENT_TYPE_EXTENSION_URI = "https://solace.com/a2a/extensions/agent-type";
 
 /**
  * Transforms a raw A2A AgentCard into a UI-friendly AgentCardInfo object,
@@ -15,6 +16,7 @@ export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
     let displayName: string | undefined;
     let peerAgents: string[] | undefined;
     let tools: AgentSkill[] | undefined;
+    let isWorkflow = false;
 
     if (card.capabilities?.extensions) {
         const displayNameExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === DISPLAY_NAME_EXTENSION_URI);
@@ -31,6 +33,11 @@ export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
         if (toolsExtension?.params?.tools) {
             tools = toolsExtension.params.tools as AgentSkill[];
         }
+
+        const agentTypeExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === AGENT_TYPE_EXTENSION_URI);
+        if (agentTypeExtension?.params?.type === "workflow") {
+            isWorkflow = true;
+        }
     }
     return {
         ...card,
@@ -41,6 +48,7 @@ export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
         tools: tools || [],
         displayName: displayName,
         peerAgents: peerAgents || [],
+        isWorkflow,
     };
 };
 

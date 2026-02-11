@@ -1,0 +1,58 @@
+test_case_id: "loop_workflow_001"
+description: "Tests a loop workflow that iterates until condition is false"
+tags: ["all", "workflows", "loop"]
+skip_intermediate_events: true
+expected_completion_timeout_seconds: 60
+
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
+gateway_input:
+  target_agent_name: "LoopTestWorkflow"
+  user_identity: "workflow_test_user@example.com"
+  external_context:
+    a2a_session_id: "loop_test_session"
+  parts:
+    - type: "data"
+      data:
+        max_count: 2
+
+llm_interactions:
+  # Iteration 1: First increment (count goes to 1)
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              «««save_artifact: filename="counter_iter_0.json" mime_type="application/json" description="Counter state"
+              {"count": 1, "iteration": 0}
+              »»»
+
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Counter incremented. «result:artifact=counter_iter_0.json:0 status=success»"
+
+  # Iteration 2: Second increment (count goes to 2, which equals max_count)
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              «««save_artifact: filename="counter_iter_1.json" mime_type="application/json" description="Counter state"
+              {"count": 2, "iteration": 1}
+              »»»
+
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Counter incremented. «result:artifact=counter_iter_1.json:0 status=success»"
+
+  # Loop should stop because count (2) >= max_count (2)
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"

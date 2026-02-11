@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level7_success_path",
+  "category": "Workflows",
+  "description": "Tests error handling workflow in success mode. The workflow executes successfully and triggers on_success and always exit handlers.",
+  "query": "Please use the ErrorHandlingWorkflow with mode 'success', and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 300,
+  "evaluation": {
+    "expected_tools": ["workflow_ErrorHandlingWorkflow"],
+    "expected_response": "The ErrorHandlingWorkflow has successfully completed with status: success. The workflow executed the operation successfully, then triggered the success notification and cleanup handlers. Result: operation completed, Success notification sent, Cleanup performed",
+    "criterion": "Evaluate if the orchestrator successfully delegated to ErrorHandlingWorkflow in success mode, the workflow completed successfully, and the on_success and always exit handlers were executed (success notification + cleanup)."
+  }
+}

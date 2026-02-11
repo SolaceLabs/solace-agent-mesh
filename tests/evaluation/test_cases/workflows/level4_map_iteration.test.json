@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level4_map_iteration",
+  "category": "Workflows",
+  "description": "Tests map node iterating over array items in parallel. The workflow processes each item by doubling its value.",
+  "query": "Please use the MapIterationWorkflow to process these items: [{'id': 'A', 'value': 10}, {'id': 'B', 'value': 20}, {'id': 'C', 'value': 30}], and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 300,
+  "evaluation": {
+    "expected_tools": ["workflow_MapIterationWorkflow"],
+    "expected_response": "The MapIterationWorkflow has successfully processed the items. The workflow processed 3 items in parallel, doubling each value. Results: Item A: 10 → 20, Item B: 20 → 40, Item C: 30 → 60",
+    "criterion": "Evaluate if the orchestrator successfully delegated to MapIterationWorkflow, and the workflow correctly processed each item in the array using map node, doubling values (A:10→20, B:20→40, C:30→60) and aggregating results."
+  }
+}
