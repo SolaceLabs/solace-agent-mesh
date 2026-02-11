@@ -43,35 +43,38 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
 
     useEffect(() => {
         const fetchContent = async () => {
-            if (!sessionId || (!uri && !name)) return;
+            if ((!sessionId && !uri) || !name) return;
 
             setIsLoading(true);
             setError(null);
 
             try {
-                let filename = name;
-                let artifactVersion = version;
+                let parsedFileName;
+                let parsedSessionId;
+                let parsedVersion;
 
-                // Try to parse URI if available
+                // Parse uri to validate props
                 if (uri) {
                     const parsed = parseArtifactUri(uri);
                     if (parsed) {
-                        filename = parsed.filename;
+                        parsedFileName = parsed.filename;
+                        parsedSessionId = parsed.sessionId;
                         if (parsed.version) {
-                            artifactVersion = parseInt(parsed.version);
+                            const uriVersion = parseInt(parsed.version, 10);
+                            parsedVersion = Number.isInteger(uriVersion) ? uriVersion : undefined;
                         }
                     }
                 }
 
                 const { content, mimeType: responseMimeType } = await getArtifactContent({
-                    filename,
-                    sessionId,
-                    version: artifactVersion,
+                    filename: parsedFileName ?? name,
+                    sessionId: parsedSessionId ?? sessionId,
+                    version: parsedVersion ?? version,
                 });
                 setFetchedMimeType(responseMimeType);
 
                 // Only truncate text-based content - never truncate binary (image, audio)
-                const currentRenderType = getRenderType(filename, responseMimeType);
+                const currentRenderType = getRenderType(parsedFileName ?? name, responseMimeType);
                 const shouldTruncate = currentRenderType && !isBinaryType(currentRenderType);
 
                 if (shouldTruncate) {
