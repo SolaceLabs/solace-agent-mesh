@@ -9,7 +9,7 @@ import { parseArtifactUri, getArtifactContent } from "@/lib/utils";
 
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 
-const MAX_ARTIFACT_DISPLAY_LENGTH = 5000;
+const MAX_ARTIFACT_DISPLAY_LENGTH = 1000;
 
 const ColumnHeader = ({ label, color }: { label: string; color: string }) => {
     return (
@@ -27,7 +27,7 @@ interface ArtifactContentViewerProps {
     mimeType?: string;
 }
 
-const isBinaryType = (renderType: string) => renderType === "image" || renderType === "audio";
+const isNotTruncatable = (renderType: string) => renderType === "image" || renderType === "audio" || renderType === "html";
 
 /**
  * Component to fetch and display artifact content inline.
@@ -75,7 +75,7 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
 
                 // Only truncate text-based content - never truncate binary (image, audio)
                 const currentRenderType = getRenderType(parsedFileName ?? name, responseMimeType);
-                const shouldTruncate = currentRenderType && !isBinaryType(currentRenderType);
+                const shouldTruncate = currentRenderType && !isNotTruncatable(currentRenderType);
 
                 if (shouldTruncate) {
                     const decodedText = decodeBase64Content(content);
@@ -141,12 +141,12 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     }
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
-            <div className={`min-h-0 flex-1 ${isBinaryType(renderType) ? "overflow-hidden" : "overflow-y-auto"}`}>
+        <>
+            <div className={`overflow-y-auto ${renderType === "html" ? "h-[calc(50vh-100px)]" : "max-h-[calc(50vh-100px)]"}`}>
                 <ContentRenderer content={processedContent} rendererType={renderType} mime_type={effectiveMimeType} setRenderError={setError} />
             </div>
-            {isTruncated && <div className="mt-1 flex-shrink-0 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
-        </div>
+            {isTruncated && <div className="mt-2 text-xs text-(--color-info-wMain)">Content truncated at first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters</div>}
+        </>
     );
 };
 
