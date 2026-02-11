@@ -3,6 +3,7 @@ import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { ShareProjectDialog } from "@/lib";
 import { mockProject, mockEmptyProject, mockSharesResponse, mockEmptySharesResponse, mockPeopleSearchResponse } from "@/stories/data/projectShares";
+import { withIdentityService, withoutIdentityService } from "@/stories/data/parameters";
 
 // ============================================================================
 // MSW Handlers
@@ -91,9 +92,7 @@ export const WithIdentityService: Story = {
         project: mockProject,
     },
     parameters: {
-        configContext: {
-            identityServiceType: "okta",
-        },
+        ...withIdentityService("okta"),
         msw: { handlers: withPeopleSearchHandlers },
     },
     play: async () => {
@@ -119,9 +118,7 @@ export const WithoutIdentityService: Story = {
         project: mockProject,
     },
     parameters: {
-        configContext: {
-            identityServiceType: null,
-        },
+        ...withoutIdentityService,
         msw: { handlers: defaultHandlers },
     },
     play: async () => {

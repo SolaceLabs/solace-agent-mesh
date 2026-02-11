@@ -331,6 +331,23 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
 }
 
 /**
+ * Encodes a UTF-8 string to base64.
+ * Useful for re-encoding text content after truncation.
+ *
+ * @param text The string to encode.
+ * @returns The base64 encoded string.
+ */
+export function encodeBase64Content(text: string): string {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(text);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+/**
  * Decodes a base64 encoded string into a UTF-8 string.
  * Attempts to use TextDecoder for proper UTF-8 handling, falls back to simple atob
  * if TextDecoder fails (e.g., for non-UTF8 binary data represented as base64).

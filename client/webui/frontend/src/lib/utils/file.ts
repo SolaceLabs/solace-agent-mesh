@@ -88,3 +88,40 @@ export const getArtifactContent = async ({ filename, sessionId, projectId, versi
 
     return { content, mimeType };
 };
+
+export const parseArtifactUri = (uri: string): { sessionId: string | null; filename: string; version: string | null } | null => {
+    try {
+        const url = new URL(uri);
+        if (url.protocol !== "artifact:") {
+            return null;
+        }
+
+        // URI format: artifact://{app_name}/{user_id}/{session_id}/{filename}?version={version}
+        // hostname = app_name
+        // pathname = /{user_id}/{session_id}/{filename}
+        const pathParts = url.pathname.split("/").filter(p => p);
+
+        // Expected path parts: [user_id, session_id, filename]
+        if (pathParts.length < 3) {
+            // Fallback for legacy format: artifact://{session_id}/{filename}
+            // In this case, hostname might be session_id and filename is in path
+            const sessionId = url.hostname || null;
+            const filename = pathParts.length > 0 ? pathParts[pathParts.length - 1] : "";
+            if (!filename) {
+                return null;
+            }
+            const version = url.searchParams.get("version");
+            return { sessionId, filename, version };
+        }
+
+        // Standard format: extract session_id from path (index 1)
+        const sessionId = pathParts[1];
+        const filename = pathParts[2];
+
+        const version = url.searchParams.get("version");
+        return { sessionId, filename, version };
+    } catch (e) {
+        console.error("Invalid artifact URI:", e);
+        return null;
+    }
+};
