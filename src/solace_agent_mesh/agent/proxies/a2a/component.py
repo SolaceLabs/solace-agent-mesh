@@ -592,7 +592,7 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         agent_name = agent_config.get("name")
         agent_url = agent_config.get("url")
-        agent_card_path = agent_config.get("agent_card_path", "/agent/card.json")
+        agent_card_path = agent_config.get("agent_card_path", "/.well-known/agent-card.json")
         log_identifier = f"{self.log_identifier}[FetchCard:{agent_name}]"
 
         if not agent_url:

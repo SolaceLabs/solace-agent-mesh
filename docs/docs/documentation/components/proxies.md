@@ -13,6 +13,10 @@ A single proxy instance can manage multiple external agents, each with its own U
 Proxies are protocol bridges that connect multiple external A2A-over-HTTPS agents to the Solace event mesh, enabling hybrid agent architectures.
 :::
 
+:::info[Agent Mesh Enterprise]
+If you are using Agent Mesh Enterprise, you can connect external agents through a guided wizard interface instead of writing YAML configuration files. For more information, see [Connect External Agents](../enterprise/connect-external-agents.md).
+:::
+
 ## Key Functions
 
 1. **Protocol Translation**: Proxies translate between A2A over HTTPS and A2A over Solace event mesh, enabling external agents to communicate with agents on the mesh without modification.
@@ -132,6 +136,7 @@ broker:
   - `agent_card_headers`: Custom HTTP headers to include when fetching the agent card. These headers are added alongside authentication headers.
   - `task_headers`: Custom HTTP headers to include when invoking A2A tasks. These headers are added alongside authentication headers.
   - `convert_progress_updates`: If true (default), converts TextParts in status updates to AgentProgressUpdateData DataParts for consistent UI behavior. If false, preserves original text parts.
+  - `agent_card_data`: Static agent card data embedded directly in configuration. If provided, the proxy uses this data instead of fetching from the agent card endpoint. This allows proxying agents that do not have agent card endpoints.
 - `artifact_service`: Configuration for storing artifacts. This is shared across all proxied agents. This is configured in the same manner as agents and gateways
 - `discovery_interval_seconds`: How often to refresh agent cards from all external agents (default: 60).
 - `default_request_timeout_seconds`: Default timeout for requests to external agents. Individual agents can override this (default: 300).
@@ -581,6 +586,33 @@ proxied_agents:
 - The configured URL is always used to fetch the agent card, regardless of this setting
 - When `use_agent_card_url: false`, all task invocations use the configured URL
 - When `use_agent_card_url: true` (default), the agent card's URL is used for tasks
+
+### Agents Without Agent Card Endpoints
+
+For external agents that do not expose an agent card endpoint, you can embed the agent card data directly in the configuration using `agent_card_data`:
+
+```yaml
+proxied_agents:
+  - name: "no-card-agent"
+    url: "https://api.example.com/agent"
+    agent_card_data:
+      name: "MyExternalAgent"
+      description: "An external agent without an agent card endpoint"
+      version: "1.0.0"
+      skills:
+        - id: "process_data"
+          name: "process_data"
+          description: "Processes incoming data"
+      defaultInputModes:
+        - "text"
+      defaultOutputModes:
+        - "text"
+    authentication:
+      type: "static_bearer"
+      token: "${AGENT_TOKEN}"
+```
+
+When `agent_card_data` is provided, the proxy skips fetching from the agent card endpoint and uses the embedded data instead.
 
 ### Custom Artifact Service Scope
 
