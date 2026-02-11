@@ -41,20 +41,21 @@ The following diagram shows the end-to-end flow from initial login through subse
 sequenceDiagram
     participant User
     participant WebUI as WebUI Gateway :8000
-    participant OAuth as OAuth2 Service :9000
+    participant Platform as Platform Service :8001
+    participant OAuth as OAuth2 Service :8080
     participant IdP as Identity Provider
 
     User->>WebUI: Request (no token)
     WebUI-->>User: Redirect to login
-    User->>OAuth: /login
+    User->>OAuth: /login (browser redirect)
     OAuth->>IdP: Authorization request
     IdP-->>User: Login page
     User->>IdP: Credentials
-    IdP-->>OAuth: Authorization code
+    IdP-->>User: Redirect to WebUI callback
+    User->>WebUI: /api/v1/auth/callback?code=...
+    WebUI->>OAuth: /exchange-code (server-to-server)
     OAuth->>IdP: Exchange code for tokens
     IdP-->>OAuth: Access token + ID token
-
-    Note over WebUI: Callback handler
     OAuth-->>WebUI: Tokens + user info
     WebUI->>WebUI: Resolve roles from RBAC
     WebUI->>WebUI: Mint SAM Access Token (if enabled)
@@ -65,10 +66,9 @@ sequenceDiagram
     WebUI->>WebUI: Validate locally via trust manager
     WebUI-->>User: Response
 
-    User->>WebUI: Platform API request + Bearer token
-    Note over WebUI: Platform Service shares middleware
-    WebUI->>WebUI: Validate locally (same path)
-    WebUI-->>User: API response
+    User->>Platform: API request + Bearer token
+    Platform->>Platform: Validate locally (same middleware)
+    Platform-->>User: API response
 ```
 
 At the OAuth callback, the gateway resolves the user's RBAC roles, then calls `prepare_and_mint_sam_token()` to produce a signed JWT that embeds those roles. The frontend stores this token and presents it on all subsequent requests. Both the WebUI Gateway and Platform Service validate the token locally through the trust manager key registry.
@@ -81,7 +81,7 @@ When the middleware receives validated user info (from either token path), it ex
 
 The first non-empty value wins. If the resolved identifier equals `unknown`, `null`, `none`, or an empty string (case-insensitive), the system falls back to `sam_dev_user`.
 
-Email addresses are normalized to lowercase for case-insensitive matching; all other identifiers remain case-sensitive. This normalization happens both at extraction time and when the enterprise config resolver matches identities against `user-to-role-assignments.yaml`.
+Email addresses are normalized to lowercase for case-insensitive matching; all other identifiers remain case-sensitive. This normalization happens in the enterprise config resolver when it matches identities against `user-to-role-assignments.yaml`.
 
 The display name is resolved separately: `name` &rarr; `given_name` + `family_name` &rarr; `preferred_username` &rarr; user identifier.
 
@@ -138,9 +138,15 @@ When verifying a SAM Access Token, the trust manager decodes the JWT header, loo
 
 ### Shared Middleware and Config Resolver
 
-Both the WebUI Gateway and the Platform Service call `create_oauth_middleware(component)` and add the resulting middleware to their FastAPI application. A `MiddlewareRegistry` singleton holds one `EnterpriseConfigResolverImpl` instance, which both services query for authorization decisions.
+Both the WebUI Gateway and the Platform Service call `create_oauth_middleware(component)` and add the resulting middleware to their FastAPI application. A `MiddlewareRegistry` singleton holds one `EnterpriseConfigResolverImpl` class, which both services query for authorization decisions.
 
-In standard deployments (Docker container or Kubernetes pod), both services run within the same process, so this sharing happens automatically. If you run them as separate processes, each process performs its own initialization---you must pass the same `SAM_AUTHORIZATION_CONFIG` environment variable pointing to the same configuration to keep behavior consistent.
+:::warning Use `SAM_AUTHORIZATION_CONFIG` for RBAC
+The Platform Service only inherits RBAC configuration when the `SAM_AUTHORIZATION_CONFIG` environment variable is set. This variable applies globally to all services in the process. If you configure `authorization_service` only in the WebUI Gateway's YAML file without setting this environment variable, the Platform Service will not inherit that configuration and will default to `deny_all`, causing all Platform Service API requests to be denied.
+
+Always use `SAM_AUTHORIZATION_CONFIG` to ensure both services share the same authorization configuration.
+:::
+
+In standard deployments (Docker container or Kubernetes pod), both services run within the same process, so this sharing happens automatically once the environment variable is set. If you run them as separate processes, each process performs its own initialization---you must pass the same `SAM_AUTHORIZATION_CONFIG` environment variable pointing to the same configuration to keep behavior consistent.
 
 ### Configuration Differences
 
@@ -222,7 +228,9 @@ For provider-specific variables, see [Enabling SSO](single-sign-on.md). For RBAC
 
 ### 401 Errors on Platform Service While WebUI Works
 
-This typically means the Platform Service is not receiving the same auth configuration as the WebUI Gateway. Verify that `platform.yaml` includes the `frontend_use_authorization`, `external_auth_service_url`, and `external_auth_provider` fields under `app_config`, and that they reference the same environment variables as your WebUI Gateway configuration.
+This typically means the Platform Service is not receiving the same auth configuration as the WebUI Gateway. The most common cause is configuring `authorization_service` directly in the WebUI Gateway's YAML file without setting the `SAM_AUTHORIZATION_CONFIG` environment variable. The Platform Service only inherits RBAC configuration from the global environment variable, not from the gateway's local config. Set `SAM_AUTHORIZATION_CONFIG` to point to your enterprise configuration file to resolve this.
+
+Also verify that `platform.yaml` includes the `frontend_use_authorization`, `external_auth_service_url`, and `external_auth_provider` fields under `app_config`, and that they reference the same environment variables as your WebUI Gateway configuration.
 
 ### All Requests Denied After Login
 

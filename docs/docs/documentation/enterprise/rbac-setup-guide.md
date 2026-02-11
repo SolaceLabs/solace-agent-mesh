@@ -22,7 +22,7 @@ RBAC in Agent Mesh Enterprise uses three connected concepts:
 
 **Roles** are collections of permissions that you assign to users. Instead of granting permissions directly to individual users, you create roles that represent job functions or responsibilities. For example, you might create a "data_analyst" role for users who need to work with data tools and artifacts. This approach simplifies administration because you can modify a role's permissions once and affect all users assigned to that role.
 
-**Scopes** are the actual permissions that grant access to specific features or resources. Each scope follows a pattern that identifies what it controls. For example, the scope `tool:data:read` grants permission to read data tools, while `artifact:create` allows creating artifacts. Scopes use wildcards to grant broader permissions. For example, the scope `tool:data:*` grants all permissions for data tools.
+**Scopes** are the actual permissions that grant access to specific features or resources. Each scope follows a pattern that identifies what it controls. For example, the scope `tool:data:read` grants permission to read data tools, while `tool:artifact:create` allows creating artifacts. Scopes use wildcards to grant broader permissions. For example, the scope `tool:data:*` grants all permissions for data tools.
 
 ### How Authorization Works
 
@@ -94,11 +94,11 @@ Common tool scopes include:
 - `tool:data:*` - All permissions for data-related tools
 - `tool:advanced:read` - Permission to read advanced tools
 
-**Custom Tool Scopes with `required_scope`:**
+**Custom Tool Scopes with `required_scopes`:**
 
-When you create a custom tool in Agent Mesh Enterprise, you can specify a `required_scope` field in the tool's configuration that defines what permission a user needs to access that tool. This allows you to create fine-grained access controls for specific tools.
+When you create a custom tool in Agent Mesh Enterprise, you can specify a `required_scopes` field in the tool's configuration that defines what permissions a user needs to access that tool. The field accepts a list of scope strings. This allows you to create fine-grained access controls for specific tools.
 
-For example, if you create a custom database query tool in your agent configuration, you would set the `required_scope` in the tool's component definition:
+For example, if you create a custom database query tool in your agent configuration, you would set `required_scopes` in the tool's component definition:
 
 ```yaml
 # In your agent flow configuration (e.g., flows_config.yaml)
@@ -108,23 +108,8 @@ components:
     component_config:
       tool_name: "customer_database_query"
       description: "Query the customer database for analysis"
-      required_scope: "tool:database:query"  # RBAC scope required to use this tool
-      # ... other tool configuration ...
-      database_connection:
-        host: "db.example.com"
-        port: 5432
-```
-
-Alternatively, if you're defining tools in a tool registry or catalog file:
-
-```yaml
-# In a tool catalog/registry configuration
-tools:
-  - name: "customer_database_query"
-    description: "Query the customer database for analysis"
-    required_scope: "tool:database:query"  # RBAC scope required to use this tool
-    implementation: "my_custom_tools.DatabaseQueryTool"
-    parameters:
+      required_scopes:
+        - "tool:database:query"  # RBAC scope required to use this tool
       database_connection:
         host: "db.example.com"
         port: 5432
@@ -139,8 +124,8 @@ roles:
     description: "Analyst with database access"
     scopes:
       - "tool:database:query"  # Grants access to the customer_database_query tool
-      - "artifact:read"
-      - "artifact:create"
+      - "tool:artifact:list"
+      - "tool:artifact:create"
 ```
 
 Only users with the `data_analyst` role (or any role containing the `tool:database:query` scope) can access the `customer_database_query` tool. Users without this scope receive an authorization error when attempting to use the tool.
@@ -152,10 +137,10 @@ roles:
   database_admin:
     description: "Database administrator with full database tool access"
     scopes:
-      - "tool:database:*"  # Grants access to all tools with required_scope starting with "tool:database:"
+      - "tool:database:*"  # Grants access to all tools with required_scopes starting with "tool:database:"
 ```
 
-This role would have access to any tool with `required_scope` set to `tool:database:query`, `tool:database:admin`, `tool:database:backup`, etc.
+This role would have access to any tool with `required_scopes` containing `tool:database:query`, `tool:database:admin`, `tool:database:backup`, etc.
 
 #### Agent Scopes
 
@@ -199,15 +184,15 @@ roles:
     description: "Customer support representative"
     scopes:
       - "agent:customer_support_agent:delegate"  # Can only access customer support agent
-      - "artifact:read"
+      - "tool:artifact:load"
 
   data_analyst:
     description: "Data analyst"
     scopes:
       - "agent:data_analysis_agent:delegate"  # Can only access data analysis agent
       - "tool:data:*"
-      - "artifact:read"
-      - "artifact:create"
+      - "tool:artifact:load"
+      - "tool:artifact:create"
 
   system_admin:
     description: "System administrator"
@@ -232,20 +217,21 @@ roles:
     scopes:
       - "agent:customer_*:delegate"  # Access to all agents starting with "customer_"
       - "agent:data_*:delegate"      # Access to all agents starting with "data_"
-      - "artifact:read"
+      - "tool:artifact:load"
 ```
 
 This role would grant access to agents like `customer_support_agent`, `customer_feedback_agent`, `data_analysis_agent`, `data_processing_agent`, etc., but not `admin_agent`.
 
 #### Artifact Scopes
 
-Artifact scopes control access to files and data created by agents during task execution, using the pattern `artifact:<action>`:
+Artifact scopes control access to files and data created by agents during task execution. Artifact tools use the standard tool scope pattern `tool:artifact:<action>`:
 
-- `artifact:read` - Permission to view and download artifacts
-- `artifact:create` - Permission to create new artifacts
-- `artifact:delete` - Permission to delete artifacts
-- `artifact:update` - Permission to modify existing artifacts
-- `artifact:*` - All artifact permissions
+- `tool:artifact:list` - Permission to list available artifacts
+- `tool:artifact:load` - Permission to view and download artifacts
+- `tool:artifact:create` - Permission to create new artifacts
+- `tool:artifact:append` - Permission to append data to existing artifacts
+- `tool:artifact:delete` - Permission to delete artifacts
+- `tool:artifact:*` - All artifact permissions
 
 Example role configuration:
 ```yaml
@@ -253,8 +239,8 @@ roles:
   data_analyst:
     description: "Data analyst with artifact access"
     scopes:
-      - "artifact:read"
-      - "artifact:create"
+      - "tool:artifact:load"
+      - "tool:artifact:create"
       - "tool:data:*"
 ```
 
@@ -314,14 +300,14 @@ roles:
     description: "Data analysis and visualization specialist"
     scopes:
       - "tool:data:*"  # All data tools
-      - "artifact:read"
-      - "artifact:create"
+      - "tool:artifact:load"
+      - "tool:artifact:create"
       - "monitor/namespace/*:a2a_messages:subscribe"  # Can monitor any namespace
-    
+
   standard_user:
     description: "Standard user with basic access"
     scopes:
-      - "artifact:read"
+      - "tool:artifact:load"
       - "tool:basic:read"
       - "tool:basic:search"
 ```
@@ -330,7 +316,7 @@ This configuration creates three distinct roles:
 
 The `enterprise_admin` role receives the wildcard scope `*`, which grants all permissions in the system. You should assign this role only to trusted administrators who need complete control over Agent Mesh Enterprise.
 
-The `data_analyst` role receives permissions tailored for data analysis work. The scope `tool:data:*` grants all permissions for data-related tools (read, write, execute). The `artifact:read` and `artifact:create` scopes allow analysts to view existing artifacts and create new ones. The monitoring scope `monitor/namespace/*:a2a_messages:subscribe` enables analysts to observe message traffic across all namespaces, which helps them understand data flows.
+The `data_analyst` role receives permissions tailored for data analysis work. The scope `tool:data:*` grants all permissions for data-related tools (read, write, execute). The `tool:artifact:load` and `tool:artifact:create` scopes allow analysts to view existing artifacts and create new ones. The monitoring scope `monitor/namespace/*:a2a_messages:subscribe` enables analysts to observe message traffic across all namespaces, which helps them understand data flows.
 
 The `standard_user` role provides minimal permissions for basic operations. Users with this role can read artifacts and perform basic tool operations but cannot create new artifacts or access advanced features.
 
@@ -356,7 +342,7 @@ users:
     description: "Standard Enterprise User"
 ```
 
-Each entry in this file maps a user identity (typically an email address) to one or more roles. The user identity must match exactly what your authentication system provides because Agent Mesh Enterprise performs case-sensitive matching.
+Each entry in this file maps a user identity (typically an email address) to one or more roles. Email identities are normalized to lowercase before matching, so `User@Example.com` and `user@example.com` are treated as the same identity. Non-email identifiers (such as `sub` or `oid` values) are case-sensitive and must match exactly what your authentication system provides.
 
 You can assign multiple roles to a single user by listing them in the `roles` array. When a user has multiple roles, they receive the combined permissions from all assigned roles. For example, if you assign both `data_analyst` and `standard_user` roles to a user, they receive all scopes from both roles.
 
@@ -505,18 +491,18 @@ roles:
     description: "Read-only access"
     scopes:
       - "tool:basic:read"
-      - "artifact:read"
-  
+      - "tool:artifact:load"
+
   operator:
     description: "Operational access"
     inherits:
       - "viewer"
     scopes:
       - "tool:basic:*"
-      - "artifact:create"
+      - "tool:artifact:create"
 ```
 
-In this example, the "operator" role receives all scopes from "viewer" (`tool:basic:read` and `artifact:read`) plus its own scopes (`tool:basic:*` and `artifact:create`). Note that `tool:basic:*` includes `tool:basic:read`, so there is some overlap. Agent Mesh Enterprise handles this correctly by deduplicating scopes.
+In this example, the "operator" role receives all scopes from "viewer" (`tool:basic:read` and `tool:artifact:load`) plus its own scopes (`tool:basic:*` and `tool:artifact:create`). Note that `tool:basic:*` includes `tool:basic:read`, so there is some overlap. Agent Mesh Enterprise handles this correctly by deduplicating scopes.
 
 ### User-to-Role Assignments Structure
 
@@ -571,15 +557,15 @@ roles:
     scopes:
       - "tool:basic:*"
       - "tool:advanced:read"
-      - "artifact:read"
-      - "artifact:create"
+      - "tool:artifact:load"
+      - "tool:artifact:create"
       - "monitor/namespace/*:a2a_messages:subscribe"
-  
+
   viewer:
     description: "Read-only access"
     scopes:
       - "tool:basic:read"
-      - "artifact:read"
+      - "tool:artifact:load"
       - "monitor/namespace/*:a2a_messages:subscribe"
 ```
 
@@ -694,7 +680,7 @@ When you encounter issues with your RBAC configuration, systematic troubleshooti
 
 If a user cannot access features they should have permission to use, you might see authorization denied messages in the logs or user interface.
 
-To resolve this issue, first verify that the user identity matches exactly what appears in your `user-to-role-assignments.yaml` file. Agent Mesh Enterprise performs case-sensitive matching, so `user@example.com` and `User@example.com` are different identities.
+To resolve this issue, first verify that the user identity matches what appears in your `user-to-role-assignments.yaml` file. Email identities are normalized to lowercase before matching, so `User@Example.com` and `user@example.com` are treated as the same identity. However, non-email identifiers (such as `sub` or `oid` values) are case-sensitive and must match exactly.
 
 Next, check that the role assigned to the user has the necessary scopes. Review the `role-to-scope-definitions.yaml` file and verify that the role includes scopes for the features the user is trying to access.
 

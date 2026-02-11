@@ -40,7 +40,9 @@ A Platform Service instance is only required when running the WebUI Gateway in c
 
 ## Authentication and Authorization
 
-The Platform Service shares the same authentication and authorization infrastructure as the WebUI Gateway. Both services use the same OAuth2 middleware to validate bearer tokens and the same RBAC configuration to enforce permissions. When you enable SSO and configure RBAC for the WebUI Gateway, the Platform Service inherits the same security enforcement automatically.
+The Platform Service shares the same authentication and authorization infrastructure as the WebUI Gateway. Both services use the same OAuth2 middleware to validate bearer tokens and the same RBAC configuration to enforce permissions.
 
-No separate auth configuration is needed for the Platform Service. For details on how this shared model works and how to troubleshoot it, see [Authentication and Authorization](../enterprise/platform-service-auth.md).
+To ensure both services use the same authorization configuration, set the `SAM_AUTHORIZATION_CONFIG` environment variable. This variable applies globally to all services in the process and is the recommended way to configure RBAC. If you configure authorization only in the WebUI Gateway's YAML file without setting this environment variable, the Platform Service will not inherit that configuration and will default to denying all access.
+
+For details on how this shared model works and how to troubleshoot it, see [Authentication and Authorization](../enterprise/platform-service-auth.md).
 
