@@ -13,8 +13,7 @@ export interface SnipToChatEventDetail {
     filename: string;
 }
 
-// Configure PDF.js worker from local npm package instead of CDN
-// The worker is loaded from pdfjs-dist which is a peer dependency of react-pdf
+// Configure PDF.js worker from local npm package (pdfjs-dist)
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
 interface PdfRendererProps {
