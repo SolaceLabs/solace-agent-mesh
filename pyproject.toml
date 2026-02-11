@@ -70,8 +70,9 @@ dependencies = [
     "rich==13.9.4",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
-    "azure-cognitiveservices-speech==1.41.1",
-    "authlib==1.6.5"  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
+    "azure-cognitiveservices-speech==1.41.1", # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
+    "authlib==1.6.5",
+    "cryptography==46.0.5",
 ]
 
 [project.optional-dependencies]
