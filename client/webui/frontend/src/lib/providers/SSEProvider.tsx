@@ -10,7 +10,7 @@ const TASK_STORAGE_KEY = "sam_sse_tasks";
 const INITIAL_RETRY_DELAY = 1000;
 const MAX_RETRY_DELAY = 30000;
 const MAX_RETRY_ATTEMPTS = 5;
-const STALE_TASK_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
+const STALE_TASK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
 
 // ============ Types ============
 
@@ -131,20 +131,25 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
                 eventSource.close();
 
                 // Notify subscribers of error
-                entry.subscribers.forEach(sub => {
+                entry.subscribers?.forEach(sub => {
                     sub.onError?.(errorEvent);
                 });
 
                 // Attempt reconnection if we haven't exceeded max attempts
                 if (entry.retryCount < MAX_RETRY_ATTEMPTS) {
                     updateConnectionState(endpoint, "reconnecting");
-                    console.log(`[SSEProvider] Scheduling reconnection attempt ${entry.retryCount + 1}/${MAX_RETRY_ATTEMPTS} in ${entry.retryDelay}ms`);
+
+                    const currentDelay = entry.retryDelay;
+                    entry.retryCount++;
+                    entry.retryDelay = Math.min(entry.retryDelay * 2, MAX_RETRY_DELAY);
+
+                    console.log(`[SSEProvider] Scheduling reconnection attempt ${entry.retryCount}/${MAX_RETRY_ATTEMPTS} in ${currentDelay}ms`);
 
                     entry.retryTimeoutId = setTimeout(() => {
                         entry.retryTimeoutId = null;
 
                         // Only reconnect if we still have subscribers
-                        if (entry.subscribers.size > 0) {
+                        if (entry.subscribers?.size > 0) {
                             console.log(`[SSEProvider] Attempting reconnection: ${endpoint}`);
                             const newUrl = buildUrlWithAuth(endpoint);
                             const newEventSource = new EventSource(newUrl, { withCredentials: true });
@@ -155,13 +160,8 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
                             newEventSource.onerror = eventSource.onerror;
 
                             entry.eventSource = newEventSource;
-                            entry.retryCount++;
-                            entry.retryDelay = Math.min(entry.retryDelay * 2, MAX_RETRY_DELAY);
                         }
-                    }, entry.retryDelay);
-
-                    entry.retryCount++;
-                    entry.retryDelay = Math.min(entry.retryDelay * 2, MAX_RETRY_DELAY);
+                    }, currentDelay);
                 } else {
                     console.error(`[SSEProvider] Max reconnection attempts reached: ${endpoint}`);
                     updateConnectionState(endpoint, "error");
