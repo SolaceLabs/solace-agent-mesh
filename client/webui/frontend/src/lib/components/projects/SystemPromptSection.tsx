@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Pencil } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
+import { useIsProjectOwner } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
 import { EditInstructionsDialog } from "./EditInstructionsDialog";
 
@@ -13,6 +14,7 @@ interface SystemPromptSectionProps {
 }
 
 export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ project, onSave, isSaving, error }) => {
+    const isOwner = useIsProjectOwner(project.userId);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     return (
@@ -20,9 +22,11 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ projec
             <div className="mb-6">
                 <div className="mb-3 flex items-center justify-between px-4 pt-4">
                     <h3 className="text-foreground text-sm font-semibold">Instructions</h3>
-                    <Button variant="ghost" size="sm" onClick={() => setIsDialogOpen(true)} className="h-8 w-8 p-0" tooltip="Edit">
-                        <Pencil className="h-4 w-4" />
-                    </Button>
+                    {isOwner && (
+                        <Button variant="ghost" size="sm" onClick={() => setIsDialogOpen(true)} className="h-8 w-8 p-0" tooltip="Edit">
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
 
                 <div className="px-4">

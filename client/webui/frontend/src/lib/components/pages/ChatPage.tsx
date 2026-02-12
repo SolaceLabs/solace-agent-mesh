@@ -196,7 +196,7 @@ export function ChatPage() {
 
         return () => {
             setTaskIdInSidePanel(currentTaskId);
-            openSidePanelTab("workflow");
+            openSidePanelTab("activity");
         };
     }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
 

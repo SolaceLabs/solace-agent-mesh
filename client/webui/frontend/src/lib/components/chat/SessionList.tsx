@@ -37,10 +37,13 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
             return false; // No pulse when auto title generation is disabled
         }
         const isNewChat = !session.name || session.name === "New Chat";
-        // Only pulse if this session is the one that started the response
+        // Pulse if this session is the one that started the response
         const isThisSessionResponding = respondingSessionId === session.id;
-        return isThisSessionResponding && isNewChat;
-    }, [session.name, session.id, respondingSessionId, isGenerating, autoTitleGenerationEnabled]);
+        // Also pulse if this session has a running background task and no title yet
+        // This handles the case where user switched away while task is running
+        const hasBackgroundTaskWithNewTitle = session.hasRunningBackgroundTask && isNewChat;
+        return (isThisSessionResponding && isNewChat) || hasBackgroundTaskWithNewTitle;
+    }, [session.name, session.id, respondingSessionId, isGenerating, autoTitleGenerationEnabled, session.hasRunningBackgroundTask]);
 
     // Show slow pulse while waiting for title, faster pulse during transition animation
     const animationClass = useMemo(() => {

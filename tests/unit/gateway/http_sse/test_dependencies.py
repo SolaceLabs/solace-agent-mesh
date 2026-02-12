@@ -752,14 +752,14 @@ class TestUserConfig:
     @pytest.mark.asyncio
     async def test_get_user_config(self, mock_request, mock_component):
         """Test getting user config asynchronously."""
-        user_id = "test-user"
+        user = {"id": "test-user"}
         config_resolver = Mock()
         config_resolver.resolve_user_config = AsyncMock(return_value={"user": "config"})
         app_config = {"app": "config"}
 
         result = await get_user_config(
             mock_request,
-            user_id,
+            user,
             config_resolver,
             mock_component,
             app_config,

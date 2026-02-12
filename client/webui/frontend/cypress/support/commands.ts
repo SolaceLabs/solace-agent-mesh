@@ -48,7 +48,7 @@ Cypress.Commands.add("navigateToChat", () => {
 
 Cypress.Commands.add("navigateToAgents", () => {
     cy.log("Navigating to Agents page");
-    cy.findByRole("button", { name: "Agents" }).should("be.visible").click();
+    cy.findByRole("button", { name: "Agent Mesh" }).should("be.visible").click();
 });
 
 export {};

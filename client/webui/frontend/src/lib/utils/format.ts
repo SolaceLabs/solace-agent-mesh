@@ -43,14 +43,22 @@ export const formatRelativeTime = (dateString: string): string => {
 
 /**
  * Helper function to format ISO string
- * @param isoString
+ * @param isoString - The ISO date string to format
+ * @param format - The format type: "datetime" (default), "date", or "time"
  */
-export const formatTimestamp = (isoString?: string | null): string => {
+export const formatTimestamp = (isoString?: string | null, format: "datetime" | "date" | "time" = "datetime"): string => {
     if (!isoString) return "N/A";
     try {
         const date = new Date(isoString);
         if (isNaN(date.getTime())) return "N/A";
-        return date.toLocaleString();
+        switch (format) {
+            case "date":
+                return date.toLocaleDateString();
+            case "time":
+                return date.toLocaleTimeString();
+            default:
+                return date.toLocaleString();
+        }
     } catch {
         return "N/A";
     }

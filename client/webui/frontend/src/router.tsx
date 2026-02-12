@@ -1,6 +1,7 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
 import { AgentMeshPage, AllChatsPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage } from "./lib";
+import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
@@ -75,7 +76,16 @@ export const createRouter = () => {
                 },
                 {
                     path: "agents",
-                    element: <AgentMeshPage />,
+                    children: [
+                        {
+                            index: true,
+                            element: <AgentMeshPage />,
+                        },
+                        {
+                            path: "workflows/:workflowName",
+                            element: <WorkflowVisualizationPage />,
+                        },
+                    ],
                 },
                 {
                     path: "*",

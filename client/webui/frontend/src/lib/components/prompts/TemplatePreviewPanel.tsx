@@ -113,7 +113,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
                         <NotepadText className="text-muted-foreground h-4 w-4" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-semibold">Template Preview</h3>
+                        <h3 className="text-sm font-semibold">Preview</h3>
                     </div>
                 </div>
             </div>
