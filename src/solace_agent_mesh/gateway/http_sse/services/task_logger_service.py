@@ -180,15 +180,17 @@ class TaskLoggerService:
                 try:
                     task.last_activity_time = now_epoch_ms()
                     repo.save_task(db, task)
+                    db.flush()  # Flush to detect concurrency issues early
                 except Exception as activity_update_error:
                     # StaleDataError or other concurrency issues - log and continue
                     # The task may have been modified/deleted by another process (FastAPI vs SAC)
                     log.debug(
                         f"{self.log_identifier} Non-critical: Failed to update last_activity_time for task {task_id}: {activity_update_error}"
                     )
-                    # Rollback and begin a new transaction so subsequent operations can continue
+                    # Rollback to clean up the failed transaction
                     db.rollback()
-                    db.begin()
+                    # Expunge all objects to ensure clean state
+                    db.expunge_all()
 
             # Create and save the event using the sanitized raw payload
             task_event = TaskEvent(
@@ -233,7 +235,23 @@ class TaskLoggerService:
                     )
                     
             
-            db.commit()
+            # Commit with retry logic for SQLite concurrency issues
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    db.commit()
+                    break
+                except Exception as commit_error:
+                    if attempt < max_retries - 1:
+                        log.debug(
+                            f"{self.log_identifier} Commit failed (attempt {attempt + 1}/{max_retries}), retrying: {commit_error}"
+                        )
+                        db.rollback()
+                        # Wait a bit before retrying
+                        import time
+                        time.sleep(0.01 * (attempt + 1))  # Exponential backoff: 10ms, 20ms, 30ms
+                    else:
+                        raise
         except Exception as e:
             log.exception(
                 f"{self.log_identifier} Error logging event on topic {topic}: {e}"

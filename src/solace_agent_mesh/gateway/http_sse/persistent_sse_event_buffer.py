@@ -69,8 +69,8 @@ class PersistentSSEEventBuffer:
         # Cache for task metadata to avoid repeated DB queries
         self._task_metadata_cache: Dict[str, Dict[str, str]] = {}
         
-        # RAM buffer for hybrid mode: task_id -> list of (event_type, event_data, timestamp)
-        self._ram_buffer: Dict[str, List[Tuple[str, Dict[str, Any], int]]] = {}
+        # RAM buffer for hybrid mode: task_id -> list of (event_type, event_data, timestamp, session_id, user_id)
+        self._ram_buffer: Dict[str, List[Tuple[str, Dict[str, Any], int, str, str]]] = {}
         
         log.info(
             "%s Initialized (enabled=%s, has_session_factory=%s, hybrid_mode=%s, flush_threshold=%d)",
@@ -391,27 +391,59 @@ class PersistentSSEEventBuffer:
             try:
                 repo = SSEEventBufferRepository()
                 
-                for event_type, event_data, timestamp, session_id, user_id in events_to_flush:
-                    repo.buffer_event(
-                        db=db,
-                        task_id=task_id,
-                        session_id=session_id,
-                        user_id=user_id,
-                        event_type=event_type,
-                        event_data=event_data,
-                        created_time=timestamp,
-                    )
+                flushed_count = 0
+                for event_tuple in events_to_flush:
+                    try:
+                        # Defensive unpacking - handle both old (3-element) and new (5-element) tuples
+                        if len(event_tuple) == 5:
+                            event_type, event_data, timestamp, session_id, user_id = event_tuple
+                        elif len(event_tuple) == 3:
+                            # Old format - log warning and skip
+                            log.warning(
+                                "%s [Hybrid] Skipping event with old 3-element tuple format for task %s",
+                                self.log_identifier,
+                                task_id,
+                            )
+                            continue
+                        else:
+                            log.error(
+                                "%s [Hybrid] Invalid event tuple size %d for task %s, expected 5",
+                                self.log_identifier,
+                                len(event_tuple),
+                                task_id,
+                            )
+                            continue
+                        
+                        repo.buffer_event(
+                            db=db,
+                            task_id=task_id,
+                            session_id=session_id,
+                            user_id=user_id,
+                            event_type=event_type,
+                            event_data=event_data,
+                            created_time=timestamp,
+                        )
+                        flushed_count += 1
+                    except Exception as event_error:
+                        log.error(
+                            "%s [Hybrid] Failed to flush individual event for task %s: %s",
+                            self.log_identifier,
+                            task_id,
+                            event_error,
+                        )
+                        continue
                 
                 db.commit()
                 
                 log.info(
-                    "%s [Hybrid] Flushed %d events for task %s from RAM to DB",
+                    "%s [Hybrid] Flushed %d/%d events for task %s from RAM to DB",
                     self.log_identifier,
+                    flushed_count,
                     len(events_to_flush),
                     task_id,
                 )
                 
-                return len(events_to_flush)
+                return flushed_count
             finally:
                 db.close()
         except Exception as e:
