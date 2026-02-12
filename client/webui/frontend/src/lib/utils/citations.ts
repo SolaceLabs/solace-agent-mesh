@@ -1,13 +1,15 @@
 /**
  * Citation utilities for parsing and handling RAG source citations
  *
- * Citation format: [[cite:s{turn}r{index}]] where:
+ * Citation formats:
+ * - Web search: [[cite:s{turn}r{index}]] (e.g., s0r0, s0r1, s1r0)
+ * - Document search: [[cite:idx{turn}r{index}]] (e.g., idx0r0, idx0r1, idx1r0)
+ * - Deep research: [[cite:research{N}]] (e.g., research0, research1)
+ *
+ * Where:
  * - turn = search turn number (0, 1, 2, ...)
  * - index = result index within that search (0, 1, 2, ...)
- *
- * Examples: [[cite:s0r0]], [[cite:s0r1]], [[cite:s1r0]], [[cite:s1r2]]
- *
- * Also supports [[cite:research0]] for deep research tool citations
+ * - N = research source number (0, 1, 2, ...)
  */
 
 import type { RAGSource, RAGSearchResult } from "@/lib/types/fe";
@@ -15,27 +17,27 @@ import type { RAGSource, RAGSearchResult } from "@/lib/types/fe";
 // Re-export getCleanDomain for backward compatibility
 export { getCleanDomain } from "./url";
 
-// Citation marker pattern for the sTrN format: [[cite:s0r0]], [[cite:s1r2]], etc.
+// Citation marker pattern for the sTrN and idxTrN formats: [[cite:s0r0]], [[cite:idx0r0]], etc.
 // Also supports single bracket [cite:xxx] in case LLM uses wrong format
 // Also supports [[cite:research0]] for deep research
-export const CITATION_PATTERN = /\[?\[cite:(s\d+r\d+|research\d+)\]\]?/g;
+export const CITATION_PATTERN = /\[?\[cite:(s\d+r\d+|idx\d+r\d+|research\d+)\]\]?/g;
 
-// Pattern for comma-separated citations like [[cite:s0r0, s0r1, s0r2]]
+// Pattern for comma-separated citations like [[cite:s0r0, s0r1, s0r2]] or [[cite:idx0r0, idx0r1]]
 // Also handles LLM-generated format with repeated cite: prefix
-export const MULTI_CITATION_PATTERN = /\[?\[cite:((?:s\d+r\d+|research\d+)(?:\s*,\s*(?:cite:)?(?:s\d+r\d+|research\d+))+)\]\]?/g;
+export const MULTI_CITATION_PATTERN = /\[?\[cite:((?:s\d+r\d+|idx\d+r\d+|research\d+)(?:\s*,\s*(?:cite:)?(?:s\d+r\d+|idx\d+r\d+|research\d+))+)\]\]?/g;
 
 // Pattern to extract individual citations from a comma-separated list
-export const INDIVIDUAL_CITATION_PATTERN = /(?:cite:)?(s\d+r\d+|research\d+)/g;
+export const INDIVIDUAL_CITATION_PATTERN = /(?:cite:)?(s\d+r\d+|idx\d+r\d+|research\d+)/g;
 
 export const CLEANUP_REGEX = /\[?\[cite:[^\]]+\]\]?/g;
 
 export interface Citation {
     marker: string;
-    type: "search" | "research";
+    type: "search" | "research" | "document";
     sourceId: number;
     position: number;
     source?: RAGSource;
-    citationId: string; // The full citation ID like "s0r0" or "research0"
+    citationId: string; // The full citation ID like "s0r0", "idx0r0", or "research0"
 }
 
 // Re-export for convenience
@@ -43,21 +45,32 @@ export type { RAGSource, RAGSearchResult as RAGMetadata };
 
 /**
  * Parse a citation ID and return its components
- * Handles both formats:
+ * Handles three formats:
  * - s{turn}r{index} (e.g., "s0r0", "s1r2") -> type: "search"
+ * - idx{turn}r{index} (e.g., "idx0r0", "idx1r2") -> type: "document"
  * - research{N} (e.g., "research0") -> type: "research"
  */
 // Regex patterns for parsing citation IDs
 const SEARCH_CITATION_ID_PATTERN = /^s(\d+)r(\d+)$/;
+const INDEX_SEARCH_CITATION_ID_PATTERN = /^idx(\d+)r(\d+)$/;
 const RESEARCH_CITATION_ID_PATTERN = /^research(\d+)$/;
 
-function parseCitationId(citationId: string): { type: "search" | "research"; sourceId: number } | null {
-    // Try sTrN format first
+function parseCitationId(citationId: string): { type: "search" | "research" | "document"; sourceId: number } | null {
+    // Try sTrN format first (web search)
     const searchMatch = citationId.match(SEARCH_CITATION_ID_PATTERN);
     if (searchMatch) {
         return {
             type: "search",
             sourceId: parseInt(searchMatch[2], 10), // Use result index as sourceId
+        };
+    }
+
+    // Try idxTrN format (document search)
+    const indexMatch = citationId.match(INDEX_SEARCH_CITATION_ID_PATTERN);
+    if (indexMatch) {
+        return {
+            type: "document",
+            sourceId: parseInt(indexMatch[2], 10), // Use result index as sourceId
         };
     }
 
@@ -301,6 +314,12 @@ export function getCitationTooltip(citation: Citation): string {
 
     if (!citation.source) {
         return `Source ${getCitationNumber(citation)}`;
+    }
+
+    // For document citations, include position information
+    if (citation.type === "document" && citation.source.metadata?.location_range) {
+        const score = (citation.source.relevanceScore * 100).toFixed(1);
+        return `${citation.source.filename}\n${citation.source.metadata.location_range}\n${score}% relevance`;
     }
 
     const score = (citation.source.relevanceScore * 100).toFixed(1);

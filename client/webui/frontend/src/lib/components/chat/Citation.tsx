@@ -62,6 +62,7 @@ function extractFilename(filename: string): string {
 
 /**
  * Get display text for citation (filename or URL)
+ * For document citations, includes position info (e.g., "report.pdf, Page 3")
  */
 function getCitationDisplayText(citation: CitationType, maxLength: number = 30): string {
     // For web search citations, try to extract domain name even without full source data
@@ -107,6 +108,16 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
 
         const displayName = hasSessionPrefix ? extractFilename(citation.source.filename) : citation.source.filename;
 
+        // For document citations, add position information if available
+        // Prefer location_range (e.g., "Pages 8-9") over primary_location (e.g., "Page 8")
+        if (citation.type === "document") {
+            const position = citation.source.metadata?.location_range || citation.source.metadata?.primary_location;
+            if (position) {
+                const combined = `${displayName}, ${position}`;
+                return truncateText(combined, maxLength);
+            }
+        }
+
         return truncateText(displayName, maxLength);
     }
 
@@ -127,9 +138,12 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
     return `Source ${citation.sourceId + 1}`;
 }
 
-export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
+export function Citation({ citation, onClick, maxLength = 60 }: CitationProps) {
     const displayText = getCitationDisplayText(citation, maxLength);
-    const tooltip = getCitationTooltip(citation);
+    
+    // Check if this is a document citation - no tooltip for document citations
+    const isDocumentCitation = citation.type === "document";
+    const tooltip = isDocumentCitation ? "" : getCitationTooltip(citation);
 
     // Check if this is a web search or deep research citation with a URL
     const { url: sourceUrl, sourceType } = getSourceUrl(citation.source);
@@ -257,8 +271,15 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
     // Multiple citations - show first citation name + "+X" in same bubble
     const firstCitation = uniqueCitations[0];
     const remainingCount = uniqueCitations.length - 1;
-    const firstDisplayText = getCitationDisplayText(firstCitation, 20);
-    const tooltip = getCitationTooltip(firstCitation);
+    const firstDisplayText = getCitationDisplayText(firstCitation, 50);
+    
+    // Check citation type - determine if this is a document citation or web/research
+    const isDocumentCitation = firstCitation.type === "document";
+    
+    // Build tooltip - empty for document citations (as per product requirement)
+    const allCitationsTooltip = isDocumentCitation 
+        ? ""
+        : getCitationTooltip(firstCitation);
 
     // Check if this is a web search or deep research citation
     const { url: sourceUrl, sourceType } = getSourceUrl(firstCitation.source);
@@ -266,32 +287,63 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
     const isDeepResearch = sourceType === "deep_research" || firstCitation.type === "research";
     const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
-    const handleFirstCitationClick = (e: React.MouseEvent) => {
+    const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
 
+        console.log("[BundledCitations] Citation clicked:", {
+            citationCount: uniqueCitations.length,
+            firstCitationId: firstCitation.citationId,
+            type: firstCitation.type,
+            isDocumentCitation,
+            hasClickableUrl,
+            sourceUrl,
+            hasOnCitationClick: !!onCitationClick,
+        });
+
         // For web search and deep research citations, open the URL directly
         if (hasClickableUrl && sourceUrl) {
+            console.log("[BundledCitations] Opening URL:", sourceUrl);
             window.open(sourceUrl, "_blank", "noopener,noreferrer");
             return;
         }
 
-        // For RAG citations, use onClick handler (to open RAG panel)
+        // For document citations, use onClick handler (to open RAG panel)
         if (onCitationClick) {
+            console.log("[BundledCitations] Calling onCitationClick");
             onCitationClick(firstCitation);
+        } else {
+            console.warn("[BundledCitations] No onCitationClick handler available");
         }
     };
+    
+    // For document citations: render simple button without popover
+    if (isDocumentCitation) {
+        return (
+            <button
+                onClick={handleClick}
+                className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                title={allCitationsTooltip}
+                aria-label={`Citations: ${allCitationsTooltip}`}
+                type="button"
+            >
+                <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                <span className="text-[10px] opacity-70">+{remainingCount}</span>
+            </button>
+        );
+    }
 
+    // For web/research citations: render with popover
     return (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
             <PopoverTrigger asChild>
                 <button
-                    onClick={handleFirstCitationClick}
+                    onClick={handleClick}
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                     className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
-                    title={tooltip}
-                    aria-label={`Citation: ${tooltip}`}
+                    title={allCitationsTooltip}
+                    aria-label={`Citation: ${allCitationsTooltip}`}
                     type="button"
                 >
                     <span className="max-w-[200px] truncate">{firstDisplayText}</span>
@@ -337,10 +389,23 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                             e.preventDefault();
                             e.stopPropagation();
 
+                            console.log("[BundledCitations] Citation clicked:", {
+                                citationId: citation.citationId,
+                                type: citation.type,
+                                hasClickableUrl,
+                                sourceUrl,
+                                hasOnCitationClick: !!onCitationClick,
+                                citation
+                            });
+
                             if (hasClickableUrl && sourceUrl) {
+                                console.log("[BundledCitations] Opening URL:", sourceUrl);
                                 window.open(sourceUrl, "_blank", "noopener,noreferrer");
                             } else if (onCitationClick) {
+                                console.log("[BundledCitations] Calling onCitationClick");
                                 onCitationClick(citation);
+                            } else {
+                                console.warn("[BundledCitations] No action taken - neither URL nor onCitationClick available");
                             }
                         };
 
@@ -388,17 +453,27 @@ interface TextWithCitationsProps {
 
 /**
  * Parse a citation ID and return its components
- * Handles both formats:
+ * Handles three formats:
  * - s{turn}r{index} (e.g., "s0r0", "s1r2") -> type: "search"
+ * - idx{turn}r{index} (e.g., "idx0r0", "idx0r1") -> type: "document"
  * - research{N} (e.g., "research0") -> type: "research"
  */
-function parseCitationIdLocal(citationId: string): { type: "search" | "research"; sourceId: number } | null {
-    // Try sTrN format first
+function parseCitationIdLocal(citationId: string): { type: "search" | "research" | "document"; sourceId: number } | null {
+    // Try sTrN format first (web search)
     const searchMatch = citationId.match(/^s(\d+)r(\d+)$/);
     if (searchMatch) {
         return {
             type: "search",
             sourceId: parseInt(searchMatch[2], 10), // Use result index as sourceId
+        };
+    }
+
+    // Try idxTrN format (document search)
+    const indexMatch = citationId.match(/^idx(\d+)r(\d+)$/);
+    if (indexMatch) {
+        return {
+            type: "document",
+            sourceId: parseInt(indexMatch[2], 10), // Use result index as sourceId
         };
     }
 
@@ -416,15 +491,15 @@ function parseCitationIdLocal(citationId: string): { type: "search" | "research"
 
 /**
  * Parse individual citations from a comma-separated content string
- * Supports: s0r0, s1r2, research0, research1
+ * Supports: s0r0, s1r2, idx0r0, idx0r1, research0, research1
  */
-function parseMultiCitationIds(content: string): Array<{ type: "search" | "research"; sourceId: number; citationId: string }> {
-    const results: Array<{ type: "search" | "research"; sourceId: number; citationId: string }> = [];
+function parseMultiCitationIds(content: string): Array<{ type: "search" | "research" | "document"; sourceId: number; citationId: string }> {
+    const results: Array<{ type: "search" | "research" | "document"; sourceId: number; citationId: string }> = [];
     let individualMatch;
 
     INDIVIDUAL_CITATION_PATTERN.lastIndex = 0;
     while ((individualMatch = INDIVIDUAL_CITATION_PATTERN.exec(content)) !== null) {
-        const citationId = individualMatch[1]; // The captured citation ID (s0r0 or research0)
+        const citationId = individualMatch[1]; // The captured citation ID (s0r0, idx0r0, or research0)
         const parsed = parseCitationIdLocal(citationId);
 
         if (parsed) {
@@ -442,9 +517,9 @@ function parseMultiCitationIds(content: string): Array<{ type: "search" | "resea
 /**
  * Combined pattern that matches both single and multi-citation formats
  * This ensures we process them in order of appearance
- * Supports: s0r0, s1r2, research0, research1
+ * Supports: s0r0, s1r2, idx0r0, idx0r1, research0, research1
  */
-const COMBINED_CITATION_PATTERN = /\[?\[cite:((?:s\d+r\d+|research\d+)(?:\s*,\s*(?:cite:)?(?:s\d+r\d+|research\d+))*)\]\]?/g;
+const COMBINED_CITATION_PATTERN = /\[?\[cite:((?:s\d+r\d+|idx\d+r\d+|research\d+)(?:\s*,\s*(?:cite:)?(?:s\d+r\d+|idx\d+r\d+|research\d+))*)\]\]?/g;
 
 /**
  * Process text node content to replace citation markers with React components

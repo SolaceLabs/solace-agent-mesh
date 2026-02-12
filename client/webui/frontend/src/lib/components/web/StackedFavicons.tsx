@@ -7,10 +7,11 @@
 import { getCleanDomain, getFaviconUrl } from "@/lib/utils";
 
 interface SearchSource {
-    link: string;
+    link?: string; // Optional for document sources
     title?: string;
     snippet?: string;
-    source_type?: string; // 'web', 'kb'
+    source_type?: string; // 'web', 'kb', 'document'
+    filename?: string; // For document sources
 }
 
 interface StackedFaviconsProps {
@@ -21,11 +22,60 @@ interface StackedFaviconsProps {
 }
 
 /**
- * Source icon component - handles both web favicons and enterprise source icons
+ * Get file type icon emoji based on file extension
+ * Supports: PDF, DOCX, PPTX, and text-based files (txt, md, csv, json, xml, etc.)
+ */
+function getFileTypeIcon(filename: string): string {
+    const ext = filename.toLowerCase().split('.').pop() || '';
+    
+    switch (ext) {
+        case 'pdf':
+            return '📄';
+        case 'doc':
+        case 'docx':
+            return '📝';
+        case 'ppt':
+        case 'pptx':
+            return '📊';
+        case 'txt':
+        case 'md':
+        case 'csv':
+        case 'json':
+        case 'xml':
+        case 'yaml':
+        case 'yml':
+        case 'log':
+            return '📃';
+        default:
+            return '📄'; // Generic document icon
+    }
+}
+
+/**
+ * Source icon component - handles web favicons, enterprise sources, and document file type icons
  */
 function SourceIcon({ source, className = "", size = 16 }: { source: SearchSource; className?: string; size?: number }) {
+    // Check if this is a document source (has filename but no link, or source_type is 'document')
+    const isDocument = source.source_type === 'document' || (source.filename && !source.link);
+    
+    if (isDocument && source.filename) {
+        // Show file type icon for documents
+        const fileIcon = getFileTypeIcon(source.filename);
+        return (
+            <div 
+                className={`relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] bg-white ${className}`} 
+                style={{ width: size, height: size }}
+                title={source.filename}
+            >
+                <div className="flex items-center justify-center w-full h-full text-xs">
+                    {fileIcon}
+                </div>
+            </div>
+        );
+    }
+    
     // For web sources, use favicon
-    const domain = getCleanDomain(source.link);
+    const domain = getCleanDomain(source.link || '');
     return (
         <div className={`relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] bg-white ${className}`} style={{ width: size, height: size }}>
             <img
