@@ -6,16 +6,19 @@ from typing import List, Optional, TYPE_CHECKING
 import logging
 import json
 import zipfile
+import os
 from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
 from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, get_artifact_counts_batch
-
-# Default max upload size (50MB) - matches gateway_max_upload_size_bytes default
-DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800
-# Default max ZIP upload size (100MB) - for project import ZIP files
-DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 104857600
+from ...constants import (
+    DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_PROJECT_SIZE_BYTES,
+    ARTIFACTS_PREFIX
+)
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -35,6 +38,11 @@ if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
 
 
+def bytes_to_mb(size_bytes: int) -> float:
+    """Convert bytes to megabytes."""
+    return size_bytes / (1024 * 1024)
+
+
 class ProjectService:
     """Service layer for project business logic."""
 
@@ -47,7 +55,7 @@ class ProjectService:
         self.artifact_service = component.get_shared_artifact_service() if component else None
         self.app_name = component.get_config("name", "WebUIBackendApp") if component else "WebUIBackendApp"
         self.logger = logging.getLogger(__name__)
-        
+
         # Initialize resource sharing service
         if resource_sharing_service:
             self._resource_sharing_service = resource_sharing_service
@@ -55,29 +63,46 @@ class ProjectService:
             # Get from registry (returns class, need to instantiate)
             service_class = MiddlewareRegistry.get_resource_sharing_service()
             self._resource_sharing_service = service_class()
-        
-        # Get max upload size from component config, with fallback to default
-        # Ensure values are integers for proper formatting
-        max_upload_config = (
-            component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_UPLOAD_SIZE_BYTES)
-            if component else DEFAULT_MAX_UPLOAD_SIZE_BYTES
+
+        # Get config values, with fallback to default (ensure values are integers for proper formatting)
+        max_per_file_upload_config = (
+            component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
+            if component else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
         )
-        self.max_upload_size_bytes = int(max_upload_config) if isinstance(max_upload_config, (int, float)) else DEFAULT_MAX_UPLOAD_SIZE_BYTES
-        
-        # Get max ZIP upload size from component config, with fallback to default (100MB)
+        self.max_per_file_upload_size_bytes = int(max_per_file_upload_config) if isinstance(max_per_file_upload_config, (int, float)) else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
+
+        max_batch_upload_config = (
+            component.get_config("gateway_max_batch_upload_size_bytes", DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES)
+            if component else DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES
+        )
+        self.max_batch_upload_size_bytes = int(max_batch_upload_config) if isinstance(max_batch_upload_config, (int, float)) else DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES
+
         max_zip_config = (
             component.get_config("gateway_max_zip_upload_size_bytes", DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES)
             if component else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
         )
         self.max_zip_upload_size_bytes = int(max_zip_config) if isinstance(max_zip_config, (int, float)) else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
-        
+
+        max_project_size_config = (
+            component.get_config("gateway_max_project_size_bytes", DEFAULT_MAX_PROJECT_SIZE_BYTES)
+            if component else DEFAULT_MAX_PROJECT_SIZE_BYTES
+        )
+        self.max_project_size_bytes = int(max_project_size_config) if isinstance(max_project_size_config, (int, float)) else DEFAULT_MAX_PROJECT_SIZE_BYTES
+
         self.logger.info(
-            "[ProjectService] Initialized with max_upload_size_bytes=%d (%.2f MB), "
-            "max_zip_upload_size_bytes=%d (%.2f MB)",
-            self.max_upload_size_bytes,
-            self.max_upload_size_bytes / (1024*1024),
+            "[ProjectService] Initialized with "
+            "max_per_file_upload_size_bytes=%d (%.2f MB), "
+            "max_batch_upload_size_bytes=%d (%.2f MB), "
+            "max_zip_upload_size_bytes=%d (%.2f MB), "
+            "max_project_size_bytes=%d (%.2f MB)",
+            self.max_per_file_upload_size_bytes,
+            bytes_to_mb(self.max_per_file_upload_size_bytes),
+            self.max_batch_upload_size_bytes,
+            bytes_to_mb(self.max_batch_upload_size_bytes),
             self.max_zip_upload_size_bytes,
-            self.max_zip_upload_size_bytes / (1024*1024)
+            bytes_to_mb(self.max_zip_upload_size_bytes),
+            self.max_project_size_bytes,
+            bytes_to_mb(self.max_project_size_bytes)
         )
 
     def _get_repositories(self, db):
@@ -117,11 +142,11 @@ class ProjectService:
             total_bytes_read += chunk_len
             
             # Validate size during reading (fail fast)
-            if total_bytes_read > self.max_upload_size_bytes:
+            if total_bytes_read > self.max_per_file_upload_size_bytes:
                 error_msg = (
                     f"File '{file.filename}' rejected: size exceeds maximum "
-                    f"{self.max_upload_size_bytes:,} bytes "
-                    f"({self.max_upload_size_bytes / (1024*1024):.2f} MB). "
+                    f"{self.max_per_file_upload_size_bytes:,} bytes "
+                    f"({bytes_to_mb(self.max_per_file_upload_size_bytes):.2f} MB). "
                     f"Read {total_bytes_read:,} bytes so far."
                 )
                 self.logger.warning(f"{log_prefix} {error_msg}")
@@ -157,6 +182,84 @@ class ProjectService:
                 f"{log_prefix} Validated file '{file.filename}': {len(content_bytes):,} bytes"
             )
         return validated_files
+
+    def _validate_batch_upload_size(
+        self,
+        files_size: int,
+        log_prefix: str = ""
+    ) -> None:
+        """
+        Validate that the total size of files in a single upload batch doesn't exceed limit.
+        This is independent of the total project size.
+
+        Args:
+            files_size: Total size of all files being uploaded in this batch (bytes)
+            log_prefix: Logging prefix
+
+        Raises:
+            ValueError: If batch size exceeds limit
+        """
+
+        files_mb = bytes_to_mb(files_size)
+        limit_mb = bytes_to_mb(self.max_batch_upload_size_bytes)
+
+        if files_size > self.max_batch_upload_size_bytes:
+            error_msg = (
+                f"Batch upload size limit exceeded. "
+                f"Total files in this upload: {files_mb:.2f} MB exceeds limit of {limit_mb:.2f} MB."
+            )
+            self.logger.warning(f"{log_prefix} {error_msg}")
+            raise ValueError(error_msg)
+
+        self.logger.debug(
+            f"{log_prefix} Batch upload size check passed: "
+            f"{files_mb:.2f} MB / {limit_mb:.2f} MB "
+            f"({(files_size / self.max_batch_upload_size_bytes * 100):.1f}% of batch limit)"
+        )
+
+    def _validate_project_size_limit(
+        self,
+        current_project_size: int,
+        new_files_size: int,
+        log_prefix: str = ""
+    ) -> None:
+        """
+        Validate that adding new files won't exceed project total size limit.
+
+        Only counts user-uploaded files (source="project") toward the limit.
+        LLM-generated artifacts and system files are excluded.
+
+        Args:
+            current_project_size: Current total size of user-uploaded files in bytes
+            new_files_size: Total size of new files being added in bytes
+            log_prefix: Logging prefix
+
+        Raises:
+            ValueError: If combined size would exceed limit
+        """
+
+        total_size = current_project_size + new_files_size
+
+        current_mb = bytes_to_mb(current_project_size)
+        new_mb = bytes_to_mb(new_files_size)
+        total_mb = bytes_to_mb(total_size)
+        limit_mb = bytes_to_mb(self.max_project_size_bytes)
+
+        if total_size > self.max_project_size_bytes:
+            error_msg = (
+                f"Project size limit exceeded. "
+                f"Current: {current_mb:.2f} MB, "
+                f"New files: {new_mb:.2f} MB, "
+                f"Total: {total_mb:.2f} MB exceeds limit of {limit_mb:.2f} MB."
+            )
+            self.logger.warning(f"{log_prefix} {error_msg}")
+            raise ValueError(error_msg)
+
+        self.logger.debug(
+            f"{log_prefix} Project size check passed: "
+            f"{total_mb:.2f} MB / {limit_mb:.2f} MB "
+            f"({(total_size / self.max_project_size_bytes * 100):.1f}% used)"
+        )
 
     async def create_project(
         self,
@@ -203,6 +306,19 @@ class ProjectService:
             self.logger.info(f"{log_prefix} Validating {len(files)} files before project creation")
             validated_files = await self._validate_files(files, log_prefix)
             self.logger.info(f"{log_prefix} All {len(files)} files passed size validation")
+
+            new_files_size = sum(len(content) for _, content in validated_files)
+
+            self._validate_batch_upload_size(
+                files_size=new_files_size,
+                log_prefix=log_prefix
+            )
+
+            self._validate_project_size_limit(
+                current_project_size=0,
+                new_files_size=new_files_size,
+                log_prefix=log_prefix
+            )
 
         project_repository = self._get_repositories(db)
 
@@ -370,7 +486,7 @@ class ProjectService:
             raise ValueError("Project not found or access denied")
 
         if not self.artifact_service:
-            self.logger.warning(f"Attempted to get artifacts for project {project_id} but no artifact service is configured.")
+            self.logger.warning("Attempted to get artifacts for project but no artifact service is configured.")
             return []
 
         storage_user_id = project.user_id
@@ -431,6 +547,23 @@ class ProjectService:
         self.logger.info(f"{log_prefix} Validating {len(files)} files before adding to project")
         validated_files = await self._validate_files(files, log_prefix)
         self.logger.info(f"{log_prefix} All {len(files)} files passed size validation")
+
+        new_files_size = sum(len(content) for _, content in validated_files)
+
+        self._validate_batch_upload_size(
+            files_size=new_files_size,
+            log_prefix=log_prefix
+        )
+
+        existing_artifacts = await self.get_project_artifacts(db, project_id, user_id)
+        # Only count user-uploaded artifacts, which have the "source" metadata set to "project"
+        current_project_size = sum(artifact.size for artifact in existing_artifacts if artifact.source == "project")
+
+        self._validate_project_size_limit(
+            current_project_size=current_project_size,
+            new_files_size=new_files_size,
+            log_prefix=log_prefix
+        )
 
         self.logger.info(f"Adding {len(validated_files)} artifacts to project {project_id} for user {user_id}")
         storage_session_id = f"project-{project.id}"
@@ -803,7 +936,7 @@ class ProjectService:
                         if artifact_part and artifact_part.inline_data:
                             # Add to ZIP under artifacts/ directory
                             zip_file.writestr(
-                                f'artifacts/{artifact.filename}',
+                                f'{ARTIFACTS_PREFIX}{artifact.filename}',
                                 artifact_part.inline_data.data
                             )
                     except Exception as e:
@@ -845,8 +978,8 @@ class ProjectService:
         
         # Validate ZIP file size (separate, larger limit than individual artifacts)
         if zip_size > self.max_zip_upload_size_bytes:
-            max_size_mb = self.max_zip_upload_size_bytes / (1024 * 1024)
-            file_size_mb = zip_size / (1024 * 1024)
+            max_size_mb = bytes_to_mb(self.max_zip_upload_size_bytes)
+            file_size_mb = bytes_to_mb(zip_size)
             error_msg = (
                 f"ZIP file '{zip_file.filename}' rejected: size ({file_size_mb:.2f} MB) "
                 f"exceeds maximum allowed ({max_size_mb:.2f} MB)"
@@ -891,7 +1024,36 @@ class ProjectService:
                 # Get default agent ID, but set to None if not provided
                 # The agent may not exist in the target environment
                 imported_agent_id = project_data['project'].get('defaultAgentId')
-                
+
+                # Pre-calculate total artifacts size for limit validation
+                artifact_files = [
+                    name for name in zip_ref.namelist()
+                    if name.startswith(ARTIFACTS_PREFIX) and name != ARTIFACTS_PREFIX
+                ]
+
+                total_artifacts_size = 0
+                oversized_artifacts = []
+
+                for artifact_path in artifact_files:
+                    file_info = zip_ref.getinfo(artifact_path)
+                    uncompressed_size = file_info.file_size
+
+                    # Track oversized files (will be skipped during import)
+                    if uncompressed_size > self.max_per_file_upload_size_bytes:
+                        safe_filename = os.path.basename(artifact_path)
+                        oversized_artifacts.append(
+                            (safe_filename, uncompressed_size)
+                        )
+                        continue
+
+                    total_artifacts_size += uncompressed_size
+
+                self._validate_project_size_limit(
+                    current_project_size=0,
+                    new_files_size=total_artifacts_size,
+                    log_prefix=log_prefix
+                )
+
                 # Create project (agent validation happens in create_project if needed)
                 project = await self.create_project(
                     db=db,
@@ -913,20 +1075,23 @@ class ProjectService:
                 artifacts_imported = 0
                 if self.artifact_service:
                     storage_session_id = f"project-{project.id}"
-                    artifact_files = [
-                        name for name in zip_ref.namelist()
-                        if name.startswith('artifacts/') and name != 'artifacts/'
-                    ]
                     
                     for artifact_path in artifact_files:
                         try:
-                            filename = artifact_path.replace('artifacts/', '')
+                            filename = os.path.basename(artifact_path)
+
+                            # Validate filename is safe
+                            if not filename or filename in ('.', '..'):
+                                self.logger.warning(f"{log_prefix} Skipping invalid filename in ZIP: {artifact_path}")
+                                warnings.append(f"Skipped invalid filename: {artifact_path}")
+                                continue
+
                             content_bytes = zip_ref.read(artifact_path)
                             
                             # Skip oversized artifacts with a warning (don't fail the entire import)
-                            if len(content_bytes) > self.max_upload_size_bytes:
-                                max_size_mb = self.max_upload_size_bytes / (1024 * 1024)
-                                file_size_mb = len(content_bytes) / (1024 * 1024)
+                            if len(content_bytes) > self.max_per_file_upload_size_bytes:
+                                max_size_mb = bytes_to_mb(self.max_per_file_upload_size_bytes)
+                                file_size_mb = bytes_to_mb(len(content_bytes))
                                 skip_msg = (
                                     f"Skipped '{filename}': size ({file_size_mb:.2f} MB) "
                                     f"exceeds maximum allowed ({max_size_mb:.2f} MB)"
