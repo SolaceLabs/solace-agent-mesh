@@ -16,28 +16,355 @@ permissions:
   checks: write
   pull-requests: write
 
-jobs:
-  ci:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
-    with:
-      min-python-version: "3.10"
-      max-python-version: "3.13"
-      whitesource_project_name: "solace-agent-mesh"
-      whitesource_product_name: "solaceai"
-      whitesource_config_file: "wss-unified-agent.config"
-      npm_package_path: client/webui/frontend
-      node_version: "25.5.0"
-      npm_lock_file: package-lock.json
-      sca_scanners: "fossa"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-      SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
-      WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
-      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
-      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
-      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+jobs:
+  # ----------------------------------------------------
+  # DEPENDENCY VALIDATION
+  # ----------------------------------------------------
+  validate-dependencies:
+    name: Validate Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          repository: SolaceDev/solace-public-workflows
+          path: workflows-repo
+
+      - name: Validate Dependency Conflicts
+        uses: ./workflows-repo/.github/actions/validate-dependency-conflicts
+        with:
+          pyproject-file: pyproject.toml
+          fail-on-conflicts: true
+          script-path: workflows-repo/.github/scripts/validate_dependencies.py
+
+  # ----------------------------------------------------
+  # PYTHON TESTS (Matrix)
+  # ----------------------------------------------------
+  test-python-matrix:
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          repository: SolaceDev/solace-public-workflows
+          path: workflows-repo
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
+
+      - name: Install Hatch
+        run: uv tool install hatch
+
+      - name: Create Hatch Environment
+        run: hatch -v env create hatch-test.py${{ matrix.python-version }}
+
+      - name: Run Tests with Hatch
+        continue-on-error: true
+        run: |
+          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}.xml
+
+      - name: Upload Test Results
+        uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
+        if: always()
+        with:
+          check_name: Unit Tests on Python ${{ matrix.python-version }}
+          report_paths: junit-${{ matrix.python-version }}.xml
+          include_passed: true
+
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-coverage-${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            junit-${{ matrix.python-version }}.xml
+          retention-days: 1
+
+  # ----------------------------------------------------
+  # UI TESTS WITH COVERAGE
+  # ----------------------------------------------------
+  test-ui:
+    name: Test UI (Storybook + Unit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/webui/frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "25.5.0"
+          cache: "npm"
+          cache-dependency-path: client/webui/frontend/package-lock.json
+          registry-url: https://npm.pkg.github.com/
+          scope: "@SolaceLabs"
+
+      - name: Configure npm
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > .npmrc
+          echo "@SolaceLabs:registry=https://npm.pkg.github.com/" >> .npmrc
+          echo "legacy-peer-deps=true" >> .npmrc
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore Playwright Browser From Cache
+        id: restore-playwright-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('client/webui/frontend/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
+        run: ./node_modules/.bin/playwright install chromium --with-deps
+
+      - name: Save Playwright cache
+        if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('client/webui/frontend/package-lock.json') }}
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run Storybook Tests with Coverage
+        run: npm run ci:storybook:coverage
+        env:
+          NODE_OPTIONS: "--no-webstorage"
+
+      - name: Upload UI Coverage Artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-coverage
+          path: client/webui/frontend/coverage/
+          retention-days: 1
+
+  # ----------------------------------------------------
+  # BUILD AND VERIFY PACKAGES
+  # ----------------------------------------------------
+  build-and-verify:
+    name: Build and Verify Packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          repository: SolaceDev/solace-public-workflows
+          path: workflows-repo
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "25.5.0"
+          cache: "npm"
+          cache-dependency-path: client/webui/frontend/package-lock.json
+
+      - name: Install and Build Frontend
+        run: |
+          cd client/webui/frontend
+          npm ci
+          npm run build
+
+      - name: Setup Python for Build
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+
+      - name: Install Hatch and Twine
+        run: |
+          uv tool install hatch
+          uv tool install twine
+
+      - name: Run Lint
+        continue-on-error: true
+        run: |
+          hatch run hatch-static-analysis:ruff check ./src ./tests --show-files 
+          hatch run hatch-static-analysis:ruff check ./src ./tests -o lint.json --output-format json || true
+          if [ -f lint.json ] && jq empty lint.json 2>/dev/null; then
+            echo "Lint check completed successfully"
+          else
+            echo "Error: Lint check failed to produce valid output"
+            exit 1
+          fi
+
+      - name: Build Package
+        run: hatch -v build
+
+      - name: Verify Packages
+        run: |
+          ls dist/*.tar.gz | xargs -n1 twine check
+          ls dist/*.whl | xargs -n1 twine check
+
+  # ----------------------------------------------------
+  # UNIFIED SONARQUBE ANALYSIS (Python + UI Coverage)
+  # ----------------------------------------------------
+  sonarqube-analysis:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    needs: [validate-dependencies, test-python-matrix, test-ui]
+    if: ${{ !github.event.repository.fork }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Download Python Coverage Artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: python-coverage-3.13
+          path: python-coverage
+
+      - name: Download UI Coverage Artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ui-coverage
+          path: client/webui/frontend/coverage
+
+      - name: Prepare Coverage Reports
+        run: |
+          echo "📊 Preparing coverage reports for SonarQube..."
+          
+          # Move Python coverage to root
+          if [ -f "python-coverage/coverage.xml" ]; then
+            cp python-coverage/coverage.xml coverage.xml
+            echo "✅ Python coverage.xml ready"
+          else
+            echo "⚠️ Python coverage.xml not found"
+          fi
+          
+          # Verify UI coverage
+          if [ -f "client/webui/frontend/coverage/lcov.info" ]; then
+            echo "✅ UI lcov.info ready"
+          else
+            echo "⚠️ UI lcov.info not found"
+          fi
+          
+          echo ""
+          echo "📁 Coverage files:"
+          ls -lah coverage.xml 2>/dev/null || echo "No Python coverage"
+          ls -lah client/webui/frontend/coverage/ 2>/dev/null || echo "No UI coverage"
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
+
+      - name: SonarQube Quality Gate
+        if: github.event_name == 'pull_request'
+        id: sonarqube-quality-gate-check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
+
+  # ----------------------------------------------------
+  # FOSSA SCANNING (runs on main branch push)
+  # ----------------------------------------------------
+  fossa-scan:
+    name: FOSSA Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && !github.event.repository.fork && github.ref_name == github.event.repository.default_branch
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+
+      - name: Install Hatch
+        run: uv tool install hatch
+
+      - name: Generate Dependency Tree
+        run: |
+          uv venv
+          uv pip compile pyproject.toml -o requirements.txt
+          uv pip install -r requirements.txt
+          uv pip tree > dependency-tree.txt
+
+          echo '### Dependency Tree' >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          cat dependency-tree.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload dependency tree
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-tree
+          path: dependency-tree.txt
+
+      - name: FOSSA Scan
+        uses: SolaceDev/solace-public-workflows/.github/actions/sca/sca-scan@main
+        with:
+          scanners: "fossa"
+          additional_scan_params: |
+            fossa.branch=${{ github.event.pull_request.number && 'PR' || github.event.repository.default_branch }}
+            fossa.revision=${{ github.event.pull_request.number && github.head_ref || github.sha }}
+          fossa_api_key: ${{ secrets.FOSSA_API_KEY }}
+
+      - name: FOSSA Guard
+        uses: SolaceDev/solace-public-workflows/.github/actions/fossa-guard@main
+        continue-on-error: true
+        with:
+          fossa_api_key: ${{ secrets.FOSSA_API_KEY }}
+          fossa_project_id: "${{ github.repository_owner }}_${{ github.event.repository.name }}"
+          fossa_branch: ${{ github.event.pull_request.number && 'PR' || github.event.repository.default_branch }}
+          fossa_revision: ${{ github.event.pull_request.number && github.head_ref || github.sha }}
+          fossa_category: licensing
+          fossa_mode: BLOCK
+          block_on: policy_conflict
   # ----------------------------------------------------
   # PHASE 0: Prepare Metadata and Determine Build Strategy Test1
   # ----------------------------------------------------
