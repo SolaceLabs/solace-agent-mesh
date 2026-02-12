@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText, FileBox } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -31,6 +31,18 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             id: "projects",
             label: "Projects",
             icon: FolderOpen,
+        });
+    }
+
+    // Add artifacts page only if explicitly enabled (separate from projects)
+    // Default to false - this is an experimental feature
+    const artifactsPageEnabled = featureFlags?.artifactsPage ?? false;
+    if (artifactsPageEnabled) {
+        items.push({
+            id: "artifacts",
+            label: "Artifacts",
+            icon: FileBox,
+            badge: "EXPERIMENTAL",
         });
     }
 
