@@ -446,7 +446,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
             {/* Search and Project Filter on same line */}
-            <div className="flex items-center gap-4 pr-4">
+            <div className="flex max-w-5xl items-center gap-4 pr-4">
                 {/* Search Input */}
                 <div className="relative w-64">
                     <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
@@ -478,8 +478,8 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 {filteredSessions.length > 0 && (
                     <ul className="space-y-2">
                         {filteredSessions.map(session => (
-                            <li key={session.id} className="group pr-4">
-                                <div className={`hover:bg-accent/50 flex items-center gap-2 rounded-md border p-3 shadow-sm transition-colors ${session.id === sessionId ? "bg-muted border-primary/30 dark:bg-muted/50" : ""}`}>
+                            <li key={session.id} className="group max-w-5xl pr-4">
+                                <div className={`hover:bg-accent/50 flex items-center gap-3 rounded-md border p-4 shadow-sm transition-colors ${session.id === sessionId ? "bg-muted border-primary/30 dark:bg-muted/50" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -496,7 +496,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         />
                                     ) : (
                                         <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center justify-between gap-4">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
                                                         <SessionName session={session} respondingSessionId={respondingSessionId} />
@@ -508,10 +508,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                                 <TooltipContent>Background task running</TooltipContent>
                                                             </Tooltip>
                                                         )}
+                                                        {session.projectName && <ProjectBadge text={session.projectName} />}
                                                     </div>
-                                                    <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
-                                                {session.projectName && <ProjectBadge text={session.projectName} />}
+                                                <span className="text-muted-foreground flex-shrink-0 text-xs">{formatSessionDate(session.updatedTime)}</span>
                                             </div>
                                         </button>
                                     )}
