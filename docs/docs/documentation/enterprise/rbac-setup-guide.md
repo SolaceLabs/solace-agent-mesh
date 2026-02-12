@@ -252,6 +252,41 @@ Examples:
 - `monitor/namespace/production:a2a_messages:subscribe` - Monitor the "production" namespace
 - `monitor/namespace/*:a2a_messages:subscribe` - Monitor all namespaces (wildcard)
 
+#### Project Sharing Scopes
+
+Project sharing scopes control access to SAM Enterprise's collaborative project features. The `project:share` scope enables project owners to share their projects with team members for read-only collaboration.
+
+Users with the `project:share` scope can:
+- Share their own projects with other users in the organization
+- View the list of collaborators on their own projects
+- Remove collaborators from their own projects
+
+When a user with the `project:share` scope shares their project with another user, the recipient receives read-only access (RESOURCE_VIEWER level) to that project. Recipients can view the project and its contents, access project artifacts, and use the project in their work. However, recipients cannot edit the project, delete the project, share the project with others, or manage collaborators.
+
+Only project owners can share their projects. The `project:share` scope has no effect on projects that were shared with you—you cannot re-share projects you don't own, regardless of your RBAC scopes.
+
+Grant the `project:share` scope to users who lead teams or collaborate on projects, need to share knowledge bases with team members, or work on projects that benefit from team input. Do not grant this scope to users who only need to work on their own private projects, should not share potentially sensitive project content, or are temporary or external users with limited collaboration needs.
+
+Example role configuration:
+```yaml
+roles:
+  standard_collaborator:
+    description: "User who can create and share projects"
+    scopes:
+      - "project:share"           # Can share their own projects
+      - "tool:artifact:load"
+      - "tool:artifact:create"
+
+  basic_user:
+    description: "User who can create projects but not share them"
+    scopes:
+      - "tool:artifact:load"      # No project:share scope
+      - "tool:artifact:create"
+      # Can still receive shared projects from others (read-only access)
+```
+
+With this configuration, users with the `standard_collaborator` role can share projects they create, while users with the `basic_user` role can create projects but cannot share them. Both users can receive shared projects from others as read-only viewers, but neither can share projects that others shared with them.
+
 #### The Wildcard Scope
 
 The wildcard scope `*` grants all permissions and should only be used for administrator roles. This scope provides unrestricted access to all features, tools, agents, and resources in the system.
