@@ -17,6 +17,7 @@ interface WorkflowDetailPanelProps {
 export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose, showOpenButton = true }: WorkflowDetailPanelProps) => {
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [showExpandButton, setShowExpandButton] = useState(false);
+    const [activeTab, setActiveTab] = useState<"input" | "output">("input");
     const descriptionRef = useRef<HTMLDivElement>(null);
 
     const config = providedConfig ?? getWorkflowConfig(workflow);
@@ -62,7 +63,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
             <div className="flex-1 overflow-y-auto p-4">
                 <>
                     {/* Workflow Details Section */}
-                    <div className="bg-muted mb-4 flex flex-col gap-2 rounded-sm p-4">
+                    <div className="bg-muted mb-4 flex flex-col gap-2 rounded-xs p-4">
                         <div className="text-base font-semibold">Workflow Details</div>
                         {/* Version and Node Count in grid */}
                         <div className="grid grid-cols-2 gap-4 pt-2">
@@ -106,51 +107,102 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                         {/* Open Workflow button inside details box */}
                         {showOpenButton && (
                             <Button variant="outline" size="sm" onClick={handleOpenWorkflow} className="mt-2 w-full">
-                                <ExternalLink />
                                 Open Workflow
                             </Button>
                         )}
                     </div>
 
-                    {/* Input Schema */}
-                    {config?.input_schema && (
+                    {/* Input/Output Schema Tabs */}
+                    {(config?.input_schema || config?.output_schema) && (
                         <div className="mb-4">
-                            <label className="text-muted-foreground mb-2 flex items-center text-xs font-medium">
-                                <FileJson size={14} className="mr-1" />
-                                Input Schema
-                            </label>
-                            <div className="max-h-48 overflow-auto rounded-lg border">
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                <JSONViewer data={config.input_schema as any} maxDepth={2} className="border-none text-xs" />
+                            {/* Tab buttons */}
+                            <div className="mb-3 flex border-b" role="tablist">
+                                <button
+                                    role="tab"
+                                    aria-selected={activeTab === "input"}
+                                    onClick={() => setActiveTab("input")}
+                                    className={`relative px-4 py-2 font-medium transition-colors ${
+                                        activeTab === "input"
+                                            ? "border-b-2 border-(--color-brand-wMain) font-semibold"
+                                            : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                                    }`}
+                                >
+                                    Input
+                                </button>
+                                <button
+                                    role="tab"
+                                    aria-selected={activeTab === "output"}
+                                    onClick={() => setActiveTab("output")}
+                                    className={`relative px-4 py-2 font-medium transition-colors ${
+                                        activeTab === "output"
+                                            ? "border-b-2 border-(--color-brand-wMain) font-semibold"
+                                            : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                                    }`}
+                                >
+                                    Output
+                                </button>
                             </div>
-                        </div>
-                    )}
 
-                    {/* Output Schema */}
-                    {config?.output_schema && (
-                        <div className="mb-4">
-                            <label className="text-muted-foreground mb-2 flex items-center text-xs font-medium">
-                                <FileJson size={14} className="mr-1" />
-                                Output Schema
-                            </label>
-                            <div className="max-h-48 overflow-auto rounded-lg border">
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                <JSONViewer data={config.output_schema as any} maxDepth={2} className="border-none text-xs" />
-                            </div>
-                        </div>
-                    )}
+                            {/* Tab content */}
+                            <div className="mt-3">
+                                {activeTab === "input" && (
+                                    <div>
+                                        {config?.input_schema ? (
+                                            <div>
+                                                <label className="text-muted-foreground mb-2 flex items-center text-xs font-medium">
+                                                    <FileJson size={14} className="mr-1" />
+                                                    Schema
+                                                </label>
+                                                <div className="max-h-48 overflow-auto rounded-lg border">
+                                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                    <JSONViewer data={config.input_schema as any} maxDepth={2} className="border-none text-xs" />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
+                                                No input schema defined
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                    {/* Output Mapping */}
-                    {config?.output_mapping && (
-                        <div className="mb-4">
-                            <label className="text-muted-foreground mb-1 flex items-center text-xs font-medium">
-                                <FileJson size={14} className="mr-1" />
-                                Output Mapping
-                            </label>
-                            <div className="text-muted-foreground mb-2 text-xs">Defines how the final agent output is mapped to the workflow output schema.</div>
-                            <div className="max-h-48 overflow-auto rounded-lg border">
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                <JSONViewer data={config.output_mapping as any} maxDepth={2} className="border-none text-xs" />
+                                {activeTab === "output" && (
+                                    <div className="space-y-4">
+                                        {config?.output_schema ? (
+                                            <div>
+                                                <label className="text-muted-foreground mb-2 flex items-center text-xs font-medium">
+                                                    <FileJson size={14} className="mr-1" />
+                                                    Schema
+                                                </label>
+                                                <div className="max-h-48 overflow-auto rounded-lg border">
+                                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                    <JSONViewer data={config.output_schema as any} maxDepth={2} className="border-none text-xs" />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
+                                                No output schema defined
+                                            </div>
+                                        )}
+
+                                        {/* Output Mapping */}
+                                        {config?.output_mapping && (
+                                            <div>
+                                                <label className="text-muted-foreground mb-2 flex items-center text-xs font-medium">
+                                                    <FileJson size={14} className="mr-1" />
+                                                    Output Mapping
+                                                </label>
+                                                <div className="text-muted-foreground mb-2 text-xs">
+                                                    Defines how the final agent output is mapped to the workflow output schema.
+                                                </div>
+                                                <div className="max-h-48 overflow-auto rounded-lg border">
+                                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                    <JSONViewer data={config.output_mapping as any} maxDepth={2} className="border-none text-xs" />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
