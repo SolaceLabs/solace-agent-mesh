@@ -628,6 +628,13 @@ class A2AProxyComponent(BaseProxyComponent):
                 log.debug("%s Fetching agent card without authentication", log_identifier)
 
             ssl_verify = agent_config.get("ssl_verify", True)
+            if not ssl_verify:
+                log.warning(
+                    "%s SSL verification disabled for agent '%s'. "
+                    "This should only be used in development environments.",
+                    log_identifier,
+                    agent_name,
+                )
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
             async with httpx.AsyncClient(headers=headers, verify=ssl_verify) as client:
                 resolver = A2ACardResolver(httpx_client=client, base_url=agent_url, agent_card_path=agent_card_path)
@@ -1286,6 +1293,13 @@ class A2AProxyComponent(BaseProxyComponent):
         # Create a new httpx client with the specific timeout and custom headers for this agent
         # httpx.Timeout requires explicit values for connect, read, write, and pool
         ssl_verify = agent_config.get("ssl_verify", True)
+        if not ssl_verify:
+            log.warning(
+                "%s SSL verification disabled for agent '%s'. "
+                "This should only be used in development environments.",
+                self.log_identifier,
+                agent_name,
+            )
         httpx_client_for_agent = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=agent_timeout,

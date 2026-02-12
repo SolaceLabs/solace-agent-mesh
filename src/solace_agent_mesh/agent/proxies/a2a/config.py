@@ -291,6 +291,7 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
 
         return self
 
+
 class A2AProxyAppConfig(BaseProxyAppConfig):
     """Complete configuration for an A2A proxy application."""
 

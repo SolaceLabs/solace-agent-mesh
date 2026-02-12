@@ -97,6 +97,8 @@ class TestA2AProxyAppConfigSSLVerify:
             ],
         )
         assert config.proxied_agents[0].ssl_verify is True
+
+
 class TestSeparateAuthenticationFields:
     """Tests for agent_card_authentication and task_authentication fields."""
 
