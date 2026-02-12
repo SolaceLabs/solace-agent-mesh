@@ -30,16 +30,25 @@ Example usage:
         )
 """
 
+from __future__ import annotations
+
 import logging
+import os
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
-from google.adk.tools import ToolContext
-
-from .artifact_helpers import load_artifact_content_or_metadata
-from .context_helpers import get_original_session_id
+# In sandbox mode (_SAM_SANDBOX_LIGHT=1), this module is imported only for
+# its class name (type annotation detection). Skip the helper imports which
+# transitively pull in google.adk and add seconds of import time.
+if not os.environ.get("_SAM_SANDBOX_LIGHT"):
+    from .artifact_helpers import load_artifact_content_or_metadata
+    from .context_helpers import get_original_session_id
+else:
+    load_artifact_content_or_metadata = None  # type: ignore[assignment,misc]
+    get_original_session_id = None  # type: ignore[assignment,misc]
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
+    from google.adk.tools import ToolContext
     from pydantic import BaseModel
 
 log = logging.getLogger(__name__)

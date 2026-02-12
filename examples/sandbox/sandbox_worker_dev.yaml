@@ -1,0 +1,34 @@
+# Sandbox Worker - Dev Mode (no container, no bwrap)
+#
+# Runs the sandbox worker as a normal SAM app alongside agents.
+# Tools execute as plain subprocesses — no isolation, suitable for
+# local development on any OS including macOS.
+#
+# Usage:
+#   SOLACE_DEV_MODE=true NAMESPACE=ed_test sam run \
+#     examples/sandbox/sandbox_test_agent_example.yaml \
+#     examples/sandbox/sandbox_worker_dev.yaml
+
+!include ../shared_config.yaml
+
+apps:
+  - name: sandbox_worker_dev
+    app_module: solace_agent_mesh.sandbox.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      worker_id: dev-worker
+      manifest_path: examples/sandbox/tools/manifest.yaml
+      tools_python_dir: examples/sandbox/tools
+      default_timeout_seconds: 60
+
+      sandbox:
+        mode: direct
+        python_bin: python3
+        work_base_dir: /tmp/sandbox_work
+
+      artifact_service:
+        type: filesystem
+        base_path: /tmp/samv2

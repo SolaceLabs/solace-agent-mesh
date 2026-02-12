@@ -91,8 +91,14 @@ SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
 
 @dataclass
 class SandboxRunnerConfig:
-    """Configuration for bubblewrap sandbox execution."""
+    """Configuration for sandbox execution.
 
+    Supports two modes:
+    - 'bwrap': Full bubblewrap sandboxing with namespace isolation (default)
+    - 'direct': Plain subprocess, no isolation (for local dev on any OS)
+    """
+
+    mode: str = "bwrap"
     bwrap_bin: str = DEFAULT_BWRAP_BIN
     python_bin: str = DEFAULT_PYTHON_BIN
     work_base_dir: str = DEFAULT_WORK_BASE_DIR
@@ -117,6 +123,7 @@ class SandboxRunner:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         config = config or {}
         self._config = SandboxRunnerConfig(
+            mode=config.get("mode", "bwrap"),
             bwrap_bin=config.get("bwrap_bin", DEFAULT_BWRAP_BIN),
             python_bin=config.get("python_bin", DEFAULT_PYTHON_BIN),
             work_base_dir=config.get("work_base_dir", DEFAULT_WORK_BASE_DIR),
@@ -131,8 +138,8 @@ class SandboxRunner:
         )
 
         log.info(
-            "SandboxRunner initialized: bwrap=%s, max_concurrent=%d",
-            self._config.bwrap_bin,
+            "SandboxRunner initialized: mode=%s, max_concurrent=%d",
+            self._config.mode,
             self._config.max_concurrent_executions,
         )
 
@@ -197,7 +204,7 @@ class SandboxRunner:
         app_name: str,
         user_id: str,
         session_id: str,
-    ) -> Dict[str, str]:
+    ) -> tuple:
         """
         Load artifacts into the work directory's input folder.
 
@@ -211,10 +218,14 @@ class SandboxRunner:
             session_id: Session ID for artifact scoping
 
         Returns:
-            Dict mapping parameter names to local file paths
+            Tuple of:
+            - artifact_paths: Dict mapping parameter names to local file paths (legacy)
+            - artifact_metadata: Dict mapping parameter names to rich metadata dicts
+              containing {"filename", "mime_type", "version", "local_path"}
         """
         input_dir = work_dir / "input"
         artifact_paths: Dict[str, str] = {}
+        artifact_metadata: Dict[str, Dict[str, Any]] = {}
 
         # Write preloaded artifacts (content is base64-encoded)
         import base64
@@ -224,6 +235,12 @@ class SandboxRunner:
             content = base64.b64decode(artifact.content)
             file_path.write_bytes(content)
             artifact_paths[param_name] = str(file_path)
+            artifact_metadata[param_name] = {
+                "filename": artifact.filename,
+                "mime_type": getattr(artifact, "mime_type", "application/octet-stream"),
+                "version": getattr(artifact, "version", 0),
+                "local_path": str(file_path),
+            }
             log.debug(
                 "Wrote preloaded artifact: %s -> %s (%d bytes)",
                 param_name,
@@ -247,6 +264,12 @@ class SandboxRunner:
                         # artifact.inline_data contains the bytes
                         file_path.write_bytes(artifact.inline_data)
                         artifact_paths[param_name] = str(file_path)
+                        artifact_metadata[param_name] = {
+                            "filename": ref.filename,
+                            "mime_type": getattr(artifact, "mime_type", "application/octet-stream"),
+                            "version": ref.version if ref.version is not None else 0,
+                            "local_path": str(file_path),
+                        }
                         log.debug(
                             "Loaded artifact reference: %s -> %s", param_name, file_path
                         )
@@ -259,7 +282,7 @@ class SandboxRunner:
                 except Exception as e:
                     log.error("Failed to load artifact %s: %s", ref.filename, e)
 
-        return artifact_paths
+        return artifact_paths, artifact_metadata
 
     async def _collect_output_artifacts(
         self,
@@ -431,12 +454,50 @@ class SandboxRunner:
 
         return _set_limits
 
+    def _write_runner_args(
+        self,
+        work_dir: Path,
+        params: SandboxInvokeParams,
+        manifest_entry: ManifestEntry,
+        artifact_paths: Dict[str, str],
+        artifact_metadata: Dict[str, Dict[str, Any]],
+    ) -> Path:
+        """
+        Write the tool_runner args JSON file to the work directory.
+
+        This is shared by both bwrap and direct execution modes — the IPC
+        contract (args file, result file, status pipe, artifact dirs) is
+        identical regardless of how the subprocess is launched.
+
+        Returns:
+            Path to the written args file
+        """
+        tool_runner_args = {
+            "module": manifest_entry.module,
+            "function": manifest_entry.function,
+            "args": params.args,
+            "tool_config": params.tool_config,
+            "artifact_paths": artifact_paths,
+            "artifact_metadata": artifact_metadata,
+            "status_pipe": str(work_dir / STATUS_PIPE_FILENAME),
+            "result_file": str(work_dir / RESULT_FILENAME),
+            "output_dir": str(work_dir / "output"),
+            "user_id": params.user_id,
+            "session_id": params.session_id,
+            "app_name": params.app_name,
+        }
+
+        args_file = work_dir / "runner_args.json"
+        args_file.write_text(json.dumps(tool_runner_args))
+        return args_file
+
     def _build_bwrap_command(
         self,
         work_dir: Path,
         params: SandboxInvokeParams,
         manifest_entry: ManifestEntry,
         artifact_paths: Dict[str, str],
+        artifact_metadata: Dict[str, Dict[str, Any]],
         profile: Dict[str, Any],
     ) -> List[str]:
         """
@@ -464,6 +525,7 @@ class SandboxRunner:
             params: The invocation parameters
             manifest_entry: The manifest entry for the tool being invoked
             artifact_paths: Mapping of param names to artifact file paths
+            artifact_metadata: Rich metadata per artifact param (filename, mime_type, etc.)
             profile: The resolved sandbox profile dict
 
         Returns:
@@ -471,23 +533,9 @@ class SandboxRunner:
         """
         tools_python_dir = self._config.tools_python_dir
 
-        # Build the tool runner args (same IPC contract as before)
-        tool_runner_args = {
-            "module": manifest_entry.module,
-            "function": manifest_entry.function,
-            "args": params.args,
-            "tool_config": params.tool_config,
-            "artifact_paths": artifact_paths,
-            "status_pipe": str(work_dir / STATUS_PIPE_FILENAME),
-            "result_file": str(work_dir / RESULT_FILENAME),
-            "output_dir": str(work_dir / "output"),
-            "user_id": params.user_id,
-            "session_id": params.session_id,
-        }
-
-        # Write tool runner args to work dir
-        args_file = work_dir / "runner_args.json"
-        args_file.write_text(json.dumps(tool_runner_args))
+        args_file = self._write_runner_args(
+            work_dir, params, manifest_entry, artifact_paths, artifact_metadata,
+        )
 
         # Start building the bwrap command
         cmd: List[str] = [self._config.bwrap_bin]
@@ -537,6 +585,8 @@ class SandboxRunner:
         cmd.extend(["--setenv", "TMPDIR", "/tmp"])
         cmd.extend(["--setenv", "LANG", "C.UTF-8"])
         cmd.extend(["--setenv", "PYTHONPATH", tools_python_dir])
+        # Skip heavy built-in tool registration inside the sandbox
+        cmd.extend(["--setenv", "_SAM_SANDBOX_LIGHT", "1"])
 
         if profile.get("keep_env"):
             # For standard/permissive profiles, forward specific safe env vars
@@ -557,6 +607,42 @@ class SandboxRunner:
         ])
 
         return cmd
+
+    def _build_direct_command(
+        self,
+        work_dir: Path,
+        params: SandboxInvokeParams,
+        manifest_entry: ManifestEntry,
+        artifact_paths: Dict[str, str],
+        artifact_metadata: Dict[str, Dict[str, Any]],
+    ) -> List[str]:
+        """
+        Build command for direct execution (no bwrap).
+
+        Uses the same IPC contract (args file, result file, status pipe,
+        artifact dirs) but runs as a plain subprocess. Suitable for local
+        development on any OS including macOS.
+
+        Args:
+            work_dir: The work directory path
+            params: The invocation parameters
+            manifest_entry: The manifest entry for the tool being invoked
+            artifact_paths: Mapping of param names to artifact file paths
+            artifact_metadata: Rich metadata per artifact param
+
+        Returns:
+            Command line as list of strings
+        """
+        args_file = self._write_runner_args(
+            work_dir, params, manifest_entry, artifact_paths, artifact_metadata,
+        )
+
+        return [
+            self._config.python_bin,
+            "-m",
+            TOOL_RUNNER_MODULE,
+            str(args_file),
+        ]
 
     async def execute_tool(
         self,
@@ -608,7 +694,7 @@ class SandboxRunner:
                 work_dir = self._setup_work_directory(task_id)
 
                 # Preload artifacts
-                artifact_paths = await self._preload_artifacts(
+                artifact_paths, artifact_metadata = await self._preload_artifacts(
                     work_dir=work_dir,
                     preloaded_artifacts=params.preloaded_artifacts,
                     artifact_references=params.artifact_references,
@@ -625,27 +711,52 @@ class SandboxRunner:
                         status_pipe_path, status_callback, stop_event
                     )
 
-                # Build and execute bwrap command
-                cmd = self._build_bwrap_command(
-                    work_dir, params, manifest_entry, artifact_paths, profile
-                )
-                log.debug("%s Running command: %s", log_id, " ".join(cmd))
+                # Build and execute command (bwrap or direct mode)
+                if self._config.mode == "direct":
+                    cmd = self._build_direct_command(
+                        work_dir, params, manifest_entry, artifact_paths,
+                        artifact_metadata,
+                    )
+                    log.debug("%s Running direct command: %s", log_id, " ".join(cmd))
 
-                # Run bwrap subprocess with resource limits applied via preexec_fn.
-                # Pass a minimal env so that /proc/1/environ inside the PID
-                # namespace (which is bwrap's own process) doesn't expose
-                # container secrets like SOLACE_PASSWORD.
-                bwrap_env = {
-                    "PATH": "/usr/local/bin:/usr/bin:/bin",
-                }
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=str(work_dir),
-                    env=bwrap_env,
-                    preexec_fn=self._make_preexec_fn(profile),
-                )
+                    # Inherit environment but add PYTHONPATH and sandbox light flag
+                    direct_env = os.environ.copy()
+                    tools_pp = str(Path(self._config.tools_python_dir).resolve())
+                    existing_pp = direct_env.get("PYTHONPATH", "")
+                    direct_env["PYTHONPATH"] = (
+                        tools_pp + os.pathsep + existing_pp if existing_pp else tools_pp
+                    )
+                    direct_env["_SAM_SANDBOX_LIGHT"] = "1"
+
+                    process = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(work_dir),
+                        env=direct_env,
+                    )
+                else:
+                    cmd = self._build_bwrap_command(
+                        work_dir, params, manifest_entry, artifact_paths,
+                        artifact_metadata, profile,
+                    )
+                    log.debug("%s Running bwrap command: %s", log_id, " ".join(cmd))
+
+                    # Run bwrap subprocess with resource limits applied via preexec_fn.
+                    # Pass a minimal env so that /proc/1/environ inside the PID
+                    # namespace (which is bwrap's own process) doesn't expose
+                    # container secrets like SOLACE_PASSWORD.
+                    bwrap_env = {
+                        "PATH": "/usr/local/bin:/usr/bin:/bin",
+                    }
+                    process = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=str(work_dir),
+                        env=bwrap_env,
+                        preexec_fn=self._make_preexec_fn(profile),
+                    )
 
                 try:
                     # Wait with timeout (add buffer for bwrap overhead)

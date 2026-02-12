@@ -20,7 +20,6 @@ from .manifest import ToolManifest
 from .sandbox_runner import SandboxRunner
 from .protocol import (
     SandboxErrorCodes,
-    SandboxInvokeParams,
     SandboxStatusUpdate,
     SandboxStatusUpdateParams,
     SandboxToolInvocationRequest,
@@ -102,7 +101,9 @@ class SandboxWorkerComponent(SamComponentBase):
         sandbox_cfg["tools_python_dir"] = self.get_config(
             "tools_python_dir", "/tools/python"
         )
-        self.default_timeout_seconds: int = self.get_config("default_timeout_seconds", 300)
+        self.default_timeout_seconds: int = self.get_config(
+            "default_timeout_seconds", 300
+        )
 
         # Initialize sandbox runner
         self.sandbox_runner = SandboxRunner(sandbox_cfg)
@@ -168,7 +169,7 @@ class SandboxWorkerComponent(SamComponentBase):
         """
         prefix = a2a.get_a2a_base_topic(self.namespace) + "/sam_remote_tool/invoke/"
         if topic.startswith(prefix):
-            return topic[len(prefix):]
+            return topic[len(prefix) :]
         return None
 
     def _sync_subscriptions(self) -> None:
@@ -272,7 +273,9 @@ class SandboxWorkerComponent(SamComponentBase):
                     nack_e,
                 )
 
-    async def _handle_tool_invocation(self, message: SolaceMessage, tool_name: str) -> None:
+    async def _handle_tool_invocation(
+        self, message: SolaceMessage, tool_name: str
+    ) -> None:
         """
         Handle a tool invocation request.
 

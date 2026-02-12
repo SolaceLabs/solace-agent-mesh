@@ -358,6 +358,20 @@
                 "DEV_BROKER_NETWORK_ENABLED": "true",
                 "DEV_BROKER_PORT": "55554"
             }
+        },
+        {
+            "name": "SAM (Sandbox Direct)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cli.main",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "args": "run examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/sandbox/sandbox_test_agent_example.yaml examples/sandbox/sandbox_worker_dev.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml",
+                "SOLACE_DEV_MODE": "true"
+            }
         }
     ],
     "compounds": [

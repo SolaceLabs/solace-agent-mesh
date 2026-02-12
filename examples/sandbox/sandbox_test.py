@@ -409,6 +409,7 @@ def cmd_invoke(harness: BrokerHarness, args: argparse.Namespace) -> bool:
             return False
 
     # Build preloaded artifacts from --artifact flags
+    import base64 as _b64
     preloaded_artifacts = {}
     for spec in (args.artifact or []):
         if "=" not in spec:
@@ -419,13 +420,15 @@ def cmd_invoke(harness: BrokerHarness, args: argparse.Namespace) -> bool:
         if not path.exists():
             print(f"{_RED}Error: artifact file not found: {filepath}{_RESET}")
             return False
-        content = path.read_text()
+        raw_bytes = path.read_bytes()
         preloaded_artifacts[param_name] = PreloadedArtifact(
             filename=path.name,
-            content=content,
+            content=_b64.b64encode(raw_bytes).decode("ascii"),
             version=0,
         )
-        print(f"  {_DIM}artifact:{_RESET} {param_name} = {path.name} ({len(content)} bytes)")
+        # Also add filename to tool_args (mirrors what SamRemoteExecutor does)
+        tool_args[param_name] = path.name
+        print(f"  {_DIM}artifact:{_RESET} {param_name} = {path.name} ({len(raw_bytes)} bytes)")
 
     resp = invoke_tool(
         harness,

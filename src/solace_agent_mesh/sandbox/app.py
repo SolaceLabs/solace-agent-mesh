@@ -32,8 +32,25 @@ info = {
 
 
 class SandboxConfig(SamConfigBase):
-    """Configuration for bubblewrap sandbox execution."""
+    """Configuration for sandbox execution.
 
+    Supports two modes:
+    - 'bwrap': Full bubblewrap sandboxing (Linux, containers) — default
+    - 'direct': Plain subprocess (no isolation) — for local dev on any OS
+    """
+
+    mode: str = Field(
+        default="bwrap",
+        description="Execution mode: 'bwrap' for sandboxed, 'direct' for plain subprocess (dev).",
+    )
+    python_bin: str = Field(
+        default="/usr/local/bin/python3",
+        description="Python binary path (used in both bwrap and direct modes).",
+    )
+    work_base_dir: str = Field(
+        default="/sandbox/work",
+        description="Base directory for tool execution work directories.",
+    )
     default_profile: str = Field(
         default="standard",
         description="Default sandbox profile to use (restrictive, standard, permissive).",

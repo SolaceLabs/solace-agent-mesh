@@ -31,6 +31,21 @@ tools:
     function: process_file
     description: "Process an input file and produce a summary (tests artifact pipeline)"
 
+  # Portable tool test - uses ToolContextFacade and ToolResult annotations
+  # so the same code works in both python and sam_remote executors.
+  portable_echo:
+    runtime: python
+    module: portable_test_tool
+    function: portable_echo
+    description: "Portable echo tool (tests ToolContextFacade injection)"
+
+  # Portable process_file - uses Artifact type annotation for input injection
+  portable_process_file:
+    runtime: python
+    module: portable_process_file
+    function: portable_process_file
+    description: "Process an input file using portable API (tests Artifact injection)"
+
   # Package loading test - pyfiglet is NOT pre-installed in the container.
   # The worker auto-installs it on startup via ensure_packages_installed().
   render_ascii_art:

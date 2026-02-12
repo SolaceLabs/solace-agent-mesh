@@ -78,6 +78,8 @@ class SamRemoteExecutor(ToolExecutor):
 
         # Track pending requests (thread-safe concurrent futures)
         self._pending_responses: Dict[str, concurrent.futures.Future] = {}
+        # Track a2a_context per correlation_id for status forwarding
+        self._pending_a2a_contexts: Dict[str, Dict[str, Any]] = {}
 
     @property
     def executor_type(self) -> str:
@@ -243,6 +245,11 @@ class SamRemoteExecutor(ToolExecutor):
             response_future = concurrent.futures.Future()
             self._pending_responses[correlation_id] = response_future
 
+            # Store a2a_context so handle_status can forward updates upstream
+            a2a_context = tool_context.state.get("a2a_context")
+            if a2a_context:
+                self._pending_a2a_contexts[correlation_id] = a2a_context
+
             try:
                 # Publish the request
                 self._component.publish_a2a_message(
@@ -324,6 +331,7 @@ class SamRemoteExecutor(ToolExecutor):
             finally:
                 # Clean up pending request
                 self._pending_responses.pop(correlation_id, None)
+                self._pending_a2a_contexts.pop(correlation_id, None)
 
         except Exception as e:
             execution_time_ms = int((time.time() - start_time) * 1000)
@@ -464,11 +472,26 @@ class SamRemoteExecutor(ToolExecutor):
     def handle_status(self, correlation_id: str, status_text: str) -> None:
         """
         Handle a status update from the remote worker.
+
+        Forwards the status as an AgentProgressUpdateData signal to the
+        gateway/UI via the a2a_context stored when the request was sent.
         """
         log.debug(
             "[SamRemoteExecutor] Status update for %s: %s",
             correlation_id,
             status_text,
+        )
+
+        a2a_context = self._pending_a2a_contexts.get(correlation_id)
+        if not a2a_context or not self._component:
+            return
+
+        from ....common.data_parts import AgentProgressUpdateData
+
+        signal = AgentProgressUpdateData(status_text=status_text)
+        self._component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=signal,
         )
 
     async def cleanup(
@@ -486,5 +509,6 @@ class SamRemoteExecutor(ToolExecutor):
                 log.debug("%s Cancelled pending request: %s", log_id, correlation_id)
 
         self._pending_responses.clear()
+        self._pending_a2a_contexts.clear()
         self._component = None
         log.info("%s Cleaned up", log_id)
