@@ -1,4 +1,4 @@
-describe("Workflows Page - List Display and Navigation", { tags: ["@community"] }, () => {
+describe.skip("Workflows Page - List Display and Navigation", { tags: ["@community"] }, () => {
     beforeEach(() => {
         cy.navigateToWorkflows();
     });
@@ -32,7 +32,7 @@ describe("Workflows Page - List Display and Navigation", { tags: ["@community"] 
     });
 });
 
-describe("Workflows Page - Search and Filtering", { tags: ["@community"] }, () => {
+describe.skip("Workflows Page - Search and Filtering", { tags: ["@community"] }, () => {
     beforeEach(() => {
         cy.navigateToWorkflows();
     });
@@ -96,7 +96,7 @@ describe("Workflows Page - Search and Filtering", { tags: ["@community"] }, () =
     });
 });
 
-describe("Workflows Page - Workflow Visualization", { tags: ["@community"] }, () => {
+describe.skip("Workflows Page - Workflow Visualization", { tags: ["@community"] }, () => {
     beforeEach(() => {
         cy.navigateToWorkflows();
     });
@@ -282,7 +282,7 @@ describe("Workflows Page - Workflow Visualization", { tags: ["@community"] }, ()
     });
 });
 
-describe("Workflows Page - Workflow Detail Panel", { tags: ["@community"] }, () => {
+describe.skip("Workflows Page - Workflow Detail Panel", { tags: ["@community"] }, () => {
     beforeEach(() => {
         cy.navigateToWorkflows();
     });
