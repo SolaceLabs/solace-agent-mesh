@@ -60,6 +60,8 @@ eval-setup: check-uv
 	UV_VENV_CLEAR=1 uv venv --python 3.12
 	@echo "Installing Solace Agent Mesh..."
 	source .venv/bin/activate && pip install .
+	@echo "Installing Playwright browsers..."
+	source .venv/bin/activate && pip install playwright
 
 # Install Playwright browsers only
 install-playwright: check-uv
