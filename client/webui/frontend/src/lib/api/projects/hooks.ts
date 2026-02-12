@@ -22,8 +22,12 @@ export function useProjects() {
     return useQuery({
         queryKey: projectKeys.lists(),
         queryFn: projectService.getProjects,
+        refetchOnMount: "always",
     });
 }
+
+/** Ensures projects are fetched fresh on component mount */
+export const useFetchProjectsOnMount = () => useProjects();
 
 export function useProjectArtifacts(projectId: string | null) {
     return useQuery({

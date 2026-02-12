@@ -306,14 +306,17 @@ class TestInferEventDetails:
         
         with patch('solace_agent_mesh.gateway.http_sse.services.task_logger_service.a2a') as mock_a2a:
             mock_a2a.get_request_id.return_value = "task-123"
+            mock_a2a.get_context_id.return_value = None
+            mock_a2a.get_message_from_send_request.return_value = None
             
-            direction, task_id, user_id = service._infer_event_details(
+            direction, task_id, user_id, session_id = service._infer_event_details(
                 "some/topic", mock_request, {"userId": "user-456"}
             )
             
             assert direction == "request"
             assert task_id == "task-123"
             assert user_id == "user-456"
+            assert session_id is None  # No context_id in simple test case
     
     def test_infer_details_from_task(self, service):
         """Test inferring details from A2ATask."""
@@ -322,13 +325,14 @@ class TestInferEventDetails:
         mock_task = Mock(spec=A2ATask)
         mock_task.id = "task-789"
         
-        direction, task_id, user_id = service._infer_event_details(
+        direction, task_id, user_id, session_id = service._infer_event_details(
             "some/topic", mock_task, {"userId": "user-123"}
         )
         
         assert direction == "response"
         assert task_id == "task-789"
         assert user_id == "user-123"
+        assert session_id is None  # A2ATask doesn't have context_id
     
     def test_infer_details_from_status_update(self, service):
         """Test inferring details from TaskStatusUpdateEvent."""
@@ -337,12 +341,13 @@ class TestInferEventDetails:
         mock_event = Mock(spec=TaskStatusUpdateEvent)
         mock_event.task_id = "task-status-123"
         
-        direction, task_id, user_id = service._infer_event_details(
+        direction, task_id, user_id, session_id = service._infer_event_details(
             "some/topic", mock_event, {}
         )
         
         assert direction == "status"
         assert task_id == "task-status-123"
+        assert session_id is None  # TaskStatusUpdateEvent doesn't have context_id
     
     def test_infer_details_from_error(self, service):
         """Test inferring details from JSONRPCError."""
@@ -351,12 +356,13 @@ class TestInferEventDetails:
         mock_error = Mock(spec=JSONRPCError)
         mock_error.data = {"taskId": "task-error-123"}
         
-        direction, task_id, user_id = service._infer_event_details(
+        direction, task_id, user_id, session_id = service._infer_event_details(
             "some/topic", mock_error, {}
         )
         
         assert direction == "error"
         assert task_id == "task-error-123"
+        assert session_id is None  # JSONRPCError doesn't have context_id
     
     def test_infer_details_user_id_from_a2a_config(self, service):
         """Test inferring user_id from a2aUserConfig."""
@@ -366,6 +372,8 @@ class TestInferEventDetails:
         
         with patch('solace_agent_mesh.gateway.http_sse.services.task_logger_service.a2a') as mock_a2a:
             mock_a2a.get_request_id.return_value = "task-123"
+            mock_a2a.get_context_id.return_value = None
+            mock_a2a.get_message_from_send_request.return_value = None
             
             user_props = {
                 "a2aUserConfig": {
@@ -375,11 +383,12 @@ class TestInferEventDetails:
                 }
             }
             
-            direction, task_id, user_id = service._infer_event_details(
+            direction, task_id, user_id, session_id = service._infer_event_details(
                 "some/topic", mock_request, user_props
             )
             
             assert user_id == "user-from-config"
+            assert session_id is None  # No context_id in simple test case
     
     def test_infer_details_with_none_user_props(self, service):
         """Test inferring details with None user_props."""
@@ -389,14 +398,17 @@ class TestInferEventDetails:
         
         with patch('solace_agent_mesh.gateway.http_sse.services.task_logger_service.a2a') as mock_a2a:
             mock_a2a.get_request_id.return_value = "task-123"
+            mock_a2a.get_context_id.return_value = None
+            mock_a2a.get_message_from_send_request.return_value = None
             
-            direction, task_id, user_id = service._infer_event_details(
+            direction, task_id, user_id, session_id = service._infer_event_details(
                 "some/topic", mock_request, None
             )
             
             assert direction == "request"
             assert task_id == "task-123"
             assert user_id is None
+            assert session_id is None  # No user_props, no context_id
 
 
 class TestParseA2AEvent:
