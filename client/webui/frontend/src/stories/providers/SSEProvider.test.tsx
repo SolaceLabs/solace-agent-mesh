@@ -8,7 +8,7 @@ import { setupServer } from "msw/node";
 import * as matchers from "@testing-library/jest-dom/matchers";
 
 import { SSEProvider, useSSESubscription } from "@/lib/providers/SSEProvider";
-import type { SSEConnectionState } from "@/lib/contexts/SSEContext";
+import type { SSEConnectionState } from "@/lib/types";
 import { useSSEContext } from "@/lib/hooks/useSSEContext";
 
 expect.extend(matchers);

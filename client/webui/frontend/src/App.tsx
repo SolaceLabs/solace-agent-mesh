@@ -1,7 +1,7 @@
 import { RouterProvider } from "react-router-dom";
 
 import { TextSelectionProvider } from "@/lib/components/chat/selection";
-import { AuthProvider, ConfigProvider, CsrfProvider, ProjectProvider, SSEProvider, TaskProvider, ThemeProvider, AudioSettingsProvider, QueryProvider } from "@/lib/providers";
+import { AuthProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider, AudioSettingsProvider, QueryProvider } from "@/lib/providers";
 
 import { createRouter } from "./router";
 
@@ -16,17 +16,15 @@ function App() {
                 <CsrfProvider>
                     <ConfigProvider>
                         <AuthProvider>
-                            <SSEProvider>
-                                <ProjectProvider>
-                                    <AudioSettingsProvider>
-                                        <TaskProvider>
-                                            <TextSelectionProvider>
-                                                <AppContent />
-                                            </TextSelectionProvider>
-                                        </TaskProvider>
-                                    </AudioSettingsProvider>
-                                </ProjectProvider>
-                            </SSEProvider>
+                            <ProjectProvider>
+                                <AudioSettingsProvider>
+                                    <TaskProvider>
+                                        <TextSelectionProvider>
+                                            <AppContent />
+                                        </TextSelectionProvider>
+                                    </TaskProvider>
+                                </AudioSettingsProvider>
+                            </ProjectProvider>
                         </AuthProvider>
                     </ConfigProvider>
                 </CsrfProvider>

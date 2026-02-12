@@ -1,8 +1,9 @@
 import React, { type ReactNode, useState, useRef, useEffect, useCallback } from "react";
 
-import { SSEContext, type SSEContextValue, type SSEConnectionState, type SSETask, type SSESubscriptionOptions, type SSESubscriptionReturn } from "@/lib/contexts/SSEContext";
+import { SSEContext, type SSEContextValue } from "@/lib/contexts/SSEContext";
 import { getApiBearerToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
+import type { SSEConnectionState, SSESubscriptionOptions, SSESubscriptionReturn, SSETask } from "@/lib/types";
 
 // ============ Constants ============
 
@@ -11,6 +12,10 @@ const INITIAL_RETRY_DELAY = 1000;
 const MAX_RETRY_DELAY = 30000;
 const MAX_RETRY_ATTEMPTS = 5;
 const STALE_TASK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+
+// NOTE: No connection timeout is implemented. If EventSource gets stuck in "connecting"
+// state indefinitely, there's no automatic recovery. Consider adding a timeout mechanism
+// in a future iteration if this becomes a problem in practice.
 
 // ============ Types ============
 
@@ -35,7 +40,6 @@ interface SSEProviderProps {
 }
 
 // ============ Module-scoped internals ============
-// These are set by the provider and used by useSSESubscription hook
 
 interface ProviderInternals {
     subscribe: (endpoint: string, handlers: { onMessage?: (e: MessageEvent) => void; onError?: (e: Event) => void }, onStateChange: (state: SSEConnectionState) => void) => () => void;
@@ -46,8 +50,79 @@ let providerInternals: ProviderInternals | null = null;
 
 // ============ Provider ============
 
+/**
+ * SSEProvider - Manages Server-Sent Events connections with automatic reconnection and task registry.
+ *
+ * Features:
+ * - Connection pooling (multiple subscribers share one EventSource)
+ * - Automatic reconnection with exponential backoff
+ * - Task registry with sessionStorage persistence
+ * - Status-check-on-reconnect to avoid connecting to completed tasks
+ *
+ * @example Basic Setup (in App.tsx)
+ * ```tsx
+ * <SSEProvider>
+ *   <YourApp />
+ * </SSEProvider>
+ * ```
+ *
+ * @example Task Registry Usage
+ * ```tsx
+ * function MyComponent() {
+ *   const { registerTask, unregisterTask } = useSSEContext();
+ *
+ *   // Register a task when it starts
+ *   const handleTaskStart = (taskId: string, sseUrl: string) => {
+ *     registerTask({
+ *       taskId,
+ *       sseUrl,
+ *       metadata: { projectId: currentProject.id }
+ *     });
+ *   };
+ *
+ *   // Unregister when complete
+ *   const handleTaskComplete = (taskId: string) => {
+ *     unregisterTask(taskId);
+ *   };
+ * }
+ * ```
+ *
+ * @example SSE Subscription
+ * ```tsx
+ * function TaskMonitor({ taskId, sseUrl }: { taskId: string; sseUrl: string }) {
+ *   const [messages, setMessages] = useState<string[]>([]);
+ *
+ *   const { connectionState, isConnected } = useSSESubscription({
+ *     endpoint: sseUrl,
+ *     taskId: taskId,
+ *     onMessage: (event) => {
+ *       const data = JSON.parse(event.data);
+ *       setMessages(prev => [...prev, data.message]);
+ *
+ *       // Clean up when task completes
+ *       if (data.status === 'completed') {
+ *         unregisterTask(taskId);
+ *       }
+ *     },
+ *     onError: (error) => {
+ *       console.error('SSE error:', error);
+ *     },
+ *     onTaskAlreadyCompleted: () => {
+ *       // Called if task completed while component was unmounted
+ *       console.log('Task already finished');
+ *     }
+ *   });
+ *
+ *   return (
+ *     <div>
+ *       <div>Status: {connectionState}</div>
+ *       {messages.map((msg, i) => <div key={i}>{msg}</div>)}
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
 export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
-    // Connections stored in ref - we don't need re-renders when connections change
     const connectionsRef = useRef<Map<string, ConnectionEntry>>(new Map());
 
     // Task registry - persisted to sessionStorage
@@ -88,15 +163,18 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
         }
     }, []);
 
-    // Helper to build full URL with auth token
     const buildUrlWithAuth = useCallback((endpoint: string): string => {
+        const baseUrl = api.webui.getFullUrl(endpoint);
         const accessToken = getApiBearerToken();
-        if (!accessToken) return endpoint;
-        const separator = endpoint.includes("?") ? "&" : "?";
-        return `${endpoint}${separator}token=${accessToken}`;
+
+        if (accessToken) {
+            const separator = baseUrl.includes("?") ? "&" : "?";
+            return `${baseUrl}${separator}token=${accessToken}`;
+        }
+
+        return baseUrl;
     }, []);
 
-    // Create a new EventSource connection
     const createConnection = useCallback(
         (endpoint: string): ConnectionEntry => {
             const fullUrl = buildUrlWithAuth(endpoint);
@@ -126,10 +204,8 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
             eventSource.onerror = (errorEvent: Event) => {
                 console.error(`[SSEProvider] Connection error: ${endpoint}`, errorEvent);
 
-                // Close the current connection
                 eventSource.close();
 
-                // Notify subscribers of error
                 entry.subscribers?.forEach(sub => {
                     sub.onError?.(errorEvent);
                 });
@@ -169,7 +245,6 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
         [buildUrlWithAuth, updateConnectionState]
     );
 
-    // Subscribe to an SSE endpoint
     const subscribe = useCallback(
         (endpoint: string, handlers: { onMessage?: (e: MessageEvent) => void; onError?: (e: Event) => void }, onStateChange: (state: SSEConnectionState) => void): (() => void) => {
             const subscriberId = crypto.randomUUID();
@@ -177,22 +252,18 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
             let entry = connectionsRef.current.get(endpoint);
 
             if (!entry) {
-                // Create new connection
                 entry = createConnection(endpoint);
                 connectionsRef.current.set(endpoint, entry);
             }
 
-            // Add subscriber
             entry.subscribers.set(subscriberId, {
                 onMessage: handlers.onMessage,
                 onError: handlers.onError,
                 onStateChange,
             });
 
-            // Immediately notify subscriber of current state
             onStateChange(entry.state);
 
-            // Return unsubscribe function
             return () => {
                 const currentEntry = connectionsRef.current.get(endpoint);
                 if (!currentEntry) return;
@@ -228,7 +299,6 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
     // Update on every render to keep functions current
     providerInternals = { subscribe, checkTaskStatus };
 
-    // Cleanup on unmount
     useEffect(() => {
         return () => {
             providerInternals = null;
@@ -268,7 +338,6 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
         [tasks]
     );
 
-    // Cleanup on unmount
     useEffect(() => {
         const connections = connectionsRef.current;
         return () => {
@@ -298,7 +367,42 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
 
 /**
  * Hook to subscribe to SSE events with automatic connection management.
- * Supports status-check-on-reconnect when taskId is provided.
+ *
+ * Features:
+ * - Automatic connection/disconnection based on component lifecycle
+ * - Shared connections for same endpoint (connection pooling)
+ * - Status-check-on-reconnect when taskId is provided
+ * - Reconnection with exponential backoff on errors
+ *
+ * @param options - Subscription configuration
+ * @param options.endpoint - SSE endpoint URL (relative path like "/api/v1/sse/task-123")
+ * @param options.taskId - Optional task ID for status checking on reconnect
+ * @param options.onMessage - Called when SSE message received
+ * @param options.onError - Called when connection error occurs
+ * @param options.onTaskAlreadyCompleted - Called if task completed while unmounted (requires taskId)
+ *
+ * @returns Object with connectionState and isConnected
+ *
+ * @example Simple subscription
+ * ```tsx
+ * const { isConnected } = useSSESubscription({
+ *   endpoint: '/api/v1/sse/events',
+ *   onMessage: (event) => console.log(event.data)
+ * });
+ * ```
+ *
+ * @example With task status checking
+ * ```tsx
+ * const { connectionState } = useSSESubscription({
+ *   endpoint: task.sseUrl,
+ *   taskId: task.id,
+ *   onMessage: handleMessage,
+ *   onTaskAlreadyCompleted: () => {
+ *     // Task finished while we were gone - handle accordingly
+ *     showNotification('Task completed');
+ *   }
+ * });
+ * ```
  */
 export function useSSESubscription(options: SSESubscriptionOptions): SSESubscriptionReturn {
     if (!providerInternals) {
