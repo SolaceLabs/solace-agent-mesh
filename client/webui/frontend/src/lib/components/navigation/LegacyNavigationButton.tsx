@@ -1,0 +1,55 @@
+import React from "react";
+
+import { cn } from "@/lib/utils";
+import type { NavigationItem } from "@/lib/types";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+import { ExperimentalBadge } from "@/lib/components/ui/experimental-badge";
+
+interface NavigationItemProps {
+    item: NavigationItem;
+    isActive: boolean;
+    onItemClick?: (itemId: string) => void;
+}
+
+export const LegacyNavigationButton: React.FC<NavigationItemProps> = ({ item, isActive, onItemClick }) => {
+    const { id, label, icon: Icon, disabled, badge } = item;
+
+    const handleClick = () => {
+        if (!disabled && onItemClick) {
+            onItemClick(id);
+        }
+    };
+
+    const handleKeyDown = (event: React.KeyboardEvent) => {
+        if (event.key === "Enter" || event.key === " ") {
+            handleClick();
+        }
+    };
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <button
+                    type="button"
+                    onClick={onItemClick ? handleClick : undefined}
+                    onKeyDown={onItemClick ? handleKeyDown : undefined}
+                    disabled={disabled}
+                    className={cn(
+                        "relative mx-auto flex w-full cursor-pointer flex-col items-center px-3 py-5 text-xs transition-colors",
+                        "bg-(--color-primary-w100) hover:bg-(--color-primary-w90)",
+                        "text-(--color-primary-text-w10) hover:bg-(--color-primary-w90) hover:text-(--color-background-w10)",
+                        "border-l-4 border-(--color-primary-w100)",
+                        isActive ? "border-l-4 border-(--color-brand-wMain) bg-(--color-primary-w90)" : ""
+                    )}
+                    aria-label={label}
+                    aria-current={isActive ? "page" : undefined}
+                >
+                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--color-brand-wMain)")} />
+                    <span className="text-center text-[13px] leading-tight">{label}</span>
+                    {badge && <ExperimentalBadge className="mt-1 h-4 pt-1 text-[8px] leading-none">{badge}</ExperimentalBadge>}
+                </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{label}</TooltipContent>
+        </Tooltip>
+    );
+};

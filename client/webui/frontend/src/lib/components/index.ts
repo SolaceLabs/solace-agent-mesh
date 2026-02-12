@@ -13,6 +13,9 @@ export * from "./header";
 export * from "./pages";
 export * from "./agents";
 export * from "./workflows";
+
+// Re-export NavigationSidebarWrapper as NavigationSidebar for backwards compatibility
+export { NavigationSidebarWrapper as NavigationSidebar } from "./navigation";
 // Export workflow visualization components (selective to avoid conflicts with activities)
 export {
     WorkflowVisualizationPage,
