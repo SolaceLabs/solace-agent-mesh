@@ -115,8 +115,4 @@ export interface BatchDeleteResponse {
     deletedEmails: string[];
 }
 
-export interface UpdateShareRequest {
-    accessLevel: "RESOURCE_VIEWER";
-}
-
 export type AccessLevel = "RESOURCE_VIEWER";

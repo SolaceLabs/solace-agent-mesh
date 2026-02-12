@@ -756,7 +756,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                 log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
 
-                if "/a2a/v1/discovery/" in topic:
+                is_working_state = payload_dict.get("result", {}).get("status", {}).get('state') == "working"
+                parts = payload_dict.get("result", {}).get("status", {}).get("message", {}).get("parts", [])
+                is_in_progress_data = bool(parts) and all(
+                    part.get("data", {}).get("status") == "in-progress" for part in parts
+                )
+                is_text_update = bool(parts) and all(part.get("kind") == "text" for part in parts)
+
+                # Ignoring discovery messages and in-progress updates for files and LLM stream to reduce noise in visualization streams
+                if ("/a2a/v1/discovery/" in topic) or (
+                    is_working_state and (is_in_progress_data or is_text_update)
+                ):
                     self._visualization_message_queue.task_done()
                     continue
 
@@ -1332,17 +1342,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
             # This must be done *after* setup_dependencies has run.
             session_factory = dependencies.SessionLocal if self.database_url else None
             
+            # Get task logging config for hybrid buffer settings
+            # Hybrid buffer is OFF by default for safety - it buffers events in RAM
+            # before flushing to DB to reduce database writes
+            task_logging_config = self.get_config("task_logging", {})
+            hybrid_buffer_config = task_logging_config.get("hybrid_buffer", {})
+            hybrid_buffer_enabled = hybrid_buffer_config.get("enabled", False)
+            hybrid_buffer_threshold = hybrid_buffer_config.get("flush_threshold", 10)
+            
             # Initialize SSE manager with session factory for background task detection
             self.sse_manager = SSEManager(
                 max_queue_size=self.sse_max_queue_size,
                 event_buffer=self.sse_event_buffer,
-                session_factory=session_factory
+                session_factory=session_factory,
+                hybrid_buffer_enabled=hybrid_buffer_enabled,
+                hybrid_buffer_threshold=hybrid_buffer_threshold,
             )
             log.debug(
-                "%s SSE manager initialized with database session factory.",
+                "%s SSE manager initialized with database session factory (hybrid_buffer=%s, threshold=%d).",
                 self.log_identifier,
+                hybrid_buffer_enabled,
+                hybrid_buffer_threshold,
             )
-            task_logging_config = self.get_config("task_logging", {})
+            # task_logging_config already obtained above for hybrid_buffer settings
             self.task_logger_service = TaskLoggerService(
                 session_factory=session_factory, config=task_logging_config
             )

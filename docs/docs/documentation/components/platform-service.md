@@ -38,3 +38,11 @@ The service runs on **port 8001** by default.
 A Platform Service instance is only required when running the WebUI Gateway in combination with Agent Mesh Enterprise.
 :::
 
+## Authentication and Authorization
+
+The Platform Service shares the same authentication and authorization infrastructure as the WebUI Gateway. Both services use the same OAuth2 middleware to validate bearer tokens and the same RBAC configuration to enforce permissions.
+
+To ensure both services use the same authorization configuration, set the `SAM_AUTHORIZATION_CONFIG` environment variable. This variable applies globally to all services in the process and is the recommended way to configure RBAC. If you configure authorization only in the WebUI Gateway's YAML file without setting this environment variable, the Platform Service will not inherit that configuration and will default to denying all access.
+
+For details on how this shared model works and how to troubleshoot it, see [Authentication and Authorization](../enterprise/platform-service-auth.md).
+

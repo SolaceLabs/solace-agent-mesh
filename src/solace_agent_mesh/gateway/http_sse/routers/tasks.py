@@ -55,6 +55,8 @@ router = APIRouter()
 
 log = logging.getLogger(__name__)
 
+SESSION_NOT_FOUND_MSG = "Session not found."
+
 
 # Background Task Status Models and Endpoints
 class TaskStatusResponse(BaseModel):
@@ -442,6 +444,36 @@ async def _submit_task(
                 finally:
                     db.close()
 
+        # Security: Validate user still has project access
+        if project_id and project_service:
+            if SessionLocal is not None:
+                db = SessionLocal()
+                try:
+                    project = project_service.get_project(db, project_id, user_id)
+                    if not project:
+                        log.warning(
+                            "%sUser %s denied - project %s not found or access denied",
+                            log_prefix,
+                            user_id,
+                            project_id
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=SESSION_NOT_FOUND_MSG
+                        )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    log.error(
+                        "%sFailed to validate project access: %s", log_prefix, e
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=SESSION_NOT_FOUND_MSG
+                    )
+                finally:
+                    db.close()
+
         if frontend_session_id:
             session_id = frontend_session_id
             log.info(
@@ -596,6 +628,33 @@ async def _submit_task(
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
 
+        # UNIFIED ARCHITECTURE: Register ALL tasks for persistent SSE event buffering
+        # when the feature is enabled (tied to background_tasks feature flag).
+        # This enables session switching, browser refresh recovery, and reconnection for ALL tasks.
+        # The FE will clear the buffer after successfully saving the chat_task.
+        try:
+            sse_manager = component.sse_manager
+            if sse_manager and sse_manager.get_persistent_buffer().is_enabled():
+                sse_manager.register_task_for_persistent_buffer(
+                    task_id=task_id,
+                    session_id=session_id,
+                    user_id=user_id,
+                )
+                is_background = additional_metadata.get("backgroundExecutionEnabled", False)
+                log.info(
+                    "%sRegistered task %s for persistent SSE buffering (session=%s, background=%s)",
+                    log_prefix,
+                    task_id,
+                    session_id,
+                    is_background,
+                )
+        except Exception as e:
+            log.warning(
+                "%sFailed to register task for persistent buffering: %s",
+                log_prefix,
+                e,
+            )
+
         task_object = a2a.create_initial_task(
             task_id=task_id,
             context_id=session_id,
@@ -612,6 +671,9 @@ async def _submit_task(
                 result=task_object, request_id=payload.id
             )
 
+    except HTTPException:
+        # Re-raise HTTPExceptions (including our security check) without wrapping
+        raise
     except PermissionError as pe:
         log.warning("%sPermission denied: %s", log_prefix, str(pe))
         raise HTTPException(
@@ -929,6 +991,415 @@ async def get_task_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while retrieving the task events.",
+        )
+
+
+@router.get("/tasks/{task_id}/events/buffered", tags=["Tasks"])
+async def get_buffered_task_events(
+    task_id: str,
+    request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+    mark_consumed: bool = Query(
+        default=True,
+        description="Whether to mark events as consumed after fetching"
+    ),
+):
+    """
+    Retrieves buffered SSE events for a background task.
+    
+    This endpoint is used by the frontend to replay SSE events for background tasks
+    that completed while the user was disconnected. The events are returned in the
+    same format as the live SSE stream, allowing the frontend to process them
+    through its existing event handling logic.
+    
+    Args:
+        task_id: The ID of the task to fetch buffered events for
+        mark_consumed: If True, marks events as consumed after fetching (default: True)
+    
+    Returns:
+        A list of buffered SSE events in sequence order, ready for frontend replay
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/events/buffered] "
+    log.info("%sRequest from user %s, mark_consumed=%s", log_prefix, user_id, mark_consumed)
+
+    try:
+        # First verify the task exists and user has permission
+        result = repo.find_by_id_with_events(db, task_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        task, _ = result
+
+        can_read_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+        if task.user_id != user_id and not can_read_all:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to view this task.",
+            )
+
+        # Fetch buffered events from the persistent buffer
+        # Note: We query the sse_event_buffer table directly instead of relying on
+        # task.events_buffered flag, which may not be set if the task was created
+        # after events started being buffered (timing issue)
+        from ..repository.sse_event_buffer_repository import SSEEventBufferRepository
+        
+        buffer_repo = SSEEventBufferRepository()
+        
+        # Check if this task has buffered events by querying the buffer table directly
+        has_buffered = buffer_repo.has_unconsumed_events(db, task_id)
+        if not has_buffered:
+            # Also check for consumed events (already replayed but still stored)
+            event_count = buffer_repo.get_event_count(db, task_id)
+            if event_count == 0:
+                log.info("%sTask %s does not have buffered events", log_prefix, task_id)
+                return {
+                    "task_id": task_id,
+                    "events": [],
+                    "has_more": False,
+                    "events_buffered": False,
+                    "events_consumed": task.events_consumed or False,
+                }
+        
+        if mark_consumed:
+            # Get unconsumed events and mark them as consumed
+            # Note: We use task_id directly, not session_id, since session_id might not be set
+            events = buffer_repo.get_buffered_events(
+                db=db,
+                task_id=task_id,
+                mark_consumed=True,
+            )
+            
+            # The repository already marks events as consumed
+        else:
+            # Get all buffered events without marking as consumed
+            events = buffer_repo.get_buffered_events(
+                db=db,
+                task_id=task_id,
+                mark_consumed=False,
+            )
+
+        # events is already a list of dicts with keys: type, data, sequence
+        # Just pass them through, the format matches what frontend expects
+        log.info(
+            "%sReturning %d buffered events for task %s",
+            log_prefix,
+            len(events),
+            task_id,
+        )
+
+        # Commit the transaction to persist the consumed state
+        if mark_consumed and events:
+            db.commit()
+
+        return {
+            "task_id": task_id,
+            "events": events,
+            "has_more": False,
+            "events_buffered": len(events) > 0,
+            "events_consumed": mark_consumed and len(events) > 0,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError retrieving buffered events: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving buffered events.",
+        )
+
+
+@router.delete("/tasks/{task_id}/events/buffered", tags=["Tasks"])
+async def clear_buffered_task_events(
+    task_id: str,
+    request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+):
+    """
+    Clear all buffered SSE events for a task.
+    
+    This endpoint is used to clean up orphan buffered events without
+    triggering a chat_task save. Use cases:
+    1. Clean up leftover events when a chat_task already exists
+    2. Explicitly clear buffer without updating session modified time
+    
+    NOTE: Buffer cleanup also happens implicitly in save_task endpoint
+    (POST /sessions/{session_id}/chat-tasks), so this endpoint is only
+    needed when you want cleanup without a save operation.
+    
+    Returns:
+        JSON object with the number of events deleted
+    """
+    log_prefix = f"[DELETE /api/v1/tasks/{task_id}/events/buffered] "
+    log.debug("%sRequest from user %s to clear buffered events", log_prefix, user_id)
+
+    try:
+        # Get the SSE manager to access the persistent buffer
+        component: "WebUIBackendComponent" = get_sac_component()
+        
+        if component is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="WebUI backend component not available",
+            )
+        
+        sse_manager = component.sse_manager
+        persistent_buffer = sse_manager.get_persistent_buffer() if sse_manager else None
+        if persistent_buffer is None:
+            log.debug("%sPersistent buffer not available", log_prefix)
+            return {"deleted": 0, "message": "Persistent buffer not enabled"}
+        
+        # Verify user owns this task by checking the task's user_id in the buffer metadata
+        # or the task itself in the database
+        task_metadata = persistent_buffer.get_task_metadata(task_id)
+        if task_metadata:
+            task_user_id = task_metadata.get("user_id")
+            if task_user_id and task_user_id != user_id:
+                log.warning(
+                    "%sUser %s attempted to clear buffer for task %s owned by %s",
+                    log_prefix,
+                    user_id,
+                    task_id,
+                    task_user_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have permission to clear events for this task",
+                )
+        else:
+            # No metadata found, try to verify via database task record
+            from ..repository.task_repository import TaskRepository
+            
+            repo = TaskRepository()
+            task = repo.find_by_id(db, task_id)
+            if task and hasattr(task, 'user_id') and task.user_id:
+                if task.user_id != user_id:
+                    log.warning(
+                        "%sUser %s attempted to clear buffer for task %s owned by %s",
+                        log_prefix,
+                        user_id,
+                        task_id,
+                        task.user_id,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You do not have permission to clear events for this task",
+                    )
+        
+        # Delete all events for this task
+        deleted_count = persistent_buffer.delete_events_for_task(task_id)
+        
+        if deleted_count > 0:
+            log.info("%sDeleted %d buffered events for task %s", log_prefix, deleted_count, task_id)
+        
+        return {
+            "deleted": deleted_count,
+            "task_id": task_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError clearing buffered events: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while clearing buffered events.",
+        )
+
+
+@router.get("/tasks/{task_id}/title-data", tags=["Tasks"])
+async def get_task_title_data(
+    task_id: str,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+):
+    """
+    Extract user message and agent response from task for title generation.
+    
+    This endpoint extracts the first user message and final agent response from:
+    1. The Task table (initial_request_text for user message)
+    2. The SSE event buffer (final response for agent response)
+    
+    Used for background task title generation when the frontend was not watching.
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/title-data] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+    
+    try:
+        from ..repository.task_repository import TaskRepository
+        from ..repository.sse_event_buffer_repository import SSEEventBufferRepository
+        from ..repository.chat_task_repository import ChatTaskRepository
+        import json
+        
+        task_repo = TaskRepository()
+        buffer_repo = SSEEventBufferRepository()
+        chat_task_repo = ChatTaskRepository()
+        
+        # Get task for initial_request_text (user message) and session_id
+        task = task_repo.find_by_id(db, task_id)
+        if not task:
+            log.warning("%sTask %s not found", log_prefix, task_id)
+            return {
+                "user_message": None,
+                "agent_response": None,
+                "error": "Task not found"
+            }
+        
+        # Authorization: Verify user owns this task
+        if task.user_id and task.user_id != user_id:
+            log.warning(
+                "%sUser %s attempted to access title-data for task %s owned by %s",
+                log_prefix,
+                user_id,
+                task_id,
+                task.user_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this task's data",
+            )
+        
+        user_message = None
+        agent_response = None
+        
+        try:
+            chat_task = chat_task_repo.find_by_id(db, task_id, user_id)
+            if chat_task:
+                log.info("%sPrimary: Found chat_task for task %s", log_prefix, task_id)
+                
+                # Use the clean user_message from chat_task
+                user_message = chat_task.user_message
+                
+                # Extract agent response from message_bubbles
+                if chat_task.message_bubbles:
+                    bubbles = json.loads(chat_task.message_bubbles)
+                    for bubble in reversed(bubbles):  # Start from most recent
+                        if bubble.get("direction") == "agent" or bubble.get("sender") == "agent":
+                            # Look for text parts in the bubble
+                            parts = bubble.get("parts", [])
+                            for part in parts:
+                                if part.get("type") == "text" or part.get("kind") == "text":
+                                    text = part.get("text", "")
+                                    if text and len(text) > 10:
+                                        agent_response = text
+                                        break
+                            if agent_response:
+                                break
+                                
+                if user_message and agent_response:
+                    log.info("%sUsing chat_task data: user=%d chars, agent=%d chars",
+                             log_prefix, len(user_message), len(agent_response))
+        except Exception as e:
+            log.warning("%sError reading from chat_tasks: %s", log_prefix, e)
+        
+        # Fallback to task.initial_request_text if no user_message from chat_task
+        if not user_message:
+            user_message = task.initial_request_text
+        
+        # FALLBACK: SSE event buffer (if chat_task didn't have agent response)
+        # This handles cases where task completed but FE hasn't saved chat_task yet
+        if not agent_response:
+            try:
+                events = buffer_repo.get_buffered_events(db, task_id, mark_consumed=False)
+                log.info("%sFallback SSE buffer: Found %d buffered events for task %s", log_prefix, len(events), task_id)
+                
+                # Collect streaming text fragments from status-update events (agent_progress_update)
+                # In streaming mode, text is sent incrementally, not in the final task response
+                streaming_text_parts = []
+                
+                # Look for final "task" event with response text OR accumulate streaming text
+                for event in events:  # Process in sequence order for streaming text
+                    event_data = event.get("data", "")
+                    if isinstance(event_data, str):
+                        try:
+                            parsed = json.loads(event_data)
+                        except json.JSONDecodeError:
+                            continue
+                    else:
+                        parsed = event_data
+                    
+                    # Check if this is an SSE wrapper with nested data
+                    if "data" in parsed and isinstance(parsed.get("data"), str):
+                        try:
+                            inner_data = json.loads(parsed["data"])
+                            parsed = inner_data
+                        except json.JSONDecodeError:
+                            pass
+                        
+                    # Check for task response with text parts (non-streaming final response)
+                    result = parsed.get("result", {})
+                    if result.get("kind") == "task":
+                        task_data = result.get("task", {})
+                        artifacts = task_data.get("artifacts", [])
+                        for artifact in artifacts:
+                            parts = artifact.get("parts", [])
+                            for part in parts:
+                                if part.get("kind") == "text":
+                                    text = part.get("text", "")
+                                    if text and len(text) > 10:  # Meaningful response
+                                        agent_response = text
+                                        break
+                            if agent_response:
+                                break
+                        if agent_response:
+                            break
+                            
+                    # Collect streaming text from status updates (agent_progress_update)
+                    if result.get("kind") == "status-update":
+                        status_data = result.get("status", {})
+                        message = status_data.get("message", {})
+                        if message:
+                            parts = message.get("parts", [])
+                            for part in parts:
+                                if part.get("kind") == "text":
+                                    text = part.get("text", "")
+                                    if text:
+                                        streaming_text_parts.append(text)
+                                        
+                    # Also check for agent_progress_update type (direct SSE event type)
+                    if parsed.get("type") == "agent_progress_update":
+                        text = parsed.get("text", "")
+                        if text:
+                            streaming_text_parts.append(text)
+                
+                # If no bundled response, use accumulated streaming text
+                if not agent_response and streaming_text_parts:
+                    agent_response = "".join(streaming_text_parts)
+                    log.info("%sReconstructed agent response from %d streaming fragments (%d chars)",
+                             log_prefix, len(streaming_text_parts), len(agent_response))
+                        
+            except Exception as e:
+                log.warning("%sError extracting agent response from SSE buffer: %s", log_prefix, e)
+        
+        
+        log.info(
+            "%sExtracted title data: user_message=%s, agent_response=%s",
+            log_prefix,
+            "yes" if user_message else "no",
+            "yes" if agent_response else "no"
+        )
+        
+        return {
+            "user_message": user_message,
+            "agent_response": agent_response,
+            "task_id": task_id,
+            "session_id": task.session_id,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError extracting title data: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while extracting title data.",
         )
 
 
