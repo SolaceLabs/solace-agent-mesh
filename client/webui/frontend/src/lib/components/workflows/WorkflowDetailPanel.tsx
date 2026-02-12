@@ -49,7 +49,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
             <div className="flex items-center justify-between border-b px-4 py-3">
                 <div className="flex items-center gap-2">
                     <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
-                    <span className="font-medium">{workflow.displayName || workflow.name}</span>
+                    <span className="text-xl font-semibold">{workflow.displayName || workflow.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="ghost" onClick={onClose}>
@@ -64,6 +64,21 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                     {/* Workflow Details Section */}
                     <div className="bg-muted mb-4 flex flex-col gap-2 rounded-sm p-4">
                         <div className="text-base font-semibold">Workflow Details</div>
+                        {/* Version and Node Count in grid */}
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                            <div>
+                                <div className="text-muted-foreground mb-1 text-sm font-medium">Version</div>
+                                <div className="flex items-center gap-1 text-sm">
+                                    {workflow.version || "N/A"}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-muted-foreground mb-1 text-sm font-medium">Nodes</div>
+                                <div className="flex items-center gap-1 text-sm">
+                                    {nodeCount > 0 ? nodeCount : "N/A"}
+                                </div>
+                            </div>
+                        </div>
                         {/* Description without label */}
                         {description && (
                             <>
@@ -88,23 +103,6 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                             </>
                         )}
                         {!description && <div className="text-muted-foreground">No description available</div>}
-                        {/* Version and Node Count in grid */}
-                        <div className="grid grid-cols-2 gap-4 pt-2">
-                            <div>
-                                <div className="text-muted-foreground mb-1 text-sm font-medium">Version</div>
-                                <div className="flex items-center gap-1 text-sm">
-                                    <GitMerge size={14} className="text-muted-foreground" />
-                                    {workflow.version || "N/A"}
-                                </div>
-                            </div>
-                            <div>
-                                <div className="text-muted-foreground mb-1 text-sm font-medium">Nodes</div>
-                                <div className="flex items-center gap-1 text-sm">
-                                    <Workflow size={14} className="text-muted-foreground" />
-                                    {nodeCount > 0 ? nodeCount : "N/A"}
-                                </div>
-                            </div>
-                        </div>
                         {/* Open Workflow button inside details box */}
                         {showOpenButton && (
                             <Button variant="outline" size="sm" onClick={handleOpenWorkflow} className="mt-2 w-full">
