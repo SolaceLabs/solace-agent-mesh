@@ -915,19 +915,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 raise
 
             except A2AClientHTTPError as e:
-                error_str = str(e)
-
                 # Step 4: Check for 401 errors FIRST (they need retry logic)
-                is_401_error = False
-
-                # Check if this is directly a 401
-                if hasattr(e, "status_code") and e.status_code == 401:
-                    is_401_error = True
-                # Check error string for 401 indicators
-                elif "401" in error_str or "Unauthorized" in error_str:
-                    is_401_error = True
-
-                if is_401_error and auth_retry_count < max_auth_retries:
+                if self._is_401_error(e) and auth_retry_count < max_auth_retries:
                     log.warning(
                         "%s Received 401 Unauthorized from agent '%s' (detected from error: %s). Attempting token refresh (retry %d/%d).",
                         log_identifier,
@@ -946,6 +935,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
                 # Step 5: Check for SSE Content-Type errors on first attempt
                 # These include 307 redirects, 401 auth errors, and endpoint misconfigurations
+                error_str = str(e)
                 is_sse_content_type_error = (
                     "Content-Type" in error_str and
                     "text/event-stream" in error_str and
@@ -954,34 +944,10 @@ class A2AProxyComponent(BaseProxyComponent):
                 )
 
                 if is_sse_content_type_error:
-                    # Provide user-friendly error explaining common causes
-                    from ....common.a2a import create_error_response
-
-                    error_msg = (
-                        f"The agent '{agent_name}' endpoint did not return a valid SSE streaming response. "
-                        f"Common causes: (1) HTTP 307/308 redirects are not supported, "
-                        f"(2) authentication failure (HTTP 401), "
-                        f"(3) the endpoint is misconfigured or not an A2A streaming endpoint, "
-                        f"or (4) the agent is unavailable. "
-                        f"Please verify the agent endpoint URL and authentication configuration."
+                    await self._handle_sse_content_type_error(
+                        agent_name, task_context, log_identifier
                     )
-                    log.error("%s %s", log_identifier, error_msg)
-
-                    error = InternalError(
-                        message=error_msg,
-                        data={"agent_name": agent_name}
-                    )
-                    reply_topic = task_context.a2a_context.get("reply_to_topic")
-                    if reply_topic:
-                        response = create_error_response(
-                            error=error,
-                            request_id=task_context.a2a_context.get("jsonrpc_request_id")
-                        )
-                        self._publish_a2a_message(
-                            response.model_dump(exclude_none=True),
-                            reply_topic
-                        )
-                    break  # Exit retry loop - not retryable
+                    break
 
                 # Not a retryable auth error, or max retries exceeded
                 log.exception(
@@ -1014,6 +980,72 @@ class A2AProxyComponent(BaseProxyComponent):
             if reply_topic:
                 response = create_error_response(error=error, request_id=task_context.a2a_context.get("jsonrpc_request_id"))
                 self._publish_a2a_message(response.model_dump(exclude_none=True), reply_topic)
+
+    def _is_401_error(self, error: A2AClientHTTPError) -> bool:
+        """
+        Check if an A2AClientHTTPError represents a 401 Unauthorized error.
+        
+        Args:
+            error: The HTTP error to check
+            
+        Returns:
+            True if this is a 401 error, False otherwise
+        """
+        # Check if this is directly a 401
+        if hasattr(error, "status_code") and error.status_code == 401:
+            return True
+        
+        # Check error string for 401 indicators
+        error_str = str(error)
+        if "401" in error_str or "Unauthorized" in error_str:
+            return True
+            
+        return False
+
+    async def _handle_sse_content_type_error(
+        self,
+        agent_name: str,
+        task_context: ProxyTaskContext,
+        log_identifier: str
+    ) -> None:
+        """
+        Handle SSE Content-Type errors by providing user-friendly error messages.
+        
+        These errors occur when the agent endpoint returns an invalid Content-Type
+        for SSE streaming (e.g., due to 307 redirects, 401 auth errors, or
+        endpoint misconfigurations).
+        
+        Args:
+            agent_name: Name of the agent being called
+            task_context: Current task context
+            log_identifier: Log prefix for consistent logging
+        """
+        from ....common.a2a import create_error_response
+
+        error_msg = (
+            f"The agent '{agent_name}' endpoint did not return a valid SSE streaming response. "
+            f"Common causes: (1) HTTP 307/308 redirects are not supported, "
+            f"(2) authentication failure (HTTP 401), "
+            f"(3) the endpoint is misconfigured or not an A2A streaming endpoint, "
+            f"or (4) the agent is unavailable. "
+            f"Please verify the agent endpoint URL and authentication configuration."
+        )
+        log.error("%s %s", log_identifier, error_msg)
+
+        error = InternalError(
+            message=error_msg,
+            data={"agent_name": agent_name}
+        )
+        reply_topic = task_context.a2a_context.get("reply_to_topic")
+        if reply_topic:
+            response = create_error_response(
+                error=error,
+                request_id=task_context.a2a_context.get("jsonrpc_request_id")
+            )
+            self._publish_a2a_message(
+                response.model_dump(exclude_none=True),
+                reply_topic
+            )
 
     async def _handle_auth_error(
         self, agent_name: str, task_context: ProxyTaskContext
