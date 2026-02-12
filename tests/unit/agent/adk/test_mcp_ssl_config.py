@@ -142,3 +142,13 @@ class TestCreateSslHttpxClientFactory:
         client = factory()
 
         assert client.follow_redirects is True
+
+    def test_factory_passes_auth(self):
+        """Test that auth is passed to the client."""
+        config = SslConfig()
+        factory = create_ssl_httpx_client_factory(config)
+        auth = httpx.BasicAuth(username="user", password="pass")
+        client = factory(auth=auth)
+
+        assert client._auth is not None
+        assert isinstance(client._auth, httpx.BasicAuth)
