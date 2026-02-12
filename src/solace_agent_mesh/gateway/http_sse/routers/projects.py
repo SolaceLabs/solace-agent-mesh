@@ -481,12 +481,7 @@ async def add_project_artifacts(
             log.info(f"Started background indexing task {task_id} for project {project_id}")
 
             return {
-                "uploaded": results,
-                "task": {
-                    "id": task_id,
-                    "status": "processing",
-                    "sse_url": f"/api/v1/sse/subscribe/{task_id}"
-                }
+                "uploaded": results
             }
         else:
             # Synchronous blocking mode - process now
@@ -713,10 +708,7 @@ async def delete_project_artifact(
             loop.create_task(
                 indexing_task_service.rebuild_index_after_delete_async(
                     task_id=task_id,
-                    project=project,
-                    deleted_file=filename,
-                    was_text_file=was_text_file,
-                    was_convertible=was_convertible
+                    project=project
                 )
             )
 
@@ -724,12 +716,7 @@ async def delete_project_artifact(
 
             return {
                 "deleted": True,
-                "filename": filename,
-                "task": {
-                    "id": task_id,
-                    "status": "processing",
-                    "sse_url": f"/api/v1/sse/subscribe/{task_id}"
-                }
+                "filename": filename
             }
         else:
             # Synchronous blocking mode - rebuild now
@@ -1099,19 +1086,13 @@ async def import_project(
 
             log.info(f"Started background indexing task {task_id} for imported project {project.id}")
 
-            # Return response with task info (status code changed to 202)
-            # Note: response_model=ProjectImportResponse may need updating to include optional task field
-            return {
-                "project_id": project.id,
-                "name": project.name,
-                "artifacts_imported": artifacts_count,
-                "warnings": warnings,
-                "task": {
-                    "id": task_id,
-                    "status": "processing",
-                    "sse_url": f"/api/v1/sse/subscribe/{task_id}"
-                }
-            }
+            # Return response (status code changed to 202)
+            return ProjectImportResponse(
+                project_id=project.id,
+                name=project.name,
+                artifacts_imported=artifacts_count,
+                warnings=warnings,
+            )
         else:
             # Synchronous blocking mode - process now
             log.info(f"Processing imported project {project.id} synchronously")

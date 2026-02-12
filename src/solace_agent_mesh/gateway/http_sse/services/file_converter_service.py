@@ -397,7 +397,7 @@ async def convert_and_save_artifact(
     source_filename: str,
     source_version: int,
     mime_type: str
-) -> Optional[dict]:
+) -> dict:
     """
     Load source artifact, convert to text, and save as new artifact.
 
@@ -414,17 +414,20 @@ async def convert_and_save_artifact(
         mime_type: MIME type of the source file
 
     Returns:
-        Save result dict or None if conversion not needed/failed
-
-    Raises:
-        ValueError: If conversion fails
+        Result dict with status:
+        - Success: {"status": "success", "data_version": int, ...}
+        - Error: {"status": "error", "error": "descriptive error message"}
+        - Not convertible: {"status": "skipped", "reason": "MIME type not supported"}
     """
     log_prefix = f"[FileConverter:{source_filename}:v{source_version}]"
 
     # Check if file should be converted
     if not should_convert_file(mime_type, source_filename):
         log.debug(f"{log_prefix} MIME type {mime_type} not convertible, skipping")
-        return None
+        return {
+            "status": "skipped",
+            "reason": f"MIME type {mime_type} is not supported for conversion"
+        }
 
     log.info(f"{log_prefix} Starting conversion for {mime_type}")
 
@@ -447,63 +450,86 @@ async def convert_and_save_artifact(
         )
 
         if source_result.get("status") != "success":
-            log.error(f"{log_prefix} Failed to load source artifact: {source_result.get('message')}")
-            return None
+            error_msg = f"Failed to load source file '{source_filename}': {source_result.get('message', 'Unknown error')}"
+            log.error(f"{log_prefix} {error_msg}")
+            return {"status": "error", "error": error_msg}
 
         source_bytes = source_result.get("raw_bytes")
         if not source_bytes:
-            log.error(f"{log_prefix} Source artifact has no content")
-            return None
+            error_msg = f"Source file '{source_filename}' has no content"
+            log.error(f"{log_prefix} {error_msg}")
+            return {"status": "error", "error": error_msg}
 
         # 2. Detect type and call appropriate converter (in-memory processing)
-        if mime_type == "application/pdf":
-            text, conversion_metadata = convert_pdf_to_text(source_bytes)
-        elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            text, conversion_metadata = convert_docx_to_text(source_bytes)
-        elif mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-            text, conversion_metadata = convert_pptx_to_text(source_bytes)
-        else:
-            log.warning(f"{log_prefix} Unsupported MIME type: {mime_type}")
-            return None
+        try:
+            if mime_type == "application/pdf":
+                text, conversion_metadata = convert_pdf_to_text(source_bytes)
+            elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                text, conversion_metadata = convert_docx_to_text(source_bytes)
+            elif mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+                text, conversion_metadata = convert_pptx_to_text(source_bytes)
+            else:
+                error_msg = f"Unsupported MIME type for conversion: {mime_type}"
+                log.warning(f"{log_prefix} {error_msg}")
+                return {"status": "error", "error": error_msg}
+        except ValueError as e:
+            # Conversion-specific errors (corrupted files, password-protected, etc.)
+            file_type = mime_type.split('/')[-1].upper().replace('APPLICATION/VND.OPENXMLFORMATS-OFFICEDOCUMENT.', '')
+            error_msg = f"Failed to convert {file_type} '{source_filename}': {str(e)}"
+            log.error(f"{log_prefix} Conversion error: {e}")
+            return {"status": "error", "error": error_msg}
+        except Exception as e:
+            # Unexpected errors during conversion
+            error_msg = f"Unexpected error converting '{source_filename}': {str(e)}"
+            log.exception(f"{log_prefix} {error_msg}")
+            return {"status": "error", "error": error_msg}
 
         # 3. Generate converted filename
         converted_filename = f"{source_filename}.converted.txt"
 
         # 4. Save using artifact service (works with S3/GCS/filesystem)
         # CRITICAL: source_version matches converted version (both created in same operation)
-        result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=converted_filename,
-            content_bytes=text.encode('utf-8'),
-            mime_type="text/plain",
-            metadata_dict={
-                "source": "conversion",
-                "conversion": {
-                    "source_file": source_filename,
-                    "source_version": source_version,  # Matches converted file version
-                    **conversion_metadata
-                }
-            },
-            timestamp=datetime.now(timezone.utc)
-        )
+        try:
+            result = await save_artifact_with_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=converted_filename,
+                content_bytes=text.encode('utf-8'),
+                mime_type="text/plain",
+                metadata_dict={
+                    "source": "conversion",
+                    "conversion": {
+                        "source_file": source_filename,
+                        "source_version": source_version,  # Matches converted file version
+                        **conversion_metadata
+                    }
+                },
+                timestamp=datetime.now(timezone.utc)
+            )
 
-        log.info(
-            f"{log_prefix} Converted to {converted_filename} v{result.get('data_version')} "
-            f"({conversion_metadata.get('char_count')} chars, "
-            f"{len(conversion_metadata.get('citation_map', []))} citations)"
-        )
+            if result.get("status") != "success":
+                error_msg = f"Failed to save converted file '{converted_filename}': {result.get('status_message', 'Unknown error')}"
+                log.error(f"{log_prefix} {error_msg}")
+                return {"status": "error", "error": error_msg}
 
-        return result
+            log.info(
+                f"{log_prefix} Converted to {converted_filename} v{result.get('data_version')} "
+                f"({conversion_metadata.get('char_count')} chars, "
+                f"{len(conversion_metadata.get('citation_map', []))} citations)"
+            )
 
-    except ValueError as e:
-        # Conversion-specific errors
-        log.error(f"{log_prefix} Conversion error: {e}")
-        return None
+            return result
+
+        except Exception as e:
+            # Errors during save operation
+            error_msg = f"Failed to save converted file '{converted_filename}': {str(e)}"
+            log.exception(f"{log_prefix} {error_msg}")
+            return {"status": "error", "error": error_msg}
 
     except Exception as e:
-        # Unexpected errors
-        log.exception(f"{log_prefix} Unexpected error during conversion: {e}")
-        return None
+        # Catch-all for any errors not caught by inner try/except blocks
+        error_msg = f"Unexpected error in conversion pipeline for '{source_filename}': {str(e)}"
+        log.exception(f"{log_prefix} {error_msg}")
+        return {"status": "error", "error": error_msg}
