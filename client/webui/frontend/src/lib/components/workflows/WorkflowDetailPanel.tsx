@@ -122,7 +122,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                                     role="tab"
                                     aria-selected={activeTab === "input"}
                                     onClick={() => setActiveTab("input")}
-                                    className={`relative px-4 py-2 font-medium transition-colors ${
+                                    className={`relative cursor-pointer px-4 py-2 font-medium transition-colors ${
                                         activeTab === "input"
                                             ? "border-b-2 border-(--color-brand-wMain) font-semibold"
                                             : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
@@ -134,7 +134,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                                     role="tab"
                                     aria-selected={activeTab === "output"}
                                     onClick={() => setActiveTab("output")}
-                                    className={`relative px-4 py-2 font-medium transition-colors ${
+                                    className={`relative cursor-pointer px-4 py-2 font-medium transition-colors ${
                                         activeTab === "output"
                                             ? "border-b-2 border-(--color-brand-wMain) font-semibold"
                                             : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
