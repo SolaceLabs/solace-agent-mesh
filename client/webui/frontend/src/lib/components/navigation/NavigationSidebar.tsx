@@ -1,42 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import {
-    Plus,
-    Bot,
-    FolderOpen,
-    BookOpenText,
-    ChevronDown,
-    ChevronUp,
-    ChevronLeft,
-    ChevronRight,
-    Bell,
-    User,
-    LayoutGrid,
-    Settings,
-    UserCircle,
-    BarChart3,
-    CreditCard,
-    Sun,
-    Moon,
-    Mic,
-    Volume2,
-    Languages,
-    HelpCircle,
-    FileText,
-    GraduationCap,
-    Github,
-    Info,
-} from "lucide-react";
+import { Plus, Bot, FolderOpen, BookOpenText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Bell, User, LayoutGrid, Settings, LogOut } from "lucide-react";
 
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
-import { useChatContext, useConfigContext, useThemeContext } from "@/lib/hooks";
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { useChatContext, useConfigContext, useAuthContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
-import { STTSettingsDialog } from "@/lib/components/settings/STTSettingsDialog";
-import { TTSSettingsDialog } from "@/lib/components/settings/TTSSettingsDialog";
-import { AboutDialog } from "@/lib/components/settings/AboutDialog";
+import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { api } from "@/lib/api";
@@ -115,6 +87,7 @@ interface NavigationSidebarProps {
 }
 
 export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, isCollapsed = false, onNavigate, additionalSystemManagementItems, additionalNavItems = [] }) => {
+    const { logout } = useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();
     const [activeItem, setActiveItem] = useState<string>("chats");
@@ -122,18 +95,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
         assets: false,
         systemManagement: false,
     });
-    const { currentTheme, toggleTheme } = useThemeContext();
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
-    const [isSTTSettingsOpen, setIsSTTSettingsOpen] = useState(false);
-    const [isTTSSettingsOpen, setIsTTSSettingsOpen] = useState(false);
-    const [isAboutDialogOpen, setIsAboutDialogOpen] = useState(false);
+    const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const { handleNewSession, addNotification } = useChatContext();
-    const { configFeatureEnablement } = useConfigContext();
+    const { configUseAuthorization, configFeatureEnablement } = useConfigContext();
     const { projects } = useProjectContext();
 
     // Feature flags
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
+    const logoutEnabled = configUseAuthorization && configFeatureEnablement?.logout ? true : false;
 
     // Sync active item with current route
     useEffect(() => {
@@ -423,79 +394,14 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
                         <Button variant="ghost" className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]" tooltip="Notifications">
                             <Bell className="size-6" />
                         </Button>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]" tooltip="Account">
-                                    <User className="size-6" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="center" side="right" className="w-56">
-                                <DropdownMenuItem className="cursor-pointer">
-                                    <UserCircle className="mr-2 size-4" />
-                                    Profile
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer">
-                                    <BarChart3 className="mr-2 size-4" />
-                                    Personal Stats
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer">
-                                    <CreditCard className="mr-2 size-4" />
-                                    Account
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="cursor-pointer" onClick={toggleTheme}>
-                                    {currentTheme === "dark" ? (
-                                        <>
-                                            <Sun className="mr-2 size-4" />
-                                            Light Mode
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Moon className="mr-2 size-4" />
-                                            Dark Mode
-                                        </>
-                                    )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer" onClick={() => setIsSTTSettingsOpen(true)}>
-                                    <Mic className="mr-2 size-4" />
-                                    Voice to Text
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer" onClick={() => setIsTTSSettingsOpen(true)}>
-                                    <Volume2 className="mr-2 size-4" />
-                                    Text to Voice
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer">
-                                    <Languages className="mr-2 size-4" />
-                                    Language Settings
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>
-                                        <HelpCircle className="mr-2 size-4" />
-                                        Help & Documentation
-                                    </DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        <DropdownMenuItem className="cursor-pointer" onClick={() => window.open("https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/", "_blank")}>
-                                            <FileText className="mr-2 size-4" />
-                                            Documentation
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="cursor-pointer">
-                                            <GraduationCap className="mr-2 size-4" />
-                                            Tutorials
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="cursor-pointer" onClick={() => window.open("https://github.com/SolaceLabs/solace-agent-mesh", "_blank")}>
-                                            <Github className="mr-2 size-4" />
-                                            Github
-                                        </DropdownMenuItem>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="cursor-pointer" onClick={() => setIsAboutDialogOpen(true)}>
-                                    <Info className="mr-2 size-4" />
-                                    About
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]" tooltip="Settings">
+                            <User className="size-6" />
+                        </Button>
+                        {logoutEnabled && (
+                            <Button variant="ghost" onClick={async () => await logout()} className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]" tooltip="Log Out">
+                                <LogOut className="size-6" />
+                            </Button>
+                        )}
                     </div>
                 </>
             ) : (
@@ -584,82 +490,20 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
                             </div>
                             <span className="text-[var(--color-secondary-text-w50)]">Notifications</span>
                         </Button>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
-                                    <div className="mr-2 flex size-8 items-center justify-center rounded">
-                                        <User className="size-6 text-[var(--color-secondary-wMain)]" />
-                                    </div>
-                                    <span className="text-[var(--color-secondary-text-w50)]">User Account</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" side="top" className="w-56">
-                                <DropdownMenuItem className="cursor-pointer">
-                                    <UserCircle className="mr-2 size-4" />
-                                    Profile
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer">
-                                    <BarChart3 className="mr-2 size-4" />
-                                    Personal Stats
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer">
-                                    <CreditCard className="mr-2 size-4" />
-                                    Account
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="cursor-pointer" onClick={toggleTheme}>
-                                    {currentTheme === "dark" ? (
-                                        <>
-                                            <Sun className="mr-2 size-4" />
-                                            Light Mode
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Moon className="mr-2 size-4" />
-                                            Dark Mode
-                                        </>
-                                    )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer" onClick={() => setIsSTTSettingsOpen(true)}>
-                                    <Mic className="mr-2 size-4" />
-                                    Voice to Text
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer" onClick={() => setIsTTSSettingsOpen(true)}>
-                                    <Volume2 className="mr-2 size-4" />
-                                    Text to Voice
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="cursor-pointer">
-                                    <Languages className="mr-2 size-4" />
-                                    Language Settings
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>
-                                        <HelpCircle className="mr-2 size-4" />
-                                        Help & Documentation
-                                    </DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        <DropdownMenuItem className="cursor-pointer" onClick={() => window.open("https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/", "_blank")}>
-                                            <FileText className="mr-2 size-4" />
-                                            Documentation
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="cursor-pointer">
-                                            <GraduationCap className="mr-2 size-4" />
-                                            Tutorials
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="cursor-pointer" onClick={() => window.open("https://github.com/SolaceLabs/solace-agent-mesh", "_blank")}>
-                                            <Github className="mr-2 size-4" />
-                                            Github
-                                        </DropdownMenuItem>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="cursor-pointer" onClick={() => setIsAboutDialogOpen(true)}>
-                                    <Info className="mr-2 size-4" />
-                                    About
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
+                            <div className="mr-2 flex size-8 items-center justify-center rounded">
+                                <User className="size-6 text-[var(--color-secondary-wMain)]" />
+                            </div>
+                            <span className="text-[var(--color-secondary-text-w50)]">User Account</span>
+                        </Button>
+                        {logoutEnabled && (
+                            <Button variant="ghost" onClick={async () => await logout()} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
+                                <div className="mr-2 flex size-8 items-center justify-center rounded">
+                                    <LogOut className="size-6 text-[var(--color-secondary-wMain)]" />
+                                </div>
+                                <span className="text-[var(--color-secondary-text-w50)]">Log Out</span>
+                            </Button>
+                        )}
                     </div>
                 </>
             )}
@@ -677,14 +521,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
                 currentProjectId={sessionToMove?.projectId}
             />
 
-            {/* STT Settings Dialog */}
-            <STTSettingsDialog open={isSTTSettingsOpen} onOpenChange={setIsSTTSettingsOpen} />
-
-            {/* TTS Settings Dialog */}
-            <TTSSettingsDialog open={isTTSSettingsOpen} onOpenChange={setIsTTSSettingsOpen} />
-
-            {/* About Dialog */}
-            <AboutDialog open={isAboutDialogOpen} onOpenChange={setIsAboutDialogOpen} />
+            {/* Settings Dialog */}
+            <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
         </aside>
     );
 };
