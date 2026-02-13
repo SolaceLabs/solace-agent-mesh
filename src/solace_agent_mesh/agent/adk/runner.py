@@ -19,13 +19,11 @@ class TaskCancelledError(Exception):
 from typing import TYPE_CHECKING, Any
 
 from google.adk.agents import RunConfig
-from google.adk.agents.run_config import StreamingMode
 from google.adk.events import Event as ADKEvent
 from google.adk.events.event_actions import EventActions
 from google.adk.sessions import Session as ADKSession
 from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.genai import types as adk_types
-from a2a.types import TaskState
 
 from ...common import a2a
 
@@ -35,10 +33,44 @@ log = logging.getLogger(__name__)
 # Set SAM_ENABLE_AUTO_SUMMARIZATION=false to disable
 ENABLE_AUTO_SUMMARIZATION = os.getenv("SAM_ENABLE_AUTO_SUMMARIZATION", "true").lower() == "true"
 
-# Test mode: Trigger compaction after N user turns (for testing without burning tokens)
-# Set SAM_TEST_COMPACTION_AFTER_TURNS=4 to trigger compaction after 4 user messages
+
+# Trigger compaction after N user turns (for testing without burning tokens)
+# Set SAM_FORCE_COMPACTION_TURN_THRESHOLD=4 to trigger compaction after 4 user messages
 # Set to 0 (default) to disable test mode and use real context limits
-TEST_COMPACTION_TURN_THRESHOLD = int(os.getenv("SAM_TEST_COMPACTION_AFTER_TURNS", "0"))
+FORCE_COMPACTION_TURN_THRESHOLD = int(os.getenv("SAM_FORCE_COMPACTION_TURN_THRESHOLD", "0"))
+
+# Per-session locks for compaction to prevent parallel tasks from duplicate summarization
+# When multiple tasks hit context limit simultaneously, only one compacts per session
+# Others wait for the lock, then retry with the compacted session (no redundant work)
+# TTL cache prevents memory leak: locks expire after 1 hour of inactivity
+try:
+    from cachetools import TTLCache
+    _compaction_locks: TTLCache = TTLCache(maxsize=10000, ttl=3600)
+except ImportError:
+    # TODO add proper LLTCache dep Fallback to regular dict if cachetools not available (will leak memory over time)
+    log.warning("cachetools not installed - compaction locks will not expire (memory leak)")
+    _compaction_locks: dict[str, asyncio.Lock] = {}
+_compaction_locks_mutex = asyncio.Lock()
+
+
+async def _get_compaction_lock(session_id: str) -> asyncio.Lock:
+    """
+    Get or create an asyncio.Lock for the given session_id.
+
+    Ensures only one task per session can perform compaction at a time.
+    When multiple parallel tasks hit context limits, they coordinate via this lock.
+
+    Args:
+        session_id: The ADK session ID
+
+    Returns:
+        asyncio.Lock instance for this session
+    """
+    async with _compaction_locks_mutex:
+        if session_id not in _compaction_locks:
+            _compaction_locks[session_id] = asyncio.Lock()
+        return _compaction_locks[session_id]
+
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
@@ -122,69 +154,133 @@ def _count_user_turns(events: list[ADKEvent]) -> int:
     return sum(1 for e in events if e.author == 'user' and e.content)
 
 
-async def _summarize_and_replace_oldest_turns(
+async def _create_compaction_event(
     component: "SamAgentComponent",
     session: ADKSession,
     num_turns_to_summarize: int = 2,
     log_identifier: str = ""
-) -> tuple[int, str, ADKSession]:
+) -> tuple[int, str]:
     """
-    Summarize the oldest N user turns using ADK's compaction mechanism.
+    Create a compaction event summarizing the oldest N user turns.
 
-    Uses LlmEventSummarizer to create properly formatted compaction events that:
-    1. Get persisted to DB via session_service.append_event()
-    2. Contain timestamp ranges to identify which events they replace
-    3. Are understood by ADK's prompt builder to skip compacted events
-    4. Reload session from DB to get fresh state with compaction included
+    CRITICAL: Progressive Summarization via "Fake Event" Trick
+    - Extracts previous summary (if exists)
+    - Creates fake event (no .actions.compaction) from old summary
+    - Passes [FakeSummaryEvent, NewTurn1, NewTurn2] to LlmEventSummarizer
+    - LLM re-compresses: new_summary = compress(old_summary + new_turns)
+    - Result: Summary size stays bounded, not growing infinitely
 
-    This dramatically reduces token count while preserving conversation context.
-    Typically achieves 50:1 to 100:1 compression ratio.
-
-    Args:
-        component: The SamAgentComponent instance
-        session: The ADK session to truncate
-        num_turns_to_summarize: Number of oldest user turns to summarize (default: 2)
-        log_identifier: Logging prefix
+    This function does NOT modify the session - it only creates and persists
+    a compaction event to DB. Actual event filtering happens via FilteringSessionService
+    when session is reloaded from DB.
 
     Returns:
-        Tuple of (events_removed_count, summary_text, fresh_session)
+        Tuple of (events_compacted_count, summary_text, original_session)
+        Note: Returns the ORIGINAL session unchanged, not a reloaded one
     """
     if not session or not session.events:
-        return 0, "", session
+        return 0, ""
 
-    # 1. Filter out existing compaction events and separate by author
-    non_compaction_events = [
-        e for e in session.events
-        if not (e.actions and e.actions.compaction)
-    ]
+    # 1. Extract compaction event (if exists) and other events separately
+    latest_compaction = None
+    non_compaction_events = []
 
+    for event in session.events:
+        if event.actions and event.actions.compaction:
+            latest_compaction = event
+        else:
+            non_compaction_events.append(event)
+
+    # Separate system vs conversation events
     conversation_events = [e for e in non_compaction_events if e.author != "system"]
 
-    # 2. Find user turn boundaries
-    user_indices = [i for i, e in enumerate(conversation_events) if e.author == "user"]
+    # CRITICAL: Progressive Summarization via "Fake Event"
+    # LlmEventSummarizer intelligently SKIPS events with .actions.compaction
+    # So we create a FAKE event (no .actions.compaction) containing the old summary
+    # This tricks LlmEventSummarizer into re-summarizing the old summary + new turns
+    # Result: summary stays bounded, not growing infinitely
+    if latest_compaction:
+        # Extract previous summary text
+        previous_summary_text = ""
+        if hasattr(latest_compaction, 'content') and latest_compaction.content and latest_compaction.content.parts:
+            for part in latest_compaction.content.parts:
+                if part.text:
+                    previous_summary_text = part.text
+                    break
 
-    if len(user_indices) <= num_turns_to_summarize:
+        if previous_summary_text:
+            # Create fake event that looks like normal conversation (no .actions.compaction)
+            # CRITICAL: Don't set actions.compaction - this is what tricks LlmEventSummarizer
+            fake_summary_event = ADKEvent(
+                invocation_id="progressive_summary_fake_event",
+                author="model",  # Summary is from AI's perspective
+                content=adk_types.Content(
+                    role="model",
+                    parts=[adk_types.Part(text=previous_summary_text)]
+                )
+            )
+            # Prepend fake event so LlmEventSummarizer re-summarizes old summary + new turns
+            conversation_events = [fake_summary_event] + conversation_events
+
+            log.info(
+                "%s Progressive summarization: Created fake event with previous summary (%d chars) to trick LlmEventSummarizer",
+                log_identifier,
+                len(previous_summary_text)
+            )
+        else:
+            log.warning(
+                "%s Previous compaction event exists but has no summary text - cannot do progressive summarization!",
+                log_identifier
+            )
+
+    # 2. Find user turn boundaries (count ONLY real user messages, not compaction)
+    user_indices = [
+        i for i, e in enumerate(conversation_events)
+        if e.author == "user" and not (e.actions and e.actions.compaction)
+    ]
+
+    if len(user_indices) < num_turns_to_summarize:
         log.warning(
             "%s Not enough user turns to summarize (%d available, %d requested)",
             log_identifier,
             len(user_indices),
             num_turns_to_summarize
         )
-        return 0, "", session
+        return 0, ""
 
-    # 3. Extract turns to summarize (from start to Nth user turn)
-    cutoff_idx = user_indices[num_turns_to_summarize]
+    # 3. Extract turns to summarize:
+    # A "turn" = user message + model response (complete interaction)
+    # We want to include N complete turns, which means:
+    # - All events up to (but NOT including) the (N+1)th user message
+    # - OR all events if there's no (N+1)th user message
+    if num_turns_to_summarize < len(user_indices):
+        # There's a next user turn after the ones we're summarizing
+        # Include everything BEFORE that next user turn
+        cutoff_idx = user_indices[num_turns_to_summarize]
+    else:
+        # No next user turn - include all remaining events
+        cutoff_idx = len(conversation_events)
+
     events_to_compact = conversation_events[:cutoff_idx]
 
     if not events_to_compact:
-        return 0, "", session
+        return 0, ""
 
-    log.info(
-        "%s Compacting %d events (first %d user turns) using LlmEventSummarizer...",
-        log_identifier,
-        len(events_to_compact),
-        num_turns_to_summarize
-    )
+    if latest_compaction:
+        log.info(
+            "%s Compacting %d events: [PREVIOUS_SUMMARY + %d new events (%d user turns)]",
+            log_identifier,
+            len(events_to_compact),
+            len(events_to_compact) - 1,  # -1 for compaction event
+            num_turns_to_summarize
+        )
+    else:
+        log.info(
+            "%s Compacting %d events (first %d user turns) - no previous summary",
+            log_identifier,
+            len(events_to_compact),
+            num_turns_to_summarize
+        )
 
     # 4. Use ADK's LlmEventSummarizer to create compaction event
     try:
@@ -193,12 +289,14 @@ async def _summarize_and_replace_oldest_turns(
 
         if not compaction_event:
             log.error("%s LlmEventSummarizer returned no compaction event", log_identifier)
-            return 0, "", session
+            return 0, ""
 
         # Extract summary text from compaction event for notification
         summary_text = ""
+
         if compaction_event.actions and compaction_event.actions.compaction:
             compacted_content = compaction_event.actions.compaction.compacted_content
+
             if compacted_content and compacted_content.parts:
                 for part in compacted_content.parts:
                     if part.text:
@@ -211,7 +309,7 @@ async def _summarize_and_replace_oldest_turns(
 
     except Exception as e:
         log.error("%s Failed to create compaction event: %s", log_identifier, e, exc_info=True)
-        return 0, "", session
+        return 0, ""
 
     # 5. Persist compaction event to database
     #    We don't reload the session here - ADK will reload from DB on retry anyway
@@ -236,7 +334,7 @@ async def _summarize_and_replace_oldest_turns(
         )
 
         log.debug(
-            "%s Compaction event persisted to DB. ADK will reload session on retry.",
+            "%s Compaction event persisted to DB. ADK will reload session.",
             log_identifier
         )
 
@@ -259,7 +357,7 @@ async def _summarize_and_replace_oldest_turns(
         max(1, sum(len(str(e.content)) for e in events_to_compact if e.content) // max(1, len(summary_text)))
     )
 
-    return len(events_to_compact), summary_text, session  # Return original session - ADK reloads from DB on retry
+    return len(events_to_compact), summary_text
 
 
 async def _send_truncation_notification(
@@ -267,10 +365,14 @@ async def _send_truncation_notification(
     a2a_context: dict,
     summary: str,
     is_background: bool = False,
-    log_identifier: str = ""
+    log_identifier: str = "",
+    session: ADKSession = None
 ):
     """
     Send a status update to the user notifying them that conversation was summarized.
+
+    Uses deduplication to prevent spam when multiple parallel tasks hit context limits.
+    Only sends notification once per 120 seconds per session.
 
     Args:
         component: The SamAgentComponent instance
@@ -278,22 +380,45 @@ async def _send_truncation_notification(
         summary: The summary text that replaced the old turns
         is_background: True if this is a background task, False if interactive
         log_identifier: Logging prefix
+        session: The ADK session (for deduplication tracking)
     """
     try:
+        import time
+
+        # Deduplication: Only notify once per 120 seconds per session
+        # This prevents spam when multiple parallel background jobs hit context limit
+        if session:
+            last_notification_time = session.state.get('last_compaction_notification_time', 0)
+            time_since_last = time.time() - last_notification_time
+
+            if time_since_last < 120:
+                log.info(
+                    "%s Skipping notification (sent %.1f seconds ago, cooldown: 120s)",
+                    log_identifier,
+                    time_since_last
+                )
+                return
+
+            # Update timestamp to prevent spam from parallel tasks
+            session.state['last_compaction_notification_time'] = time.time()
         logical_task_id = a2a_context.get("logical_task_id", "unknown")
 
         # Different messages for background vs interactive tasks
         if is_background:
             notification_text = (
                 f"ℹ️ Note: Conversation history was automatically summarized to stay within token limits.\n\n"
-                f"Summary of earlier messages:\n{summary}"
+                f"{summary}\n\n"
+                f"---\n\n"
+                f"*Continuing conversation below:*"
             )
         else:
             notification_text = (
                 f"⚠️ Your conversation history reached the token limit!\n\n"
                 f"We've automatically summarized older messages to continue. "
                 f"Alternatively, you can start a new chat for a fresh conversation.\n\n"
-                f"Summary of earlier messages:\n{summary}"
+                f"{summary}\n\n"
+                f"---\n\n"
+                f"*Continuing conversation below:*"
             )
 
         message = a2a.create_agent_text_message(text=notification_text)
@@ -442,69 +567,24 @@ async def run_adk_async_task_thread_wrapper(
         is_paused = False
 
         while retry_count <= max_retries:
-            # TEST MODE: Proactively summarize when hitting threshold
-            # This allows testing compaction without burning thousands of tokens
-            if TEST_COMPACTION_TURN_THRESHOLD > 0 and adk_session.events and ENABLE_AUTO_SUMMARIZATION:
-                user_turn_count = _count_user_turns(adk_session.events)
-
-                if user_turn_count >= TEST_COMPACTION_TURN_THRESHOLD:
-                    log.warning(
-                        "%s [TEST MODE] Proactively summarizing after %d user turns (threshold: %d)",
-                        component.log_identifier,
-                        user_turn_count,
-                        TEST_COMPACTION_TURN_THRESHOLD
-                    )
-
-                    # Store original events for audit logging
-                    original_event_count = len(adk_session.events) if adk_session.events else 0
-
-                    events_removed, summary, adk_session = await _summarize_and_replace_oldest_turns(
-                        component=component,
-                        session=adk_session,
-                        num_turns_to_summarize=2,
-                        log_identifier=component.log_identifier
-                    )
-
-                    # Reload session from DB to see the actual compacted state
-                    adk_session = await component.session_service.get_session(
-                        app_name=component.agent_name,
-                        user_id=adk_session.user_id,
-                        session_id=adk_session.id
-                    )
-
-                    if not adk_session:
-                        log.error(
-                            "%s [TEST MODE] Failed to reload session after compaction",
-                            component.log_identifier
-                        )
-                        raise RuntimeError("Session disappeared after test mode compaction")
-
-                    if events_removed > 0:
-                        new_event_count = len(adk_session.events) if adk_session.events else 0
-                        new_user_count = _count_user_turns(adk_session.events)
-
-                        log.warning(
-                            "%s [TEST MODE] AUDIT: Summarized %d events (%d → %d total, %d → %d user turns). Summary: '%s'",
-                            component.log_identifier,
-                            events_removed,
-                            original_event_count,
-                            new_event_count,
-                            user_turn_count,
-                            new_user_count,
-                            summary[:200] + "..." if len(summary) > 200 else summary
-                        )
-
-                        # Send notification to user
-                        is_background = _is_background_task(a2a_context)
-                        await _send_truncation_notification(
-                            component=component,
-                            a2a_context=a2a_context,
-                            summary=summary,
-                            is_background=is_background,
-                            log_identifier=component.log_identifier
-                        )
-
             try:
+                # Proactively summarize when hitting threshold
+                # This allows testing compaction without burning thousands of tokens plus trigger compaction when certain # of iteration is hit
+                if FORCE_COMPACTION_TURN_THRESHOLD > 0 and adk_session.events and ENABLE_AUTO_SUMMARIZATION:
+                    user_turn_count = _count_user_turns(adk_session.events)
+                    if user_turn_count > FORCE_COMPACTION_TURN_THRESHOLD:
+                        log.warning(
+                            "%sTriggering context limit error at %d user turns (threshold: %d)",
+                            component.log_identifier,
+                            user_turn_count,
+                            FORCE_COMPACTION_TURN_THRESHOLD
+                        )
+                        raise BadRequestError(
+                            message=f"FORCE_COMPACTION_TURN_THRESHOLD: {FORCE_COMPACTION_TURN_THRESHOLD} maximum context length exceeded {user_turn_count}",
+                            model="test-model",
+                            llm_provider="test-provider"
+                        )
+
                 is_paused = await run_adk_async_task(
                     component,
                     task_context,
@@ -513,7 +593,6 @@ async def run_adk_async_task_thread_wrapper(
                     run_config,
                     a2a_context,
                 )
-                # Success! Break out of retry loop
                 break
 
             except BadRequestError as e:
@@ -531,85 +610,128 @@ async def run_adk_async_task_thread_wrapper(
                         )
                         raise
 
-                    # Summarize oldest 2 turns and retry
-                    log.warning(
-                        "%s Context limit exceeded for task %s. Attempting automatic summarization (attempt %d/%d)...",
-                        component.log_identifier,
-                        logical_task_id,
-                        retry_count,
-                        max_retries,
-                    )
+                    # Get per-session compaction lock to prevent parallel tasks from duplicate work
+                    # When multiple tasks hit limit simultaneously, only one compacts per session
+                    compaction_lock = await _get_compaction_lock(adk_session.id)
 
-                    # Store original events for audit logging
-                    original_event_count = len(adk_session.events) if adk_session.events else 0
+                    # Check if another task is already compacting this session
+                    if compaction_lock.locked():
+                        log.info(
+                            "%s Another parallel task is compacting session %s. Waiting for completion...",
+                            component.log_identifier,
+                            adk_session.id
+                        )
 
-                    events_removed, summary, adk_session = await _summarize_and_replace_oldest_turns(
-                        component=component,
-                        session=adk_session,
-                        num_turns_to_summarize=2,
-                        log_identifier=component.log_identifier
-                    )
+                        # Wait for the other task to finish compacting
+                        async with compaction_lock:
+                            pass  # Lock released - other task completed compaction
 
-                    # Reload session from DB after compaction to get the real state
-                    # This is important for test mode to see the actual event count
-                    # In production, ADK reloads the session anyway, but test mode checks before ADK runs
-                    adk_session = await component.session_service.get_session(
-                        app_name=component.agent_name,
-                        user_id=adk_session.user_id,
-                        session_id=adk_session.id
-                    )
+                        # Reload session to get the compacted state created by the other task
+                        adk_session = await component.session_service.get_session(
+                            app_name=component.agent_name,
+                            user_id=adk_session.user_id,
+                            session_id=adk_session.id
+                        )
 
-                    if not adk_session:
-                        log.error(
-                            "%s Failed to reload session after compaction for task %s",
+                        if not adk_session:
+                            log.error(
+                                "%s Failed to reload session after parallel compaction for task %s",
+                                component.log_identifier,
+                                logical_task_id
+                            )
+                            raise RuntimeError("Session disappeared after parallel compaction")
+
+                        log.info(
+                            "%s Parallel task completed compaction. Retrying task %s with reduced context (no summarization needed)...",
                             component.log_identifier,
                             logical_task_id
                         )
-                        raise RuntimeError("Session disappeared after compaction")
 
-                    if events_removed == 0:
-                        # Can't summarize any more (not enough turns)
-                        log.error(
-                            "%s Cannot summarize further - insufficient conversation history for task %s.",
+                        # Continue to retry WITHOUT doing our own compaction
+                        continue
+
+                    # Lock is available - we'll do the compaction work
+                    async with compaction_lock:
+                        log.warning(
+                            "%s Context limit exceeded for task %s. Performing automatic summarization (attempt %d/%d)...",
                             component.log_identifier,
                             logical_task_id,
+                            retry_count,
+                            max_retries,
                         )
-                        raise
 
-                    # Audit log: Now using fresh session reloaded from DB
-                    new_event_count = len(adk_session.events) if adk_session.events else 0
-                    log.warning(
-                        "%s AUDIT: Summarized session %s for task %s. "
-                        "Removed %d events (%d → %d total). "
-                        "Summary: '%s'",
-                        component.log_identifier,
-                        adk_session.id,
-                        logical_task_id,
-                        events_removed,
-                        original_event_count,
-                        new_event_count,
-                        summary[:200] + "..." if len(summary) > 200 else summary
-                    )
+                        # Store original events for audit logging
+                        original_event_count = len(adk_session.events) if adk_session.events else 0
 
-                    # Detect if this is a background task for different notification messaging
-                    is_background = _is_background_task(a2a_context)
+                        events_removed, summary = await _create_compaction_event(
+                            component=component,
+                            session=adk_session,
+                            num_turns_to_summarize=2,
+                            log_identifier=component.log_identifier
+                        )
 
-                    # Send notification to user about summarization
-                    await _send_truncation_notification(
-                        component=component,
-                        a2a_context=a2a_context,
-                        summary=summary,
-                        is_background=is_background,
-                        log_identifier=component.log_identifier
-                    )
+                        # MANDATORY: Reload session from DB after compaction to get filtered state
+                        # FilteringSessionService automatically removes ghost events when loading from DB
+                        # Without this reload, retry would still contain all old events and fail again
+                        adk_session = await component.session_service.get_session(
+                            app_name=component.agent_name,
+                            user_id=adk_session.user_id,
+                            session_id=adk_session.id
+                        )
 
-                    log.info(
-                        "%s Summarization complete. Retrying task %s with reduced context...",
-                        component.log_identifier,
-                        logical_task_id
-                    )
+                        if not adk_session:
+                            log.error(
+                                "%s Failed to reload session after compaction for task %s",
+                                component.log_identifier,
+                                logical_task_id
+                            )
+                            raise RuntimeError("Session disappeared after compaction")
 
-                    # Continue to next retry iteration
+                        if events_removed == 0:
+                            # Can't summarize any more (not enough turns)
+                            log.error(
+                                "%s Cannot summarize further - insufficient conversation history for task %s.",
+                                component.log_identifier,
+                                logical_task_id,
+                            )
+                            raise
+
+                        # Audit log: Now using fresh session reloaded from DB
+                        new_event_count = len(adk_session.events) if adk_session.events else 0
+                        log.warning(
+                            "%s AUDIT: Summarized session %s for task %s (attempt %d/%d). "
+                            "Removed %d events (%d → %d total). "
+                            "Summary: '%s'",
+                            component.log_identifier,
+                            adk_session.id,
+                            logical_task_id,
+                            retry_count,
+                            max_retries,
+                            events_removed,
+                            original_event_count,
+                            new_event_count,
+                            summary[:200] + "..." if len(summary) > 200 else summary
+                        )
+
+                        # Send notification BEFORE retry (so user sees it before answer)
+                        # Progressive summarization means each summary contains all previous
+                        is_background = _is_background_task(a2a_context)
+                        await _send_truncation_notification(
+                            component=component,
+                            a2a_context=a2a_context,
+                            summary=summary,
+                            is_background=is_background,
+                            log_identifier=component.log_identifier,
+                            session=adk_session
+                        )
+
+                        log.info(
+                            "%s Summarization complete. Retrying task %s with reduced context...",
+                            component.log_identifier,
+                            logical_task_id
+                        )
+
+                    # Lock automatically released - continue to next retry iteration
                     continue
                 else:
                     # Either not a context limit error, or auto-summarization is disabled

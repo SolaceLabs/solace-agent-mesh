@@ -209,8 +209,243 @@ def _sanitize_for_path(identifier: str) -> str:
     return sanitized
 
 
+def _filter_session_by_latest_compaction(
+    session: Optional[ADKSession],
+    log_identifier: str = ""
+) -> Optional[ADKSession]:
+    """
+    Proactively filter session.events by most recent compaction event.
+
+    This function finds the most recent compaction event and returns a session
+    with events filtered to:
+    - The compaction event itself (contains summary)
+    - All events after the compaction's end_timestamp
+
+    This eliminates ghost events and prevents re-compaction loops while
+    maintaining ADK's append-only event store (DB remains unchanged).
+
+    Args:
+        session: The ADK session loaded from DB
+        log_identifier: Logging prefix
+
+    Returns:
+        Session with filtered events (in-memory only, DB unchanged)
+    """
+    if not session or not session.events:
+        return session
+
+    # Find most recent compaction event (highest end_timestamp)
+    latest_compaction = None
+    latest_end_ts = -1
+
+    for event in session.events:
+        if event.actions and event.actions.compaction:
+            comp = event.actions.compaction
+            # Handle both dict and object forms (DB reload compatibility)
+            end_ts = comp['end_timestamp'] if isinstance(comp, dict) else comp.end_timestamp
+
+            if end_ts > latest_end_ts:
+                latest_end_ts = end_ts
+                latest_compaction = event
+
+    # No compaction events - return session as-is
+    if not latest_compaction:
+        log.debug(
+            "%s No compaction events found. Session has %d events total.",
+            log_identifier,
+            len(session.events)
+        )
+        return session
+
+    # Check if compaction event has actions.compaction with compacted_content
+    if hasattr(latest_compaction, 'actions') and latest_compaction.actions and hasattr(latest_compaction.actions, 'compaction'):
+        comp = latest_compaction.actions.compaction
+
+        # Handle both dict (from DB) and object (in-memory) forms
+        compacted_content = None
+        if isinstance(comp, dict):
+            compacted_content = comp.get('compacted_content')
+        elif hasattr(comp, 'compacted_content'):
+            compacted_content = comp.compacted_content
+
+        if compacted_content:
+            # Create proper adk_types.Content object from compacted_content dict
+            # This allows normal LLM prompts to include the summary (via .content)
+            # while LlmEventSummarizer can still detect it's a compaction (via .actions.compaction)
+            if isinstance(compacted_content, dict):
+                # Extract role and parts from dict
+                role = compacted_content.get('role', 'model')
+                parts_data = compacted_content.get('parts', [])
+
+                # Convert parts dicts to adk_types.Part objects
+                parts = []
+                for part_dict in parts_data:
+                    if isinstance(part_dict, dict) and part_dict.get('text'):
+                        parts.append(adk_types.Part(text=part_dict['text']))
+
+                # Create proper Content object
+                latest_compaction.content = adk_types.Content(role=role, parts=parts)
+                log.info(
+                    "%s Set .content on compaction event (role=%s, parts=%d) for LLM prompts",
+                    log_identifier,
+                    role,
+                    len(parts)
+                )
+            else:
+                # Already an object, assign directly
+                latest_compaction.content = compacted_content
+                log.info(
+                    "%s Set .content on compaction event (object form) for LLM prompts",
+                    log_identifier
+                )
+        else:
+            log.warning(
+                "%s Compaction event has NO compacted_content - LLM will miss the summary!",
+                log_identifier
+            )
+
+    # Filter events: keep compaction + events after end_timestamp
+    filtered_events = [latest_compaction]  # Always include the summary
+
+    for event in session.events:
+        # Skip the compaction event itself (already added)
+        if event.actions and event.actions.compaction:
+            continue
+
+        # Keep events after compaction end_timestamp
+        if event.timestamp > latest_end_ts:
+            filtered_events.append(event)
+
+    # Update session.events in-memory
+    original_count = len(session.events)
+    session.events = filtered_events
+
+    log.info(
+        "%s Proactive compaction filter: %d → %d events (removed %d ghost events before ts=%.6f)",
+        log_identifier,
+        original_count,
+        len(filtered_events),
+        original_count - len(filtered_events),
+        latest_end_ts
+    )
+
+    return session
+
+
+class FilteringSessionService(BaseSessionService):
+    """
+    Wrapper around ADK's session services that automatically filters
+    ghost events from compacted sessions.
+
+    This ensures ALL get_session() calls across the codebase automatically
+    receive filtered sessions, eliminating the need for manual filtering
+    at 13+ callsites throughout the codebase.
+
+    Architecture:
+    - Wraps any BaseSessionService implementation (memory, SQL, Vertex)
+    - Intercepts get_session() to apply compaction filtering
+    - Delegates all other methods transparently to wrapped service
+    - Maintains ADK's append-only event store (DB unchanged)
+    """
+
+    def __init__(self, wrapped_service: BaseSessionService):
+        """
+        Initialize the filtering wrapper.
+
+        Args:
+            wrapped_service: The underlying session service to wrap
+        """
+        self._wrapped = wrapped_service
+
+    async def get_session(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+        config: Optional[Any] = None
+    ) -> Optional[ADKSession]:
+        """
+        Get session and automatically filter ghost events from compactions.
+
+        This is the key method that provides automatic filtering for ALL
+        session retrievals across the codebase.
+        """
+        # Get session from underlying service
+        session = await self._wrapped.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            config=config
+        )
+
+        # Apply compaction filtering (in-memory only, DB unchanged)
+        return _filter_session_by_latest_compaction(
+            session,
+            log_identifier=f"[SessionService:{app_name}]"
+        )
+
+    async def create_session(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        state: Optional[dict[str, Any]] = None,
+        session_id: Optional[str] = None
+    ) -> ADKSession:
+        """Delegate to wrapped service."""
+        return await self._wrapped.create_session(
+            app_name=app_name,
+            user_id=user_id,
+            state=state,
+            session_id=session_id
+        )
+
+    async def delete_session(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str
+    ) -> None:
+        """Delegate to wrapped service."""
+        return await self._wrapped.delete_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id
+        )
+
+    async def list_sessions(
+        self,
+        *,
+        app_name: str,
+        user_id: Optional[str] = None
+    ) -> Any:
+        """Delegate to wrapped service."""
+        return await self._wrapped.list_sessions(
+            app_name=app_name,
+            user_id=user_id
+        )
+
+    async def append_event(
+        self,
+        session: ADKSession,
+        event: ADKEvent
+    ) -> ADKEvent:
+        """Delegate to wrapped service."""
+        return await self._wrapped.append_event(session, event)
+
+# System-wide auto-summarization (configurable via env var)
+# Set SAM_ENABLE_AUTO_SUMMARIZATION=false to disable
+ENABLE_AUTO_SUMMARIZATION = os.getenv("SAM_ENABLE_AUTO_SUMMARIZATION", "true").lower() == "true"
+
 def initialize_session_service(component) -> BaseSessionService:
-    """Initializes the ADK Session Service based on configuration."""
+    """
+    Initializes the ADK Session Service based on configuration.
+
+    The returned service is automatically wrapped with FilteringSessionService
+    to provide transparent ghost event filtering on all get_session() calls.
+    """
     config = component.get_config("session_service", {})
 
     # Handle both dict and SessionServiceConfig object
@@ -227,17 +462,19 @@ def initialize_session_service(component) -> BaseSessionService:
         service_type,
     )
 
+    # Create the base service
+    base_service: BaseSessionService
+
     if service_type == "memory":
-        return InMemorySessionService()
+        base_service = InMemorySessionService()
     elif service_type == "sql":
         if not db_url:
             raise ValueError(
                 f"{component.log_identifier} 'database_url' is required for sql session service."
             )
         try:
-            db_service = DatabaseSessionService(db_url=db_url)
-            run_migrations(db_service, component)
-            return db_service
+            base_service = DatabaseSessionService(db_url=db_url)
+            run_migrations(base_service, component)
         except ImportError:
             log.error(
                 "%s SQLAlchemy not installed. Please install 'google-adk[database]' or 'sqlalchemy'.",
@@ -251,11 +488,22 @@ def initialize_session_service(component) -> BaseSessionService:
             raise ValueError(
                 f"{component.log_identifier} GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION env vars required for vertex session service."
             )
-        return VertexAiSessionService(project=project, location=location)
+        base_service = VertexAiSessionService(project=project, location=location)
     else:
         raise ValueError(
             f"{component.log_identifier} Unsupported session service type: {service_type}"
         )
+
+    if ENABLE_AUTO_SUMMARIZATION:
+        # Wrap with FilteringSessionService to automatically filter ghost events
+        # This ensures ALL get_session() calls across the codebase get filtered sessions
+        log.info(
+            "%s Wrapping session service with FilteringSessionService for automatic compaction filtering.",
+            component.log_identifier,
+        )
+        return FilteringSessionService(base_service)
+
+    return base_service
 
 
 def initialize_artifact_service(component) -> BaseArtifactService:
