@@ -2,7 +2,7 @@
 Handles downloading and saving artifacts from the webui gateway.
 """
 import httpx
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import logging
@@ -75,7 +75,10 @@ class ArtifactHandler:
             content = response.content
             mime_type = response.headers.get("content-type", "application/octet-stream")
 
-            local_path = self.artifacts_dir / filename
+            safe_name = PurePosixPath(filename).name
+            if not safe_name:
+                raise ValueError(f"Invalid artifact filename: {filename}")
+            local_path = self.artifacts_dir / safe_name
             with open(local_path, "wb") as f:
                 f.write(content)
 
