@@ -658,19 +658,17 @@ class ProjectService:
                 session_id=storage_session_id,
                 filename=filename,
             )
-            
+
             if not artifact_part or not artifact_part.inline_data:
                 self.logger.warning(f"Artifact '{filename}' not found in project {project_id}")
                 return False
-            
+
             # Prepare updated metadata
             metadata = {"source": "project"}
-            limit = DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH
             if description is not None:
-                if len(description) > limit:
-                    raise ValueError(f"Description exceeds maximum length of {limit} characters ({len(description)} provided)")
+                self._validate_file_descriptions({filename: description})
                 metadata["description"] = description
-            
+
             # Save the artifact with updated metadata
             await save_artifact_with_metadata(
                 artifact_service=self.artifact_service,
