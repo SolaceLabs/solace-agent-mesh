@@ -201,40 +201,6 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 minWidth: "180px",
             }}
         >
-            {/* Collapse icon - top right, only show on hover when expanded */}
-            {isExpanded && onCollapse && (
-                <div className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button
-                        onClick={e => {
-                            e.stopPropagation();
-                            onCollapse(node.id);
-                        }}
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        tooltip="Collapse"
-                    >
-                        <Minimize2 className="h-4 w-4" />
-                    </Button>
-                </div>
-            )}
-            {/* Expand icon - top right, only show on hover when collapsed */}
-            {isCollapsed && onExpand && (
-                <div className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button
-                        onClick={e => {
-                            e.stopPropagation();
-                            onExpand(node.id);
-                        }}
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        tooltip="Expand"
-                    >
-                        <Maximize2 className="h-4 w-4" />
-                    </Button>
-                </div>
-            )}
             {/* Header */}
             <div
                 className={`cursor-pointer ${
@@ -248,9 +214,44 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 }}
                 title={node.data.description}
             >
-                <div className="flex items-center justify-center gap-2">
-                    <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
-                    <div className="truncate text-sm font-semibold">{node.data.label}</div>
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                        <div className="truncate text-sm font-semibold">{node.data.label}</div>
+                    </div>
+                    {/* Expand/Collapse controls */}
+                    {((isCollapsed && onExpand) || (isExpanded && onCollapse)) && (
+                        <div className={isExpanded && onCollapse ? "opacity-0 transition-opacity group-hover:opacity-100" : ""}>
+                            {isCollapsed && onExpand && (
+                                <Button
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        onExpand(node.id);
+                                    }}
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    tooltip="Expand"
+                                >
+                                    <Maximize2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                            {isExpanded && onCollapse && (
+                                <Button
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        onCollapse(node.id);
+                                    }}
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    tooltip="Collapse"
+                                >
+                                    <Minimize2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
