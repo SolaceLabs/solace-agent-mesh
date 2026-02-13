@@ -1565,26 +1565,27 @@ class ProjectService:
             return None
 
         from .bm25_indexer_service import (
-            collect_project_text_files,
+            collect_project_text_files_stream,
             build_bm25_index,
             save_project_index
         )
 
         try:
-            # Collect all text files
-            text_files = await collect_project_text_files(
+            # Stream text files (memory-efficient batch processing)
+            text_files_stream = collect_project_text_files_stream(
                 artifact_service=self.artifact_service,
                 app_name=self.app_name,
                 user_id=project.user_id,
                 project_id=project.id
             )
 
-            if not text_files:
+            # Build index with streaming (processes files in batches)
+            index_zip_bytes, manifest = await build_bm25_index(text_files_stream, project.id)
+
+            # Check if any files were indexed
+            if manifest.get("file_count", 0) == 0:
                 self.logger.info(f"No text files to index for project {project.id}")
                 return None
-
-            # Build index
-            index_zip_bytes, manifest = build_bm25_index(text_files, project.id)
 
             # Save index
             result = await save_project_index(
@@ -1598,6 +1599,13 @@ class ProjectService:
 
             return result
 
+        except ValueError as e:
+            # Handle case where no documents/chunks were created
+            if "No chunks created" in str(e):
+                self.logger.info(f"No text files to index for project {project.id}")
+                return None
+            self.logger.error(f"Index rebuild failed for project {project.id}: {e}")
+            return None
         except Exception as e:
             self.logger.error(f"Index rebuild failed for project {project.id}: {e}")
             return None

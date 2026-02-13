@@ -313,11 +313,11 @@ class IndexingTaskService:
         Returns:
             List of original filenames that will be indexed
         """
-        from .bm25_indexer_service import collect_project_text_files
+        from .bm25_indexer_service import collect_project_text_files_stream
 
         try:
-            # Collect all text files from the project
-            text_files = await collect_project_text_files(
+            # Stream text files (memory-efficient - only keeps filenames)
+            text_files_stream = collect_project_text_files_stream(
                 artifact_service=self.project_service.artifact_service,
                 app_name=self.project_service.app_name,
                 user_id=project.user_id,
@@ -325,8 +325,9 @@ class IndexingTaskService:
             )
 
             # Extract original filenames (remove .converted.txt suffix)
+            # Only store filenames, not full content
             original_filenames = []
-            for filename, _, _, _ in text_files:
+            async for filename, _, _, _ in text_files_stream:
                 # Remove .converted.txt suffix if present
                 if filename.endswith('.converted.txt'):
                     original_filename = filename[:-len('.converted.txt')]
@@ -435,7 +436,7 @@ class IndexingTaskService:
         This is CPU-intensive work that runs in a background thread.
         """
         from .bm25_indexer_service import (
-            collect_project_text_files,
+            collect_project_text_files_stream,
             build_bm25_index,
             save_project_index
         )
@@ -444,77 +445,80 @@ class IndexingTaskService:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            # Collect text files (async I/O)
+            # Stream text files (async I/O, memory-efficient)
             try:
-                text_files = loop.run_until_complete(
-                    collect_project_text_files(
-                        artifact_service=self.project_service.artifact_service,
-                        app_name=self.project_service.app_name,
-                        user_id=project.user_id,
-                        project_id=project.id
-                    )
+                text_files_stream = collect_project_text_files_stream(
+                    artifact_service=self.project_service.artifact_service,
+                    app_name=self.project_service.app_name,
+                    user_id=project.user_id,
+                    project_id=project.id
                 )
             except Exception as e:
-                log.error(f"Failed to collect project text files for project {project.id}: {e}")
+                log.error(f"Failed to create text files stream for project {project.id}: {e}")
                 return {
                     "status": "error",
-                    "message": f"Failed to collect project files from storage: {str(e)}"
+                    "message": f"Failed to access project files from storage: {str(e)}"
                 }
 
-            if not text_files:
-                # No files left to index - delete the existing index if it exists
-                log.info(f"No text files to index for project {project.id}, deleting index if exists")
-
-                try:
-                    # Delete project_bm25_index.zip (all versions)
-                    loop.run_until_complete(
-                        self.project_service.artifact_service.delete_artifact(
-                            app_name=self.project_service.app_name,
-                            user_id=project.user_id,
-                            session_id=f"project-{project.id}",
-                            filename="project_bm25_index.zip"
-                        )
-                    )
-                    log.info(f"Deleted empty index for project {project.id}")
-                    return {
-                        "status": "success",
-                        "message": "Index deleted - no files to index",
-                        "index_deleted": True
-                    }
-                except Exception as e:
-                    # Index might not exist - this is fine
-                    log.debug(f"No index to delete for project {project.id}: {e}")
-                    return {
-                        "status": "success",
-                        "message": "No files to index, no index exists",
-                        "index_deleted": False
-                    }
-
-            # Extract original filenames (not converted) from text_files
-            # text_files is List[(filename, version, text, metadata)]
-            # For converted files, filename is like "document.pdf.converted.txt"
-            # We need the original filename "document.pdf"
-            original_filenames = []
-            for filename, _, _, _ in text_files:
-                # Remove .converted.txt suffix if present
-                if filename.endswith('.converted.txt'):
-                    original_filename = filename[:-len('.converted.txt')]
-                else:
-                    original_filename = filename
-                if original_filename not in original_filenames:
-                    original_filenames.append(original_filename)
-
-            # Build index (CPU-intensive)
+            # Build index (async, memory-efficient with batch processing)
             try:
-                index_zip_bytes, manifest = build_bm25_index(text_files, project.id)
+                index_zip_bytes, manifest = loop.run_until_complete(
+                    build_bm25_index(text_files_stream, project.id)
+                )
+            except ValueError as e:
+                # Handle case where no documents/chunks were created
+                if "No chunks created" in str(e):
+                    log.info(f"No text files to index for project {project.id}, deleting index if exists")
+
+                    try:
+                        # Delete project_bm25_index.zip (all versions)
+                        loop.run_until_complete(
+                            self.project_service.artifact_service.delete_artifact(
+                                app_name=self.project_service.app_name,
+                                user_id=project.user_id,
+                                session_id=f"project-{project.id}",
+                                filename="project_bm25_index.zip"
+                            )
+                        )
+                        log.info(f"Deleted empty index for project {project.id}")
+                        return {
+                            "status": "success",
+                            "message": "Index deleted - no files to index",
+                            "index_deleted": True
+                        }
+                    except Exception as delete_error:
+                        # Index might not exist - this is fine
+                        log.debug(f"No index to delete for project {project.id}: {delete_error}")
+                        return {
+                            "status": "success",
+                            "message": "No files to index, no index exists",
+                            "index_deleted": False
+                        }
+
+                log.error(f"Failed to build BM25 index for project {project.id}: {e}")
+                return {
+                    "status": "error",
+                    "message": f"Failed to build BM25 index: {str(e)}"
+                }
             except Exception as e:
                 log.error(f"Failed to build BM25 index for project {project.id}: {e}")
-                file_count = len(text_files)
-                total_chars = sum(len(text) for _, _, text, _ in text_files)
                 return {
                     "status": "error",
-                    "message": f"Failed to build BM25 index: {str(e)} (project has {file_count} files, {total_chars:,} characters)"
+                    "message": f"Failed to build BM25 index: {str(e)}"
                 }
+
+            # Extract original filenames from manifest
+            original_filenames = []
+            for chunk in manifest.get("chunks", []):
+                if chunk.get("chunk_id", -1) == 0:  # Only count each file once
+                    filename = chunk.get("filename", "")
+                    # Remove .converted.txt suffix if present
+                    if filename.endswith('.converted.txt'):
+                        original_filename = filename[:-len('.converted.txt')]
+                    else:
+                        original_filename = filename
+                    if original_filename not in original_filenames:
+                        original_filenames.append(original_filename)
 
             # Save index (async I/O)
             try:
