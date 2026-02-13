@@ -242,7 +242,11 @@ def _filter_session_by_latest_compaction(
         if event.actions and event.actions.compaction:
             comp = event.actions.compaction
             # Handle both dict and object forms (DB reload compatibility)
+            start_ts = comp['start_timestamp'] if isinstance(comp, dict) else comp.start_timestamp
             end_ts = comp['end_timestamp'] if isinstance(comp, dict) else comp.end_timestamp
+
+            # Use max(start, end) as cutoff - handles inverted timestamps defensively
+            end_ts = max(start_ts, end_ts)
 
             if end_ts > latest_end_ts:
                 latest_end_ts = end_ts
