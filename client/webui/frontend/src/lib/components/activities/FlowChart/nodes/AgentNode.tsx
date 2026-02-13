@@ -207,7 +207,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                     minWidth: "180px",
                 }}
             >
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-2">
                         <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
                         <div className="truncate text-sm font-semibold">{node.data.label}</div>
