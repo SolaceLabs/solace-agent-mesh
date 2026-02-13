@@ -3,7 +3,7 @@ export interface SelectionState {
     selectionRange: Range | null;
     menuPosition: { x: number; y: number } | null;
     sourceMessageId: string | null;
-    sourceTaskId: string | null; // Task ID for scroll-to-source functionality
+    sourceTaskId: string | null;
     isMenuOpen: boolean;
 }
 
@@ -15,7 +15,7 @@ export interface SelectionContextValue extends SelectionState {
 
 export interface SelectableMessageContentProps {
     messageId: string;
-    taskId?: string; // Task ID for scroll-to-source functionality
+    taskId?: string;
     children: React.ReactNode;
     isAIMessage: boolean;
 }
@@ -24,6 +24,6 @@ export interface SelectionContextMenuProps {
     isOpen: boolean;
     position: { x: number; y: number } | null;
     selectedText: string;
-    sourceTaskId: string | null; // Task ID for scroll-to-source functionality
+    sourceTaskId: string | null;
     onClose: () => void;
 }
