@@ -10,6 +10,7 @@ class Task(BaseModel):
 
     id: str
     user_id: str
+    agent_name: str | None = None
     parent_task_id: str | None = None
     start_time: int
     end_time: int | None = None

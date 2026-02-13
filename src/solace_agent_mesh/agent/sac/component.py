@@ -3030,6 +3030,50 @@ class SamAgentComponent(SamComponentBase):
                             log_id,
                             logical_task_id,
                         )
+                        
+                        # Cancel all active peer sub-tasks to prevent orphaned sub-tasks
+                        active_sub_tasks = removed_task_context.active_peer_sub_tasks
+                        if active_sub_tasks:
+                            log.info(
+                                "%s Cancelling %d active peer sub-tasks for completed task %s",
+                                log_id,
+                                len(active_sub_tasks),
+                                logical_task_id,
+                            )
+                            for sub_task_id, correlation_data in list(active_sub_tasks.items()):
+                                try:
+                                    # Extract target agent from correlation data
+                                    target_agent = correlation_data.get("target_agent_name") if correlation_data else None
+                                    if target_agent and sub_task_id:
+                                        # Send cancellation request to the peer agent
+                                        cancel_topic = a2a.get_agent_request_topic(self.namespace, target_agent)
+                                        cancel_payload = a2a.create_cancel_task_request(
+                                            task_id=sub_task_id,
+                                            client_id=self.agent_name,
+                                            user_id=a2a_context.get("user_id", "system")
+                                        )
+                                        self.publish_a2a_message(
+                                            payload=cancel_payload,
+                                            topic=cancel_topic,
+                                            user_properties=None
+                                        )
+                                        log.info(
+                                            "%s Sent cancellation for sub-task %s to agent %s",
+                                            log_id,
+                                            sub_task_id,
+                                            target_agent,
+                                        )
+                                        
+                                        # Clean up cache entry for this sub-task
+                                        self.cache_service.remove_data(sub_task_id)
+                                except Exception as cancel_err:
+                                    log.error(
+                                        "%s Failed to cancel sub-task %s: %s",
+                                        log_id,
+                                        sub_task_id,
+                                        cancel_err,
+                                        exc_info=True
+                                    )
                     else:
                         log.warning(
                             "%s TaskExecutionContext for task %s was already removed.",

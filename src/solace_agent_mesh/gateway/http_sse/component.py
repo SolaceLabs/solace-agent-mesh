@@ -248,9 +248,36 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._task_logger_processor_task: asyncio.Task | None = None
         self.task_logger_service: TaskLoggerService | None = None
         
-        # Background task monitor
+        # Background task monitor - service will be initialized later in _start_fastapi_server
+        # but timer must be registered here in __init__ for it to work
         self.background_task_monitor = None
         self._background_task_monitor_timer_id = None
+        
+        # Set up background task monitor timer if task logging will be enabled
+        task_logging_config = self.get_config("task_logging", {})
+        if self.database_url and task_logging_config.get("enabled", False):
+            background_config = self.get_config("background_tasks", {})
+            monitor_interval_ms = background_config.get("monitor_interval_ms", 300000)  # 5 minutes default
+            self._background_task_monitor_timer_id = f"background_task_monitor_{self.gateway_id}"
+            
+            log.info(
+                "%s Registering background task monitor timer with delay_ms=%d, interval_ms=%d, timer_id='%s'",
+                self.log_identifier,
+                monitor_interval_ms,
+                monitor_interval_ms,
+                self._background_task_monitor_timer_id
+            )
+            
+            self.add_timer(
+                delay_ms=monitor_interval_ms,
+                timer_id=self._background_task_monitor_timer_id,
+                interval_ms=monitor_interval_ms,
+            )
+            
+            log.info(
+                "%s Background task monitor timer registered successfully",
+                self.log_identifier
+            )
 
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
@@ -372,17 +399,42 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 return
             
             if timer_id == self._background_task_monitor_timer_id:
-                log.debug("%s Background task monitor timer triggered.", self.log_identifier)
+                log.info("%s Background task monitor timer triggered.", self.log_identifier)
                 if self.background_task_monitor:
-                    loop = self.get_async_loop()
+                    loop = self.fastapi_event_loop
                     if loop and loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            self.background_task_monitor.check_timeouts(),
-                            loop
-                        )
+                        try:
+                            future = asyncio.run_coroutine_threadsafe(
+                                self.background_task_monitor.check_timeouts(),
+                                loop
+                            )
+                            # Add callback to log completion/errors
+                            def on_complete(f):
+                                try:
+                                    result = f.result()
+                                    log.info(
+                                        "%s Background task monitor check completed: %s",
+                                        self.log_identifier,
+                                        result
+                                    )
+                                except Exception as e:
+                                    log.error(
+                                        "%s Error in background task monitor check: %s",
+                                        self.log_identifier,
+                                        e,
+                                        exc_info=True
+                                    )
+                            future.add_done_callback(on_complete)
+                        except Exception as e:
+                            log.error(
+                                "%s Failed to schedule background task monitor check: %s",
+                                self.log_identifier,
+                                e,
+                                exc_info=True
+                            )
                     else:
                         log.warning(
-                            "%s Async loop not available for background task monitor.",
+                            "%s FastAPI event loop not available for background task monitor.",
                             self.log_identifier
                         )
                 else:
@@ -390,6 +442,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         "%s Background task monitor timer fired but service is not initialized.",
                         self.log_identifier,
                     )
+                log.info("%s Background task monitor timer handler completed, returning.", self.log_identifier)
                 return
 
         super().process_event(event)
@@ -1373,7 +1426,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 self.log_identifier,
             )
             
-            # Initialize background task monitor if task logging is enabled
+            # Initialize background task monitor service if task logging is enabled
+            # Note: Timer was already registered in __init__
             if self.database_url and task_logging_config.get("enabled", False):
                 from .services.background_task_monitor import BackgroundTaskMonitor
                 from .services.task_service import TaskService
@@ -1400,20 +1454,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     default_timeout_ms=default_timeout_ms,
                 )
                 
-                # Create timer for periodic timeout checks
-                monitor_interval_ms = background_config.get("monitor_interval_ms", 300000)  # 5 minutes
-                self._background_task_monitor_timer_id = f"background_task_monitor_{self.gateway_id}"
-                
-                self.add_timer(
-                    delay_ms=monitor_interval_ms,
-                    timer_id=self._background_task_monitor_timer_id,
-                    interval_ms=monitor_interval_ms,
-                )
-                
                 log.info(
-                    "%s Background task monitor initialized with %dms check interval and %dms default timeout",
+                    "%s Background task monitor service initialized with %dms default timeout",
                     self.log_identifier,
-                    monitor_interval_ms,
                     default_timeout_ms
                 )
             else:

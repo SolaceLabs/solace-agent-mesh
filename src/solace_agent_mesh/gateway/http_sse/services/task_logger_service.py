@@ -98,8 +98,9 @@ class TaskLoggerService:
             # Check for existing task or create a new one
             task = repo.find_by_id(db, task_id)
             if not task:
-                # Extract parent_task_id and background execution metadata
+                # Extract parent_task_id, agent_name, and background execution metadata
                 parent_task_id = None
+                agent_name = None
                 background_execution_enabled = False
                 max_execution_time_ms = None
                 
@@ -117,6 +118,7 @@ class TaskLoggerService:
                         
                         if message.metadata:
                             parent_task_id = message.metadata.get("parentTaskId")
+                            agent_name = message.metadata.get("agent_name") or message.metadata.get("workflow_name")
                             background_execution_enabled = message.metadata.get("backgroundExecutionEnabled", False)
                             # Default to 1 hour (3600000ms) if background execution is enabled but no timeout specified
                             max_execution_time_ms = message.metadata.get("maxExecutionTimeMs")
@@ -137,6 +139,7 @@ class TaskLoggerService:
                     new_task = Task(
                         id=task_id,
                         user_id=user_id or "unknown",
+                        agent_name=agent_name,
                         parent_task_id=parent_task_id,
                         start_time=current_time,
                         initial_request_text=(
@@ -151,6 +154,7 @@ class TaskLoggerService:
                     repo.save_task(db, new_task)
                     log.info(
                         f"{self.log_identifier} Created new task record for ID: {task_id}"
+                        + (f" agent: {agent_name}" if agent_name else "")
                         + (f" with parent: {parent_task_id}" if parent_task_id else "")
                         + (f" (background execution enabled)" if background_execution_enabled else "")
                         + (f" (session: {session_id})" if session_id else "")
@@ -162,6 +166,7 @@ class TaskLoggerService:
                     placeholder_task = Task(
                         id=task_id,
                         user_id=user_id or "unknown",
+                        agent_name=agent_name,
                         parent_task_id=parent_task_id,
                         start_time=current_time,
                         initial_request_text="[Task started before logger was active]",

@@ -87,13 +87,11 @@ class BackgroundTaskMonitor:
                             f"{time_since_activity}ms since last activity (timeout: {task_timeout}ms)"
                         )
             
-            # Cancel timed-out tasks
+            # Cancel timed-out tasks and their children
             cancelled_count = 0
             for item in timed_out_tasks:
                 task = item["task"]
                 try:
-                    # Extract agent name from task metadata or use a default
-                    # In a real implementation, we'd need to store this in the task record
                     log.info(f"{self.log_identifier} Cancelling timed-out task {task.id}")
                     
                     # Update task status in database
@@ -101,10 +99,64 @@ class BackgroundTaskMonitor:
                     task.end_time = current_time
                     repo.save_task(db, task)
                     
-                    # Note: We can't easily cancel the actual agent task from here
-                    # without knowing the agent name. This would require storing
-                    # the agent name in the task record or having a different
-                    # cancellation mechanism.
+                    # Find and cancel all active child tasks
+                    # find_active_children returns list of tuples: (task_id, agent_name)
+                    child_tasks = repo.find_active_children(db, task.id)
+                    if child_tasks:
+                        log.info(
+                            f"{self.log_identifier} Found {len(child_tasks)} active child tasks for {task.id}, cancelling them"
+                        )
+                        for child_task_id, child_agent_name in child_tasks:
+                            try:
+                                # Load the child task to update its status
+                                child_task = repo.find_by_id(db, child_task_id)
+                                if child_task:
+                                    # Update child task status
+                                    child_task.status = "cancelled"
+                                    child_task.end_time = current_time
+                                    repo.save_task(db, child_task)
+                                    
+                                    # Send cancellation to child task's agent
+                                    # Use agent_name from task if available, otherwise from find_active_children
+                                    agent_name = child_task.agent_name or child_agent_name
+                                    if agent_name:
+                                        await self.task_service.cancel_task(
+                                            agent_name=agent_name,
+                                            task_id=child_task_id,
+                                            client_id="background_task_monitor",
+                                            user_id=child_task.user_id or "system"
+                                        )
+                                        log.info(
+                                            f"{self.log_identifier} Sent cancellation to agent '{agent_name}' for child task {child_task_id}"
+                                        )
+                            except Exception as child_cancel_err:
+                                log.error(
+                                    f"{self.log_identifier} Failed to cancel child task {child_task_id}: {child_cancel_err}",
+                                    exc_info=True
+                                )
+                    
+                    # Send cancel message to the parent task's agent if we have agent_name
+                    if task.agent_name:
+                        try:
+                            # Use the task_service to send cancellation to the agent
+                            await self.task_service.cancel_task(
+                                agent_name=task.agent_name,
+                                task_id=task.id,
+                                client_id="background_task_monitor",
+                                user_id=task.user_id or "system"
+                            )
+                            log.info(
+                                f"{self.log_identifier} Sent cancellation request to agent '{task.agent_name}' for task {task.id}"
+                            )
+                        except Exception as cancel_err:
+                            log.error(
+                                f"{self.log_identifier} Failed to send cancel to agent for task {task.id}: {cancel_err}",
+                                exc_info=True
+                            )
+                    else:
+                        log.warning(
+                            f"{self.log_identifier} Task {task.id} has no agent_name, cannot send cancellation to agent"
+                        )
                     
                     cancelled_count += 1
                     log.info(f"{self.log_identifier} Marked task {task.id} as timed out")

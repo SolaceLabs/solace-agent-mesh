@@ -23,6 +23,7 @@ class TaskRepository(ITaskRepository):
         model = session.query(TaskModel).filter(TaskModel.id == task.id).first()
 
         if model:
+            model.agent_name = task.agent_name
             model.end_time = task.end_time
             model.status = task.status
             model.total_input_tokens = task.total_input_tokens
@@ -41,6 +42,7 @@ class TaskRepository(ITaskRepository):
             model = TaskModel(
                 id=task.id,
                 user_id=task.user_id,
+                agent_name=task.agent_name,
                 parent_task_id=task.parent_task_id,
                 start_time=task.start_time,
                 end_time=task.end_time,
