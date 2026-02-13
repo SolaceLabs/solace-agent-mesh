@@ -752,6 +752,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         "%s Received shutdown signal for viz processor loop.",
                         log_id_prefix,
                     )
+                    self._visualization_message_queue.task_done()
                     break
 
                 try:
@@ -990,6 +991,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         "%s Received shutdown signal for task logger loop.",
                         log_id_prefix,
                     )
+                    self._task_logger_queue.task_done()
                     break
 
                 try:
