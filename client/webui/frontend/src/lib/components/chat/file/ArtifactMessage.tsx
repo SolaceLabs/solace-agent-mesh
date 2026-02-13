@@ -68,7 +68,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Get file info for rendering decisions
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
     const fileName = fileAttachment?.name || props.name;
-    const fileMimeType = fileAttachment?.mime_type;
+    const fileMimeType = fileAttachment?.mime_type || artifact?.mime_type;
 
     // Detect if artifact has been deleted: completed but not in artifacts list
     // However, don't mark as deleted if we have a valid fileAttachment with a URI -
@@ -424,7 +424,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
-                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} isStreaming={isStreaming} ragData={taskRagData} />
+                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileMimeType} setRenderError={setRenderError} isStreaming={isStreaming} ragData={taskRagData} />
                         </div>
                         <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
                     </div>

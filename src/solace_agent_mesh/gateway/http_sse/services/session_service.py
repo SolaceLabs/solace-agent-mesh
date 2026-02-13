@@ -313,12 +313,9 @@ class SessionService:
 
         # Validate project exists and user has access if project_id is provided
         if new_project_id:
-            from ..repository.models import ProjectModel
-            project = db.query(ProjectModel).filter(
-                ProjectModel.id == new_project_id,
-                ProjectModel.user_id == user_id,
-                ProjectModel.deleted_at.is_(None)
-            ).first()
+            from .project_service import ProjectService
+            project_service = ProjectService(component=self.component)
+            project = project_service.get_project(db, new_project_id, user_id)
 
             if not project:
                 raise ValueError(f"Project {new_project_id} not found or access denied")
@@ -364,6 +361,14 @@ class SessionService:
                     project_service = ProjectService(component=self.component)
                     log_prefix = f"[move_session_to_project session_id={session_id}] "
 
+                    # Get feature flag value
+                    project_indexing_config = self.component.get_config("project_indexing", {})
+                    indexing_enabled = (
+                        project_indexing_config.get("enabled", False)
+                        if isinstance(project_indexing_config, dict)
+                        else False
+                    )
+
                     artifacts_copied, _ = await copy_project_artifacts_to_session(
                         project_id=new_project_id,
                         user_id=user_id,
@@ -372,6 +377,7 @@ class SessionService:
                         component=self.component,
                         db=artifact_db,
                         log_prefix=log_prefix,
+                        indexing_enabled=indexing_enabled,
                     )
 
                     if artifacts_copied > 0:

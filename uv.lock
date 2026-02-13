@@ -4806,7 +4806,7 @@ requires-dist = [
     { name = "rouge", specifier = "==1.0.1" },
     { name = "ruff", marker = "extra == 'test'" },
     { name = "setuptools", specifier = "==80.10.2" },
-    { name = "solace-ai-connector", specifier = "==3.3.0" },
+    { name = "solace-ai-connector", specifier = "==3.3.1" },
     { name = "sqlalchemy", specifier = "==2.0.40" },
     { name = "sse-starlette", specifier = "==3.0.2" },
     { name = "starlette", specifier = "==0.49.1" },
@@ -4819,7 +4819,7 @@ provides-extras = ["employee-tools", "gcs", "test", "vertex"]
 
 [[package]]
 name = "solace-ai-connector"
-version = "3.3.0"
+version = "3.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gevent" },
@@ -4832,9 +4832,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fe/29/f8f810f95c8f1f584bb723c4b88e8c791402aa174e0995cb6f9fd4228083/solace_ai_connector-3.3.0.tar.gz", hash = "sha256:8aa5a63a08fe08b9d32a0918b1ff9a87aaa8107c79b13d0afe0691f98f3511cd", size = 386560, upload-time = "2026-01-22T20:44:59.506Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/42/b864aeaf614395f180924968bfc7829046742eb20a1baaf500b09f9a7bae/solace_ai_connector-3.3.1.tar.gz", hash = "sha256:45d16057cfc95a5837e864476b5af664081db2116edf0135fd7e3d35da1b767a", size = 390459, upload-time = "2026-02-09T18:11:23.945Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c6/35/ad67558fcfb57627eef44044fea3b93ba418e63a72682a24422b16fe1331/solace_ai_connector-3.3.0-py3-none-any.whl", hash = "sha256:a6f266cd8913a145b25fc1387f3a687b7d92f892fb86fce428b08a5fba5ca00c", size = 189367, upload-time = "2026-01-22T20:44:56.307Z" },
+    { url = "https://files.pythonhosted.org/packages/53/26/8e80f8ef4d28d5284a85a6443e1d5ff52e6f7e328a5e9c7e4d1a637d45ea/solace_ai_connector-3.3.1-py3-none-any.whl", hash = "sha256:288868636714877b774ff73a52e25155a18860e1b811648d2abbc28f6b47ad11", size = 190836, upload-time = "2026-02-09T18:11:21.72Z" },
 ]
 
 [[package]]

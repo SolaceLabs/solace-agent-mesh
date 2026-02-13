@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FileText, FolderOpen, MoreHorizontal, Download, Trash2, Share2, UserCog, UserSearch } from "lucide-react";
+import { FileText, FolderOpen, MoreHorizontal, Download, Trash2, Share2, UserSearch, UserIcon } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
@@ -114,9 +114,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                         {onShare && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <span className="cursor-default">{isOwner ? <UserCog className="h-4 w-4" /> : <UserSearch className="h-4 w-4" />}</span>
+                                    <span className="cursor-default">{isOwner ? <UserIcon className="h-4 w-4" /> : <UserSearch className="h-4 w-4" />}</span>
                                 </TooltipTrigger>
-                                <TooltipContent side="top">{isOwner ? "You are the owner of this project" : "You can view this project"}</TooltipContent>
+                                <TooltipContent side="top">{isOwner ? "You are the owner of this project" : "You are a viewer of this project"}</TooltipContent>
                             </Tooltip>
                         )}
                     </div>

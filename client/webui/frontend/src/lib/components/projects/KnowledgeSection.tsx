@@ -5,7 +5,7 @@ import { useConfigContext, useDownload, useIsProjectOwner } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
-import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
+import { formatRelativeTime, validateFileSizes, validateBatchUploadSize, validateProjectSizeLimit, calculateTotalFileSize } from "@/lib/utils";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
@@ -27,8 +27,10 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const { onDownload } = useDownload(project.id);
     const { validationLimits } = useConfigContext();
 
-    // Get max upload size from config - if not available, skip client-side validation
-    const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
+    // Get validation limits from config - if not available, skip client-side validation
+    const maxPerFileUploadSizeBytes = validationLimits?.maxPerFileUploadSizeBytes;
+    const maxBatchUploadSizeBytes = validationLimits?.maxBatchUploadSizeBytes;
+    const maxProjectSizeBytes = validationLimits?.maxProjectSizeBytes;
 
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,13 +50,30 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         });
     }, [artifacts]);
 
-    // Validate file sizes before showing upload dialog
-    // if maxUploadSizeBytes is not configured, validation is skipped and backend handles it
+    const currentProjectArtifactSizeBytes = React.useMemo(() => {
+        return calculateTotalFileSize(artifacts);
+    }, [artifacts]);
+
     const handleValidateFileSizes = useCallback(
         (files: FileList) => {
-            return validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
+            const fileSizeResult = validateFileSizes(files, { maxSizeBytes: maxPerFileUploadSizeBytes });
+            if (!fileSizeResult.valid) {
+                return fileSizeResult;
+            }
+
+            const batchSizeResult = validateBatchUploadSize(files, maxBatchUploadSizeBytes);
+            if (!batchSizeResult.valid) {
+                return batchSizeResult;
+            }
+
+            const projectSizeLimitResult = validateProjectSizeLimit(currentProjectArtifactSizeBytes, files, maxProjectSizeBytes);
+            if (!projectSizeLimitResult.valid) {
+                return { valid: false, error: projectSizeLimitResult.error };
+            }
+
+            return { valid: true };
         },
-        [maxUploadSizeBytes]
+        [maxPerFileUploadSizeBytes, maxBatchUploadSizeBytes, maxProjectSizeBytes, currentProjectArtifactSizeBytes]
     );
 
     const handleFileUploadChange = (files: FileList | null) => {

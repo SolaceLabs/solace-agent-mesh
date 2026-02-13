@@ -649,3 +649,29 @@ def get_authorization_service(
     except Exception as e:
         log.warning(f"Failed to get authorization service: {e}")
         return None
+
+
+def get_indexing_task_service(
+    sse_manager: SSEManager = Depends(get_sse_manager),
+    project_service: ProjectService = Depends(get_project_service),
+) -> "IndexingTaskService":
+    """
+    FastAPI dependency to get an instance of IndexingTaskService.
+    
+    Stateless service for background conversion and indexing with SSE progress.
+    
+    Args:
+        sse_manager: SSEManager for sending events
+        project_service: ProjectService for file operations
+    
+    Returns:
+        IndexingTaskService instance
+    """
+    from .services.indexing_task_service import IndexingTaskService
+    
+    log.debug("get_indexing_task_service called")
+    
+    return IndexingTaskService(
+        sse_manager=sse_manager,
+        project_service=project_service
+    )

@@ -1,12 +1,20 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from ..dependencies import get_session_business_service, get_db, get_title_generation_service
+from ....common.utils.embeds import (
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
+)
+from ....common.utils.embeds.types import ResolutionMode
+from ....common.utils.templates import resolve_template_blocks_in_string
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -199,6 +207,8 @@ async def save_task(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
+    artifact_service = Depends(get_shared_artifact_service),
+    component = Depends(get_sac_component),
 ):
     """
     Save a complete task interaction (upsert).
@@ -229,14 +239,119 @@ async def save_task(
         existing_task = task_repo.find_by_id(db, request.task_id, user_id)
         is_update = existing_task is not None
 
+        # Resolve embeds in message_bubbles before saving
+        message_bubbles = request.message_bubbles
+        if artifact_service and message_bubbles and '«' in message_bubbles:
+            try:
+                # Parse the message bubbles JSON
+                bubbles = json.loads(message_bubbles)
+                resolved_bubbles = []
+                
+                gateway_id = component.gateway_id if component else "webui"
+                
+                for bubble in bubbles:
+                    if isinstance(bubble, dict):
+                        # Resolve embeds in the text field
+                        text = bubble.get("text", "")
+                        if text and '«' in text:
+                            embed_eval_context = {
+                                "artifact_service": artifact_service,
+                                "session_context": {
+                                    "app_name": gateway_id,
+                                    "user_id": user_id,
+                                    "session_id": session_id,
+                                },
+                            }
+                            embed_eval_config = {
+                                "gateway_max_artifact_resolve_size_bytes": 1024 * 1024,  # 1MB limit
+                                "gateway_recursive_embed_depth": 3,
+                            }
+                            
+                            resolved_text, _, signals = await resolve_embeds_in_string(
+                                text=text,
+                                context=embed_eval_context,
+                                resolver_func=evaluate_embed,
+                                types_to_resolve=LATE_EMBED_TYPES,
+                                resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                                log_identifier=f"[SaveTask:{request.task_id}]",
+                                config=embed_eval_config,
+                            )
+                            
+                            # Resolve template blocks (template_liquid)
+                            if '«««template' in resolved_text:
+                                resolved_text = await resolve_template_blocks_in_string(
+                                    text=resolved_text,
+                                    artifact_service=artifact_service,
+                                    session_context={
+                                        "app_name": gateway_id,
+                                        "user_id": user_id,
+                                        "session_id": session_id,
+                                    },
+                                    log_identifier=f"[SaveTask:{request.task_id}][TemplateResolve]",
+                                )
+                            
+                            # Strip status_update embeds (they're for real-time display only)
+                            status_update_pattern = r'«status_update:[^»]+»\n?'
+                            resolved_text = re.sub(status_update_pattern, '', resolved_text)
+                            
+                            # Strip any remaining template blocks that weren't resolved
+                            template_block_pattern = r'«««template(?:_liquid)?:[^\n]+\n(?:(?!»»»).)*?»»»'
+                            resolved_text = re.sub(template_block_pattern, '', resolved_text, flags=re.DOTALL)
+                            
+                            bubble["text"] = resolved_text
+                            
+                            # Also resolve embeds and templates in parts if they contain text
+                            parts = bubble.get("parts", [])
+                            resolved_parts = []
+                            for part in parts:
+                                if isinstance(part, dict) and part.get("kind") == "text":
+                                    part_text = part.get("text", "")
+                                    if part_text and '«' in part_text:
+                                        resolved_part_text, _, _ = await resolve_embeds_in_string(
+                                            text=part_text,
+                                            context=embed_eval_context,
+                                            resolver_func=evaluate_embed,
+                                            types_to_resolve=LATE_EMBED_TYPES,
+                                            resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                                            log_identifier=f"[SaveTask:{request.task_id}]",
+                                            config=embed_eval_config,
+                                        )
+                                        # Resolve template blocks in parts
+                                        if '«««template' in resolved_part_text:
+                                            resolved_part_text = await resolve_template_blocks_in_string(
+                                                text=resolved_part_text,
+                                                artifact_service=artifact_service,
+                                                session_context={
+                                                    "app_name": gateway_id,
+                                                    "user_id": user_id,
+                                                    "session_id": session_id,
+                                                },
+                                                log_identifier=f"[SaveTask:{request.task_id}][TemplateResolve]",
+                                            )
+                                        part["text"] = resolved_part_text
+                                resolved_parts.append(part)
+                            bubble["parts"] = resolved_parts
+                    
+                    resolved_bubbles.append(bubble)
+                
+                message_bubbles = json.dumps(resolved_bubbles)
+                log.debug("Resolved embeds in message_bubbles for task %s", request.task_id)
+            except Exception as e:
+                log.warning(
+                    "Failed to resolve embeds in message_bubbles for task %s: %s. Saving as-is.",
+                    request.task_id,
+                    e,
+                )
+
         # Save the task - pass strings directly
+        # Use the resolved message_bubbles if embeds were resolved, otherwise use the original
         saved_task = session_service.save_task(
             db=db,
             task_id=request.task_id,
             session_id=session_id,
             user_id=user_id,
             user_message=request.user_message,
-            message_bubbles=request.message_bubbles,  # Already a string
+            message_bubbles=message_bubbles,  # Use resolved message_bubbles
             task_metadata=request.task_metadata,  # Already a string
         )
 
@@ -246,6 +361,51 @@ async def save_task(
             "updated" if is_update else "created",
             session_id,
         )
+
+        # Clear SSE event buffer for this task (implicit cleanup)
+        # This is atomic with the save operation
+        try:
+            from ..dependencies import get_sac_component
+            component = get_sac_component()
+            log.debug(
+                "[BufferCleanup] Task %s: Starting cleanup. component=%s, sse_manager=%s",
+                request.task_id,
+                component is not None,
+                component.sse_manager is not None if component else False,
+            )
+            if component and component.sse_manager:
+                persistent_buffer = component.sse_manager.get_persistent_buffer()
+                log.debug(
+                    "[BufferCleanup] Task %s: persistent_buffer=%s, is_enabled=%s",
+                    request.task_id,
+                    persistent_buffer is not None,
+                    persistent_buffer.is_enabled() if persistent_buffer else False,
+                )
+                if persistent_buffer and persistent_buffer.is_enabled():
+                    deleted_count = persistent_buffer.delete_events_for_task(request.task_id)
+                    if deleted_count > 0:
+                        log.info(
+                            "[BufferCleanup] Task %s: Cleared %d buffered SSE events after chat_task save",
+                            request.task_id,
+                            deleted_count,
+                        )
+                else:
+                    log.debug(
+                        "[BufferCleanup] Task %s: Buffer disabled or not available, skipping cleanup",
+                        request.task_id,
+                    )
+            else:
+                log.debug(
+                    "[BufferCleanup] Task %s: No component or sse_manager available",
+                    request.task_id,
+                )
+        except Exception as buffer_error:
+            # Non-critical - buffer will be cleaned up by retention policy
+            log.warning(
+                "[BufferCleanup] Task %s: Failed to clear buffer: %s",
+                request.task_id,
+                buffer_error,
+            )
 
         # Convert to response DTO
         response = TaskResponse(
@@ -428,6 +588,132 @@ async def get_session_history(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve session history",
+        ) from e
+
+
+@router.get("/sessions/{session_id}/events/unconsumed")
+async def get_session_unconsumed_events(
+    session_id: str,
+    include_events: bool = False,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Check for unconsumed buffered SSE events for a session.
+    
+    This endpoint is used by the frontend to determine if there are
+    any buffered events that need to be replayed when switching to a session.
+    
+    In the unified event buffer architecture:
+    1. Frontend switches to a session
+    2. Frontend calls this endpoint with include_events=true to get all buffered events in one request
+    3. Frontend replays events through handleSseMessage
+    4. Frontend saves to chat_tasks (which implicitly cleans up buffer)
+    
+    Query Parameters:
+        include_events: If true, include the actual event data in the response.
+                       This enables batched retrieval to avoid N+1 queries.
+    
+    Returns:
+        JSON object with:
+        - has_events: boolean indicating if there are unconsumed events
+        - task_ids: list of task IDs with unconsumed events
+        - events_by_task: (only if include_events=true) dict mapping task_id to list of events
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s checking for unconsumed events in session %s (include_events=%s)",
+        user_id, session_id, include_events
+    )
+
+    try:
+        if (
+            not session_id
+            or session_id.strip() == ""
+            or session_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+
+        # Verify user owns this session
+        session_domain = session_service.get_session_details(
+            db=db, session_id=session_id, user_id=user_id
+        )
+        if not session_domain:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+
+        # Get the SSE manager to access the persistent buffer
+        from ..dependencies import get_sac_component
+        from ..component import WebUIBackendComponent
+        
+        component: WebUIBackendComponent = get_sac_component()
+        
+        if component is None:
+            log.warning("WebUI backend component not available")
+            return {"has_events": False, "task_ids": [], "events_by_task": {} if include_events else None}
+        
+        sse_manager = component.sse_manager
+        persistent_buffer = sse_manager.get_persistent_buffer() if sse_manager else None
+        if persistent_buffer is None:
+            log.debug("Persistent buffer not available")
+            return {"has_events": False, "task_ids": [], "events_by_task": {} if include_events else None}
+        
+        # Get unconsumed events for this session (already grouped by task_id)
+        unconsumed_by_task = persistent_buffer.get_unconsumed_events_for_session(session_id)
+        
+        task_ids = list(unconsumed_by_task.keys())
+        has_events = len(task_ids) > 0
+        
+        log.info(
+            "Session %s has %d tasks with unconsumed events: %s",
+            session_id,
+            len(task_ids),
+            task_ids
+        )
+        
+        response = {
+            "has_events": has_events,
+            "task_ids": task_ids,
+            "session_id": session_id
+        }
+        
+        # Include actual events if requested (enables batched retrieval)
+        if include_events:
+            # Convert events to the format expected by frontend
+            # Format matches the per-task endpoint: {events_buffered: bool, events: [...]}
+            events_by_task = {}
+            for task_id, events in unconsumed_by_task.items():
+                events_by_task[task_id] = {
+                    "events_buffered": len(events) > 0,
+                    "events": [
+                        {
+                            "sequence": event.get("event_sequence", 0),
+                            "event_type": event.get("event_type", "message"),
+                            "data": event.get("event_data", {}),
+                        }
+                        for event in events
+                    ]
+                }
+            response["events_by_task"] = events_by_task
+        
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception(
+            "Error checking unconsumed events for session %s, user %s: %s",
+            session_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check unconsumed events",
         ) from e
 
 
