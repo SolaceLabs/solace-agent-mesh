@@ -734,7 +734,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         log_id_prefix = f"{self.log_identifier}[VizMsgProcessor]"
         log.info("%s Starting visualization message processor loop...", log_id_prefix)
-        loop = asyncio.get_running_loop()
 
         while not self.stop_signal.is_set():
             msg_data = None
@@ -973,7 +972,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         log_id_prefix = f"{self.log_identifier}[TaskLoggerLoop]"
         log.info("%s Starting task logger loop...", log_id_prefix)
-        loop = asyncio.get_running_loop()
 
         while not self.stop_signal.is_set():
             msg_data = None
