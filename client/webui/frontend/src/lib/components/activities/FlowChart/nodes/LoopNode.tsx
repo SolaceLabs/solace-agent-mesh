@@ -24,6 +24,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     const canHaveChildren = hasChildren;
 
     // Layout constants
+    const LOOP_WIDTH = 300; // Static width for loop nodes
     const HEADER_HEIGHT = 44;
 
     // Render a child node (loop iterations are agent nodes)
@@ -57,10 +58,11 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
         const hasConditionRow = node.data.condition || maxIterations;
 
         return (
-            <div className="flex flex-col px-4" style={{ width: 'fit-content', minWidth: '200px' }}>
-                {/* Solid Header Box - positioned at top */}
+            <div className="flex flex-col px-4" style={{ minWidth: `${LOOP_WIDTH + 72}px` }}>
+                {/* Solid Header Box - positioned at top, centered with fixed width */}
                 <div
                     className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                    style={{ width: `${LOOP_WIDTH}px` }}
                     onClick={e => {
                         e.stopPropagation();
                         onClick?.(node);
@@ -102,10 +104,10 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
                     )}
                 </div>
 
-                {/* Dotted Children Container - grows with content, extends beyond header via outer padding */}
+                {/* Dotted Children Container - grows with content, minimum width calculated from LOOP_WIDTH + padding */}
                 <div
                     className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
-                    style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + (hasConditionRow ? 32 : 16)}px` }}
+                    style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + (hasConditionRow ? 32 : 16)}px`, minWidth: `${LOOP_WIDTH+72}px` }}
                 >
                     <div className="px-3 pb-4">
                         <div className="flex flex-col items-center gap-2">
@@ -133,7 +135,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     // When not expanded or no children, render as compact node
     // Use same width calculation as expanded state for consistency
     return (
-        <div className="flex flex-col px-4" style={{ width: 'fit-content'}}>
+        <div className="flex flex-col px-4" style={{ width: `${LOOP_WIDTH}px` }}>
             <div
                 className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                 onClick={e => {
