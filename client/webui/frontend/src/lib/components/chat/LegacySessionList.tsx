@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Search } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
@@ -63,8 +63,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
     return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
 };
 import { formatTimestamp, getErrorMessage } from "@/lib/utils";
-import { MoveSessionDialog, ProjectBadge } from "@/lib/components/chat";
-import { Input } from "@/lib/components/ui";
+import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
 import {
     Button,
     DropdownMenu,
@@ -100,7 +99,7 @@ interface SessionListProps {
     projects?: Project[];
 }
 
-export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
+export const LegacySessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
@@ -137,7 +136,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [hasMore, setHasMore] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedProject, setSelectedProject] = useState<string>("all");
-    const [searchQuery, setSearchQuery] = useState<string>("");
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
@@ -251,11 +249,9 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     }, [editingSessionId]);
 
-    const handleSessionClick = async (clickedSessionId: string) => {
-        if (editingSessionId !== clickedSessionId) {
-            // Navigate to chat page first, then switch session
-            navigate("/chat");
-            await handleSwitchSession(clickedSessionId);
+    const handleSessionClick = async (sessionId: string) => {
+        if (editingSessionId !== sessionId) {
+            await handleSwitchSession(sessionId);
         }
     };
 
@@ -418,47 +414,38 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         return sortedNames;
     }, [sessions]);
 
-    // Filter sessions by selected project and search query
+    // Filter sessions by selected project
     const filteredSessions = useMemo(() => {
-        let filtered = sessions;
-
-        // Filter by project
-        if (selectedProject !== "all") {
-            if (selectedProject === "(No Project)") {
-                filtered = filtered.filter(session => !session.projectName);
-            } else {
-                filtered = filtered.filter(session => session.projectName === selectedProject);
-            }
+        if (selectedProject === "all") {
+            return sessions;
         }
-
-        // Filter by search query
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase().trim();
-            filtered = filtered.filter(session => {
-                const name = session.name?.toLowerCase() || "new chat";
-                return name.includes(query);
-            });
+        if (selectedProject === "(No Project)") {
+            return sessions.filter(session => !session.projectName);
         }
+        return sessions.filter(session => session.projectName === selectedProject);
+    }, [sessions, selectedProject]);
 
-        return filtered;
-    }, [sessions, selectedProject, searchQuery]);
+    // Get the project ID for the selected project name (for search filtering)
+    const selectedProjectId = useMemo(() => {
+        if (selectedProject === "all") return null;
+        const project = projects.find(p => p.name === selectedProject);
+        return project?.id || null;
+    }, [selectedProject, projects]);
 
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
-            {/* Search and Project Filter on same line */}
-            <div className="flex max-w-5xl items-center gap-4 pr-4">
-                {/* Search Input */}
-                <div className="relative w-64">
-                    <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-                    <Input type="text" placeholder="Search chats..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
+            <div className="flex flex-col gap-4">
+                {/* Session Search */}
+                <div className="pr-4">
+                    <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
                 </div>
 
                 {/* Project Filter - Only show when persistence is enabled */}
                 {persistenceEnabled && projectNames.length > 0 && (
-                    <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium whitespace-nowrap">Project:</label>
+                    <div className="flex items-center gap-2 pr-4">
+                        <label className="text-sm font-medium">Project:</label>
                         <Select value={selectedProject} onValueChange={setSelectedProject}>
-                            <SelectTrigger className="w-40 rounded-md">
+                            <SelectTrigger className="flex-1 rounded-md">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -476,10 +463,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
             <div className="flex-1 overflow-y-auto">
                 {filteredSessions.length > 0 && (
-                    <ul className="space-y-2">
+                    <ul>
                         {filteredSessions.map(session => (
-                            <li key={session.id} className="group max-w-5xl pr-4">
-                                <div className={`hover:bg-accent/50 flex items-center gap-3 rounded-md border p-4 shadow-sm transition-colors ${session.id === sessionId ? "bg-muted border-primary/30 dark:bg-muted/50" : ""}`}>
+                            <li key={session.id} className="group my-2 pr-4">
+                                <div className={`flex items-center gap-2 rounded-sm px-2 py-2 ${session.id === sessionId ? "bg-muted dark:bg-muted/50" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -496,7 +483,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         />
                                     ) : (
                                         <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
-                                            <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
                                                         <SessionName session={session} respondingSessionId={respondingSessionId} />
@@ -508,10 +495,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                                 <TooltipContent>Background task running</TooltipContent>
                                                             </Tooltip>
                                                         )}
-                                                        {session.projectName && <ProjectBadge text={session.projectName} />}
                                                     </div>
+                                                    <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
-                                                <span className="text-muted-foreground flex-shrink-0 text-xs">{formatSessionDate(session.updatedTime)}</span>
+                                                {session.projectName && <ProjectBadge text={session.projectName} />}
                                             </div>
                                         </button>
                                     )}

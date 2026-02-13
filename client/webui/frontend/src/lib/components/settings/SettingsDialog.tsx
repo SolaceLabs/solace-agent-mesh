@@ -1,15 +1,15 @@
-import React, { useState } from "react";
-import { Info, Settings, Type, Volume2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Info, Settings, User, HelpCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useConfigContext } from "@/lib/hooks";
 
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
-import { SpeechSettingsPanel } from "./SpeechSettings";
-import { GeneralSettings } from "./GeneralSettings";
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
+import { ProfileSettings } from "./ProfileSettings";
+import { AccountSettings } from "./AccountSettings";
+import { HelpSettings } from "./HelpSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type SettingsSection = "general" | "speech" | "about";
+export type SettingsSection = "profile" | "settings" | "help" | "about";
 
 interface SidebarItemProps {
     icon: React.ReactNode;
@@ -31,44 +31,50 @@ interface SettingsDialogProps {
     iconOnly?: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    initialSection?: SettingsSection;
 }
 
-export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange }) => {
-    const { configFeatureEnablement } = useConfigContext();
+export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange, initialSection = "profile" }) => {
     const [internalOpen, setInternalOpen] = useState(false);
-    const [activeSection, setActiveSection] = useState<SettingsSection>("general");
+    const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
 
     // Use controlled state if provided, otherwise use internal state
     const isControlled = controlledOpen !== undefined;
     const open = isControlled ? controlledOpen : internalOpen;
     const setOpen = onOpenChange || setInternalOpen;
 
-    // Feature flags
-    const sttEnabled = configFeatureEnablement?.speechToText ?? true;
-    const ttsEnabled = configFeatureEnablement?.textToSpeech ?? true;
-    const speechEnabled = sttEnabled || ttsEnabled;
+    // Update active section when dialog opens with a different initial section
+    useEffect(() => {
+        if (open) {
+            setActiveSection(initialSection);
+        }
+    }, [open, initialSection]);
 
     const renderContent = () => {
         switch (activeSection) {
+            case "profile":
+                return <ProfileSettings />;
+            case "settings":
+                return <AccountSettings />;
+            case "help":
+                return <HelpSettings />;
             case "about":
                 return <AboutProduct />;
-            case "general":
-                return <GeneralSettings />;
-            case "speech":
-                return <SpeechSettingsPanel />;
             default:
-                return <GeneralSettings />;
+                return <ProfileSettings />;
         }
     };
 
     const getSectionTitle = () => {
         switch (activeSection) {
+            case "profile":
+                return "Profile";
+            case "settings":
+                return "Settings";
+            case "help":
+                return "Help & Documentation";
             case "about":
                 return "About";
-            case "general":
-                return "General";
-            case "speech":
-                return "Speech";
             default:
                 return "Settings";
         }
@@ -114,8 +120,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                         <nav className="flex flex-1 flex-col">
                             {/* Top items, scrollable */}
                             <div className="flex-1 space-y-1 overflow-y-auto">
-                                <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
-                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
+                                <SidebarItem icon={<User className="size-4" />} label="Profile" active={activeSection === "profile"} onClick={() => setActiveSection("profile")} />
+                                <SidebarItem icon={<Settings className="size-4" />} label="Settings" active={activeSection === "settings"} onClick={() => setActiveSection("settings")} />
+                                <SidebarItem icon={<HelpCircle className="size-4" />} label="Help & Documentation" active={activeSection === "help"} onClick={() => setActiveSection("help")} />
                             </div>
                             {/* Bottom items, static */}
                             <div className="space-y-1 pb-2">
@@ -132,11 +139,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                         {/* Header */}
                         <div className="flex items-center border-b px-6 py-4">
                             <h3 className="text-xl font-semibold">{getSectionTitle()}</h3>
-                            {activeSection === "speech" && (
-                                <Badge variant="outline" className="bg-secondary text-secondary-foreground ml-3 h-5 text-[10px] uppercase">
-                                    Experimental
-                                </Badge>
-                            )}
                         </div>
 
                         {/* Content Area */}

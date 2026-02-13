@@ -108,6 +108,7 @@ apps:
       frontend_feature_enablement:
         background_tasks: ${BACKGROUND_TASKS_ENABLED, true} # NOTE: task_logging must also be enabled for background tasks to work
         auto_title_generation: ${AUTO_TITLE_GENERATION_ENABLED, true}  # Enable automatic chat title generation
+        newNavigation: ${NEW_NAVIGATION_ENABLED, false}  # Enable new navigation design (sidebar + top nav) vs legacy (top nav only)
 
       # --- Background Tasks Configuration ---
       background_tasks:

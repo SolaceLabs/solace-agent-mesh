@@ -1945,6 +1945,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 await loadSessionTasks(newSessionId);
 
+                // Emit session-loaded event for components waiting on session data
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("session-loaded", {
+                            detail: { sessionId: newSessionId },
+                        })
+                    );
+                }
+
                 // Check for running background tasks in this session and reconnect
                 const sessionBackgroundTasks = backgroundTasks.filter(t => t.sessionId === newSessionId);
                 if (sessionBackgroundTasks.length > 0) {
@@ -2617,6 +2626,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             window.removeEventListener("session-moved", handleSessionMoved);
         };
     }, [sessionId, projects, setActiveProject]);
+
+    useEffect(() => {
+        // Listen for open-artifact-preview events from ArtifactsPage
+        const handleOpenArtifactPreview = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { artifact } = customEvent.detail;
+
+            if (artifact && artifact.filename) {
+                console.log(`[ChatProvider] Opening artifact preview for: ${artifact.filename}`);
+                // Open the side panel on the files tab
+                openSidePanelTab("files");
+                // Open the artifact preview
+                openPreview(artifact.filename);
+            }
+        };
+
+        window.addEventListener("open-artifact-preview", handleOpenArtifactPreview);
+        return () => {
+            window.removeEventListener("open-artifact-preview", handleOpenArtifactPreview);
+        };
+    }, [openPreview, openSidePanelTab]);
 
     useEffect(() => {
         // Listen for background task completion events

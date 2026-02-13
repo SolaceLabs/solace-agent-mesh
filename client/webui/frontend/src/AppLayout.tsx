@@ -1,17 +1,37 @@
-import { useEffect } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState, useCallback } from "react";
+import { Outlet } from "react-router-dom";
 
-import { NavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { ToastContainer, EmptyState, NavigationSidebar } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
+
+const NAV_COLLAPSED_STORAGE_KEY = "sam-nav-collapsed";
 
 function AppLayoutContent() {
-    const location = useLocation();
-    const navigate = useNavigate();
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
-    const { configFeatureEnablement } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
+
+    // Initialize from localStorage, default to expanded (false)
+    const [isNavCollapsed, setIsNavCollapsed] = useState(() => {
+        if (typeof window !== "undefined") {
+            const stored = localStorage.getItem(NAV_COLLAPSED_STORAGE_KEY);
+            // If stored value exists, use it; otherwise default to expanded (false)
+            return stored !== null ? stored === "true" : false;
+        }
+        return false; // Default to expanded
+    });
+
+    const handleNavToggle = useCallback(() => {
+        setIsNavCollapsed(prev => {
+            const newValue = !prev;
+            // Persist to localStorage
+            if (typeof window !== "undefined") {
+                localStorage.setItem(NAV_COLLAPSED_STORAGE_KEY, String(newValue));
+            }
+            return newValue;
+        });
+    }, []);
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -38,20 +58,8 @@ function AppLayoutContent() {
         };
     }, []);
 
-    // Get navigation items based on feature flags
-    const topNavItems = getTopNavigationItems(configFeatureEnablement);
-
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
-
-    const getActiveItem = () => {
-        const path = location.pathname;
-        if (path === "/" || path.startsWith("/chat")) return "chat";
-        if (path.startsWith("/projects")) return "projects";
-        if (path.startsWith("/prompts")) return "prompts";
-        if (path.startsWith("/agents")) return "agentMesh";
-        return "chat";
-    };
 
     if (useAuthorization && !isAuthenticated) {
         return (
@@ -70,23 +78,10 @@ function AppLayoutContent() {
         );
     }
 
-    const handleNavItemChange = (itemId: string) => {
-        const item = topNavItems.find(item => item.id === itemId) || bottomNavigationItems.find(item => item.id === itemId);
-
-        if (item?.onClick && itemId !== "settings") {
-            item.onClick();
-        } else if (itemId !== "settings") {
-            navigate(`/${itemId === "agentMesh" ? "agents" : itemId}`);
-        }
-    };
-
-    const handleHeaderClick = () => {
-        navigate("/chat");
-    };
-
     return (
-        <div className={`relative flex h-screen`}>
-            <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+        <div className="relative flex h-screen">
+            {/* Navigation Sidebar - Persistent across all pages */}
+            <NavigationSidebar onToggle={handleNavToggle} isCollapsed={isNavCollapsed} />
             <main className="h-full w-full flex-1 overflow-auto">
                 <Outlet />
             </main>

@@ -14,3 +14,4 @@ export { MessageBanner } from "./MessageBanner";
 export * from "./messageColourVariants";
 export * from "./StreamingMarkdown";
 export { UserTypeahead } from "./UserTypeahead";
+export { SolaceIcon } from "./SolaceIcon";

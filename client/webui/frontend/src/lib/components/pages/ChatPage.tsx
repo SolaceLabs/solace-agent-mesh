@@ -7,13 +7,13 @@ import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, LegacySessionSidePanel, ProjectBadge } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
-const PANEL_SIZES_CLOSED = {
+const PANEL_SIZES = {
     chatPanelSizes: {
         default: 50,
         min: 30,
@@ -25,15 +25,14 @@ const PANEL_SIZES_CLOSED = {
         max: 70,
     },
 };
-const PANEL_SIZES_OPEN = {
-    chatPanelSizes: { ...PANEL_SIZES_CLOSED.chatPanelSizes, min: 50 },
-    sidePanelSizes: { ...PANEL_SIZES_CLOSED.sidePanelSizes, max: 50 },
-};
 
 export function ChatPage() {
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const { autoTitleGenerationEnabled, configFeatureEnablement } = useConfigContext();
+
+    // Check if using new navigation (with recent chats) or legacy navigation (needs SessionSidePanel)
+    const useNewNavigation = configFeatureEnablement?.newNavigation ?? false;
     const {
         agents,
         sessionId,
@@ -83,9 +82,7 @@ export function ChatPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const { chatPanelSizes, sidePanelSizes } = useMemo(() => {
-        return isSessionSidePanelCollapsed ? PANEL_SIZES_CLOSED : PANEL_SIZES_OPEN;
-    }, [isSessionSidePanelCollapsed]);
+    const { chatPanelSizes, sidePanelSizes } = PANEL_SIZES;
 
     const handleSidepanelToggle = useCallback(
         (collapsed: boolean) => {
@@ -107,6 +104,10 @@ export function ChatPage() {
         setIsSidePanelCollapsed(true);
     }, [setIsSidePanelCollapsed]);
 
+    const handleSessionSidePanelToggle = useCallback(() => {
+        setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
+    }, [isSessionSidePanelCollapsed]);
+
     const handleSidepanelExpand = useCallback(() => {
         setIsSidePanelCollapsed(false);
     }, [setIsSidePanelCollapsed]);
@@ -117,10 +118,6 @@ export function ChatPage() {
             lastExpandedSizeRef.current = size;
         }
     }, []);
-
-    const handleSessionSidePanelToggle = useCallback(() => {
-        setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
-    }, [isSessionSidePanelCollapsed]);
 
     const breadcrumbs = undefined;
 
@@ -231,10 +228,13 @@ export function ChatPage() {
 
     return (
         <div className="relative flex h-screen w-full flex-col overflow-hidden">
-            <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
-                <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
-            </div>
-            <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
+            {/* Legacy SessionSidePanel - only shown when using legacy navigation */}
+            {!useNewNavigation && (
+                <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
+                    <LegacySessionSidePanel onToggle={handleSessionSidePanelToggle} />
+                </div>
+            )}
+            <div className={`flex h-full w-full flex-col overflow-hidden transition-all duration-300 ${!useNewNavigation && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                 <Header
                     title={
                         <div className="flex items-center gap-3">
@@ -251,21 +251,20 @@ export function ChatPage() {
                     }
                     breadcrumbs={breadcrumbs}
                     leadingAction={
-                        isSessionSidePanelCollapsed ? (
+                        !useNewNavigation && isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
                                 <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
                                 <div className="h-6 border-r"></div>
-
                                 <ChatSessionDialog />
                             </div>
-                        ) : null
+                        ) : undefined
                     }
                 />
-            </div>
-            <div className="flex min-h-0 flex-1">
-                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
+
+                {/* Chat Content with Resizable Side Panel */}
+                <div className="flex min-h-0 flex-1">
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel
                             defaultSize={chatPanelSizes.default}
@@ -322,8 +321,8 @@ export function ChatPage() {
                         </ResizablePanel>
                     </ResizablePanelGroup>
                 </div>
+                <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
             </div>
-            <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
         </div>
     );
 }
