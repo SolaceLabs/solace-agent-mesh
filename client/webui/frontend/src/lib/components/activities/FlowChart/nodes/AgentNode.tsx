@@ -192,100 +192,124 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
     // Check if this is an expanded node (manually expanded from collapsed state)
     const isExpanded = node.data.isExpanded;
 
-    return (
-        <div
-            className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${opacityClass} ${borderStyleClass} ${
-                isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
-            } ${haloClass}`}
-            style={{
-                minWidth: "180px",
-            }}
-        >
-            {/* Header */}
+    const hasChildren = node.children && node.children.length > 0;
+    const hasParallelBranches = node.parallelBranches && node.parallelBranches.length > 0;
+    const hasContent = hasChildren || hasParallelBranches;
+
+    // When collapsed or no children, render as simple rectangular node
+    if (isCollapsed || !hasContent) {
+        return (
             <div
-                className={`cursor-pointer ${
-                    node.children.length === 0 && (!node.parallelBranches || node.parallelBranches.length === 0)
-                        ? "rounded-md" // No content below, round all corners
-                        : "rounded-t-md" // Content below, round only top
-                }`}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
+                className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${opacityClass} ${borderStyleClass} ${
+                    isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
+                } ${haloClass}`}
+                style={{
+                    minWidth: "180px",
                 }}
-                title={node.data.description}
             >
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                         <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
                         <div className="truncate text-sm font-semibold">{node.data.label}</div>
                     </div>
-                    {/* Expand/Collapse controls */}
-                    {((isCollapsed && onExpand) || (isExpanded && onCollapse)) && (
-                        <div className={isExpanded && onCollapse ? "opacity-0 transition-opacity group-hover:opacity-100" : ""}>
-                            {isCollapsed && onExpand && (
-                                <Button
-                                    onClick={e => {
-                                        e.stopPropagation();
-                                        onExpand(node.id);
-                                    }}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    tooltip="Expand"
-                                >
-                                    <Maximize2 className="h-4 w-4" />
-                                </Button>
-                            )}
-                            {isExpanded && onCollapse && (
-                                <Button
-                                    onClick={e => {
-                                        e.stopPropagation();
-                                        onCollapse(node.id);
-                                    }}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    tooltip="Collapse"
-                                >
-                                    <Minimize2 className="h-4 w-4" />
-                                </Button>
-                            )}
+                    {/* Expand control */}
+                    {isCollapsed && onExpand && (
+                        <Button
+                            onClick={e => {
+                                e.stopPropagation();
+                                onExpand(node.id);
+                            }}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            tooltip="Expand"
+                        >
+                            <Maximize2 className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // When expanded with children, render with straddling header and dotted container
+    const HEADER_HEIGHT = 44; // Match CONTAINER_HEADER height from workflow nodes
+
+    return (
+        <div className={`flex flex-col ${opacityClass} ${haloClass}`} style={{ minWidth: "180px" }}>
+            {/* Solid Header Box - positioned at top */}
+            <div
+                className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                onClick={e => {
+                    e.stopPropagation();
+                    onClick?.(node);
+                }}
+            >
+                <div className="flex items-center justify-between gap-4 px-4 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                        <div className="truncate text-sm font-semibold">{node.data.label}</div>
+                    </div>
+
+                    {/* Collapse control */}
+                    {isExpanded && onCollapse && (
+                        <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                            <Button
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    onCollapse(node.id);
+                                }}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                tooltip="Collapse"
+                            >
+                                <Minimize2 className="h-4 w-4" />
+                            </Button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Content - Children with inline connectors */}
-            {node.children.length > 0 && (
-                <div className={`flex flex-col items-center p-4 ${!node.parallelBranches || node.parallelBranches.length === 0 ? "rounded-b-md" : ""}`}>
-                    {node.children.map((child, index) => (
-                        <Fragment key={child.id}>
-                            {renderChild(child)}
-                            {/* Connector line to next child */}
-                            {index < node.children.length - 1 && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
-                        </Fragment>
-                    ))}
-                </div>
-            )}
+            {/* Dotted Children Container - grows with content */}
+            <div
+                className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
+                style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
+            >
+                {/* Children content */}
+                <div className="px-3 pb-4">
+                    <div className="flex flex-col items-center gap-2">
+                        {/* Sequential children */}
+                        {hasChildren &&
+                            node.children.map((child, index) => (
+                                <Fragment key={child.id}>
+                                    {renderChild(child)}
+                                    {/* Connector line to next child */}
+                                    {index < node.children.length - 1 && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
+                                </Fragment>
+                            ))}
 
-            {/* Parallel Branches */}
-            {node.parallelBranches && node.parallelBranches.length > 0 && (
-                <div className="rounded-b-md border-t-2 border-(--color-brand-w20) p-4 dark:border-(--color-brand-w80)">
-                    <div className="grid gap-4" style={{ gridAutoFlow: "column", gridAutoColumns: "1fr" }}>
-                        {node.parallelBranches.map((branch, branchIndex) => (
-                            <div key={branchIndex} className="flex flex-col items-center">
-                                {branch.map((child, index) => (
-                                    <Fragment key={child.id}>
-                                        {renderChild(child)}
-                                        {/* Connector line to next child in branch */}
-                                        {index < branch.length - 1 && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
-                                    </Fragment>
-                                ))}
+                        {/* Parallel Branches */}
+                        {hasParallelBranches && node.parallelBranches && (
+                            <div className="mt-2 w-full rounded-md border-2 border-(--color-brand-w20) bg-(--color-background-w10) p-4 dark:border-(--color-brand-w80) dark:bg-(--color-background-wMain)">
+                                <div className="grid gap-4" style={{ gridAutoFlow: "column", gridAutoColumns: "1fr" }}>
+                                    {node.parallelBranches.map((branch, branchIndex) => (
+                                        <div key={branchIndex} className="flex flex-col items-center">
+                                            {branch.map((child, index) => (
+                                                <Fragment key={child.id}>
+                                                    {renderChild(child)}
+                                                    {/* Connector line to next child in branch */}
+                                                    {index < branch.length - 1 && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
+                                                </Fragment>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 };
