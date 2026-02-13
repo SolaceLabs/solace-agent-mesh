@@ -4,7 +4,7 @@ import StartNode from "@/lib/components/workflowVisualization/nodes/StartNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Workflow Visualization/StartNode",
+    title: "Components/WorkflowVisualization/StartNode",
     component: StartNode,
     parameters: {
         layout: "fullscreen",
