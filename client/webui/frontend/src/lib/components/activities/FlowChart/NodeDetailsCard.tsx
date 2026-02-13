@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { type ReactNode, useState, useEffect } from "react";
 import { ArrowRight, Bot, CheckCircle, FileText, GitBranch, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -446,7 +446,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         );
     };
 
-    const renderArgumentValue = (value: unknown): React.ReactNode => {
+    const renderArgumentValue = (value: unknown): ReactNode => {
         // Handle null/undefined
         if (value === null) {
             return <span className="text-secondary-foreground italic">null</span>;

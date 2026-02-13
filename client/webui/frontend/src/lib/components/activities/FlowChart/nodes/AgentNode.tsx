@@ -1,4 +1,4 @@
-import { Fragment, type FC } from "react";
+import { Fragment, useCallback } from "react";
 import { Bot, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import LLMNode from "./LLMNode";
@@ -16,45 +16,48 @@ interface AgentNodeProps {
     onCollapse?: (nodeId: string) => void;
 }
 
-const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }: AgentNodeProps) => {
     // Render a child node recursively
-    const renderChild = (child: LayoutNode) => {
-        const childProps = {
-            node: child,
-            onClick: onChildClick,
-            onExpand,
-            onCollapse,
-        };
+    const renderChild = useCallback(
+        (child: LayoutNode) => {
+            const childProps = {
+                node: child,
+                onClick: onChildClick,
+                onExpand,
+                onCollapse,
+            };
 
-        switch (child.type) {
-            case "agent":
-                // Recursive!
-                return <AgentNode key={child.id} {...childProps} onChildClick={onChildClick} />;
-            case "llm":
-                return <LLMNode key={child.id} {...childProps} />;
-            case "tool":
-                return <ToolNode key={child.id} {...childProps} />;
-            case "switch":
-                return <SwitchNode key={child.id} {...childProps} />;
-            case "loop":
-                return <LoopNode key={child.id} {...childProps} />;
-            case "group":
-                return <WorkflowGroup key={child.id} {...childProps} onChildClick={onChildClick} />;
-            case "parallelBlock":
-                // Don't render empty parallel blocks
-                if (child.children.length === 0) {
+            switch (child.type) {
+                case "agent":
+                    // Recursive!
+                    return <AgentNode key={child.id} {...childProps} onChildClick={onChildClick} />;
+                case "llm":
+                    return <LLMNode key={child.id} {...childProps} />;
+                case "tool":
+                    return <ToolNode key={child.id} {...childProps} />;
+                case "switch":
+                    return <SwitchNode key={child.id} {...childProps} />;
+                case "loop":
+                    return <LoopNode key={child.id} {...childProps} />;
+                case "group":
+                    return <WorkflowGroup key={child.id} {...childProps} onChildClick={onChildClick} />;
+                case "parallelBlock":
+                    // Don't render empty parallel blocks
+                    if (child.children.length === 0) {
+                        return null;
+                    }
+                    // Render parallel block - children displayed side-by-side with bounding box
+                    return (
+                        <div key={child.id} className="flex flex-row items-start gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-gray-600 dark:bg-gray-800/50">
+                            {child.children.map(parallelChild => renderChild(parallelChild))}
+                        </div>
+                    );
+                default:
                     return null;
-                }
-                // Render parallel block - children displayed side-by-side with bounding box
-                return (
-                    <div key={child.id} className="flex flex-row items-start gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-gray-600 dark:bg-gray-800/50">
-                        {child.children.map(parallelChild => renderChild(parallelChild))}
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
+            }
+        },
+        [onChildClick, onExpand, onCollapse]
+    );
 
     // Pill variant for Start/Finish/Join/Map/Fork nodes
     if (node.data.variant === "pill") {
@@ -66,15 +69,15 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
 
         // Color classes based on error status
         const pillColorClasses = isError
-            ? "border-red-500 bg-red-50 text-red-900 dark:border-red-400 dark:bg-red-900/50 dark:text-red-100"
-            : "border-indigo-500 bg-indigo-50 text-indigo-900 dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100";
+            ? "border-[var(--color-error-wMain)] bg-[var(--color-error-w10)] text-[var(--color-error-wMain)] dark:border-[var(--color-error-w80)] dark:bg-[var(--color-error-w100)]/50 dark:text-[var(--color-error-w10)]"
+            : "border-[var(--color-info-wMain)] bg-[var(--color-info-w10)] text-[var(--color-info-wMain)] dark:border-[var(--color-info-w80)] dark:bg-[var(--color-info-w100)]/50 dark:text-[var(--color-info-w10)]";
 
         // If it's a simple pill (no parallel branches and no children), render compact version
         if (!hasParallelBranches && !hasChildren) {
             return (
                 <div
                     className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${opacityClass} ${borderStyleClass} ${
-                        isSelected ? "ring-2 ring-blue-500" : ""
+                        isSelected ? "ring-2 ring-[var(--color-info-wMain)]" : ""
                     }`}
                     style={{
                         width: `${node.width}px`,
@@ -100,7 +103,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                     {/* Pill label */}
                     <div
-                        className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                        className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-[var(--color-info-wMain)]" : ""}`}
                         style={{
                             minWidth: "80px",
                             textAlign: "center",
@@ -136,7 +139,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
             <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                 {/* Pill label */}
                 <div
-                    className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                    className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-[var(--color-info-wMain)]" : ""}`}
                     style={{
                         minWidth: "80px",
                         textAlign: "center",
@@ -191,7 +194,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
     return (
         <div
             className={`group relative rounded-md border-2 border-blue-700 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-blue-600 dark:bg-gray-800 ${opacityClass} ${borderStyleClass} ${
-                isSelected ? "ring-2 ring-blue-500" : ""
+                isSelected ? "ring-2 ring-[var(--color-info-wMain)]" : ""
             } ${haloClass}`}
             style={{
                 minWidth: "180px",
