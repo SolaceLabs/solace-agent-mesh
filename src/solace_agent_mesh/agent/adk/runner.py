@@ -31,13 +31,16 @@ log = logging.getLogger(__name__)
 
 # System-wide auto-summarization (configurable via env var)
 # Set SAM_ENABLE_AUTO_SUMMARIZATION=false to disable
-ENABLE_AUTO_SUMMARIZATION = os.getenv("SAM_ENABLE_AUTO_SUMMARIZATION", "true").lower() == "true"
+ENABLE_AUTO_SUMMARIZATION = os.getenv("SAM_ENABLE_AUTO_SUMMARIZATION", "false").lower() == "true"
 
 
 # Trigger compaction after N user turns (for testing without burning tokens)
 # Set SAM_FORCE_COMPACTION_TURN_THRESHOLD=4 to trigger compaction after 4 user messages
 # Set to 0 (default) to disable test mode and use real context limits
 FORCE_COMPACTION_TURN_THRESHOLD = int(os.getenv("SAM_FORCE_COMPACTION_TURN_THRESHOLD", "0"))
+
+# Number of interactions to compact at a time
+COMPACTION_INTERACTIONS_COUNT = int(os.getenv("SAM_COMPACTION_INTERACTIONS_COUNT", "2"))
 
 # Per-session locks for compaction to prevent parallel tasks from duplicate summarization
 # When multiple tasks hit context limit simultaneously, only one compacts per session
@@ -51,6 +54,12 @@ except ImportError:
     log.warning("cachetools not installed - compaction locks will not expire (memory leak)")
     _compaction_locks: dict[str, asyncio.Lock] = {}
 _compaction_locks_mutex = asyncio.Lock()
+
+# Per-session summaries for deferred notification (after successful response)
+# When compaction occurs during retries, we store the summary here instead of sending immediately
+# This ensures users see the actual response first, then a clean notification about summarization
+# Dict operations are atomic in asyncio (single event loop), so no mutex needed
+_session_summaries: dict[str, str] = {}  # session_id → latest summary text
 
 
 async def _get_compaction_lock(session_id: str) -> asyncio.Lock:
@@ -151,7 +160,15 @@ def _count_user_turns(events: list[ADKEvent]) -> int:
     if not events:
         return 0
 
-    return sum(1 for e in events if e.author == 'user' and e.content)
+    # CRITICAL: Exclude compaction events from count
+    # ADK's LlmEventSummarizer creates compaction events with author='user'
+    # but they're summaries, not actual user messages
+    return sum(
+        1 for e in events
+        if e.author == 'user'
+        and e.content
+        and not (e.actions and e.actions.compaction)  # Exclude compaction events
+    )
 
 
 async def _create_compaction_event(
@@ -360,6 +377,79 @@ async def _create_compaction_event(
     return len(events_to_compact), summary_text
 
 
+async def _send_compaction_failure_message(
+    component: "SamAgentComponent",
+    a2a_context: dict,
+    log_identifier: str = ""
+):
+    """
+    Send a graceful error message when progressive summarization cannot reduce context enough.
+
+    Informs user that:
+    - Progressive summarization was attempted
+    - Context is still too large
+    - Suggests retrying (triggers more summarization) or starting new chat
+
+    Args:
+        component: The SamAgentComponent instance
+        a2a_context: The A2A context dictionary
+        log_identifier: Logging prefix
+    """
+    try:
+        logical_task_id = a2a_context.get("logical_task_id", "unknown")
+
+        notification_text = (
+            "❌ **Unable to complete request - conversation history too long**\n\n"
+            "We attempted progressive summarization to reduce the context, but your conversation "
+            "history is still too large to process this request.\n\n"
+            "**Options:**\n"
+            "1. **Retry your last request** - This will trigger additional summarization and may succeed\n"
+            "2. **Start a new chat** - Begin fresh with no history for complex requests\n"
+            "3. **Simplify your request** - Break it into smaller, more focused tasks\n\n"
+            "We apologize for the inconvenience!"
+        )
+
+        message = a2a.create_agent_text_message(text=notification_text)
+
+        status_update = a2a.create_status_update(
+            task_id=logical_task_id,
+            context_id=a2a_context.get("contextId"),
+            message=message,
+            is_final=True  # Mark as final since we're failing
+        )
+
+        response = a2a.create_success_response(
+            result=status_update,
+            request_id=a2a_context.get("jsonrpc_request_id")
+        )
+
+        # Publish to appropriate topic
+        namespace = component.get_config("namespace")
+        client_id = a2a_context.get("client_id")
+        peer_reply_topic = a2a_context.get("replyToTopic")
+
+        target_topic = peer_reply_topic or a2a.get_client_response_topic(namespace, client_id)
+
+        component._publish_a2a_event(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            a2a_context
+        )
+
+        log.info(
+            "%s Sent compaction failure message to user for task %s",
+            log_identifier,
+            logical_task_id
+        )
+
+    except Exception as e:
+        log.warning(
+            "%s Failed to send compaction failure message: %s",
+            log_identifier,
+            e
+        )
+
+
 async def _send_truncation_notification(
     component: "SamAgentComponent",
     a2a_context: dict,
@@ -406,19 +496,21 @@ async def _send_truncation_notification(
         # Different messages for background vs interactive tasks
         if is_background:
             notification_text = (
-                f"ℹ️ Note: Conversation history was automatically summarized to stay within token limits.\n\n"
-                f"{summary}\n\n"
-                f"---\n\n"
-                f"*Continuing conversation below:*"
+                f"\n\n---\n\n"
+                f"**ℹ️ Note:** Conversation history was automatically summarized to stay within token limits.\n\n"
+                f"**Summary of earlier messages:**\n\n"
+                f"*{summary}*\n\n"
+                f"---\n"
             )
         else:
             notification_text = (
-                f"⚠️ Your conversation history reached the token limit!\n\n"
+                f"\n\n---\n\n"
+                f"**⚠️ Your conversation history reached the token limit!**\n\n"
                 f"We've automatically summarized older messages to continue. "
                 f"Alternatively, you can start a new chat for a fresh conversation.\n\n"
-                f"{summary}\n\n"
-                f"---\n\n"
-                f"*Continuing conversation below:*"
+                f"**Summary of earlier messages:**\n\n"
+                f"*{summary}*\n\n"
+                f"---\n"
             )
 
         message = a2a.create_agent_text_message(text=notification_text)
@@ -601,14 +693,26 @@ async def run_adk_async_task_thread_wrapper(
                     retry_count += 1
 
                     if retry_count > max_retries:
-                        # Exceeded max retries, give up
+                        # Exceeded max retries - clean up and send graceful message
+                        # Remove any pending summary since we're failing
+                        _session_summaries.pop(adk_session.id, None)
+
                         log.error(
-                            "%s Context limit exceeded after %d summarization attempts for task %s. Giving up.",
+                            "%s Context limit exceeded after %d summarization attempts for task %s.",
                             component.log_identifier,
                             max_retries,
                             logical_task_id,
                         )
-                        raise
+
+                        # Send graceful user-facing message instead of raising technical error
+                        await _send_compaction_failure_message(
+                            component=component,
+                            a2a_context=a2a_context,
+                            log_identifier=component.log_identifier
+                        )
+
+                        # Exit cleanly - user already got the graceful message
+                        return
 
                     # Get per-session compaction lock to prevent parallel tasks from duplicate work
                     # When multiple tasks hit limit simultaneously, only one compacts per session
@@ -666,7 +770,7 @@ async def run_adk_async_task_thread_wrapper(
                         events_removed, summary = await _create_compaction_event(
                             component=component,
                             session=adk_session,
-                            num_turns_to_summarize=2,
+                            num_turns_to_summarize=COMPACTION_INTERACTIONS_COUNT,
                             log_identifier=component.log_identifier
                         )
 
@@ -677,6 +781,12 @@ async def run_adk_async_task_thread_wrapper(
                             app_name=component.agent_name,
                             user_id=adk_session.user_id,
                             session_id=adk_session.id
+                        )
+                        log.warning(
+                            "%s DEBUG: After reload, session has %d events. Authors: %s",
+                            component.log_identifier,
+                            len(adk_session.events),
+                            [f"{e.author}:{e.invocation_id[:20]}" for e in adk_session.events[:10]]
                         )
 
                         if not adk_session:
@@ -713,17 +823,16 @@ async def run_adk_async_task_thread_wrapper(
                             summary[:200] + "..." if len(summary) > 200 else summary
                         )
 
-                        # Send notification BEFORE retry (so user sees it before answer)
-                        # Progressive summarization means each summary contains all previous
-                        is_background = _is_background_task(a2a_context)
-                        await _send_truncation_notification(
-                            component=component,
-                            a2a_context=a2a_context,
-                            summary=summary,
-                            is_background=is_background,
-                            log_identifier=component.log_identifier,
-                            session=adk_session
-                        )
+                        # Store summary for deferred notification (after successful response)
+                        # This prevents showing multiple ugly summary messages during retries
+                        # User sees answer first, then clean notification about summarization
+                        if adk_session.id in _session_summaries:
+                            log.info(
+                                "%s Overriding previous compaction summary for session %s",
+                                component.log_identifier,
+                                adk_session.id
+                            )
+                        _session_summaries[adk_session.id] = summary
 
                         log.info(
                             "%s Summarization complete. Retrying task %s with reduced context...",
@@ -760,6 +869,40 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
             is_paused,
         )
+
+        # Send deferred summarization notification AFTER successful response
+        # User sees the actual answer first, then a clean notification about what happened
+
+        # Only ROOT tasks should consume the summary - subtasks should leave it
+        parent_task_id = a2a_context.get("metadata", {}).get("parentTaskId")
+
+        if parent_task_id:
+            # Subtask - peek but don't consume
+            summary = _session_summaries.get(adk_session.id)
+            if summary:
+                log.info(
+                    "%s Subtask compacted (parent: %s) - leaving summary for root task to notify",
+                    component.log_identifier,
+                    parent_task_id
+                )
+        else:
+            # Root task - consume and send notification
+            summary = _session_summaries.pop(adk_session.id, None)
+            if summary:
+                log.info(
+                    "%s Sending deferred compaction notification for session %s after successful response",
+                    component.log_identifier,
+                    adk_session.id
+                )
+                is_background = _is_background_task(a2a_context)
+                await _send_truncation_notification(
+                    component=component,
+                    a2a_context=a2a_context,
+                    summary=summary,
+                    is_background=is_background,
+                    log_identifier=component.log_identifier,
+                    session=adk_session
+                )
 
     except TaskCancelledError as tce:
         exception_to_finalize_with = tce
