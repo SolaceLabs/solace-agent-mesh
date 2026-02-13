@@ -6,7 +6,10 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import parse, { type HTMLReactParserOptions, type DOMNode, Element, Text as DomText } from "html-react-parser";
 import type { Citation as CitationType } from "@/lib/utils/citations";
-import { getCitationTooltip, INDIVIDUAL_CITATION_PATTERN } from "@/lib/utils/citations";
+import { getCitationTooltip, INDIVIDUAL_CITATION_PATTERN, parseCitationId } from "@/lib/utils/citations";
+
+/** Default max length for citation display text */
+const DEFAULT_CITATION_MAX_LENGTH = 60;
 import { MarkdownHTMLConverter } from "@/lib/components";
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
 import { getSourceUrl } from "@/lib/utils/sourceUrlHelpers";
@@ -138,9 +141,9 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
     return `Source ${citation.sourceId + 1}`;
 }
 
-export function Citation({ citation, onClick, maxLength = 60 }: CitationProps) {
+export function Citation({ citation, onClick, maxLength = DEFAULT_CITATION_MAX_LENGTH }: CitationProps) {
     const displayText = getCitationDisplayText(citation, maxLength);
-    
+
     // Check if this is a document citation - no tooltip for document citations
     const isDocumentCitation = citation.type === "document";
     const tooltip = isDocumentCitation ? "" : getCitationTooltip(citation);
@@ -272,14 +275,12 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
     const firstCitation = uniqueCitations[0];
     const remainingCount = uniqueCitations.length - 1;
     const firstDisplayText = getCitationDisplayText(firstCitation, 50);
-    
+
     // Check citation type - determine if this is a document citation or web/research
     const isDocumentCitation = firstCitation.type === "document";
-    
+
     // Build tooltip - empty for document citations (as per product requirement)
-    const allCitationsTooltip = isDocumentCitation 
-        ? ""
-        : getCitationTooltip(firstCitation);
+    const allCitationsTooltip = isDocumentCitation ? "" : getCitationTooltip(firstCitation);
 
     // Check if this is a web search or deep research citation
     const { url: sourceUrl, sourceType } = getSourceUrl(firstCitation.source);
@@ -291,40 +292,25 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
         e.preventDefault();
         e.stopPropagation();
 
-        console.log("[BundledCitations] Citation clicked:", {
-            citationCount: uniqueCitations.length,
-            firstCitationId: firstCitation.citationId,
-            type: firstCitation.type,
-            isDocumentCitation,
-            hasClickableUrl,
-            sourceUrl,
-            hasOnCitationClick: !!onCitationClick,
-        });
-
         // For web search and deep research citations, open the URL directly
         if (hasClickableUrl && sourceUrl) {
-            console.log("[BundledCitations] Opening URL:", sourceUrl);
             window.open(sourceUrl, "_blank", "noopener,noreferrer");
             return;
         }
 
         // For document citations, use onClick handler (to open RAG panel)
         if (onCitationClick) {
-            console.log("[BundledCitations] Calling onCitationClick");
             onCitationClick(firstCitation);
-        } else {
-            console.warn("[BundledCitations] No onCitationClick handler available");
         }
     };
-    
+
     // For document citations: render simple button without popover
     if (isDocumentCitation) {
         return (
             <button
                 onClick={handleClick}
                 className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
-                title={allCitationsTooltip}
-                aria-label={`Citations: ${allCitationsTooltip}`}
+                aria-label={`${uniqueCitations.length} document citations`}
                 type="button"
             >
                 <span className="max-w-[200px] truncate">{firstDisplayText}</span>
@@ -389,23 +375,10 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                             e.preventDefault();
                             e.stopPropagation();
 
-                            console.log("[BundledCitations] Citation clicked:", {
-                                citationId: citation.citationId,
-                                type: citation.type,
-                                hasClickableUrl,
-                                sourceUrl,
-                                hasOnCitationClick: !!onCitationClick,
-                                citation
-                            });
-
                             if (hasClickableUrl && sourceUrl) {
-                                console.log("[BundledCitations] Opening URL:", sourceUrl);
                                 window.open(sourceUrl, "_blank", "noopener,noreferrer");
                             } else if (onCitationClick) {
-                                console.log("[BundledCitations] Calling onCitationClick");
                                 onCitationClick(citation);
-                            } else {
-                                console.warn("[BundledCitations] No action taken - neither URL nor onCitationClick available");
                             }
                         };
 
@@ -452,44 +425,6 @@ interface TextWithCitationsProps {
 }
 
 /**
- * Parse a citation ID and return its components
- * Handles three formats:
- * - s{turn}r{index} (e.g., "s0r0", "s1r2") -> type: "search"
- * - idx{turn}r{index} (e.g., "idx0r0", "idx0r1") -> type: "document"
- * - research{N} (e.g., "research0") -> type: "research"
- */
-function parseCitationIdLocal(citationId: string): { type: "search" | "research" | "document"; sourceId: number } | null {
-    // Try sTrN format first (web search)
-    const searchMatch = citationId.match(/^s(\d+)r(\d+)$/);
-    if (searchMatch) {
-        return {
-            type: "search",
-            sourceId: parseInt(searchMatch[2], 10), // Use result index as sourceId
-        };
-    }
-
-    // Try idxTrN format (document search)
-    const indexMatch = citationId.match(/^idx(\d+)r(\d+)$/);
-    if (indexMatch) {
-        return {
-            type: "document",
-            sourceId: parseInt(indexMatch[2], 10), // Use result index as sourceId
-        };
-    }
-
-    // Try research format
-    const researchMatch = citationId.match(/^research(\d+)$/);
-    if (researchMatch) {
-        return {
-            type: "research",
-            sourceId: parseInt(researchMatch[1], 10),
-        };
-    }
-
-    return null;
-}
-
-/**
  * Parse individual citations from a comma-separated content string
  * Supports: s0r0, s1r2, idx0r0, idx0r1, research0, research1
  */
@@ -500,7 +435,7 @@ function parseMultiCitationIds(content: string): Array<{ type: "search" | "resea
     INDIVIDUAL_CITATION_PATTERN.lastIndex = 0;
     while ((individualMatch = INDIVIDUAL_CITATION_PATTERN.exec(content)) !== null) {
         const citationId = individualMatch[1]; // The captured citation ID (s0r0, idx0r0, or research0)
-        const parsed = parseCitationIdLocal(citationId);
+        const parsed = parseCitationId(citationId);
 
         if (parsed) {
             results.push({

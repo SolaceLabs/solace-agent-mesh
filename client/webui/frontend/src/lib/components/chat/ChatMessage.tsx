@@ -477,18 +477,9 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
 
     const handleCitationClick = () => {
         // Open RAG panel when citation is clicked
-        console.log("[ChatMessage] handleCitationClick called:", {
-            messageId: message.metadata?.messageId,
-            taskId: message.taskId,
-            hasTaskId: !!message.taskId,
-        });
-        
         if (message.taskId) {
-            console.log("[ChatMessage] Opening RAG panel for taskId:", message.taskId);
             setTaskIdInSidePanel(message.taskId);
             openSidePanelTab("rag");
-        } else {
-            console.warn("[ChatMessage] Cannot open RAG panel - message has no taskId");
         }
     };
 

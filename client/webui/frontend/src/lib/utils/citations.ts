@@ -55,7 +55,7 @@ const SEARCH_CITATION_ID_PATTERN = /^s(\d+)r(\d+)$/;
 const INDEX_SEARCH_CITATION_ID_PATTERN = /^idx(\d+)r(\d+)$/;
 const RESEARCH_CITATION_ID_PATTERN = /^research(\d+)$/;
 
-function parseCitationId(citationId: string): { type: "search" | "research" | "document"; sourceId: number } | null {
+export function parseCitationId(citationId: string): { type: "search" | "research" | "document"; sourceId: number } | null {
     // Try sTrN format first (web search)
     const searchMatch = citationId.match(SEARCH_CITATION_ID_PATTERN);
     if (searchMatch) {
