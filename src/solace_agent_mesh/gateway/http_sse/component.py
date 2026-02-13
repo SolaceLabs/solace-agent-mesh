@@ -802,9 +802,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             max_size,
                         )
 
-                    topic = msg_data.get("topic")
-                    payload_dict = msg_data.get("payload")
-
                     log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
 
                     is_working_state = payload_dict.get("result", {}).get("status", {}).get('state') == "working"
