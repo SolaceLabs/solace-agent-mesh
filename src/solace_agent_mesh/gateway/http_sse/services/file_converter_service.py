@@ -11,6 +11,7 @@ License Compliance:
 """
 
 import asyncio
+import concurrent.futures
 import logging
 from datetime import datetime, timezone
 from io import BytesIO
@@ -18,6 +19,12 @@ from typing import Tuple, Dict, Any, Optional
 from google.adk.artifacts import BaseArtifactService
 
 log = logging.getLogger(__name__)
+
+# Dedicated executor for file conversions - bounded to prevent unbounded thread growth
+_CONVERSION_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=3,
+    thread_name_prefix="file_converter_"
+)
 
 # Citation configuration for text files
 LINES_PER_CITATION_CHUNK = 50  # Group 50 lines per citation entry (reasonable granularity)
@@ -467,15 +474,15 @@ async def convert_and_save_artifact(
             loop = asyncio.get_running_loop()
             if mime_type == "application/pdf":
                 text, conversion_metadata = await loop.run_in_executor(
-                    None, convert_pdf_to_text, source_bytes
+                    _CONVERSION_EXECUTOR, convert_pdf_to_text, source_bytes
                 )
             elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                 text, conversion_metadata = await loop.run_in_executor(
-                    None, convert_docx_to_text, source_bytes
+                    _CONVERSION_EXECUTOR, convert_docx_to_text, source_bytes
                 )
             elif mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
                 text, conversion_metadata = await loop.run_in_executor(
-                    None, convert_pptx_to_text, source_bytes
+                    _CONVERSION_EXECUTOR, convert_pptx_to_text, source_bytes
                 )
             else:
                 error_msg = f"Unsupported MIME type for conversion: {mime_type}"
