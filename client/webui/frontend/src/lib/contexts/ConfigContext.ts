@@ -4,6 +4,7 @@ export interface ValidationLimits {
     projectNameMax?: number;
     projectDescriptionMax?: number;
     projectInstructionsMax?: number;
+    projectArtifactDescriptionMax?: number;
     maxPerFileUploadSizeBytes?: number;
     maxBatchUploadSizeBytes?: number;
     maxZipUploadSizeBytes?: number;
