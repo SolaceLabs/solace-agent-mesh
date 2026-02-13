@@ -633,7 +633,7 @@ class ProjectService:
 
         # Post-processing: conversion and indexing (only if feature enabled)
         if not indexing_enabled:
-            self.logger.debug(f"Indexing disabled for project {project_id}, skipping post-processing")
+            self.logger.debug("Indexing disabled for this project, skipping post-processing")
             return results
 
         self.logger.info(f"Indexing enabled - post-processing {len(validated_files)} files")
@@ -670,7 +670,7 @@ class ProjectService:
         if is_text_based or conversion_happened:
             try:
                 await self._rebuild_project_index(project, indexing_enabled)
-                self.logger.info(f"Rebuilt index for project {project_id}")
+                self.logger.info("Rebuilt index for project")
             except Exception as e:
                 self.logger.error(f"Index rebuild failed (non-critical): {e}")
 
