@@ -20,7 +20,10 @@ from a2a.types import (
 from ...common import a2a
 from ...common.a2a import is_gateway_card
 from ...common.data_parts import WorkflowExecutionStartData
-from ..workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
+from ..workflow_execution_context import (
+    WorkflowExecutionContext,
+    WorkflowExecutionState,
+)
 
 if TYPE_CHECKING:
     from ..component import WorkflowExecutorComponent
@@ -69,8 +72,10 @@ async def _extract_workflow_input(
     data_parts = a2a.get_data_parts_from_message(message)
     for data_part in data_parts:
         # Skip structured invocation metadata
-        if (isinstance(data_part.data, dict) and
-                data_part.data.get("type") == "structured_invocation_request"):
+        if (
+            isinstance(data_part.data, dict)
+            and data_part.data.get("type") == "structured_invocation_request"
+        ):
             continue
         return data_part.data
 
@@ -118,8 +123,10 @@ async def handle_task_request(
         is_structured_invocation = False
         data_parts = a2a.get_data_parts_from_message(a2a_message)
         for data_part in data_parts:
-            if (isinstance(data_part.data, dict) and
-                    data_part.data.get("type") == "structured_invocation_request"):
+            if (
+                isinstance(data_part.data, dict)
+                and data_part.data.get("type") == "structured_invocation_request"
+            ):
                 is_structured_invocation = True
                 log.debug(
                     f"{component.log_identifier} Detected StructuredInvocationRequest in incoming message"
@@ -150,14 +157,10 @@ async def handle_task_request(
         # It is stored in WorkflowExecutionContext instead.
 
         # Initialize workflow state
-        workflow_state = await _initialize_workflow_state(
-            component, a2a_context
-        )
+        workflow_state = await _initialize_workflow_state(component, a2a_context)
 
         # Extract and store workflow input
-        workflow_input = await _extract_workflow_input(
-            component, a2a_message
-        )
+        workflow_input = await _extract_workflow_input(component, a2a_message)
         workflow_state.node_outputs["workflow_input"] = {"output": workflow_input}
         log.info(
             f"{component.log_identifier} Workflow input extracted: {list(workflow_input.keys())}"
@@ -190,33 +193,37 @@ async def handle_task_request(
             ),
         )
 
-        await component.dag_executor.execute_workflow(
-            workflow_state, workflow_context
-        )
+        await component.dag_executor.execute_workflow(workflow_state, workflow_context)
 
     except Exception as e:
         log.exception(f"{component.log_identifier} Error handling task request: {e}")
-        
+
         # Send error response
         try:
             error_response = a2a.create_internal_error_response(
                 message=f"Failed to start workflow: {e}",
                 request_id=request_id,
-                data={"taskId": logical_task_id} if 'logical_task_id' in locals() else None
+                data={"taskId": logical_task_id}
+                if "logical_task_id" in locals()
+                else None,
             )
-            
+
             if reply_to:
                 component.publish_a2a_message(
                     payload=error_response.model_dump(exclude_none=True),
                     topic=reply_to,
-                    user_properties={"a2aUserConfig": user_config} if 'user_config' in locals() else {}
+                    user_properties={"a2aUserConfig": user_config}
+                    if "user_config" in locals()
+                    else {},
                 )
-            
+
             # NACK the original message if possible
             message.call_negative_acknowledgements()
-            
+
         except Exception as send_err:
-            log.error(f"{component.log_identifier} Failed to send error response: {send_err}")
+            log.error(
+                f"{component.log_identifier} Failed to send error response: {send_err}"
+            )
             # Fallback ACK to prevent redelivery loop if NACK fails or logic is broken
             try:
                 message.call_acknowledgements()
@@ -242,7 +249,7 @@ async def _initialize_workflow_state(
         user_id=a2a_context["user_id"],
         session_id=a2a_context["session_id"],
     )
-    
+
     if not session:
         session = await component.session_service.create_session(
             app_name=component.workflow_name,
@@ -264,11 +271,11 @@ async def handle_agent_response(
     try:
         topic = message.get_topic()
         payload = message.get_payload()
-        
+
         # Extract sub-task ID from topic
         # Topic format: .../agent/response/{workflow_name}/{sub_task_id}
         # or .../agent/status/{workflow_name}/{sub_task_id}
-        
+
         parts = topic.split("/")
         sub_task_id = parts[-1]
 
@@ -276,9 +283,11 @@ async def handle_agent_response(
         # We need to map sub_task_id to workflow_task_id
         # This mapping is stored in the cache service by AgentCaller
         workflow_task_id = component.cache_service.get_data(sub_task_id)
-        
+
         if not workflow_task_id:
-            log.warning(f"{component.log_identifier} Received response for unknown/expired sub-task: {sub_task_id}")
+            log.warning(
+                f"{component.log_identifier} Received response for unknown/expired sub-task: {sub_task_id}"
+            )
             message.call_acknowledgements()
             return
 
@@ -286,14 +295,16 @@ async def handle_agent_response(
             workflow_context = component.active_workflows.get(workflow_task_id)
 
         if not workflow_context:
-            log.warning(f"{component.log_identifier} Received response for unknown workflow: {workflow_task_id}")
+            log.warning(
+                f"{component.log_identifier} Received response for unknown workflow: {workflow_task_id}"
+            )
             message.call_acknowledgements()
             return
 
         # Parse response
         response = JSONRPCResponse.model_validate(payload)
         result = a2a.get_response_result(response)
-        
+
         if isinstance(result, Task):
             # Final response
             # Extract StructuredInvocationResult from Task
@@ -307,6 +318,7 @@ async def handle_agent_response(
             for part in data_parts:
                 if part.data.get("type") == "structured_invocation_result":
                     from ...common.data_parts import StructuredInvocationResult
+
                     node_result = StructuredInvocationResult.model_validate(part.data)
                     break
 
@@ -323,13 +335,18 @@ async def handle_agent_response(
                 component.cache_service.remove_data(sub_task_id)
 
                 # Extract error message from the task status
-                error_text = a2a.get_text_from_message(task_message) if task_message else "Unknown error"
+                error_text = (
+                    a2a.get_text_from_message(task_message)
+                    if task_message
+                    else "Unknown error"
+                )
                 log.warning(
                     f"{component.log_identifier} Sub-task {sub_task_id} failed: {error_text}"
                 )
 
                 # Create a failure StructuredInvocationResult
                 from ...common.data_parts import StructuredInvocationResult
+
                 failure_result = StructuredInvocationResult(
                     type="structured_invocation_result",
                     status="error",
@@ -343,31 +360,35 @@ async def handle_agent_response(
                 # Sub-task was cancelled - this is expected when workflow is being cancelled
                 # Remove the cache entry since we received a response
                 component.cache_service.remove_data(sub_task_id)
-                
+
                 log.info(
                     f"{component.log_identifier} Sub-task {sub_task_id} was cancelled"
                 )
-                
+
                 # Don't call handle_node_completion for cancelled tasks
                 # The workflow cancellation handler will finalize the workflow
             else:
-                log.error(f"{component.log_identifier} Received Task response without StructuredInvocationResult")
-                
+                log.error(
+                    f"{component.log_identifier} Received Task response without StructuredInvocationResult"
+                )
+
         # Handle status updates if needed (for logging/monitoring)
-        
+
         message.call_acknowledgements()
 
     except Exception as e:
         log.exception(f"{component.log_identifier} Error handling agent response: {e}")
-        
+
         # If we have a workflow context, fail the workflow gracefully
-        if 'workflow_context' in locals() and workflow_context:
+        if "workflow_context" in locals() and workflow_context:
             try:
                 await component.finalize_workflow_failure(workflow_context, e)
             except Exception as final_err:
-                log.error(f"{component.log_identifier} Failed to finalize workflow failure: {final_err}")
-        
-        message.call_acknowledgements() # ACK to avoid redelivery loop on error
+                log.error(
+                    f"{component.log_identifier} Failed to finalize workflow failure: {final_err}"
+                )
+
+        message.call_acknowledgements()  # ACK to avoid redelivery loop on error
 
 
 async def handle_cancel_request(
@@ -416,7 +437,7 @@ async def handle_cancel_request(
             # - Map iterations: "{map_node_id}_{index}" (e.g., "generate_data_0")
             # - Loop iterations: "{loop_node_id}_iter_{iteration}" (e.g., "poll_status_iter_0")
             node = component.dag_executor.get_node_by_id(node_id)
-            
+
             if not node:
                 # Try to find the original node for iteration nodes
                 # Check for map iteration pattern: "{parent_id}_{index}"
@@ -430,23 +451,30 @@ async def handle_cancel_request(
                     parts = node_id.rsplit("_", 1)
                     if len(parts) == 2 and parts[1].isdigit():
                         original_node_id = parts[0]
-                
+
                 if original_node_id:
                     # Get the parent control node (map or loop)
-                    parent_node = component.dag_executor.get_node_by_id(original_node_id)
+                    parent_node = component.dag_executor.get_node_by_id(
+                        original_node_id
+                    )
                     if parent_node:
                         # Get the inner node that the map/loop executes
-                        inner_node_id = getattr(parent_node, 'node', None)
+                        inner_node_id = getattr(parent_node, "node", None)
                         if inner_node_id:
                             node = component.dag_executor.get_node_by_id(inner_node_id)
-            
+
             if node:
                 # Get agent_name or workflow_name depending on node type
-                target_name = getattr(node, 'agent_name', None) or getattr(node, 'workflow_name', None)
+                target_name = getattr(node, "agent_name", None) or getattr(
+                    node, "workflow_name", None
+                )
                 if target_name:
                     try:
                         from ...common import a2a
-                        cancel_request = a2a.create_cancel_task_request(task_id=sub_task_id)
+
+                        cancel_request = a2a.create_cancel_task_request(
+                            task_id=sub_task_id
+                        )
                         target_topic = a2a.get_agent_request_topic(
                             component.namespace, target_name
                         )
@@ -480,21 +508,13 @@ async def handle_cancel_request(
     log.info(f"{log_id} Cancellation complete")
 
 
-def handle_agent_card_message(component: "WorkflowExecutorComponent", message: SolaceMessage):
+def handle_agent_card_message(
+    component: "WorkflowExecutorComponent", message: SolaceMessage
+):
     """Handle incoming agent card."""
     try:
         payload = message.get_payload()
         agent_card = AgentCard.model_validate(payload)
-
-        # Filter out gateway cards
-        if is_gateway_card(agent_card):
-            log.debug(
-                "%s Ignoring gateway card '%s'",
-                component.log_identifier,
-                agent_card.name,
-            )
-            message.call_acknowledgements()
-            return
 
         component.agent_registry.add_or_update_agent(agent_card)
         message.call_acknowledgements()
