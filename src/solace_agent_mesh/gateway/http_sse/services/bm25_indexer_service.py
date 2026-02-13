@@ -312,10 +312,6 @@ async def collect_project_text_files(
                 "version": artifact.version
             }
 
-            if content_result.get("status") != "success":
-                log.warning(f"{log_prefix} Failed to load {artifact.filename}: {content_result.get('message')}")
-                continue
-
             # 4. Load metadata to get citation_map (for converted files)
             metadata_result = await load_artifact_content_or_metadata(
                 artifact_service=artifact_service,
