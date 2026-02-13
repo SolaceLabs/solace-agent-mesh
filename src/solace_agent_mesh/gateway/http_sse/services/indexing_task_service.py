@@ -5,7 +5,7 @@ Follows SAM's async pattern (similar to title_generation_service.py):
 - Fire-and-forget task execution
 - Stateless (no task tracking)
 - SSE events for progress
-- asyncio.to_thread() for CPU-intensive work
+- Async I/O for file operations and indexing
 """
 
 import asyncio
@@ -349,10 +349,7 @@ class IndexingTaskService:
         mime_type: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Convert a file in background thread (non-blocking).
-
-        Uses asyncio.to_thread() to run CPU-intensive conversion
-        in thread pool without blocking the main event loop.
+        Convert a file asynchronously.
 
         Args:
             project: Project entity
@@ -363,58 +360,29 @@ class IndexingTaskService:
         Returns:
             Conversion result dict or None
         """
-        # Run CPU-intensive work in thread pool
-        result = await asyncio.to_thread(
-            self._convert_file_sync,
-            project, filename, version, mime_type
-        )
-        return result
-
-    def _convert_file_sync(
-        self,
-        project,
-        filename: str,
-        version: int,
-        mime_type: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Synchronous conversion (runs in thread pool).
-
-        This is CPU-intensive work that runs in a background thread.
-        Must call async functions using asyncio.run() or new event loop.
-        """
         from .file_converter_service import convert_and_save_artifact
 
         storage_session_id = f"project-{project.id}"
 
-        # Create new event loop for this thread (required for calling async from sync)
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
-            result = loop.run_until_complete(
-                convert_and_save_artifact(
-                    artifact_service=self.project_service.artifact_service,
-                    app_name=self.project_service.app_name,
-                    user_id=project.user_id,
-                    session_id=storage_session_id,
-                    source_filename=filename,
-                    source_version=version,
-                    mime_type=mime_type
-                )
+            # Already in async context, just await
+            result = await convert_and_save_artifact(
+                artifact_service=self.project_service.artifact_service,
+                app_name=self.project_service.app_name,
+                user_id=project.user_id,
+                session_id=storage_session_id,
+                source_filename=filename,
+                source_version=version,
+                mime_type=mime_type
             )
             return result
         except Exception as e:
             log.error(f"Conversion failed for {filename}: {e}")
             return None
-        finally:
-            loop.close()
 
     async def _rebuild_index_async(self, project) -> Optional[Dict[str, Any]]:
         """
-        Rebuild index in background thread (non-blocking).
-
-        Uses asyncio.to_thread() to run CPU-intensive indexing
-        in thread pool without blocking the main event loop.
+        Rebuild index asynchronously.
 
         Args:
             project: Project entity
@@ -422,28 +390,12 @@ class IndexingTaskService:
         Returns:
             Index build result dict or None
         """
-        # Run CPU-intensive work in thread pool
-        result = await asyncio.to_thread(
-            self._rebuild_index_sync,
-            project
-        )
-        return result
-
-    def _rebuild_index_sync(self, project) -> Optional[Dict[str, Any]]:
-        """
-        Synchronous index rebuild (runs in thread pool).
-
-        This is CPU-intensive work that runs in a background thread.
-        """
         from .bm25_indexer_service import (
             collect_project_text_files_stream,
             build_bm25_index,
             save_project_index
         )
 
-        # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
             # Stream text files (async I/O, memory-efficient)
             try:
@@ -462,9 +414,8 @@ class IndexingTaskService:
 
             # Build index (async, memory-efficient with batch processing)
             try:
-                index_zip_bytes, manifest = loop.run_until_complete(
-                    build_bm25_index(text_files_stream, project.id)
-                )
+                # Already in async context, just await
+                index_zip_bytes, manifest = await build_bm25_index(text_files_stream, project.id)
             except ValueError as e:
                 # Handle case where no documents/chunks were created
                 if "No chunks created" in str(e):
@@ -472,13 +423,11 @@ class IndexingTaskService:
 
                     try:
                         # Delete project_bm25_index.zip (all versions)
-                        loop.run_until_complete(
-                            self.project_service.artifact_service.delete_artifact(
-                                app_name=self.project_service.app_name,
-                                user_id=project.user_id,
-                                session_id=f"project-{project.id}",
-                                filename="project_bm25_index.zip"
-                            )
+                        await self.project_service.artifact_service.delete_artifact(
+                            app_name=self.project_service.app_name,
+                            user_id=project.user_id,
+                            session_id=f"project-{project.id}",
+                            filename="project_bm25_index.zip"
                         )
                         log.info(f"Deleted empty index for project {project.id}")
                         return {
@@ -522,15 +471,14 @@ class IndexingTaskService:
 
             # Save index (async I/O)
             try:
-                result = loop.run_until_complete(
-                    save_project_index(
-                        artifact_service=self.project_service.artifact_service,
-                        app_name=self.project_service.app_name,
-                        user_id=project.user_id,
-                        project_id=project.id,
-                        index_zip_bytes=index_zip_bytes,
-                        manifest=manifest
-                    )
+                # Already in async context, just await
+                result = await save_project_index(
+                    artifact_service=self.project_service.artifact_service,
+                    app_name=self.project_service.app_name,
+                    user_id=project.user_id,
+                    project_id=project.id,
+                    index_zip_bytes=index_zip_bytes,
+                    manifest=manifest
                 )
             except Exception as e:
                 log.error(f"Failed to save index artifact for project {project.id}: {e}")
@@ -548,8 +496,6 @@ class IndexingTaskService:
             # Catch-all for unexpected errors in index rebuild
             log.error(f"Unexpected error during index rebuild for project {project.id}: {e}")
             return {"status": "error", "message": f"Unexpected error during index rebuild: {str(e)}"}
-        finally:
-            loop.close()
 
     # ==========================================
     # SSE Event Helper
