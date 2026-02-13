@@ -55,12 +55,12 @@ class TaskLoggerForwarderComponent(ComponentBase):
         self.target_queue = self.get_config("target_queue_ref")
         if not isinstance(self.target_queue, (queue.Queue, asyncio.Queue)):
             log.error(
-                "%s Configuration 'target_queue_ref' is not a valid queue.Queue instance. Type: %s",
+                "%s Configuration 'target_queue_ref' is not a valid queue.Queue or asyncio.Queue instance. Type: %s",
                 self.log_identifier,
                 type(self.target_queue),
             )
             raise ValueError(
-                f"{self.log_identifier} 'target_queue_ref' must be a queue.Queue instance."
+                f"{self.log_identifier} 'target_queue_ref' must be a queue.Queue or asyncio.Queue instance."
             )
         log.info("%s TaskLoggerForwarderComponent initialized.", self.log_identifier)
 
