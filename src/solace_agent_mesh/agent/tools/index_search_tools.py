@@ -865,6 +865,15 @@ index_search_tool_def = BuiltinTool(
     name="index_search",
     implementation=index_search,
     description=(
+        "**Requirements:**\n"
+        "- Project must have documents uploaded and indexed\n"
+        "- BM25 index must be built and available as 'project_bm25_index.zip' artifact, indicated in LLM context\n"
+        "\n"
+        "**IMPORTANT - Check Before Using:**\n"
+        "- If you receive an error that \"no document index is available\", DO NOT retry this tool\n"
+        "- Instead, use exiting builtin tool `load_artifact` if there is such a tool to read files directly\n"
+        "- Only use this tool when you have confirmed indexing is enabled\n"
+        "\n"
         "Search project documents using BM25 full-text indexing. "
         "Returns relevant text chunks from uploaded files (PDFs, DOCX, PPTX, text files, etc.) with precise location citations. "
         "\n\n"
