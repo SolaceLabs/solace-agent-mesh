@@ -1,6 +1,10 @@
 import { Fragment, type FC } from "react";
 import { Bot, Maximize2, Minimize2 } from "lucide-react";
+
+import { Button } from "@/lib/components/ui";
+
 import type { LayoutNode } from "../utils/types";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES } from "../utils/nodeStyles";
 import LLMNode from "./LLMNode";
 import ToolNode from "./ToolNode";
 import SwitchNode from "./SwitchNode";
@@ -73,8 +77,8 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
         if (!hasParallelBranches && !hasChildren) {
             return (
                 <div
-                    className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${opacityClass} ${borderStyleClass} ${
-                        isSelected ? "ring-2 ring-blue-500" : ""
+                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} border-2 ${pillColorClasses} ${opacityClass} ${borderStyleClass} ${
+                        isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
                     }`}
                     style={{
                         width: `${node.width}px`,
@@ -100,7 +104,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                     {/* Pill label */}
                     <div
-                        className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                        className={`${ACTIVITY_NODE_BASE_STYLES.PILL} border-2 ${pillColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                         style={{
                             minWidth: "80px",
                             textAlign: "center",
@@ -117,14 +121,14 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                     </div>
 
                     {/* Connector line to children */}
-                    <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />
+                    <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />
 
                     {/* Sequential children below */}
                     {node.children.map((child, index) => (
                         <Fragment key={child.id}>
                             {renderChild(child)}
                             {/* Connector line to next child */}
-                            {index < node.children.length - 1 && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
+                            {index < node.children.length - 1 && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
                         </Fragment>
                     ))}
                 </div>
@@ -136,7 +140,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
             <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                 {/* Pill label */}
                 <div
-                    className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} border-2 ${pillColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                     style={{
                         minWidth: "80px",
                         textAlign: "center",
@@ -153,7 +157,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 </div>
 
                 {/* Connector line to branches */}
-                <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />
+                <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />
 
                 {/* Parallel branches below */}
                 <div className="rounded-md border-2 border-indigo-200 bg-white p-4 dark:border-indigo-800 dark:bg-gray-800">
@@ -181,7 +185,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
     // Show effect if this node is processing OR if children are hidden but processing
     const isProcessing = node.data.status === "in-progress" || node.data.hasProcessingChildren;
 
-    const haloClass = isProcessing ? "processing-halo" : "";
+    const haloClass = isProcessing ? ACTIVITY_NODE_PROCESSING_CLASS : "";
 
     const isCollapsed = node.data.isCollapsed;
 
@@ -190,8 +194,8 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
 
     return (
         <div
-            className={`group relative rounded-md border-2 border-blue-700 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-blue-600 dark:bg-gray-800 ${opacityClass} ${borderStyleClass} ${
-                isSelected ? "ring-2 ring-blue-500" : ""
+            className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${opacityClass} ${borderStyleClass} ${
+                isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
             } ${haloClass}`}
             style={{
                 minWidth: "180px",
@@ -199,31 +203,41 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
         >
             {/* Collapse icon - top right, only show on hover when expanded */}
             {isExpanded && onCollapse && (
-                <span title="Collapse node" className="absolute top-2 right-2 z-10">
-                    <Minimize2
-                        className="h-3.5 w-3.5 cursor-pointer text-blue-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-300"
+                <div className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Button
                         onClick={e => {
                             e.stopPropagation();
                             onCollapse(node.id);
                         }}
-                    />
-                </span>
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Collapse"
+                    >
+                        <Minimize2 className="h-4 w-4" />
+                    </Button>
+                </div>
             )}
             {/* Expand icon - top right, only show on hover when collapsed */}
             {isCollapsed && onExpand && (
-                <span title="Expand node" className="absolute top-2 right-2 z-10">
-                    <Maximize2
-                        className="h-3.5 w-3.5 cursor-pointer text-blue-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-300"
+                <div className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Button
                         onClick={e => {
                             e.stopPropagation();
                             onExpand(node.id);
                         }}
-                    />
-                </span>
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Expand"
+                    >
+                        <Maximize2 className="h-4 w-4" />
+                    </Button>
+                </div>
             )}
             {/* Header */}
             <div
-                className={`cursor-pointer bg-blue-50 py-3 pr-8 pl-4 dark:bg-gray-700 ${
+                className={`cursor-pointer ${
                     node.children.length === 0 && (!node.parallelBranches || node.parallelBranches.length === 0)
                         ? "rounded-md" // No content below, round all corners
                         : "rounded-t-md" // Content below, round only top
@@ -235,8 +249,8 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 title={node.data.description}
             >
                 <div className="flex items-center justify-center gap-2">
-                    <Bot className="h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-                    <div className="truncate text-sm font-semibold text-gray-800 dark:text-gray-200">{node.data.label}</div>
+                    <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                    <div className="truncate text-sm font-semibold">{node.data.label}</div>
                 </div>
             </div>
 
@@ -247,7 +261,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                         <Fragment key={child.id}>
                             {renderChild(child)}
                             {/* Connector line to next child */}
-                            {index < node.children.length - 1 && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
+                            {index < node.children.length - 1 && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
                         </Fragment>
                     ))}
                 </div>
@@ -255,7 +269,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
 
             {/* Parallel Branches */}
             {node.parallelBranches && node.parallelBranches.length > 0 && (
-                <div className="rounded-b-md border-t-2 border-blue-200 p-4 dark:border-blue-800">
+                <div className="rounded-b-md border-t-2 border-(--color-brand-w20) p-4 dark:border-(--color-brand-w80)">
                     <div className="grid gap-4" style={{ gridAutoFlow: "column", gridAutoColumns: "1fr" }}>
                         {node.parallelBranches.map((branch, branchIndex) => (
                             <div key={branchIndex} className="flex flex-col items-center">
