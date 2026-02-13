@@ -21,7 +21,7 @@ interface AddProjectFilesDialogProps {
 
 export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ isOpen, files, onClose, onConfirm, isSubmitting = false, error = null, onClearError }) => {
     const { validationLimits } = useConfigContext();
-    const FILE_DESCRIPTION_MAX = validationLimits?.projectArtifactDescriptionMax ?? DEFAULT_MAX_FILE_DESCRIPTION_LENGTH;
+    const FILE_DESCRIPTION_MAX = validationLimits?.projectFileDescriptionMax ?? DEFAULT_MAX_FILE_DESCRIPTION_LENGTH;
 
     const form = useForm<Record<string, string>>({
         mode: "onChange",

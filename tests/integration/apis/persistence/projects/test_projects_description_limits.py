@@ -1,7 +1,7 @@
 """
 Tests for project artifact description length limits.
 
-Validates that file descriptions exceeding DEFAULT_MAX_ARTIFACT_DESCRIPTION_LENGTH (1000 chars)
+Validates that file descriptions exceeding DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH (1000 chars)
 are rejected with a 400 status on creation and update endpoints.
 """
 

@@ -17,7 +17,7 @@ from ...constants import (
     DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_PROJECT_SIZE_BYTES,
-    DEFAULT_MAX_ARTIFACT_DESCRIPTION_LENGTH,
+    DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
     ARTIFACTS_PREFIX
 )
 
@@ -186,7 +186,7 @@ class ProjectService:
 
     def _validate_file_descriptions(self, file_metadata: dict) -> None:
         """Validate that all file descriptions are within the max length."""
-        limit = DEFAULT_MAX_ARTIFACT_DESCRIPTION_LENGTH
+        limit = DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH
         for filename, desc in file_metadata.items():
             if isinstance(desc, str) and len(desc) > limit:
                 raise ValueError(
@@ -665,13 +665,10 @@ class ProjectService:
             
             # Prepare updated metadata
             metadata = {"source": "project"}
+            limit = DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH
             if description is not None:
-                if len(description) > DEFAULT_MAX_ARTIFACT_DESCRIPTION_LENGTH:
-                    raise ValueError(
-                        f"Description exceeds maximum length of "
-                        f"{DEFAULT_MAX_ARTIFACT_DESCRIPTION_LENGTH} characters "
-                        f"({len(description)} provided)"
-                    )
+                if len(description) > limit:
+                    raise ValueError(f"Description exceeds maximum length of {limit} characters ({len(description)} provided)")
                 metadata["description"] = description
             
             # Save the artifact with updated metadata

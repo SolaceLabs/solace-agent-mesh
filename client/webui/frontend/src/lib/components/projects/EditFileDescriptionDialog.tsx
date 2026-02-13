@@ -21,7 +21,7 @@ interface EditFileDescriptionDialogProps {
 
 export const EditFileDescriptionDialog: React.FC<EditFileDescriptionDialogProps> = ({ isOpen, artifact, onClose, onSave, isSaving = false }) => {
     const { validationLimits } = useConfigContext();
-    const FILE_DESCRIPTION_MAX = validationLimits?.projectArtifactDescriptionMax ?? DEFAULT_MAX_FILE_DESCRIPTION_LENGTH;
+    const FILE_DESCRIPTION_MAX = validationLimits?.projectFileDescriptionMax ?? DEFAULT_MAX_FILE_DESCRIPTION_LENGTH;
 
     const form = useForm<{ description: string }>({
         mode: "onChange",

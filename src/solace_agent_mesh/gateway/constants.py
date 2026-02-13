@@ -22,4 +22,4 @@ DEFAULT_MAX_PROJECT_SIZE_BYTES = 104857600  # 100MB - total project size limit
 
 # ===== FIELD LENGTH LIMITS =====
 
-DEFAULT_MAX_ARTIFACT_DESCRIPTION_LENGTH = 1000  # max characters for file/artifact descriptions
+DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH = 1000  # max characters for file/artifact descriptions
