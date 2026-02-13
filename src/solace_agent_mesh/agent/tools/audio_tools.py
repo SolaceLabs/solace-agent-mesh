@@ -29,6 +29,7 @@ from ...agent.utils.context_helpers import get_original_session_id
 
 from .tool_definition import BuiltinTool
 from .tool_result import ToolResult, DataObject, DataDisposition
+from .artifact_types import Artifact
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -1142,7 +1143,7 @@ async def concatenate_audio(
 
 
 async def transcribe_audio(
-    input_audio: str,  # Artifact filename - wrapper converts to Artifact object
+    input_audio: Artifact,
     output_filename: Optional[str] = None,
     description: Optional[str] = None,
     tool_context: ToolContext = None,
@@ -1152,7 +1153,7 @@ async def transcribe_audio(
     Transcribes an audio recording and saves the transcription as a text artifact.
 
     Args:
-        input_audio: The artifact filename (framework pre-loads as Artifact object).
+        input_audio: The input audio artifact (pre-loaded by the framework).
         output_filename: Optional filename for the transcription text file (without extension).
         description: Optional description of the transcription for metadata.
         tool_context: The context provided by the ADK framework.
@@ -1160,11 +1161,6 @@ async def transcribe_audio(
 
     Returns:
         ToolResult with transcription artifact details.
-
-    Note:
-        The input_audio parameter is declared as str for ADK schema compatibility,
-        but the framework wrapper pre-loads it as an Artifact object with .filename,
-        .as_bytes(), .mime_type attributes available at runtime.
     """
     log_identifier = f"[AudioTools:transcribe_audio:{input_audio.filename}]"
 
@@ -1520,7 +1516,6 @@ transcribe_audio_tool_def = BuiltinTool(
     description="Transcribes an audio recording and saves the transcription as a text artifact.",
     category="audio",
     required_scopes=["tool:audio:transcribe", "tool:artifact:create"],
-    artifact_args=["input_audio"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
         properties={

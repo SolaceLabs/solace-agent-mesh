@@ -18,7 +18,8 @@ if TYPE_CHECKING:
     from google.adk.agents.invocation_context import InvocationContext
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
-from .tool_result import ToolResult
+from .tool_result import ToolResult, DataObject, DataDisposition
+from .artifact_types import Artifact
 from .registry import tool_registry
 from ...agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
@@ -2048,11 +2049,10 @@ def _perform_single_replacement(
 
 
 async def artifact_search_and_replace_regex(
-    filename: str,
+    filename: Artifact,
     search_expression: Optional[str] = None,
     replace_expression: Optional[str] = None,
     is_regexp: bool = False,
-    version: Optional[str] = "latest",
     regexp_flags: Optional[str] = "",
     new_filename: Optional[str] = None,
     new_description: Optional[str] = None,
@@ -2079,11 +2079,10 @@ async def artifact_search_and_replace_regex(
         Use the replacements array parameter to perform all replacements atomically in a single tool call, which is more efficient than multiple sequential calls.
 
     Args:
-        filename: The name of the artifact to search/replace in.
+        filename: The artifact to search/replace in (pre-loaded by the framework).
         search_expression: The pattern to search for (regex if is_regexp=true, literal otherwise).
         replace_expression: The replacement text. For regex mode, supports capture groups ($1, $2, etc.). Use $$ to insert a literal dollar sign
         is_regexp: If True, treat search_expression as a regular expression. If False, treat as literal string.
-        version: The version of the artifact to operate on. Can be an integer version number as a string or 'latest'. Defaults to 'latest'.
         regexp_flags: Flags for regex behavior (only used when is_regexp=true).
                      String of letters: 'g' (global/replace-all), 'i' (case-insensitive), 'm' (multiline), 's' (dotall).
                      Defaults to empty string (no flags).
@@ -2096,11 +2095,14 @@ async def artifact_search_and_replace_regex(
     if not tool_context:
         return ToolResult.error(
             "ToolContext is missing, cannot perform search and replace.",
-            data={"filename": filename}
+            data={"filename": filename.filename if isinstance(filename, Artifact) else filename}
         )
 
+    artifact_filename = filename.filename
+    artifact_version = filename.version
+
     log_identifier = (
-        f"[BuiltinArtifactTool:artifact_search_and_replace_regex:{filename}:{version}]"
+        f"[BuiltinArtifactTool:artifact_search_and_replace_regex:{artifact_filename}:{artifact_version}]"
     )
     log.debug("%s Processing request.", log_identifier)
 
@@ -2110,7 +2112,7 @@ async def artifact_search_and_replace_regex(
     ):
         return ToolResult.error(
             "Cannot provide both 'replacements' array and individual 'search_expression'/'replace_expression'. Use one or the other.",
-            data={"filename": filename}
+            data={"filename": artifact_filename}
         )
 
     if replacements is None and (
@@ -2118,14 +2120,14 @@ async def artifact_search_and_replace_regex(
     ):
         return ToolResult.error(
             "Must provide either 'replacements' array or both 'search_expression' and 'replace_expression'.",
-            data={"filename": filename}
+            data={"filename": artifact_filename}
         )
 
     if replacements is not None:
         if not isinstance(replacements, list) or len(replacements) == 0:
             return ToolResult.error(
                 "replacements must be a non-empty array.",
-                data={"filename": filename}
+                data={"filename": artifact_filename}
             )
 
         # Validate each replacement entry
@@ -2133,72 +2135,41 @@ async def artifact_search_and_replace_regex(
             if not isinstance(repl, dict):
                 return ToolResult.error(
                     f"Replacement at index {idx} must be a dictionary.",
-                    data={"filename": filename}
+                    data={"filename": artifact_filename}
                 )
             if "search" not in repl or "replace" not in repl or "is_regexp" not in repl:
                 return ToolResult.error(
                     f"Replacement at index {idx} missing required fields: 'search', 'replace', 'is_regexp'.",
-                    data={"filename": filename}
+                    data={"filename": artifact_filename}
                 )
 
     # Validate inputs for single replacement mode
     if replacements is None and not search_expression:
         return ToolResult.error(
             "search_expression cannot be empty.",
-            data={"filename": filename}
+            data={"filename": artifact_filename}
         )
 
     # Determine output filename
-    output_filename = new_filename if new_filename else filename
+    output_filename = new_filename if new_filename else artifact_filename
 
     if new_filename and not is_filename_safe(new_filename):
         return ToolResult.error(
             f"Invalid new_filename: '{new_filename}'. Filename must not contain path separators or traversal sequences.",
-            data={"filename": filename}
+            data={"filename": artifact_filename}
         )
 
     try:
-        inv_context = tool_context._invocation_context
-        artifact_service = inv_context.artifact_service
-        if not artifact_service:
-            raise ValueError("ArtifactService is not available in the context.")
-
-        app_name = inv_context.app_name
-        user_id = inv_context.user_id
-        session_id = get_original_session_id(inv_context)
-        host_component = getattr(inv_context.agent, "host_component", None)
-
-        # Load the source artifact
-        log.debug(
-            "%s Loading artifact '%s' version '%s'.", log_identifier, filename, version
-        )
-        load_result = await load_artifact_content_or_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-            version=version,
-            return_raw_bytes=True,
-            component=host_component,
-            log_identifier_prefix=log_identifier,
-        )
-
-        if load_result.get("status") != "success":
-            return ToolResult.error(
-                f"Failed to load artifact: {load_result.get('message', 'Unknown error')}",
-                data={"filename": filename, "version": version}
-            )
-
-        source_bytes = load_result.get("raw_bytes")
-        source_mime_type = load_result.get("mime_type", "application/octet-stream")
-        actual_version = load_result.get("version", version)
+        # Use pre-loaded artifact data
+        source_bytes = filename.as_bytes()
+        source_mime_type = filename.mime_type or "application/octet-stream"
+        actual_version = artifact_version
 
         # Verify it's a text-based artifact
         if not is_text_based_file(source_mime_type, source_bytes):
             return ToolResult.error(
                 f"Cannot perform search and replace on binary artifact of type '{source_mime_type}'. This tool only works with text-based content.",
-                data={"filename": filename, "version": actual_version}
+                data={"filename": artifact_filename, "version": actual_version}
             )
 
         # Decode the content - try multiple encodings for Windows-exported files
@@ -2230,7 +2201,7 @@ async def artifact_search_and_replace_regex(
             )
             return ToolResult.error(
                 f"Failed to decode artifact content as UTF-8: {decode_err}",
-                data={"filename": filename, "version": actual_version}
+                data={"filename": artifact_filename, "version": actual_version}
             )
 
         # Perform the search and replace
@@ -2294,7 +2265,7 @@ async def artifact_search_and_replace_regex(
                     return ToolResult.error(
                         f"Batch replacement failed: No changes applied due to error in replacement {idx + 1}",
                         data={
-                            "filename": filename,
+                            "filename": artifact_filename,
                             "version": actual_version,
                             "replacement_results": all_results,
                             "failed_replacement": {
@@ -2352,7 +2323,7 @@ async def artifact_search_and_replace_regex(
                     return ToolResult.partial(
                         f"No matches found for pattern '{search_expression}'. Artifact not modified.",
                         data={
-                            "filename": filename,
+                            "filename": artifact_filename,
                             "version": actual_version,
                             "match_count": 0,
                             "no_matches": True,
@@ -2361,23 +2332,23 @@ async def artifact_search_and_replace_regex(
                 else:
                     return ToolResult.error(
                         error_msg,
-                        data={"filename": filename, "version": actual_version}
+                        data={"filename": artifact_filename, "version": actual_version}
                     )
 
             total_replacements = 1
             total_matches = match_count
             replacement_results = None
 
-        # Prepare metadata for the new/updated artifact
+        # Prepare metadata for the output artifact
         if replacements:
             new_metadata = {
-                "source": f"artifact_search_and_replace_regex (batch) from '{filename}' v{actual_version}",
+                "source": f"artifact_search_and_replace_regex (batch) from '{artifact_filename}' v{actual_version}",
                 "total_replacements": total_replacements,
                 "total_matches": total_matches,
             }
         else:
             new_metadata = {
-                "source": f"artifact_search_and_replace_regex from '{filename}' v{actual_version}",
+                "source": f"artifact_search_and_replace_regex from '{artifact_filename}' v{actual_version}",
                 "search_expression": search_expression,
                 "replace_expression": replace_expression,
                 "is_regexp": is_regexp,
@@ -2387,90 +2358,39 @@ async def artifact_search_and_replace_regex(
         if regexp_flags and is_regexp:
             new_metadata["regexp_flags"] = regexp_flags
 
-        if new_description:
-            new_metadata["description"] = new_description
-        elif not new_filename:
-            # If updating the same artifact, preserve original description if available
-            try:
-                metadata_load_result = await load_artifact_content_or_metadata(
-                    artifact_service=artifact_service,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename,
-                    version=actual_version,
-                    load_metadata_only=True,
-                    component=host_component,
-                    log_identifier_prefix=log_identifier,
-                )
-                if metadata_load_result.get("status") == "success":
-                    original_metadata = metadata_load_result.get("metadata", {})
-                    if "description" in original_metadata:
-                        new_metadata["description"] = original_metadata["description"]
-            except Exception as meta_err:
-                log.warning(
-                    "%s Could not load original metadata to preserve description: %s",
-                    log_identifier,
-                    meta_err,
-                )
-
-        # Save the result
-        new_content_bytes = final_content.encode("utf-8")
-        schema_max_keys = (
-            host_component.get_config("schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS)
-            if host_component
-            else DEFAULT_SCHEMA_MAX_KEYS
-        )
-
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=output_filename,
-            content_bytes=new_content_bytes,
-            mime_type=source_mime_type,
-            metadata_dict=new_metadata,
-            timestamp=datetime.now(timezone.utc),
-            schema_max_keys=schema_max_keys,
-            tool_context=tool_context,
-        )
-
-        if save_result.get("status") not in ["success", "partial_success"]:
-            log.error(
-                "%s Failed to save modified artifact: %s",
-                log_identifier,
-                save_result.get("message"),
-            )
-            return ToolResult.error(
-                f"Search and replace succeeded, but failed to save result: {save_result.get('message')}",
-                data={"filename": filename, "version": actual_version}
-            )
-
-        result_version = save_result.get("data_version")
-        log.info(
-            "%s Successfully saved modified artifact '%s' as version %s.",
-            log_identifier,
-            output_filename,
-            result_version,
-        )
+        # Determine description for the output artifact
+        artifact_description = new_description
+        if not artifact_description and not new_filename:
+            # Preserve original description when updating the same artifact
+            original_metadata = filename.metadata or {}
+            artifact_description = original_metadata.get("description")
 
         # Return appropriate response based on mode
+        new_content_bytes = final_content.encode("utf-8")
+
         if replacements:
             return ToolResult.ok(
                 f"Batch replacement completed: {total_replacements} operations, {total_matches} total matches",
                 data={
-                    "source_filename": filename,
+                    "source_filename": artifact_filename,
                     "source_version": actual_version,
-                    "output_filename": output_filename,
-                    "output_version": result_version,
                     "total_replacements": total_replacements,
                     "replacement_results": replacement_results,
                     "total_matches": total_matches,
-                }
+                },
+                data_objects=[
+                    DataObject(
+                        name=output_filename,
+                        content=new_content_bytes,
+                        mime_type=source_mime_type,
+                        disposition=DataDisposition.ARTIFACT,
+                        description=artifact_description,
+                        metadata=new_metadata,
+                    )
+                ],
             )
         else:
-            # Compute replacements_made for backward compatibility
+            # Compute replacements_made
             # For literal replacements, all matches are replaced
             # For regex without 'g' flag, only first match is replaced
             global_replace = "g" in (regexp_flags or "")
@@ -2480,22 +2400,30 @@ async def artifact_search_and_replace_regex(
 
             return ToolResult.ok(
                 f"Successfully performed {'regex' if is_regexp else 'literal'} search and replace. "
-                f"Found {match_count} match(es), saved result as '{output_filename}' v{result_version}.",
+                f"Found {match_count} match(es).",
                 data={
-                    "source_filename": filename,
+                    "source_filename": artifact_filename,
                     "source_version": actual_version,
-                    "output_filename": output_filename,
-                    "output_version": result_version,
                     "match_count": match_count,
                     "replacements_made": replacements_made,
-                }
+                },
+                data_objects=[
+                    DataObject(
+                        name=output_filename,
+                        content=new_content_bytes,
+                        mime_type=source_mime_type,
+                        disposition=DataDisposition.ARTIFACT,
+                        description=artifact_description,
+                        metadata=new_metadata,
+                    )
+                ],
             )
 
     except FileNotFoundError as fnf_err:
         log.warning("%s Artifact not found: %s", log_identifier, fnf_err)
         return ToolResult.error(
             f"Artifact not found: {fnf_err}",
-            data={"filename": filename, "version": version}
+            data={"filename": artifact_filename, "version": artifact_version}
         )
     except Exception as e:
         log.exception(
@@ -2503,7 +2431,7 @@ async def artifact_search_and_replace_regex(
         )
         return ToolResult.error(
             f"Unexpected error: {e}",
-            data={"filename": filename, "version": version}
+            data={"filename": artifact_filename, "version": artifact_version}
         )
 
 
@@ -2520,7 +2448,7 @@ artifact_search_and_replace_regex_tool_def = BuiltinTool(
         properties={
             "filename": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="The name of the artifact to search/replace in.",
+                description="The name (and optional :version) of the artifact to search/replace in.",
             ),
             "search_expression": adk_types.Schema(
                 type=adk_types.Type.STRING,
@@ -2535,11 +2463,6 @@ artifact_search_and_replace_regex_tool_def = BuiltinTool(
             "is_regexp": adk_types.Schema(
                 type=adk_types.Type.BOOLEAN,
                 description="If true, treat search_expression as a regular expression. If false, treat as literal string. Only used in single replacement mode.",
-                nullable=True,
-            ),
-            "version": adk_types.Schema(
-                type=adk_types.Type.STRING,
-                description="The version of the artifact to operate on. Can be an integer version number or 'latest'. Defaults to 'latest'.",
                 nullable=True,
             ),
             "regexp_flags": adk_types.Schema(

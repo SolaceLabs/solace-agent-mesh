@@ -20,6 +20,7 @@ from ...agent.utils.artifact_helpers import ensure_correct_extension
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .tool_result import ToolResult, DataObject, DataDisposition
+from .artifact_types import Artifact
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ def _simple_truncate_text(text: str, max_bytes: int = 2048) -> Tuple[str, bool]:
 
 
 async def convert_file_to_markdown(
-    input_filename: str,  # Artifact filename - wrapper converts to Artifact object
+    input_filename: Artifact,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
 ) -> ToolResult:
@@ -48,17 +49,12 @@ async def convert_file_to_markdown(
     The output is a new Markdown artifact.
 
     Args:
-        input_filename: The artifact filename (framework pre-loads as Artifact object).
+        input_filename: The input file artifact (pre-loaded by the framework).
         tool_context: The context provided by the ADK framework.
         tool_config: Optional dictionary for tool-specific configuration (unused by this tool).
 
     Returns:
         ToolResult with output artifact details and a preview of the result.
-
-    Note:
-        The input_filename parameter is declared as str for ADK schema compatibility,
-        but the framework wrapper pre-loads it as an Artifact object with .filename,
-        .as_bytes(), .mime_type attributes available at runtime.
     """
     if not tool_context:
         return ToolResult.error("ToolContext is missing.")
@@ -374,7 +370,6 @@ convert_file_to_markdown_tool_def = BuiltinTool(
     description="Converts an input file artifact to Markdown using the MarkItDown library. The supported input types are those supported by MarkItDown (e.g., PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP). The output is a new Markdown artifact.",
     category="general",
     required_scopes=["tool:general:convert_file"],
-    artifact_args=["input_filename"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
         properties={

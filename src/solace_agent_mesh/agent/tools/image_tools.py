@@ -18,6 +18,7 @@ from google.adk.tools import ToolContext
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .tool_result import ToolResult, DataObject, DataDisposition
+from .artifact_types import Artifact
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -242,7 +243,7 @@ def _create_data_url(image_bytes: bytes, mime_type: str) -> str:
 
 
 async def describe_image(
-    input_image: str,  # Artifact filename - wrapper converts to Artifact object
+    input_image: Artifact,
     prompt: str = "What is in this image?",
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
@@ -251,18 +252,13 @@ async def describe_image(
     Describes an image using an OpenAI-compatible vision API.
 
     Args:
-        input_image: The artifact filename (framework pre-loads as Artifact object).
+        input_image: The input image artifact (pre-loaded by the framework).
         prompt: Custom prompt for image analysis (default: "What is in this image?").
         tool_context: The context provided by the ADK framework.
         tool_config: Configuration dictionary containing model, api_base, api_key.
 
     Returns:
         ToolResult with description data.
-
-    Note:
-        The input_image parameter is declared as str for ADK schema compatibility,
-        but the framework wrapper pre-loads it as an Artifact object with .filename,
-        .as_bytes(), .mime_type attributes available at runtime.
     """
     log_identifier = f"[ImageTools:describe_image:{input_image.filename}]"
 
@@ -393,7 +389,7 @@ def _encode_audio_to_base64(audio_bytes: bytes) -> str:
 
 
 async def describe_audio(
-    input_audio: str,  # Artifact filename - wrapper converts to Artifact object
+    input_audio: Artifact,
     prompt: str = "What is in this recording?",
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
@@ -402,18 +398,13 @@ async def describe_audio(
     Describes an audio recording using an OpenAI-compatible audio API.
 
     Args:
-        input_audio: The artifact filename (framework pre-loads as Artifact object).
+        input_audio: The input audio artifact (pre-loaded by the framework).
         prompt: Custom prompt for audio analysis (default: "What is in this recording?").
         tool_context: The context provided by the ADK framework.
         tool_config: Configuration dictionary containing model, api_base, api_key.
 
     Returns:
         ToolResult with description data.
-
-    Note:
-        The input_audio parameter is declared as str for ADK schema compatibility,
-        but the framework wrapper pre-loads it as an Artifact object with .filename,
-        .as_bytes(), .mime_type attributes available at runtime.
     """
     log_identifier = f"[ImageTools:describe_audio:{input_audio.filename}]"
 
@@ -534,7 +525,7 @@ async def describe_audio(
 
 
 async def edit_image_with_gemini(
-    input_image: str,  # Artifact filename - wrapper converts to Artifact object
+    input_image: Artifact,
     edit_prompt: str,
     output_filename: Optional[str] = None,
     use_pro_model: bool = False,
@@ -543,7 +534,7 @@ async def edit_image_with_gemini(
 ) -> ToolResult:
     """
     Edits an existing image based on a text prompt using Google's Gemini image generation models.
-    
+
     Two models are available (configured via tool_config):
     - Standard model: Default, optimized for speed, efficiency, and lower cost.
     - Pro model: Professional quality for complex tasks requiring advanced reasoning,
@@ -552,7 +543,7 @@ async def edit_image_with_gemini(
       or tasks requiring precise text placement.
 
     Args:
-        input_image: The artifact filename (framework pre-loads as Artifact object).
+        input_image: The input image artifact (pre-loaded by the framework).
         edit_prompt: Text description of the desired edits to apply to the image.
         output_filename: Optional. The desired filename for the output edited image.
                         If not provided, a unique name like 'edited_image_<uuid>.jpg' will be used.
@@ -564,11 +555,6 @@ async def edit_image_with_gemini(
 
     Returns:
         ToolResult with output artifact details (artifact storage handled by ToolResultProcessor).
-
-    Note:
-        The input_image parameter is declared as str for ADK schema compatibility,
-        but the framework wrapper pre-loads it as an Artifact object with .filename,
-        .as_bytes(), .version, .mime_type attributes available at runtime.
     """
     log_identifier = f"[ImageTools:edit_image_with_gemini:{input_image.filename}]"
 
@@ -1047,7 +1033,6 @@ describe_image_tool_def = BuiltinTool(
         required=["input_image"],
     ),
     examples=[],
-    artifact_args=["input_image"],
 )
 
 describe_audio_tool_def = BuiltinTool(
@@ -1072,7 +1057,6 @@ describe_audio_tool_def = BuiltinTool(
         required=["input_audio"],
     ),
     examples=[],
-    artifact_args=["input_audio"],
 )
 
 edit_image_with_gemini_tool_def = BuiltinTool(
@@ -1117,7 +1101,6 @@ edit_image_with_gemini_tool_def = BuiltinTool(
         required=["input_image", "edit_prompt"],
     ),
     examples=[],
-    artifact_args=["input_image"],
 )
 
 generate_image_with_gemini_tool_def = BuiltinTool(
