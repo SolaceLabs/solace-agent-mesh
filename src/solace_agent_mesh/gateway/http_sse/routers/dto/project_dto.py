@@ -65,5 +65,5 @@ class ProjectImportResponse(BaseModel):
     name: str
     artifacts_imported: int = Field(alias="artifactsImported")
     warnings: List[str] = []
-    
+
     model_config = {"populate_by_name": True}
