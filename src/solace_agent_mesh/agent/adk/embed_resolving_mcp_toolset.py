@@ -26,6 +26,8 @@ from ...common.utils.embeds import (
 )
 from ...common.utils.embeds.types import ResolutionMode
 from ..utils.context_helpers import get_original_session_id
+from .mcp_ssl_config import SslConfig
+from .ssl_mcp_session_manager import SslConfigurableMCPSessionManager
 
 log = logging.getLogger(__name__)
 
@@ -439,6 +441,7 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
         auth_discovery=None,
         tool_config: dict | None = None,
         credential_manager: CredentialManager | None = None,
+        ssl_config: SslConfig | None = None,
     ):
         # Store tool_config for later use
         self._tool_config = tool_config or {}
@@ -462,6 +465,13 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
                 tool_name_prefix=tool_name_prefix,
                 auth_scheme=auth_scheme,
                 auth_credential=auth_credential,
+            )
+
+        # Replace session manager with SSL-configurable version if SSL config provided
+        if ssl_config is not None:
+            self._mcp_session_manager = SslConfigurableMCPSessionManager(
+                connection_params=connection_params,
+                ssl_config=ssl_config,
             )
 
         self._tool_cache = []
