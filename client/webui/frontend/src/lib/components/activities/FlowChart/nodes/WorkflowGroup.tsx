@@ -61,6 +61,7 @@ function generateBezierPath(sourceRect: DOMRect, targetRect: DOMRect, containerR
 const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }: WorkflowGroupProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [bezierPaths, setBezierPaths] = useState<BezierPath[]>([]);
+    const [resizeCounter, setResizeCounter] = useState(0);
 
     const isCollapsed = node.data.isCollapsed;
     const isExpanded = node.data.isExpanded;
@@ -134,28 +135,21 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
             }
         });
 
-        // Only update state if paths actually changed (prevents unnecessary re-renders)
-        setBezierPaths(prevPaths => {
-            // If both are empty, no change needed
-            if (prevPaths.length === 0 && paths.length === 0) {
-                return prevPaths;
-            }
-            return paths;
-        });
+        setBezierPaths(paths);
     }, [isCollapsed]);
 
     // Calculate bezier paths after render
     useLayoutEffect(() => {
         calculateBezierPaths();
-    }, [node.children, isCollapsed, calculateBezierPaths]);
+    }, [node.children, isCollapsed, resizeCounter, calculateBezierPaths]);
 
     // Use ResizeObserver to detect when children expand/collapse (changes their size)
     useEffect(() => {
         if (!containerRef.current || isCollapsed) return;
 
         const resizeObserver = new ResizeObserver(() => {
-            // Directly recalculate paths without forcing a re-render
-            calculateBezierPaths();
+            // Trigger recalculation by incrementing counter
+            setResizeCounter(c => c + 1);
         });
 
         // Observe the container and all nodes within it
@@ -164,7 +158,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
         nodes.forEach(node => resizeObserver.observe(node));
 
         return () => resizeObserver.disconnect();
-    }, [node.children, isCollapsed, calculateBezierPaths]);
+    }, [node.children, isCollapsed]);
 
     // Use MutationObserver to detect zoom/pan changes from react-zoom-pan-pinch
     // The transform is applied to ancestor elements, so we watch for style changes
@@ -183,8 +177,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
             // Check if any mutation is a style change (which includes transform changes)
             const hasStyleChange = mutations.some(m => m.attributeName === "style");
             if (hasStyleChange) {
-                // Directly recalculate paths without forcing a re-render
-                calculateBezierPaths();
+                setResizeCounter(c => c + 1);
             }
         });
 
@@ -197,7 +190,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
         }
 
         return () => mutationObserver.disconnect();
-    }, [isCollapsed, calculateBezierPaths]);
+    }, [isCollapsed]);
 
     // Render a child node with data attributes for connector calculation
     const renderChild = useCallback(
