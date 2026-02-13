@@ -100,7 +100,7 @@ class GoogleSearchTool(WebSearchTool):
                     try:
                         error_data = response.json()
                         error_msg += f" - {error_data.get('error', {}).get('message', '')}"
-                    except:
+                    except Exception:
                         error_msg += f" - {response.text}"
                     
                     logger.error(error_msg)
@@ -208,7 +208,7 @@ class GoogleSearchTool(WebSearchTool):
             if domain.startswith("www."):
                 domain = domain[4:]
             return domain
-        except:
+        except Exception:
             return url
     
     def get_tool_definition(self) -> dict:

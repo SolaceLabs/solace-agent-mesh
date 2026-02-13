@@ -789,12 +789,12 @@ class AudioService:
                 if wav_temp_path:
                     try:
                         os.remove(wav_temp_path)
-                    except:
+                    except Exception:
                         pass
                 if mp3_temp_path:
                     try:
                         os.remove(mp3_temp_path)
-                    except:
+                    except Exception:
                         pass
             
         except HTTPException:
