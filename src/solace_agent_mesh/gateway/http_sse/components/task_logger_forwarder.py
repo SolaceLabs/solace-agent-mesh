@@ -88,7 +88,7 @@ class TaskLoggerForwarderComponent(ComponentBase):
             )
             try:
                 self.target_queue.put_nowait(forward_data)
-            except (queue.Full, asyncio.QueueFull):  # Phase 1: Handle both queue types
+            except (queue.Full, asyncio.QueueFull):
                 log.warning(
                     "%s Task logging queue is full. Message dropped. Current size: %d",
                     log_id_prefix,
