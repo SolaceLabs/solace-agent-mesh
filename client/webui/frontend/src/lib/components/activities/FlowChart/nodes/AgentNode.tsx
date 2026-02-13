@@ -196,6 +196,11 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
     const hasParallelBranches = node.parallelBranches && node.parallelBranches.length > 0;
     const hasContent = hasChildren || hasParallelBranches;
 
+    // Layout constants - match workflow visualization
+    const AGENT_WIDTH = 280; // Match workflow AGENT width
+    const HEADER_HEIGHT = 44; // Match CONTAINER_HEADER height
+    const DOTTED_PADDING = 16; // Padding on each side to extend beyond header
+
     // When collapsed or no children, render as simple rectangular node
     if (isCollapsed || !hasContent) {
         return (
@@ -204,46 +209,45 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                     isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
                 } ${haloClass}`}
                 style={{
-                    minWidth: "180px",
+                    width: `${AGENT_WIDTH}px`,
                 }}
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
                 }}
             >
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
-                        <div className="truncate text-sm font-semibold">{node.data.label}</div>
-                    </div>
-                    {/* Expand control */}
-                    {isCollapsed && onExpand && (
-                        <Button
-                            onClick={e => {
-                                e.stopPropagation();
-                                onExpand(node.id);
-                            }}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            tooltip="Expand"
-                        >
-                            <Maximize2 className="h-4 w-4" />
-                        </Button>
-                    )}
+                <div className="flex min-w-0 items-center gap-2">
+                    <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                    <div className="truncate text-sm font-semibold">{node.data.label}</div>
                 </div>
+                {/* Expand control */}
+                {isCollapsed && onExpand && (
+                    <Button
+                        onClick={e => {
+                            e.stopPropagation();
+                            onExpand(node.id);
+                        }}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Expand"
+                    >
+                        <Maximize2 className="h-4 w-4" />
+                    </Button>
+                )}
             </div>
         );
     }
 
     // When expanded with children, render with straddling header and dotted container
-    const HEADER_HEIGHT = 44; // Match CONTAINER_HEADER height from workflow nodes
-
     return (
-        <div className={`flex flex-col ${opacityClass} ${haloClass}`} style={{ minWidth: "180px" }}>
-            {/* Solid Header Box - positioned at top */}
+        <div className={`flex flex-col px-4 ${opacityClass} ${haloClass}`} style={{ minWidth: `${AGENT_WIDTH+72}px` }}>
+            {/* Solid Header Box - positioned at top, centered via CONTAINER_HEADER mx-auto */}
             <div
                 className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                    style={{
+                    width: `${AGENT_WIDTH}px`,
+                }}
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
@@ -275,7 +279,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 </div>
             </div>
 
-            {/* Dotted Children Container - grows with content */}
+            {/* Dotted Children Container - grows with content, extends 16px beyond header on each side via outer px-4 */}
             <div
                 className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
                 style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
