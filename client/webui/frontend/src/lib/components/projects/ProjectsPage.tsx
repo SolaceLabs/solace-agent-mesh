@@ -13,9 +13,10 @@ import type { Project } from "@/lib/types/projects";
 import { Button, Header } from "@/lib/components";
 import { downloadBlob, getErrorMessage } from "@/lib/utils";
 import { useChatContext, useIsProjectSharingEnabled } from "@/lib/hooks";
-import { useExportProject, useImportProject } from "@/lib/api/projects/hooks";
+import { useExportProject, useImportProject, useFetchProjectsOnMount } from "@/lib/api/projects/hooks";
 
 export const ProjectsPage: React.FC = () => {
+    useFetchProjectsOnMount();
     const navigate = useNavigate();
     const loaderData = useLoaderData<{ projectId?: string }>();
 
