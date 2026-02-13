@@ -206,6 +206,10 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 style={{
                     minWidth: "180px",
                 }}
+                onClick={e => {
+                    e.stopPropagation();
+                    onClick?.(node);
+                }}
             >
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-2">
