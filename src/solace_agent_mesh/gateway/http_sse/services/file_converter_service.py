@@ -10,6 +10,8 @@ License Compliance:
 - python-pptx (MIT License)
 """
 
+import asyncio
+import concurrent.futures
 import logging
 from datetime import datetime, timezone
 from io import BytesIO
@@ -17,6 +19,12 @@ from typing import Tuple, Dict, Any, Optional
 from google.adk.artifacts import BaseArtifactService
 
 log = logging.getLogger(__name__)
+
+# Dedicated executor for file conversions - bounded to prevent unbounded thread growth
+_CONVERSION_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=3,
+    thread_name_prefix="file_converter_"
+)
 
 # Citation configuration for text files
 LINES_PER_CITATION_CHUNK = 50  # Group 50 lines per citation entry (reasonable granularity)
@@ -461,13 +469,21 @@ async def convert_and_save_artifact(
             return {"status": "error", "error": error_msg}
 
         # 2. Detect type and call appropriate converter (in-memory processing)
+        # Run conversion in thread pool to avoid blocking event loop and allow SSE events to be sent
         try:
+            loop = asyncio.get_running_loop()
             if mime_type == "application/pdf":
-                text, conversion_metadata = convert_pdf_to_text(source_bytes)
+                text, conversion_metadata = await loop.run_in_executor(
+                    _CONVERSION_EXECUTOR, convert_pdf_to_text, source_bytes
+                )
             elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                text, conversion_metadata = convert_docx_to_text(source_bytes)
+                text, conversion_metadata = await loop.run_in_executor(
+                    _CONVERSION_EXECUTOR, convert_docx_to_text, source_bytes
+                )
             elif mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-                text, conversion_metadata = convert_pptx_to_text(source_bytes)
+                text, conversion_metadata = await loop.run_in_executor(
+                    _CONVERSION_EXECUTOR, convert_pptx_to_text, source_bytes
+                )
             else:
                 error_msg = f"Unsupported MIME type for conversion: {mime_type}"
                 log.warning(f"{log_prefix} {error_msg}")

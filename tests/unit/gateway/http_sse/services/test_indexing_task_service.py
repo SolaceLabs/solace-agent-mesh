@@ -60,10 +60,11 @@ class TestIndexingTaskService:
             is_text_based=[]
         )
 
-        # Should send task_completed event
+        # Should send task_completed event with event_type="index_message"
         completion_calls = [
             c for c in self.mock_sse_manager.send_event.call_args_list
-            if c[1].get("event_type") == "task_completed"
+            if c[1].get("event_type") == "index_message"
+            and c[1].get("event_data", {}).get("type") == "task_completed"
         ]
         assert len(completion_calls) == 1
 
@@ -98,9 +99,13 @@ class TestIndexingTaskService:
                         is_text_based=[]
                     )
 
-        # Verify SSE events were sent
+        # Verify SSE events were sent with event_type="index_message"
+        # and check the type field inside event_data
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
@@ -145,9 +150,12 @@ class TestIndexingTaskService:
                         is_text_based=[]
                     )
 
-        # Should send conversion_failed event
+        # Should send conversion_failed event with event_type="index_message"
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
@@ -204,9 +212,12 @@ class TestIndexingTaskService:
         # Verify rebuild was called
         mock_rebuild.assert_called_once_with(mock_project)
 
-        # Verify SSE events
+        # Verify SSE events with event_type="index_message"
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
@@ -233,9 +244,12 @@ class TestIndexingTaskService:
                     mock_project
                 )
 
-        # Should send indexing_failed event
+        # Should send indexing_failed event with event_type="index_message"
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
@@ -349,7 +363,7 @@ class TestIndexingTaskService:
         self.mock_sse_manager.send_event.assert_called_once_with(
             task_id="task-123",
             event_data={"type": "test_event", "data": "test"},
-            event_type="test_event"
+            event_type="index_message"
         )
 
     @pytest.mark.asyncio
@@ -393,9 +407,12 @@ class TestIndexingTaskService:
                     is_text_based=[]
                 )
 
-        # Verify task_error event was sent
+        # Verify task_error event was sent with event_type="index_message"
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
