@@ -13,7 +13,7 @@ export const ACTIVITY_NODE_BASE_STYLES = {
      * Figma Card: rounded (4px), shadow, 16px padding
      */
     RECTANGULAR:
-        "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-4 py-3 shadow transition-all duration-200 ease-in-out hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+        "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-4 py-2 shadow transition-all duration-200 ease-in-out hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
 
     /** Rectangular compact style - used by Tool/LLM nodes */
     RECTANGULAR_COMPACT:
