@@ -131,6 +131,8 @@ export interface MessageFE {
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
     displayHtml?: string; // HTML for displaying user messages with mention chips (user messages only)
+    contextQuote?: string; // Original quoted text from "Ask Followup" action (user messages only)
+    contextQuoteSourceId?: string; // Task ID of the message containing the original quoted text (for scroll-to-source)
     authenticationLink?: {
         url: string;
         text: string;

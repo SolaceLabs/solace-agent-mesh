@@ -5,7 +5,7 @@ Follows SAM's async pattern (similar to title_generation_service.py):
 - Fire-and-forget task execution
 - Stateless (no task tracking)
 - SSE events for progress
-- asyncio.to_thread() for CPU-intensive work
+- Async I/O for file operations and indexing
 """
 
 import asyncio
@@ -313,11 +313,11 @@ class IndexingTaskService:
         Returns:
             List of original filenames that will be indexed
         """
-        from .bm25_indexer_service import collect_project_text_files
+        from .bm25_indexer_service import collect_project_text_files_stream
 
         try:
-            # Collect all text files from the project
-            text_files = await collect_project_text_files(
+            # Stream text files (memory-efficient - only keeps filenames)
+            text_files_stream = collect_project_text_files_stream(
                 artifact_service=self.project_service.artifact_service,
                 app_name=self.project_service.app_name,
                 user_id=project.user_id,
@@ -325,8 +325,9 @@ class IndexingTaskService:
             )
 
             # Extract original filenames (remove .converted.txt suffix)
+            # Only store filenames, not full content
             original_filenames = []
-            for filename, _, _, _ in text_files:
+            async for filename, _, _, _ in text_files_stream:
                 # Remove .converted.txt suffix if present
                 if filename.endswith('.converted.txt'):
                     original_filename = filename[:-len('.converted.txt')]
@@ -348,10 +349,7 @@ class IndexingTaskService:
         mime_type: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Convert a file in background thread (non-blocking).
-
-        Uses asyncio.to_thread() to run CPU-intensive conversion
-        in thread pool without blocking the main event loop.
+        Convert a file asynchronously.
 
         Args:
             project: Project entity
@@ -362,58 +360,29 @@ class IndexingTaskService:
         Returns:
             Conversion result dict or None
         """
-        # Run CPU-intensive work in thread pool
-        result = await asyncio.to_thread(
-            self._convert_file_sync,
-            project, filename, version, mime_type
-        )
-        return result
-
-    def _convert_file_sync(
-        self,
-        project,
-        filename: str,
-        version: int,
-        mime_type: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Synchronous conversion (runs in thread pool).
-
-        This is CPU-intensive work that runs in a background thread.
-        Must call async functions using asyncio.run() or new event loop.
-        """
         from .file_converter_service import convert_and_save_artifact
 
         storage_session_id = f"project-{project.id}"
 
-        # Create new event loop for this thread (required for calling async from sync)
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
-            result = loop.run_until_complete(
-                convert_and_save_artifact(
-                    artifact_service=self.project_service.artifact_service,
-                    app_name=self.project_service.app_name,
-                    user_id=project.user_id,
-                    session_id=storage_session_id,
-                    source_filename=filename,
-                    source_version=version,
-                    mime_type=mime_type
-                )
+            # Already in async context, just await
+            result = await convert_and_save_artifact(
+                artifact_service=self.project_service.artifact_service,
+                app_name=self.project_service.app_name,
+                user_id=project.user_id,
+                session_id=storage_session_id,
+                source_filename=filename,
+                source_version=version,
+                mime_type=mime_type
             )
             return result
         except Exception as e:
             log.error(f"Conversion failed for {filename}: {e}")
             return None
-        finally:
-            loop.close()
 
     async def _rebuild_index_async(self, project) -> Optional[Dict[str, Any]]:
         """
-        Rebuild index in background thread (non-blocking).
-
-        Uses asyncio.to_thread() to run CPU-intensive indexing
-        in thread pool without blocking the main event loop.
+        Rebuild index asynchronously.
 
         Args:
             project: Project entity
@@ -421,112 +390,95 @@ class IndexingTaskService:
         Returns:
             Index build result dict or None
         """
-        # Run CPU-intensive work in thread pool
-        result = await asyncio.to_thread(
-            self._rebuild_index_sync,
-            project
-        )
-        return result
-
-    def _rebuild_index_sync(self, project) -> Optional[Dict[str, Any]]:
-        """
-        Synchronous index rebuild (runs in thread pool).
-
-        This is CPU-intensive work that runs in a background thread.
-        """
         from .bm25_indexer_service import (
-            collect_project_text_files,
+            collect_project_text_files_stream,
             build_bm25_index,
             save_project_index
         )
 
-        # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
-            # Collect text files (async I/O)
+            # Stream text files (async I/O, memory-efficient)
             try:
-                text_files = loop.run_until_complete(
-                    collect_project_text_files(
-                        artifact_service=self.project_service.artifact_service,
-                        app_name=self.project_service.app_name,
-                        user_id=project.user_id,
-                        project_id=project.id
-                    )
+                text_files_stream = collect_project_text_files_stream(
+                    artifact_service=self.project_service.artifact_service,
+                    app_name=self.project_service.app_name,
+                    user_id=project.user_id,
+                    project_id=project.id
                 )
             except Exception as e:
-                log.error(f"Failed to collect project text files for project {project.id}: {e}")
+                log.error(f"Failed to create text files stream for project {project.id}: {e}")
                 return {
                     "status": "error",
-                    "message": f"Failed to collect project files from storage: {str(e)}"
+                    "message": f"Failed to access project files from storage: {str(e)}"
                 }
 
-            if not text_files:
-                # No files left to index - delete the existing index if it exists
-                log.info(f"No text files to index for project {project.id}, deleting index if exists")
+            # Build index (async, memory-efficient with batch processing)
+            try:
+                # Already in async context, just await
+                index_zip_bytes, manifest = await build_bm25_index(text_files_stream, project.id)
+            except ValueError as e:
+                # Handle case where no documents/chunks were created
+                if "No chunks created" in str(e):
+                    log.info(f"No text files to index for project {project.id}, deleting index if exists")
 
-                try:
-                    # Delete project_bm25_index.zip (all versions)
-                    loop.run_until_complete(
-                        self.project_service.artifact_service.delete_artifact(
+                    try:
+                        # Delete project_bm25_index.zip (all versions)
+                        await self.project_service.artifact_service.delete_artifact(
                             app_name=self.project_service.app_name,
                             user_id=project.user_id,
                             session_id=f"project-{project.id}",
                             filename="project_bm25_index.zip"
                         )
-                    )
-                    log.info(f"Deleted empty index for project {project.id}")
-                    return {
-                        "status": "success",
-                        "message": "Index deleted - no files to index",
-                        "index_deleted": True
-                    }
-                except Exception as e:
-                    # Index might not exist - this is fine
-                    log.debug(f"No index to delete for project {project.id}: {e}")
-                    return {
-                        "status": "success",
-                        "message": "No files to index, no index exists",
-                        "index_deleted": False
-                    }
+                        log.info(f"Deleted empty index for project {project.id}")
+                        return {
+                            "status": "success",
+                            "message": "Index deleted - no files to index",
+                            "index_deleted": True
+                        }
+                    except Exception as delete_error:
+                        # Index might not exist - this is fine
+                        log.debug(f"No index to delete for project {project.id}: {delete_error}")
+                        return {
+                            "status": "success",
+                            "message": "No files to index, no index exists",
+                            "index_deleted": False
+                        }
 
-            # Extract original filenames (not converted) from text_files
-            # text_files is List[(filename, version, text, metadata)]
-            # For converted files, filename is like "document.pdf.converted.txt"
-            # We need the original filename "document.pdf"
-            original_filenames = []
-            for filename, _, _, _ in text_files:
-                # Remove .converted.txt suffix if present
-                if filename.endswith('.converted.txt'):
-                    original_filename = filename[:-len('.converted.txt')]
-                else:
-                    original_filename = filename
-                if original_filename not in original_filenames:
-                    original_filenames.append(original_filename)
-
-            # Build index (CPU-intensive)
-            try:
-                index_zip_bytes, manifest = build_bm25_index(text_files, project.id)
-            except Exception as e:
                 log.error(f"Failed to build BM25 index for project {project.id}: {e}")
-                file_count = len(text_files)
-                total_chars = sum(len(text) for _, _, text, _ in text_files)
                 return {
                     "status": "error",
-                    "message": f"Failed to build BM25 index: {str(e)} (project has {file_count} files, {total_chars:,} characters)"
+                    "message": f"Failed to build BM25 index: {str(e)}"
                 }
+            except Exception as e:
+                log.error(f"Failed to build BM25 index for project {project.id}: {e}")
+                return {
+                    "status": "error",
+                    "message": f"Failed to build BM25 index: {str(e)}"
+                }
+
+            # Extract original filenames from manifest
+            original_filenames = []
+            for chunk in manifest.get("chunks", []):
+                if chunk.get("chunk_id", -1) == 0:  # Only count each file once
+                    filename = chunk.get("filename", "")
+                    # Remove .converted.txt suffix if present
+                    if filename.endswith('.converted.txt'):
+                        original_filename = filename[:-len('.converted.txt')]
+                    else:
+                        original_filename = filename
+                    if original_filename not in original_filenames:
+                        original_filenames.append(original_filename)
 
             # Save index (async I/O)
             try:
-                result = loop.run_until_complete(
-                    save_project_index(
-                        artifact_service=self.project_service.artifact_service,
-                        app_name=self.project_service.app_name,
-                        user_id=project.user_id,
-                        project_id=project.id,
-                        index_zip_bytes=index_zip_bytes,
-                        manifest=manifest
-                    )
+                # Already in async context, just await
+                result = await save_project_index(
+                    artifact_service=self.project_service.artifact_service,
+                    app_name=self.project_service.app_name,
+                    user_id=project.user_id,
+                    project_id=project.id,
+                    index_zip_bytes=index_zip_bytes,
+                    manifest=manifest
                 )
             except Exception as e:
                 log.error(f"Failed to save index artifact for project {project.id}: {e}")
@@ -544,8 +496,6 @@ class IndexingTaskService:
             # Catch-all for unexpected errors in index rebuild
             log.error(f"Unexpected error during index rebuild for project {project.id}: {e}")
             return {"status": "error", "message": f"Unexpected error during index rebuild: {str(e)}"}
-        finally:
-            loop.close()
 
     # ==========================================
     # SSE Event Helper
@@ -568,4 +518,4 @@ class IndexingTaskService:
             )
             log.debug(f"{self.log_identifier}[{task_id}] Sent SSE event: {event_type}")
         except Exception as e:
-            log.warning(f"{self.log_identifier}[{task_id}] Failed to send SSE event: {e}")
+            log.debug(f"{self.log_identifier}[{task_id}] Failed to send SSE event: {e}")

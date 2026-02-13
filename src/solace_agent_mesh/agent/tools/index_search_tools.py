@@ -10,6 +10,7 @@ import json
 import zipfile
 import tempfile
 import shutil
+import os
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional, List, Tuple
@@ -27,11 +28,137 @@ from ...agent.utils.context_helpers import get_original_session_id
 
 log = logging.getLogger(__name__)
 
+# Security limits for ZIP extraction (protection against zip bombs)
+MAX_ZIP_SIZE = 500 * 1024 * 1024  # 500MB max compressed size
+MAX_UNCOMPRESSED_SIZE = 2 * 1024 * 1024 * 1024  # 2GB max uncompressed size
+MAX_FILE_COUNT = 20  # Maximum number of files in archive
+MAX_COMPRESSION_RATIO = 100  # Maximum compression ratio (uncompressed:compressed)
+MAX_SINGLE_FILE_SIZE = 500 * 1024 * 1024  # 500MB max per file
+
 CATEGORY_NAME = "document_search"
 CATEGORY_DESCRIPTION = "Search within project documents using BM25 indexing"
 
 # State key for turn tracking (session-scoped)
 _INDEX_SEARCH_TURN_STATE_KEY = "index_search_turn_counter"
+
+
+def _validate_and_extract_zip(zip_bytes: bytes, extract_path: str, log_prefix: str) -> None:
+    """
+    Securely validate and extract ZIP archive with protection against zip bombs.
+
+    Security validations:
+    1. Check compressed size limit
+    2. Validate file count
+    3. Check total uncompressed size
+    4. Validate compression ratio per file
+    5. Check individual file sizes
+    6. Sanitize file paths (prevent path traversal)
+
+    Args:
+        zip_bytes: Raw ZIP file bytes
+        extract_path: Directory to extract files to
+        log_prefix: Logging prefix for context
+
+    Raises:
+        ValueError: If ZIP file fails security validation
+        zipfile.BadZipFile: If ZIP file is corrupted
+    """
+    # 1. Check compressed size
+    compressed_size = len(zip_bytes)
+    if compressed_size > MAX_ZIP_SIZE:
+        raise ValueError(
+            f"ZIP file too large: {compressed_size} bytes "
+            f"(max {MAX_ZIP_SIZE} bytes / {MAX_ZIP_SIZE // 1024 // 1024}MB)"
+        )
+
+    log.debug(f"{log_prefix} ZIP compressed size: {compressed_size} bytes")
+
+    # Open ZIP for validation
+    with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zf:
+        # 2. Validate file count
+        file_list = zf.namelist()
+        file_count = len(file_list)
+
+        if file_count > MAX_FILE_COUNT:
+            raise ValueError(
+                f"Too many files in ZIP: {file_count} files "
+                f"(max {MAX_FILE_COUNT} files)"
+            )
+
+        log.debug(f"{log_prefix} ZIP contains {file_count} files")
+
+        # 3. Calculate total uncompressed size and validate each file
+        total_uncompressed = 0
+
+        for zip_info in zf.infolist():
+            # Skip directories
+            if zip_info.is_dir():
+                continue
+
+            file_size = zip_info.file_size
+            compressed_file_size = zip_info.compress_size
+
+            # Validate individual file size
+            if file_size > MAX_SINGLE_FILE_SIZE:
+                raise ValueError(
+                    f"File too large: {zip_info.filename} is {file_size} bytes "
+                    f"(max {MAX_SINGLE_FILE_SIZE} bytes / {MAX_SINGLE_FILE_SIZE // 1024 // 1024}MB)"
+                )
+
+            # Validate compression ratio (avoid division by zero)
+            if compressed_file_size > 0:
+                compression_ratio = file_size / compressed_file_size
+                if compression_ratio > MAX_COMPRESSION_RATIO:
+                    raise ValueError(
+                        f"Suspicious compression ratio for {zip_info.filename}: "
+                        f"{compression_ratio:.1f}x (max {MAX_COMPRESSION_RATIO}x). "
+                        f"Possible zip bomb attack."
+                    )
+
+            # Validate path traversal (ensure file stays within extract path)
+            # Normalize the path and check for ".." components
+            normalized_path = os.path.normpath(zip_info.filename)
+            if normalized_path.startswith("..") or os.path.isabs(normalized_path):
+                raise ValueError(
+                    f"Path traversal detected in ZIP: {zip_info.filename}. "
+                    f"Possible security attack."
+                )
+
+            total_uncompressed += file_size
+
+        # 4. Validate total uncompressed size
+        if total_uncompressed > MAX_UNCOMPRESSED_SIZE:
+            raise ValueError(
+                f"Total uncompressed size too large: {total_uncompressed} bytes "
+                f"(max {MAX_UNCOMPRESSED_SIZE} bytes / {MAX_UNCOMPRESSED_SIZE // 1024 // 1024}MB)"
+            )
+
+        log.debug(
+            f"{log_prefix} ZIP validation passed: "
+            f"compressed={compressed_size} bytes, "
+            f"uncompressed={total_uncompressed} bytes, "
+            f"files={file_count}"
+        )
+
+        # 5. Safe extraction with path validation
+        # Use extract() instead of extractall() for better control
+        for zip_info in zf.infolist():
+            # Double-check path safety before extraction
+            target_path = os.path.join(extract_path, zip_info.filename)
+            normalized_target = os.path.normpath(target_path)
+
+            if not normalized_target.startswith(os.path.normpath(extract_path)):
+                raise ValueError(
+                    f"Path traversal detected during extraction: {zip_info.filename}"
+                )
+
+            # Extract file
+            zf.extract(zip_info, extract_path)
+
+        log.info(
+            f"{log_prefix} ZIP extracted securely: {file_count} files, "
+            f"{total_uncompressed} bytes uncompressed"
+        )
 
 
 def _get_next_index_search_turn(tool_context: Optional[ToolContext]) -> int:
@@ -288,10 +415,12 @@ async def _load_bm25_index(
         temp_dir = tempfile.mkdtemp(prefix="bm25_index_")
         log.debug(f"{log_prefix} Created temp directory: {temp_dir}")
 
-        # 4. Unzip to temp directory
-        with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zf:
-            zf.extractall(temp_dir)
-        log.debug(f"{log_prefix} Extracted ZIP to temp directory")
+        # 4. Validate and extract ZIP securely (protection against zip bombs)
+        try:
+            _validate_and_extract_zip(zip_bytes, temp_dir, log_prefix)
+        except ValueError as ve:
+            log.error(f"{log_prefix} ZIP validation failed: {ve}")
+            return None, None
 
         # 5. Load manifest.json
         manifest_path = Path(temp_dir) / "manifest.json"
@@ -736,6 +865,15 @@ index_search_tool_def = BuiltinTool(
     name="index_search",
     implementation=index_search,
     description=(
+        "**Requirements:**\n"
+        "- Project must have documents uploaded and indexed\n"
+        "- BM25 index must be built and available as 'project_bm25_index.zip' artifact, indicated in LLM context\n"
+        "\n"
+        "**IMPORTANT - Check Before Using:**\n"
+        "- If you receive an error that \"no document index is available\", DO NOT retry this tool\n"
+        "- Instead, use exiting builtin tool `load_artifact` if there is such a tool to read files directly\n"
+        "- Only use this tool when you have confirmed indexing is enabled\n"
+        "\n"
         "Search project documents using BM25 full-text indexing. "
         "Returns relevant text chunks from uploaded files (PDFs, DOCX, PPTX, text files, etc.) with precise location citations. "
         "\n\n"
