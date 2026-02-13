@@ -1,7 +1,5 @@
 import { Fragment, type FC } from "react";
-import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
-
-import { Button } from "@/lib/components/ui";
+import { RefreshCw } from "lucide-react";
 
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES } from "../utils/nodeStyles";
@@ -17,11 +15,9 @@ interface LoopNodeProps {
 }
 
 const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
-    const isExpanded = node.data.isExpanded;
     const currentIteration = node.data.currentIteration ?? 0;
     const maxIterations = node.data.maxIterations ?? 100;
     const hasChildren = node.children && node.children.length > 0;
-    const canHaveChildren = hasChildren;
 
     // Layout constants
     const LOOP_WIDTH = 300; // Static width for loop nodes
@@ -53,8 +49,8 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
         return condition.length > maxLen ? `${condition.slice(0, maxLen)}...` : condition;
     };
 
-    // When expanded with children, render as expanded container with dotted border
-    if (isExpanded && hasChildren) {
+    // If the node has children (iterations), render as expanded container with dotted border
+    if (hasChildren) {
         const hasConditionRow = node.data.condition || maxIterations;
 
         return (
@@ -69,29 +65,12 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
                     }}
                 >
                     {/* Header row */}
-                    <div className="flex items-center justify-between gap-4 px-4 py-2">
+                    <div className="flex items-center gap-4 px-4 py-2">
                         <div className="flex items-center gap-2">
                             <RefreshCw className="h-4 w-4 text-(--color-accent-n0-wMain)" />
                             <span className="text-sm font-semibold">{node.data.label || "Loop"}</span>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                            {maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {maxIterations}</span>}
-                            {onCollapse && (
-                                <Button
-                                    onClick={e => {
-                                        e.stopPropagation();
-                                        onCollapse(node.id);
-                                    }}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    tooltip="Collapse"
-                                >
-                                    <Minimize2 className="h-4 w-4" />
-                                </Button>
-                            )}
-                        </div>
+                        {maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {maxIterations}</span>}
                     </div>
 
                     {/* Condition display */}
@@ -104,10 +83,10 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
                     )}
                 </div>
 
-                {/* Dotted Children Container - grows with content, minimum width calculated from LOOP_WIDTH + padding */}
+                {/* Dotted Children Container - grows with content */}
                 <div
                     className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
-                    style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + (hasConditionRow ? 32 : 16)}px`, minWidth: `${LOOP_WIDTH+72}px` }}
+                    style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + (hasConditionRow ? 32 : 16)}px`, minWidth: `${LOOP_WIDTH + 72}px` }}
                 >
                     <div className="px-3 pb-4">
                         <div className="flex flex-col items-center gap-2">
@@ -132,40 +111,21 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
         );
     }
 
-    // When not expanded or no children, render as compact node
-    // Use same width calculation as expanded state for consistency
+    // No children - render as compact node
     return (
-        <div className="flex flex-col px-4" style={{ width: `${LOOP_WIDTH}px` }}>
-            <div
-                className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
-            >
-                <div className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    <span className="text-sm font-semibold">Loop</span>
-                </div>
-
-                <div className="flex items-center gap-3 ml-3">
-                    {maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {maxIterations}</span>}
-                    {canHaveChildren && onExpand && (
-                        <Button
-                            onClick={e => {
-                                e.stopPropagation();
-                                onExpand(node.id);
-                            }}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            tooltip="Expand"
-                        >
-                            <Maximize2 className="h-4 w-4" />
-                        </Button>
-                    )}
-                </div>
+        <div
+            className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+            style={{ width: 'fit-content', minWidth: '120px' }}
+            onClick={e => {
+                e.stopPropagation();
+                onClick?.(node);
+            }}
+        >
+            <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                <span className="text-sm font-semibold">Loop</span>
             </div>
+            {maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {maxIterations}</span>}
         </div>
     );
 };
