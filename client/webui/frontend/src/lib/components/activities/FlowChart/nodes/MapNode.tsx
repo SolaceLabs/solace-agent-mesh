@@ -19,6 +19,9 @@ interface MapNodeProps {
 const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     const isExpanded = node.data.isExpanded;
 
+    // Layout constants
+    const HEADER_HEIGHT = 44;
+
     // Group children by iterationIndex to create branches
     const branches = useMemo(() => {
         const branchMap = new Map<number, typeof node.children>();
@@ -59,10 +62,8 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
 
     // When expanded with children, render as expanded container with dotted border
     if (isExpanded && hasChildren) {
-        const HEADER_HEIGHT = 44;
-
         return (
-            <div className="flex flex-col" style={{ minWidth: "200px" }}>
+            <div className="flex flex-col px-4" style={{ width: 'fit-content', minWidth: '200px' }}>
                 {/* Solid Header Box - positioned at top */}
                 <div
                     className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
@@ -120,34 +121,36 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
     }
 
     // When not expanded or no children, render as compact node
+    // Use same width calculation as expanded state for consistency
     return (
-        <div
-            className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-            style={{ minWidth: "120px" }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
-        >
-            <div className="flex items-center gap-2">
-                <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{node.data.label || label}</span>
-            </div>
+        <div className="flex flex-col px-4" style={{ width: 'fit-content'}}>
+            <div
+                className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                onClick={e => {
+                    e.stopPropagation();
+                    onClick?.(node);
+                }}
+            >
+                <div className="flex items-center gap-2">
+                    <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{node.data.label || label}</span>
+                </div>
 
-            {canHaveChildren && onExpand && (
-                <Button
-                    onClick={e => {
-                        e.stopPropagation();
-                        onExpand(node.id);
-                    }}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    tooltip="Expand"
-                >
-                    <Maximize2 className="h-4 w-4" />
-                </Button>
-            )}
+                {canHaveChildren && onExpand && (
+                    <Button
+                        onClick={e => {
+                            e.stopPropagation();
+                            onExpand(node.id);
+                        }}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Expand"
+                    >
+                        <Maximize2 className="h-4 w-4" />
+                    </Button>
+                )}
+            </div>
         </div>
     );
 };
