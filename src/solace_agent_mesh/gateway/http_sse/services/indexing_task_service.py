@@ -518,4 +518,4 @@ class IndexingTaskService:
             )
             log.debug(f"{self.log_identifier}[{task_id}] Sent SSE event: {event_type}")
         except Exception as e:
-            log.warning(f"{self.log_identifier}[{task_id}] Failed to send SSE event: {e}")
+            log.debug(f"{self.log_identifier}[{task_id}] Failed to send SSE event: {e}")
