@@ -1633,6 +1633,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 # Queue is full, drain one item and retry to ensure shutdown signal is delivered
                 try:
                     self._visualization_message_queue.get_nowait()
+                    self._visualization_message_queue.task_done()
                     self._visualization_message_queue.put_nowait(None)
                 except Exception as e:
                     log.warning(
@@ -1647,6 +1648,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 # Queue is full, drain one item and retry to ensure shutdown signal is delivered
                 try:
                     self._task_logger_queue.get_nowait()
+                    self._task_logger_queue.task_done()
                     self._task_logger_queue.put_nowait(None)
                 except Exception as e:
                     log.warning(
