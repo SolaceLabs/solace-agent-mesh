@@ -17,6 +17,7 @@ interface MapNodeProps {
 }
 
 const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+    const isExpanded = node.data.isExpanded;
 
     // Group children by iterationIndex to create branches
     const branches = useMemo(() => {
@@ -35,6 +36,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
     }, [node]);
 
     const hasChildren = branches.length > 0;
+    const canHaveChildren = hasChildren;
     const label = "Map";
 
     // Render a child node (iterations are agent nodes)
@@ -55,8 +57,8 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
         }
     };
 
-    // If the node has children, render as expanded container with dotted border
-    if (hasChildren) {
+    // When expanded with children, render as expanded container with dotted border
+    if (isExpanded && hasChildren) {
         const HEADER_HEIGHT = 44;
 
         return (
@@ -117,7 +119,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
         );
     }
 
-    // No parallel branches yet - render as compact node
+    // When not expanded or no children, render as compact node
     return (
         <div
             className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
@@ -131,7 +133,8 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                 <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{node.data.label || label}</span>
             </div>
-            {onExpand && (
+
+            {canHaveChildren && onExpand && (
                 <Button
                     onClick={e => {
                         e.stopPropagation();

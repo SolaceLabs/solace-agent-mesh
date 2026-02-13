@@ -17,10 +17,11 @@ interface LoopNodeProps {
 }
 
 const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+    const isExpanded = node.data.isExpanded;
     const currentIteration = node.data.currentIteration ?? 0;
     const maxIterations = node.data.maxIterations ?? 100;
     const hasChildren = node.children && node.children.length > 0;
-    const condition = node.data.condition;
+    const canHaveChildren = hasChildren;
 
     // Render a child node (loop iterations are agent nodes)
     const renderChild = (child: LayoutNode) => {
@@ -48,8 +49,8 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
         return condition.length > maxLen ? `${condition.slice(0, maxLen)}...` : condition;
     };
 
-    // If the loop has children (iterations), render as expanded container with dotted border
-    if (hasChildren) {
+    // When expanded with children, render as expanded container with dotted border
+    if (isExpanded && hasChildren) {
         const HEADER_HEIGHT = 44;
         const hasConditionRow = node.data.condition || maxIterations;
 
@@ -129,7 +130,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
         );
     }
 
-    // No children yet - render as compact node
+    // When not expanded or no children, render as compact node
     return (
         <div
             className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
@@ -146,7 +147,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
 
             <div className="flex items-center gap-2">
                 {maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {maxIterations}</span>}
-                {onExpand && (
+                {canHaveChildren && onExpand && (
                     <Button
                         onClick={e => {
                             e.stopPropagation();
