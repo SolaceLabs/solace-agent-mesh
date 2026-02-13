@@ -47,7 +47,7 @@ info = {
 class VisualizationForwarderComponent(ComponentBase):
     """
     A simple SAC component that takes messages from its input (typically
-    from a BrokerInput) and puts them onto a target Python queue.Queue
+    from a BrokerInput) and puts them onto a target Python queue.Queue or asyncio.Queue instance
     instance provided in its configuration.
     """
 
