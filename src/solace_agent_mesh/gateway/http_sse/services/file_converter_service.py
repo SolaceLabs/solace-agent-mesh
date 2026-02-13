@@ -10,6 +10,7 @@ License Compliance:
 - python-pptx (MIT License)
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from io import BytesIO
@@ -461,13 +462,22 @@ async def convert_and_save_artifact(
             return {"status": "error", "error": error_msg}
 
         # 2. Detect type and call appropriate converter (in-memory processing)
+        # Run CPU-intensive conversion in thread pool to avoid blocking event loop
+        # This allows SSE events to be sent while conversion is in progress
         try:
+            loop = asyncio.get_running_loop()
             if mime_type == "application/pdf":
-                text, conversion_metadata = convert_pdf_to_text(source_bytes)
+                text, conversion_metadata = await loop.run_in_executor(
+                    None, convert_pdf_to_text, source_bytes
+                )
             elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                text, conversion_metadata = convert_docx_to_text(source_bytes)
+                text, conversion_metadata = await loop.run_in_executor(
+                    None, convert_docx_to_text, source_bytes
+                )
             elif mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-                text, conversion_metadata = convert_pptx_to_text(source_bytes)
+                text, conversion_metadata = await loop.run_in_executor(
+                    None, convert_pptx_to_text, source_bytes
+                )
             else:
                 error_msg = f"Unsupported MIME type for conversion: {mime_type}"
                 log.warning(f"{log_prefix} {error_msg}")
