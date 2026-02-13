@@ -22,9 +22,6 @@ log = logging.getLogger(__name__)
 # Chunking configuration (optimized for search accuracy and token savings)
 CHUNK_SIZE_CHARS = 2000      # ~512 tokens, ~400 words, captures 2-3 complete paragraphs
 OVERLAP_CHARS = 500          # 25% overlap to prevent information loss at boundaries
-DEFAULT_TOP_K = 5            # Return top 5 most relevant chunks
-MAX_TOP_K = 10               # Maximum chunks to return for complex queries
-
 
 def chunk_text(
     text: str,
