@@ -11,6 +11,8 @@ import { hasSourcesWithUrls } from "@/lib/utils";
 import { ArtifactPanel } from "./artifact/ArtifactPanel";
 import { FlowChartDetails } from "../activities/FlowChartDetails";
 import { RAGInfoPanel } from "./rag/RAGInfoPanel";
+import { DocumentSourcesPanel } from "./rag/DocumentSourcesPanel";
+import { hasDocumentSources } from "@/lib/utils/documentSourceUtils";
 
 interface ChatSidePanelProps {
     onCollapsedToggle: (isSidePanelCollapsed: boolean) => void;
@@ -32,10 +34,10 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     // Includes: web sources, deep research sources, AND document search sources
     const hasSourcesInSession = useMemo(() => {
         if (!ragData || ragData.length === 0) return false;
-        
+
         // Check for web/research sources with URLs (existing behavior)
         if (hasSourcesWithUrls(ragData)) return true;
-        
+
         // Also check for document search results
         return ragData.some(search => search.searchType === "document_search");
     }, [ragData]);
@@ -290,7 +292,11 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                         {hasSourcesInSession && (
                             <TabsContent value="rag" className="m-0 h-full">
                                 <div className="h-full">
-                                    <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
+                                    {hasDocumentSources(ragData) ? (
+                                        <DocumentSourcesPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
+                                    ) : (
+                                        <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
+                                    )}
                                 </div>
                             </TabsContent>
                         )}
