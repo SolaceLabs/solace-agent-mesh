@@ -13,7 +13,7 @@ import pytest
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Requires full integration test environment with fixtures: test_client, test_user_auth_headers, test_project")
+@pytest.mark.skip(reason="Requires full SSE server.integration test environment with fixtures: test_client, test_user_auth_headers, test_project, and background task execution for indexing. Enable when infrastructure is ready.")
 class TestBM25IndexingEndToEnd:
     """
     End-to-end integration tests for BM25 indexing workflow.

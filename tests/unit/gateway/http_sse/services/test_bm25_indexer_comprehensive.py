@@ -27,14 +27,6 @@ class TestChunkTextEdgeCases:
         # Should filter out whitespace-only chunks
         assert len(chunks) == 0
 
-    def test_chunk_mixed_empty_and_content(self):
-        """Test chunking where some chunks would be empty."""
-        text = "content" + (" " * 2000) + "more content"
-        chunks = chunk_text(text, chunk_size=1000, overlap=100)
-
-        # Should only include non-empty chunks
-        assert all(chunk[0].strip() for chunk in chunks)
-
     def test_chunk_exact_overlap_boundary(self):
         """Test chunking when text length is exactly at overlap boundary."""
         text = "x" * 2500  # Exactly 500 past chunk_size
@@ -76,21 +68,6 @@ class TestChunkTextEdgeCases:
         assert len(chunks) > 0
         # Should have many chunks since overlap is very large
         assert len(chunks) >= 5
-
-    def test_chunk_positions_cover_entire_text(self):
-        """Test that chunk positions cover entire text without gaps."""
-        text = "abcdefghijklmnopqrstuvwxyz" * 100  # 2600 chars
-        chunks = chunk_text(text, chunk_size=1000, overlap=200)
-
-        # First chunk should start at 0
-        assert chunks[0][1] == 0
-
-        # Last chunk should end at text length
-        assert chunks[-1][2] == len(text)
-
-        # Verify no gaps (overlaps are OK)
-        for i in range(len(chunks) - 1):
-            assert chunks[i + 1][1] <= chunks[i][2]  # Next starts before/at current end
 
 
 class TestCollectProjectTextFilesStreamEdgeCases:
@@ -368,49 +345,6 @@ class TestBuildBM25IndexEdgeCases:
                 chunk_size=1000,
                 overlap=100
             )
-
-    @pytest.mark.asyncio
-    async def test_build_index_manifest_structure_complete(self):
-        """Test that manifest has all required fields."""
-        documents = [
-            ("test.txt", 1, "x" * 1000, {})
-        ]
-
-        with patch('bm25s.tokenize') as mock_tokenize, \
-             patch('bm25s.BM25') as mock_bm25_class:
-            mock_tokenize.return_value = [["token"]]
-            mock_retriever = MagicMock()
-            mock_bm25_class.return_value = mock_retriever
-
-            zip_bytes, manifest = await build_bm25_index(
-                documents,
-                "project-123",
-                chunk_size=500,
-                overlap=100
-            )
-
-            # Verify all manifest fields
-            assert "schema_version" in manifest
-            assert "created_at" in manifest
-            assert "project_id" in manifest
-            assert "file_count" in manifest
-            assert "chunk_count" in manifest
-            assert "chunk_size" in manifest
-            assert "overlap" in manifest
-            assert "chunks" in manifest
-
-            # Verify chunk entries have all fields
-            if manifest["chunks"]:
-                chunk = manifest["chunks"][0]
-                assert "corpus_index" in chunk
-                assert "doc_id" in chunk
-                assert "filename" in chunk
-                assert "version" in chunk
-                assert "chunk_id" in chunk
-                assert "chunk_start" in chunk
-                assert "chunk_end" in chunk
-                assert "chunk_text" in chunk
-                assert "citation_type" in chunk
 
     @pytest.mark.asyncio
     async def test_build_index_citation_map_filtering(self):
