@@ -462,8 +462,7 @@ async def convert_and_save_artifact(
             return {"status": "error", "error": error_msg}
 
         # 2. Detect type and call appropriate converter (in-memory processing)
-        # Run CPU-intensive conversion in thread pool to avoid blocking event loop
-        # This allows SSE events to be sent while conversion is in progress
+        # Run conversion in thread pool to avoid blocking event loop and allow SSE events to be sent
         try:
             loop = asyncio.get_running_loop()
             if mime_type == "application/pdf":
