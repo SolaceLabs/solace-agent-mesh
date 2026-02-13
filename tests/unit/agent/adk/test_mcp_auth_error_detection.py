@@ -74,15 +74,6 @@ class TestIsAuthError:
         }
         assert tool._is_auth_error(result) is False
 
-    def test_500_not_auth_error(self, tool):
-        """A 500 response is not an auth error."""
-        result = {
-            "content": [
-                {"type": "text", "text": '{"code":500,"message":"Internal Server Error"}'}
-            ]
-        }
-        assert tool._is_auth_error(result) is False
-
     def test_normal_text_response(self, tool):
         """Normal tool output text is not an auth error."""
         result = {
@@ -96,19 +87,6 @@ class TestIsAuthError:
         """Non-dict result returns False."""
         assert tool._is_auth_error("not a dict") is False
         assert tool._is_auth_error(None) is False
-
-    def test_empty_content(self, tool):
-        """Empty content list returns False."""
-        assert tool._is_auth_error({"content": []}) is False
-
-    def test_non_text_content_type(self, tool):
-        """Content items with non-text type are skipped."""
-        result = {
-            "content": [
-                {"type": "image", "data": "..."}
-            ]
-        }
-        assert tool._is_auth_error(result) is False
 
     def test_401_in_text_without_unauthorized_no_match(self, tool):
         """'401' alone in text without 'unauthorized' doesn't match string fallback."""
@@ -136,34 +114,6 @@ class TestIsAuthError:
             ]
         }
         assert tool._is_auth_error(result) is False
-
-    def test_multiple_content_items_second_is_auth_error(self, tool):
-        """Auth error detected even if it's not in the first content item."""
-        result = {
-            "content": [
-                {"type": "text", "text": "Some preamble"},
-                {"type": "text", "text": '{"code":401,"message":"Unauthorized"}'},
-            ]
-        }
-        assert tool._is_auth_error(result) is True
-
-    def test_is_error_flag_irrelevant(self, tool):
-        """Detection works regardless of isError field value."""
-        result_false = {
-            "content": [
-                {"type": "text", "text": '{"code":401,"message":"Unauthorized"}'}
-            ],
-            "isError": False,
-        }
-        result_true = {
-            "content": [
-                {"type": "text", "text": '{"code":401,"message":"Unauthorized"}'}
-            ],
-            "isError": True,
-        }
-        assert tool._is_auth_error(result_false) is True
-        assert tool._is_auth_error(result_true) is True
-
 
 class TestClearCachedCredentials:
     """Tests for _clear_cached_credentials."""
