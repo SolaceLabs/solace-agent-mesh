@@ -20,7 +20,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     const hasChildren = node.children && node.children.length > 0;
 
     // Layout constants
-    const LOOP_WIDTH = 300; // Static width for loop nodes
+    const LOOP_WIDTH = 280; // Static width for loop nodes
     const HEADER_HEIGHT = 44;
 
     // Render a child node (loop iterations are agent nodes)
