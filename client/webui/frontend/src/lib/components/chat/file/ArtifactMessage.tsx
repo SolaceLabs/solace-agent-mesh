@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import { api, getErrorFromResponse } from "@/lib/api";
 import { Spinner } from "@/lib/components/ui/spinner";
@@ -38,7 +39,7 @@ type ArtifactMessageProps = (
     message?: MessageFE; // Optional message to get taskId for ragData lookup
 };
 
-export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
+export function ArtifactMessage(props: ArtifactMessageProps) {
     const { artifacts, allArtifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion, ragData } = useChatContext();
     const { activeProject } = useProjectContext();
     const [isLoading, setIsLoading] = useState(false);
@@ -364,7 +365,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const renderType = getRenderType(fileName, fileMimeType);
 
     // Prepare expanded content if we have content to render
-    let expandedContent: React.ReactNode = null;
+    let expandedContent: ReactNode = null;
 
     if (isLoading) {
         expandedContent = (
@@ -501,4 +502,4 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             source={artifactInAll?.source}
         />
     );
-};
+}

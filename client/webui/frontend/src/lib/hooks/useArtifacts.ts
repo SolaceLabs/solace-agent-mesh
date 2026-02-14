@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { api } from "@/lib/api";
 import type { ArtifactInfo } from "@/lib/types";
 import { useProjectContext } from "../providers/ProjectProvider";
@@ -12,7 +13,7 @@ interface UseArtifactsReturn {
     isLoading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
-    setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
+    setArtifacts: Dispatch<SetStateAction<ArtifactInfo[]>>;
     showWorkingArtifacts: boolean;
     toggleShowWorkingArtifacts: () => void;
     workingArtifactCount: number;
