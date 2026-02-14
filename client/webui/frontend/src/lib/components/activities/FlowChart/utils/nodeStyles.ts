@@ -42,8 +42,9 @@ export const ACTIVITY_NODE_PROCESSING_CLASS = "processing-halo";
 
 /**
  * Connector line styling for vertical lines between nodes
+ * Matches workflow visualization connector colors
  */
-export const CONNECTOR_LINE_CLASSES = "bg-gray-400 dark:bg-gray-600";
+export const CONNECTOR_LINE_CLASSES = "bg-(--color-secondary-w40) dark:bg-(--color-secondary-w80)";
 
 /**
  * Standard connector sizes

@@ -368,7 +368,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                 {bezierPaths.length > 0 && (
                     <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
                         {bezierPaths.map(path => (
-                            <path key={path.id} d={path.d} stroke="#9CA3AF" strokeWidth={2} fill="none" className="dark:stroke-gray-500" />
+                            <path key={path.id} d={path.d} strokeWidth={2} fill="none" className="stroke-(--color-secondary-w40) dark:stroke-(--color-secondary-w80)" />
                         ))}
                     </svg>
                 )}
