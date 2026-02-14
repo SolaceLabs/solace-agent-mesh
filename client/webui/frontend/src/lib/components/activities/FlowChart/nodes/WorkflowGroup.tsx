@@ -320,69 +320,77 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
         );
     }
 
-    // Full expanded view
+    // Full expanded view with straddling header
     return (
-        <div
-            ref={containerRef}
-            className={`group rounded-lg border-2 border-dashed border-gray-400 bg-gray-50/50 dark:border-gray-600 dark:bg-gray-900/50 ${isSelected ? "ring-2 ring-blue-500" : ""}`}
-            style={{
-                minWidth: "200px",
-                position: "relative",
-            }}
-        >
-            {/* SVG overlay for bezier connectors */}
-            {bezierPaths.length > 0 && (
-                <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
-                    {bezierPaths.map(path => (
-                        <path key={path.id} d={path.d} stroke="#9CA3AF" strokeWidth={2} fill="none" className="dark:stroke-gray-500" />
-                    ))}
-                </svg>
-            )}
+        <div className={`flex flex-col px-4 ${haloClass}`} style={{ minWidth: `${WORKFLOW_WIDTH + 72}px` }}>
+            {/* Solid Header Box - positioned at top, centered with fixed width */}
+            <div
+                className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} z-20`}
+                style={{ width: `${WORKFLOW_WIDTH}px` }}
+                onClick={e => {
+                    e.stopPropagation();
+                    onClick?.(node);
+                }}
+            >
+                <div className="flex items-center justify-between gap-4 px-4 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <Workflow className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                        <div className="truncate text-sm font-semibold">{node.data.label}</div>
+                    </div>
 
-            {/* Collapse icon - top right, only show on hover when expanded */}
-            {isExpanded && onCollapse && (
-                <span title="Collapse workflow" className="absolute top-2 right-2 z-10">
-                    <Minimize2
-                        className="h-3.5 w-3.5 cursor-pointer text-purple-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-purple-600 dark:text-purple-500 dark:hover:text-purple-300"
-                        onClick={e => {
-                            e.stopPropagation();
-                            onCollapse(node.id);
-                        }}
-                    />
-                </span>
-            )}
-            {/* Label - clickable */}
-            {node.data.label && (
-                <div
-                    className="absolute -top-3 left-4 flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 text-xs font-bold text-gray-500 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                    title="Click to view workflow details"
-                >
-                    <Workflow className="h-3 w-3 flex-shrink-0" />
-                    {node.data.label}
+                    {/* Collapse control */}
+                    {isExpanded && onCollapse && (
+                        <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                            <Button
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    onCollapse(node.id);
+                                }}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                tooltip="Collapse"
+                            >
+                                <Minimize2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
 
-            {/* Children with inline connectors */}
-            <div className="flex flex-col items-center p-6">
-                {node.children.map((child, index) => {
-                    // Track the preceding and following nodes for parallel blocks
-                    const precedingNode = index > 0 ? node.children[index - 1] : null;
-                    const precedingNodeId = precedingNode?.id;
-                    const followingNode = index < node.children.length - 1 ? node.children[index + 1] : null;
-                    const followingNodeId = followingNode?.id;
+            {/* Dotted Children Container - grows with content, extends 16px beyond header on each side */}
+            <div
+                ref={containerRef}
+                className="relative rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
+                style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
+            >
+                {/* SVG overlay for bezier connectors */}
+                {bezierPaths.length > 0 && (
+                    <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                        {bezierPaths.map(path => (
+                            <path key={path.id} d={path.d} stroke="#9CA3AF" strokeWidth={2} fill="none" className="dark:stroke-gray-500" />
+                        ))}
+                    </svg>
+                )}
 
-                    return (
-                        <React.Fragment key={child.id}>
-                            {renderChild(child, precedingNodeId, followingNodeId)}
-                            {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
-                            {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
-                        </React.Fragment>
-                    );
-                })}
+                {/* Children with inline connectors */}
+                <div className="flex flex-col items-center px-3 pb-4">
+                    {node.children.map((child, index) => {
+                        // Track the preceding and following nodes for parallel blocks
+                        const precedingNode = index > 0 ? node.children[index - 1] : null;
+                        const precedingNodeId = precedingNode?.id;
+                        const followingNode = index < node.children.length - 1 ? node.children[index + 1] : null;
+                        const followingNodeId = followingNode?.id;
+
+                        return (
+                            <React.Fragment key={child.id}>
+                                {renderChild(child, precedingNodeId, followingNodeId)}
+                                {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
+                                {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
