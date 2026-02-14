@@ -479,6 +479,38 @@ async def _submit_task(
             log.info(
                 "%sUsing session ID from frontend request: %s", log_prefix, session_id
             )
+
+            # Ensure session exists in database if persistence is enabled
+            # This handles CLI clients that provide their own session IDs
+            if SessionLocal is not None and session_service is not None:
+                db = SessionLocal()
+                try:
+                    # Check if session already exists
+                    existing_session = session_service.get_session_details(
+                        db, session_id, user_id
+                    )
+                    if not existing_session:
+                        # Create the session since it doesn't exist
+                        session_service.create_session(
+                            db=db,
+                            user_id=user_id,
+                            agent_id=agent_name,
+                            session_id=session_id,
+                            project_id=project_id,
+                        )
+                        db.commit()
+                        log.info(
+                            "%sCreated session in database for client-provided ID: %s",
+                            log_prefix,
+                            session_id,
+                        )
+                except Exception as e:
+                    db.rollback()
+                    log.warning(
+                        "%sFailed to ensure session in database: %s", log_prefix, e
+                    )
+                finally:
+                    db.close()
         else:
             # Create new session when frontend doesn't provide one
             session_id = session_manager.create_new_session_id(request)
