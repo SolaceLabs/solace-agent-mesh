@@ -1233,6 +1233,9 @@ Parameters for `{open_delim}save_artifact: ...`:
 - `description="A brief description."` (optional)
 - `tags="tag1,tag2"` (optional, comma-separated list of tags for categorization)
 
+Tagging Working Files:
+Add `tags="{ARTIFACT_TAG_WORKING}"` to artifacts that are intermediate or internal (e.g., scratch data, temp files, intermediate results used as input to further processing). These are hidden from the user's file list by default. Do NOT tag artifacts that are the final deliverable for the user.
+
 The system will automatically save the content and confirm it in the next turn.
 """
 

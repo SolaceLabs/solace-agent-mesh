@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { ArrowDown, ArrowLeft, Ellipsis, EyeOff, FileText, Loader2 } from "lucide-react";
 
@@ -15,6 +15,8 @@ import { ArtifactMorePopover } from "./ArtifactMorePopover";
 import { ArtifactDeleteAllDialog } from "./ArtifactDeleteAllDialog";
 import { ArtifactDetails } from "./ArtifactDetails";
 
+const workingFilesLabel = (count: number) => `${count} working ${count === 1 ? "file" : "files"}`;
+
 const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo) => number> = {
     [SortOption.NameAsc]: (a1, a2) => a1.filename.localeCompare(a2.filename),
     [SortOption.NameDesc]: (a1, a2) => a2.filename.localeCompare(a1.filename),
@@ -22,7 +24,7 @@ const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo)
     [SortOption.DateDesc]: (a1, a2) => (a1.last_modified < a2.last_modified ? 1 : -1),
 };
 
-export const ArtifactPanel: React.FC = () => {
+export function ArtifactPanel() {
     const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useChatContext();
     const { onDownload } = useDownload();
 
@@ -100,7 +102,7 @@ export const ArtifactPanel: React.FC = () => {
                                                 <div className="text-lg font-medium">Files</div>
                                                 {!showWorkingArtifacts && workingArtifactCount > 0 ? (
                                                     <div className="mt-2 text-sm">
-                                                        {workingArtifactCount} working {workingArtifactCount === 1 ? "file is" : "files are"} hidden
+                                                        {workingFilesLabel(workingArtifactCount)} hidden
                                                     </div>
                                                 ) : (
                                                     <>
@@ -118,13 +120,14 @@ export const ArtifactPanel: React.FC = () => {
                         </div>
                         {/* Hidden working files indicator */}
                         {!showWorkingArtifacts && workingArtifactCount > 0 && sortedArtifacts.length > 0 && (
-                            <button
+                            <Button
+                                variant="ghost"
                                 onClick={toggleShowWorkingArtifacts}
-                                className="text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center justify-center gap-1.5 border-t px-3 py-2 text-xs transition-colors"
+                                className="text-muted-foreground hover:text-foreground h-auto w-full rounded-none border-t px-3 py-2 text-xs"
                             >
                                 <EyeOff className="h-3 w-3" />
-                                <span>{workingArtifactCount} working {workingArtifactCount === 1 ? "file" : "files"} hidden</span>
-                            </button>
+                                <span>{workingFilesLabel(workingArtifactCount)} hidden</span>
+                            </Button>
                         )}
                     </div>
                 )}
@@ -172,4 +175,4 @@ export const ArtifactPanel: React.FC = () => {
             <ArtifactDeleteAllDialog />
         </div>
     );
-};
+}

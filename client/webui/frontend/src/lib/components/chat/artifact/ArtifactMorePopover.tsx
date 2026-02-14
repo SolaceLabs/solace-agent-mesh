@@ -1,25 +1,26 @@
-import React from "react";
+import type { ReactNode } from "react";
 
 import { Eye, EyeOff, RefreshCcw, Trash } from "lucide-react";
 
-import { Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components";
+import { Menu, Popover, PopoverContent, PopoverTrigger } from "@/lib/components";
+import type { MenuAction } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
 
 interface ArtifactMorePopoverProps {
-    children: React.ReactNode;
+    children: ReactNode;
     hideDeleteAll?: boolean;
     showWorkingArtifacts?: boolean;
     onToggleWorkingArtifacts?: () => void;
     workingArtifactCount?: number;
 }
 
-export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({
+export function ArtifactMorePopover({
     children,
     hideDeleteAll = false,
     showWorkingArtifacts = false,
     onToggleWorkingArtifacts,
     workingArtifactCount = 0,
-}) => {
+}: ArtifactMorePopoverProps) {
     const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
 
     const menuActions: MenuAction[] = [];
@@ -46,7 +47,7 @@ export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({
         },
         icon: <RefreshCcw />,
         iconPosition: "left",
-        divider: onToggleWorkingArtifacts ? true : false,
+        divider: !!onToggleWorkingArtifacts,
     });
 
     if (!hideDeleteAll) {
@@ -70,4 +71,4 @@ export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({
             </PopoverContent>
         </Popover>
     );
-};
+}
