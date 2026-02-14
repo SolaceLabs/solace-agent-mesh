@@ -63,21 +63,20 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
     // Pill variant for Start/Finish/Join/Map/Fork nodes
     if (node.data.variant === "pill") {
         const opacityClass = node.data.isSkipped ? "opacity-50" : "";
-        const borderStyleClass = node.data.isSkipped ? "border-dashed" : "border-solid";
         const hasParallelBranches = node.parallelBranches && node.parallelBranches.length > 0;
         const hasChildren = node.children && node.children.length > 0;
         const isError = node.data.status === "error";
 
-        // Color classes based on error status
-        const pillColorClasses = isError
-            ? "border-red-500 bg-red-50 text-red-900 dark:border-red-400 dark:bg-red-900/50 dark:text-red-100"
-            : "border-indigo-500 bg-indigo-50 text-indigo-900 dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100";
+        // Error color overrides - only apply when there's an error, otherwise use PILL base styling
+        const errorColorClasses = isError
+            ? "!bg-red-50 !text-red-900 dark:!bg-red-900/50 dark:!text-red-100"
+            : "";
 
         // If it's a simple pill (no parallel branches and no children), render compact version
         if (!hasParallelBranches && !hasChildren) {
             return (
                 <div
-                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} border-2 ${pillColorClasses} ${opacityClass} ${borderStyleClass} ${
+                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${errorColorClasses} ${opacityClass} ${
                         isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
                     }`}
                     style={{
@@ -101,10 +100,10 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
         // Map/Fork pill with sequential children (flattened from parallel branches when detail is off)
         if (hasChildren && !hasParallelBranches) {
             return (
-                <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
+                <div className={`flex flex-col items-center ${opacityClass}`}>
                     {/* Pill label */}
                     <div
-                        className={`${ACTIVITY_NODE_BASE_STYLES.PILL} border-2 ${pillColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                        className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${errorColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                         style={{
                             minWidth: "80px",
                             textAlign: "center",
@@ -140,7 +139,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
             <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                 {/* Pill label */}
                 <div
-                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} border-2 ${pillColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${errorColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                     style={{
                         minWidth: "80px",
                         textAlign: "center",

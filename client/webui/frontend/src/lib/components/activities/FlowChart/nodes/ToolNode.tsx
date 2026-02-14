@@ -14,7 +14,7 @@ interface ToolNodeProps {
 
 const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
     const isProcessing = node.data.status === "in-progress";
-    const haloClass = isProcessing ? ACTIVITY_NODE_PROCESSING_CLASS : "";
+    const haloClass = isProcessing ? "processing-halo" : "";
     const artifactCount = node.data.createdArtifacts?.length || 0;
 
     return (
