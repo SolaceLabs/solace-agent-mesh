@@ -68,7 +68,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Get file info for rendering decisions
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
     const fileName = fileAttachment?.name || props.name;
-    const fileMimeType = fileAttachment?.mime_type;
+    const fileMimeType = fileAttachment?.mime_type || artifact?.mime_type;
 
     // Check if artifact exists in allArtifacts (exists but may be hidden due to working tag)
     // Fall back to artifacts array if allArtifacts is not available (e.g., in Storybook)
@@ -430,7 +430,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
-                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} isStreaming={isStreaming} ragData={taskRagData} />
+                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileMimeType} setRenderError={setRenderError} isStreaming={isStreaming} ragData={taskRagData} />
                         </div>
                         <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
                     </div>

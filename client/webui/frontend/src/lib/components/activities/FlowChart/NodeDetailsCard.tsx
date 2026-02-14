@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { ArrowRight, Bot, CheckCircle, FileText, GitBranch, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
 
-import { api } from "@/lib/api";
 import { useChatContext } from "@/lib/hooks";
 import { type JSONValue, JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
-import type { VisualizerStep, ToolDecision } from "@/lib/types";
-import { parseArtifactUri } from "@/lib/utils";
+import { getRenderType, getFileContent, decodeBase64Content, encodeBase64Content, ContentRenderer } from "@/lib/components/chat/preview";
+import type { VisualizerStep, ToolDecision, FileAttachment } from "@/lib/types";
+import { parseArtifactUri, getArtifactContent } from "@/lib/utils";
 
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 
-const MAX_ARTIFACT_DISPLAY_LENGTH = 5000;
+const MAX_ARTIFACT_DISPLAY_LENGTH = 1000;
 
 const ColumnHeader = ({ label, color }: { label: string; color: string }) => {
     return (
@@ -27,55 +27,68 @@ interface ArtifactContentViewerProps {
     mimeType?: string;
 }
 
+const isNotTruncatable = (renderType: string) => renderType === "image" || renderType === "audio" || renderType === "html";
+
 /**
- * Component to fetch and display artifact content inline
+ * Component to fetch and display artifact content inline.
+ * Supports binary artifacts (images, audio) as well as text-based artifacts.
  */
 const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContentViewerProps) => {
     const { sessionId } = useChatContext();
     const [content, setContent] = useState<string | null>(null);
+    const [fetchedMimeType, setFetchedMimeType] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isTruncated, setIsTruncated] = useState(false);
 
     useEffect(() => {
         const fetchContent = async () => {
-            if (!uri && !name) return;
+            if ((!sessionId && !uri) || !name) return;
 
             setIsLoading(true);
             setError(null);
 
             try {
-                let filename = name;
-                let artifactVersion = version?.toString() || "latest";
+                let parsedFileName;
+                let parsedSessionId;
+                let parsedVersion;
 
-                // Try to parse URI if available
+                // Parse uri to validate props
                 if (uri) {
                     const parsed = parseArtifactUri(uri);
                     if (parsed) {
-                        filename = parsed.filename;
+                        parsedFileName = parsed.filename;
+                        parsedSessionId = parsed.sessionId;
                         if (parsed.version) {
-                            artifactVersion = parsed.version;
+                            const uriVersion = parseInt(parsed.version, 10);
+                            parsedVersion = Number.isInteger(uriVersion) ? uriVersion : undefined;
                         }
                     }
                 }
 
-                // Construct API endpoint
-                const endpoint = `/api/v1/artifacts/${encodeURIComponent(sessionId || "null")}/${encodeURIComponent(filename)}/versions/${artifactVersion}`;
+                const { content, mimeType: responseMimeType } = await getArtifactContent({
+                    filename: parsedFileName ?? name,
+                    sessionId: parsedSessionId ?? sessionId,
+                    version: parsedVersion ?? version,
+                });
+                setFetchedMimeType(responseMimeType);
 
-                const response = await api.webui.get(endpoint, { fullResponse: true, credentials: "include" });
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch artifact: ${response.statusText}`);
-                }
+                // Only truncate text-based content - never truncate binary (image, audio)
+                const currentRenderType = getRenderType(parsedFileName ?? name, responseMimeType);
+                const shouldTruncate = currentRenderType && !isNotTruncatable(currentRenderType);
 
-                const blob = await response.blob();
-                const text = await blob.text();
-
-                // Truncate if too long
-                if (text.length > MAX_ARTIFACT_DISPLAY_LENGTH) {
-                    setContent(text.substring(0, MAX_ARTIFACT_DISPLAY_LENGTH));
-                    setIsTruncated(true);
+                if (shouldTruncate) {
+                    const decodedText = decodeBase64Content(content);
+                    if (decodedText.length > MAX_ARTIFACT_DISPLAY_LENGTH) {
+                        const truncatedText = decodedText.substring(0, MAX_ARTIFACT_DISPLAY_LENGTH);
+                        setContent(encodeBase64Content(truncatedText));
+                        setIsTruncated(true);
+                    } else {
+                        setContent(content);
+                        setIsTruncated(false);
+                    }
                 } else {
-                    setContent(text);
+                    setContent(content);
                     setIsTruncated(false);
                 }
             } catch (err) {
@@ -88,29 +101,6 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
 
         fetchContent();
     }, [uri, name, version, sessionId]);
-
-    const renderContent = () => {
-        if (!content) return null;
-
-        const effectiveMimeType = mimeType || (name.endsWith(".json") ? "application/json" : name.endsWith(".yaml") || name.endsWith(".yml") ? "text/yaml" : name.endsWith(".csv") ? "text/csv" : "text/plain");
-
-        // Try to parse and format JSON
-        if (effectiveMimeType === "application/json" || name.endsWith(".json")) {
-            try {
-                const parsed = JSON.parse(content);
-                return (
-                    <div className="my-1 max-h-64 overflow-y-auto">
-                        <JSONViewer data={parsed} />
-                    </div>
-                );
-            } catch {
-                // Fall through to plain text
-            }
-        }
-
-        // For YAML, CSV, and other text formats, show as preformatted text
-        return <pre className="max-h-64 overflow-x-auto overflow-y-auto p-2 text-xs whitespace-pre-wrap">{content}</pre>;
-    };
 
     if (isLoading) {
         return (
@@ -126,14 +116,37 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     }
 
     if (!content) {
-        return <div className="text-secondary-foreground text-xs italic">No content available</div>;
+        return <div className="text-secondary-foreground text-xs">No content available</div>;
+    }
+
+    // Derive render type from filename and fetched mime type
+    const effectiveMimeType = fetchedMimeType || mimeType;
+    const renderType = getRenderType(name, effectiveMimeType);
+
+    // No supported render type - show message
+    if (!renderType) {
+        return <div className="text-secondary-foreground text-xs">Preview not available for this file type</div>;
+    }
+
+    // Create a FileAttachment-like object for getFileContent
+    const fileAttachment: FileAttachment = {
+        name,
+        mime_type: effectiveMimeType,
+        content,
+    };
+    const processedContent = getFileContent(fileAttachment);
+
+    if (!processedContent) {
+        return <div className="text-secondary-foreground text-xs">No content available</div>;
     }
 
     return (
-        <div>
-            {renderContent()}
-            {isTruncated && <div className="mt-1 text-xs text-(--color-warning-wMain)">Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)</div>}
-        </div>
+        <>
+            <div className={`overflow-y-auto ${renderType === "html" ? "h-[calc(50vh-100px)]" : "max-h-[calc(50vh-100px)]"}`}>
+                <ContentRenderer content={processedContent} rendererType={renderType} mime_type={effectiveMimeType} setRenderError={setError} />
+            </div>
+            {isTruncated && <div className="mt-2 text-xs text-(--color-info-wMain)">Content truncated at first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters</div>}
+        </>
     );
 };
 
@@ -278,7 +291,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                 {data.inputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600 dark:text-purple-400">v{data.inputArtifactRef.version}</span>}
                             </div>
 
-                            <ArtifactContentViewer uri={data.inputArtifactRef.uri} name={data.inputArtifactRef.name} version={data.inputArtifactRef.version} mimeType={data.inputArtifactRef.mimeType} />
+                            <ArtifactContentViewer uri={data.inputArtifactRef.uri} name={data.inputArtifactRef.name} version={data.inputArtifactRef.version} />
                         </div>
                     )}
 
