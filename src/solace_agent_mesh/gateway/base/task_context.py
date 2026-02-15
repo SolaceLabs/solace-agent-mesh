@@ -4,7 +4,7 @@ Manages context for tasks being processed by a gateway.
 
 import logging
 import threading
-from typing import Dict, Optional, Any
+from typing import Callable, Dict, List, Optional, Any, Tuple
 
 log = logging.getLogger(__name__)
 
@@ -67,6 +67,25 @@ class TaskContextManager:
             context is not None,
         )
         return context
+
+    def scan_contexts(
+        self, predicate: Callable[[str, Dict[str, Any]], bool]
+    ) -> List[Tuple[str, Dict[str, Any]]]:
+        """Returns (task_id, context) pairs where predicate(task_id, context) is True.
+
+        Args:
+            predicate: A function that takes (task_id, context_data) and returns True
+                      for contexts that should be included in the result.
+
+        Returns:
+            A list of (task_id, context_data) tuples matching the predicate.
+        """
+        with self._lock:
+            return [
+                (tid, ctx)
+                for tid, ctx in self._contexts.items()
+                if predicate(tid, ctx)
+            ]
 
     def clear_all_contexts_for_testing(self) -> None:
         """Removes all stored contexts. For testing purposes."""
