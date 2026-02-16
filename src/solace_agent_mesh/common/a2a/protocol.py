@@ -215,6 +215,107 @@ def get_sam_events_subscription_topic(namespace: str, category: str) -> str:
     return f"{namespace.rstrip('/')}/sam/events/{category}/>"
 
 
+# --- Control Plane Topics ---
+
+CONTROL_VERSION = "v1"
+CONTROL_BASE_PATH = f"sam/{CONTROL_VERSION}/control"
+
+
+def get_control_subscription_topic(namespace: str) -> str:
+    """Returns the wildcard subscription topic for all control plane messages.
+
+    Used by the controller service to subscribe to all control requests.
+
+    Returns:
+        Topic string: {namespace}/sam/v1/control/>
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    return f"{namespace.rstrip('/')}/{CONTROL_BASE_PATH}/>"
+
+
+def get_control_apps_topic(namespace: str, method: str) -> str:
+    """Returns the topic for the apps collection endpoint.
+
+    Used for: GET (list apps), POST (create app).
+
+    Args:
+        namespace: SAM namespace
+        method: HTTP method (get, post, etc.) — will be lowercased
+
+    Returns:
+        Topic string: {namespace}/sam/v1/control/{method}/apps
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not method:
+        raise ValueError("Method cannot be empty.")
+    return f"{namespace.rstrip('/')}/{CONTROL_BASE_PATH}/{method.lower()}/apps"
+
+
+def get_control_app_topic(namespace: str, app_name: str, method: str) -> str:
+    """Returns the topic for a specific app endpoint.
+
+    Used for: GET (get app), PUT (update), PATCH (partial update), DELETE (remove).
+
+    Args:
+        namespace: SAM namespace
+        app_name: Name of the app
+        method: HTTP method (get, put, patch, delete, etc.) — will be lowercased
+
+    Returns:
+        Topic string: {namespace}/sam/v1/control/{method}/apps/{app_name}
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not app_name:
+        raise ValueError("App name cannot be empty.")
+    if not method:
+        raise ValueError("Method cannot be empty.")
+    return f"{namespace.rstrip('/')}/{CONTROL_BASE_PATH}/{method.lower()}/apps/{app_name}"
+
+
+def parse_control_topic(namespace: str, topic: str):
+    """Parse a control plane topic into method, resource, and app name components.
+
+    Topic format: {namespace}/sam/v1/control/{method}/apps[/{app_name}[/{custom_path...}]]
+
+    Args:
+        namespace: SAM namespace
+        topic: Full topic string
+
+    Returns:
+        Tuple of (method, resource, app_name, custom_path_parts) where:
+        - method: HTTP method from the topic (lowercase), or None
+        - resource: "apps" for app collection/individual operations
+        - app_name: Name of the specific app, or None for collection
+        - custom_path_parts: List of path segments after /apps/{name}/, or empty list
+        Returns (None, None, None, []) if the topic doesn't match a control topic.
+    """
+    prefix = f"{namespace.rstrip('/')}/{CONTROL_BASE_PATH}/"
+    if not topic.startswith(prefix):
+        return None, None, None, []
+
+    remainder = topic[len(prefix):]
+    parts = remainder.split("/")
+
+    # First part is the method, second should be "apps"
+    if len(parts) < 2 or parts[1] != "apps":
+        return None, None, None, []
+
+    method = parts[0].lower()
+
+    if len(parts) == 2:
+        # /{method}/apps — collection endpoint
+        return method, "apps", None, []
+    elif len(parts) == 3:
+        # /{method}/apps/{name} — individual app endpoint
+        return method, "apps", parts[2], []
+    else:
+        # /{method}/apps/{name}/{custom_path...} — custom app endpoint
+        return method, "apps", parts[2], parts[3:]
+
+
 def get_trust_card_topic(namespace: str, component_type: str, component_id: str) -> str:
     """
     Returns the topic for publishing a Trust Card.

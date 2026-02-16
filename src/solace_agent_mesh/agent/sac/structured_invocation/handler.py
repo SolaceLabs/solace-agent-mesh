@@ -475,6 +475,14 @@ class StructuredInvocationHandler:
 
         logical_task_id = a2a_context.get("logical_task_id")
 
+        # Reject new tasks if the agent is draining (pre-stop)
+        if getattr(self.host, "_draining", False):
+            log.info(
+                f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] "
+                f"Rejecting new task {logical_task_id}: agent is draining"
+            )
+            return
+
         # Create and register TaskExecutionContext for this structured invocation
         task_context = TaskExecutionContext(
             task_id=logical_task_id, a2a_context=a2a_context

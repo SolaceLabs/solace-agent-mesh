@@ -580,6 +580,20 @@ class SamAgentApp(SamAppBase):
         super().__init__(app_info, **kwargs)
         log.debug("%s Agent initialization complete.", agent_name)
 
+    def pre_stop(self, timeout=30):
+        """Gracefully drain the agent before stopping.
+
+        Stops accepting new tasks and waits for in-flight tasks to complete.
+        The stop signal has NOT been set yet, so components are still running
+        and can finish processing messages.
+
+        Args:
+            timeout: Time budget in seconds.
+        """
+        component = self.get_component()
+        if component:
+            component.graceful_drain(timeout=timeout)
+
     def run(self):
         """
         Override run to ensure component initialization failures cause application failure.

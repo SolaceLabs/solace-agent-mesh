@@ -1,0 +1,25 @@
+# Control Service configuration
+# Provides runtime app management via JSON-RPC over the broker
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: control_service.log
+
+!include ../templates/shared_config.yaml
+
+apps:
+  - name: control_service_app
+    app_base_path: .
+    app_module: solace_agent_mesh.services.control.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${SOLACE_AGENT_MESH_NAMESPACE, sam}
+      authorization:
+        type: none
+      max_message_size_bytes: ${MAX_MESSAGE_SIZE_BYTES, 10000000}
+      # trust_manager:
+      #   enabled: false  # Enterprise: enable JWT verification for control plane

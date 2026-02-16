@@ -265,6 +265,7 @@ class SamAgentComponent(SamComponentBase):
         self.agent_specific_state: Dict[str, Any] = {}
         self.active_tasks: Dict[str, "TaskExecutionContext"] = {}
         self.active_tasks_lock = threading.Lock()
+        self._draining = False
         self._tool_cleanup_hooks: List[Callable] = []
         self._agent_system_instruction_string: Optional[str] = None
         self._agent_system_instruction_callback: Optional[
@@ -3389,6 +3390,53 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                 )
             raise e
+
+    def graceful_drain(self, timeout=30):
+        """Stop accepting new tasks and wait for in-flight tasks to complete.
+
+        Called by SamAgentApp.pre_stop() BEFORE the stop signal is set,
+        so components are still running and can finish processing.
+
+        Args:
+            timeout: Time budget in seconds.
+        """
+        log.info(
+            "%s Graceful drain starting (timeout=%ds)",
+            self.log_identifier,
+            timeout,
+        )
+
+        # Set a flag to reject new tasks
+        self._draining = True
+
+        # Wait for active tasks to drain
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            with self.active_tasks_lock:
+                count = len(self.active_tasks)
+            if count == 0:
+                log.info("%s All tasks drained", self.log_identifier)
+                return
+            remaining = deadline - time.monotonic()
+            log.debug(
+                "%s Waiting for %d active task(s) to drain (%.1fs remaining)",
+                self.log_identifier,
+                count,
+                remaining,
+            )
+            time.sleep(min(0.5, max(0, remaining)))
+
+        # Timeout — cancel remaining tasks
+        with self.active_tasks_lock:
+            remaining_tasks = list(self.active_tasks.values())
+        if remaining_tasks:
+            log.warning(
+                "%s %d task(s) still active after drain timeout, cancelling",
+                self.log_identifier,
+                len(remaining_tasks),
+            )
+            for task_context in remaining_tasks:
+                task_context.cancel()
 
     def cleanup(self):
         """Clean up resources on component shutdown."""

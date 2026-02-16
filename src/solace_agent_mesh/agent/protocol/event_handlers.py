@@ -875,6 +875,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     a2a_context.get("logical_task_id", "unknown"),
                 )
 
+            # Reject new tasks if the agent is draining (pre-stop)
+            if getattr(component, "_draining", False):
+                log.info(
+                    "%s Rejecting new task %s: agent is draining",
+                    component.log_identifier,
+                    logical_task_id,
+                )
+                return
+
             # Create and store the execution context for this task
             task_context = TaskExecutionContext(
                 task_id=logical_task_id, a2a_context=a2a_context
