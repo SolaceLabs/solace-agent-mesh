@@ -24,6 +24,7 @@ if not os.environ.get("_SAM_SANDBOX_LIGHT"):
     from . import test_tools
     from . import deep_research_tools
     from . import web_search_tools
+    from . import index_search_tools
     from . import dynamic_tool
 
 # Export ToolResult abstraction for tool authors

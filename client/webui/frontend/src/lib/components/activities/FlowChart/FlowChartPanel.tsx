@@ -1,9 +1,9 @@
 import { useCallback, useState, useRef, useEffect } from "react";
-import { Home } from "lucide-react";
+import { Scan } from "lucide-react";
+
 import type { VisualizerStep } from "@/lib/types";
-import { Dialog, DialogContent, DialogFooter, VisuallyHidden, DialogTitle, DialogDescription, Button, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
-import { useTaskContext } from "@/lib/hooks";
-import { useAgentCards } from "@/lib/hooks";
+import { Dialog, DialogContent, DialogFooter, VisuallyHidden, DialogTitle, DialogDescription, Button, Tooltip, TooltipTrigger, TooltipContent, Switch } from "@/lib/components/ui";
+import { useChatContext, useTaskContext } from "@/lib/hooks";
 import WorkflowRenderer from "./WorkflowRenderer";
 import type { LayoutNode, Edge } from "./utils/types";
 import { findNodeDetails, type NodeDetails } from "./utils/nodeDetailsHelper";
@@ -24,7 +24,7 @@ interface FlowChartPanelProps {
 
 const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowChartPanelProps) => {
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
-    const { agentNameMap, refetch: refetchAgents } = useAgentCards();
+    const { agentNameDisplayNameMap, agentsRefetch } = useChatContext();
 
     // Callback for when agent name resolution fails
     const handleUnknownAgent = useCallback(
@@ -32,10 +32,10 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
             if (!refetchedAgents.has(agentName)) {
                 console.log("[FlowChart] Unknown agent detected, triggering refetch:", agentName);
                 refetchedAgents.add(agentName);
-                refetchAgents();
+                agentsRefetch();
             }
         },
-        [refetchAgents]
+        [agentsRefetch]
     );
 
     // Dialog state
@@ -118,7 +118,7 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
     useEffect(() => {
         if (!hasUserInteracted.current) {
             setTimeout(() => {
-                canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true, maxFitScale: 2.5 });
+                canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true });
             }, 150); // Longer delay to let content measurement update
         }
     }, [showDetail]);
@@ -197,34 +197,26 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
         [setHighlightedStepId]
     );
 
-    // Handle re-center button click - allow zooming in up to 2.5x
+    // Handle re-center button click - return to the same view as initial auto-fit
     const handleRecenter = useCallback(() => {
-        canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true, maxFitScale: 2.5 });
+        canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true });
         hasUserInteracted.current = false;
     }, []);
 
     return (
         <div style={{ height: "100%", width: "100%" }} className="relative">
             {/* Controls bar - Show Detail toggle and Re-center button */}
-            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 rounded-md border border-gray-200 bg-white px-4 py-2 shadow-md dark:border-gray-700 dark:bg-gray-800">
-                {/* Re-center button (D-6) */}
+            <div className="bg-background absolute top-4 right-4 z-50 flex items-center gap-3 rounded-sm border px-4 py-2 shadow-md">
+                {/* Re-center button */}
+                <Button onClick={handleRecenter} variant="ghost" size="sm" tooltip="Center Workflow">
+                    <Scan className="h-4 w-4" />
+                </Button>
+                <div className="h-6 w-px border-l" />
+
+                <span className="text-sm font-medium">Detail Mode</span>
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <button onClick={handleRecenter} className="rounded p-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <Home className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                        </button>
-                    </TooltipTrigger>
-                    <TooltipContent>Re-center diagram</TooltipContent>
-                </Tooltip>
-
-                <div className="h-6 w-px bg-gray-200 dark:bg-gray-600" />
-
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show Detail</span>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <button onClick={() => setShowDetail(!showDetail)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showDetail ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"}`}>
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showDetail ? "translate-x-6" : "translate-x-1"}`} />
-                        </button>
+                        <Switch checked={showDetail} onCheckedChange={() => setShowDetail(!showDetail)} />
                     </TooltipTrigger>
                     <TooltipContent>{showDetail ? "Hide nested agent details" : "Show nested agent details"}</TooltipContent>
                 </Tooltip>
@@ -242,7 +234,7 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
                     <div ref={contentRef} style={{ width: "fit-content" }}>
                         <WorkflowRenderer
                             processedSteps={processedSteps}
-                            agentNameMap={agentNameMap}
+                            agentNameMap={agentNameDisplayNameMap}
                             selectedStepId={highlightedStepId}
                             onNodeClick={handleNodeClick}
                             onEdgeClick={handleEdgeClick}

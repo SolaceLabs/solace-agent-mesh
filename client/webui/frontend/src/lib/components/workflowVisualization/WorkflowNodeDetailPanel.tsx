@@ -21,19 +21,19 @@ interface WorkflowNodeDetailPanelProps {
     knownNodeIds?: Set<string>;
     /** Callback to navigate/pan to a node when clicking the navigation icon */
     onNavigateToNode?: (nodeId: string) => void;
-    /** Current workflow name - used for building sub-workflow navigation URLs */
-    currentWorkflowName?: string;
-    /** Parent workflow path (for breadcrumb navigation) */
-    parentPath?: string[];
 }
+
+const LOGIC_NODE_DESCRIPTIONS: Record<string, string> = {
+    map: "Executes a node for each item in a collection. Items are processed in parallel by default.",
+    switch: "Routes execution based on conditions. Cases are evaluated in order; the first match wins.",
+    loop: "Repeats a node until a condition becomes false. The first iteration always runs; the condition is checked before subsequent iterations.",
+};
 
 /**
  * WorkflowNodeDetailPanel - Shows details for the selected workflow node
  * Includes input/output schemas, code view toggle, and agent information
  */
-const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig: _workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode, currentWorkflowName, parentPath = [] }) => {
-    // workflowConfig is available for future use (e.g., accessing workflow-level output_mapping)
-    void _workflowConfig;
+const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node, workflowConfig, agents, onHighlightNodes, knownNodeIds, onNavigateToNode }) => {
     const [showCodeView, setShowCodeView] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
     const [activeTab, setActiveTab] = useState<"input" | "output">("input");
@@ -76,14 +76,50 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
         setShowCodeView(false);
     }, []);
 
-    // Navigate to nested workflow with parent path tracking for breadcrumbs
+    // Navigate to nested workflow in a new tab
+    // When opening in a new tab, don't include parent path - the new tab should start fresh
+    // without breadcrumb navigation back to the previous workflow
     const handleOpenWorkflow = useCallback(() => {
         if (node?.data.workflowName) {
-            // Build new parent path: current workflow becomes closest parent
-            const newParentPath = currentWorkflowName ? [currentWorkflowName, ...parentPath] : parentPath;
-            window.open("/#" + buildWorkflowNavigationUrl(node.data.workflowName, newParentPath), "_blank");
+            window.open("/#" + buildWorkflowNavigationUrl(node.data.workflowName), "_blank");
         }
-    }, [node?.data.workflowName, currentWorkflowName, parentPath]);
+    }, [node?.data.workflowName]);
+
+    // Helper to get display name for a node ID (used in switch cases)
+    // Must be defined before early return to comply with React Hooks rules
+    const getNodeDisplayName = useCallback(
+        (nodeId: string) => {
+            if (!workflowConfig?.nodes) return nodeId;
+
+            // Find the node config by ID
+            const nodeConfigById = workflowConfig.nodes.find(n => n.id === nodeId);
+            if (!nodeConfigById) return nodeId;
+
+            // For agent nodes, try to get the agent's display name
+            if (nodeConfigById.type === "agent" && nodeConfigById.agent_name) {
+                // AgentCardInfo extends AgentInfo which has name, display_name properties
+                // TypeScript doesn't recognize these from the type definition, but they exist at runtime
+                const agent = agents.find(a => {
+                    const agentWithName = a as unknown as { name?: string };
+                    return agentWithName.name === nodeConfigById.agent_name;
+                });
+                if (agent) {
+                    const agentWithProps = agent as unknown as { displayName?: string; display_name?: string };
+                    return agent.displayName || agentWithProps.display_name || nodeConfigById.agent_name || nodeId;
+                }
+                return nodeConfigById.agent_name || nodeId;
+            }
+
+            // For workflow nodes, use the workflow name
+            if (nodeConfigById.type === "workflow" && nodeConfigById.workflow_name) {
+                return nodeConfigById.workflow_name;
+            }
+
+            // For other node types, use the node ID as fallback
+            return nodeId;
+        },
+        [workflowConfig?.nodes, agents]
+    );
 
     if (!node) {
         return null;
@@ -197,7 +233,14 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     const agentDescription = agentInfo?.description;
 
     // Get the title (always show node name, regardless of view mode)
-    const title = node.type === "agent" ? agentDisplayName || node.data.agentName || node.id : node.data.workflowName || node.id;
+    let title: string;
+    if (node.type === "agent") {
+        title = agentDisplayName || node.data.agentName || node.id;
+    } else if (node.type === "map" || node.type === "switch" || node.type === "loop") {
+        title = getTypeLabel();
+    } else {
+        title = node.data.workflowName || node.id;
+    }
 
     return (
         <div className="bg-background flex h-full flex-col">
@@ -268,6 +311,14 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                             </div>
                         )}
 
+                        {/* Description (for logic nodes) */}
+                        {(node.type === "map" || node.type === "switch" || node.type === "loop") && (
+                            <div className="mb-4">
+                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Description</label>
+                                <div className="text-sm">{LOGIC_NODE_DESCRIPTIONS[node.type]}</div>
+                            </div>
+                        )}
+
                         {/* Description (from agent card) */}
                         {agentDescription && (
                             <div className="mb-4">
@@ -302,6 +353,14 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                             </div>
                         )}
 
+                        {/* Delay (for loop nodes) */}
+                        {node.data.delay && (
+                            <div className="mb-4">
+                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Delay</label>
+                                <div className="text-sm">{node.data.delay}</div>
+                            </div>
+                        )}
+
                         {/* Condition (for loop nodes) */}
                         {node.data.condition && (
                             <div className="mb-4">
@@ -317,20 +376,18 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                 <div className="space-y-2">
                                     {node.data.cases.map((caseItem, index) => (
                                         <div key={index} className="grid grid-cols-[auto_1fr] gap-3">
-                                            <div className="flex h-8 w-[30px] items-center justify-center rounded border border-(--color-secondary-w20) bg-(--color-background-w10) text-sm text-(--color-secondary-text-wMain)">{index + 1}</div>
+                                            <div className="flex h-8 w-[30px] items-center justify-center rounded border text-sm">{index + 1}</div>
                                             <div className="mb-2">
-                                                <div className="mb-1 min-h-[32px] bg-(--color-background-w20) p-2 font-mono text-xs">{caseItem.condition}</div>
-                                                <div className="text-sm">→ {caseItem.node}</div>
+                                                <div className="text-secondary-foreground mb-1 min-h-[32px] rounded bg-(--color-secondary-w10) p-2 font-mono text-xs dark:bg-(--color-secondary-w80)">{caseItem.condition}</div>
+                                                <div className="text-sm">→ {getNodeDisplayName(caseItem.node)}</div>
                                             </div>
                                         </div>
                                     ))}
                                     {node.data.defaultCase && (
                                         <div className="grid grid-cols-[auto_1fr] gap-3">
-                                            <div className="flex h-8 w-[30px] items-center justify-center rounded border border-(--color-secondary-w20) bg-(--color-background-w10) text-sm text-(--color-secondary-text-wMain)">
-                                                {node.data.cases.length + 1}
-                                            </div>
-                                            <div className="flex min-h-[32px] items-center bg-(--color-background-w20) p-2">
-                                                <span className="text-sm">default</span>
+                                            <div className="flex h-8 w-[30px] items-center justify-center rounded border">{node.data.cases.length + 1}</div>
+                                            <div className="text-secondary-foreground flex min-h-[32px] items-center rounded bg-(--color-secondary-w10) p-2 dark:bg-(--color-secondary-w80)">
+                                                <span className="text-sm">default → {getNodeDisplayName(node.data.defaultCase)}</span>
                                             </div>
                                         </div>
                                     )}

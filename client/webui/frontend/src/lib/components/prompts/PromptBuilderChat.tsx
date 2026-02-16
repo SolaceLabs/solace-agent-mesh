@@ -286,7 +286,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                     <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
                         <Sparkles className="text-primary h-4 w-4" />
                     </div>
-                    <h3 className="text-sm font-semibold">AI Template Builder</h3>
+                    <h3 className="text-sm font-semibold">AI Builder</h3>
                 </div>
             </div>
 

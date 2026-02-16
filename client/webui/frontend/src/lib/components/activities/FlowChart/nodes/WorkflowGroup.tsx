@@ -234,6 +234,10 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                     </div>
                 );
             case "parallelBlock": {
+                // Don't render empty parallel blocks
+                if (child.children.length === 0) {
+                    return null;
+                }
                 // Group children by iterationIndex (branch index) for proper chain visualization
                 const branches = new Map<number, LayoutNode[]>();
                 for (const parallelChild of child.children) {

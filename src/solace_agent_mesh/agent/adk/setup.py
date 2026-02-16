@@ -50,6 +50,7 @@ from ..tools.executors import UnifiedPythonExecutor
 from ..tools.tool_definition import BuiltinTool
 from .app_llm_agent import AppLlmAgent
 from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
+from .mcp_ssl_config import SslConfig
 from .tool_result_processor import ToolResultProcessor
 from .tool_wrapper import ADKToolWrapper
 
@@ -59,7 +60,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 # Define a clear return type for all tool-loading helpers
-ToolLoadingResult = Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]
+# (tools, builtin_tools, cleanup_hooks, tool_scopes_map)
+ToolLoadingResult = Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable], Dict[str, List[str]]]
 
 
 async def _execute_lifecycle_hook(
@@ -261,7 +263,15 @@ async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -
         component, tool_config_model, loaded_python_tools
     )
 
-    return loaded_python_tools, [], cleanup_hooks
+    # Build scopes mapping - config-level scopes apply to all tools from this config
+    tool_scopes_map: Dict[str, List[str]] = {}
+    config_scopes = tool_config_model.required_scopes
+    for tool in loaded_python_tools:
+        tool_name = getattr(tool, "name", getattr(tool, "__name__", None))
+        if tool_name:
+            tool_scopes_map[tool_name] = config_scopes
+
+    return loaded_python_tools, [], cleanup_hooks, tool_scopes_map
 
 
 async def _load_sam_remote_tool(
@@ -428,7 +438,10 @@ async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) 
             component.log_identifier,
             sam_tool_def.name,
         )
-        return [tool_callable], [sam_tool_def], []
+        # Use config scopes if provided, otherwise use BuiltinTool.required_scopes
+        scopes = tool_config_model.required_scopes if tool_config_model.required_scopes else sam_tool_def.required_scopes
+        tool_scopes_map = {sam_tool_def.name: scopes}
+        return [tool_callable], [sam_tool_def], [], tool_scopes_map
 
     # Fallback to ADK built-in tools module
     adk_tool = getattr(adk_tools_module, tool_name, None)
@@ -439,7 +452,8 @@ async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) 
             component.log_identifier,
             tool_name,
         )
-        return [adk_tool], [], []
+        tool_scopes_map = {tool_name: tool_config_model.required_scopes}
+        return [adk_tool], [], [], tool_scopes_map
 
     raise ValueError(
         f"Built-in tool '{tool_name}' not found in SAM or ADK registry."
@@ -459,7 +473,7 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
     tools_in_group = tool_registry.get_tools_by_category(group_name)
     if not tools_in_group:
         log.warning("No tools found for built-in group: %s", group_name)
-        return [], [], []
+        return [], [], [], {}
 
     # Run initializers for the group
     initializers_to_run: Dict[Callable, Dict] = {}
@@ -497,6 +511,11 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
 
     loaded_tools: List[Union[BaseTool, Callable]] = []
     enabled_builtin_tools: List[BuiltinTool] = []
+    tool_scopes_map: Dict[str, List[str]] = {}
+
+    # Config-level scopes apply to all tools in the group if specified
+    config_scopes = tool_config_model.required_scopes
+
     for tool_def in tools_in_group:
         # Try to get tool-specific config, but fall back to the entire tool_config
         # This allows both patterns:
@@ -507,7 +526,7 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
             # No tool-specific config found, use the entire tool_config
             # This is the common case for groups where all tools share the same config
             specific_tool_config = tool_config_model.tool_config
-        
+
         tool_callable = ADKToolWrapper(
             tool_def.implementation,
             specific_tool_config,
@@ -519,12 +538,16 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
         loaded_tools.append(tool_callable)
         enabled_builtin_tools.append(tool_def)
 
+        # Use config scopes if provided, otherwise use BuiltinTool.required_scopes
+        scopes = config_scopes if config_scopes else tool_def.required_scopes
+        tool_scopes_map[tool_def.name] = scopes
+
     log.info(
         "Loaded %d tools from built-in group: %s",
         len(loaded_tools),
         group_name,
     )
-    return loaded_tools, enabled_builtin_tools, []
+    return loaded_tools, enabled_builtin_tools, [], tool_scopes_map
 
 def validate_filesystem_path(path, log_identifier=""):
     """
@@ -571,6 +594,29 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
         k: v for k, v in connection_params_config.items() if k != "type"
     }
     connection_args["timeout"] = connection_args.get("timeout", 30)
+
+    # Extract SSL configuration if provided
+    ssl_config_dict = connection_args.pop("ssl_config", None)
+    ssl_config = None
+    if ssl_config_dict and isinstance(ssl_config_dict, dict):
+        ssl_verify = ssl_config_dict.get("verify", True)
+        ssl_ca_bundle = ssl_config_dict.get("ca_bundle")
+
+        # Log warning when SSL verification is disabled
+        if ssl_verify is False:
+            log.warning(
+                "%s SSL verification is disabled for MCP connection. "
+                "This should only be used in development environments.",
+                component.log_identifier,
+            )
+
+        ssl_config = SslConfig(verify=ssl_verify, ca_bundle=ssl_ca_bundle)
+        log.debug(
+            "%s SSL configuration for MCP tool: verify=%s, ca_bundle=%s",
+            component.log_identifier,
+            ssl_verify,
+            ssl_ca_bundle,
+        )
 
     environment_variables = tool_config_model.environment_variables
     env_param = {}
@@ -707,6 +753,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
         "tool_filter": tool_filter,
         "tool_name_prefix": tool_config_model.tool_name_prefix,
         "tool_config": tool_config,
+        "ssl_config": ssl_config,
     }
 
     # Merge additional parameters from configurator
@@ -714,6 +761,8 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
 
     mcp_toolset_instance = EmbedResolvingMCPToolset(**toolset_params)
     mcp_toolset_instance.origin = "mcp"
+    # Store config-level scopes on the toolset for later retrieval during manifest building
+    mcp_toolset_instance.required_scopes = tool_config_model.required_scopes
 
     log.info(
             "%s Initialized MCPToolset (filter: %s) for server: %s",
@@ -722,7 +771,9 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
             connection_params,
     )
 
-    return [mcp_toolset_instance], [], []
+    # Return empty scopes map - scopes will be applied during manifest building
+    # using the required_scopes attribute on the toolset
+    return [mcp_toolset_instance], [], [], {}
 
 
 async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
@@ -792,7 +843,11 @@ async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) 
                 component.log_identifier,
             )
 
-            return [openapi_toolset], [], []
+            # Store config-level scopes on the toolset for later retrieval during manifest building
+            openapi_toolset.required_scopes = tool_config_model.required_scopes
+
+            # Return empty scopes map - scopes will be applied during manifest building
+            return [openapi_toolset], [], [], {}
 
         except Exception as e:
             log.error(
@@ -810,13 +865,14 @@ async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) 
             component.log_identifier,
             tool_config.get("name", "unknown"),
         )
-        return [], [], []
+        return [], [], [], {}
 
 
 def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
     """Loads internal framework tools that are not explicitly configured by the user."""
     loaded_tools: List[Union[BaseTool, Callable]] = []
     enabled_builtin_tools: List[BuiltinTool] = []
+    tool_scopes_map: Dict[str, List[str]] = {}
 
     internal_tool_names = ["_notify_artifact_save"]
     if component.get_config("enable_auto_continuation", True):
@@ -848,6 +904,7 @@ def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[
 
             loaded_tools.append(tool_callable)
             enabled_builtin_tools.append(tool_def)
+            tool_scopes_map[tool_def.name] = tool_def.required_scopes
             log.info(
                 "%s Implicitly loaded internal framework tool: %s",
                 component.log_identifier,
@@ -860,12 +917,12 @@ def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[
                 tool_name,
             )
 
-    return loaded_tools, enabled_builtin_tools, []
+    return loaded_tools, enabled_builtin_tools, [], tool_scopes_map
 
 
 async def load_adk_tools(
     component,
-) -> Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]:
+) -> Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable], Dict[str, List[str]]]:
     """
     Loads all configured tools for the agent.
     - Explicitly configured tools (Python, MCP, ADK Built-ins) from YAML.
@@ -880,6 +937,7 @@ async def load_adk_tools(
         - A list of loaded tool callables/instances for the ADK agent.
         - A list of enabled BuiltinTool definition objects for prompt generation.
         - A list of awaitable cleanup functions for the tools.
+        - A dict mapping tool names to their required scopes.
 
     Raises:
         ImportError: If a configured tool or its dependencies cannot be loaded.
@@ -888,6 +946,7 @@ async def load_adk_tools(
     enabled_builtin_tools: List[BuiltinTool] = []
     loaded_tool_names: Set[str] = set()
     cleanup_hooks: List[Callable] = []
+    tool_scopes_map: Dict[str, List[str]] = {}
     tools_config = component.get_config("tools", [])
 
     from pydantic import TypeAdapter, ValidationError
@@ -909,37 +968,42 @@ async def load_adk_tools(
                 tool_config_model = any_tool_adapter.validate_python(tool_config)
                 tool_type = tool_config_model.tool_type.lower()
 
-                new_tools, new_builtins, new_cleanups = [], [], []
+                new_tools, new_builtins, new_cleanups, new_scopes = [], [], [], {}
 
                 if tool_type == "python":
                     (
                         new_tools,
                         new_builtins,
                         new_cleanups,
+                        new_scopes,
                     ) = await _load_python_tool(component, tool_config)
                 elif tool_type == "builtin":
                     (
                         new_tools,
                         new_builtins,
                         new_cleanups,
+                        new_scopes,
                     ) = await _load_builtin_tool(component, tool_config)
                 elif tool_type == "builtin-group":
                     (
                         new_tools,
                         new_builtins,
                         new_cleanups,
+                        new_scopes,
                     ) = await _load_builtin_group_tool(component, tool_config)
                 elif tool_type == "mcp":
                     (
                         new_tools,
                         new_builtins,
                         new_cleanups,
+                        new_scopes,
                     ) = await _load_mcp_tool(component, tool_config)
                 elif tool_type == "openapi":
                     (
                         new_tools,
                         new_builtins,
                         new_cleanups,
+                        new_scopes,
                     ) = await _load_openapi_tool(component, tool_config)
                 elif tool_type == "sam_remote":
                     (
@@ -978,6 +1042,8 @@ async def load_adk_tools(
                 enabled_builtin_tools.extend(new_builtins)
                 # Prepend cleanup hooks to maintain LIFO execution order
                 cleanup_hooks = new_cleanups + cleanup_hooks
+                # Merge scopes mapping
+                tool_scopes_map.update(new_scopes)
 
             except Exception as e:
                 log.error(
@@ -993,10 +1059,12 @@ async def load_adk_tools(
         internal_tools,
         internal_builtins,
         internal_cleanups,
+        internal_scopes,
     ) = _load_internal_tools(component, loaded_tool_names)
     loaded_tools.extend(internal_tools)
     enabled_builtin_tools.extend(internal_builtins)
     cleanup_hooks.extend(internal_cleanups)
+    tool_scopes_map.update(internal_scopes)
 
     log.info(
         "%s Finished loading tools. Total tools for ADK: %d. Total SAM built-ins for prompt: %d. Total cleanup hooks: %d. Peer tools added dynamically.",
@@ -1005,7 +1073,7 @@ async def load_adk_tools(
         len(enabled_builtin_tools),
         len(cleanup_hooks),
     )
-    return loaded_tools, enabled_builtin_tools, cleanup_hooks
+    return loaded_tools, enabled_builtin_tools, cleanup_hooks, tool_scopes_map
 
 
 async def _check_and_register_tool_name_mcp(component, loaded_tool_names: set[str], tool: EmbedResolvingMCPToolset):

@@ -114,6 +114,32 @@ class ADKToolWrapper:
         # Auto-detect Artifact and ToolContextFacade type annotations
         self._detect_special_params()
 
+        # Sanitize __signature__ so ADK doesn't see types it can't parse.
+        # Replace Artifact annotations with str, remove ToolContextFacade params.
+        self._sanitize_signature()
+
+    def _sanitize_signature(self) -> None:
+        """Replace Artifact type annotations with str and remove framework-injected
+        params (ToolContextFacade) from the exposed signature so that ADK's
+        automatic function declaration parser doesn't choke on unknown types."""
+        if self.__signature__ is None:
+            return
+
+        new_params = []
+        for param_name, param in self.__signature__.parameters.items():
+            # Remove ToolContextFacade params — they are injected by the framework
+            if param_name == self._ctx_facade_param_name:
+                continue
+
+            # Replace Artifact annotations with str
+            if param_name in self._artifact_params:
+                new_param = param.replace(annotation=str)
+                new_params.append(new_param)
+            else:
+                new_params.append(param)
+
+        self.__signature__ = self.__signature__.replace(parameters=new_params)
+
     @property
     def _artifact_args(self) -> Set[str]:
         """Property returning set of artifact param names."""

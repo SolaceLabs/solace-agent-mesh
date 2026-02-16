@@ -16,6 +16,7 @@ from ...common.a2a import (
     get_gateway_response_subscription_topic,
     get_gateway_status_subscription_topic,
 )
+from .. import constants
 
 log = logging.getLogger(__name__)
 
@@ -77,14 +78,14 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "name": "gateway_max_artifact_resolve_size_bytes",
             "required": False,
             "type": "integer",
-            "default": 104857600,  # 100MB
+            "default": constants.DEFAULT_MAX_ARTIFACT_RESOLVE_SIZE_BYTES,
             "description": "Maximum size of an individual artifact's raw content for 'artifact_content' embeds and max total accumulated size for a parent artifact after internal recursive resolution.",
         },
         {
             "name": "gateway_recursive_embed_depth",
             "required": False,
             "type": "integer",
-            "default": 12,
+            "default": constants.DEFAULT_GATEWAY_RECURSIVE_EMBED_DEPTH,
             "description": "Maximum depth for recursively resolving 'artifact_content' embeds within files.",
         },
         {
@@ -104,15 +105,29 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "name": "gateway_max_message_size_bytes",
             "required": False,
             "type": "integer",
-            "default": 10_000_000,  # 10MB
+            "default": constants.DEFAULT_GATEWAY_MAX_MESSAGE_SIZE_BYTES,
             "description": "Maximum allowed message size in bytes for messages published by the gateway.",
         },
         {
             "name": "gateway_max_upload_size_bytes",
             "required": False,
             "type": "integer",
-            "default": 52428800,  # 50MB
+            "default": constants.DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
             "description": "Maximum file upload size in bytes. Validated before reading file content to prevent memory exhaustion.",
+        },
+        {
+            "name": "gateway_max_project_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": constants.DEFAULT_MAX_PROJECT_SIZE_BYTES,
+            "description": "Maximum total upload size limit per project in bytes.",
+        },
+        {
+            "name": "gateway_max_batch_upload_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": constants.DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
+            "description": "Maximum total size in bytes for all files in a single batch upload request.",
         },
         # --- Default User Identity Configuration ---
         {
@@ -241,7 +256,7 @@ class BaseGatewayApp(SamAppBase):
         """
         log.debug(
             "Initializing BaseGatewayApp with app_info: %s",
-            app_info.get("name", "Unnamed App"),
+            app_info.get("name"),
         )
 
         code_config_app_block = getattr(self.__class__, "app_config", {}).get(
@@ -260,9 +275,11 @@ class BaseGatewayApp(SamAppBase):
 
         self.gateway_id: str = resolved_app_config_block.get("gateway_id")
         if not self.gateway_id:
-            self.gateway_id = f"gdk-gateway-{uuid.uuid4().hex[:8]}"
+            self.gateway_id = app_info.get("name")
             resolved_app_config_block["gateway_id"] = self.gateway_id
-            log.info("Generated unique gateway_id: %s", self.gateway_id)
+            log.warning(
+                "No `gateway_id` provided; defaulting to `apps.name`. Ensure `apps.name` is unique across all gateways or specify a unique `gateway_id` to prevent conflicts."
+            )
 
         self.artifact_service_config: Dict = resolved_app_config_block.get(
             "artifact_service", {}
@@ -272,7 +289,7 @@ class BaseGatewayApp(SamAppBase):
         )
 
         new_size_limit_key = "gateway_max_artifact_resolve_size_bytes"
-        default_new_size_limit = 104857600
+        default_new_size_limit = constants.DEFAULT_MAX_ARTIFACT_RESOLVE_SIZE_BYTES
         old_size_limit_key = "gateway_artifact_content_limit_bytes"
 
         new_value = resolved_app_config_block.get(new_size_limit_key)
@@ -297,16 +314,22 @@ class BaseGatewayApp(SamAppBase):
             self.gateway_max_artifact_resolve_size_bytes = default_new_size_limit
 
         self.gateway_recursive_embed_depth: int = resolved_app_config_block.get(
-            "gateway_recursive_embed_depth", 12
+            "gateway_recursive_embed_depth", constants.DEFAULT_GATEWAY_RECURSIVE_EMBED_DEPTH
         )
         self.artifact_handling_mode: str = resolved_app_config_block.get(
             "artifact_handling_mode", "reference"
         )
         self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
-            "gateway_max_message_size_bytes", 10_000_000
+            "gateway_max_message_size_bytes", constants.DEFAULT_GATEWAY_MAX_MESSAGE_SIZE_BYTES
         )
         self.gateway_max_upload_size_bytes: int = resolved_app_config_block.get(
-            "gateway_max_upload_size_bytes", 52428800
+            "gateway_max_upload_size_bytes", constants.DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
+        )
+        self.gateway_max_project_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_project_size_bytes", constants.DEFAULT_MAX_PROJECT_SIZE_BYTES
+        )
+        self.gateway_max_batch_upload_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_batch_upload_size_bytes", constants.DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES
         )
 
         modified_app_info = app_info.copy()

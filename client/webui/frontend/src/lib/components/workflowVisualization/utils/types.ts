@@ -32,6 +32,7 @@ export interface LayoutNode {
         defaultCase?: string; // For switch default branch
         items?: string; // For map node
         maxIterations?: number; // For loop
+        delay?: string; // For loop
         childNodeId?: string; // For map/loop inner node reference
         // For condition pill nodes
         conditionLabel?: string; // The condition text to display
@@ -124,8 +125,8 @@ export const NODE_BASE_STYLES = {
     /** Rectangular compact style - used by Loop/Map collapsed nodes */
     RECTANGULAR_COMPACT:
         "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-3 py-2 shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
-    /** Pill-shaped node style - used by Start/End nodes */
-    PILL: "flex cursor-pointer items-center justify-center gap-2 rounded-full bg-(--color-primary-w10) dark:hover:bg-(--color-primary-wMain) px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:bg-(--color-primary-w90) dark:!shadow-none",
+    /** Pill-shaped node style - used by Start/End nodes (non-interactive) */
+    PILL: "flex items-center justify-center gap-2 rounded-full bg-(--color-primary-w10) px-4 py-2 shadow-sm dark:bg-(--color-primary-w90) dark:!shadow-none",
     /** Container header style - used by Loop/Map expanded header */
     CONTAINER_HEADER:
         "group relative mx-auto w-fit cursor-pointer rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",

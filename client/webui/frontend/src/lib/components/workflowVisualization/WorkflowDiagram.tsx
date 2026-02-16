@@ -152,6 +152,10 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
         // Build flat map of all node positions from layout tree
         const nodePositions = buildNodePositionMap(layout.nodes);
 
+        // Offset to ensure arrowheads are visible above nodes
+        // The arrowhead marker is 12px tall, so we end edges slightly above the node
+        const arrowheadOffset = 4;
+
         // Calculate edges based on layout positions
         const edges: Edge[] = [];
         for (const edge of layout.edges) {
@@ -164,7 +168,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
                     sourceX: sourcePos.x + sourcePos.width / 2,
                     sourceY: sourcePos.y + sourcePos.height,
                     targetX: targetPos.x + targetPos.width / 2,
-                    targetY: targetPos.y,
+                    // End edge slightly above the node so arrowhead is fully visible
+                    targetY: targetPos.y - arrowheadOffset,
                 });
             }
         }

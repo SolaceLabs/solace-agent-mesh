@@ -780,3 +780,155 @@ def test_task_and_session_integration(api_client: TestClient):
     assert user_message["message"] == "Integration test message"
 
     print(f"✓ Task-session integration verified for session {session_id}")
+
+
+def test_send_message_to_nonexistent_project_returns_404(api_client: TestClient):
+    """Test that sending a message with non-existent project_id returns 404"""
+    import uuid
+
+    nonexistent_project_id = str(uuid.uuid4())
+
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Test message"}],
+                "metadata": {
+                    "agent_name": "TestAgent",
+                    "project_id": nonexistent_project_id,
+                },
+            }
+        },
+    }
+
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
+
+    # Should return 404 when project doesn't exist
+    assert response.status_code == 404
+    response_data = response.json()
+    # HTTPException returns 'detail' field directly, or wrapped in 'message' by error handler
+    error_message = response_data.get("detail") or response_data.get("message", "")
+    assert "Session not found" in error_message
+
+    print("Non-existent project returns 404 with standard message")
+
+
+def test_send_message_to_valid_project(api_client: TestClient, gateway_adapter):
+    """Test that sending a message to a valid project succeeds"""
+    import uuid
+
+    # First create a project using gateway adapter
+    project_id = str(uuid.uuid4())
+    gateway_adapter.seed_project(
+        project_id=project_id,
+        name="Test Project for Message",
+        user_id="sam_dev_user",
+        description="Project for testing message submission",
+    )
+
+    # Now send a message with that project_id
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Message to valid project"}],
+                "metadata": {
+                    "agent_name": "TestAgent",
+                    "project_id": project_id,
+                },
+            }
+        },
+    }
+
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
+
+    # Should succeed
+    assert response.status_code == 200
+    response_data = response.json()
+    assert "result" in response_data
+    assert "id" in response_data["result"]
+
+    print(f"Message to valid project {project_id} succeeded")
+
+
+def test_send_message_without_project_id_succeeds(api_client: TestClient):
+    """Test that messages without project_id work normally (non-project sessions)"""
+    import uuid
+
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Non-project message"}],
+                "metadata": {
+                    "agent_name": "TestAgent",
+                    # No project_id - regular session
+                },
+            }
+        },
+    }
+
+    response = api_client.post("/api/v1/message:stream", json=task_payload)
+
+    # Should succeed without project access check
+    assert response.status_code == 200
+    response_data = response.json()
+    assert "result" in response_data
+
+    print("Message without project_id succeeded (regular session)")
+
+
+def test_send_message_project_access_check_handles_exceptions(api_client: TestClient):
+    """Test that project access validation handles database errors gracefully"""
+    import uuid
+    from unittest.mock import patch
+
+    # Create a valid project
+    project_id = str(uuid.uuid4())
+
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Test message"}],
+                "metadata": {
+                    "agent_name": "TestAgent",
+                    "project_id": project_id,
+                },
+            }
+        },
+    }
+
+    # Mock project_service.get_project to raise an exception
+    with patch('solace_agent_mesh.gateway.http_sse.services.project_service.ProjectService.get_project') as mock_get:
+        mock_get.side_effect = Exception("Database error")
+
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
+
+        # Should return 404 due to exception in access validation
+        assert response.status_code == 404
+        response_data = response.json()
+        error_message = response_data.get("detail") or response_data.get("message", "")
+        assert "Session not found" in error_message
+
+    print("Exception in project access check handled correctly")

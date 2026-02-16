@@ -222,29 +222,31 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                 {/* Header with actions */}
                                 <div className="flex items-center justify-between">
                                     <h2 className="text-lg font-semibold">Version {selectedVersion.version} Details</h2>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="sm">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={handleEditVersion}>
-                                                <Pencil size={14} className="mr-2" />
-                                                Edit Version
-                                            </DropdownMenuItem>
-                                            {!isActiveVersion && (
-                                                <DropdownMenuItem onClick={handleRestoreVersion}>
-                                                    <Check size={14} className="mr-2" />
-                                                    Make Active Version
+                                    <div className="flex items-center gap-2">
+                                        <Button variant="ghost" size="sm" onClick={handleEditVersion}>
+                                            <Pencil className="h-4 w-4" />
+                                            Edit
+                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="sm">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                {!isActiveVersion && (
+                                                    <DropdownMenuItem onClick={handleRestoreVersion}>
+                                                        <Check size={14} className="mr-2" />
+                                                        Make Active Version
+                                                    </DropdownMenuItem>
+                                                )}
+                                                <DropdownMenuItem onClick={handleDeleteVersion}>
+                                                    <Trash2 size={14} className="mr-2" />
+                                                    Delete Version
                                                 </DropdownMenuItem>
-                                            )}
-                                            <DropdownMenuItem onClick={handleDeleteVersion}>
-                                                <Trash2 size={14} className="mr-2" />
-                                                Delete Version
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                 </div>
 
                                 {/* Read-only version details - use versioned fields from selectedVersion, fallback to group */}
@@ -252,14 +254,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                     {/* Template Name */}
                                     <div className="space-y-2">
                                         <Label className="text-[var(--color-secondaryText-wMain)]">Name</Label>
-                                        <div className="rounded p-3 text-sm">{selectedVersion.name || currentGroup.name}</div>
+                                        <div className="rounded p-3 text-sm break-words whitespace-pre-wrap">{selectedVersion.name || currentGroup.name}</div>
                                     </div>
 
                                     {/* Description */}
                                     {(selectedVersion.description || currentGroup.description) && (
                                         <div className="space-y-2">
                                             <Label className="text-[var(--color-secondaryText-wMain)]">Description</Label>
-                                            <div className="rounded p-3 text-sm">{selectedVersion.description || currentGroup.description}</div>
+                                            <div className="rounded p-3 text-sm break-words whitespace-pre-wrap">{selectedVersion.description || currentGroup.description}</div>
                                         </div>
                                     )}
 
