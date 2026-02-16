@@ -11,7 +11,7 @@ function AppLayoutContent() {
     const navigate = useNavigate();
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
-    const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
+    const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -91,7 +91,7 @@ function AppLayoutContent() {
                 <Outlet />
             </main>
             <ToastContainer />
-            <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} onClose={clearSelection} />
+            <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} sourceTaskId={sourceTaskId} onClose={clearSelection} />
         </div>
     );
 }

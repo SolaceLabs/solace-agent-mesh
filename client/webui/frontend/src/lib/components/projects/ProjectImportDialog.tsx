@@ -35,7 +35,7 @@ const DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
 
 export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const { validationLimits } = useConfigContext();
-    const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
+    const maxPerFileUploadSizeBytes = validationLimits?.maxPerFileUploadSizeBytes;
     const maxZipUploadSizeBytes = validationLimits?.maxZipUploadSizeBytes ?? DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES;
 
     const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
@@ -129,7 +129,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                     }
                 }
 
-                const isOversized = maxUploadSizeBytes ? size > maxUploadSizeBytes : false;
+                const isOversized = maxPerFileUploadSizeBytes ? size > maxPerFileUploadSizeBytes : false;
 
                 const artifactInfo: ArtifactPreviewInfo = { name: filename, size, isOversized };
                 artifacts.push(artifactInfo);
@@ -273,11 +273,11 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                     </div>
 
                     {/* Warning for oversized artifacts */}
-                    {projectPreview.oversizedArtifacts.length > 0 && maxUploadSizeBytes && (
+                    {projectPreview.oversizedArtifacts.length > 0 && maxPerFileUploadSizeBytes && (
                         <div className="mt-2">
                             <MessageBanner
                                 variant="warning"
-                                message={`${projectPreview.oversizedArtifacts.length} ${projectPreview.oversizedArtifacts.length === 1 ? "file exceeds" : "files exceed"} the maximum size of ${formatBytes(maxUploadSizeBytes)} and will be skipped during import: ${projectPreview.oversizedArtifacts
+                                message={`${projectPreview.oversizedArtifacts.length} ${projectPreview.oversizedArtifacts.length === 1 ? "file exceeds" : "files exceed"} the maximum size of ${formatBytes(maxPerFileUploadSizeBytes)} and will be skipped during import: ${projectPreview.oversizedArtifacts
                                     .slice(0, 3)
                                     .map(a => a.name)
                                     .join(", ")}${projectPreview.oversizedArtifacts.length > 3 ? ` and ${projectPreview.oversizedArtifacts.length - 3} more` : ""}`}

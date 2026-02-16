@@ -1,0 +1,29 @@
+test_case_id: "proxy_http_error_307_001"
+description: "Tests that the proxy correctly handles HTTP 307 redirects with a user-friendly error message"
+tags: ["all", "proxy", "error_handling"]
+skip_intermediate_events: true
+
+# Configure the downstream agent to return an HTTP 307 redirect
+# This will cause an SSE parsing error since 307 responses don't have proper Content-Type for SSE
+# Real 307 redirects typically have empty or missing Content-Type headers
+downstream_http_error:
+  status_code: 307
+  error_body: null  # No body - 307 typically has empty response body
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "http_error_tester@example.com"
+  parts:
+    - type: "text"
+      text: "This request should receive an HTTP 307 redirect error"
+  external_context:
+    a2a_session_id: "session_http_error_307_001"
+
+# No successful downstream responses - HTTP error occurs before processing
+
+expected_gateway_output:
+  - type: "error"
+    error_code: -32603  # InternalError
+    error_message_contains: "did not return a valid SSE streaming response"
+    error_data_contains:
+      agent_name: "TestAgent_Proxied"
