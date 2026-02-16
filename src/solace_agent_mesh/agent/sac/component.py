@@ -50,6 +50,7 @@ from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.common.utils import import_module
 
+from ...agent.adk.checkpoint_service import CheckpointService
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.adk.services import (
     initialize_artifact_service,
@@ -125,6 +126,8 @@ class SamAgentComponent(SamComponentBase):
     CORRELATION_DATA_PREFIX = CORRELATION_DATA_PREFIX
     HOST_COMPONENT_VERSION = "1.0.0-alpha"
     HEALTH_CHECK_TIMER_ID = "agent_health_check"
+    TIMEOUT_SWEEP_TIMER_ID = "agent_timeout_sweep"
+    TIMEOUT_SWEEP_INTERVAL_SECONDS = 10
 
     def __init__(self, **kwargs):
         """
@@ -253,6 +256,7 @@ class SamAgentComponent(SamComponentBase):
         self.artifact_service: BaseArtifactService = None
         self.memory_service: BaseMemoryService = None
         self.credential_service: Optional[BaseCredentialService] = None
+        self.checkpoint_service: Optional[CheckpointService] = None
         self.adk_agent: LlmAgent = None
         self.runner: Runner = None
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
@@ -287,6 +291,29 @@ class SamAgentComponent(SamComponentBase):
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
                 self.credential_service = initialize_credential_service(self)
+
+                # Initialize checkpoint service if enabled and DB-backed
+                if self.get_config("stateless_checkpointing", False):
+                    from google.adk.sessions import DatabaseSessionService
+
+                    if isinstance(self.session_service, DatabaseSessionService):
+                        from ..adk.checkpoint_models import CheckpointBase
+
+                        engine = self.session_service.db_engine
+                        # Create checkpoint tables (idempotent — migration also creates them)
+                        CheckpointBase.metadata.create_all(engine)
+                        self.checkpoint_service = CheckpointService(engine)
+                        log.info(
+                            "%s Stateless checkpointing enabled (using session DB).",
+                            self.log_identifier,
+                        )
+                    else:
+                        log.warning(
+                            "%s stateless_checkpointing is enabled but session_service "
+                            "is not 'sql'. Checkpointing requires a database-backed "
+                            "session service. Falling back to in-memory only.",
+                            self.log_identifier,
+                        )
 
                 log.info(
                     "%s Initialized Synchronous ADK services.", self.log_identifier
@@ -459,6 +486,20 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                 )
 
+            # Set up timeout sweep timer for checkpointed tasks
+            if self.checkpoint_service:
+                log.info(
+                    "%s Scheduling DB timeout sweeper every %d seconds.",
+                    self.log_identifier,
+                    self.TIMEOUT_SWEEP_INTERVAL_SECONDS,
+                )
+                self.add_timer(
+                    delay_ms=self.TIMEOUT_SWEEP_INTERVAL_SECONDS * 1000,
+                    timer_id=self.TIMEOUT_SWEEP_TIMER_ID,
+                    interval_ms=self.TIMEOUT_SWEEP_INTERVAL_SECONDS * 1000,
+                    callback=lambda timer_data: self._sweep_expired_peer_timeouts(),
+                )
+
             log.info(
                 "%s Initialized agent: %s",
                 self.log_identifier,
@@ -499,7 +540,7 @@ class SamAgentComponent(SamComponentBase):
         await process_event(self, event)
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
-        """Handles timer events for agent card publishing and health checks."""
+        """Handles timer events for agent card publishing, health checks, and timeout sweeps."""
         log.debug("%s Received timer event: %s", self.log_identifier, timer_data)
         timer_id = timer_data.get("timer_id")
 
@@ -507,6 +548,8 @@ class SamAgentComponent(SamComponentBase):
             publish_agent_card(self)
         elif timer_id == self.HEALTH_CHECK_TIMER_ID:
             self._check_agent_health()
+        elif timer_id == self.TIMEOUT_SWEEP_TIMER_ID:
+            self._sweep_expired_peer_timeouts()
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """
@@ -633,6 +676,9 @@ class SamAgentComponent(SamComponentBase):
         """
         logical_task_id = self.cache_service.get_data(sub_task_id)
         if not logical_task_id:
+            # Not in cache — try DB for checkpointed tasks
+            if self.checkpoint_service:
+                return self.checkpoint_service.get_peer_sub_task(sub_task_id)
             log.warning(
                 "%s No cache entry for sub-task %s. Cannot get correlation data.",
                 self.log_identifier,
@@ -644,6 +690,9 @@ class SamAgentComponent(SamComponentBase):
             task_context = self.active_tasks.get(logical_task_id)
 
         if not task_context:
+            # Not in active_tasks — try DB for checkpointed tasks
+            if self.checkpoint_service:
+                return self.checkpoint_service.get_peer_sub_task(sub_task_id)
             log.error(
                 "%s TaskExecutionContext not found for task %s, but cache entry existed for sub-task %s. This may indicate a cleanup issue.",
                 self.log_identifier,
@@ -672,36 +721,49 @@ class SamAgentComponent(SamComponentBase):
 
         if not logical_task_id:
             logical_task_id = self.cache_service.get_data(sub_task_id)
-            if not logical_task_id:
-                log.warning(
-                    "%s No cache entry found. Task has likely timed out and been cleaned up. Cannot claim.",
-                    log_id,
-                )
-                return None
 
-        with self.active_tasks_lock:
-            task_context = self.active_tasks.get(logical_task_id)
+        # Try in-memory path first (pre-checkpoint or non-checkpointed tasks)
+        if logical_task_id:
+            with self.active_tasks_lock:
+                task_context = self.active_tasks.get(logical_task_id)
 
-        if not task_context:
+            if task_context:
+                correlation_data = task_context.claim_sub_task_completion(sub_task_id)
+
+                if correlation_data:
+                    self.cache_service.remove_data(sub_task_id)
+                    log.info("%s Successfully claimed completion (in-memory).", log_id)
+                    return correlation_data
+                else:
+                    log.warning(
+                        "%s Failed to claim; it was already completed.", log_id
+                    )
+                    return None
+
+        # DB fallback for checkpointed tasks
+        if self.checkpoint_service:
+            db_result = self.checkpoint_service.claim_peer_sub_task(sub_task_id)
+            if db_result:
+                # Also clean up cache entry if it existed
+                self.cache_service.remove_data(sub_task_id)
+                log.info("%s Successfully claimed completion (DB).", log_id)
+                return db_result
+
+        if not logical_task_id:
+            log.warning(
+                "%s No cache entry or DB record found. Task has likely "
+                "timed out and been cleaned up. Cannot claim.",
+                log_id,
+            )
+        else:
             log.error(
-                "%s TaskExecutionContext not found for task %s. Cleaning up stale cache entry.",
+                "%s TaskExecutionContext not found for task %s and no DB record. "
+                "Cleaning up stale cache entry.",
                 log_id,
                 logical_task_id,
             )
             self.cache_service.remove_data(sub_task_id)
-            return None
-
-        correlation_data = task_context.claim_sub_task_completion(sub_task_id)
-
-        if correlation_data:
-            # If we successfully claimed the task, remove the timeout tracker from the cache.
-            self.cache_service.remove_data(sub_task_id)
-            log.info("%s Successfully claimed completion.", log_id)
-            return correlation_data
-        else:
-            # This means the task was already claimed by a competing event (e.g., timeout vs. response).
-            log.warning("%s Failed to claim; it was already completed.", log_id)
-            return None
+        return None
 
     async def reset_peer_timeout(self, sub_task_id: str):
         """
@@ -712,32 +774,45 @@ class SamAgentComponent(SamComponentBase):
 
         # Get the original logical task ID from the cache without removing it
         logical_task_id = self.cache_service.get_data(sub_task_id)
-        if not logical_task_id:
-            log.warning(
-                "%s No active task found for sub-task %s. Cannot reset timeout.",
-                log_id,
-                sub_task_id,
-            )
-            return
 
         # Get the configured timeout
         timeout_sec = self.inter_agent_communication_config.get(
             "request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT
         )
 
-        # Update the cache with a new expiry
-        self.cache_service.add_data(
-            key=sub_task_id,
-            value=logical_task_id,
-            expiry=timeout_sec,
-            component=self,
-        )
-        log.info(
-            "%s Timeout for sub-task %s has been reset to %d seconds.",
-            log_id,
-            sub_task_id,
-            timeout_sec,
-        )
+        if logical_task_id:
+            # Update the cache with a new expiry (in-memory path)
+            self.cache_service.add_data(
+                key=sub_task_id,
+                value=logical_task_id,
+                expiry=timeout_sec,
+                component=self,
+            )
+            log.info(
+                "%s Timeout for sub-task %s has been reset to %d seconds.",
+                log_id,
+                sub_task_id,
+                timeout_sec,
+            )
+
+        # Also reset in DB if checkpointed
+        if self.checkpoint_service:
+            new_deadline = time.time() + timeout_sec
+            if self.checkpoint_service.reset_timeout_deadline(
+                sub_task_id, new_deadline
+            ):
+                log.info(
+                    "%s DB timeout deadline for sub-task %s reset to +%d seconds.",
+                    log_id,
+                    sub_task_id,
+                    timeout_sec,
+                )
+            elif not logical_task_id:
+                log.warning(
+                    "%s No active task found for sub-task %s. Cannot reset timeout.",
+                    log_id,
+                    sub_task_id,
+                )
 
     async def _retrigger_agent_with_peer_responses(
         self,
@@ -903,11 +978,17 @@ class SamAgentComponent(SamComponentBase):
             task_context = self.active_tasks.get(logical_task_id)
 
         if not task_context:
-            log.warning(
-                "%s TaskExecutionContext not found for task %s. Ignoring timeout event.",
-                log_retrigger,
-                logical_task_id,
-            )
+            # Not in memory — try DB path for checkpointed tasks
+            if self.checkpoint_service:
+                await self._handle_peer_timeout_from_db(
+                    sub_task_id, correlation_data, log_retrigger
+                )
+            else:
+                log.warning(
+                    "%s TaskExecutionContext not found for task %s. Ignoring timeout event.",
+                    log_retrigger,
+                    logical_task_id,
+                )
             return
 
         timeout_value = self.inter_agent_communication_config.get(
@@ -938,6 +1019,163 @@ class SamAgentComponent(SamComponentBase):
         await self._retrigger_agent_with_peer_responses(
             results_to_inject, correlation_data, task_context
         )
+
+    async def _restore_task_from_checkpoint(
+        self,
+        logical_task_id: str,
+        invocation_id: str,
+        log_id: str,
+    ):
+        """
+        Restore a checkpointed task from DB and move it back to active_tasks.
+
+        Fetches the checkpoint data, reconstructs the TaskExecutionContext,
+        retrieves accumulated parallel results, adds the context to active_tasks,
+        and cleans up DB records.
+
+        Returns (task_context, results_to_inject) or None if restoration failed.
+        """
+        checkpoint_data = self.checkpoint_service.restore_task(logical_task_id)
+        if not checkpoint_data:
+            log.error(
+                "%s Failed to restore checkpoint data for task %s.",
+                log_id,
+                logical_task_id,
+            )
+            return None
+
+        from .task_execution_context import TaskExecutionContext
+
+        task_context = TaskExecutionContext.from_checkpoint_dict(checkpoint_data)
+
+        results_to_inject = self.checkpoint_service.get_parallel_results(
+            logical_task_id, invocation_id
+        )
+
+        with self.active_tasks_lock:
+            self.active_tasks[logical_task_id] = task_context
+
+        self.checkpoint_service.cleanup_task(logical_task_id)
+
+        return task_context, results_to_inject
+
+    async def _handle_peer_timeout_from_db(
+        self,
+        sub_task_id: str,
+        correlation_data: Dict[str, Any],
+        log_retrigger: str,
+    ):
+        """
+        Handles a peer timeout for a checkpointed task (DB path).
+        Records the timeout result via checkpoint_service, and if all
+        parallel calls are complete, restores and retriggers the agent.
+        """
+        logical_task_id = correlation_data.get("logical_task_id")
+        invocation_id = correlation_data.get("invocation_id")
+        peer_tool_name = correlation_data.get("peer_tool_name", "unknown_tool")
+
+        timeout_value = self.inter_agent_communication_config.get(
+            "request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT
+        )
+        timeout_message = (
+            f"Request to peer agent tool '{peer_tool_name}' timed out "
+            f"after {timeout_value} seconds."
+        )
+
+        timeout_result = {
+            "adk_function_call_id": correlation_data.get("adk_function_call_id"),
+            "peer_tool_name": peer_tool_name,
+            "payload": {"result": timeout_message},
+        }
+
+        completed, total = self.checkpoint_service.record_parallel_result(
+            logical_task_id, invocation_id, timeout_result
+        )
+
+        if completed < total:
+            log.info(
+                "%s Waiting for more peer responses for invocation %s "
+                "after timeout of sub-task %s (%d/%d, DB path).",
+                log_retrigger,
+                invocation_id,
+                sub_task_id,
+                completed,
+                total,
+            )
+            return
+
+        log.info(
+            "%s All peer responses/timeouts received for invocation %s (DB path). "
+            "Restoring and retriggering agent.",
+            log_retrigger,
+            invocation_id,
+        )
+
+        restored = await self._restore_task_from_checkpoint(
+            logical_task_id, invocation_id, log_retrigger
+        )
+        if not restored:
+            return
+        task_context, results_to_inject = restored
+
+        await self._retrigger_agent_with_peer_responses(
+            results_to_inject, correlation_data, task_context
+        )
+
+    def _sweep_expired_peer_timeouts(self):
+        """
+        Periodic sweeper for expired peer sub-task timeouts in the DB.
+        Called by timer. Finds expired rows and processes them the same
+        way as cache expiry events.
+        """
+        if not self.checkpoint_service:
+            return
+
+        try:
+            expired = self.checkpoint_service.sweep_expired_timeouts(self.agent_name)
+        except Exception as e:
+            log.error(
+                "%s Error sweeping expired timeouts: %s",
+                self.log_identifier,
+                e,
+            )
+            return
+
+        if not expired:
+            return
+
+        log.info(
+            "%s Found %d expired peer sub-task timeout(s) in DB.",
+            self.log_identifier,
+            len(expired),
+        )
+
+        loop = self.get_async_loop()
+        if not loop or not loop.is_running():
+            log.error(
+                "%s Async loop not available. Cannot process expired timeouts.",
+                self.log_identifier,
+            )
+            return
+
+        for row in expired:
+            sub_task_id = row["sub_task_id"]
+
+            # Atomic claim (prevents double-processing with response path)
+            correlation_data = self.checkpoint_service.claim_peer_sub_task(sub_task_id)
+            if not correlation_data:
+                continue
+
+            log.warning(
+                "%s Detected DB timeout for sub-task %s (Task: %s).",
+                self.log_identifier,
+                sub_task_id,
+                row["logical_task_id"],
+            )
+
+            asyncio.run_coroutine_threadsafe(
+                self._handle_peer_timeout(sub_task_id, correlation_data), loop
+            )
 
     def _inject_peer_tools_callback(
         self, callback_context: CallbackContext, llm_request: LlmRequest
@@ -3037,11 +3275,62 @@ class SamAgentComponent(SamComponentBase):
                             logical_task_id,
                         )
             else:
-                log.info(
-                    "%s Task %s is paused for a long-running tool. Skipping all cleanup.",
-                    log_id,
-                    logical_task_id,
-                )
+                # Task is paused — checkpoint to DB if enabled
+                if self.checkpoint_service:
+                    with self.active_tasks_lock:
+                        task_context = self.active_tasks.get(logical_task_id)
+
+                    if task_context:
+                        try:
+                            # 1. Write checkpoint to DB (single transaction)
+                            self.checkpoint_service.checkpoint_task(
+                                task_context, self.agent_name
+                            )
+
+                            # 2. ACK the broker message (state is safe in DB now)
+                            original_message = (
+                                task_context.get_original_solace_message()
+                            )
+                            if original_message:
+                                original_message.call_acknowledgements()
+
+                            # 3. Remove from in-memory active_tasks
+                            with self.active_tasks_lock:
+                                self.active_tasks.pop(logical_task_id, None)
+
+                            # 4. Remove cache service timeout entries
+                            #    (DB has timeout_deadline now)
+                            for sub_task_id in list(
+                                task_context.active_peer_sub_tasks.keys()
+                            ):
+                                self.cache_service.remove_data(sub_task_id)
+
+                            log.info(
+                                "%s Checkpointed paused task %s to DB and removed from memory.",
+                                log_id,
+                                logical_task_id,
+                            )
+                        except Exception as cp_err:
+                            log.exception(
+                                "%s Failed to checkpoint task %s: %s. "
+                                "Keeping in memory as fallback.",
+                                log_id,
+                                logical_task_id,
+                                cp_err,
+                            )
+                    else:
+                        log.warning(
+                            "%s Task %s not found in active_tasks for checkpointing.",
+                            log_id,
+                            logical_task_id,
+                        )
+                else:
+                    log.info(
+                        "%s Task %s is paused for a long-running tool. "
+                        "Keeping state in memory (no checkpoint service).",
+                        log_id,
+                        logical_task_id,
+                    )
 
             log.info(
                 "%s Finalization and cleanup complete for task %s.",
@@ -3395,6 +3684,8 @@ class SamAgentComponent(SamComponentBase):
         log.info("%s Cleaning up A2A ADK Host Component.", self.log_identifier)
         self.cancel_timer(self._card_publish_timer_id)
         self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
+        if self.checkpoint_service:
+            self.cancel_timer(self.TIMEOUT_SWEEP_TIMER_ID)
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
 

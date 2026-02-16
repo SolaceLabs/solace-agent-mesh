@@ -598,6 +598,68 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                 component.log_identifier,
                                 logical_task_id,
                             )
+            elif component.checkpoint_service:
+                # Task not in active_tasks — check DB for checkpointed tasks
+                log.info(
+                    "%s Task %s not in active_tasks, checking DB for checkpointed task.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
+                peer_sub_tasks = (
+                    component.checkpoint_service.get_peer_sub_tasks_for_task(
+                        logical_task_id
+                    )
+                )
+                if peer_sub_tasks:
+                    # Send cancellation to all tracked peers
+                    for sub_task_entry in peer_sub_tasks:
+                        corr_data = sub_task_entry.get("correlation_data", {})
+                        target_peer = corr_data.get("peer_agent_name")
+                        peer_task_id = corr_data.get("peer_task_id")
+                        if target_peer and peer_task_id:
+                            try:
+                                peer_cancel_request = a2a.create_cancel_task_request(
+                                    task_id=peer_task_id
+                                )
+                                component.publish_a2a_message(
+                                    payload=peer_cancel_request.model_dump(
+                                        exclude_none=True
+                                    ),
+                                    topic=component._get_agent_request_topic(
+                                        target_peer
+                                    ),
+                                    user_properties={
+                                        "clientId": component.agent_name
+                                    },
+                                )
+                                log.info(
+                                    "%s Sent CancelTaskRequest to peer %s for task %s (checkpointed).",
+                                    component.log_identifier,
+                                    target_peer,
+                                    peer_task_id,
+                                )
+                            except Exception as e_peer_cancel:
+                                log.error(
+                                    "%s Failed to send CancelTaskRequest to peer %s for task %s: %s",
+                                    component.log_identifier,
+                                    target_peer,
+                                    peer_task_id,
+                                    e_peer_cancel,
+                                )
+
+                    # Clean up DB records for the cancelled task
+                    component.checkpoint_service.cleanup_task(logical_task_id)
+                    log.info(
+                        "%s Cleaned up checkpointed task %s after cancellation.",
+                        component.log_identifier,
+                        logical_task_id,
+                    )
+                else:
+                    log.info(
+                        "%s No active or checkpointed task found for cancellation (ID: %s). Ignoring signal.",
+                        component.log_identifier,
+                        logical_task_id,
+                    )
             else:
                 log.info(
                     "%s No active task found for cancellation (ID: %s) or task already completed. Ignoring signal.",
@@ -1827,16 +1889,11 @@ async def handle_a2a_response(component, message: SolaceMessage):
             with component.active_tasks_lock:
                 task_context = component.active_tasks.get(logical_task_id)
 
-            if not task_context:
-                log.error(
-                    "%s TaskExecutionContext not found for task %s. Cannot process final peer response.",
-                    log_retrigger,
-                    logical_task_id,
-                )
-                return
+            # ── Build the result payload (shared by both paths) ──
 
             final_text = ""
             artifact_summary = ""
+            pending_artifact_task_obj = None  # Saved for DB path artifact registration
             if isinstance(payload_to_queue, dict):
                 if "result" in payload_to_queue:
                     final_text = payload_to_queue["result"]
@@ -1897,9 +1954,13 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     )
                                     artifact_summary = ""
                                 # Bubble up the peer's artifacts to the parent context
-                                _register_peer_artifacts_in_parent_context(
-                                    task_context, task_obj, log_retrigger
-                                )
+                                if task_context:
+                                    _register_peer_artifacts_in_parent_context(
+                                        task_context, task_obj, log_retrigger
+                                    )
+                                else:
+                                    # Save for DB path — register after restore
+                                    pending_artifact_task_obj = task_obj
 
                     except Exception:
                         final_text = json.dumps(payload_to_queue)
@@ -1912,7 +1973,11 @@ async def handle_a2a_response(component, message: SolaceMessage):
 
             # Check if a deep research report was sent by the peer agent
             # If so, suppress the verbose text but keep artifact info to use
-            peer_sent_deep_research = task_context.get_flag("peer_sent_deep_research_report", False)
+            peer_sent_deep_research = (
+                task_context.get_flag("peer_sent_deep_research_report", False)
+                if task_context
+                else False
+            )
             if peer_sent_deep_research:
                 # Clear the flag after using it
                 task_context.set_flag("peer_sent_deep_research_report", False)
@@ -1946,32 +2011,87 @@ async def handle_a2a_response(component, message: SolaceMessage):
                 "payload": {"result": full_response_text},
             }
 
-            all_sub_tasks_completed = task_context.record_parallel_result(
-                current_result, invocation_id
-            )
-            log.info(
-                "%s Updated parallel counter for task %s: %s",
-                log_retrigger,
-                logical_task_id,
-                task_context.parallel_tool_calls.get(invocation_id),
-            )
+            # ── IN-MEMORY PATH (pre-checkpoint or non-checkpointed) ──
 
-            if not all_sub_tasks_completed:
+            if task_context:
+                all_sub_tasks_completed = task_context.record_parallel_result(
+                    current_result, invocation_id
+                )
                 log.info(
-                    "%s Waiting for more peer responses for task %s.",
+                    "%s Updated parallel counter for task %s: %s",
+                    log_retrigger,
+                    logical_task_id,
+                    task_context.parallel_tool_calls.get(invocation_id),
+                )
+
+                if not all_sub_tasks_completed:
+                    log.info(
+                        "%s Waiting for more peer responses for task %s.",
+                        log_retrigger,
+                        logical_task_id,
+                    )
+                    return
+
+                log.info(
+                    "%s All peer responses received for task %s. Retriggering agent.",
+                    log_retrigger,
+                    logical_task_id,
+                )
+                results_to_inject = task_context.parallel_tool_calls.get(
+                    invocation_id, {}
+                ).get("results", [])
+
+                await component._retrigger_agent_with_peer_responses(
+                    results_to_inject, correlation_data, task_context
+                )
+                return
+
+            # ── DB PATH (post-checkpoint) ──
+
+            if not component.checkpoint_service:
+                log.error(
+                    "%s TaskExecutionContext not found for task %s and no checkpoint service. "
+                    "Cannot process final peer response.",
                     log_retrigger,
                     logical_task_id,
                 )
                 return
 
+            # Record result atomically in DB
+            completed, total = component.checkpoint_service.record_parallel_result(
+                logical_task_id, invocation_id, current_result
+            )
+
+            if completed < total:
+                log.info(
+                    "%s Waiting for more peer responses for task %s (%d/%d, DB path).",
+                    log_retrigger,
+                    logical_task_id,
+                    completed,
+                    total,
+                )
+                return
+
+            # All complete — restore from DB and retrigger
             log.info(
-                "%s All peer responses received for task %s. Retriggering agent.",
+                "%s All peer responses received for task %s (DB path). "
+                "Restoring and retriggering agent.",
                 log_retrigger,
                 logical_task_id,
             )
-            results_to_inject = task_context.parallel_tool_calls.get(
-                invocation_id, {}
-            ).get("results", [])
+
+            restored = await component._restore_task_from_checkpoint(
+                logical_task_id, invocation_id, log_retrigger
+            )
+            if not restored:
+                return
+            task_context, results_to_inject = restored
+
+            # Register peer artifacts now that we have a restored task_context
+            if pending_artifact_task_obj:
+                _register_peer_artifacts_in_parent_context(
+                    task_context, pending_artifact_task_obj, log_retrigger
+                )
 
             await component._retrigger_agent_with_peer_responses(
                 results_to_inject, correlation_data, task_context

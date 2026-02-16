@@ -334,6 +334,12 @@ class SamAgentAppConfig(SamConfigBase):
         default=True,
         description="Whether to inject the current time into the agent's instruction.",
     )
+    stateless_checkpointing: bool = Field(
+        default=False,
+        description="Enable stateless checkpointing at peer-call boundaries. "
+        "When true and session_service is 'sql', task state is persisted to DB "
+        "when the agent pauses for peer responses, allowing any instance to resume.",
+    )
     session_service: SessionServiceConfig = Field(
         default_factory=lambda: SessionServiceConfig(type="memory"),
         description="Configuration for ADK Session Service.",

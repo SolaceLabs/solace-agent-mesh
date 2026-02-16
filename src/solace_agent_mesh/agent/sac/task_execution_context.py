@@ -444,3 +444,80 @@ class TaskExecutionContext:
         """
         with self.lock:
             return self._flags.get(key, default)
+
+    # ── Checkpoint serialization ──────────────────────────────────────
+
+    def to_checkpoint_dict(self) -> Dict[str, Any]:
+        """
+        Serialize checkpoint-worthy fields into a plain dict for DB persistence.
+
+        Called at the pause boundary (after peer calls dispatched, before ACK).
+        Only fields needed to reconstruct the task on another instance are included.
+        Non-serializable objects (cancellation_event, lock, event_loop,
+        _original_solace_message) and transient streaming state are excluded.
+        """
+        with self.lock:
+            return {
+                "task_id": self.task_id,
+                "a2a_context": dict(self.a2a_context),
+                "current_invocation_id": self._current_invocation_id,
+                "run_based_response_buffer": self.run_based_response_buffer,
+                "produced_artifacts": list(self.produced_artifacts),
+                "artifact_signals_to_return": list(self.artifact_signals_to_return),
+                "active_peer_sub_tasks": {
+                    k: dict(v) for k, v in self.active_peer_sub_tasks.items()
+                },
+                "parallel_tool_calls": {
+                    k: {
+                        "total": v["total"],
+                        "completed": v["completed"],
+                        "results": list(v["results"]),
+                    }
+                    for k, v in self.parallel_tool_calls.items()
+                },
+                "flags": dict(self._flags),
+                "security_context": dict(self._security_context),
+                "token_usage": {
+                    "total_input_tokens": self.total_input_tokens,
+                    "total_output_tokens": self.total_output_tokens,
+                    "total_cached_input_tokens": self.total_cached_input_tokens,
+                    "by_model": {
+                        k: dict(v) for k, v in self.token_usage_by_model.items()
+                    },
+                    "by_source": {
+                        k: dict(v) for k, v in self.token_usage_by_source.items()
+                    },
+                },
+            }
+
+    @classmethod
+    def from_checkpoint_dict(cls, data: Dict[str, Any]) -> "TaskExecutionContext":
+        """
+        Reconstruct a TaskExecutionContext from a checkpoint dict.
+
+        Creates a fresh instance with new non-serializable objects (lock,
+        cancellation_event) and restores all persisted fields. The original
+        Solace message is left as None (it was ACK'd at checkpoint time).
+        active_peer_sub_tasks and parallel_tool_calls are NOT restored here —
+        they live in separate DB tables and the response handler injects
+        results directly at retrigger time.
+        """
+        ctx = cls(task_id=data["task_id"], a2a_context=data["a2a_context"])
+
+        ctx._current_invocation_id = data.get("current_invocation_id")
+        ctx.run_based_response_buffer = data.get("run_based_response_buffer", "")
+        ctx.produced_artifacts = data.get("produced_artifacts", [])
+        ctx.artifact_signals_to_return = data.get("artifact_signals_to_return", [])
+        ctx._flags = data.get("flags", {})
+        ctx._security_context = data.get("security_context", {})
+
+        token_usage = data.get("token_usage", {})
+        ctx.total_input_tokens = token_usage.get("total_input_tokens", 0)
+        ctx.total_output_tokens = token_usage.get("total_output_tokens", 0)
+        ctx.total_cached_input_tokens = token_usage.get(
+            "total_cached_input_tokens", 0
+        )
+        ctx.token_usage_by_model = token_usage.get("by_model", {})
+        ctx.token_usage_by_source = token_usage.get("by_source", {})
+
+        return ctx
