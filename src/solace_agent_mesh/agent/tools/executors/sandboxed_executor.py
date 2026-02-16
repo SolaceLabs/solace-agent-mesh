@@ -20,6 +20,7 @@ from google.genai import types as genai_types
 
 from .base import ToolExecutor, ToolExecutionResult, register_executor
 from ....common.a2a import (
+    get_sam_remote_tool_init_topic,
     get_sam_remote_tool_invoke_topic,
     get_sam_remote_tool_response_topic,
     get_sam_remote_tool_status_topic,
@@ -29,10 +30,13 @@ from ..artifact_types import Artifact
 from ...utils.artifact_helpers import METADATA_SUFFIX
 from ...utils.context_helpers import get_original_session_id
 from ....sandbox.protocol import (
-    PreloadedArtifact,
+    ArtifactReference,
     SandboxErrorCodes,
+    SandboxInitParams,
     SandboxInvokeParams,
     SandboxInvokeResult,
+    SandboxToolInitRequest,
+    SandboxToolInitResponse,
     SandboxToolInvocationRequest,
     SandboxToolInvocationResponse,
 )
@@ -166,30 +170,25 @@ class SamRemoteExecutor(ToolExecutor):
                 session_id = "unknown"
 
             # Extract artifacts from args (DynamicTool pre-loads Artifact
-            # objects). We embed the content in preloaded_artifacts so the
-            # worker doesn't need access to the same artifact service.
-            import base64
-
-            preloaded_artifacts = {}
+            # objects). Send lightweight references so the worker loads
+            # content from the shared artifact service — artifact data
+            # should never transit through the broker.
+            artifact_references = {}
             clean_args = {}
             for key, value in args.items():
                 if isinstance(value, Artifact):
-                    preloaded_artifacts[key] = PreloadedArtifact(
+                    artifact_references[key] = ArtifactReference(
                         filename=value.filename,
-                        content=base64.b64encode(value.as_bytes()).decode("ascii"),
-                        mime_type=value.mime_type,
                         version=value.version,
                     )
                     # Pass filename string to the tool args
                     clean_args[key] = value.filename
                 elif isinstance(value, list) and value and isinstance(value[0], Artifact):
-                    # List[Artifact] - embed each artifact's content
+                    # List[Artifact] - reference each artifact
                     for idx, art in enumerate(value):
                         ref_key = f"{key}[{idx}]"
-                        preloaded_artifacts[ref_key] = PreloadedArtifact(
+                        artifact_references[ref_key] = ArtifactReference(
                             filename=art.filename,
-                            content=base64.b64encode(art.as_bytes()).decode("ascii"),
-                            mime_type=art.mime_type,
                             version=art.version,
                         )
                     clean_args[key] = [art.filename for art in value]
@@ -205,7 +204,7 @@ class SamRemoteExecutor(ToolExecutor):
                 app_name=app_name,
                 user_id=user_id,
                 session_id=session_id,
-                preloaded_artifacts=preloaded_artifacts,
+                artifact_references=artifact_references,
                 timeout_seconds=self._timeout_seconds,
                 sandbox_profile=self._sandbox_profile,
             )
@@ -493,6 +492,122 @@ class SamRemoteExecutor(ToolExecutor):
             a2a_context=a2a_context,
             signal_data=signal,
         )
+
+    async def request_init(
+        self,
+        tool_config: Dict[str, Any],
+        timeout_seconds: float = 15.0,
+    ) -> Optional[SandboxToolInitResponse]:
+        """
+        Request enriched tool metadata from the remote worker via init protocol.
+
+        Sends an init request and waits for the worker to run the tool's init()
+        inside bwrap and return enriched description/schema. Returns None on
+        timeout (worker may not be running).
+
+        Args:
+            tool_config: Tool configuration to pass to init()
+            timeout_seconds: How long to wait for the response
+
+        Returns:
+            SandboxToolInitResponse on success/error, or None on timeout
+        """
+        log_id = f"[SamRemoteExecutor:{self._tool_name}]"
+
+        if not self._component:
+            log.warning("%s Cannot request init: executor not initialized", log_id)
+            return None
+
+        correlation_id = str(uuid.uuid4())
+
+        try:
+            # Build init request
+            request = SandboxToolInitRequest(
+                id=correlation_id,
+                params=SandboxInitParams(
+                    tool_name=self._tool_name,
+                    tool_config=tool_config,
+                ),
+            )
+
+            # Build topics — reuse existing response topic for reply routing
+            request_topic = get_sam_remote_tool_init_topic(
+                self._namespace, self._tool_name
+            )
+            reply_to = get_sam_remote_tool_response_topic(
+                self._namespace, self._agent_name, correlation_id
+            )
+
+            user_properties = {
+                "replyTo": reply_to,
+                "clientId": self._agent_name,
+            }
+
+            log.info(
+                "%s Sending init request: id=%s, topic=%s",
+                log_id,
+                correlation_id,
+                request_topic,
+            )
+
+            # Create future and publish
+            response_future = concurrent.futures.Future()
+            self._pending_responses[correlation_id] = response_future
+
+            try:
+                self._component.publish_a2a_message(
+                    payload=request.model_dump(exclude_none=True),
+                    topic=request_topic,
+                    user_properties=user_properties,
+                )
+
+                # Wait for response
+                try:
+                    asyncio_future = asyncio.wrap_future(response_future)
+                    response_payload = await asyncio.wait_for(
+                        asyncio_future,
+                        timeout=timeout_seconds,
+                    )
+
+                    response = SandboxToolInitResponse.model_validate(
+                        response_payload
+                    )
+
+                    if response.error:
+                        log.warning(
+                            "%s Init returned error: %s - %s",
+                            log_id,
+                            response.error.code,
+                            response.error.message,
+                        )
+                    else:
+                        log.info(
+                            "%s Init succeeded for tool %s",
+                            log_id,
+                            self._tool_name,
+                        )
+
+                    return response
+
+                except asyncio.TimeoutError:
+                    log.warning(
+                        "%s Init request timed out after %.1fs — worker may "
+                        "not be running. Tool will use static description.",
+                        log_id,
+                        timeout_seconds,
+                    )
+                    return None
+
+            finally:
+                self._pending_responses.pop(correlation_id, None)
+
+        except Exception as e:
+            log.warning(
+                "%s Init request failed: %s. Tool will use static description.",
+                log_id,
+                e,
+            )
+            return None
 
     async def cleanup(
         self,

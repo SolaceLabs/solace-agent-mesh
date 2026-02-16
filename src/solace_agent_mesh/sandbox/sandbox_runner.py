@@ -30,6 +30,7 @@ from .protocol import (
     SandboxErrorCodes,
     SandboxInvokeParams,
     SandboxInvokeResult,
+    SandboxToolInitResult,
     SandboxToolInvocationRequest,
     SandboxToolInvocationResponse,
 )
@@ -475,6 +476,7 @@ class SandboxRunner:
         tool_runner_args = {
             "module": manifest_entry.module,
             "function": manifest_entry.function,
+            "class_name": manifest_entry.class_name,
             "args": params.args,
             "tool_config": params.tool_config,
             "artifact_paths": artifact_paths,
@@ -890,3 +892,185 @@ class SandboxRunner:
                     status_thread.join(timeout=1.0)
                 if work_dir:
                     self._cleanup_work_directory(work_dir)
+
+    async def init_tool(
+        self,
+        manifest_entry: ManifestEntry,
+        tool_config: Dict[str, Any],
+        timeout_seconds: int = 60,
+    ) -> SandboxToolInitResult:
+        """
+        Run a DynamicTool's init() inside the sandbox to get enriched metadata.
+
+        This spawns a bwrap subprocess that imports the DynamicTool class,
+        calls init(), reads the enriched tool_description and parameters_schema,
+        calls cleanup(), and writes the result. No persistent state is retained.
+
+        Args:
+            manifest_entry: Manifest entry with class_name set
+            tool_config: Tool configuration (passed to init)
+            timeout_seconds: Maximum time for the init subprocess
+
+        Returns:
+            SandboxToolInitResult with enriched metadata
+
+        Raises:
+            RuntimeError: If the init subprocess fails
+        """
+        task_id = f"init-{manifest_entry.tool_name}-{int(time.time())}"
+        log_id = f"[SandboxRunner:init:{manifest_entry.tool_name}]"
+
+        log.info(
+            "%s Starting init: class=%s.%s, timeout=%ds",
+            log_id,
+            manifest_entry.module,
+            manifest_entry.class_name,
+            timeout_seconds,
+        )
+
+        # Resolve profile (same security as invocations)
+        profile_name = (
+            manifest_entry.sandbox_profile or self._config.default_profile
+        )
+        profile = self._get_profile(profile_name)
+
+        work_dir = None
+        try:
+            work_dir = self._setup_work_directory(task_id)
+
+            # Write init-mode runner args
+            init_runner_args = {
+                "init_mode": True,
+                "module": manifest_entry.module,
+                "class_name": manifest_entry.class_name,
+                "tool_config": tool_config,
+                "result_file": str(work_dir / RESULT_FILENAME),
+            }
+
+            args_file = work_dir / "runner_args.json"
+            args_file.write_text(json.dumps(init_runner_args))
+
+            # Build command (bwrap or direct mode)
+            if self._config.mode == "direct":
+                cmd = [
+                    self._config.python_bin,
+                    "-m",
+                    TOOL_RUNNER_MODULE,
+                    str(args_file),
+                ]
+                direct_env = os.environ.copy()
+                tools_pp = str(Path(self._config.tools_python_dir).resolve())
+                existing_pp = direct_env.get("PYTHONPATH", "")
+                direct_env["PYTHONPATH"] = (
+                    tools_pp + os.pathsep + existing_pp if existing_pp else tools_pp
+                )
+                direct_env["_SAM_SANDBOX_LIGHT"] = "1"
+
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=str(work_dir),
+                    env=direct_env,
+                )
+            else:
+                # Build bwrap command manually (simpler than _build_bwrap_command
+                # since we don't have SandboxInvokeParams)
+                tools_python_dir = self._config.tools_python_dir
+                cmd: List[str] = [self._config.bwrap_bin]
+
+                cmd.extend([
+                    "--die-with-parent",
+                    "--new-session",
+                    "--unshare-pid",
+                    "--unshare-ipc",
+                    "--unshare-uts",
+                ])
+
+                if profile.get("network_isolated"):
+                    cmd.append("--unshare-net")
+
+                cmd.extend(["--ro-bind", "/", "/"])
+                cmd.extend(["--proc", "/proc"])
+                cmd.extend(["--dev", "/dev"])
+                cmd.extend(["--tmpfs", "/tmp"])
+                cmd.extend(["--bind", str(work_dir), str(work_dir)])
+                cmd.extend(["--chdir", str(work_dir)])
+
+                cmd.append("--clearenv")
+                cmd.extend(["--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin"])
+                cmd.extend(["--setenv", "HOME", "/tmp"])
+                cmd.extend(["--setenv", "TMPDIR", "/tmp"])
+                cmd.extend(["--setenv", "LANG", "C.UTF-8"])
+                cmd.extend(["--setenv", "PYTHONPATH", tools_python_dir])
+                cmd.extend(["--setenv", "_SAM_SANDBOX_LIGHT", "1"])
+
+                if profile.get("keep_env"):
+                    for key in ("PYTHONDONTWRITEBYTECODE", "PYTHONUNBUFFERED"):
+                        val = os.environ.get(key)
+                        if val:
+                            cmd.extend(["--setenv", key, val])
+
+                cmd.append("--")
+                cmd.extend([
+                    self._config.python_bin,
+                    "-m",
+                    TOOL_RUNNER_MODULE,
+                    str(args_file),
+                ])
+
+                bwrap_env = {"PATH": "/usr/local/bin:/usr/bin:/bin"}
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=str(work_dir),
+                    env=bwrap_env,
+                    preexec_fn=self._make_preexec_fn(profile),
+                )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=timeout_seconds + 5
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise RuntimeError(
+                    f"Init timed out after {timeout_seconds}s"
+                )
+
+            if process.returncode != 0:
+                stderr_text = stderr.decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"Init failed with code {process.returncode}: {stderr_text[:500]}"
+                )
+
+            # Read result
+            result_file = work_dir / RESULT_FILENAME
+            if not result_file.exists():
+                raise RuntimeError("Init completed but no result file found")
+
+            result_data = json.loads(result_file.read_text())
+
+            if result_data.get("error"):
+                raise RuntimeError(f"Init error: {result_data['error']}")
+
+            init_result = result_data.get("result", {})
+            log.info(
+                "%s Init completed: description=%d chars, schema=%s",
+                log_id,
+                len(init_result.get("tool_description") or ""),
+                "yes" if init_result.get("parameters_schema") else "no",
+            )
+
+            return SandboxToolInitResult(
+                tool_name=manifest_entry.tool_name,
+                tool_description=init_result.get("tool_description"),
+                parameters_schema=init_result.get("parameters_schema"),
+                ctx_facade_param_name=init_result.get("ctx_facade_param_name"),
+            )
+
+        finally:
+            if work_dir:
+                self._cleanup_work_directory(work_dir)

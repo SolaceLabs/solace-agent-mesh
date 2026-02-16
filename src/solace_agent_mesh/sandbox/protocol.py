@@ -228,3 +228,108 @@ class SandboxErrorCodes:
     ARTIFACT_ERROR = "ARTIFACT_ERROR"
     INVALID_REQUEST = "INVALID_REQUEST"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    INIT_ERROR = "INIT_ERROR"
+
+
+# ---------------------------------------------------------------------------
+# Tool Init Protocol
+# ---------------------------------------------------------------------------
+
+
+class SandboxInitParams(BaseModel):
+    """Parameters for a tool init request."""
+
+    tool_name: str = Field(..., description="Name of the tool to initialize")
+    tool_config: Dict[str, Any] = Field(
+        default_factory=dict, description="Tool configuration including secrets"
+    )
+
+
+class SandboxToolInitRequest(BaseModel):
+    """
+    JSON-RPC 2.0 request for tool initialization.
+
+    Sent by the agent to the worker to request enriched tool metadata.
+    The worker runs the DynamicTool's init() inside bwrap, reads the
+    enriched tool_description and parameters_schema, then responds.
+
+    Published to: {namespace}/a2a/v1/sam_remote_tool/init/{tool_name}
+    """
+
+    jsonrpc: Literal["2.0"] = "2.0"
+    id: str = Field(..., description="Correlation ID")
+    method: Literal["sam_remote_tool/init"] = "sam_remote_tool/init"
+    params: SandboxInitParams
+
+
+class SandboxToolInitResult(BaseModel):
+    """
+    Successful result from tool initialization.
+
+    Contains enriched metadata computed by the DynamicTool's init() method
+    running inside the sandbox. No persistent state is retained — connection
+    pools, caches, and singletons are discarded when the subprocess exits.
+    """
+
+    tool_name: str = Field(..., description="Name of the initialized tool")
+    tool_description: Optional[str] = Field(
+        default=None, description="Enriched tool description from init()"
+    )
+    parameters_schema: Optional[Dict[str, Any]] = Field(
+        default=None, description="Enriched parameters schema as dict"
+    )
+    ctx_facade_param_name: Optional[str] = Field(
+        default=None,
+        description="Parameter name for ToolContextFacade injection",
+    )
+
+
+class SandboxToolInitResponse(BaseModel):
+    """
+    JSON-RPC 2.0 response from tool initialization.
+
+    Published to: replyTo topic from request user properties.
+    """
+
+    jsonrpc: Literal["2.0"] = "2.0"
+    id: str = Field(..., description="Matches request id for correlation")
+    result: Optional[SandboxToolInitResult] = Field(
+        default=None, description="Success result (mutually exclusive with error)"
+    )
+    error: Optional[SandboxError] = Field(
+        default=None, description="Error details (mutually exclusive with result)"
+    )
+
+    @classmethod
+    def success(
+        cls,
+        request_id: str,
+        tool_name: str,
+        tool_description: Optional[str] = None,
+        parameters_schema: Optional[Dict[str, Any]] = None,
+        ctx_facade_param_name: Optional[str] = None,
+    ) -> "SandboxToolInitResponse":
+        """Create a success response."""
+        return cls(
+            id=request_id,
+            result=SandboxToolInitResult(
+                tool_name=tool_name,
+                tool_description=tool_description,
+                parameters_schema=parameters_schema,
+                ctx_facade_param_name=ctx_facade_param_name,
+            ),
+        )
+
+    @classmethod
+    def failure(
+        cls,
+        request_id: str,
+        code: str,
+        message: str,
+        data: Optional[Dict[str, Any]] = None,
+    ) -> "SandboxToolInitResponse":
+        """Create a failure response."""
+        return cls(
+            id=request_id,
+            error=SandboxError(code=code, message=message, data=data),
+        )

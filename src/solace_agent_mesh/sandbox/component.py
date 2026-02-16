@@ -22,6 +22,8 @@ from .protocol import (
     SandboxErrorCodes,
     SandboxStatusUpdate,
     SandboxStatusUpdateParams,
+    SandboxToolInitRequest,
+    SandboxToolInitResponse,
     SandboxToolInvocationRequest,
     SandboxToolInvocationResponse,
 )
@@ -172,12 +174,24 @@ class SandboxWorkerComponent(SamComponentBase):
             return topic[len(prefix) :]
         return None
 
+    def _extract_init_tool_name_from_topic(self, topic: str) -> Optional[str]:
+        """
+        Extract the tool name from an init topic.
+
+        Topic format: {namespace}/a2a/v1/sam_remote_tool/init/{tool_name}
+        """
+        prefix = a2a.get_a2a_base_topic(self.namespace) + "/sam_remote_tool/init/"
+        if topic.startswith(prefix):
+            return topic[len(prefix) :]
+        return None
+
     def _sync_subscriptions(self) -> None:
         """
         Synchronize subscriptions with the current manifest.
 
         Adds subscriptions for new tools and removes subscriptions for
-        tools no longer in the manifest.
+        tools no longer in the manifest. Also subscribes to init topics
+        for tools that have a class_name (DynamicTool classes).
         """
         current_tools = self.manifest.get_tool_names()
 
@@ -204,6 +218,27 @@ class SandboxWorkerComponent(SamComponentBase):
                     e,
                 )
 
+            # Also subscribe to init topic for class-based tools
+            entry = self.manifest.get_tool(tool_name)
+            if entry and entry.class_name:
+                init_topic = a2a.get_sam_remote_tool_init_topic(
+                    self.namespace, tool_name
+                )
+                try:
+                    self.subscribe(init_topic)
+                    log.info(
+                        "%s Subscribed to init topic: %s",
+                        self.log_identifier,
+                        init_topic,
+                    )
+                except Exception as e:
+                    log.error(
+                        "%s Failed to subscribe to init topic %s: %s",
+                        self.log_identifier,
+                        init_topic,
+                        e,
+                    )
+
         for tool_name in tools_to_remove:
             topic = a2a.get_sam_remote_tool_invoke_topic(self.namespace, tool_name)
             try:
@@ -222,6 +257,15 @@ class SandboxWorkerComponent(SamComponentBase):
                     e,
                 )
 
+            # Also unsubscribe from init topic
+            init_topic = a2a.get_sam_remote_tool_init_topic(
+                self.namespace, tool_name
+            )
+            try:
+                self.unsubscribe(init_topic)
+            except Exception:
+                pass  # Best effort
+
     async def _handle_message_async(self, message: SolaceMessage, topic: str) -> None:
         """
         Handle incoming messages asynchronously.
@@ -239,9 +283,12 @@ class SandboxWorkerComponent(SamComponentBase):
         discovery_topic = a2a.get_discovery_subscription_topic(self.namespace)
 
         try:
+            # Check if this is a tool init request
+            init_tool_name = self._extract_init_tool_name_from_topic(topic)
+            if init_tool_name is not None:
+                await self._handle_tool_init(message, init_tool_name)
             # Check if this is a tool invocation request
-            tool_name = self._extract_tool_name_from_topic(topic)
-            if tool_name is not None:
+            elif (tool_name := self._extract_tool_name_from_topic(topic)) is not None:
                 await self._handle_tool_invocation(message, tool_name)
             elif a2a.topic_matches_subscription(topic, discovery_topic):
                 await self._handle_discovery_message(message, topic)
@@ -418,6 +465,133 @@ class SandboxWorkerComponent(SamComponentBase):
             except Exception as resp_e:
                 log.error(
                     "%s Failed to send error response: %s",
+                    self.log_identifier,
+                    resp_e,
+                )
+
+    async def _handle_tool_init(
+        self, message: SolaceMessage, tool_name: str
+    ) -> None:
+        """
+        Handle a tool init request.
+
+        Runs the tool's init() inside bwrap to compute enriched metadata
+        (description, schema) and returns it to the requesting agent.
+        No persistent state is retained after the subprocess exits.
+        """
+        request_id = "unknown"
+
+        try:
+            payload = message.get_payload()
+            request = SandboxToolInitRequest.model_validate(payload)
+            request_id = request.id
+            params = request.params
+
+            log.info(
+                "%s Received tool init request: id=%s, tool=%s",
+                self.log_identifier,
+                request_id,
+                params.tool_name,
+            )
+
+            # Get routing info
+            user_props = message.get_user_properties() or {}
+            reply_to = user_props.get("replyTo")
+
+            if not reply_to:
+                log.error(
+                    "%s No replyTo in user properties for init request %s",
+                    self.log_identifier,
+                    request_id,
+                )
+                return
+
+            # Resolve tool from manifest
+            manifest_entry = self.manifest.get_tool(tool_name)
+
+            if manifest_entry is None or not manifest_entry.class_name:
+                log.warning(
+                    "%s Tool '%s' not found or has no class_name for init",
+                    self.log_identifier,
+                    tool_name,
+                )
+                response = SandboxToolInitResponse.failure(
+                    request_id=request_id,
+                    code=SandboxErrorCodes.TOOL_NOT_AVAILABLE,
+                    message=f"Tool '{tool_name}' is not available for init on this worker",
+                )
+                self.publish_a2a_message(
+                    payload=response.model_dump(exclude_none=True),
+                    topic=reply_to,
+                )
+                return
+
+            # Run init inside bwrap via sandbox runner
+            try:
+                init_result = await self.sandbox_runner.init_tool(
+                    manifest_entry=manifest_entry,
+                    tool_config=params.tool_config,
+                )
+
+                response = SandboxToolInitResponse.success(
+                    request_id=request_id,
+                    tool_name=tool_name,
+                    tool_description=init_result.tool_description,
+                    parameters_schema=init_result.parameters_schema,
+                    ctx_facade_param_name=init_result.ctx_facade_param_name,
+                )
+
+                log.info(
+                    "%s Tool init completed: id=%s, tool=%s",
+                    self.log_identifier,
+                    request_id,
+                    tool_name,
+                )
+
+            except Exception as init_e:
+                log.error(
+                    "%s Tool init failed for %s: %s",
+                    self.log_identifier,
+                    tool_name,
+                    init_e,
+                    exc_info=True,
+                )
+                response = SandboxToolInitResponse.failure(
+                    request_id=request_id,
+                    code=SandboxErrorCodes.INIT_ERROR,
+                    message=f"Init failed: {init_e}",
+                )
+
+            self.publish_a2a_message(
+                payload=response.model_dump(exclude_none=True),
+                topic=reply_to,
+            )
+
+        except Exception as e:
+            log.error(
+                "%s Error handling init request for %s: %s",
+                self.log_identifier,
+                tool_name,
+                e,
+                exc_info=True,
+            )
+            # Try to send error response
+            try:
+                user_props = message.get_user_properties() or {}
+                reply_to = user_props.get("replyTo")
+                if reply_to:
+                    response = SandboxToolInitResponse.failure(
+                        request_id=request_id,
+                        code=SandboxErrorCodes.INTERNAL_ERROR,
+                        message=str(e),
+                    )
+                    self.publish_a2a_message(
+                        payload=response.model_dump(exclude_none=True),
+                        topic=reply_to,
+                    )
+            except Exception as resp_e:
+                log.error(
+                    "%s Failed to send init error response: %s",
                     self.log_identifier,
                     resp_e,
                 )

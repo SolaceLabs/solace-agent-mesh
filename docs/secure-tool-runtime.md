@@ -1089,18 +1089,36 @@ def process_file(ctx: Any, input_file: str) -> Dict[str, Any]:
 
 ### C. SandboxToolContextFacade API
 
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `session_id` | `str` | Session ID from the invocation context |
+| `user_id` | `str` | User ID from the invocation context |
+| `app_name` | `str` | Application name from the invocation context |
+| `state` | `Dict[str, Any]` | Shared state dictionary for tool use |
+| `raw_tool_context` | `None` | Always `None` in sandbox (no ADK access) |
+
+**Portable API (async, matches ToolContextFacade):**
+
 | Method | Description |
 |--------|-------------|
-| `send_status(message: str) -> bool` | Send a status update to the user (via named pipe) |
-| `load_artifact(param_name: str) -> Optional[bytes]` | Load a preloaded artifact as bytes |
-| `load_artifact_text(param_name: str) -> Optional[str]` | Load a preloaded artifact as text |
-| `save_artifact(filename: str, content: bytes)` | Save an output artifact |
-| `save_artifact_text(filename: str, content: str)` | Save a text output artifact |
-| `list_artifacts() -> Dict[str, str]` | List available input artifacts |
-| `list_output_artifacts() -> list[str]` | List created output artifacts |
 | `get_config(key: str, default=None) -> Any` | Get tool configuration value |
-| `user_id: str` | User ID from the invocation context |
-| `session_id: str` | Session ID from the invocation context |
+| `await load_artifact(filename, version="latest", as_text=False)` | Load artifact content (bytes or str) |
+| `await load_artifact_metadata(filename, version="latest")` | Load artifact metadata without content |
+| `await list_artifacts() -> List[str]` | List available artifact filenames |
+| `await artifact_exists(filename) -> bool` | Check if an artifact exists |
+| `send_status(message: str) -> bool` | Send a status update to the user (via named pipe) |
+| `send_signal(signal_data) -> bool` | No-op in sandbox (always returns False) |
+
+**Legacy API (backward compat for sandbox-only tools):**
+
+| Method | Description |
+|--------|-------------|
+| `load_artifact_by_param(param_name: str) -> Optional[bytes]` | Load artifact by parameter name |
+| `save_artifact(filename, content: bytes, mime_type) -> str` | Save an output artifact, returns local path |
+| `save_artifact_text(filename, content: str, encoding, mime_type) -> str` | Save a text output artifact |
+| `list_output_artifacts() -> list[str]` | List created output artifacts |
 
 ### D. Error Code Reference
 
@@ -1116,4 +1134,3 @@ def process_file(ctx: Any, input_file: str) -> Dict[str, Any]:
 | `ARTIFACT_ERROR` | `SandboxErrorCodes.ARTIFACT_ERROR` | Artifact loading or saving failed |
 | `INVALID_REQUEST` | `SandboxErrorCodes.INVALID_REQUEST` | Request failed validation |
 | `INTERNAL_ERROR` | `SandboxErrorCodes.INTERNAL_ERROR` | Unexpected worker internal error |
-q

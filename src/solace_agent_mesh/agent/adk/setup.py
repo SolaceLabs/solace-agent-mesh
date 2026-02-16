@@ -329,6 +329,71 @@ async def _load_sam_remote_tool(
         tool_config_model.timeout_seconds,
     )
 
+    # Request enriched metadata from the worker via init protocol.
+    # This runs the tool's init() inside bwrap and returns enriched
+    # description/schema. On timeout (worker not running) or error,
+    # we continue with the static YAML description.
+    try:
+        init_response = await executor.request_init(
+            tool_config=tool_config_model.tool_config or {},
+        )
+        if init_response and init_response.result:
+            init_result = init_response.result
+            new_description = init_result.tool_description
+            new_schema = None
+
+            # Reconstruct ADK Schema from dict if provided
+            if init_result.parameters_schema:
+                try:
+                    from google.genai import types as genai_types
+
+                    new_schema = genai_types.Schema.model_validate(
+                        init_result.parameters_schema
+                    )
+                except Exception as schema_e:
+                    log.warning(
+                        "%s Failed to reconstruct schema from init response "
+                        "for %s: %s",
+                        component.log_identifier,
+                        tool_name,
+                        schema_e,
+                    )
+
+            tool.update_from_init(
+                description=new_description,
+                parameters_schema=new_schema,
+                ctx_facade_param_name=init_result.ctx_facade_param_name,
+            )
+            log.info(
+                "%s Updated tool '%s' with enriched metadata from init",
+                component.log_identifier,
+                tool_name,
+            )
+        elif init_response and init_response.error:
+            log.warning(
+                "%s Init request for tool '%s' returned error: %s - %s. "
+                "Using static description.",
+                component.log_identifier,
+                tool_name,
+                init_response.error.code,
+                init_response.error.message,
+            )
+        else:
+            # None = timeout
+            log.warning(
+                "%s Init request for tool '%s' timed out — worker may not "
+                "be running. Using static description.",
+                component.log_identifier,
+                tool_name,
+            )
+    except Exception as init_e:
+        log.warning(
+            "%s Init request for tool '%s' failed: %s. Using static description.",
+            component.log_identifier,
+            tool_name,
+            init_e,
+        )
+
     # Create cleanup hook for the executor
     async def cleanup_executor():
         await executor.cleanup(component, tool_config_model.model_dump())

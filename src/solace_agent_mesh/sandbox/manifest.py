@@ -29,6 +29,7 @@ class ManifestEntry:
     runtime: str = "python"
     module: Optional[str] = None
     function: Optional[str] = None
+    class_name: Optional[str] = None
     package: Optional[str] = None
     version: Optional[str] = None
     description: Optional[str] = None
@@ -106,6 +107,7 @@ class ToolManifest:
                     runtime=tool_def.get("runtime", "python"),
                     module=tool_def.get("module"),
                     function=tool_def.get("function"),
+                    class_name=tool_def.get("class_name"),
                     package=tool_def.get("package"),
                     version=tool_def.get("version"),
                     description=tool_def.get("description"),
@@ -113,11 +115,12 @@ class ToolManifest:
                     sandbox_profile=tool_def.get("sandbox_profile"),
                 )
 
-                # Validate python tools have module and function
+                # Validate python tools have module and either function or class_name
                 if entry.runtime == "python":
-                    if not entry.module or not entry.function:
+                    if not entry.module or (not entry.function and not entry.class_name):
                         log.error(
-                            "Python tool '%s' missing required 'module' or 'function'",
+                            "Python tool '%s' missing required 'module' or "
+                            "'function'/'class_name'",
                             tool_name,
                         )
                         continue

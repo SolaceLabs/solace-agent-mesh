@@ -403,6 +403,28 @@ def get_sam_remote_tool_status_subscription(namespace: str, agent_name: str) -> 
     return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/status/{agent_name}/>"
 
 
+def get_sam_remote_tool_init_topic(namespace: str, tool_name: str) -> str:
+    """
+    Returns the topic for requesting tool initialization from a sandbox worker.
+
+    The agent publishes an init request to this topic. The worker subscribes
+    per-tool (for tools with class_name in the manifest) and responds with
+    enriched tool metadata (description, schema).
+
+    Args:
+        namespace: SAM namespace
+        tool_name: Name of the tool to initialize
+
+    Returns:
+        Topic: {namespace}/a2a/v1/sam_remote_tool/init/{tool_name}
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not tool_name:
+        raise ValueError("Tool name cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/init/{tool_name}"
+
+
 # --- Topic Utility Functions ---
 
 

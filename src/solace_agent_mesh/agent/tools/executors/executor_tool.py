@@ -112,6 +112,31 @@ class ExecutorBasedTool(DynamicTool):
                     is_artifact=True, is_list=True
                 )
 
+    def update_from_init(
+        self,
+        description: Optional[str] = None,
+        parameters_schema: Optional[adk_types.Schema] = None,
+        ctx_facade_param_name: Optional[str] = None,
+    ) -> None:
+        """
+        Update tool metadata from init protocol response.
+
+        Called after the remote worker runs the tool's init() inside bwrap
+        and returns enriched description/schema. Only non-None values are
+        applied.
+
+        Args:
+            description: Enriched tool description from init()
+            parameters_schema: Enriched ADK Schema from init()
+            ctx_facade_param_name: Parameter name for ToolContextFacade injection
+        """
+        if description is not None:
+            self._description = description
+        if parameters_schema is not None:
+            self._schema = parameters_schema
+        if ctx_facade_param_name is not None:
+            self._ctx_facade_param_name = ctx_facade_param_name
+
     @property
     def tool_name(self) -> str:
         return self._name

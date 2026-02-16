@@ -524,6 +524,167 @@ async def run_tool_async(
     return serialize_result(result)
 
 
+async def run_class_tool_async(
+    module_path: str,
+    class_name: str,
+    args: Dict[str, Any],
+    context: SandboxToolContextFacade,
+    tool_config: Dict[str, Any],
+    artifact_metadata: Dict[str, Dict[str, Any]],
+    output_dir: str,
+) -> Dict[str, Any]:
+    """
+    Run a DynamicTool class inside the sandbox.
+
+    Instantiates the class with tool_config, reads its artifact_params and
+    ctx_facade_param_name properties, injects context and artifacts, and
+    calls _run_async_impl(args, tool_context=None).
+
+    Args:
+        module_path: Module path containing the DynamicTool class
+        class_name: Name of the DynamicTool subclass
+        args: Arguments to pass to the tool
+        context: The sandbox context facade
+        tool_config: Tool configuration
+        artifact_metadata: Rich metadata per artifact param
+        output_dir: Path for output artifacts
+
+    Returns:
+        Serialized result dictionary
+    """
+    log.info("Loading DynamicTool class: %s.%s", module_path, class_name)
+    module = importlib.import_module(module_path)
+    tool_class = getattr(module, class_name)
+
+    # Instantiate with tool_config
+    tool_instance = tool_class(tool_config=tool_config)
+
+    # Read injection metadata from the class instance
+    ctx_facade_param_name = getattr(tool_instance, "ctx_facade_param_name", None)
+    artifact_params_info = getattr(tool_instance, "artifact_params", {})
+
+    log.info(
+        "DynamicTool injection: ctx_param=%s, artifact_params=%s",
+        ctx_facade_param_name,
+        list(artifact_params_info.keys()) if artifact_params_info else [],
+    )
+
+    kwargs = dict(args)
+
+    # Build and inject Artifact objects from class's artifact_params property
+    if artifact_params_info:
+        # Convert from DynamicTool's ArtifactTypeInfo to local _ArtifactTypeInfo
+        local_artifact_params = {}
+        for name, info in artifact_params_info.items():
+            local_artifact_params[name] = _ArtifactTypeInfo(
+                is_artifact=getattr(info, "is_artifact", True),
+                is_list=getattr(info, "is_list", False),
+                is_optional=getattr(info, "is_optional", False),
+            )
+        artifact_objects = _build_artifact_objects(
+            local_artifact_params, artifact_metadata, args
+        )
+        kwargs.update(artifact_objects)
+
+    # Inject context facade
+    if ctx_facade_param_name:
+        kwargs[ctx_facade_param_name] = context
+
+    # Call _run_async_impl directly — tool_context is None in sandbox
+    result = await tool_instance._run_async_impl(
+        args=kwargs, tool_context=None
+    )
+
+    # Extract artifact DataObjects to output dir before serializing
+    result = _extract_output_artifacts(result, output_dir)
+
+    return serialize_result(result)
+
+
+def run_init(runner_args: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Run a DynamicTool's init() to get enriched metadata.
+
+    This is used by the init protocol to let sandboxed tools provide
+    runtime knowledge (like DB schemas) back to the agent. Init runs
+    inside bwrap — no persistent state is retained after the subprocess
+    exits.
+
+    Args:
+        runner_args: Dictionary containing:
+            - module: Module path
+            - class_name: DynamicTool class name
+            - tool_config: Tool configuration
+            - result_file: Path to write result
+
+    Returns:
+        Result dictionary with enriched metadata
+    """
+    module_path = runner_args["module"]
+    class_name = runner_args["class_name"]
+    tool_config = runner_args.get("tool_config", {})
+
+    log.info("Running init for DynamicTool: %s.%s", module_path, class_name)
+
+    try:
+        module = importlib.import_module(module_path)
+        tool_class = getattr(module, class_name)
+
+        # Instantiate and run init
+        tool_instance = tool_class(tool_config=tool_config)
+
+        async def _run_init():
+            await tool_instance.init(component=None, tool_config=tool_config)
+            try:
+                # Read enriched properties
+                description = tool_instance.tool_description
+                schema = None
+                try:
+                    raw_schema = tool_instance.parameters_schema
+                    if raw_schema is not None:
+                        if hasattr(raw_schema, "model_dump"):
+                            schema = raw_schema.model_dump(exclude_none=True)
+                        elif isinstance(raw_schema, dict):
+                            schema = raw_schema
+                except Exception as e:
+                    log.warning("Failed to read parameters_schema: %s", e)
+
+                ctx_facade_param_name = getattr(
+                    tool_instance, "ctx_facade_param_name", None
+                )
+
+                return {
+                    "tool_description": description,
+                    "parameters_schema": schema,
+                    "ctx_facade_param_name": ctx_facade_param_name,
+                }
+            finally:
+                try:
+                    await tool_instance.cleanup(
+                        component=None, tool_config=tool_config
+                    )
+                except Exception as e:
+                    log.warning("cleanup() failed: %s", e)
+
+        result = asyncio.run(_run_init())
+        log.info(
+            "Init completed: description=%d chars",
+            len(result.get("tool_description") or ""),
+        )
+        return {"result": result}
+
+    except ImportError as e:
+        log.error("Failed to import tool module: %s", e)
+        return {"error": f"Import error: {e}"}
+    except AttributeError as e:
+        log.error("Class not found: %s", e)
+        return {"error": f"Class not found: {e}"}
+    except Exception as e:
+        log.exception("Init failed: %s", e)
+        tb = traceback.format_exc()
+        return {"error": f"Init error: {e}\n{tb}"}
+
+
 def run_tool(runner_args: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute a tool with the given arguments.
@@ -547,7 +708,8 @@ def run_tool(runner_args: Dict[str, Any]) -> Dict[str, Any]:
         Result dictionary with either 'result' or 'error' key
     """
     module_path = runner_args["module"]
-    function_name = runner_args["function"]
+    function_name = runner_args.get("function")
+    class_name = runner_args.get("class_name")
     args = runner_args.get("args", {})
     tool_config = runner_args.get("tool_config", {})
     artifact_paths = runner_args.get("artifact_paths", {})
@@ -561,7 +723,7 @@ def run_tool(runner_args: Dict[str, Any]) -> Dict[str, Any]:
     log.info(
         "Running tool: %s.%s (user=%s, session=%s)",
         module_path,
-        function_name,
+        class_name or function_name,
         user_id,
         session_id,
     )
@@ -590,13 +752,21 @@ def run_tool(runner_args: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     try:
-        # Run the tool
-        result = asyncio.run(
-            run_tool_async(
-                module_path, function_name, args, context,
-                artifact_metadata, output_dir,
+        # Run the tool — dispatch to class-based or function-based path
+        if class_name:
+            result = asyncio.run(
+                run_class_tool_async(
+                    module_path, class_name, args, context,
+                    tool_config, artifact_metadata, output_dir,
+                )
             )
-        )
+        else:
+            result = asyncio.run(
+                run_tool_async(
+                    module_path, function_name, args, context,
+                    artifact_metadata, output_dir,
+                )
+            )
         return {"result": result}
 
     except ImportError as e:
@@ -604,11 +774,11 @@ def run_tool(runner_args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": f"Import error: {e}"}
 
     except AttributeError as e:
-        log.error("Tool function not found: %s", e)
-        return {"error": f"Function not found: {e}"}
+        log.error("Tool function/class not found: %s", e)
+        return {"error": f"Not found: {e}"}
 
     except TypeError as e:
-        log.error("Tool function call error: %s", e)
+        log.error("Tool call error: %s", e)
         return {"error": f"Call error: {e}"}
 
     except Exception as e:
@@ -639,8 +809,11 @@ def main():
         print(f"Error: Invalid JSON in arguments file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Run the tool
-    result = run_tool(runner_args)
+    # Dispatch: init mode or normal tool execution
+    if runner_args.get("init_mode"):
+        result = run_init(runner_args)
+    else:
+        result = run_tool(runner_args)
 
     # Write result to file
     result_file = runner_args.get("result_file")
