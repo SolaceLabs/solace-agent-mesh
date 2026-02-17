@@ -109,6 +109,10 @@ apps:
         background_tasks: ${BACKGROUND_TASKS_ENABLED, true} # NOTE: task_logging must also be enabled for background tasks to work
         auto_title_generation: ${AUTO_TITLE_GENERATION_ENABLED, true}  # Enable automatic chat title generation
 
+      # --- Project File Indexing Configuration ---
+      project_indexing:
+        enabled: ${PROJECT_FILE_INDEXING, false} 
+
       # --- Background Tasks Configuration ---
       background_tasks:
         default_timeout_ms: ${BACKGROUND_TASKS_TIMEOUT_MS, 3600000}  # 1 hour default timeout
