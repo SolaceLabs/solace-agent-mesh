@@ -987,11 +987,14 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
 
+    // Base condition for non-deep-research completed searches
+    const isNonDeepResearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources;
+
     // Check if this is a completed web search message (has web_search sources but not deep research)
-    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.searchType === "web_search");
+    const isWebSearchComplete = isNonDeepResearchComplete && taskRagData?.some(r => r.searchType === "web_search");
 
     // Check if this is a completed document search message (has document_search sources)
-    const isDocumentSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.searchType === "document_search");
+    const isDocumentSearchComplete = isNonDeepResearchComplete && taskRagData?.some(r => r.searchType === "document_search");
 
     // Handler for sources click (works for deep research, web search, and document search)
     const handleSourcesClick = () => {
