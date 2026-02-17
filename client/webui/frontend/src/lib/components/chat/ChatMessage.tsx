@@ -14,6 +14,7 @@ import { DeepResearchReportContent } from "@/lib/components/research/DeepResearc
 import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
+import { hasDocumentSearchResults } from "@/lib/utils/sourceUrlHelpers";
 import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
@@ -994,7 +995,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     const isWebSearchComplete = isNonDeepResearchComplete && taskRagData?.some(r => r.searchType === "web_search");
 
     // Check if this is a completed document search message (has document_search sources)
-    const isDocumentSearchComplete = isNonDeepResearchComplete && taskRagData?.some(r => r.searchType === "document_search");
+    const isDocumentSearchComplete = isNonDeepResearchComplete && hasDocumentSearchResults(taskRagData);
 
     // Handler for sources click (works for deep research, web search, and document search)
     const handleSourcesClick = () => {
