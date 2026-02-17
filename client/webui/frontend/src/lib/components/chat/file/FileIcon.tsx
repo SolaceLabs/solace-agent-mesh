@@ -7,6 +7,7 @@ interface FileIconProps {
     mimeType?: string;
     size?: number;
     className?: string;
+    variant?: "default" | "compact";
 }
 
 const getFileExtension = (filename: string): string => {
@@ -182,16 +183,28 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
     }
 };
 
-export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, className }) => {
-    // Validate required props
+export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, className, variant = "default" }) => {
     if (!filename || typeof filename !== "string") {
-        console.warn("FileIcon: filename is required and must be a string");
         return null;
     }
 
     const extension = getFileExtension(filename);
     const typeColor = getFileTypeColor(mimeType, filename);
     const fileIcon = getFileTypeIcon(mimeType, filename);
+
+    if (variant === "compact") {
+        const compactIcon = getFileTypeIcon(mimeType, filename, { className: "h-4 w-4 text-secondary-foreground/60" });
+        return (
+            <div className={cn("relative flex-shrink-0", className)}>
+                <div className="bg-muted/50 relative h-[42px] w-[38px] border">
+                    <div className="absolute top-[2px] right-[2px] bottom-[18px] left-[2px] flex items-center justify-center">{compactIcon ?? <File className="text-secondary-foreground/60 h-4 w-4" />}</div>
+                    <div className={cn("absolute right-0 bottom-0 left-0 z-[4] py-[2px] text-center text-[10px] font-bold text-[var(--color-primary-text-w10)] select-none", typeColor)}>
+                        {extension.length > 4 ? extension.substring(0, 4) : extension}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={cn("relative flex-shrink-0", className)}>
