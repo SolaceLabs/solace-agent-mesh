@@ -1129,7 +1129,6 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             default:
-                                console.log(`Received unknown data part type: ${signalType}`, signalData);
                                 break;
                         }
                     } else if (part.kind === "text" && part.text) {
