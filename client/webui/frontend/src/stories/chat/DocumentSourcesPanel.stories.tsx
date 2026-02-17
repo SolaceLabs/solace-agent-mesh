@@ -105,10 +105,6 @@ export const ExpandedAccordion: Story = {
         // Check that page citations are visible
         const pageCitations = await canvas.findAllByText(/Page \d+/);
         expect(pageCitations.length).toBeGreaterThan(0);
-
-        // Check for "View in Page" buttons
-        const viewInPageButtons = await canvas.findAllByText("View in Page");
-        expect(viewInPageButtons.length).toBeGreaterThan(0);
     },
 };
 

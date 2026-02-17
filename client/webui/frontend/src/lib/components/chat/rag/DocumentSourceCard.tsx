@@ -9,7 +9,6 @@ import { PageCitationItem } from "./PageCitationItem";
 export interface DocumentSourceCardProps {
     document: GroupedDocument;
     sourceIndex: number;
-    onViewInPage?: (pageNumber: number) => void; // Placeholder for future functionality
 }
 
 /**
@@ -17,7 +16,7 @@ export interface DocumentSourceCardProps {
  * Shows document info in trigger, pages list in content
  * Design matches Figma: white bg, border #CFD3D9, chevron on left
  */
-export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document, sourceIndex, onViewInPage }) => {
+export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document, sourceIndex }) => {
     const { totalCitations, pages, fileExtension } = document;
 
     return (
@@ -47,9 +46,9 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
                 </AccordionTrigger>
                 <AccordionContent className="dark:border-border border-t border-[#CFD3D9] px-4 pb-3">
                     {/* Pages list */}
-                    <div>
+                    <div className="pt-4">
                         {pages.map((page, idx) => (
-                            <PageCitationItem key={`page-${idx}`} pageLabel={page.pageLabel} citationCount={page.citationCount} onViewInPage={onViewInPage ? () => onViewInPage(page.pageNumber) : undefined} />
+                            <PageCitationItem key={`page-${idx}`} pageLabel={page.pageLabel} citationCount={page.citationCount} />
                         ))}
                     </div>
                 </AccordionContent>
