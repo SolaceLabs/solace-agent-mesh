@@ -69,8 +69,8 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
 
         // Color classes based on error status
         const pillColorClasses = isError
-            ? "border-[--color-error-wMain] bg-[--color-error-w10] text-[--color-error-wMain] dark:border-[--color-error-w80] dark:bg-[--color-error-w100]/50 dark:text-[--color-error-w10]"
-            : "border-[--color-info-wMain] bg-[--color-info-w10] text-[--color-info-wMain] dark:border-[--color-info-w80] dark:bg-[--color-info-w100]/50 dark:text-[--color-info-w10]";
+            ? "border-[var(--color-error-wMain)] bg-[var(--color-error-w10)] text-[var(--color-error-wMain)] dark:border-[var(--color-error-w80)] dark:bg-[var(--color-error-w100)]/50 dark:text-[var(--color-error-w10)]"
+            : "border-[var(--color-info-wMain)] bg-[var(--color-info-w10)] text-[var(--color-info-wMain)] dark:border-[var(--color-info-w80)] dark:bg-[var(--color-info-w100)]/50 dark:text-[var(--color-info-w10)]";
 
         // If it's a simple pill (no parallel branches and no children), render compact version
         if (!hasParallelBranches && !hasChildren) {
