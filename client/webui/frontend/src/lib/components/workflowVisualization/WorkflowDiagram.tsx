@@ -258,6 +258,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
             <PanZoomCanvas ref={canvasRef} initialScale={1} minScale={0.25} maxScale={2} sidePanelWidth={sidePanelWidth} onUserInteraction={handleUserInteraction} onTransformChange={onTransformChange}>
                 <div
                     ref={containerRef}
+                    role="region"
+                    aria-label="Workflow visualization"
                     className="relative"
                     style={{
                         width: `${layout.totalWidth}px`,

@@ -44,7 +44,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
     };
 
     return (
-        <div className="flex h-full flex-col border-l">
+        <div className="flex h-full flex-col border-l" role="complementary" aria-label="Workflow details panel">
             {/* Header */}
             <div className="flex items-center justify-between border-b px-4 py-3">
                 <div className="flex items-center gap-2">
@@ -52,7 +52,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                     <span className="font-medium">{workflow.displayName || workflow.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" onClick={onClose}>
+                    <Button variant="ghost" onClick={onClose} tooltip="Close">
                         <X />
                     </Button>
                 </div>

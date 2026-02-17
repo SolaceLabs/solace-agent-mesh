@@ -514,8 +514,8 @@ class IndexingTaskService:
             await self.sse_manager.send_event(
                 task_id=task_id,
                 event_data=data,
-                event_type=event_type
+                event_type="index_message"
             )
-            log.debug(f"{self.log_identifier}[{task_id}] Sent SSE event: {event_type}")
+            log.debug(f"{self.log_identifier}[{task_id}] Sent SSE event: index_message - {event_type}")
         except Exception as e:
             log.debug(f"{self.log_identifier}[{task_id}] Failed to send SSE event: {e}")
