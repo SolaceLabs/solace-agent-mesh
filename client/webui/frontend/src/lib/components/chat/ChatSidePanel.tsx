@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { PanelRightIcon, FileText, Network, RefreshCw, Link2 } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
-import { useTaskContext, useChatContext } from "@/lib/hooks";
+import { useTaskContext, useChatContext, useIsProjectIndexingEnabled } from "@/lib/hooks";
 import { FlowChartPanel, processTaskForVisualization } from "@/lib/components/activities";
 import type { VisualizedTask } from "@/lib/types";
 import { hasSourcesWithUrls, hasDocumentSearchResults } from "@/lib/utils";
@@ -24,6 +24,7 @@ interface ChatSidePanelProps {
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel, ragData, ragEnabled } = useChatContext();
     const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
+    const isProjectIndexingEnabled = useIsProjectIndexingEnabled();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
     const [isLoadingTask, setIsLoadingTask] = useState<boolean>(false);
 
@@ -292,7 +293,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                         {hasSourcesInSession && (
                             <TabsContent value="rag" className="m-0 h-full">
                                 <div className="h-full">
-                                    {hasDocumentSources(ragData) ? (
+                                    {isProjectIndexingEnabled && hasDocumentSources(ragData) ? (
                                         <DocumentSourcesPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
                                     ) : (
                                         <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
