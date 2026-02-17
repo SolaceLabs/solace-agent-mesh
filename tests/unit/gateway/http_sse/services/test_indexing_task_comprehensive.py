@@ -59,9 +59,12 @@ class TestIndexingTaskServiceComprehensive:
                         is_text_based=[]
                     )
 
-        # Verify both success and failure events were sent
+        # Verify both success and failure events were sent with event_type="index_message"
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
@@ -90,8 +93,11 @@ class TestIndexingTaskServiceComprehensive:
                 )
 
         # Should skip conversion and go straight to indexing
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
@@ -125,9 +131,12 @@ class TestIndexingTaskServiceComprehensive:
                         is_text_based=[]
                     )
 
-        # Should send indexing_failed event
+        # Should send indexing_failed event with event_type="index_message"
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
@@ -361,8 +370,12 @@ class TestIndexingTaskServiceComprehensive:
                     mock_project
                 )
 
+        # Verify all events use event_type="index_message"
+        for call_args in self.mock_sse_manager.send_event.call_args_list:
+            assert call_args[1].get("event_type") == "index_message"
+
         event_types = [
-            call_args[1].get("event_type")
+            call_args[1].get("event_data", {}).get("type")
             for call_args in self.mock_sse_manager.send_event.call_args_list
         ]
 
