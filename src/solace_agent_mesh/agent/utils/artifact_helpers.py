@@ -1,4 +1,3 @@
-
 """
 Helper functions for artifact management, including metadata handling and schema inference.
 """
@@ -48,13 +47,11 @@ def is_internal_artifact(filename: str) -> bool:
     - Converted text files (*.converted.txt)
     - Index files (project_bm25_index.zip)
     """
-    if filename.endswith(METADATA_SUFFIX):
-        return True
-    if filename.endswith(CONVERTED_TEXT_SUFFIX):
-        return True
-    if filename == BM25_INDEX_FILENAME:
-        return True
-    return False
+    return (
+        filename.endswith(METADATA_SUFFIX)
+        or filename.endswith(CONVERTED_TEXT_SUFFIX)
+        or filename == BM25_INDEX_FILENAME
+    )
 
 
 def is_filename_safe(filename: str) -> bool:
