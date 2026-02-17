@@ -1,7 +1,8 @@
 import React from "react";
-import { ChevronRight, FileText } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui/accordion";
+import { FileIcon } from "@/lib/components/chat/file/FileIcon";
 import type { GroupedDocument } from "@/lib/utils/documentSourceUtils";
 
 import { PageCitationItem } from "./PageCitationItem";
@@ -17,7 +18,7 @@ export interface DocumentSourceCardProps {
  * Design matches Figma: white bg, border #CFD3D9, chevron on left
  */
 export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document, sourceIndex }) => {
-    const { totalCitations, pages, fileExtension } = document;
+    const { totalCitations, pages, fileExtension, filename } = document;
 
     return (
         <div className="dark:border-border dark:bg-muted/50 overflow-hidden rounded-[4px] border border-[#CFD3D9] bg-white">
@@ -27,11 +28,10 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
                     {/* Chevron on the left, centered vertically */}
                     <ChevronRight className="dark:text-primary h-3 w-3 shrink-0 self-center text-[#015B82] transition-transform duration-200" />
 
-                    {/* File icon with background */}
-                    <div className="dark:border-border dark:bg-muted relative flex h-[42px] w-[38px] shrink-0 items-center justify-center rounded-[2px] border border-[#CFD3D9] bg-[#F7F8F9]">
-                        <FileText className="h-4 w-4 text-[#8790A0]" />
-                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded-[1px] bg-[#B4DEF2] px-1.5 py-0.5">
-                            <span className="text-[10px] leading-none text-[#647481]">{fileExtension}</span>
+                    {/* File icon — scaled to match text height (~42px) */}
+                    <div className="h-[42px] w-[34px] shrink-0 overflow-hidden">
+                        <div className="origin-top-left scale-[0.56]">
+                            <FileIcon filename={filename} />
                         </div>
                     </div>
 
