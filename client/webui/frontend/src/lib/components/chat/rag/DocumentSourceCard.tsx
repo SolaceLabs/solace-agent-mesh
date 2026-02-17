@@ -39,8 +39,8 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
                 </AccordionTrigger>
                 <AccordionContent className="dark:border-border border-t border-[#CFD3D9] px-4 pb-3">
                     <div className="pt-4">
-                        {pages.map((page, idx) => (
-                            <PageCitationItem key={`page-${idx}`} pageLabel={page.pageLabel} citationCount={page.citationCount} />
+                        {pages.map(page => (
+                            <PageCitationItem key={page.pageNumber} pageLabel={page.pageLabel} citationCount={page.citationCount} />
                         ))}
                     </div>
                 </AccordionContent>

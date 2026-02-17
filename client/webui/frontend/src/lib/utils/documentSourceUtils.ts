@@ -15,42 +15,10 @@ export interface PageCitation {
  */
 export interface GroupedDocument {
     filename: string;
-    displayName: string; // Cleaned filename without path/session prefix
     totalCitations: number;
     pages: PageCitation[];
     fileExtension: string;
 }
-
-/**
- * Extract clean filename from file_id by removing session prefix
- * Example: "sam_dev_user_web-session-xxx_filename.pdf_v0.pdf" -> "filename.pdf"
- */
-const extractDisplayName = (filename: string | undefined): string => {
-    if (!filename) return "Unknown";
-
-    // The pattern is: sam_dev_user_web-session-{uuid}_{actual_filename}_v{version}.pdf
-    // We need to extract just the {actual_filename}.pdf part
-
-    // First, remove the .pdf extension at the very end (added by backend)
-    let cleaned = filename.replace(/\.pdf$/, "");
-
-    // Remove the version suffix (_v0, _v1, etc.)
-    cleaned = cleaned.replace(/_v\d+$/, "");
-
-    // Now we have: sam_dev_user_web-session-{uuid}_{actual_filename}
-    // Find the pattern "web-session-{uuid}_" and remove everything before and including it
-    const sessionPattern = /^.*web-session-[a-f0-9-]+_/;
-    cleaned = cleaned.replace(sessionPattern, "");
-
-    // If no session pattern found, just use the filename as-is
-    if (cleaned === filename.replace(/\.pdf$/, "").replace(/_v\d+$/, "")) {
-        // No transformation happened, use original filename
-        return filename;
-    }
-
-    // Add back the .pdf extension
-    return cleaned + ".pdf";
-};
 
 /**
  * Get file extension from filename
@@ -137,7 +105,6 @@ export const groupDocumentSources = (ragData: RAGSearchResult[]): GroupedDocumen
 
         groupedDocuments.push({
             filename,
-            displayName: extractDisplayName(filename),
             totalCitations: sources.length,
             pages,
             fileExtension: getFileExtension(filename),
@@ -145,13 +112,5 @@ export const groupDocumentSources = (ragData: RAGSearchResult[]): GroupedDocumen
     });
 
     // Sort by filename
-    return groupedDocuments.sort((a, b) => a.displayName.localeCompare(b.displayName));
-};
-
-/**
- * Check if RAGSearchResult array contains any document_search results
- */
-export const hasDocumentSources = (ragData: RAGSearchResult[] | null): boolean => {
-    if (!ragData || ragData.length === 0) return false;
-    return ragData.some(r => r.searchType === "document_search");
+    return groupedDocuments.sort((a, b) => a.filename.localeCompare(b.filename));
 };

@@ -67,7 +67,7 @@ export const DocumentSourcesPanel: React.FC<DocumentSourcesPanelProps> = ({ ragD
                 {/* Document cards */}
                 <Accordion type="multiple" className="space-y-2">
                     {groupedDocuments.map((document, idx) => (
-                        <DocumentSourceCard key={`doc-${idx}`} document={document} sourceIndex={idx} />
+                        <DocumentSourceCard key={document.filename} document={document} sourceIndex={idx} />
                     ))}
                 </Accordion>
             </div>

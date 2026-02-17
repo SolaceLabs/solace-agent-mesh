@@ -12,7 +12,6 @@ import { ArtifactPanel } from "./artifact/ArtifactPanel";
 import { FlowChartDetails } from "../activities/FlowChartDetails";
 import { RAGInfoPanel } from "./rag/RAGInfoPanel";
 import { DocumentSourcesPanel } from "./rag/DocumentSourcesPanel";
-import { hasDocumentSources } from "@/lib/utils/documentSourceUtils";
 
 interface ChatSidePanelProps {
     onCollapsedToggle: (isSidePanelCollapsed: boolean) => void;
@@ -30,6 +29,8 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
     // Track which task IDs we've already attempted to load to prevent duplicate loads
     const loadAttemptedRef = React.useRef<Set<string>>(new Set());
+
+    const filteredRagData = taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData;
 
     // Check if there are any sources in the current session
     // Includes: web sources, deep research sources, AND document search sources
@@ -293,11 +294,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                         {hasSourcesInSession && (
                             <TabsContent value="rag" className="m-0 h-full">
                                 <div className="h-full">
-                                    {isProjectIndexingEnabled && hasDocumentSources(ragData) ? (
-                                        <DocumentSourcesPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
-                                    ) : (
-                                        <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
-                                    )}
+                                    {isProjectIndexingEnabled && hasDocumentSearchResults(ragData) ? <DocumentSourcesPanel ragData={filteredRagData} enabled={ragEnabled} /> : <RAGInfoPanel ragData={filteredRagData} enabled={ragEnabled} />}
                                 </div>
                             </TabsContent>
                         )}
