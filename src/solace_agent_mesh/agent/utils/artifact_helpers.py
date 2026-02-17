@@ -1018,6 +1018,10 @@ async def get_artifact_counts_batch(
                     app_name=app_name, user_id=user_id, session_id=session_id
                 )
                 # Count only user-uploaded files (exclude metadata, converted text, and index files)
+                # NOTE: list_artifact_keys() may also return user-scoped keys (prefixed
+                # with "user:") which are shared across sessions. Currently no code path
+                # creates user-scoped artifacts, but if that changes, these keys should
+                # be filtered out here to avoid inflating per-project counts.
                 count = sum(1 for key in keys if not is_internal_artifact(key))
                 counts[session_id] = count
                 log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
