@@ -224,6 +224,21 @@ export interface Session {
 }
 
 // RAG (Retrieval-Augmented Generation) Types
+
+/**
+ * Represents a search source for display in UI components (favicons, source lists).
+ * Used by StackedFavicons, Sources, and related components.
+ */
+export interface SearchSource {
+    link?: string; // URL for web sources, optional for document sources
+    title?: string;
+    snippet?: string;
+    attribution?: string;
+    processed?: boolean;
+    source_type?: string; // 'web', 'kb', 'document'
+    filename?: string; // For document sources
+}
+
 export interface RAGSource {
     citationId: string; // Unique citation ID (e.g., "turn1file0", "research0")
     fileId?: string; // Optional for deep_research
@@ -241,7 +256,7 @@ export interface RAGSource {
 export interface RAGSearchResult {
     query: string;
     title?: string; // LLM-generated human-readable title for deep research
-    searchType: "file_search" | "kb_search" | "deep_research" | "web_search";
+    searchType: "file_search" | "kb_search" | "deep_research" | "web_search" | "document_search";
     turnNumber?: number; // Turn number for citation tracking
     timestamp: string;
     sources: RAGSource[];

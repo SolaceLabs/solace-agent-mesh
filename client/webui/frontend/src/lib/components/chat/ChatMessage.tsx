@@ -14,6 +14,7 @@ import { DeepResearchReportContent } from "@/lib/components/research/DeepResearc
 import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
+import { hasDocumentSearchResults } from "@/lib/utils/sourceUrlHelpers";
 import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
@@ -987,10 +988,16 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
 
-    // Check if this is a completed web search message (has web_search sources but not deep research)
-    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.searchType === "web_search");
+    // Base condition for non-deep-research completed searches
+    const isNonDeepResearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources;
 
-    // Handler for sources click (works for both deep research and web search)
+    // Check if this is a completed web search message (has web_search sources but not deep research)
+    const isWebSearchComplete = isNonDeepResearchComplete && taskRagData?.some(r => r.searchType === "web_search");
+
+    // Check if this is a completed document search message (has document_search sources)
+    const isDocumentSearchComplete = isNonDeepResearchComplete && hasDocumentSearchResults(taskRagData);
+
+    // Handler for sources click (works for deep research, web search, and document search)
     const handleSourcesClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
@@ -1039,8 +1046,8 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 chatContext,
                 isLastWithTaskId,
                 isStreaming,
-                // Show sources element for both deep research and web search (in message actions area)
-                !message.isUser && (isDeepResearchComplete || isWebSearchComplete) && hasRagSources
+                // Show sources element for deep research, web search, and document search (in message actions area)
+                !message.isUser && (isDeepResearchComplete || isWebSearchComplete || isDocumentSearchComplete) && hasRagSources
                     ? (() => {
                           const allSources = taskRagData.flatMap(r => r.sources);
 
