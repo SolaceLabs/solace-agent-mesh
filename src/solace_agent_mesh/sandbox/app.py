@@ -14,6 +14,7 @@ from pydantic import Field, ValidationError
 from ..common.app_base import SamAppBase
 from ..common.a2a import (
     get_sam_remote_tool_invoke_topic,
+    get_sam_remote_tool_init_topic,
     get_discovery_subscription_topic,
 )
 from ..common.utils.pydantic_utils import SamConfigBase
@@ -168,6 +169,12 @@ class SandboxWorkerApp(SamAppBase):
             required_topics.append(
                 get_sam_remote_tool_invoke_topic(namespace, tool_name)
             )
+            # Add init topic for class-based tools (DynamicTool)
+            entry = manifest.get_tool(tool_name)
+            if entry and entry.class_name:
+                required_topics.append(
+                    get_sam_remote_tool_init_topic(namespace, tool_name)
+                )
 
         # Discovery messages (to track available agents if needed)
         required_topics.append(get_discovery_subscription_topic(namespace))

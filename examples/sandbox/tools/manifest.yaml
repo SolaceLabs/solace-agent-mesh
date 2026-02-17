@@ -54,3 +54,11 @@ tools:
     function: render_ascii_art
     package: pyfiglet
     description: "Render text as ASCII art (tests package auto-install)"
+
+  # DynamicTool class test - uses class_name instead of function.
+  # The init protocol enriches the tool description at startup.
+  dynamic_test:
+    runtime: python
+    module: dynamic_test_tool
+    class_name: DynamicTestTool
+    description: "Dynamic test tool (class-based, enriches description via init)"

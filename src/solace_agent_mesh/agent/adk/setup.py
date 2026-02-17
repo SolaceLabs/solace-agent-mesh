@@ -339,13 +339,33 @@ async def _load_sam_remote_tool(
         tool_config_model.timeout_seconds,
     )
 
-    # Request enriched metadata from the worker via init protocol.
-    # This runs the tool's init() inside bwrap and returns enriched
-    # description/schema. On timeout (worker not running) or error,
-    # we continue with the static YAML description.
+    # Create cleanup hook for the executor
+    async def cleanup_executor():
+        await executor.cleanup(component, tool_config_model.model_dump())
+
+    return [tool], [], [cleanup_executor]
+
+
+async def _request_sam_remote_init(
+    component: "SamAgentComponent",
+    tool: "ExecutorBasedTool",
+    executor: "SamRemoteExecutor",
+    tool_config: Dict,
+) -> None:
+    """
+    Request enriched metadata from the worker via init protocol.
+
+    This runs the tool's init() inside bwrap and returns enriched
+    description/schema. On timeout (worker not running) or error,
+    we continue with the static YAML description.
+
+    Called in parallel for all sam_remote tools after they are created.
+    """
+    tool_name = tool.tool_name
+
     try:
         init_response = await executor.request_init(
-            tool_config=tool_config_model.tool_config or {},
+            tool_config=tool_config,
         )
         if init_response and init_response.result:
             init_result = init_response.result
@@ -380,9 +400,8 @@ async def _load_sam_remote_tool(
                 tool_name,
             )
         elif init_response and init_response.error:
-            log.warning(
-                "%s Init request for tool '%s' returned error: %s - %s. "
-                "Using static description.",
+            log.info(
+                "%s Init for tool '%s': %s - %s. Using static description.",
                 component.log_identifier,
                 tool_name,
                 init_response.error.code,
@@ -390,9 +409,9 @@ async def _load_sam_remote_tool(
             )
         else:
             # None = timeout
-            log.warning(
+            log.info(
                 "%s Init request for tool '%s' timed out — worker may not "
-                "be running. Using static description.",
+                "be running or tool is function-based. Using static description.",
                 component.log_identifier,
                 tool_name,
             )
@@ -403,12 +422,6 @@ async def _load_sam_remote_tool(
             tool_name,
             init_e,
         )
-
-    # Create cleanup hook for the executor
-    async def cleanup_executor():
-        await executor.cleanup(component, tool_config_model.model_dump())
-
-    return [tool], [], [cleanup_executor]
 
 
 async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
@@ -942,11 +955,14 @@ async def load_adk_tools(
     Raises:
         ImportError: If a configured tool or its dependencies cannot be loaded.
     """
+    import asyncio as _asyncio
+
     loaded_tools: List[Union[BaseTool, Callable]] = []
     enabled_builtin_tools: List[BuiltinTool] = []
     loaded_tool_names: Set[str] = set()
     cleanup_hooks: List[Callable] = []
     tool_scopes_map: Dict[str, List[str]] = {}
+    sam_remote_init_tasks: list = []  # (tool, executor, tool_config) for parallel init
     tools_config = component.get_config("tools", [])
 
     from pydantic import TypeAdapter, ValidationError
@@ -1011,6 +1027,12 @@ async def load_adk_tools(
                         new_builtins,
                         new_cleanups,
                     ) = await _load_sam_remote_tool(component, tool_config)
+                    # Collect tools for parallel init (done after all tools loaded)
+                    if new_tools:
+                        from ..tools.executors import ExecutorBasedTool
+                        for t in new_tools:
+                            if isinstance(t, ExecutorBasedTool) and t._executor:
+                                sam_remote_init_tasks.append((t, t._executor, tool_config))
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",
@@ -1065,6 +1087,28 @@ async def load_adk_tools(
     enabled_builtin_tools.extend(internal_builtins)
     cleanup_hooks.extend(internal_cleanups)
     tool_scopes_map.update(internal_scopes)
+
+    # Fire all sam_remote init requests in parallel (non-blocking).
+    # Each init request asks the worker to run the tool's init() and return
+    # enriched metadata. Timeouts are expected for function-based tools.
+    if sam_remote_init_tasks:
+        log.info(
+            "%s Sending init requests for %d sam_remote tool(s) in parallel...",
+            component.log_identifier,
+            len(sam_remote_init_tasks),
+        )
+
+        async def _do_init(tool, executor, tc):
+            from pydantic import TypeAdapter
+            tc_model = TypeAdapter(SamRemoteToolConfig).validate_python(tc)
+            await _request_sam_remote_init(
+                component, tool, executor, tc_model.tool_config or {}
+            )
+
+        await _asyncio.gather(
+            *[_do_init(t, e, tc) for t, e, tc in sam_remote_init_tasks],
+            return_exceptions=True,
+        )
 
     log.info(
         "%s Finished loading tools. Total tools for ADK: %d. Total SAM built-ins for prompt: %d. Total cleanup hooks: %d. Peer tools added dynamically.",

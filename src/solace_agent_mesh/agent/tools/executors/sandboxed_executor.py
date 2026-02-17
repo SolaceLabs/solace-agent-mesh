@@ -244,6 +244,9 @@ class SamRemoteExecutor(ToolExecutor):
             response_future = concurrent.futures.Future()
             self._pending_responses[correlation_id] = response_future
 
+            # Register with component for targeted response routing
+            self._component.register_sandbox_correlation(correlation_id, self)
+
             # Store a2a_context so handle_status can forward updates upstream
             a2a_context = tool_context.state.get("a2a_context")
             if a2a_context:
@@ -331,6 +334,7 @@ class SamRemoteExecutor(ToolExecutor):
                 # Clean up pending request
                 self._pending_responses.pop(correlation_id, None)
                 self._pending_a2a_contexts.pop(correlation_id, None)
+                self._component.unregister_sandbox_correlation(correlation_id)
 
         except Exception as e:
             execution_time_ms = int((time.time() - start_time) * 1000)
@@ -456,7 +460,7 @@ class SamRemoteExecutor(ToolExecutor):
         """
         future = self._pending_responses.get(correlation_id)
         if future and not future.done():
-            log.info(
+            log.debug(
                 "[SamRemoteExecutor] Resolving future for correlation_id=%s",
                 correlation_id,
             )
@@ -496,7 +500,7 @@ class SamRemoteExecutor(ToolExecutor):
     async def request_init(
         self,
         tool_config: Dict[str, Any],
-        timeout_seconds: float = 15.0,
+        timeout_seconds: float = 5.0,
     ) -> Optional[SandboxToolInitResponse]:
         """
         Request enriched tool metadata from the remote worker via init protocol.
@@ -553,6 +557,7 @@ class SamRemoteExecutor(ToolExecutor):
             # Create future and publish
             response_future = concurrent.futures.Future()
             self._pending_responses[correlation_id] = response_future
+            self._component.register_sandbox_correlation(correlation_id, self)
 
             try:
                 self._component.publish_a2a_message(
@@ -600,6 +605,7 @@ class SamRemoteExecutor(ToolExecutor):
 
             finally:
                 self._pending_responses.pop(correlation_id, None)
+                self._component.unregister_sandbox_correlation(correlation_id)
 
         except Exception as e:
             log.warning(

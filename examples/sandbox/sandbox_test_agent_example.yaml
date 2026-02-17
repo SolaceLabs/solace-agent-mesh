@@ -101,6 +101,22 @@ apps:
               type: artifact
               description: "The input file to process"
 
+        # DynamicTool class test - init protocol enriches the description.
+        # The static description below is overridden by runtime-enriched
+        # description from the tool's init() method.
+        - tool_type: sam_remote
+          tool_name: "dynamic_test"
+          tool_description: "A dynamic test tool (static YAML description - should be overridden by init)."
+          timeout_seconds: 30
+          parameters:
+            name:
+              type: string
+              description: "A name to greet"
+            include_details:
+              type: boolean
+              description: "Whether to include runtime details"
+              required: false
+
       session_service:
         type: "memory"
         default_behavior: "PERSISTENT"
