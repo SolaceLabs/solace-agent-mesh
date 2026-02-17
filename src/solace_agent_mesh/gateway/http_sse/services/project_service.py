@@ -190,8 +190,7 @@ class ProjectService:
         for filename, desc in file_metadata.items():
             if isinstance(desc, str) and len(desc) > limit:
                 raise ValueError(
-                    f"Description for '{filename}' exceeds maximum length "
-                    f"of {limit} characters ({len(desc)} provided)"
+                    f"Description for '{filename}' exceeds maximum length of {limit} characters ({len(desc)} provided)"
                 )
 
     def _validate_batch_upload_size(
@@ -357,10 +356,9 @@ class ProjectService:
             project_session_id = f"project-{project_domain.id}"
             for file, content_bytes in validated_files:
                 metadata = {"source": "project"}
-                if file_metadata and file.filename in file_metadata:
-                    desc = file_metadata[file.filename]
-                    if desc:
-                        metadata["description"] = desc
+                desc = file_metadata.get(file.filename) if file_metadata else None
+                if desc:
+                    metadata["description"] = desc
 
                 await save_artifact_with_metadata(
                     artifact_service=self.artifact_service,
@@ -589,11 +587,10 @@ class ProjectService:
 
         for file, content_bytes in validated_files:
             metadata = {"source": "project"}
-            if file_metadata and file.filename in file_metadata:
-                desc = file_metadata[file.filename]
-                if desc:
-                    metadata["description"] = desc
-            
+            desc = file_metadata.get(file.filename) if file_metadata else None
+            if desc:
+                metadata["description"] = desc
+
             result = await save_artifact_with_metadata(
                 artifact_service=self.artifact_service,
                 app_name=self.app_name,
