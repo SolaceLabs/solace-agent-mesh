@@ -947,7 +947,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             else:
                                 pass
                 finally:
-                    # Ensure task_done() is called for each successfully retrieved message
                     self._visualization_message_queue.task_done()
 
             except asyncio.CancelledError:
