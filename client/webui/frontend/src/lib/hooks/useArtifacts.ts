@@ -24,7 +24,7 @@ const isIntermediateWebContentArtifact = (filename: string | undefined): boolean
     return filename.startsWith("web_content_");
 };
 
-export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
+export const useArtifacts = (sessionId?: string, agentName?: string): UseArtifactsReturn => {
     const { activeProject } = useProjectContext();
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -36,15 +36,28 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
 
         try {
             let endpoint: string;
+            const params = new URLSearchParams();
 
             if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
                 endpoint = `/api/v1/artifacts/${sessionId}`;
             } else if (activeProject?.id) {
-                endpoint = `/api/v1/artifacts/null?project_id=${activeProject.id}`;
+                endpoint = `/api/v1/artifacts/null`;
+                params.append("project_id", activeProject.id);
             } else {
                 setArtifacts([]);
                 setIsLoading(false);
                 return;
+            }
+
+            // Add agent_name parameter to include agent's default artifacts
+            if (agentName) {
+                params.append("agent_name", agentName);
+            }
+
+            // Append query parameters if any
+            const queryString = params.toString();
+            if (queryString) {
+                endpoint += `?${queryString}`;
             }
 
             const data: ArtifactInfo[] = await api.webui.get(endpoint);
@@ -62,7 +75,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, activeProject?.id]);
+    }, [sessionId, activeProject?.id, agentName]);
 
     useEffect(() => {
         fetchArtifacts();

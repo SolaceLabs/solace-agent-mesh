@@ -18,17 +18,20 @@ export const ArtifactDeleteAllDialog: React.FC = () => {
         return null;
     }
 
-    const hasProjectArtifacts = artifacts.some(artifact => artifact.source === "project");
-    const projectArtifactsCount = artifacts.filter(artifact => artifact.source === "project").length;
-    const regularArtifactsCount = artifacts.length - projectArtifactsCount;
+    // Check for read-only artifacts (project or agent_default)
+    const isReadOnlyArtifact = (artifact: { source?: string }) => artifact.source === "project" || artifact.source === "agent_default";
+
+    const hasReadOnlyArtifacts = artifacts.some(isReadOnlyArtifact);
+    const readOnlyArtifactsCount = artifacts.filter(isReadOnlyArtifact).length;
+    const regularArtifactsCount = artifacts.length - readOnlyArtifactsCount;
 
     const getDescription = () => {
-        if (hasProjectArtifacts && regularArtifactsCount === 0) {
-            // All are project artifacts
-            return `${artifacts.length === 1 ? "This file" : `All ${artifacts.length} files`} will be removed from this chat session. ${artifacts.length === 1 ? "The file" : "These files"} will remain in ${artifacts.length === 1 ? "the" : "their"} project${artifacts.length === 1 ? "" : "s"}.`;
-        } else if (hasProjectArtifacts && regularArtifactsCount > 0) {
-            // Mixed: some project, some regular
-            return `${regularArtifactsCount} ${regularArtifactsCount === 1 ? "file" : "files"} will be permanently deleted. ${projectArtifactsCount} project ${projectArtifactsCount === 1 ? "file" : "files"} will be removed from this chat but will remain in ${projectArtifactsCount === 1 ? "the" : "their"} project${projectArtifactsCount === 1 ? "" : "s"}.`;
+        if (hasReadOnlyArtifacts && regularArtifactsCount === 0) {
+            // All are read-only artifacts (project or agent_default)
+            return `${artifacts.length === 1 ? "This file" : `All ${artifacts.length} files`} will be removed from this chat session. ${artifacts.length === 1 ? "The file" : "These files"} will remain available as ${artifacts.length === 1 ? "a default" : "defaults"}.`;
+        } else if (hasReadOnlyArtifacts && regularArtifactsCount > 0) {
+            // Mixed: some read-only, some regular
+            return `${regularArtifactsCount} ${regularArtifactsCount === 1 ? "file" : "files"} will be permanently deleted. ${readOnlyArtifactsCount} read-only ${readOnlyArtifactsCount === 1 ? "file" : "files"} will be removed from this chat but will remain available.`;
         } else {
             // All are regular artifacts
             return `${artifacts.length === 1 ? "One file" : `All ${artifacts.length} files`} will be permanently deleted.`;
