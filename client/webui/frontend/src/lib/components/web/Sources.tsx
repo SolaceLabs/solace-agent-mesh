@@ -4,17 +4,7 @@
 
 import { useMemo } from "react";
 import { StackedFavicons } from "./StackedFavicons";
-import type { RAGSource } from "@/lib/types/fe";
-
-interface SearchSource {
-    link?: string; // Optional for document sources
-    title?: string;
-    snippet?: string;
-    attribution?: string;
-    processed?: boolean;
-    source_type?: string;
-    filename?: string; // For document sources
-}
+import type { RAGSource, SearchSource } from "@/lib/types/fe";
 
 /**
  * Main Sources Component

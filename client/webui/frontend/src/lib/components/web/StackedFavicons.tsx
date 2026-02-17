@@ -5,14 +5,8 @@
  */
 
 import { getCleanDomain, getFaviconUrl } from "@/lib/utils";
-
-interface SearchSource {
-    link?: string; // Optional for document sources
-    title?: string;
-    snippet?: string;
-    source_type?: string; // 'web', 'kb', 'document'
-    filename?: string; // For document sources
-}
+import type { SearchSource } from "@/lib/types/fe";
+import { getFileTypeIcon } from "@/lib/components/chat/file/FileIcon";
 
 interface StackedFaviconsProps {
     sources: SearchSource[];
@@ -22,60 +16,25 @@ interface StackedFaviconsProps {
 }
 
 /**
- * Get file type icon emoji based on file extension
- * Supports: PDF, DOCX, PPTX, and text-based files (txt, md, csv, json, xml, etc.)
- */
-function getFileTypeIcon(filename: string): string {
-    const ext = filename.toLowerCase().split('.').pop() || '';
-    
-    switch (ext) {
-        case 'pdf':
-            return '📄';
-        case 'doc':
-        case 'docx':
-            return '📝';
-        case 'ppt':
-        case 'pptx':
-            return '📊';
-        case 'txt':
-        case 'md':
-        case 'csv':
-        case 'json':
-        case 'xml':
-        case 'yaml':
-        case 'yml':
-        case 'log':
-            return '📃';
-        default:
-            return '📄'; // Generic document icon
-    }
-}
-
-/**
  * Source icon component - handles web favicons, enterprise sources, and document file type icons
  */
 function SourceIcon({ source, className = "", size = 16 }: { source: SearchSource; className?: string; size?: number }) {
     // Check if this is a document source (has filename but no link, or source_type is 'document')
-    const isDocument = source.source_type === 'document' || (source.filename && !source.link);
-    
+    const isDocument = source.source_type === "document" || (source.filename && !source.link);
+
     if (isDocument && source.filename) {
-        // Show file type icon for documents
-        const fileIcon = getFileTypeIcon(source.filename);
+        // Show file type icon for documents - reuses getFileTypeIcon from FileIcon component
+        const iconSize = Math.round(size * 0.6);
+        const icon = getFileTypeIcon(undefined, source.filename, { size: iconSize, className: "text-muted-foreground" });
         return (
-            <div 
-                className={`relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] bg-white ${className}`} 
-                style={{ width: size, height: size }}
-                title={source.filename}
-            >
-                <div className="flex items-center justify-center w-full h-full text-xs">
-                    {fileIcon}
-                </div>
+            <div className={`bg-muted relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] ${className}`} style={{ width: size, height: size }} title={source.filename}>
+                <div className="flex h-full w-full items-center justify-center">{icon}</div>
             </div>
         );
     }
-    
+
     // For web sources, use favicon
-    const domain = getCleanDomain(source.link || '');
+    const domain = getCleanDomain(source.link || "");
     return (
         <div className={`relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] bg-white ${className}`} style={{ width: size, height: size }}>
             <img
@@ -88,7 +47,7 @@ function SourceIcon({ source, className = "", size = 16 }: { source: SearchSourc
                     target.style.display = "none";
                     const parent = target.parentElement;
                     if (parent) {
-                        parent.innerHTML = `<div class="flex items-center justify-center w-full h-full text-xs font-bold text-gray-600 bg-gray-200">${domain[0].toUpperCase()}</div>`;
+                        parent.innerHTML = `<div class="bg-muted text-muted-foreground flex h-full w-full items-center justify-center text-xs font-bold">${domain[0].toUpperCase()}</div>`;
                     }
                 }}
             />

@@ -6,7 +6,7 @@ import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/componen
 import { useTaskContext, useChatContext } from "@/lib/hooks";
 import { FlowChartPanel, processTaskForVisualization } from "@/lib/components/activities";
 import type { VisualizedTask } from "@/lib/types";
-import { hasSourcesWithUrls } from "@/lib/utils";
+import { hasSourcesWithUrls, hasDocumentSearchResults } from "@/lib/utils";
 
 import { ArtifactPanel } from "./artifact/ArtifactPanel";
 import { FlowChartDetails } from "../activities/FlowChartDetails";
@@ -39,7 +39,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         if (hasSourcesWithUrls(ragData)) return true;
 
         // Also check for document search results
-        return ragData.some(search => search.searchType === "document_search");
+        return hasDocumentSearchResults(ragData);
     }, [ragData]);
 
     // Process task data for visualization when the selected activity task ID changes

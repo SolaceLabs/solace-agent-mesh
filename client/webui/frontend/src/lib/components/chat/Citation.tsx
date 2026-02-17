@@ -173,7 +173,7 @@ export function Citation({ citation, onClick, maxLength = DEFAULT_CITATION_MAX_L
     return (
         <button
             onClick={handleClick}
-            className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-0.5 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+            className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-0.5 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
             title={tooltip}
             aria-label={`Citation: ${tooltip}`}
             type="button"
@@ -309,7 +309,7 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
         return (
             <button
                 onClick={handleClick}
-                className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
                 aria-label={`${uniqueCitations.length} document citations`}
                 type="button"
             >
@@ -327,7 +327,7 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                     onClick={handleClick}
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
-                    className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                    className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
                     title={allCitationsTooltip}
                     aria-label={`Citation: ${allCitationsTooltip}`}
                     type="button"
@@ -383,16 +383,11 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                         };
 
                         return (
-                            <button
-                                key={`bundled-citation-${index}`}
-                                onClick={handleClick}
-                                className="group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-                                type="button"
-                            >
+                            <button key={`bundled-citation-${index}`} onClick={handleClick} className="hover:bg-accent group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors" type="button">
                                 {favicon && (
                                     <div className="relative mt-0.5 h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-white">
                                         <img src={favicon} alt="" className="h-full w-full" />
-                                        <div className="absolute inset-0 rounded-full border border-gray-200/10 dark:border-transparent" />
+                                        <div className="border-border/10 absolute inset-0 rounded-full border" />
                                     </div>
                                 )}
                                 <div className="flex-1 overflow-hidden">
@@ -404,7 +399,7 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                                             <ExternalLink className="h-3 w-3 flex-shrink-0 text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]" />
                                         )}
                                     </div>
-                                    {citation.source?.metadata?.title && <div className="mt-0.5 truncate text-xs text-gray-600 dark:text-gray-400">{citation.source.metadata.title}</div>}
+                                    {citation.source?.metadata?.title && <div className="text-muted-foreground mt-0.5 truncate text-xs">{citation.source.metadata.title}</div>}
                                 </div>
                             </button>
                         );
