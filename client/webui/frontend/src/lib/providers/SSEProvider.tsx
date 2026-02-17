@@ -12,7 +12,7 @@ const TASK_STORAGE_KEY = "sam_sse_tasks";
 const INITIAL_RETRY_DELAY = 1000;
 const MAX_RETRY_DELAY = 30000;
 const MAX_RETRY_ATTEMPTS = 5;
-const STALE_TASK_THRESHOLD_MS = 1 * 60 * 1000; // 1 minute
+const STALE_TASK_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
 
 // ============ Types ============
 

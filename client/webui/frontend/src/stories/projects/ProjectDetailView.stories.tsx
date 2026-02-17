@@ -27,20 +27,15 @@ const agentNameDisplayNameMap = transformedMockAgents.reduce(
  * Helper to register a mock indexing task on mount
  */
 const MockIndexingTask: React.FC<{ projectId: string; children: React.ReactNode }> = ({ projectId, children }) => {
-    const { registerTask, getTasks, unregisterTask } = useSSEContext();
+    const { registerTask } = useSSEContext();
 
     useEffect(() => {
-        const tasks = getTasks();
-        tasks.forEach(task => unregisterTask(task.taskId));
-
-        // Then register the mock task
         registerTask({
             taskId: "mock-indexing-task",
             sseUrl: "/api/v1/sse/subscribe/mock-indexing-task",
             metadata: { projectId },
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [registerTask, projectId]);
 
     return <>{children}</>;
 };
@@ -49,20 +44,15 @@ const MockIndexingTask: React.FC<{ projectId: string; children: React.ReactNode 
  * Helper to register a mock failed indexing task on mount
  */
 const MockFailedIndexingTask: React.FC<{ projectId: string; children: React.ReactNode }> = ({ projectId, children }) => {
-    const { registerTask, getTasks, unregisterTask } = useSSEContext();
+    const { registerTask } = useSSEContext();
 
     useEffect(() => {
-        const tasks = getTasks();
-        tasks.forEach(task => unregisterTask(task.taskId));
-
-        // Then register the mock task
         registerTask({
             taskId: "mock-failed-indexing-task",
             sseUrl: "/api/v1/sse/subscribe/mock-failed-indexing-task",
             metadata: { projectId },
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [registerTask, projectId]);
 
     return <>{children}</>;
 };

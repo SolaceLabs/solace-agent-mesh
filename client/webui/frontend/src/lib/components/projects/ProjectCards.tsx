@@ -6,6 +6,8 @@ import type { Project } from "@/lib/types/projects";
 import { EmptyState, OnboardingBanner } from "@/lib/components/common";
 import { SearchInput } from "@/lib/components/ui";
 
+const PROJECT_ONBOARDING_DISMISSED_KEY = "sam-project-onboarding-dismissed";
+
 const PROJECTS_DESCRIPTION_HEADER = "Projects allow you to give the AI a re-usable set of context for conversations.";
 const PROJECTS_DESCRIPTION_LINE1 = "You can upload files, select a default agent and provide custom instructions.";
 const PROJECTS_DESCRIPTION_LINE2 = "When you ask a question, it will find the most relevant file and pull answers directly from it. It's great for diving into your documents through natural conversation.";
@@ -36,7 +38,7 @@ export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuer
         <div className="bg-card-background flex h-full flex-col">
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                 <OnboardingBanner
-                    storageKey={"sam-"}
+                    storageKey={PROJECT_ONBOARDING_DISMISSED_KEY}
                     header={PROJECTS_DESCRIPTION_HEADER}
                     description={`${PROJECTS_DESCRIPTION_LINE1} ${PROJECTS_DESCRIPTION_LINE2}`}
                     learnMoreText={"Learn more about projects."}

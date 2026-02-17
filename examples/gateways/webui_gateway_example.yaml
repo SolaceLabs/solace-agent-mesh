@@ -111,7 +111,7 @@ apps:
 
       # --- Project File Indexing Configuration ---
       project_indexing:
-        enabled: ${PROJECT_FILE_INDEXING, false} 
+        enabled: ${PROJECT_FILE_INDEXING, false}
 
       # --- Background Tasks Configuration ---
       background_tasks:
