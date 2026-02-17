@@ -4,7 +4,7 @@ import LoopNode from "@/lib/components/workflowVisualization/nodes/LoopNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Components/WorkflowVisualization/LoopNode",
+    title: "Workflow/WorkflowVisualization/LoopNode",
     component: LoopNode,
     parameters: {
         layout: "centered",

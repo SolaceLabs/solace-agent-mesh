@@ -4,7 +4,7 @@ import AgentNode from "@/lib/components/workflowVisualization/nodes/AgentNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Components/WorkflowVisualization/AgentNode",
+    title: "Workflow/WorkflowVisualization/AgentNode",
     component: AgentNode,
     parameters: {
         layout: "centered",

@@ -4,7 +4,7 @@ import { WorkflowList } from "@/lib/components/workflows/WorkflowList";
 import { mockWorkflows } from "../data/workflows";
 
 const meta = {
-    title: "Components/Workflows/WorkflowList",
+    title: "Workflow/WorkflowList",
     component: WorkflowList,
     parameters: {
         layout: "fullscreen",

@@ -5,7 +5,7 @@ import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/ty
 import type { AgentCardInfo } from "@/lib/types";
 
 const meta: Meta<typeof WorkflowNodeDetailPanel> = {
-    title: "Components/WorkflowVisualization/WorkflowNodeDetailPanel",
+    title: "Workflow/WorkflowVisualization/WorkflowNodeDetailPanel",
     component: WorkflowNodeDetailPanel,
     tags: ["autodocs"],
     decorators: [

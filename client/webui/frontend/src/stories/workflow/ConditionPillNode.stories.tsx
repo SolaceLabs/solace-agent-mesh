@@ -4,7 +4,7 @@ import ConditionPillNode from "@/lib/components/workflowVisualization/nodes/Cond
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Components/WorkflowVisualization/ConditionPillNode",
+    title: "Workflow/WorkflowVisualization/ConditionPillNode",
     component: ConditionPillNode,
     parameters: {
         layout: "centered",

@@ -4,7 +4,7 @@ import WorkflowRefNode from "@/lib/components/workflowVisualization/nodes/Workfl
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Components/WorkflowVisualization/WorkflowRefNode",
+    title: "Workflow/WorkflowVisualization/WorkflowRefNode",
     component: WorkflowRefNode,
     parameters: {
         layout: "centered",

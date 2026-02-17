@@ -4,7 +4,7 @@ import MapNode from "@/lib/components/workflowVisualization/nodes/MapNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Components/WorkflowVisualization/MapNode",
+    title: "Workflow/WorkflowVisualization/MapNode",
     component: MapNode,
     parameters: {
         layout: "centered",

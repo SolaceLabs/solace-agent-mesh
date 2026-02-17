@@ -4,7 +4,7 @@ import { WorkflowDetailPanel } from "@/lib/components/workflows/WorkflowDetailPa
 import { completeOrderWorkflow, completeOrderWorkflowConfig } from "../data/workflows";
 
 const meta = {
-    title: "Components/Workflows/WorkflowDetailPanel",
+    title: "Workflow/WorkflowDetailPanel",
     component: WorkflowDetailPanel,
     parameters: {
         layout: "fullscreen",

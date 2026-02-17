@@ -4,7 +4,7 @@ import SwitchNode from "@/lib/components/workflowVisualization/nodes/SwitchNode"
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Components/WorkflowVisualization/SwitchNode",
+    title: "Workflow/WorkflowVisualization/SwitchNode",
     component: SwitchNode,
     parameters: {
         layout: "centered",
