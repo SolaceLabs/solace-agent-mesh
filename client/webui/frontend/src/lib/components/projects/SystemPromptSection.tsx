@@ -10,10 +10,11 @@ interface SystemPromptSectionProps {
     project: Project;
     onSave: (systemPrompt: string) => Promise<void>;
     isSaving: boolean;
+    isDisabled?: boolean;
     error?: string | null;
 }
 
-export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ project, onSave, isSaving, error }) => {
+export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ project, onSave, isSaving, isDisabled, error }) => {
     const isOwner = useIsProjectOwner(project.userId);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -23,7 +24,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ projec
                 <div className="mb-3 flex items-center justify-between px-4 pt-4">
                     <h3 className="text-foreground text-sm font-semibold">Instructions</h3>
                     {isOwner && (
-                        <Button variant="ghost" size="sm" onClick={() => setIsDialogOpen(true)} className="h-8 w-8 p-0" tooltip="Edit">
+                        <Button variant="ghost" size="sm" testid="editInstructions" onClick={() => setIsDialogOpen(true)} className="h-8 w-8 p-0" tooltip="Edit" disabled={isDisabled}>
                             <Pencil className="h-4 w-4" />
                         </Button>
                     )}

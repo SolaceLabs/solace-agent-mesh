@@ -1,3 +1,4 @@
+import React, { useEffect } from "react";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
@@ -7,7 +8,7 @@ import { ownerWithAuthorization } from "../data/parameters";
 import { pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact } from "../data/artifactInfo";
 import type { Session } from "@/lib/types/fe";
 import { getMockAgentCards, mockAgentCards } from "../mocks/data";
-import { transformAgentCard } from "@/lib/hooks/useAgentCards";
+import { transformAgentCard, useSSEContext } from "@/lib/hooks";
 
 // ============================================================================
 // Mock Data
@@ -33,7 +34,6 @@ const mockSessions: Session[] = [
 ];
 
 const mockArtifacts = [pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact];
-
 const transformedMockAgents = mockAgentCards.concat(getMockAgentCards(2)).map(transformAgentCard);
 const agentNameDisplayNameMap = transformedMockAgents.reduce(
     (acc, agent) => {
@@ -42,6 +42,50 @@ const agentNameDisplayNameMap = transformedMockAgents.reduce(
     },
     {} as Record<string, string>
 );
+
+/**
+ * Helper to register a mock indexing task on mount
+ */
+const MockIndexingTask: React.FC<{ projectId: string; children: React.ReactNode }> = ({ projectId, children }) => {
+    const { registerTask, getTasks, unregisterTask } = useSSEContext();
+
+    useEffect(() => {
+        const tasks = getTasks();
+        tasks.forEach(task => unregisterTask(task.taskId));
+
+        // Then register the mock task
+        registerTask({
+            taskId: "mock-indexing-task",
+            sseUrl: "/api/v1/sse/subscribe/mock-indexing-task",
+            metadata: { projectId },
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return <>{children}</>;
+};
+
+/**
+ * Helper to register a mock failed indexing task on mount
+ */
+const MockFailedIndexingTask: React.FC<{ projectId: string; children: React.ReactNode }> = ({ projectId, children }) => {
+    const { registerTask, getTasks, unregisterTask } = useSSEContext();
+
+    useEffect(() => {
+        const tasks = getTasks();
+        tasks.forEach(task => unregisterTask(task.taskId));
+
+        // Then register the mock task
+        registerTask({
+            taskId: "mock-failed-indexing-task",
+            sseUrl: "/api/v1/sse/subscribe/mock-failed-indexing-task",
+            metadata: { projectId },
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return <>{children}</>;
+};
 
 // ============================================================================
 // MSW Handlers
@@ -66,6 +110,45 @@ const handlers = [
         }
         return HttpResponse.json([]);
     }),
+
+    // Mock SSE endpoint for indexing - keeps connection open indefinitely
+    http.get("/api/v1/sse/subscribe/mock-indexing-task", () => {
+        const stream = new ReadableStream({
+            start(controller) {
+                // Send initial connection event
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"task_started"}\n\n'));
+            },
+        });
+
+        return new HttpResponse(stream, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                Connection: "keep-alive",
+            },
+        });
+    }),
+
+    // Mock SSE endpoint for failed indexing - sends error then closes
+    http.get("/api/v1/sse/subscribe/mock-failed-indexing-task", () => {
+        const stream = new ReadableStream({
+            async start(controller) {
+                // Small delay to allow EventSource to fully connect and register handlers
+                await new Promise(resolve => setTimeout(resolve, 100));
+                // Send error event
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"conversion_failed","error":"Failed to convert \'document.pdf\'"}\n\n'));
+                controller.close();
+            },
+        });
+
+        return new HttpResponse(stream, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                Connection: "keep-alive",
+            },
+        });
+    }),
 ];
 
 // ============================================================================
@@ -86,6 +169,8 @@ const meta = {
     },
     decorators: [
         (Story: StoryFn, context: StoryContext) => {
+            // Clear any stale SSE tasks from sessionStorage on story mount
+            sessionStorage.removeItem("sam_sse_tasks");
             const storyResult = Story(context.args, context);
             return <div style={{ height: "100vh", width: "100vw" }}>{storyResult}</div>;
         },
@@ -198,4 +283,56 @@ export const EditDetailsDescriptionLimit: Story = {
 
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeDisabled();
     },
+};
+
+/**
+ * Indexing state - Shows the UI when project files are being indexed.
+ * All action buttons should be disabled and an info banner should be visible.
+ */
+export const Indexing: Story = {
+    args: {
+        project: populatedProject,
+        onBack: () => alert("Will navigate back to project list"),
+        onStartNewChat: () => alert("Will start a new chat"),
+        onChatClick: (sessionId: string) => alert("Will open chat " + sessionId),
+    },
+    parameters: ownerWithAuthorization("user-id"),
+    decorators: [
+        (Story: StoryFn, context: StoryContext) => {
+            const storyResult = Story(context.args, context);
+            return <MockIndexingTask projectId={populatedProject.id}>{storyResult}</MockIndexingTask>;
+        },
+    ],
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify info banner is shown
+        expect(await canvas.findByTestId("messageBanner")).toBeVisible();
+
+        // Verify buttons disabled
+        expect(await canvas.findByTestId("editDetailsButton")).toBeDisabled();
+        expect(await canvas.findByTestId("editInstructions")).toBeDisabled();
+        expect(await canvas.findByTestId("editDefaultAgent")).toBeDisabled();
+        expect(await canvas.findByTestId("startNewChatButton")).toBeDisabled();
+    },
+};
+
+/**
+ * Indexing Error state - Shows the UI when indexing fails with an error.
+ * The error message should be displayed and buttons should be re-enabled.
+ */
+export const IndexingError: Story = {
+    args: {
+        project: populatedProject,
+        onBack: () => alert("Will navigate back to project list"),
+        onStartNewChat: () => alert("Will start a new chat"),
+        onChatClick: (sessionId: string) => alert("Will open chat " + sessionId),
+    },
+    parameters: ownerWithAuthorization("user-id"),
+    decorators: [
+        (Story: StoryFn, context: StoryContext) => {
+            const storyResult = Story(context.args, context);
+            return <MockFailedIndexingTask projectId={populatedProject.id}>{storyResult}</MockFailedIndexingTask>;
+        },
+    ],
 };

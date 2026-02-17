@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
-import { useConfigContext, useDownload, useIsProjectOwner } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useDownload, useIsProjectOwner, useIndexingSSE } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
@@ -18,14 +18,24 @@ import { DeleteProjectFileDialog } from "./DeleteProjectFileDialog";
 
 interface KnowledgeSectionProps {
     project: Project;
+    isDisabled?: boolean;
 }
 
-export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
+export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project, isDisabled }) => {
     const isOwner = useIsProjectOwner(project.userId);
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
     const { validationLimits } = useConfigContext();
+    const { addNotification } = useChatContext();
+
+    const { startIndexing } = useIndexingSSE({
+        resourceId: project.id,
+        onComplete: () => {
+            refetch();
+            addNotification("Project file indexing complete.", "success");
+        },
+    });
 
     // Get validation limits from config - if not available, skip client-side validation
     const maxPerFileUploadSizeBytes = validationLimits?.maxPerFileUploadSizeBytes;
@@ -84,9 +94,16 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         setIsSubmitting(true);
         setUploadError(null);
         try {
-            await addFilesToProject(project.id, formData);
-            await refetch();
+            const result = await addFilesToProject(project.id, formData);
+
+            // Close dialog first, then start indexing for cleaner UX
             setFilesToUpload(null);
+
+            if (result.sseLocation) {
+                startIndexing(result.sseLocation, "upload");
+            }
+
+            await refetch();
         } catch (e) {
             console.error("Failed to add files:", e);
             const errorMessage = e instanceof Error ? e.message : "Failed to upload files. Please try again.";
@@ -113,7 +130,12 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         if (!fileToDelete) return;
 
         try {
-            await removeFileFromProject(project.id, fileToDelete.filename);
+            const result = await removeFileFromProject(project.id, fileToDelete.filename);
+            if (result.sseLocation) {
+                // location will exist only if feature is enabled
+                startIndexing(result.sseLocation, "delete");
+            }
+
             await refetch();
             setFileToDelete(null);
         } catch (e) {
@@ -188,7 +210,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
                 {!isLoading && !error && (
                     <>
-                        {isOwner && (filesToUpload ? null : <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />)}
+                        {isOwner && (filesToUpload ? null : <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} disabled={isDisabled} />)}
                         {artifacts.length > 0 && (
                             <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t">
                                 {sortedArtifacts.map(artifact => {
@@ -211,11 +233,12 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                                                 actions={{
                                                     onInfo: () => handleToggleExpand(artifact.filename),
                                                     onPreview: () => handleFileClick(artifact), // preview opens the details for projects instead of seeing the content
-                                                    ...(isOwner && {
-                                                        onEdit: () => handleEditDescription(artifact),
-                                                        onDownload: () => onDownload(artifact),
-                                                        onDelete: () => handleDeleteClick(artifact),
-                                                    }),
+                                                    ...(isOwner &&
+                                                        !isDisabled && {
+                                                            onEdit: () => handleEditDescription(artifact),
+                                                            onDownload: () => onDownload(artifact),
+                                                            onDelete: () => handleDeleteClick(artifact),
+                                                        }),
                                                 }}
                                             />
                                         </div>
@@ -228,7 +251,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
             </div>
 
             {isOwner && <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />}
-            <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={isOwner ? handleEditFromDetails : undefined} />
+            <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={isOwner && !isDisabled ? handleEditFromDetails : undefined} />
             {isOwner && <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />}
             {isOwner && <DeleteProjectFileDialog isOpen={!!fileToDelete} fileToDelete={fileToDelete} handleConfirmDelete={handleConfirmDelete} setFileToDelete={setFileToDelete} />}
         </div>

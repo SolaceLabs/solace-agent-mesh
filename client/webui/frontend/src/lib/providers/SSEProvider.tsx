@@ -1,6 +1,7 @@
 import React, { type ReactNode, useState, useRef, useEffect, useCallback } from "react";
 
 import { SSEContext, type SSEContextValue } from "@/lib/contexts/SSEContext";
+import { useSessionStorage } from "@/lib/hooks";
 import { getApiBearerToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 import type { SSEConnectionState, SSESubscriptionOptions, SSESubscriptionReturn, SSETask } from "@/lib/types";
@@ -11,11 +12,7 @@ const TASK_STORAGE_KEY = "sam_sse_tasks";
 const INITIAL_RETRY_DELAY = 1000;
 const MAX_RETRY_DELAY = 30000;
 const MAX_RETRY_ATTEMPTS = 5;
-const STALE_TASK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
-
-// NOTE: No connection timeout is implemented. If EventSource gets stuck in "connecting"
-// state indefinitely, there's no automatic recovery. Consider adding a timeout mechanism
-// in a future iteration if this becomes a problem in practice.
+const STALE_TASK_THRESHOLD_MS = 1 * 60 * 1000; // 1 minute
 
 // ============ Types ============
 
@@ -28,8 +25,11 @@ interface ConnectionEntry {
             onMessage?: (e: MessageEvent) => void;
             onError?: (e: Event) => void;
             onStateChange: (state: SSEConnectionState) => void;
+            eventType: string;
         }
     >;
+    /** Event types with registered listeners (to avoid duplicate addEventListener calls) */
+    registeredEventTypes: Set<string>;
     retryCount: number;
     retryDelay: number;
     retryTimeoutId: ReturnType<typeof setTimeout> | null;
@@ -38,15 +38,6 @@ interface ConnectionEntry {
 interface SSEProviderProps {
     children: ReactNode;
 }
-
-// ============ Module-scoped internals ============
-
-interface ProviderInternals {
-    subscribe: (endpoint: string, handlers: { onMessage?: (e: MessageEvent) => void; onError?: (e: Event) => void }, onStateChange: (state: SSEConnectionState) => void) => () => void;
-    checkTaskStatus: (taskId: string) => Promise<{ isRunning: boolean } | null>;
-}
-
-let providerInternals: ProviderInternals | null = null;
 
 // ============ Provider ============
 
@@ -122,36 +113,16 @@ let providerInternals: ProviderInternals | null = null;
  * }
  * ```
  */
-export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
+export const SSEProvider = ({ children }: SSEProviderProps) => {
     const connectionsRef = useRef<Map<string, ConnectionEntry>>(new Map());
 
     // Task registry - persisted to sessionStorage
-    const [tasks, setTasks] = useState<SSETask[]>([]);
+    const [tasks, setTasks] = useSessionStorage<SSETask[]>(TASK_STORAGE_KEY, []);
 
-    // Load tasks from sessionStorage on mount
-    useEffect(() => {
-        const stored = sessionStorage.getItem(TASK_STORAGE_KEY);
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored) as SSETask[];
-                // Filter out stale tasks (older than 1 hour)
-                const now = Date.now();
-                const validTasks = parsed.filter(task => now - task.registeredAt < STALE_TASK_THRESHOLD_MS);
-                setTasks(validTasks);
-            } catch (error) {
-                console.error("[SSEProvider] Failed to parse stored tasks:", error);
-                sessionStorage.removeItem(TASK_STORAGE_KEY);
-            }
-        }
-    }, []);
-
-    // Save tasks to sessionStorage whenever they change
-    useEffect(() => {
-        if (tasks.length > 0) {
-            sessionStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(tasks));
-        } else {
-            sessionStorage.removeItem(TASK_STORAGE_KEY);
-        }
+    // Helper to filter out stale tasks
+    const getValidTasks = useCallback(() => {
+        const now = Date.now();
+        return tasks.filter(task => now - task.registeredAt < STALE_TASK_THRESHOLD_MS);
     }, [tasks]);
 
     // Helper to update connection state and notify all subscribers
@@ -184,6 +155,7 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
                 eventSource,
                 state: "connecting",
                 subscribers: new Map(),
+                registeredEventTypes: new Set(),
                 retryCount: 0,
                 retryDelay: INITIAL_RETRY_DELAY,
                 retryTimeoutId: null,
@@ -193,12 +165,6 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
                 entry.retryCount = 0;
                 entry.retryDelay = INITIAL_RETRY_DELAY;
                 updateConnectionState(endpoint, "connected");
-            };
-
-            eventSource.onmessage = (event: MessageEvent) => {
-                entry.subscribers.forEach(sub => {
-                    sub.onMessage?.(event);
-                });
             };
 
             eventSource.onerror = (errorEvent: Event) => {
@@ -226,10 +192,25 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
                             const newUrl = buildUrlWithAuth(endpoint);
                             const newEventSource = new EventSource(newUrl, { withCredentials: true });
 
-                            // Copy event handlers to new EventSource
+                            // Copy basic event handlers
                             newEventSource.onopen = eventSource.onopen;
-                            newEventSource.onmessage = eventSource.onmessage;
                             newEventSource.onerror = eventSource.onerror;
+
+                            // Re-register all event type listeners
+                            entry.registeredEventTypes.forEach(eventType => {
+                                const handler = (event: MessageEvent) => {
+                                    entry.subscribers.forEach(sub => {
+                                        if (sub.eventType === eventType) {
+                                            sub.onMessage?.(event);
+                                        }
+                                    });
+                                };
+                                if (eventType === "message") {
+                                    newEventSource.onmessage = handler;
+                                } else {
+                                    newEventSource.addEventListener(eventType, handler as EventListener);
+                                }
+                            });
 
                             entry.eventSource = newEventSource;
                         }
@@ -246,7 +227,7 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
     );
 
     const subscribe = useCallback(
-        (endpoint: string, handlers: { onMessage?: (e: MessageEvent) => void; onError?: (e: Event) => void }, onStateChange: (state: SSEConnectionState) => void): (() => void) => {
+        (endpoint: string, handlers: { onMessage?: (e: MessageEvent) => void; onError?: (e: Event) => void }, onStateChange: (state: SSEConnectionState) => void, eventType: string = "message"): (() => void) => {
             const subscriberId = crypto.randomUUID();
 
             let entry = connectionsRef.current.get(endpoint);
@@ -256,10 +237,31 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
                 connectionsRef.current.set(endpoint, entry);
             }
 
+            // Register event listener for this event type if not already registered
+            if (!entry.registeredEventTypes.has(eventType)) {
+                entry.registeredEventTypes.add(eventType);
+
+                const handler = (event: MessageEvent) => {
+                    console.log(`[SSEProvider] Event received (${eventType}):`, event.data);
+                    entry!.subscribers.forEach(sub => {
+                        if (sub.eventType === eventType) {
+                            sub.onMessage?.(event);
+                        }
+                    });
+                };
+
+                if (eventType === "message") {
+                    entry.eventSource.onmessage = handler;
+                } else {
+                    entry.eventSource.addEventListener(eventType, handler as EventListener);
+                }
+            }
+
             entry.subscribers.set(subscriberId, {
                 onMessage: handlers.onMessage,
                 onError: handlers.onError,
                 onStateChange,
+                eventType,
             });
 
             onStateChange(entry.state);
@@ -295,47 +297,43 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
         }
     }, []);
 
-    // Set module-scoped internals synchronously during render
-    // Update on every render to keep functions current
-    providerInternals = { subscribe, checkTaskStatus };
-
-    useEffect(() => {
-        return () => {
-            providerInternals = null;
-        };
-    }, []);
-
     // Task registry functions
-    const registerTask = useCallback((task: Omit<SSETask, "registeredAt">) => {
-        setTasks(prev => {
-            // Don't add duplicates
-            if (prev.some(t => t.taskId === task.taskId)) {
-                return prev;
-            }
-            return [...prev, { ...task, registeredAt: Date.now() }];
-        });
-    }, []);
+    const registerTask = useCallback(
+        (task: Omit<SSETask, "registeredAt">) => {
+            setTasks(prev => {
+                // Don't add duplicates
+                if (prev.some(t => t.taskId === task.taskId)) {
+                    return prev;
+                }
+                return [...prev, { ...task, registeredAt: Date.now() }];
+            });
+        },
+        [setTasks]
+    );
 
-    const unregisterTask = useCallback((taskId: string) => {
-        setTasks(prev => prev.filter(t => t.taskId !== taskId));
-    }, []);
+    const unregisterTask = useCallback(
+        (taskId: string) => {
+            setTasks(prev => prev.filter(t => t.taskId !== taskId));
+        },
+        [setTasks]
+    );
 
     const getTask = useCallback(
         (taskId: string): SSETask | null => {
-            return tasks.find(t => t.taskId === taskId) ?? null;
+            return getValidTasks().find(t => t.taskId === taskId) ?? null;
         },
-        [tasks]
+        [getValidTasks]
     );
 
     const getTasks = useCallback((): SSETask[] => {
-        return tasks;
-    }, [tasks]);
+        return getValidTasks();
+    }, [getValidTasks]);
 
     const getTasksByMetadata = useCallback(
         (key: string, value: unknown): SSETask[] => {
-            return tasks.filter(t => t.metadata?.[key] === value);
+            return getValidTasks().filter(t => t.metadata?.[key] === value);
         },
-        [tasks]
+        [getValidTasks]
     );
 
     useEffect(() => {
@@ -358,6 +356,8 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
         getTask,
         getTasks,
         getTasksByMetadata,
+        subscribe,
+        checkTaskStatus,
     };
 
     return <SSEContext.Provider value={contextValue}>{children}</SSEContext.Provider>;
@@ -405,18 +405,14 @@ export const SSEProvider: React.FC<SSEProviderProps> = ({ children }) => {
  * ```
  */
 export function useSSESubscription(options: SSESubscriptionOptions): SSESubscriptionReturn {
-    if (!providerInternals) {
+    const context = React.useContext(SSEContext);
+    if (!context) {
         throw new Error("useSSESubscription must be used within SSEProvider");
     }
 
-    const { endpoint, taskId, onMessage, onError, onTaskAlreadyCompleted } = options;
+    const { subscribe, checkTaskStatus } = context;
+    const { endpoint, taskId, eventType = "message", onMessage, onError, onTaskAlreadyCompleted } = options;
     const [connectionState, setConnectionState] = useState<SSEConnectionState>("disconnected");
-
-    // Capture internals in a ref to avoid stale closures
-    const internalsRef = useRef<ProviderInternals | null>(providerInternals);
-    useEffect(() => {
-        internalsRef.current = providerInternals;
-    });
 
     // Refs for callbacks to avoid re-subscribing on every render
     const onMessageRef = useRef(onMessage);
@@ -447,11 +443,6 @@ export function useSSESubscription(options: SSESubscriptionOptions): SSESubscrip
             return;
         }
 
-        const internals = internalsRef.current;
-        if (!internals) {
-            return;
-        }
-
         let unsubscribe: (() => void) | undefined;
         let cancelled = false;
 
@@ -459,7 +450,7 @@ export function useSSESubscription(options: SSESubscriptionOptions): SSESubscrip
             // If taskId provided and we haven't checked yet, check status first
             if (taskId && !hasCheckedStatus.current) {
                 hasCheckedStatus.current = true;
-                const status = await internals.checkTaskStatus(taskId);
+                const status = await checkTaskStatus(taskId);
 
                 if (cancelled) return;
 
@@ -472,13 +463,14 @@ export function useSSESubscription(options: SSESubscriptionOptions): SSESubscrip
             }
 
             // Task still running (or no taskId) - connect to SSE
-            unsubscribe = internals.subscribe(
+            unsubscribe = subscribe(
                 endpoint,
                 {
-                    onMessage: e => onMessageRef.current?.(e),
-                    onError: e => onErrorRef.current?.(e),
+                    onMessage: (e: MessageEvent) => onMessageRef.current?.(e),
+                    onError: (e: Event) => onErrorRef.current?.(e),
                 },
-                setConnectionState
+                setConnectionState,
+                eventType
             );
         };
 
@@ -488,7 +480,7 @@ export function useSSESubscription(options: SSESubscriptionOptions): SSESubscrip
             cancelled = true;
             unsubscribe?.();
         };
-    }, [endpoint, taskId]);
+    }, [endpoint, taskId, eventType, subscribe, checkTaskStatus]);
 
     return {
         connectionState,

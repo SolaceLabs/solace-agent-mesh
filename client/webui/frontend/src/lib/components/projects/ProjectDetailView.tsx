@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { Pencil, Trash2, MoreHorizontal, Share2 } from "lucide-react";
 
-import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from "@/lib/components/ui";
+import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea, Spinner } from "@/lib/components/ui";
 import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled } from "@/lib/hooks";
+import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, type IndexingSSEEvent } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
@@ -29,6 +29,27 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const { updateProject, projects, deleteProject } = useProjectContext();
     const { validationLimits } = useConfigContext();
     const isProjectSharingEnabled = useIsProjectSharingEnabled();
+    const [indexingError, setIndexingError] = useState<string | null>(null);
+    const { isIndexing, latestEvent } = useIndexingSSE({
+        resourceId: project.id,
+        onError: error => setIndexingError(error),
+        onComplete: () => setIndexingError(null),
+    });
+
+    const formatEventInfo = (event: IndexingSSEEvent | null): string => {
+        if (!event) return "working...";
+        switch (event.type) {
+            case "conversion_file_progress":
+            case "conversion_completed":
+                return `(${event.current}/${event.total})`;
+            case "index_started":
+            case "index_completed":
+                return "indexing";
+            default:
+                return "working...";
+        }
+    };
+
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -137,13 +158,13 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 buttons={[
                     ...(isOwner
                         ? [
-                              <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
+                              <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2" disabled={isIndexing}>
                                   <Pencil className="h-4 w-4" />
                                   Edit Details
                               </Button>,
                               ...(onShare
                                   ? [
-                                        <Button key="share" variant="ghost" size="sm" onClick={onShare} testid="shareButton" className="gap-2">
+                                        <Button key="share" variant="ghost" size="sm" onClick={onShare} testid="shareButton" className="gap-2" disabled={isIndexing}>
                                             <Share2 className="h-4 w-4" />
                                             Share
                                         </Button>,
@@ -151,7 +172,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                                   : []),
                               <DropdownMenu key="more">
                                   <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={isIndexing}>
                                           <MoreHorizontal className="h-4 w-4" />
                                       </Button>
                                   </DropdownMenuTrigger>
@@ -171,22 +192,32 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
             <div className="flex min-h-0 flex-1">
                 {/* Left Panel - Description and Project Chats */}
                 <div className="w-[60%] overflow-y-auto border-r">
-                    {/* Description section */}
+                    {indexingError && <MessageBanner variant="error" message={`File processing failed: ${indexingError}`} className="m-6" />}
+                    {isIndexing && (
+                        <MessageBanner
+                            variant="info"
+                            message={
+                                <div className="flex justify-between gap-2">
+                                    <div>Processing project files for faster access: {formatEventInfo(latestEvent)}</div>
+                                    <Spinner size="small" />
+                                </div>
+                            }
+                            className="m-6"
+                        />
+                    )}
                     {project.description && (
                         <div className="px-8 py-4">
                             <p className="text-muted-foreground text-sm">{project.description}</p>
                         </div>
                     )}
-                    {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} />}
+                    {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} isDisabled={isIndexing} />}
                 </div>
 
                 {/* Right Panel - Metadata Sidebar */}
                 <div className="flex min-h-0 w-[40%] flex-col">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
-
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
-
-                    <KnowledgeSection project={project} />
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} isDisabled={isIndexing} error={error} />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isDisabled={isIndexing} />
+                    <KnowledgeSection project={project} isDisabled={isIndexing} />
                 </div>
             </div>
 

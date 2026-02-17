@@ -11,9 +11,10 @@ interface ProjectChatsSectionProps {
     project: Project;
     onChatClick: (sessionId: string) => void;
     onStartNewChat?: () => void;
+    isDisabled?: boolean;
 }
 
-export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ project, onChatClick, onStartNewChat }) => {
+export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ project, onChatClick, onStartNewChat, isDisabled = false }) => {
     const { data: sessions = [], isLoading, error } = useProjectSessions(project.id);
 
     return (
@@ -21,7 +22,7 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ projec
             <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-foreground text-sm font-semibold">Chats</h3>
                 {onStartNewChat && (
-                    <Button onClick={onStartNewChat} size="sm" testid="startNewChatButton">
+                    <Button onClick={onStartNewChat} size="sm" testid="startNewChatButton" disabled={isDisabled}>
                         <Plus className="mr-2 h-4 w-4" />
                         New Chat
                     </Button>
@@ -41,7 +42,7 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ projec
                     <MessageCircle className="text-muted-foreground mb-2 h-8 w-8" />
                     <p className="text-muted-foreground mb-4 text-sm">No chats. Start a chat with all the knowledge and context from this project.</p>
                     {onStartNewChat && (
-                        <Button onClick={onStartNewChat} size="sm" testid="startNewChatButtonNoChats">
+                        <Button onClick={onStartNewChat} size="sm" testid="startNewChatButtonNoChats" disabled={isDisabled}>
                             <Plus className="mr-2 h-4 w-4" />
                             Start New Chat
                         </Button>
