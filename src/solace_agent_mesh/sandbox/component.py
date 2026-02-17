@@ -292,6 +292,8 @@ class SandboxWorkerComponent(SamComponentBase):
                 await self._handle_tool_invocation(message, tool_name)
             elif a2a.topic_matches_subscription(topic, discovery_topic):
                 await self._handle_discovery_message(message, topic)
+            elif self.trust_manager and self.trust_manager.is_trust_card_topic(topic):
+                await self.trust_manager.handle_trust_card_message(message, topic)
             else:
                 log.warning(
                     "%s Received message on unexpected topic: %s",
@@ -319,6 +321,129 @@ class SandboxWorkerComponent(SamComponentBase):
                     self.log_identifier,
                     nack_e,
                 )
+
+    # --- Authentication Helpers ---
+
+    def _validate_auth_token(
+        self, message: SolaceMessage, request_id: str
+    ) -> bool:
+        """Validate user identity auth token on a tool invocation request.
+
+        Returns True if authorized (or auth not enabled).
+        Returns False and publishes error response if auth fails.
+        """
+        if not self.trust_manager:
+            return True  # Auth not enabled — allow all
+
+        user_props = message.get_user_properties() or {}
+        auth_token = user_props.get("authToken")
+        reply_to = user_props.get("replyTo")
+
+        if not auth_token:
+            log.warning(
+                "%s Request %s rejected: no authToken",
+                self.log_identifier,
+                request_id,
+            )
+            self._send_auth_error(
+                reply_to,
+                request_id,
+                "Authentication required: no auth token provided",
+            )
+            return False
+
+        try:
+            claims = self.trust_manager.verify_user_claims_without_task_binding(
+                auth_token
+            )
+            log.info(
+                "%s Request %s authenticated: user=%s",
+                self.log_identifier,
+                request_id,
+                claims.get("sub", "unknown"),
+            )
+            return True
+        except Exception as e:
+            log.warning(
+                "%s Request %s rejected: %s",
+                self.log_identifier,
+                request_id,
+                e,
+            )
+            self._send_auth_error(
+                reply_to,
+                request_id,
+                "Authentication failed: invalid or expired token",
+            )
+            return False
+
+    def _validate_service_token(
+        self, message: SolaceMessage, request_id: str
+    ) -> bool:
+        """Validate service token on an init request.
+
+        Returns True if authorized (or auth not enabled).
+        Returns False and publishes error response if auth fails.
+        """
+        if not self.trust_manager:
+            return True  # Auth not enabled — allow all
+
+        user_props = message.get_user_properties() or {}
+        service_token = user_props.get("serviceToken")
+        reply_to = user_props.get("replyTo")
+
+        if not service_token:
+            log.warning(
+                "%s Init %s rejected: no serviceToken",
+                self.log_identifier,
+                request_id,
+            )
+            self._send_auth_error(
+                reply_to,
+                request_id,
+                "Authentication required: no service token provided",
+            )
+            return False
+
+        try:
+            claims = self.trust_manager.verify_service_request(service_token)
+            log.info(
+                "%s Init %s authenticated: issuer=%s",
+                self.log_identifier,
+                request_id,
+                claims.get("iss", "unknown"),
+            )
+            return True
+        except Exception as e:
+            log.warning(
+                "%s Init %s rejected: %s",
+                self.log_identifier,
+                request_id,
+                e,
+            )
+            self._send_auth_error(
+                reply_to,
+                request_id,
+                "Authentication failed: invalid or expired service token",
+            )
+            return False
+
+    def _send_auth_error(
+        self, reply_to: Optional[str], request_id: str, error_message: str
+    ) -> None:
+        """Send AUTHENTICATION_FAILED error response."""
+        if reply_to:
+            response = SandboxToolInvocationResponse.failure(
+                request_id=request_id,
+                code=SandboxErrorCodes.AUTHENTICATION_FAILED,
+                message=error_message,
+            )
+            self.publish_a2a_message(
+                payload=response.model_dump(exclude_none=True),
+                topic=reply_to,
+            )
+
+    # --- Tool Handlers ---
 
     async def _handle_tool_invocation(
         self, message: SolaceMessage, tool_name: str
@@ -348,6 +473,10 @@ class SandboxWorkerComponent(SamComponentBase):
                 request_id,
                 params.tool_name,
             )
+
+            # Validate user auth token
+            if not self._validate_auth_token(message, request_id):
+                return
 
             # Get routing info from user properties
             user_props = message.get_user_properties() or {}
@@ -493,6 +622,10 @@ class SandboxWorkerComponent(SamComponentBase):
                 request_id,
                 params.tool_name,
             )
+
+            # Validate service token for init request
+            if not self._validate_service_token(message, request_id):
+                return
 
             # Get routing info
             user_props = message.get_user_properties() or {}

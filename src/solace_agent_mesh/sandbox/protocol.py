@@ -229,6 +229,7 @@ class SandboxErrorCodes:
     INVALID_REQUEST = "INVALID_REQUEST"
     INTERNAL_ERROR = "INTERNAL_ERROR"
     INIT_ERROR = "INIT_ERROR"
+    AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED"
 
 
 # ---------------------------------------------------------------------------

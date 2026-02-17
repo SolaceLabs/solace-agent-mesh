@@ -169,6 +169,19 @@ class SamRemoteExecutor(ToolExecutor):
                 user_id = "unknown"
                 session_id = "unknown"
 
+            # Extract auth token for propagation to sandbox worker
+            auth_token = None
+            a2a_context = tool_context.state.get("a2a_context")
+            if a2a_context and self._component:
+                logical_task_id = a2a_context.get("logical_task_id")
+                if logical_task_id:
+                    with self._component.active_tasks_lock:
+                        task_ctx = self._component.active_tasks.get(
+                            logical_task_id
+                        )
+                    if task_ctx:
+                        auth_token = task_ctx.get_security_data("auth_token")
+
             # Extract artifacts from args (DynamicTool pre-loads Artifact
             # objects). Send lightweight references so the worker loads
             # content from the shared artifact service — artifact data
@@ -232,6 +245,8 @@ class SamRemoteExecutor(ToolExecutor):
                 "clientId": self._agent_name,
                 "userId": user_id,
             }
+            if auth_token:
+                user_properties["authToken"] = auth_token
 
             log.info(
                 "%s Sending request: id=%s, topic=%s",
@@ -542,10 +557,32 @@ class SamRemoteExecutor(ToolExecutor):
                 self._namespace, self._agent_name, correlation_id
             )
 
+            # Sign service token for init request authentication
+            service_token = None
+            if (
+                self._component
+                and hasattr(self._component, "trust_manager")
+                and self._component.trust_manager
+            ):
+                try:
+                    service_token = (
+                        self._component.trust_manager.sign_service_request(
+                            correlation_id
+                        )
+                    )
+                except Exception as e:
+                    log.warning(
+                        "%s Failed to sign service token for init: %s",
+                        log_id,
+                        e,
+                    )
+
             user_properties = {
                 "replyTo": reply_to,
                 "clientId": self._agent_name,
             }
+            if service_token:
+                user_properties["serviceToken"] = service_token
 
             log.info(
                 "%s Sending init request: id=%s, topic=%s",

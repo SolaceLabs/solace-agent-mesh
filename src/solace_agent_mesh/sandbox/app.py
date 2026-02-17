@@ -7,7 +7,7 @@ broker settings. Subscriptions are derived from the tool manifest.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import Field, ValidationError
 
@@ -22,6 +22,13 @@ from .component import SandboxWorkerComponent
 from .manifest import ToolManifest
 
 log = logging.getLogger(__name__)
+
+# Try to import TrustManagerConfig from enterprise repo
+try:
+    from solace_agent_mesh_enterprise.common.trust.config import TrustManagerConfig
+except ImportError:
+    # Enterprise features not available - create a placeholder type
+    TrustManagerConfig = Dict[str, Any]  # type: ignore
 
 info = {
     "class_name": "SandboxWorkerApp",
@@ -118,6 +125,10 @@ class SandboxWorkerAppConfig(SamConfigBase):
         default_factory=lambda: ArtifactServiceConfig(type="memory"),
         description="Configuration for the artifact service.",
     )
+    trust_manager: Optional[Union[TrustManagerConfig, Dict[str, Any]]] = Field(
+        default=None,
+        description="Configuration for the Trust Manager (enterprise feature).",
+    )
 
 
 class SandboxWorkerApp(SamAppBase):
@@ -178,6 +189,19 @@ class SandboxWorkerApp(SamAppBase):
 
         # Discovery messages (to track available agents if needed)
         required_topics.append(get_discovery_subscription_topic(namespace))
+
+        # Add trust card subscription if trust manager is enabled
+        trust_config = app_config.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ..common.a2a.protocol import get_trust_card_subscription_topic
+
+            trust_card_topic = get_trust_card_subscription_topic(namespace)
+            required_topics.append(trust_card_topic)
+            log.info(
+                "Trust Manager enabled for worker '%s', added trust card subscription: %s",
+                worker_id,
+                trust_card_topic,
+            )
 
         generated_subs = [{"topic": topic} for topic in required_topics]
         log.info(
