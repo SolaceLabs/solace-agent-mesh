@@ -101,7 +101,10 @@ export const Default: Story = {
     args: {
         open: true,
         onOpenChange: () => alert("Dialog will close."),
-        onImport: async () => {},
+        onImport: async () => ({
+            projectId: "mock-project-id",
+            sseLocation: null,
+        }),
     },
     play: async () => {
         const dialog = await screen.findByRole("dialog");
@@ -120,7 +123,10 @@ export const InvalidProjectZip: Story = {
     args: {
         open: true,
         onOpenChange: () => console.log("Dialog closed"),
-        onImport: async () => {},
+        onImport: async () => ({
+            projectId: "mock-project-id",
+            sseLocation: null,
+        }),
     },
     play: async () => {
         const dialog = await screen.findByRole("dialog");
@@ -146,7 +152,10 @@ export const NonZipFile: Story = {
     args: {
         open: true,
         onOpenChange: () => console.log("Dialog closed"),
-        onImport: async () => {},
+        onImport: async () => ({
+            projectId: "mock-project-id",
+            sseLocation: null,
+        }),
     },
     play: async () => {
         const dialog = await screen.findByRole("dialog");
@@ -174,6 +183,10 @@ export const ValidProjectWithArtifacts: Story = {
         onOpenChange: () => console.log("Dialog closed"),
         onImport: async (file, options) => {
             console.log("Importing project:", file.name, options);
+            return {
+                projectId: "mock-project-id",
+                sseLocation: null,
+            };
         },
     },
     play: async () => {

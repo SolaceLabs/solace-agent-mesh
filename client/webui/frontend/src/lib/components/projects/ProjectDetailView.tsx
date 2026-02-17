@@ -6,7 +6,7 @@ import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, type IndexingSSEEvent } from "@/lib/hooks";
+import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
@@ -30,25 +30,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const { validationLimits } = useConfigContext();
     const isProjectSharingEnabled = useIsProjectSharingEnabled();
     const [indexingError, setIndexingError] = useState<string | null>(null);
-    const { isIndexing, latestEvent } = useIndexingSSE({
+    const { isIndexing } = useIndexingSSE({
         resourceId: project.id,
         onError: error => setIndexingError(error),
         onComplete: () => setIndexingError(null),
     });
-
-    const formatEventInfo = (event: IndexingSSEEvent | null): string => {
-        if (!event) return "working...";
-        switch (event.type) {
-            case "conversion_file_progress":
-            case "conversion_completed":
-                return `(${event.current}/${event.total})`;
-            case "index_started":
-            case "index_completed":
-                return "indexing";
-            default:
-                return "working...";
-        }
-    };
 
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -192,13 +178,13 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
             <div className="flex min-h-0 flex-1">
                 {/* Left Panel - Description and Project Chats */}
                 <div className="w-[60%] overflow-y-auto border-r">
-                    {indexingError && <MessageBanner variant="error" message={`File processing failed: ${indexingError}`} className="m-6" />}
+                    {indexingError && <MessageBanner variant="error" message={`Processing project files failed: ${indexingError}`} className="m-6" />}
                     {isIndexing && (
                         <MessageBanner
                             variant="info"
                             message={
-                                <div className="flex justify-between gap-2">
-                                    <div>Processing project files for faster access: {formatEventInfo(latestEvent)}</div>
+                                <div className="flex gap-2">
+                                    <div>Processing project files for faster access...</div>
                                     <Spinner size="small" />
                                 </div>
                             }

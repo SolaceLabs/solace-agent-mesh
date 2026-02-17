@@ -136,13 +136,14 @@ export function useIndexingSSE(options: UseIndexingSSEOptions): UseIndexingSSERe
     const startIndexing = useCallback(
         (sseLocation: string, operation = "unknown") => {
             // Extract task ID from URL (e.g., "/api/v1/sse/subscribe/indexing_upload_xxx")
-            const newTaskId = sseLocation.split("/").pop() ?? crypto.randomUUID();
-
-            registerTask({
-                taskId: newTaskId,
-                sseUrl: sseLocation,
-                metadata: { [metadataKey]: resourceId, operation },
-            });
+            const newTaskId = sseLocation.split("/").pop();
+            if (newTaskId) {
+                registerTask({
+                    taskId: newTaskId,
+                    sseUrl: sseLocation,
+                    metadata: { [metadataKey]: resourceId, operation },
+                });
+            }
         },
         [registerTask, metadataKey, resourceId]
     );

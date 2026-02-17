@@ -4,13 +4,13 @@ import JSZip from "jszip";
 
 import { Input, Label } from "@/lib/components/ui";
 import { MessageBanner, FileUpload, ConfirmationDialog } from "@/lib/components/common";
-import { useConfigContext } from "@/lib/hooks";
+import { useConfigContext, useSSEContext } from "@/lib/hooks";
 import { formatBytes } from "@/lib/utils";
 
 interface ProjectImportDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onImport: (file: File, options: { preserveName: boolean; customName?: string }) => Promise<void>;
+    onImport: (file: File, options: { preserveName: boolean; customName?: string }) => Promise<{ projectId: string; sseLocation: string | null }>;
 }
 
 interface ArtifactPreviewInfo {
@@ -35,6 +35,7 @@ const DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
 
 export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const { validationLimits } = useConfigContext();
+    const { registerTask } = useSSEContext();
     const maxPerFileUploadSizeBytes = validationLimits?.maxPerFileUploadSizeBytes;
     const maxZipUploadSizeBytes = validationLimits?.maxZipUploadSizeBytes ?? DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES;
 
@@ -198,10 +199,21 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
         setError(null);
 
         try {
-            await onImport(selectedFile, {
+            const result = await onImport(selectedFile, {
                 preserveName: false,
                 customName: customName.trim() || undefined,
             });
+
+            // Register SSE indexing task so ProjectDetailView picks it up on mount
+            const taskId = result.sseLocation?.split("/").pop();
+            if (result.sseLocation && taskId) {
+                registerTask({
+                    taskId,
+                    sseUrl: result.sseLocation,
+                    metadata: { projectId: result.projectId, operation: "import" },
+                });
+            }
+
             // Reset state on success - ConfirmationDialog will handle closing
             setSelectedFiles(null);
             setProjectPreview(null);

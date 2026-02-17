@@ -148,6 +148,8 @@ export const ProjectsPage: React.FC = () => {
             // Navigate to the newly imported project
             navigate(`/projects/${result.projectId}`);
             addNotification(`Project imported with ${result.artifactsImported} artifacts`, "success");
+
+            return { projectId: result.projectId, sseLocation: result.sseLocation ?? null };
         } catch (error) {
             console.error("Failed to import project:", error);
             throw error; // Re-throw to let dialog handle it

@@ -1,37 +1,17 @@
 import React, { useEffect } from "react";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
+
 import { ProjectDetailView } from "@/lib";
-import { populatedProject, emptyProject } from "../data/projects";
-import { ownerWithAuthorization } from "../data/parameters";
-import { pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact } from "../data/artifactInfo";
-import type { Session } from "@/lib/types/fe";
-import { getMockAgentCards, mockAgentCards } from "../mocks/data";
 import { transformAgentCard, useSSEContext } from "@/lib/hooks";
 
-// ============================================================================
-// Mock Data
-// ============================================================================
+import { getMockAgentCards, mockAgentCards } from "../mocks/data";
+import { emptyProject, imageArtifact, jsonArtifact, markdownArtifact, ownerWithAuthorization, pdfArtifact, populatedProject, sessions } from "../data";
 
-const mockSessions: Session[] = [
-    {
-        id: "session-1",
-        name: "Debug authentication flow",
-        createdTime: new Date("2024-03-18T10:30:00Z").toISOString(),
-        updatedTime: new Date("2024-03-20T14:22:00Z").toISOString(),
-        projectId: populatedProject.id,
-        projectName: populatedProject.name,
-    },
-    {
-        id: "session-2",
-        name: "Implement password reset",
-        createdTime: new Date("2024-03-15T09:15:00Z").toISOString(),
-        updatedTime: new Date("2024-03-19T16:45:00Z").toISOString(),
-        projectId: populatedProject.id,
-        projectName: populatedProject.name,
-    },
-];
+// ============================================================================
+// Mocks
+// ============================================================================
 
 const mockArtifacts = [pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact];
 const transformedMockAgents = mockAgentCards.concat(getMockAgentCards(2)).map(transformAgentCard);
@@ -97,7 +77,7 @@ const handlers = [
         const projectId = url.searchParams.get("project_id");
 
         if (projectId === populatedProject.id) {
-            return HttpResponse.json({ data: mockSessions });
+            return HttpResponse.json({ data: sessions });
         }
         return HttpResponse.json({ data: [] });
     }),
@@ -335,4 +315,16 @@ export const IndexingError: Story = {
             return <MockFailedIndexingTask projectId={populatedProject.id}>{storyResult}</MockFailedIndexingTask>;
         },
     ],
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify info banner is shown
+        expect(await canvas.findByTestId("messageBanner")).toBeVisible();
+
+        // Verify buttons enabled - wait for first to ensure page is updated
+        await waitFor(async () => expect(await canvas.findByTestId("editDetailsButton", {}, { timeout: 2000 })).toBeEnabled());
+        expect(await canvas.findByTestId("editInstructions")).toBeEnabled();
+        expect(await canvas.findByTestId("editDefaultAgent")).toBeEnabled();
+        expect(await canvas.findByTestId("startNewChatButton")).toBeEnabled();
+    },
 };
