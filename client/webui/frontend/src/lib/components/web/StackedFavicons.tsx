@@ -6,42 +6,13 @@
 
 import { getCleanDomain, getFaviconUrl } from "@/lib/utils";
 import type { SearchSource } from "@/lib/types/fe";
+import { getFileTypeIcon } from "@/lib/components/chat/file/FileIcon";
 
 interface StackedFaviconsProps {
     sources: SearchSource[];
     start?: number;
     end?: number;
     size?: number;
-}
-
-/**
- * Get file type icon emoji based on file extension
- * Supports: PDF, DOCX, PPTX, and text-based files (txt, md, csv, json, xml, etc.)
- */
-function getFileTypeIcon(filename: string): string {
-    const ext = filename.toLowerCase().split(".").pop() || "";
-
-    switch (ext) {
-        case "pdf":
-            return "📄";
-        case "doc":
-        case "docx":
-            return "📝";
-        case "ppt":
-        case "pptx":
-            return "📊";
-        case "txt":
-        case "md":
-        case "csv":
-        case "json":
-        case "xml":
-        case "yaml":
-        case "yml":
-        case "log":
-            return "📃";
-        default:
-            return "📄"; // Generic document icon
-    }
 }
 
 /**
@@ -52,11 +23,12 @@ function SourceIcon({ source, className = "", size = 16 }: { source: SearchSourc
     const isDocument = source.source_type === "document" || (source.filename && !source.link);
 
     if (isDocument && source.filename) {
-        // Show file type icon for documents
-        const fileIcon = getFileTypeIcon(source.filename);
+        // Show file type icon for documents - reuses getFileTypeIcon from FileIcon component
+        const iconSize = Math.round(size * 0.6);
+        const icon = getFileTypeIcon(undefined, source.filename, { size: iconSize, className: "text-muted-foreground" });
         return (
-            <div className={`relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] bg-white ${className}`} style={{ width: size, height: size }} title={source.filename}>
-                <div className="flex h-full w-full items-center justify-center text-xs">{fileIcon}</div>
+            <div className={`bg-muted relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] ${className}`} style={{ width: size, height: size }} title={source.filename}>
+                <div className="flex h-full w-full items-center justify-center">{icon}</div>
             </div>
         );
     }
@@ -75,7 +47,7 @@ function SourceIcon({ source, className = "", size = 16 }: { source: SearchSourc
                     target.style.display = "none";
                     const parent = target.parentElement;
                     if (parent) {
-                        parent.innerHTML = `<div class="flex items-center justify-center w-full h-full text-xs font-bold text-gray-600 bg-gray-200">${domain[0].toUpperCase()}</div>`;
+                        parent.innerHTML = `<div class="bg-muted text-muted-foreground flex h-full w-full items-center justify-center text-xs font-bold">${domain[0].toUpperCase()}</div>`;
                     }
                 }}
             />
