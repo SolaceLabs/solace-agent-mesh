@@ -25,7 +25,6 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
             <AccordionItem value={`document-${sourceIndex}`} className="border-none">
                 {/* Hide default chevron with [&>svg:last-child]:hidden, use custom chevron on left */}
                 <AccordionTrigger className="items-center gap-2 p-4 hover:no-underline [&>svg:last-child]:hidden [&[data-state=open]>svg:first-child]:rotate-90">
-                    {/* Chevron on the left, centered vertically */}
                     <ChevronRight className="dark:text-primary h-4 w-4 shrink-0 self-center text-[#015B82] transition-transform duration-200" />
 
                     <FileIcon filename={filename} variant="compact" />
