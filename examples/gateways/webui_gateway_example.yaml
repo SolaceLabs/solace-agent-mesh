@@ -65,6 +65,10 @@ apps:
       gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
       sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
 
+      # Queue Configuration
+      visualization_queue_size: ${VISUALIZATION_QUEUE_SIZE, 600}
+      task_logger_queue_size: ${TASK_LOGGER_QUEUE_SIZE, 600}
+
       system_purpose: >
             The system is an AI Chatbot with agentic capabilities.
             It will use the agents available to provide information,

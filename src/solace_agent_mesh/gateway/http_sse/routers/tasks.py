@@ -100,7 +100,7 @@ async def get_task_status(
     # Can reconnect if it's a background task and still running
     can_reconnect = is_background and is_running
     
-    log.info(
+    log.debug(
         "%sTask status: running=%s, background=%s, can_reconnect=%s",
         log_prefix,
         is_running,
