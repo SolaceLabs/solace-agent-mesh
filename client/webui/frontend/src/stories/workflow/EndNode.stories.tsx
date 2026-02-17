@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen } from "storybook/test";
-import StartNode from "@/lib/components/workflowVisualization/nodes/StartNode";
+import EndNode from "@/lib/components/workflowVisualization/nodes/EndNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Workflow Visualization/StartNode",
-    component: StartNode,
+    title: "Workflow/WorkflowVisualization/EndNode",
+    component: EndNode,
     parameters: {
         layout: "fullscreen",
     },
@@ -16,34 +16,33 @@ const meta = {
             </div>
         ),
     ],
-} satisfies Meta<typeof StartNode>;
+} satisfies Meta<typeof EndNode>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const startNode: LayoutNode = {
-    id: "__start__",
-    type: "start",
+const endNode: LayoutNode = {
+    id: "__end__",
+    type: "end",
     x: 0,
     y: 0,
     width: 100,
     height: 40,
     children: [],
     data: {
-        label: "Start",
+        label: "End",
     },
 };
 
 export const Default: Story = {
     args: {
-        node: startNode,
-        isHighlighted: false,
+        node: endNode,
     },
     play: async () => {
-        const startNodeElement = screen.getByText("Start");
-        expect(startNodeElement).toBeInTheDocument();
+        const endNodeElement = screen.getByText("End");
+        expect(endNodeElement).toBeInTheDocument();
 
-        const container = startNodeElement.closest("div");
+        const container = endNodeElement.closest("div");
         expect(container?.onclick).toBeNull();
     },
 };

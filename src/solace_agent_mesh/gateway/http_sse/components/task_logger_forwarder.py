@@ -2,6 +2,7 @@
 SAC Component to forward messages from an internal BrokerInput
 to the WebUIBackendComponent's internal queue for task logging.
 """
+import asyncio
 import logging
 import queue
 from typing import Any, Dict
@@ -45,21 +46,21 @@ info = {
 class TaskLoggerForwarderComponent(ComponentBase):
     """
     A simple SAC component that takes messages from its input (typically
-    from a BrokerInput) and puts them onto a target Python queue.Queue
+    from a BrokerInput) and puts them onto a target Python queue.Queue or asyncio.Queue instance
     instance provided in its configuration.
     """
 
     def __init__(self, **kwargs: Any):
         super().__init__(info, **kwargs)
-        self.target_queue: queue.Queue = self.get_config("target_queue_ref")
-        if not isinstance(self.target_queue, queue.Queue):
+        self.target_queue = self.get_config("target_queue_ref")
+        if not isinstance(self.target_queue, (queue.Queue, asyncio.Queue)):
             log.error(
-                "%s Configuration 'target_queue_ref' is not a valid queue.Queue instance. Type: %s",
+                "%s Configuration 'target_queue_ref' is not a valid queue.Queue or asyncio.Queue instance. Type: %s",
                 self.log_identifier,
                 type(self.target_queue),
             )
             raise ValueError(
-                f"{self.log_identifier} 'target_queue_ref' must be a queue.Queue instance."
+                f"{self.log_identifier} 'target_queue_ref' must be a queue.Queue or asyncio.Queue instance."
             )
         log.info("%s TaskLoggerForwarderComponent initialized.", self.log_identifier)
 
@@ -87,7 +88,7 @@ class TaskLoggerForwarderComponent(ComponentBase):
             )
             try:
                 self.target_queue.put_nowait(forward_data)
-            except queue.Full:
+            except (queue.Full, asyncio.QueueFull):
                 log.warning(
                     "%s Task logging queue is full. Message dropped. Current size: %d",
                     log_id_prefix,

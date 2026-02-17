@@ -364,3 +364,162 @@ sam plugin catalog [OPTIONS]
 - `--install-command TEXT` – Command to use to install a python package. Must follow the format `command {package} args`.
 - `-h, --help` – Displays the help message and exits.
 
+### `task` - Send Tasks to the Gateway
+
+The `task` command allows you to send tasks to the webui gateway from the command line and receive streaming responses. This is useful for testing agents, debugging workflows, and automating interactions without using a browser.
+
+```sh
+sam task [COMMAND] [OPTIONS]
+```
+
+#### `run` - Start SAM, Send Task, and Stop
+
+Starts SAM with specified configurations, waits for agents to be ready, sends a task, streams the response, and then cleanly shuts down. This is the recommended approach for one-shot testing and CI/CD pipelines.
+
+```sh
+sam task run [OPTIONS] MESSAGE
+```
+
+##### Basic Examples:
+
+```sh
+# Basic usage with default configs/ directory
+sam task run "What agents are available?"
+
+# Specify config files
+sam task run "Hello" -c examples/agents/orchestrator.yaml -c examples/gateways/webui.yaml
+
+# With file attachment
+sam task run "Summarize this document" --file ./document.pdf -c configs/
+
+# Target specific agent
+sam task run "Analyze data" --agent data_analyst -c configs/
+
+# Debug mode to see startup and SSE details
+sam task run "Test" --debug -c configs/
+```
+
+##### Options:
+
+- `-c, --config PATH` – YAML config files or directories to run. Can be specified multiple times. (default: `configs/` directory)
+- `-s, --skip TEXT` – File name(s) to exclude from configs (e.g., `-s my_agent.yaml`).
+- `-u, --url TEXT` – Base URL of the webui gateway. Can also be set via `SAM_WEBUI_URL` environment variable. (default: `http://localhost:8000`)
+- `-a, --agent TEXT` – Target agent name. Can also be set via `SAM_AGENT` environment variable. (default: `orchestrator`)
+- `--session-id TEXT` – Session ID for context continuity. If not provided, a new UUID is generated.
+- `-t, --token TEXT` – Bearer token for authentication. Can also be set via `SAM_AUTH_TOKEN` environment variable.
+- `-f, --file PATH` – File(s) to attach to the message. Can be specified multiple times.
+- `--timeout INTEGER` – Timeout in seconds for task execution. (default: 300)
+- `--startup-timeout INTEGER` – Timeout in seconds for agent readiness. (default: 60)
+- `-o, --output-dir PATH` – Output directory for artifacts, logs, and response files. (default: `/tmp/sam-task-run-{taskId}`)
+- `-q, --quiet` – Suppress streaming output. Only shows the final summary.
+- `--no-stim` – Do not fetch the STIM file on completion.
+- `--system-env` – Use system environment variables only; do not load .env file.
+- `--debug` – Enable debug output showing startup progress and SSE events.
+- `-h, --help` – Displays the help message and exits.
+
+##### Output Directory Structure:
+
+When a task completes, the output directory contains:
+
+```
+/tmp/sam-task-run-{taskId}/
+├── sam.log               # SAM backend logs (useful for debugging startup issues)
+├── sse_events.yaml       # All SSE events in YAML format (for debugging)
+├── response.txt          # User-facing text output (same as terminal output)
+├── {taskId}.stim         # STIM file from the backend (task invocation log)
+└── artifacts/            # Downloaded artifacts created by agents
+```
+
+#### `send` - Send a Task to Running SAM
+
+Sends a message to an agent via an already-running webui gateway and streams the response. Use this when SAM is already running (e.g., started with `sam run` or a VSCode launch configuration).
+
+```sh
+sam task send [OPTIONS] MESSAGE
+```
+
+The command blocks until the task completes and streams the response text to the terminal. All SSE events are recorded for debugging purposes.
+
+##### Basic Examples:
+
+```sh
+# Send a simple message
+sam task send "What is the weather today?"
+
+# Send to a specific agent
+sam task send "Analyze this data" --agent data_analyst
+
+# Continue a previous conversation
+sam task send "What did we discuss?" --session-id abc-123-def-456
+
+# Attach a file to the message
+sam task send "Summarize this document" --file ./document.pdf
+
+# Attach multiple files
+sam task send "Compare these files" --file ./file1.txt --file ./file2.txt
+
+# Use a custom gateway URL with authentication
+sam task send "Hello" --url https://mygateway.com --token $MY_TOKEN
+```
+
+##### Options:
+
+- `-u, --url TEXT` – Base URL of the webui gateway. Can also be set via `SAM_WEBUI_URL` environment variable. (default: `http://localhost:8000`)
+- `-a, --agent TEXT` – Target agent name. The command fetches available agents and attempts to match the specified name (case-insensitive). Can also be set via `SAM_AGENT` environment variable. (default: `orchestrator`)
+- `-s, --session-id TEXT` – Session ID for context continuity. Use the same session ID to continue a previous conversation. If not provided, a new UUID is generated.
+- `-t, --token TEXT` – Bearer token for authentication. Can also be set via `SAM_AUTH_TOKEN` environment variable.
+- `-f, --file PATH` – File(s) to attach to the message. Can be specified multiple times to attach multiple files.
+- `--timeout INTEGER` – Timeout in seconds for the SSE connection. (default: 120)
+- `-o, --output-dir PATH` – Output directory for artifacts, logs, and response files. (default: `/tmp/sam-task-{taskId}`)
+- `-q, --quiet` – Suppress streaming output. Only shows the final summary.
+- `--no-stim` – Do not fetch the STIM file on completion.
+- `--debug` – Enable debug output showing SSE events and connection details.
+- `-h, --help` – Displays the help message and exits.
+
+##### Output Directory Structure:
+
+When a task completes, the output directory contains:
+
+```
+/tmp/sam-task-{taskId}/
+├── sse_events.yaml       # All SSE events in YAML format (for debugging)
+├── response.txt          # User-facing text output (same as terminal output)
+├── {taskId}.stim         # STIM file from the backend (task invocation log)
+└── artifacts/            # Downloaded artifacts created by agents
+    ├── report.md
+    └── data.csv
+```
+
+##### Session Continuity:
+
+To continue a conversation from a previous session, use the `--session-id` option with the session ID printed at the end of a previous task:
+
+```sh
+# First interaction
+sam task send "Remember my name is Alice"
+# Output includes: Session ID: abc-123-def-456
+
+# Continue the conversation
+sam task send "What is my name?" --session-id abc-123-def-456
+# Agent recalls: "Your name is Alice"
+```
+
+##### Agent Discovery:
+
+The command automatically fetches available agents from the gateway at startup. When specifying an agent:
+
+1. **Exact match** – If the agent name matches exactly, it's used directly
+2. **Case-insensitive match** – If no exact match, tries case-insensitive matching
+3. **Partial match** – If still no match, tries partial matching
+4. **Fallback** – If the specified agent is not found, falls back to the first available agent
+
+If the specified agent cannot be found, the command displays available agents and uses the default.
+
+##### Environment Variables:
+
+| Variable | Description |
+|----------|-------------|
+| `SAM_WEBUI_URL` | Default gateway URL (equivalent to `--url`) |
+| `SAM_AGENT` | Default target agent (equivalent to `--agent`) |
+| `SAM_AUTH_TOKEN` | Default authentication token (equivalent to `--token`) |
+

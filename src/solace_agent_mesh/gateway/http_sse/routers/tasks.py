@@ -100,7 +100,7 @@ async def get_task_status(
     # Can reconnect if it's a background task and still running
     can_reconnect = is_background and is_running
     
-    log.info(
+    log.debug(
         "%sTask status: running=%s, background=%s, can_reconnect=%s",
         log_prefix,
         is_running,
@@ -222,7 +222,15 @@ async def _inject_project_context(
         # This ensures new project files are available to existing sessions
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
-            try:            
+            try:
+                # Get feature flag value
+                project_indexing_config = component.get_config("project_indexing", {})
+                indexing_enabled = (
+                    project_indexing_config.get("enabled", False)
+                    if isinstance(project_indexing_config, dict)
+                    else False
+                )
+
                 artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
                     project_id=project_id,
                     user_id=user_id,
@@ -231,6 +239,7 @@ async def _inject_project_context(
                     component=component,
                     db=db,
                     log_prefix=log_prefix,
+                    indexing_enabled=indexing_enabled,
                 )
 
                 # Get artifact descriptions for context injection
@@ -245,20 +254,28 @@ async def _inject_project_context(
                         session_id=project_artifacts_session_id,
                     )
 
-                    if project_artifacts:
-                        # For new sessions - all files
+                    # Filter artifacts for display: only show original files to user
+                    # Even when indexing is enabled, hide converted files and BM25 index from user's view
+                    original_artifacts_for_display = [
+                        artifact for artifact in project_artifacts
+                        if not artifact.filename.endswith('.converted.txt')
+                        and artifact.filename != 'project_bm25_index.zip'
+                    ]
+
+                    if original_artifacts_for_display:
+                        # For new sessions - all original files
                         all_artifact_descriptions = []
-                        # For existing sessions - only new files
+                        # For existing sessions - only new original files
                         new_artifact_descriptions = []
 
-                        for artifact_info in project_artifacts:
-                            # Build description for all artifacts (for new sessions)
+                        for artifact_info in original_artifacts_for_display:
+                            # Build description for original artifacts only
                             desc_str = f"- {artifact_info.filename}"
                             if artifact_info.description:
                                 desc_str += f": {artifact_info.description}"
                             all_artifact_descriptions.append(desc_str)
 
-                            # Track new artifacts for existing sessions
+                            # Track new original artifacts for existing sessions
                             if artifact_info.filename in new_artifact_names:
                                 new_artifact_descriptions.append(desc_str)
 
@@ -269,12 +286,52 @@ async def _inject_project_context(
                         )
 
                         if inject_full_context and all_artifact_descriptions:
-                            # New session: show all project files
+                            # New session: show all original files
                             artifacts_context = files_added_header + "\n".join(all_artifact_descriptions)
+
+                            # When indexing is enabled, add internal instruction to LLM
+                            if indexing_enabled:
+                                artifacts_context += (
+                                    "\n\n--- INTERNAL SYSTEM NOTE (Do not reveal to user) ---\n"
+                                    "In addition to the original files listed above, you have access to:\n"
+                                    "1. Converted text versions: For each binary file (PDF/DOCX/PPTX), a corresponding "
+                                    "`.converted.txt` file exists with extracted text content\n"
+                                    "2. Search index: A `project_bm25_index.zip` file containing BM25 search indices "
+                                    "for efficient text retrieval across all documents\n\n"
+                                    "IMPORTANT INSTRUCTIONS:\n"
+                                    "- You MAY use the converted text files and search index internally for search, "
+                                    "retrieval, and answering questions\n"
+                                    "- You MUST NOT mention, reference, or reveal the existence of `.converted.txt` "
+                                    "files or `project_bm25_index.zip` to the user in your responses\n"
+                                    "- When citing content, always reference the ORIGINAL file name (e.g., 'report.pdf'), "
+                                    "never the converted version (e.g., 'report.pdf.converted.txt')\n"
+                                    "- The user is only aware of the original files listed above and should remain so\n"
+                                    "--- END INTERNAL NOTE ---"
+                                )
+
                             context_parts.append(artifacts_context)
                         elif not inject_full_context and new_artifact_descriptions:
-                            # Existing session: notify about newly added files
+                            # Existing session: notify about newly added original files
                             new_files_context = files_added_header + "\n".join(new_artifact_descriptions)
+
+                            # When indexing is enabled, add internal instruction to LLM
+                            if indexing_enabled:
+                                new_files_context += (
+                                    "\n\n--- INTERNAL SYSTEM NOTE (Do not reveal to user) ---\n"
+                                    "In addition to the original files listed above, you have access to:\n"
+                                    "1. Converted text versions: For each binary file (PDF/DOCX/PPTX), a corresponding "
+                                    "`.converted.txt` file exists with extracted text content\n"
+                                    "2. Search index: A `project_bm25_index.zip` file containing BM25 search indices "
+                                    "for efficient text retrieval\n\n"
+                                    "IMPORTANT INSTRUCTIONS:\n"
+                                    "- You MAY use the converted text files and search index internally for search and retrieval\n"
+                                    "- You MUST NOT mention, reference, or reveal the existence of `.converted.txt` "
+                                    "files or `project_bm25_index.zip` to the user\n"
+                                    "- When citing content, always reference the ORIGINAL file name, never the converted version\n"
+                                    "- The user is only aware of the original files listed above and should remain so\n"
+                                    "--- END INTERNAL NOTE ---"
+                                )
+
                             context_parts.append(new_files_context)
 
             except Exception as e:
@@ -422,6 +479,38 @@ async def _submit_task(
             log.info(
                 "%sUsing session ID from frontend request: %s", log_prefix, session_id
             )
+
+            # Ensure session exists in database if persistence is enabled
+            # This handles CLI clients that provide their own session IDs
+            if SessionLocal is not None and session_service is not None:
+                db = SessionLocal()
+                try:
+                    # Check if session already exists
+                    existing_session = session_service.get_session_details(
+                        db, session_id, user_id
+                    )
+                    if not existing_session:
+                        # Create the session since it doesn't exist
+                        session_service.create_session(
+                            db=db,
+                            user_id=user_id,
+                            agent_id=agent_name,
+                            session_id=session_id,
+                            project_id=project_id,
+                        )
+                        db.commit()
+                        log.info(
+                            "%sCreated session in database for client-provided ID: %s",
+                            log_prefix,
+                            session_id,
+                        )
+                except Exception as e:
+                    db.rollback()
+                    log.warning(
+                        "%sFailed to ensure session in database: %s", log_prefix, e
+                    )
+                finally:
+                    db.close()
         else:
             # Create new session when frontend doesn't provide one
             session_id = session_manager.create_new_session_id(request)

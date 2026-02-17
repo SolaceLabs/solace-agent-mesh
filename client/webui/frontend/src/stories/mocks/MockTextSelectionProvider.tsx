@@ -11,6 +11,7 @@ const defaultTextSelectionValues: SelectionContextValue = {
     selectionRange: null,
     menuPosition: null,
     sourceMessageId: null,
+    sourceTaskId: null,
     isMenuOpen: false,
     setSelection: () => {},
     clearSelection: () => {},
