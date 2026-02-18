@@ -7,7 +7,6 @@ import { FileIcon } from "@/lib/components/chat/file/FileIcon";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { useDocumentContent } from "@/lib/api/documents";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
-import { getArtifactUrl } from "@/lib/utils/file";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
 import { highlightCitationsInText, getFirstCitationPreview } from "@/lib/utils/highlightUtils";
 import type { RAGSource } from "@/lib/types";
@@ -38,16 +37,22 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
     const { data: documentData, isLoading, error: fetchError } = useDocumentContent(isOpen ? projectId : null, isOpen ? filename : null);
 
     // Determine render type from filename
-    const renderType = useMemo(() => getRenderType(filename, documentData?.mimeType), [filename, documentData?.mimeType]);
+    // For PDFs, prioritize filename extension over mimeType since backend may return
+    // application/json wrapper which would incorrectly trigger JSON renderer
+    const renderType = useMemo(() => {
+        const lowerFilename = filename.toLowerCase();
+        if (lowerFilename.endsWith(".pdf")) {
+            return "pdf";
+        }
+        return getRenderType(filename, documentData?.mimeType);
+    }, [filename, documentData?.mimeType]);
 
     // Build URL for PDF rendering and file download
+    // Use "latest" version to get actual file content (without version, endpoint returns version list as JSON)
     const fileUrl = useMemo(() => {
         if (!projectId) return null;
-        try {
-            return getArtifactUrl({ filename, projectId });
-        } catch {
-            return null;
-        }
+        const encodedFilename = encodeURIComponent(filename);
+        return `/api/v1/artifacts/null/${encodedFilename}/versions/latest?project_id=${projectId}`;
     }, [filename, projectId]);
 
     // Process content for text-based files (apply highlighting)
@@ -137,8 +142,15 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
 
                     {!isLoading && !error && renderType && (
                         <div className="h-full overflow-auto">
-                            {renderType === "pdf" && fileUrl ? (
-                                <ContentRenderer content="" rendererType={renderType} mime_type={documentData?.mimeType} url={fileUrl} filename={filename} setRenderError={setRenderError} initialPage={pageNumber} />
+                            {renderType === "pdf" ? (
+                                fileUrl ? (
+                                    <ContentRenderer content="" rendererType={renderType} mime_type={documentData?.mimeType} url={fileUrl} filename={filename} setRenderError={setRenderError} initialPage={pageNumber} />
+                                ) : (
+                                    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2">
+                                        <AlertCircle className="h-8 w-8" />
+                                        <p className="text-sm">Unable to preview PDF: No active project context</p>
+                                    </div>
+                                )
                             ) : renderType === "text" || renderType === "markdown" ? (
                                 // Use dangerouslySetInnerHTML for highlighted text content
                                 <div className="h-full overflow-auto p-4">
