@@ -146,7 +146,6 @@ export const ProjectsPage: React.FC = () => {
                 addNotification(warningMessage, "info");
             }
 
-            // Register SSE indexing task so ProjectDetailView picks it up on mount
             if (result.sseLocation) {
                 startIndexing(result.sseLocation, result.projectId, "import");
             }

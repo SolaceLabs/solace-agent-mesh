@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Pencil } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
@@ -14,7 +14,7 @@ interface SystemPromptSectionProps {
     error?: string | null;
 }
 
-export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ project, onSave, isSaving, isDisabled, error }) => {
+export const SystemPromptSection = ({ project, onSave, isSaving, isDisabled, error }: SystemPromptSectionProps) => {
     const isOwner = useIsProjectOwner(project.userId);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
