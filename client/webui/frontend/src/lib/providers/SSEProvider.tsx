@@ -242,7 +242,6 @@ export const SSEProvider = ({ children }: SSEProviderProps) => {
                 entry.registeredEventTypes.add(eventType);
 
                 const handler = (event: MessageEvent) => {
-                    console.log(`[SSEProvider] Event received (${eventType}):`, event.data);
                     entry!.subscribers.forEach(sub => {
                         if (sub.eventType === eventType) {
                             sub.onMessage?.(event);

@@ -1,4 +1,3 @@
-import React from "react";
 import { MessageCircle, Calendar, Plus } from "lucide-react";
 
 import { useProjectSessions } from "@/lib/api/projects/hooks";
@@ -14,7 +13,7 @@ interface ProjectChatsSectionProps {
     isDisabled?: boolean;
 }
 
-export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ project, onChatClick, onStartNewChat, isDisabled = false }) => {
+export const ProjectChatsSection = ({ project, onChatClick, onStartNewChat, isDisabled = false }: ProjectChatsSectionProps) => {
     const { data: sessions = [], isLoading, error } = useProjectSessions(project.id);
 
     return (

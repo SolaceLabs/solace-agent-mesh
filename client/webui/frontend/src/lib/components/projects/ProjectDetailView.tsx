@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Pencil, Trash2, MoreHorizontal, Share2 } from "lucide-react";
 
 import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea, Spinner } from "@/lib/components/ui";
@@ -6,7 +6,7 @@ import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE } from "@/lib/hooks";
+import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
@@ -24,16 +24,21 @@ interface ProjectDetailViewProps {
     onShare?: () => void;
 }
 
-export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, onShare }) => {
+export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick, onShare }: ProjectDetailViewProps) => {
     const isOwner = useIsProjectOwner(project.userId);
     const { updateProject, projects, deleteProject } = useProjectContext();
     const { validationLimits } = useConfigContext();
+    const { addNotification } = useChatContext();
     const isProjectSharingEnabled = useIsProjectSharingEnabled();
+
     const [indexingError, setIndexingError] = useState<string | null>(null);
     const { isIndexing } = useIndexingSSE({
         resourceId: project.id,
         onError: error => setIndexingError(error),
-        onComplete: () => setIndexingError(null),
+        onComplete: () => {
+            setIndexingError(null);
+            addNotification("Project file processing complete", "success");
+        },
     });
 
     const [isSaving, setIsSaving] = useState(false);

@@ -35,7 +35,8 @@ export const addFilesToProject = async (projectId: string, files: File[], fileMe
         throw new Error(await getErrorFromResponse(response));
     }
 
-    return { sseLocation: response.headers.get("sse-location") };
+    const result = await response.json();
+    return { ...result, sseLocation: response.headers.get("sse-location") };
 };
 
 export const removeFileFromProject = async (projectId: string, filename: string): Promise<{ sseLocation: string | null }> => {
@@ -45,7 +46,8 @@ export const removeFileFromProject = async (projectId: string, filename: string)
         throw new Error(await getErrorFromResponse(response));
     }
 
-    return { sseLocation: response.headers.get("sse-location") };
+    const result = await response.json();
+    return { ...result, sseLocation: response.headers.get("sse-location") };
 };
 
 export const updateFileMetadata = async (projectId: string, filename: string, description: string) => {

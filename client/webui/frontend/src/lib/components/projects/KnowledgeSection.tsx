@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
-import { useChatContext, useConfigContext, useDownload, useIsProjectOwner, useIndexingSSE } from "@/lib/hooks";
+import { useConfigContext, useDownload, useIsProjectOwner, useIndexingSSE } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
@@ -21,21 +21,13 @@ interface KnowledgeSectionProps {
     isDisabled?: boolean;
 }
 
-export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project, isDisabled }) => {
+export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSectionProps) => {
     const isOwner = useIsProjectOwner(project.userId);
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
+    const { startIndexing } = useIndexingSSE({ resourceId: project.id });
     const { validationLimits } = useConfigContext();
-    const { addNotification } = useChatContext();
-
-    const { startIndexing } = useIndexingSSE({
-        resourceId: project.id,
-        onComplete: () => {
-            refetch();
-            addNotification("Project file indexing complete.", "success");
-        },
-    });
 
     // Get validation limits from config - if not available, skip client-side validation
     const maxPerFileUploadSizeBytes = validationLimits?.maxPerFileUploadSizeBytes;
@@ -96,11 +88,10 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project, isD
         try {
             const result = await addFilesToProject(project.id, formData);
 
-            // Close dialog first, then start indexing for cleaner UX
+            // close dialog and then start indexing if required
             setFilesToUpload(null);
-
             if (result.sseLocation) {
-                startIndexing(result.sseLocation, "upload");
+                startIndexing(result.sseLocation, project.id, "upload");
             }
 
             await refetch();
@@ -131,13 +122,14 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project, isD
 
         try {
             const result = await removeFileFromProject(project.id, fileToDelete.filename);
+
+            // close dialog and then start indexing if required
+            setFileToDelete(null);
             if (result.sseLocation) {
-                // location will exist only if feature is enabled
-                startIndexing(result.sseLocation, "delete");
+                startIndexing(result.sseLocation, project.id, "delete");
             }
 
             await refetch();
-            setFileToDelete(null);
         } catch (e) {
             console.error(`Failed to delete file ${fileToDelete.filename}:`, e);
         }

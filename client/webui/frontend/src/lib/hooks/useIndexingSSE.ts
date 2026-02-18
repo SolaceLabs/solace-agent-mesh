@@ -4,6 +4,41 @@ import { useSSESubscription } from "@/lib/providers";
 import type { SSEConnectionState } from "@/lib/types";
 
 /**
+ * Hook for registering new indexing tasks without subscribing to SSE events.
+ * Use this when you only need to start indexing (e.g., after an import) but
+ * another component handles the SSE subscription and status display.
+ *
+ * @example
+ * ```tsx
+ * const startIndexing = useStartIndexing();
+ *
+ * const handleImport = async (file) => {
+ *     const result = await importProject(file);
+ *     if (result.sseLocation) {
+ *         startIndexing(result.sseLocation, result.projectId, "import");
+ *     }
+ * };
+ * ```
+ */
+export function useStartIndexing(metadataKey = "resourceId") {
+    const { registerTask } = useSSEContext();
+
+    return useCallback(
+        (sseLocation: string, resourceId: string, operation: string) => {
+            const taskId = sseLocation.split("/").pop();
+            if (taskId) {
+                registerTask({
+                    taskId,
+                    sseUrl: sseLocation,
+                    metadata: { [metadataKey]: resourceId, operation },
+                });
+            }
+        },
+        [registerTask, metadataKey]
+    );
+}
+
+/**
  * SSE event received during indexing operations.
  * @property type - The event type identifier
  */
@@ -41,7 +76,7 @@ export interface UseIndexingSSEReturn {
     isConnected: boolean;
     isIndexing: boolean;
     latestEvent: IndexingSSEEvent | null;
-    startIndexing: (sseLocation: string, operation?: string) => void;
+    startIndexing: (sseLocation: string, resourceId: string, operation: string) => void;
 }
 
 /**
@@ -63,15 +98,17 @@ export interface UseIndexingSSEReturn {
  * const handleUpload = async (files) => {
  *     const result = await uploadFiles(files);
  *     if (result.sseLocation) {
- *         startIndexing(result.sseLocation, "upload");
+ *         startIndexing(result.sseLocation, project.id, "upload");
  *     }
  * };
  * ```
  */
 export function useIndexingSSE(options: UseIndexingSSEOptions): UseIndexingSSEReturn {
-    const { resourceId, metadataKey = "projectId", onComplete, onError, onEvent } = options;
+    const { resourceId, metadataKey = "resourceId", onComplete, onError, onEvent } = options;
 
-    const { registerTask, unregisterTask, getTasksByMetadata } = useSSEContext();
+    const { unregisterTask, getTasksByMetadata } = useSSEContext();
+    const startIndexing = useStartIndexing(metadataKey);
+
     const [latestEvent, setLatestEvent] = useState<IndexingSSEEvent | null>(null);
 
     // Store callbacks in refs to avoid stale closures
@@ -131,22 +168,6 @@ export function useIndexingSSE(options: UseIndexingSSEOptions): UseIndexingSSERe
             console.error("[useIndexingSSE] Connection error:", event);
         },
     });
-
-    // Start a new indexing task
-    const startIndexing = useCallback(
-        (sseLocation: string, operation = "unknown") => {
-            // Extract task ID from URL (e.g., "/api/v1/sse/subscribe/indexing_upload_xxx")
-            const newTaskId = sseLocation.split("/").pop();
-            if (newTaskId) {
-                registerTask({
-                    taskId: newTaskId,
-                    sseUrl: sseLocation,
-                    metadata: { [metadataKey]: resourceId, operation },
-                });
-            }
-        },
-        [registerTask, metadataKey, resourceId]
-    );
 
     return {
         connectionState,

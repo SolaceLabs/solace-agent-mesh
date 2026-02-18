@@ -1,10 +1,10 @@
-import React, { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 
 import { ProjectDetailView } from "@/lib";
-import { transformAgentCard, useSSEContext } from "@/lib/hooks";
+import { transformAgentCard, useStartIndexing } from "@/lib/hooks";
 
 import { getMockAgentCards, mockAgentCards } from "../mocks/data";
 import { emptyProject, imageArtifact, jsonArtifact, markdownArtifact, ownerWithAuthorization, pdfArtifact, populatedProject, sessions } from "../data";
@@ -26,16 +26,12 @@ const agentNameDisplayNameMap = transformedMockAgents.reduce(
 /**
  * Helper to register a mock indexing task on mount
  */
-const MockIndexingTask: React.FC<{ projectId: string; children: React.ReactNode }> = ({ projectId, children }) => {
-    const { registerTask } = useSSEContext();
+const MockIndexingTask = ({ projectId, children }: { projectId: string; children: ReactNode }) => {
+    const startIndexing = useStartIndexing();
 
     useEffect(() => {
-        registerTask({
-            taskId: "mock-indexing-task",
-            sseUrl: "/api/v1/sse/subscribe/mock-indexing-task",
-            metadata: { projectId },
-        });
-    }, [registerTask, projectId]);
+        startIndexing("/api/v1/sse/subscribe/mock-indexing-task", projectId, "upload");
+    }, [startIndexing, projectId]);
 
     return <>{children}</>;
 };
@@ -43,16 +39,12 @@ const MockIndexingTask: React.FC<{ projectId: string; children: React.ReactNode 
 /**
  * Helper to register a mock failed indexing task on mount
  */
-const MockFailedIndexingTask: React.FC<{ projectId: string; children: React.ReactNode }> = ({ projectId, children }) => {
-    const { registerTask } = useSSEContext();
+const MockFailedIndexingTask = ({ projectId, children }: { projectId: string; children: ReactNode }) => {
+    const startIndexing = useStartIndexing();
 
     useEffect(() => {
-        registerTask({
-            taskId: "mock-failed-indexing-task",
-            sseUrl: "/api/v1/sse/subscribe/mock-failed-indexing-task",
-            metadata: { projectId },
-        });
-    }, [registerTask, projectId]);
+        startIndexing("/api/v1/sse/subscribe/mock-failed-indexing-task", projectId, "upload");
+    }, [startIndexing, projectId]);
 
     return <>{children}</>;
 };

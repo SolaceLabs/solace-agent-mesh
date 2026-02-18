@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Bot, Pencil } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
@@ -13,7 +13,7 @@ interface DefaultAgentSectionProps {
     isDisabled?: boolean;
 }
 
-export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving, isDisabled }) => {
+export const DefaultAgentSection = ({ project, onSave, isSaving, isDisabled = false }: DefaultAgentSectionProps) => {
     const { agents, agentsLoading, agentNameDisplayNameMap } = useChatContext();
     const isOwner = useIsProjectOwner(project.userId);
     const [isEditing, setIsEditing] = useState(false);
