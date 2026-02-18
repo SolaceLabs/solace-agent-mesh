@@ -60,7 +60,7 @@ export const DescriptionOverLimit: Story = {
         await userEvent.click(descriptionBox);
         await userEvent.paste("a".repeat(1001));
 
-        expect(await dialogContent.findByText(/must not exceed/i)).toBeInTheDocument();
+        expect(await dialogContent.findByText(/exceeds the maximum of/i)).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeDisabled();
     },
 };

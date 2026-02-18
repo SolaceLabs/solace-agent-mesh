@@ -97,16 +97,14 @@ function FormError({ className, ...props }: React.ComponentProps<"p">) {
     );
 }
 
-function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
+function FormInputLabel({ className, rightAlign, ...props }: React.ComponentProps<"p"> & { rightAlign?: boolean }) {
     const { formMessageId } = useFormField();
-
     if (!props.children) return null;
-
     return (
-        <p data-slot="form-message" id={formMessageId} className={cn("text-muted-foreground text-right text-xs", className)} {...props}>
+        <p data-slot="form-input-label" id={formMessageId} className={cn("text-muted-foreground text-xs", rightAlign && "text-right", className)} {...props}>
             {props.children}
         </p>
     );
 }
 
-export { useFormField, Form, FormItem, FormLabel, FormControl, FormDescription, FormError, FormMessage, FormField };
+export { useFormField, Form, FormItem, FormLabel, FormControl, FormDescription, FormError, FormInputLabel, FormField };

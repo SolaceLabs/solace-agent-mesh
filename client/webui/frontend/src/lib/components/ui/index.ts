@@ -8,7 +8,7 @@ export { SearchInput } from "./search-input";
 export { Label } from "./label";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent } from "./card";
-export { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./form";
+export { Form, FormControl, FormField, FormItem, FormLabel, FormInputLabel } from "./form";
 export { Spinner } from "./spinner";
 export * from "./dialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";

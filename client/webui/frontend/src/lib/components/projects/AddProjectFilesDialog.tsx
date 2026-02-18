@@ -2,12 +2,11 @@ import React, { useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Textarea } from "@/lib/components/ui";
-import { Form, FormField, FormItem, FormControl, FormError, FormMessage } from "@/lib/components/ui/form";
+import { Form, FormField, FormItem, FormControl, FormError, FormInputLabel } from "@/lib/components/ui/form";
 import { MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { FileLabel } from "../chat/file/FileLabel";
 import { useConfigContext } from "@/lib/hooks";
 import { DEFAULT_MAX_FILE_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
-import { cn } from "@/lib/utils";
 
 interface AddProjectFilesDialogProps {
     isOpen: boolean;
@@ -87,20 +86,20 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ is
                                     rules={{
                                         maxLength: {
                                             value: FILE_DESCRIPTION_MAX,
-                                            message: `Description must not exceed ${FILE_DESCRIPTION_MAX} characters`,
+                                            message: `Description exceeds the maximum of ${FILE_DESCRIPTION_MAX} characters`,
                                         },
                                     }}
                                     render={({ field, fieldState }) => (
                                         <FormItem>
                                             <FileLabel fileName={file.name} fileSize={file.size} />
                                             <FormControl>
-                                                <Textarea {...field} rows={2} disabled={isSubmitting} maxLength={FILE_DESCRIPTION_MAX + 1} className={cn("mt-2 resize-none text-sm", fieldState.error && "border-destructive")} />
+                                                <Textarea {...field} rows={2} disabled={isSubmitting} maxLength={FILE_DESCRIPTION_MAX + 1} className="mt-2 resize-none text-sm" />
                                             </FormControl>
                                             <FormError />
                                             {!fieldState.error && (
-                                                <FormMessage>
+                                                <FormInputLabel rightAlign>
                                                     {currentValue.length} / {FILE_DESCRIPTION_MAX}
-                                                </FormMessage>
+                                                </FormInputLabel>
                                             )}
                                         </FormItem>
                                     )}

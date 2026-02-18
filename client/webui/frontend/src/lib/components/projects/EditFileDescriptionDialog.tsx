@@ -2,12 +2,11 @@ import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Textarea } from "@/lib/components/ui";
-import { Form, FormField, FormItem, FormControl, FormError, FormMessage } from "@/lib/components/ui/form";
+import { Form, FormField, FormItem, FormControl, FormError, FormInputLabel } from "@/lib/components/ui/form";
 import { MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import type { ArtifactInfo } from "@/lib/types";
 import { useConfigContext } from "@/lib/hooks";
 import { DEFAULT_MAX_FILE_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
-import { cn } from "@/lib/utils";
 
 import { FileLabel } from "../chat/file/FileLabel";
 
@@ -75,19 +74,19 @@ export const EditFileDescriptionDialog: React.FC<EditFileDescriptionDialogProps>
                     rules={{
                         maxLength: {
                             value: FILE_DESCRIPTION_MAX,
-                            message: `Description must not exceed ${FILE_DESCRIPTION_MAX} characters`,
+                            message: `Description exceeds the maximum of ${FILE_DESCRIPTION_MAX} characters`,
                         },
                     }}
                     render={({ field, fieldState }) => (
                         <FormItem>
                             <FormControl>
-                                <Textarea {...field} rows={2} disabled={isSaving} maxLength={FILE_DESCRIPTION_MAX + 1} className={cn("mt-1 resize-none text-sm", fieldState.error && "border-destructive")} />
+                                <Textarea {...field} rows={2} disabled={isSaving} maxLength={FILE_DESCRIPTION_MAX + 1} className="mt-1 resize-none text-sm" />
                             </FormControl>
                             <FormError />
                             {!fieldState.error && (
-                                <FormMessage>
+                                <FormInputLabel rightAlign>
                                     {currentDescription.length} / {FILE_DESCRIPTION_MAX}
-                                </FormMessage>
+                                </FormInputLabel>
                             )}
                         </FormItem>
                     )}
