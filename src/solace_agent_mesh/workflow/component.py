@@ -89,6 +89,13 @@ class WorkflowExecutorComponent(SamComponentBase):
         self.workflow_name = self.get_config("name")
         self.namespace = self.get_config("namespace")
         workflow_config = self.get_config("workflow")
+        self.auto_summarization_config = self.get_config(
+            "auto_summarization", {
+                "enabled": False,
+                "compaction_trigger_char_limit_threshold": -1,
+                "compaction_percentage": 0.25
+            }
+        )
 
         # Parse workflow definition
         self.workflow_definition = WorkflowDefinition.model_validate(workflow_config)

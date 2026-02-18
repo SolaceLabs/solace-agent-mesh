@@ -234,32 +234,45 @@ def _filter_session_by_latest_compaction(
     if not session or not session.events:
         return session
 
-    # Find most recent compaction event (highest end_timestamp)
+    # If compaction_time is not set → no compaction, return immediately (95-99% of sessions)
+    compaction_time = session.state.get('compaction_time')
+    if not compaction_time:
+        return session
+
     latest_compaction = None
-    latest_end_ts = -1
+    filtered_events = []
 
     for event in session.events:
         if event.actions and event.actions.compaction:
+            # Extract timestamp from this compaction event
             comp = event.actions.compaction
-            # Handle both dict and object forms (DB reload compatibility)
             start_ts = comp['start_timestamp'] if isinstance(comp, dict) else comp.start_timestamp
             end_ts = comp['end_timestamp'] if isinstance(comp, dict) else comp.end_timestamp
+            end_ts = max(start_ts, end_ts)  # Defensive handling llmsumarizer inverts start/end
 
-            # Use max(start, end) as cutoff - handles inverted timestamps defensively
-            end_ts = max(start_ts, end_ts)
-
-            if end_ts > latest_end_ts:
-                latest_end_ts = end_ts
+            # Only use this compaction if it matches the stored timestamp
+            # to ensure only the LAST matching compaction event is kept
+            # This handles cases where multiple retries created duplicate compactions
+            if end_ts == compaction_time:
                 latest_compaction = event
+                # Don't append yet - will add after loop to ensure only last one is kept
+        elif event.timestamp > compaction_time:
+            # Keep events after compaction timestamp
+            filtered_events.append(event)
 
-    # No compaction events - return session as-is
+    # Defensive fallback: If compaction_time set but no matching event found
     if not latest_compaction:
-        log.debug(
-            "%s No compaction events found. Session has %d events total.",
+        log.error(
+            "%s Data inconsistency: compaction_time=%.6f set but no matching compaction event found. Session has %d events total.",
             log_identifier,
+            compaction_time,
             len(session.events)
         )
         return session
+
+    # Add the latest compaction event to the beginning of filtered events
+    # This ensures only ONE compaction event is kept (the last one from the loop)
+    filtered_events.insert(0, latest_compaction)
 
     # Check if compaction event has actions.compaction with compacted_content
     if hasattr(latest_compaction, 'actions') and latest_compaction.actions and hasattr(latest_compaction.actions, 'compaction'):
@@ -308,19 +321,7 @@ def _filter_session_by_latest_compaction(
                 log_identifier
             )
 
-    # Filter events: keep compaction + events after end_timestamp
-    filtered_events = [latest_compaction]  # Always include the summary
-
-    for event in session.events:
-        # Skip the compaction event itself (already added)
-        if event.actions and event.actions.compaction:
-            continue
-
-        # Keep events after compaction end_timestamp
-        if event.timestamp > latest_end_ts:
-            filtered_events.append(event)
-
-    # Update session.events in-memory
+    # Update session.events in-memory with filtered results
     original_count = len(session.events)
     session.events = filtered_events
 
@@ -330,7 +331,7 @@ def _filter_session_by_latest_compaction(
         original_count,
         len(filtered_events),
         original_count - len(filtered_events),
-        latest_end_ts
+        compaction_time
     )
 
     return session
@@ -439,10 +440,6 @@ class FilteringSessionService(BaseSessionService):
         """Delegate to wrapped service."""
         return await self._wrapped.append_event(session, event)
 
-# System-wide auto-summarization (configurable via env var)
-# Set SAM_ENABLE_AUTO_SUMMARIZATION=false to disable
-ENABLE_AUTO_SUMMARIZATION = os.getenv("SAM_ENABLE_AUTO_SUMMARIZATION", "true").lower() == "true"
-
 def initialize_session_service(component) -> BaseSessionService:
     """
     Initializes the ADK Session Service based on configuration.
@@ -498,9 +495,12 @@ def initialize_session_service(component) -> BaseSessionService:
             f"{component.log_identifier} Unsupported session service type: {service_type}"
         )
 
-    if ENABLE_AUTO_SUMMARIZATION:
+    # Check if auto-summarization is enabled from component config
+    auto_sum_config = component.auto_summarization_config
+    if auto_sum_config.get("enabled", False):
         # Wrap with FilteringSessionService to automatically filter ghost events
         # This ensures ALL get_session() calls across the codebase get filtered sessions
+        # There is a risk of spilling summary events in case if flag flips between True/False - and no filtering.
         log.info(
             "%s Wrapping session service with FilteringSessionService for automatic compaction filtering.",
             component.log_identifier,

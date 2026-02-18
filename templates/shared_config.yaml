@@ -110,3 +110,19 @@ shared_config:
       sqlite_memory_threshold_mb: 100
       max_result_preview_rows: 50
       max_result_preview_bytes: 4096
+
+    # Auto-summarization configuration (prevents "too many tokens" errors)
+    # DISABLED by default - agents must explicitly enable it
+    auto_summarization: &default_auto_summarization
+      # Enable/disable automatic conversation history summarization
+      # Set to true to enable, false to disable (default: false)
+      enabled: ${SAM_ENABLE_AUTO_SUMMARIZATION, false}
+
+      # Trigger compaction when total character count exceeds this threshold
+      # -1 = not enabled (default), positive value = character threshold
+      compaction_trigger_char_limit_threshold: ${SAM_COMPACTION_TRIGGER_CHAR_LIMIT_THRESHOLD, -1}
+
+      # Percentage of conversation to compact when threshold exceeded
+      # Conservative default: 0.25 = 25%
+      # Range: 0.0 - 1.0 (e.g., 0.25 = 25%, 0.5 = 50%, 0.8 = 80%)
+      compaction_percentage: ${SAM_COMPACTION_PERCENTAGE, 0.25}
