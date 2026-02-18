@@ -1,8 +1,7 @@
 """
 Unit tests for ExecutorBasedTool behavior.
 
-Tests the tool execution behavior and the factory function for creating tools
-from configuration.
+Tests the tool execution behavior.
 """
 
 import pytest
@@ -12,7 +11,6 @@ from google.genai import types as adk_types
 
 from solace_agent_mesh.agent.tools.executors.executor_tool import (
     ExecutorBasedTool,
-    create_executor_tool_from_config,
 )
 from solace_agent_mesh.agent.tools.executors.base import (
     ToolExecutor,
@@ -168,163 +166,3 @@ class TestExecutorBasedToolBehavior:
         assert result["status"] == "error"
         assert result["message"] == "Something went wrong"
         assert result["error_code"] == "ERR_001"
-
-
-class TestCreateExecutorToolFromConfig:
-    """Test the factory function for creating tools from config."""
-
-    def test_creates_tool_with_python_executor(self):
-        """Factory creates tool with Python executor."""
-        config = {
-            "name": "python_tool",
-            "description": "A Python-based tool",
-            "executor": "python",
-            "module": "mymodule",
-            "function": "myfunction",
-            "parameters": {
-                "properties": {
-                    "input": {"type": "string", "description": "Input value"},
-                },
-                "required": ["input"],
-            },
-        }
-
-        tool = create_executor_tool_from_config(config)
-
-        assert tool.tool_name == "python_tool"
-        assert tool.tool_description == "A Python-based tool"
-        assert tool._executor.executor_type == "python"
-
-    # Lambda executor test removed - Lambda support will be added in a future branch
-    # as a top-level tool_type: lambda (not nested under executor)
-
-    def test_raises_on_missing_required_fields(self):
-        """Factory raises ValueError for missing required fields."""
-        # Missing 'name'
-        with pytest.raises(ValueError, match="Missing required field: name"):
-            create_executor_tool_from_config({
-                "description": "A tool",
-                "executor": "python",
-                "module": "m",
-                "function": "f",
-            })
-
-        # Missing 'description'
-        with pytest.raises(ValueError, match="Missing required field: description"):
-            create_executor_tool_from_config({
-                "name": "test",
-                "executor": "python",
-                "module": "m",
-                "function": "f",
-            })
-
-        # Missing 'executor'
-        with pytest.raises(ValueError, match="Missing required field: executor"):
-            create_executor_tool_from_config({
-                "name": "test",
-                "description": "A tool",
-                "module": "m",
-                "function": "f",
-            })
-
-    def test_raises_on_missing_executor_specific_fields(self):
-        """Factory raises ValueError for missing executor-specific fields."""
-        # Python executor missing 'module'
-        with pytest.raises(ValueError, match="Missing required fields.*module"):
-            create_executor_tool_from_config({
-                "name": "test",
-                "description": "A tool",
-                "executor": "python",
-                "function": "f",
-            })
-
-        # Lambda executor test removed - Lambda support will be added in a future branch
-
-    def test_raises_on_unknown_executor_type(self):
-        """Factory raises ValueError for unknown executor type."""
-        with pytest.raises(ValueError, match="Unknown executor type: unknown"):
-            create_executor_tool_from_config({
-                "name": "test",
-                "description": "A tool",
-                "executor": "unknown",
-            })
-
-    def test_detects_artifact_params_from_schema(self):
-        """Factory detects artifact parameters from 'type: artifact' in schema."""
-        config = {
-            "name": "artifact_tool",
-            "description": "A tool with artifact params",
-            "executor": "python",
-            "module": "m",
-            "function": "f",
-            "parameters": {
-                "properties": {
-                    "input_file": {
-                        "type": "artifact",
-                        "description": "An input artifact",
-                    },
-                    "regular_param": {
-                        "type": "string",
-                        "description": "A regular string",
-                    },
-                    "file_list": {
-                        "type": "array",
-                        "items": {"type": "artifact"},
-                        "description": "List of artifacts",
-                    },
-                },
-                "required": ["input_file"],
-            },
-        }
-
-        tool = create_executor_tool_from_config(config)
-
-        # Should detect artifact params
-        assert "input_file" in tool.artifact_params
-        assert tool.artifact_params["input_file"].is_artifact is True
-        assert tool.artifact_params["input_file"].is_list is False
-
-        # Should detect list of artifacts
-        assert "file_list" in tool.artifact_params
-        assert tool.artifact_params["file_list"].is_artifact is True
-        assert tool.artifact_params["file_list"].is_list is True
-
-        # Regular params should not be in artifact_params
-        assert "regular_param" not in tool.artifact_params
-
-    def test_explicit_artifact_content_args_config(self):
-        """Factory respects explicit artifact_content_args config."""
-        config = {
-            "name": "artifact_tool",
-            "description": "A tool",
-            "executor": "python",
-            "module": "m",
-            "function": "f",
-            "parameters": {
-                "properties": {
-                    "file": {"type": "string"},  # Not type: artifact
-                },
-            },
-            "artifact_content_args": ["file"],  # Explicitly marked
-        }
-
-        tool = create_executor_tool_from_config(config)
-
-        # Should be marked as artifact even though schema says string
-        assert "file" in tool.artifact_params
-        assert tool.artifact_params["file"].is_artifact is True
-
-    def test_tool_config_passed_to_tool(self):
-        """Factory passes tool_config to the tool."""
-        config = {
-            "name": "test",
-            "description": "A tool",
-            "executor": "python",
-            "module": "m",
-            "function": "f",
-            "tool_config": {"custom_setting": "value"},
-        }
-
-        tool = create_executor_tool_from_config(config)
-
-        assert tool.tool_config == {"custom_setting": "value"}

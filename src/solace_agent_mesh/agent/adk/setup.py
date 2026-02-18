@@ -36,7 +36,7 @@ from solace_ai_connector.common.utils import import_module
 from ...agent.adk import callbacks as adk_callbacks
 from ...agent.adk.models.lite_llm import LiteLlm
 from ...common.utils.type_utils import is_subclass_by_name
-# DynamicTool and DynamicToolProvider are loaded via UnifiedPythonExecutor
+# DynamicTool and DynamicToolProvider are loaded via PythonToolLoader
 from ..tools.registry import tool_registry
 from ..tools.tool_config_types import (
     AnyToolConfig,
@@ -45,7 +45,7 @@ from ..tools.tool_config_types import (
     McpToolConfig,
     PythonToolConfig,
 )
-from ..tools.executors import UnifiedPythonExecutor
+from ..tools.executors import PythonToolLoader
 from ..tools.tool_definition import BuiltinTool
 from .app_llm_agent import AppLlmAgent
 from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
@@ -211,14 +211,14 @@ async def _create_python_tool_lifecycle_hooks(
 
 async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
     """
-    Load Python tools using the UnifiedPythonExecutor.
+    Load Python tools using the PythonToolLoader.
 
     This function handles all Python tool patterns through a unified interface:
     - Simple functions (component_module + function_name)
     - DynamicTool classes (component_module + class_name)
     - DynamicToolProvider classes (component_module with auto-discovery)
 
-    The UnifiedPythonExecutor internally handles:
+    The PythonToolLoader internally handles:
     - Schema auto-detection from function signatures
     - Artifact parameter detection from type hints
     - ToolContextFacade parameter detection and injection
@@ -232,8 +232,8 @@ async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -
     if not module_name:
         raise ValueError("'component_module' is required for python tools.")
 
-    # Create the unified executor with all configuration
-    executor = UnifiedPythonExecutor(
+    # Create the loader with all configuration
+    loader = PythonToolLoader(
         module=module_name,
         function_name=tool_config_model.function_name,
         class_name=tool_config_model.class_name,
@@ -244,14 +244,14 @@ async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -
         base_path=tool_config_model.component_base_path,
     )
 
-    # Initialize the executor (loads and creates tools)
-    await executor.initialize(component, tool_config_model.model_dump())
+    # Initialize the loader (imports module and creates tools)
+    await loader.initialize(component, tool_config_model.model_dump())
 
     # Get the loaded tools
-    loaded_python_tools = executor.get_loaded_tools()
+    loaded_python_tools = loader.get_loaded_tools()
 
     log.info(
-        "%s Loaded %d Python tool(s) from %s via UnifiedPythonExecutor.",
+        "%s Loaded %d Python tool(s) from %s via PythonToolLoader.",
         component.log_identifier,
         len(loaded_python_tools),
         module_name,

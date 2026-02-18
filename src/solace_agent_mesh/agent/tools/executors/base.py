@@ -74,8 +74,7 @@ class ToolExecutor(ABC):
     """
     Abstract base class for tool executors.
 
-    Executors handle the actual execution of tool logic on various backends:
-    - LocalPythonExecutor: Runs Python functions locally
+    Executors handle the actual execution of tool logic.
 
     Subclasses must implement:
     - executor_type: Property returning the executor type name
@@ -158,8 +157,8 @@ def register_executor(executor_type: str):
     Decorator to register an executor class.
 
     Usage:
-        @register_executor("python")
-        class LocalPythonExecutor(ToolExecutor):
+        @register_executor("my_executor")
+        class MyExecutor(ToolExecutor):
             ...
     """
     def decorator(cls: type) -> type:

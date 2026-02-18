@@ -28,10 +28,10 @@ class TestArgumentNameMismatchBug:
         Currently FAILS with: TypeError: __init__() got an unexpected
         keyword argument 'artifact_content_args'
         """
-        from src.solace_agent_mesh.agent.tools.executors.executor_tool import (
+        from solace_agent_mesh.agent.tools.executors.executor_tool import (
             ExecutorBasedTool,
         )
-        from src.solace_agent_mesh.agent.tools.executors.base import ToolExecutor
+        from solace_agent_mesh.agent.tools.executors.base import ToolExecutor
 
         # Create a mock executor
         mock_executor = MagicMock(spec=ToolExecutor)
@@ -61,100 +61,17 @@ class TestArgumentNameMismatchBug:
         assert "input_file" in tool.artifact_args
 
 
-class TestFactoryWrongKeyBug:
-    """
-    Bug #2: create_executor_tool_from_config reads `artifact_args` from config
-    but YAML configs and the Pydantic model use `artifact_content_args`.
-
-    This causes artifact pre-loading to be silently ignored when using the
-    factory with legacy configs.
-    """
-
-    def test_factory_reads_artifact_content_args_from_config(self):
-        """
-        The factory should read `artifact_content_args` from config, not `artifact_args`.
-
-        Currently FAILS because factory reads wrong key and artifact params
-        are not set.
-        """
-        from src.solace_agent_mesh.agent.tools.executors.executor_tool import (
-            create_executor_tool_from_config,
-        )
-
-        # This is how configs look in YAML (using artifact_content_args)
-        config = {
-            "name": "test_tool",
-            "description": "A test tool",
-            "executor": "python",
-            "module": "test_module",
-            "function": "test_function",
-            "parameters": {
-                "input_file": {"type": "string", "description": "Input file"},
-            },
-            # This is the key used in YAML configs and Pydantic model
-            "artifact_content_args": ["input_file"],
-        }
-
-        tool = create_executor_tool_from_config(config)
-
-        # The factory should have picked up artifact_content_args
-        # Currently FAILS because factory reads "artifact_args" instead
-        assert "input_file" in tool.artifact_args, (
-            f"Expected 'input_file' in artifact_args, got: {tool.artifact_args}"
-        )
-
-    def test_factory_reads_artifact_content_list_args_from_config(self):
-        """
-        The factory should also read `artifact_content_list_args` from config.
-        """
-        from src.solace_agent_mesh.agent.tools.executors.executor_tool import (
-            create_executor_tool_from_config,
-        )
-
-        config = {
-            "name": "test_tool",
-            "description": "A test tool",
-            "executor": "python",
-            "module": "test_module",
-            "function": "test_function",
-            "parameters": {
-                "input_files": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Input files",
-                },
-            },
-            # This is the key used in YAML configs
-            "artifact_content_list_args": ["input_files"],
-        }
-
-        tool = create_executor_tool_from_config(config)
-
-        # Should recognize list args
-        assert "input_files" in tool.artifact_args
-        # Should be marked as a list type
-        assert tool.artifact_params["input_files"].is_list is True
-
-
-# TestSetupSchemaBuilderBug removed - _build_executor_schema was removed
-# as part of the tool_type: executor cleanup. All Python tools now use
-# UnifiedPythonExecutor which handles schema building internally.
-
-
 class TestUnifiedSchemaBuilder:
     """
-    Tests verifying that setup.py now uses the unified schema builder
-    from executor_tool.py.
-
-    FIXED: setup.py now imports and uses _build_schema_from_config,
-    eliminating the code duplication and drift issues.
+    Tests verifying that the unified schema builder from executor_tool.py
+    works correctly.
     """
 
     def test_unified_schema_builder_handles_artifact_type(self):
         """
         The unified _build_schema_from_config correctly handles artifact types.
         """
-        from src.solace_agent_mesh.agent.tools.executors.executor_tool import (
+        from solace_agent_mesh.agent.tools.executors.executor_tool import (
             _build_schema_from_config,
         )
 
@@ -195,7 +112,7 @@ class TestUnifiedSchemaBuilder:
         """
         The unified schema builder correctly handles arrays of artifacts.
         """
-        from src.solace_agent_mesh.agent.tools.executors.executor_tool import (
+        from solace_agent_mesh.agent.tools.executors.executor_tool import (
             _build_schema_from_config,
         )
 

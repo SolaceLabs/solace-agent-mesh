@@ -31,15 +31,11 @@ class ExecutorBasedTool(DynamicTool):
     through configuration.
 
     Example:
-        executor = LocalPythonExecutor(
-            module="my_tools",
-            function="process_data"
-        )
         tool = ExecutorBasedTool(
             name="process_data",
             description="Process data using custom logic",
             parameters_schema=schema,
-            executor=executor,
+            executor=my_executor,
         )
     """
 
@@ -244,104 +240,6 @@ class ExecutorBasedTool(DynamicTool):
                 "error_code": result.error_code,
                 "metadata": result.metadata,
             }
-
-
-def create_executor_tool_from_config(
-    config: Dict[str, Any],
-) -> ExecutorBasedTool:
-    """
-    Create an ExecutorBasedTool from a configuration dictionary.
-
-    This is a convenience function for creating tools from YAML config.
-
-    Args:
-        config: Tool configuration dictionary with keys:
-            - name: Tool name
-            - description: Tool description
-            - executor: Executor type ("python")
-            - parameters: Parameter schema definition
-            - artifact_content_args: List of single-value params to pre-load artifacts
-            - artifact_content_list_args: List of list-value params to pre-load artifacts
-            - ... executor-specific config
-
-    Returns:
-        Configured ExecutorBasedTool instance
-
-    Raises:
-        ValueError: If configuration is invalid
-    """
-    from .base import create_executor
-
-    # Validate required fields
-    required = ["name", "description", "executor"]
-    for field in required:
-        if field not in config:
-            raise ValueError(f"Missing required field: {field}")
-
-    executor_type = config["executor"]
-
-    # Define required fields for each executor type
-    executor_required_fields = {
-        "python": ["module", "function"],
-    }
-
-    # Validate executor type
-    if executor_type not in executor_required_fields:
-        raise ValueError(f"Unknown executor type: {executor_type}")
-
-    # Validate required fields for this executor type
-    missing_fields = [
-        field for field in executor_required_fields[executor_type]
-        if not config.get(field)
-    ]
-    if missing_fields:
-        raise ValueError(
-            f"Missing required fields for '{executor_type}' executor: {missing_fields}"
-        )
-
-    # Build executor kwargs based on type
-    executor_kwargs = {}
-
-    if executor_type == "python":
-        executor_kwargs = {
-            "module": config["module"],
-            "function": config["function"],
-            "pass_tool_context": config.get("pass_tool_context", True),
-            "pass_tool_config": config.get("pass_tool_config", True),
-        }
-
-    # Create executor
-    executor = create_executor(executor_type, **executor_kwargs)
-
-    # Build parameter schema and detect artifact types
-    schema_result = _build_schema_from_config(config.get("parameters", {}))
-
-    # Merge schema-detected artifacts with explicit config (for backward compatibility)
-    # Schema-detected artifacts take precedence
-    artifact_params = dict(schema_result.artifact_params)
-
-    # Add any explicitly configured artifact args (backward compat, deprecated)
-    # Support both old names (artifact_args) and YAML config names (artifact_content_args)
-    for param_name in config.get("artifact_content_args", config.get("artifact_args", [])):
-        if param_name not in artifact_params:
-            artifact_params[param_name] = ArtifactTypeInfo(
-                is_artifact=True, is_list=False
-            )
-    for param_name in config.get("artifact_content_list_args", config.get("artifact_list_args", [])):
-        if param_name not in artifact_params:
-            artifact_params[param_name] = ArtifactTypeInfo(
-                is_artifact=True, is_list=True
-            )
-
-    # Create tool
-    return ExecutorBasedTool(
-        name=config["name"],
-        description=config["description"],
-        parameters_schema=schema_result.schema,
-        executor=executor,
-        tool_config=config.get("tool_config", {}),
-        artifact_params=artifact_params,
-    )
 
 
 class SchemaParseResult:

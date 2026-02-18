@@ -1,13 +1,12 @@
 """
-Unified Python executor for handling all Python tool patterns.
+Python tool loader for handling all Python tool patterns.
 
-This executor provides a unified interface for loading Python tools:
+This loader provides a unified interface for loading Python tools:
 - Simple functions (module + function_name)
 - DynamicTool classes (module + class_name)
 - DynamicToolProvider classes (auto-discovery or explicit)
 
-It consolidates the various Python tool loading patterns into one place,
-using the executor abstraction as the internal implementation.
+It consolidates the various Python tool loading patterns into one place.
 """
 
 import importlib
@@ -18,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Type, Union, TYPE_CHECKI
 from google.adk.tools import BaseTool, ToolContext
 from pydantic import BaseModel
 
-from .base import ToolExecutor, ToolExecutionResult, register_executor
+from .base import ToolExecutor, ToolExecutionResult
 from .executor_tool import ExecutorBasedTool
 from ..dynamic_tool import (
     DynamicTool,
@@ -91,8 +90,8 @@ class _FunctionExecutor(ToolExecutor):
     """
     Internal executor for simple function execution.
 
-    This is similar to LocalPythonExecutor but created from an already-loaded
-    function rather than module/function names.
+    Created from an already-loaded function, used internally by
+    PythonToolLoader to wrap simple functions as ExecutorBasedTools.
     """
 
     def __init__(
@@ -178,13 +177,12 @@ class _FunctionExecutor(ToolExecutor):
         pass
 
 
-@register_executor("unified_python")
-class UnifiedPythonExecutor(ToolExecutor):
+class PythonToolLoader:
     """
-    Unified executor that handles all Python tool loading patterns.
+    Loader that handles all Python tool loading patterns.
 
-    Unlike other executors that handle single tool execution, this executor
-    is responsible for LOADING Python tools from modules. It supports:
+    This is a factory/loader — it imports modules, discovers classes, and
+    returns BaseTool instances via get_loaded_tools(). It supports:
 
     1. Simple functions: module + function_name
        - Creates ExecutorBasedTool with internal function executor
@@ -240,17 +238,13 @@ class UnifiedPythonExecutor(ToolExecutor):
         self._module: Any = None
         self._loaded_tools: List[BaseTool] = []
 
-    @property
-    def executor_type(self) -> str:
-        return "unified_python"
-
     async def initialize(
         self,
         component: "SamAgentComponent",
         executor_config: Dict[str, Any],
     ) -> None:
         """Load the module and create tools."""
-        log_id = f"[UnifiedPythonExecutor:{self._module_path}]"
+        log_id = f"[PythonToolLoader:{self._module_path}]"
 
         # Import module
         try:
@@ -282,7 +276,7 @@ class UnifiedPythonExecutor(ToolExecutor):
 
     def _load_function_tool(self) -> List[BaseTool]:
         """Load a simple function as an ExecutorBasedTool."""
-        log_id = f"[UnifiedPythonExecutor:{self._module_path}.{self._function_name}]"
+        log_id = f"[PythonToolLoader:{self._module_path}.{self._function_name}]"
 
         func = getattr(self._module, self._function_name, None)
         if func is None:
@@ -339,7 +333,7 @@ class UnifiedPythonExecutor(ToolExecutor):
         self, component: "SamAgentComponent"
     ) -> List[DynamicTool]:
         """Load DynamicTool or DynamicToolProvider class."""
-        log_id = f"[UnifiedPythonExecutor:{self._module_path}]"
+        log_id = f"[PythonToolLoader:{self._module_path}]"
 
         # Determine the class to load
         tool_class = None
@@ -428,25 +422,6 @@ class UnifiedPythonExecutor(ToolExecutor):
         Call this after initialize() has completed.
         """
         return self._loaded_tools
-
-    async def execute(
-        self,
-        args: Dict[str, Any],
-        tool_context: ToolContext,
-        tool_config: Dict[str, Any],
-    ) -> ToolExecutionResult:
-        """
-        Not used directly - tools are executed via their own interfaces.
-
-        This executor's job is to LOAD tools, not execute them directly.
-        The loaded tools (ExecutorBasedTool or DynamicTool) handle their
-        own execution.
-        """
-        return ToolExecutionResult.fail(
-            error="UnifiedPythonExecutor does not execute directly. "
-                  "Use get_loaded_tools() to get tools and call them.",
-            error_code="NOT_EXECUTABLE",
-        )
 
     async def cleanup(
         self,
