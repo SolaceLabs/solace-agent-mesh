@@ -341,3 +341,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Citation highlight styles for document preview */
+.citation-highlight {
+    background-color: rgb(251 191 36 / 0.4); /* amber-400 with opacity */
+    padding: 0.125rem 0;
+    border-radius: 0.125rem;
+}
+
+.dark .citation-highlight {
+    background-color: rgb(251 191 36 / 0.3); /* slightly more subtle in dark mode */
+}

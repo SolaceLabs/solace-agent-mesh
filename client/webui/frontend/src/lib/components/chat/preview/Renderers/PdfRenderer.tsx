@@ -19,6 +19,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.m
 interface PdfRendererProps {
     url: string;
     filename: string;
+    initialPage?: number;
 }
 
 interface SelectionRect {
@@ -32,7 +33,7 @@ type InteractionMode = "text" | "pan" | "snip";
 
 const pdfOptions = { withCredentials: true };
 
-const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
+const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage }) => {
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -46,6 +47,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     const [snipStatus, setSnipStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
     const viewerRef = useRef<HTMLDivElement>(null);
     const documentContainerRef = useRef<HTMLDivElement>(null);
+    const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     useEffect(() => {
         if (pageWidth && viewerRef.current) {
@@ -55,6 +57,20 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
             setPan({ x: 0, y: 0 });
         }
     }, [pageWidth]);
+
+    // Scroll to initial page when document loads
+    useEffect(() => {
+        if (initialPage && initialPage > 0 && numPages && initialPage <= numPages) {
+            // Small delay to ensure pages are rendered
+            const timer = setTimeout(() => {
+                const pageElement = pageRefs.current.get(initialPage);
+                if (pageElement && viewerRef.current) {
+                    pageElement.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [initialPage, numPages]);
 
     function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }): void {
         setNumPages(nextNumPages);
@@ -413,7 +429,13 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                     <div ref={documentContainerRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
                         {numPages &&
                             Array.from(new Array(numPages), (_, index) => (
-                                <div key={`page_${index + 1}`} className="flex justify-center p-2">
+                                <div
+                                    key={`page_${index + 1}`}
+                                    ref={el => {
+                                        if (el) pageRefs.current.set(index + 1, el);
+                                    }}
+                                    className="flex justify-center p-2"
+                                >
                                     <Page
                                         pageNumber={index + 1}
                                         scale={zoomLevel}
