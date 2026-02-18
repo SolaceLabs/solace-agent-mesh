@@ -77,7 +77,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
             return (
                 <div
                     className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${opacityClass} ${borderStyleClass} ${
-                        isSelected ? "ring-2 ring-[var(--color-info-wMain)]" : ""
+                        isSelected ? "ring-2 ring-(--color-info-wMain)" : ""
                     }`}
                     style={{
                         width: `${node.width}px`,
@@ -103,7 +103,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                     {/* Pill label */}
                     <div
-                        className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-[var(--color-info-wMain)]" : ""}`}
+                        className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-(--color-info-wMain)" : ""}`}
                         style={{
                             minWidth: "80px",
                             textAlign: "center",
@@ -139,7 +139,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
             <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                 {/* Pill label */}
                 <div
-                    className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-[var(--color-info-wMain)]" : ""}`}
+                    className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${isSelected ? "ring-2 ring-(--color-info-wMain)" : ""}`}
                     style={{
                         minWidth: "80px",
                         textAlign: "center",
@@ -194,7 +194,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
     return (
         <div
             className={`group relative rounded-md border-2 border-blue-700 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-blue-600 dark:bg-gray-800 ${opacityClass} ${borderStyleClass} ${
-                isSelected ? "ring-2 ring-[var(--color-info-wMain)]" : ""
+                isSelected ? "ring-2 ring-(--color-info-wMain)" : ""
             } ${haloClass}`}
             style={{
                 minWidth: "180px",
