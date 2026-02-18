@@ -28,7 +28,6 @@ interface ConnectionEntry {
             eventType: string;
         }
     >;
-    /** Event types with registered listeners (to avoid duplicate addEventListener calls) */
     registeredEventTypes: Set<string>;
     retryCount: number;
     retryDelay: number;
