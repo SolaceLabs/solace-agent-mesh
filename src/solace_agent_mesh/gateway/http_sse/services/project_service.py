@@ -94,7 +94,7 @@ class ProjectService:
         )
         self.max_project_size_bytes = int(max_project_size_config) if isinstance(max_project_size_config, (int, float)) else DEFAULT_MAX_PROJECT_SIZE_BYTES
 
-        self.logger.info(
+        self.logger.debug(
             "[ProjectService] Initialized with "
             "max_per_file_upload_size_bytes=%d (%.2f MB), "
             "max_batch_upload_size_bytes=%d (%.2f MB), "
