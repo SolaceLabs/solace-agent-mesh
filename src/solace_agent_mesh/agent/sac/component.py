@@ -192,6 +192,13 @@ class SamAgentComponent(SamComponentBase):
             self.memory_service_config = self.get_config(
                 "memory_service", {"type": "memory"}
             )
+            self.auto_summarization_config = self.get_config(
+                "auto_summarization", {
+                    "enabled": False,
+                    "compaction_trigger_char_limit_threshold": -1,
+                    "compaction_percentage": 0.25
+                }
+            )
             self.artifact_handling_mode = self.get_config(
                 "artifact_handling_mode", "ignore"
             ).lower()
