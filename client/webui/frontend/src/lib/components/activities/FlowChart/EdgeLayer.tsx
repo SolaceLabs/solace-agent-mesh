@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import type { Edge } from "./utils/types";
 
 interface EdgeLayerProps {
@@ -7,7 +7,7 @@ interface EdgeLayerProps {
     onEdgeClick?: (edge: Edge) => void;
 }
 
-const EdgeLayer = ({ edges, selectedEdgeId, onEdgeClick }: EdgeLayerProps) => {
+const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, selectedEdgeId, onEdgeClick }) => {
     const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
 
     // Calculate bezier curve path
@@ -33,27 +33,27 @@ const EdgeLayer = ({ edges, selectedEdgeId, onEdgeClick }: EdgeLayerProps) => {
         // Priority: Error > Selected > Hover > Default
         if (edge.isError) {
             return {
-                stroke: `var(${isHovered ? "--color-error-wMain" : "--color-error-w80"})`,
+                stroke: isHovered ? "#dc2626" : "#ef4444",
                 strokeWidth: isHovered ? 3 : 2,
             };
         }
 
         if (isSelected) {
             return {
-                stroke: "var(--color-info-wMain)",
+                stroke: "#3b82f6",
                 strokeWidth: 3,
             };
         }
 
         if (isHovered) {
             return {
-                stroke: "var(--color-neutral-w400)",
+                stroke: "#6b7280",
                 strokeWidth: 3,
             };
         }
 
         return {
-            stroke: "var(--color-neutral-w300)",
+            stroke: "#9ca3af",
             strokeWidth: 2,
         };
     };
@@ -72,13 +72,13 @@ const EdgeLayer = ({ edges, selectedEdgeId, onEdgeClick }: EdgeLayerProps) => {
         >
             <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-                    <path d="M0,0 L0,6 L9,3 z" fill="var(--color-neutral-w500)" />
+                    <path d="M0,0 L0,6 L9,3 z" fill="#888" />
                 </marker>
                 <marker id="arrowhead-selected" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-                    <path d="M0,0 L0,6 L9,3 z" fill="var(--color-info-wMain)" />
+                    <path d="M0,0 L0,6 L9,3 z" fill="#3b82f6" />
                 </marker>
                 <marker id="arrowhead-error" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-                    <path d="M0,0 L0,6 L9,3 z" fill="var(--color-error-w80)" />
+                    <path d="M0,0 L0,6 L9,3 z" fill="#ef4444" />
                 </marker>
             </defs>
 
@@ -127,7 +127,7 @@ const EdgeLayer = ({ edges, selectedEdgeId, onEdgeClick }: EdgeLayerProps) => {
 
                         {/* Label */}
                         {edge.label && isHovered && (
-                            <text x={(edge.sourceX + edge.targetX) / 2} y={(edge.sourceY + edge.targetY) / 2} fill="var(--color-neutral-w700)" fontSize="12" textAnchor="middle" style={{ pointerEvents: "none" }}>
+                            <text x={(edge.sourceX + edge.targetX) / 2} y={(edge.sourceY + edge.targetY) / 2} fill="#374151" fontSize="12" textAnchor="middle" style={{ pointerEvents: "none" }}>
                                 {edge.label}
                             </text>
                         )}
