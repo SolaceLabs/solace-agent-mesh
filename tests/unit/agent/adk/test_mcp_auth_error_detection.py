@@ -183,6 +183,29 @@ class TestClearCachedCredentials:
         await instance._clear_cached_credentials(tool_context)
         assert auth_config.exchanged_auth_credential is None
 
+    @pytest.mark.asyncio
+    async def test_handles_unexpected_save_credential_error(self):
+        """Handles non-ValueError exceptions from save_credential gracefully."""
+        instance = object.__new__(EmbedResolvingMCPTool)
+
+        auth_config = MagicMock()
+        auth_config.exchanged_auth_credential = "token"
+        cm = MagicMock()
+        cm._auth_config = auth_config
+        instance._credentials_manager = cm
+
+        original_tool = MagicMock(spec=[])  # no _credentials_manager attr
+        instance._original_mcp_tool = original_tool
+
+        tool_context = MagicMock()
+        tool_context.save_credential = AsyncMock(
+            side_effect=RuntimeError("backend unavailable")
+        )
+
+        # Should not raise — clearing is best-effort
+        await instance._clear_cached_credentials(tool_context)
+        assert auth_config.exchanged_auth_credential is None
+
 
 class TestRunAsyncImplAuthErrorHandling:
     """Tests for auth error detection and re-auth in _run_async_impl."""

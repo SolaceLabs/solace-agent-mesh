@@ -386,9 +386,10 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
 
         try:
             await tool_context.save_credential(auth_config)
-        except ValueError:
+        except Exception:
             log.debug(
-                "No credential service available to clear persisted credential.",
+                "Failed to clear persisted credential (best-effort).",
+                exc_info=True,
             )
 
     async def _execute_tool_with_audit_logs(self, tool_call, tool_context):
