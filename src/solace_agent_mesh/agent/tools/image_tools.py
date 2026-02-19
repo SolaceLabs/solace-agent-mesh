@@ -21,6 +21,7 @@ from .tool_result import ToolResult, DataObject, DataDisposition
 from .artifact_types import Artifact
 from .registry import tool_registry
 from ...agent.utils.context_helpers import get_original_session_id
+from ...agent.utils.artifact_helpers import save_artifact_with_metadata, DEFAULT_SCHEMA_MAX_KEYS
 
 log = logging.getLogger(__name__)
 
@@ -783,7 +784,7 @@ async def generate_image_with_gemini(
         - "model_used": The model that was used for generation (if successful).
         - "used_pro_model": Whether the pro model was used (if successful).
     """
-    log_identifier = f"[ImageTools:generate_image_with_gemini]"
+    log_identifier = "[ImageTools:generate_image_with_gemini]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
         return {"status": "error", "message": "ToolContext is missing."}
