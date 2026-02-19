@@ -235,7 +235,7 @@ export interface SearchSource {
     snippet?: string;
     attribution?: string;
     processed?: boolean;
-    sourceType?: string; // 'web', 'kb', 'document'
+    source_type?: string; // 'web', 'kb', 'document'
     filename?: string; // For document sources
 }
 
