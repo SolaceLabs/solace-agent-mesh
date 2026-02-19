@@ -188,3 +188,108 @@ class DatabaseInspector:
                 continue
 
         return stats
+
+    def get_agent_session_events(self, agent_name: str, gateway_session_id: str) -> list:
+        """
+        Get all ADK events for an agent session, including compaction events.
+
+        Args:
+            agent_name: Name of the agent (e.g., "TestAgentCompaction")
+            gateway_session_id: The gateway session ID
+
+        Returns:
+            List of raw event dictionaries from agent_messages table
+        """
+        with self.db_manager.get_agent_connection(agent_name) as conn:
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+
+            # Get agent session ID from gateway session ID
+            sessions_table = metadata.tables["agent_sessions"]
+            session_query = sa.select(sessions_table.c.id).where(
+                sessions_table.c.gateway_session_id == gateway_session_id
+            )
+            agent_session_id = conn.execute(session_query).scalar()
+
+            if not agent_session_id:
+                return []
+
+            # Get all events for this session
+            messages_table = metadata.tables["agent_messages"]
+            events_query = (
+                sa.select(messages_table)
+                .where(messages_table.c.session_id == agent_session_id)
+                .order_by(messages_table.c.timestamp)
+            )
+            rows = conn.execute(events_query).fetchall()
+
+        return [dict(row._mapping) for row in rows]
+
+    def get_compaction_events(self, agent_name: str, gateway_session_id: str) -> list:
+        """
+        Get only compaction events for an agent session.
+
+        Compaction events have event_data containing actions.compaction metadata.
+
+        Args:
+            agent_name: Name of the agent
+            gateway_session_id: The gateway session ID
+
+        Returns:
+            List of compaction event dictionaries
+        """
+        import json
+
+        all_events = self.get_agent_session_events(agent_name, gateway_session_id)
+        compaction_events = []
+
+        for event in all_events:
+            event_data = event.get("event_data")
+            if event_data:
+                try:
+                    if isinstance(event_data, str):
+                        data = json.loads(event_data)
+                    else:
+                        data = event_data
+
+                    # Check if event has compaction metadata
+                    if data.get("actions", {}).get("compaction"):
+                        compaction_events.append(event)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+        return compaction_events
+
+    def count_user_interactions_in_events(self, agent_name: str, gateway_session_id: str) -> int:
+        """
+        Count the number of user interactions (user role events) in a session.
+
+        Args:
+            agent_name: Name of the agent
+            gateway_session_id: The gateway session ID
+
+        Returns:
+            Count of user interaction events
+        """
+        import json
+
+        all_events = self.get_agent_session_events(agent_name, gateway_session_id)
+        user_count = 0
+
+        for event in all_events:
+            event_data = event.get("event_data")
+            if event_data:
+                try:
+                    if isinstance(event_data, str):
+                        data = json.loads(event_data)
+                    else:
+                        data = event_data
+
+                    # Check if this is a user event
+                    if (data.get("author") == "user" and
+                        data.get("content", {}).get("role") == "user"):
+                        user_count += 1
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+        return user_count

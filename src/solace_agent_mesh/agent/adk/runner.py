@@ -327,6 +327,9 @@ async def _create_compaction_event(
         if previous_summary_text:
             # Create fake event that looks like normal conversation (no .actions.compaction)
             # this is what tricks LlmEventSummarizer to accept summarized event for next compaction
+            comp = latest_compaction.actions.compaction
+            end_ts = comp['end_timestamp'] if isinstance(comp, dict) else comp.end_timestamp # Defensive handling: compaction can be dict or EventCompaction object
+
             fake_summary_event = ADKEvent(
                 invocation_id="progressive_summary_fake_event",
                 author="model",  # Summary is from AI's perspective
@@ -334,7 +337,7 @@ async def _create_compaction_event(
                     role="model",
                     parts=[adk_types.Part(text=previous_summary_text)]
                 ),
-                timestamp=latest_compaction.actions.compaction['end_timestamp']  # Use end_timestamp from previous compaction
+                timestamp=end_ts  # Use end_timestamp from previous compaction
             )
             events_to_compact = [fake_summary_event] + events_to_compact
 

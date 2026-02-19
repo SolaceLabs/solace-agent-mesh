@@ -78,7 +78,7 @@ dependencies = [
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "google-cloud-storage==3.9.0",
-    "azure-storage-blob==12.28.0"
+    "azure-storage-blob==12.28.0",
     "authlib==1.6.5",
     "cachetools==7.0.1"
 ]
