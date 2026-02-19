@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import { ArrowDown, ArrowLeft, Ellipsis, FileText, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, Ellipsis, EyeOff, FileText, Loader2 } from "lucide-react";
 
 import { Button } from "@/lib/components";
 import { useChatContext, useDownload } from "@/lib/hooks";
@@ -15,6 +15,8 @@ import { ArtifactMorePopover } from "./ArtifactMorePopover";
 import { ArtifactDeleteAllDialog } from "./ArtifactDeleteAllDialog";
 import { ArtifactDetails } from "./ArtifactDetails";
 
+const workingFilesLabel = (count: number) => `${count} working ${count === 1 ? "file" : "files"}`;
+
 const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo) => number> = {
     [SortOption.NameAsc]: (a1, a2) => a1.filename.localeCompare(a2.filename),
     [SortOption.NameDesc]: (a1, a2) => a2.filename.localeCompare(a1.filename),
@@ -22,8 +24,8 @@ const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo)
     [SortOption.DateDesc]: (a1, a2) => (a1.last_modified < a2.last_modified ? 1 : -1),
 };
 
-export const ArtifactPanel: React.FC = () => {
-    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal } = useChatContext();
+export function ArtifactPanel() {
+    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useChatContext();
     const { onDownload } = useDownload();
 
     const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
@@ -51,50 +53,81 @@ export const ArtifactPanel: React.FC = () => {
             );
         }
 
+        // Show header when there are visible artifacts OR when there are working artifacts (so menu is accessible)
+        const hasArtifactsOrWorking = sortedArtifacts.length > 0 || workingArtifactCount > 0;
+        if (!hasArtifactsOrWorking) return null;
+
         return (
-            sortedArtifacts.length > 0 && (
-                <div className="flex items-center justify-end border-b p-2">
+            <div className="flex items-center justify-end border-b p-2">
+                {sortedArtifacts.length > 0 && (
                     <SortPopover key="sort-popover" currentSortOption={sortOption} onSortChange={setSortOption}>
                         <Button variant="ghost" title="Sort By">
                             <ArrowDown className="h-5 w-5" />
                             <div>Sort By</div>
                         </Button>
                     </SortPopover>
-                    <ArtifactMorePopover key="more-popover" hideDeleteAll={!hasDeletableArtifacts}>
-                        <Button variant="ghost" tooltip="More">
-                            <Ellipsis className="h-5 w-5" />
-                        </Button>
-                    </ArtifactMorePopover>
-                </div>
-            )
+                )}
+                <ArtifactMorePopover
+                    key="more-popover"
+                    hideDeleteAll={!hasDeletableArtifacts}
+                    showWorkingArtifacts={showWorkingArtifacts}
+                    onToggleWorkingArtifacts={toggleShowWorkingArtifacts}
+                    workingArtifactCount={workingArtifactCount}
+                >
+                    <Button variant="ghost" tooltip="More">
+                        <Ellipsis className="h-5 w-5" />
+                    </Button>
+                </ArtifactMorePopover>
+            </div>
         );
-    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact, hasDeletableArtifacts]);
+    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact, hasDeletableArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount]);
 
     return (
         <div className="flex h-full flex-col">
             {header}
             <div className="flex min-h-0 flex-1">
                 {!previewArtifact && (
-                    <div className="flex-1 overflow-y-auto">
-                        {sortedArtifacts.map(artifact => (
-                            <ArtifactCard key={artifact.filename} artifact={artifact} />
-                        ))}
-                        {sortedArtifacts.length === 0 && (
-                            <div className="flex h-full items-center justify-center p-4">
-                                <div className="text-muted-foreground text-center">
-                                    {artifactsLoading && <Loader2 className="size-6 animate-spin" />}
-                                    {!artifactsLoading && (
-                                        <>
-                                            <FileText className="mx-auto mb-4 h-12 w-12" />
-                                            <div className="text-lg font-medium">Files</div>
-                                            <div className="mt-2 text-sm">No files available</div>
-                                            <Button className="mt-4" variant="default" onClick={artifactsRefetch} data-testid="refreshFiles" title="Refresh Files">
-                                                Refresh
-                                            </Button>
-                                        </>
-                                    )}
+                    <div className="flex flex-1 flex-col overflow-hidden">
+                        <div className="flex-1 overflow-y-auto">
+                            {sortedArtifacts.map(artifact => (
+                                <ArtifactCard key={artifact.filename} artifact={artifact} />
+                            ))}
+                            {sortedArtifacts.length === 0 && (
+                                <div className="flex h-full items-center justify-center p-4">
+                                    <div className="text-muted-foreground text-center">
+                                        {artifactsLoading && <Loader2 className="size-6 animate-spin" />}
+                                        {!artifactsLoading && (
+                                            <>
+                                                <FileText className="mx-auto mb-4 h-12 w-12" />
+                                                <div className="text-lg font-medium">Files</div>
+                                                {!showWorkingArtifacts && workingArtifactCount > 0 ? (
+                                                    <div className="mt-2 text-sm">
+                                                        {workingFilesLabel(workingArtifactCount)} hidden
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="mt-2 text-sm">No files available</div>
+                                                        <Button className="mt-4" variant="default" onClick={artifactsRefetch} data-testid="refreshFiles" title="Refresh Files">
+                                                            Refresh
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
+                        </div>
+                        {/* Hidden working files indicator */}
+                        {!showWorkingArtifacts && workingArtifactCount > 0 && sortedArtifacts.length > 0 && (
+                            <Button
+                                variant="ghost"
+                                onClick={toggleShowWorkingArtifacts}
+                                className="text-muted-foreground hover:text-foreground h-auto w-full rounded-none border-t px-3 py-2 text-xs"
+                            >
+                                <EyeOff className="h-3 w-3" />
+                                <span>{workingFilesLabel(workingArtifactCount)} hidden</span>
+                            </Button>
                         )}
                     </div>
                 )}
@@ -142,4 +175,4 @@ export const ArtifactPanel: React.FC = () => {
             <ArtifactDeleteAllDialog />
         </div>
     );
-};
+}

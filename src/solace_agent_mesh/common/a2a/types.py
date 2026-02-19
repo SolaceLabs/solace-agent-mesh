@@ -53,6 +53,7 @@ class ArtifactInfo(BaseModel):
     version: Optional[Union[int, str]] = None
     version_count: Optional[int] = None
     source: Optional[str] = None  # Optional: Source of the artifact (e.g., "project")
+    tags: Optional[List[str]] = None  # Optional: Tags for categorization (e.g., ["__working"])
 
     model_config = ConfigDict(populate_by_name=True)
 

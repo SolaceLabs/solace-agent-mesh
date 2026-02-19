@@ -1,29 +1,54 @@
-import React from "react";
+import type { ReactNode } from "react";
 
-import { RefreshCcw, Trash } from "lucide-react";
+import { Eye, EyeOff, RefreshCcw, Trash } from "lucide-react";
 
-import { Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components";
+import { Menu, Popover, PopoverContent, PopoverTrigger } from "@/lib/components";
+import type { MenuAction } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
 
 interface ArtifactMorePopoverProps {
-    children: React.ReactNode;
+    children: ReactNode;
     hideDeleteAll?: boolean;
+    showWorkingArtifacts?: boolean;
+    onToggleWorkingArtifacts?: () => void;
+    workingArtifactCount?: number;
 }
 
-export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ children, hideDeleteAll = false }) => {
+export function ArtifactMorePopover({
+    children,
+    hideDeleteAll = false,
+    showWorkingArtifacts = false,
+    onToggleWorkingArtifacts,
+    workingArtifactCount = 0,
+}: ArtifactMorePopoverProps) {
     const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
 
-    const menuActions: MenuAction[] = [
-        {
-            id: "refreshAll",
-            label: "Refresh",
-            onClick: () => {
-                artifactsRefetch();
-            },
-            icon: <RefreshCcw />,
+    const menuActions: MenuAction[] = [];
+
+    // Add working artifacts toggle if callback is provided
+    if (onToggleWorkingArtifacts) {
+        const countLabel = workingArtifactCount > 0 ? ` (${workingArtifactCount})` : "";
+        menuActions.push({
+            id: "toggleWorking",
+            label: showWorkingArtifacts
+                ? `Hide Working Files${countLabel}`
+                : `Show Working Files${countLabel}`,
+            onClick: onToggleWorkingArtifacts,
+            icon: showWorkingArtifacts ? <EyeOff /> : <Eye />,
             iconPosition: "left",
+        });
+    }
+
+    menuActions.push({
+        id: "refreshAll",
+        label: "Refresh",
+        onClick: () => {
+            artifactsRefetch();
         },
-    ];
+        icon: <RefreshCcw />,
+        iconPosition: "left",
+        divider: !!onToggleWorkingArtifacts,
+    });
 
     if (!hideDeleteAll) {
         menuActions.push({
@@ -46,4 +71,4 @@ export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ childr
             </PopoverContent>
         </Popover>
     );
-};
+}

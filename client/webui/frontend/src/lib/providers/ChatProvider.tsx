@@ -126,7 +126,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
-    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
+    const { artifacts, allArtifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useArtifacts(sessionId);
 
     // Title Generation
     const { generateTitle } = useTitleGeneration();
@@ -177,7 +177,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     } = useArtifactPreview({
         sessionId,
         projectId: activeProject?.id,
-        artifacts,
+        artifacts: allArtifacts,
         setError,
     });
 
@@ -942,7 +942,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 case "artifact_creation_progress": {
-                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version, rolled_back_text } = data as {
+                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version, rolled_back_text, tags } = data as {
                                         filename: string;
                                         status: "in-progress" | "completed" | "failed" | "cancelled";
                                         bytes_transferred: number;
@@ -951,6 +951,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         artifact_chunk?: string;
                                         version?: number;
                                         rolled_back_text?: string;
+                                        tags?: string[];
                                     };
 
                                     // Handle "cancelled" status - this happens when an artifact block was started
@@ -1015,6 +1016,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 mime_type: status === "completed" && mime_type ? mime_type : existingArtifact.mime_type,
                                                 // Mark that embed resolution is needed when completed
                                                 needsEmbedResolution: status === "completed" ? true : existingArtifact.needsEmbedResolution,
+                                                // Update tags if provided
+                                                tags: tags !== undefined ? tags : existingArtifact.tags,
                                             };
 
                                             return updated;
@@ -1033,6 +1036,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                         accumulatedContent: status === "in-progress" && artifact_chunk ? artifact_chunk : undefined,
                                                         isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : false,
                                                         needsEmbedResolution: status === "completed" ? true : false,
+                                                        tags,
                                                     },
                                                 ];
                                             }
@@ -2855,9 +2859,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         selectedAgentName,
         setSelectedAgentName,
         artifacts,
+        allArtifacts,
         artifactsLoading,
         artifactsRefetch,
         setArtifacts,
+        showWorkingArtifacts,
+        toggleShowWorkingArtifacts,
+        workingArtifactCount,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,

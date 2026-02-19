@@ -37,6 +37,7 @@ export const Default: Story = {
             isSidePanelCollapsed: true,
             activeSidePanelTab: "files",
             artifacts: [{ filename: "test.md", size: 1024, mime_type: "text/markdown", last_modified: new Date().toISOString() }],
+            allArtifacts: [{ filename: "test.md", size: 1024, mime_type: "text/markdown", last_modified: new Date().toISOString() }],
         },
         configContext: {
             persistenceEnabled: false,
