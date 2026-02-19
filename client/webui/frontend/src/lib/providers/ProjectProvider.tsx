@@ -74,7 +74,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
 
     const addFilesToProject = useCallback(
-        async (projectId: string, formData: FormData): Promise<void> => {
+        async (projectId: string, formData: FormData): Promise<{ sseLocation: string | null }> => {
             if (!projectsEnabled) {
                 throw new Error("Projects feature is disabled");
             }
@@ -85,7 +85,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const fileMetadata = fileMetadataStr ? JSON.parse(fileMetadataStr) : undefined;
 
             try {
-                await addFilesMutation.mutateAsync({ projectId, files, fileMetadata });
+                return await addFilesMutation.mutateAsync({ projectId, files, fileMetadata });
             } catch (error: unknown) {
                 // Handle 413 (Payload Too Large) errors specifically
                 const errorMessage = error instanceof Error ? error.message : String(error);
@@ -107,12 +107,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
 
     const removeFileFromProject = useCallback(
-        async (projectId: string, filename: string): Promise<void> => {
+        async (projectId: string, filename: string): Promise<{ sseLocation: string | null }> => {
             if (!projectsEnabled) {
                 throw new Error("Projects feature is disabled");
             }
 
-            await removeFileMutation.mutateAsync({ projectId, filename });
+            return await removeFileMutation.mutateAsync({ projectId, filename });
         },
         [projectsEnabled, removeFileMutation]
     );
