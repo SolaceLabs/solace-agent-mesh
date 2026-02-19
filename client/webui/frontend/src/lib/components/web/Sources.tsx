@@ -38,7 +38,7 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
                     snippet: s.contentPreview || "",
                     attribution: s.filename || "",
                     processed: false,
-                    source_type: "document",
+                    sourceType: "document",
                 };
 
                 // Create a unique key for deduplication (use filename for documents)
@@ -71,7 +71,7 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
                 snippet: s.contentPreview || "",
                 attribution: s.filename || "",
                 processed: false,
-                source_type: sourceType,
+                sourceType: sourceType,
             };
 
             // Create a unique key for deduplication
