@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { PanelRightIcon, FileText, Network, RefreshCw, Link2 } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
-import { useTaskContext, useChatContext } from "@/lib/hooks";
+import { useTaskContext, useChatContext, useIsProjectIndexingEnabled } from "@/lib/hooks";
 import { FlowChartPanel, processTaskForVisualization } from "@/lib/components/activities";
 import type { VisualizedTask } from "@/lib/types";
 import { hasSourcesWithUrls, hasDocumentSearchResults } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { hasSourcesWithUrls, hasDocumentSearchResults } from "@/lib/utils";
 import { ArtifactPanel } from "./artifact/ArtifactPanel";
 import { FlowChartDetails } from "../activities/FlowChartDetails";
 import { RAGInfoPanel } from "./rag/RAGInfoPanel";
+import { DocumentSourcesPanel } from "./rag/DocumentSourcesPanel";
 
 interface ChatSidePanelProps {
     onCollapsedToggle: (isSidePanelCollapsed: boolean) => void;
@@ -22,11 +23,14 @@ interface ChatSidePanelProps {
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel, ragData, ragEnabled } = useChatContext();
     const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
+    const isProjectIndexingEnabled = useIsProjectIndexingEnabled();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
     const [isLoadingTask, setIsLoadingTask] = useState<boolean>(false);
 
     // Track which task IDs we've already attempted to load to prevent duplicate loads
     const loadAttemptedRef = React.useRef<Set<string>>(new Set());
+
+    const filteredRagData = taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData;
 
     // Check if there are any sources in the current session
     // Includes: web sources, deep research sources, AND document search sources
@@ -290,7 +294,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                         {hasSourcesInSession && (
                             <TabsContent value="rag" className="m-0 h-full">
                                 <div className="h-full">
-                                    <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
+                                    {isProjectIndexingEnabled && hasDocumentSearchResults(ragData) ? <DocumentSourcesPanel ragData={filteredRagData} enabled={ragEnabled} /> : <RAGInfoPanel ragData={filteredRagData} enabled={ragEnabled} />}
                                 </div>
                             </TabsContent>
                         )}
