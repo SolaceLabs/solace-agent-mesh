@@ -22,7 +22,10 @@ apps:
 
       model: *general_model
       artifact_service: *default_artifact_service
-      session_service: __SESSION_SERVICE__
+      session_service: 
+        type: "sql"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui_gateway.db}"
+        default_behavior: "PERSISTENT"
       gateway_id: ${WEBUI_GATEWAY_ID}
       fastapi_host: ${FASTAPI_HOST}
       fastapi_port: ${FASTAPI_PORT, 8000}
@@ -42,10 +45,6 @@ apps:
       enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
       gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
       sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
-      
-      # Queue Configuration
-      visualization_queue_size: ${VISUALIZATION_QUEUE_SIZE, 600}
-      task_logger_queue_size: ${TASK_LOGGER_QUEUE_SIZE, 600}
 
       system_purpose: >
             The system is an AI Chatbot with agentic capabilities.
@@ -60,10 +59,10 @@ apps:
             Format responses to the user in Markdown using appropriate formatting.
 
       # --- Frontend Config Passthrough ---
-      frontend_welcome_message: __FRONTEND_WELCOME_MESSAGE__
-      frontend_bot_name: __FRONTEND_BOT_NAME__
-      frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__
-      frontend_logo_url: __FRONTEND_LOGO_URL__
+      frontend_welcome_message: 
+      frontend_bot_name: Solace Agent Mesh
+      frontend_collect_feedback: false
+      frontend_logo_url: 
 
       task_logging:
         enabled: true
@@ -80,9 +79,17 @@ apps:
       frontend_feature_enablement:
         speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
         textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
-      #   projects: true
+        projects: true
+        projectIndexing: true
       #   promptLibrary: true
         background_tasks: true  # NOTE: task_logging must also be enabled for background tasks to work
+        # Binary artifact preview (DOCX, PPTX files):
+        # Requires LibreOffice to be installed (build with INSTALL_LIBREOFFICE=true)
+        binaryArtifactPreview: true
+
+      # --- Project Indexing (BM25) ---
+      project_indexing:
+        enabled: true
 
       # --- Background Tasks Configuration ---
       background_tasks:
