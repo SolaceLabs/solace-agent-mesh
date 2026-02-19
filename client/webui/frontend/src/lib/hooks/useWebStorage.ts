@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 /**
  * Internal hook that provides a shared implementation for web storage hooks.
@@ -25,21 +25,24 @@ export function useWebStorage<T>(key: string, initialValue: T, storage: Storage)
         }
     });
 
-    const setValue = (value: T | ((val: T) => T)) => {
-        try {
-            setStoredValue(prevValue => {
-                const valueToStore = value instanceof Function ? value(prevValue) : value;
+    const setValue = useCallback(
+        (value: T | ((val: T) => T)) => {
+            try {
+                setStoredValue(prevValue => {
+                    const valueToStore = value instanceof Function ? value(prevValue) : value;
 
-                if (typeof window !== "undefined") {
-                    storage.setItem(key, JSON.stringify(valueToStore));
-                }
+                    if (typeof window !== "undefined") {
+                        storage.setItem(key, JSON.stringify(valueToStore));
+                    }
 
-                return valueToStore;
-            });
-        } catch (error) {
-            console.warn(`Error setting storage key "${key}":`, error);
-        }
-    };
+                    return valueToStore;
+                });
+            } catch (error) {
+                console.warn(`Error setting storage key "${key}":`, error);
+            }
+        },
+        [key, storage]
+    );
 
     return [storedValue, setValue] as const;
 }

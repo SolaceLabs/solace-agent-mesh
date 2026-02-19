@@ -202,6 +202,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                 preserveName: false,
                 customName: customName.trim() || undefined,
             });
+
             // Reset state on success - ConfirmationDialog will handle closing
             setSelectedFiles(null);
             setProjectPreview(null);
