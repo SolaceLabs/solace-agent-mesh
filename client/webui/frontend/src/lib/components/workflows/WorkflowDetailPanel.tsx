@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Workflow, GitMerge, FileJson, X, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Workflow, FileJson, X, ChevronDown, ChevronUp } from "lucide-react";
 
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
-import { Button, JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
+import { Button, JSONViewer, MarkdownHTMLConverter, NavItem } from "@/lib/components";
 
 interface WorkflowDetailPanelProps {
     workflow: AgentCardInfo;
@@ -49,7 +49,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
             {/* Header */}
             <div className="flex items-center justify-between border-b px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                    <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                     <span className="text-xl font-semibold">{workflow.displayName || workflow.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -65,7 +65,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                     {/* Workflow Details Section */}
                     <div className="bg-muted mb-4 flex flex-col gap-2 rounded-xs p-4">
                         <div className="text-base font-semibold">Workflow Details</div>
-                        
+
                         {/* Description without label */}
                         {description && (
                             <>
@@ -94,15 +94,11 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                         <div className="grid grid-cols-2 gap-4 pt-2">
                             <div>
                                 <div className="text-muted-foreground mb-1 text-sm font-medium">Version</div>
-                                <div className="flex items-center gap-1 text-sm">
-                                    {workflow.version || "N/A"}
-                                </div>
+                                <div className="flex items-center gap-1 text-sm">{workflow.version || "N/A"}</div>
                             </div>
                             <div>
                                 <div className="text-muted-foreground mb-1 text-sm font-medium">Nodes</div>
-                                <div className="flex items-center gap-1 text-sm">
-                                    {nodeCount > 0 ? nodeCount : "N/A"}
-                                </div>
+                                <div className="flex items-center gap-1 text-sm">{nodeCount > 0 ? nodeCount : "N/A"}</div>
                             </div>
                         </div>
                         {/* Open Workflow button inside details box */}
@@ -118,30 +114,8 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                         <div className="mb-4">
                             {/* Tab buttons */}
                             <div className="mb-3 flex border-b" role="tablist">
-                                <button
-                                    role="tab"
-                                    aria-selected={activeTab === "input"}
-                                    onClick={() => setActiveTab("input")}
-                                    className={`relative cursor-pointer px-4 py-2 font-medium transition-colors ${
-                                        activeTab === "input"
-                                            ? "border-b-2 border-(--color-brand-wMain) font-semibold"
-                                            : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                                    }`}
-                                >
-                                    Input
-                                </button>
-                                <button
-                                    role="tab"
-                                    aria-selected={activeTab === "output"}
-                                    onClick={() => setActiveTab("output")}
-                                    className={`relative cursor-pointer px-4 py-2 font-medium transition-colors ${
-                                        activeTab === "output"
-                                            ? "border-b-2 border-(--color-brand-wMain) font-semibold"
-                                            : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                                    }`}
-                                >
-                                    Output
-                                </button>
+                                <NavItem id="input" label="Input" isActive={activeTab === "input"} onClick={() => setActiveTab("input")} />
+                                <NavItem id="output" label="Output" isActive={activeTab === "output"} onClick={() => setActiveTab("output")} />
                             </div>
 
                             {/* Tab content */}
@@ -160,9 +134,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
-                                                No input schema defined
-                                            </div>
+                                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">No input schema defined</div>
                                         )}
                                     </div>
                                 )}
@@ -181,9 +153,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
-                                                No output schema defined
-                                            </div>
+                                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">No output schema defined</div>
                                         )}
 
                                         {/* Output Mapping */}
@@ -193,9 +163,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                                                     <FileJson size={14} className="mr-1" />
                                                     Output Mapping
                                                 </label>
-                                                <div className="text-muted-foreground mb-2 text-xs">
-                                                    Defines how the final agent output is mapped to the workflow output schema.
-                                                </div>
+                                                <div className="text-muted-foreground mb-2 text-xs">Defines how the final agent output is mapped to the workflow output schema.</div>
                                                 <div className="max-h-48 overflow-auto rounded-lg border">
                                                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                                     <JSONViewer data={config.output_mapping as any} maxDepth={2} className="border-none text-xs" />
@@ -221,7 +189,7 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                                 {workflow.provider.url && (
                                     <div>
                                         <span className="text-muted-foreground">URL:</span>{" "}
-                                        <a href={workflow.provider.url} target="_blank" rel="noopener noreferrer" className="text-[var(--color-brand-wMain)] hover:underline">
+                                        <a href={workflow.provider.url} target="_blank" rel="noopener noreferrer" className="text-(--color-brand-wMain) hover:underline">
                                             {workflow.provider.url}
                                         </a>
                                     </div>
