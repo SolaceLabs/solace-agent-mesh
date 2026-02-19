@@ -54,14 +54,18 @@ test-setup: check-uv
 	uv run playwright install
 	@echo "Test environment setup complete!"
 
-# Setup eval environment 
+# Setup eval environment
+# Note: Uses wheel build instead of editable install because hatchling's editable mode
+# doesn't support force-include for cli/, evaluation/, etc. directories outside src/
 eval-setup: check-uv
 	@echo "Setting up evaluation test environment..."
 	UV_VENV_CLEAR=1 uv venv --python 3.12
-	@echo "Installing Solace Agent Mesh..."
-	source .venv/bin/activate && pip install .
+	@echo "Building wheel directly (skipping UI builds and sdist for speed)..."
+	SAM_SKIP_UI_BUILD=true uv build --wheel
+	@echo "Installing Solace Agent Mesh with eval dependencies from wheel..."
+	uv pip install "$$(ls dist/solace_agent_mesh-*.whl | head -1)[eval]" --reinstall
 	@echo "Installing Playwright browsers..."
-	source .venv/bin/activate && pip install playwright
+	.venv/bin/playwright install
 
 # Install Playwright browsers only
 install-playwright: check-uv
@@ -88,7 +92,7 @@ test-eval-local: eval-setup
 	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
 	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
-	source .venv/bin/activate && sam eval tests/evaluation/local_example.json
+	.venv/bin/sam eval tests/evaluation/local_example.json
 
 # Run workflow evaluation tests
 test-eval-workflow: eval-setup
@@ -97,7 +101,7 @@ test-eval-workflow: eval-setup
 	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
 	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
-	source .venv/bin/activate && sam eval tests/evaluation/workflow_eval.json
+	.venv/bin/sam eval tests/evaluation/workflow_eval.json
 
 # Run remote evaluation tests
 test-eval-remote: eval-setup
@@ -106,7 +110,7 @@ test-eval-remote: eval-setup
 	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
 	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
-	source .venv/bin/activate && sam eval tests/evaluation/remote_example.json
+	.venv/bin/sam eval tests/evaluation/remote_example.json
 
 # Run unit tests only
 test-unit:

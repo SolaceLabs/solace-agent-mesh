@@ -84,6 +84,9 @@ dependencies = [
 gcs = ["google-cloud-storage==3.5.0"]
 vertex = ["google-cloud-aiplatform==1.126.1"]
 employee_tools = ["holidays==0.81.0"]
+eval = [
+    "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"
+]
 test = [
     "pytest-asyncio",
     "pytest>=8.0.0",
