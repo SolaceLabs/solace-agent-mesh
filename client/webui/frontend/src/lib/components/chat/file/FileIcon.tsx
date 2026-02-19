@@ -31,43 +31,43 @@ const getFileStyles = (type: string) => {
     }
 };
 
-const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactElement | null => {
-    const iconProps = { className: "text-secondary-foreground/60" };
+export const getFileTypeIcon = (mimeType?: string, filename?: string, iconProps: { className?: string; size?: number } = { className: "text-secondary-foreground/60" }): React.ReactElement | null => {
+    const props = { className: iconProps.className ?? "text-secondary-foreground/60", size: iconProps.size };
 
     if (mimeType) {
         // Image files
         if (mimeType.startsWith("image/")) {
-            return <FileImage {...iconProps} />;
+            return <FileImage {...props} />;
         }
         // Video files
         if (mimeType.startsWith("video/")) {
-            return <FileVideo {...iconProps} />;
+            return <FileVideo {...props} />;
         }
         // Audio files
         if (mimeType.startsWith("audio/")) {
-            return <FileAudio {...iconProps} />;
+            return <FileAudio {...props} />;
         }
         // PDF files
         if (mimeType === "application/pdf") {
-            return <FileText {...iconProps} />;
+            return <FileText {...props} />;
         }
         // Archive files
         if (mimeType === "application/zip" || mimeType === "application/x-zip-compressed" || mimeType === "application/x-rar-compressed" || mimeType === "application/x-tar" || mimeType === "application/gzip") {
-            return <Archive {...iconProps} />;
+            return <Archive {...props} />;
         }
         // Office documents
         if (mimeType.includes("word") || mimeType.includes("document")) {
-            return <FileText {...iconProps} />;
+            return <FileText {...props} />;
         }
         if (mimeType.includes("excel") || mimeType.includes("spreadsheet")) {
-            return <FileSpreadsheet {...iconProps} />;
+            return <FileSpreadsheet {...props} />;
         }
         if (mimeType.includes("powerpoint") || mimeType.includes("presentation")) {
-            return <Presentation {...iconProps} />;
+            return <Presentation {...props} />;
         }
         // Executable files
         if (mimeType === "application/x-executable" || mimeType === "application/x-msdownload") {
-            return <Settings {...iconProps} />;
+            return <Settings {...props} />;
         }
     }
 
@@ -83,7 +83,7 @@ const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactEleme
         case "webp":
         case "svg":
         case "ico":
-            return <FileImage {...iconProps} />;
+            return <FileImage {...props} />;
         // Videos
         case "mp4":
         case "avi":
@@ -92,7 +92,7 @@ const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactEleme
         case "flv":
         case "webm":
         case "mkv":
-            return <FileVideo {...iconProps} />;
+            return <FileVideo {...props} />;
         // Audio
         case "mp3":
         case "wav":
@@ -100,26 +100,26 @@ const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactEleme
         case "aac":
         case "ogg":
         case "m4a":
-            return <FileAudio {...iconProps} />;
+            return <FileAudio {...props} />;
         // Documents
         case "pdf":
         case "doc":
         case "docx":
-            return <FileText {...iconProps} />;
+            return <FileText {...props} />;
         case "xls":
         case "xlsx":
         case "csv":
-            return <FileSpreadsheet {...iconProps} />;
+            return <FileSpreadsheet {...props} />;
         case "ppt":
         case "pptx":
-            return <Presentation {...iconProps} />;
+            return <Presentation {...props} />;
         // Archives
         case "zip":
         case "rar":
         case "7z":
         case "tar":
         case "gz":
-            return <Archive {...iconProps} />;
+            return <Archive {...props} />;
         // Executables
         case "exe":
         case "msi":
@@ -127,16 +127,16 @@ const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactEleme
         case "pkg":
         case "deb":
         case "rpm":
-            return <Settings {...iconProps} />;
+            return <Settings {...props} />;
         // Fonts
         case "ttf":
         case "otf":
         case "woff":
         case "woff2":
-            return <Type {...iconProps} />;
+            return <Type {...props} />;
         case "htm":
         case "html":
-            return <FileCode {...iconProps} />;
+            return <FileCode {...props} />;
         default:
             return null;
     }

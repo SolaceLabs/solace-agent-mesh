@@ -211,6 +211,69 @@ def wait_for_server(url, timeout=30):
     return False
 
 
+def discover_config_files(
+    paths: tuple,
+    skip_files: tuple = (),
+) -> list[str]:
+    """
+    Discover YAML config files from paths.
+
+    Shared by 'sam run' and 'sam task run' commands.
+
+    Args:
+        paths: Tuple of file/directory paths. If empty, discovers from configs/
+        skip_files: Tuple of file basenames to skip
+
+    Returns:
+        List of resolved config file paths
+
+    Raises:
+        FileNotFoundError: If configs/ directory not found and no paths provided
+    """
+    config_files = []
+    project_root = Path.cwd()
+    configs_dir = project_root / "configs"
+
+    if not paths:
+        # Auto-discover from configs/ directory
+        if not configs_dir.is_dir():
+            raise FileNotFoundError(
+                f"Configuration directory '{configs_dir}' not found. "
+                "Please run 'sam init' first or provide specific config files with --config."
+            )
+
+        for yaml_ext in ("*.yaml", "*.yml"):
+            for filepath in configs_dir.rglob(yaml_ext):
+                if filepath.name.startswith("_") or filepath.name.startswith("shared_config"):
+                    continue
+                config_files.append(str(filepath.resolve()))
+    else:
+        # Process provided paths
+        processed_files = set()
+        for path_str in paths:
+            path = Path(path_str)
+            if path.is_dir():
+                for yaml_ext in ("*.yaml", "*.yml"):
+                    for filepath in path.rglob(yaml_ext):
+                        if filepath.name.startswith("_") or filepath.name.startswith("shared_config"):
+                            continue
+                        processed_files.add(str(filepath.resolve()))
+            elif path.is_file():
+                if path.suffix in [".yaml", ".yml"]:
+                    processed_files.add(str(path.resolve()))
+        config_files = sorted(list(processed_files))
+
+    # Apply skip filters
+    if skip_files:
+        skipped_basenames = [os.path.basename(s) for s in skip_files]
+        config_files = [
+            cf for cf in config_files
+            if os.path.basename(cf) not in skipped_basenames
+        ]
+
+    return config_files
+
+
 def create_and_validate_database(database_url: str, db_name: str = "database") -> bool:
     """
     Create and validate a database connection.

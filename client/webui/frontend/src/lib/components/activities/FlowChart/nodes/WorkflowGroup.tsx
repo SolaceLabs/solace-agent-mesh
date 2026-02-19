@@ -1,4 +1,4 @@
-import React, { useRef, useState, useLayoutEffect, useEffect, useCallback } from "react";
+import { type ReactNode, Fragment, useRef, useState, useLayoutEffect, useEffect, useCallback } from "react";
 import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import AgentNode from "./AgentNode";
@@ -58,7 +58,7 @@ function generateBezierPath(sourceRect: DOMRect, targetRect: DOMRect, containerR
     return `M ${x1},${y1} C ${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`;
 }
 
-const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }: WorkflowGroupProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [bezierPaths, setBezierPaths] = useState<BezierPath[]>([]);
     const [resizeCounter, setResizeCounter] = useState(0);
@@ -193,88 +193,91 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
     }, [isCollapsed]);
 
     // Render a child node with data attributes for connector calculation
-    const renderChild = (child: LayoutNode, precedingNodeId?: string, followingNodeId?: string): React.ReactNode => {
-        const childProps = {
-            node: child,
-            onClick: onChildClick,
-            onExpand,
-            onCollapse,
-        };
+    const renderChild = useCallback(
+        (child: LayoutNode, precedingNodeId?: string, followingNodeId?: string): ReactNode => {
+            const childProps = {
+                node: child,
+                onClick: onChildClick,
+                onExpand,
+                onCollapse,
+            };
 
-        switch (child.type) {
-            case "agent":
-                return (
-                    <div key={child.id} data-node-id={child.id}>
-                        <AgentNode {...childProps} onChildClick={onChildClick} />
-                    </div>
-                );
-            case "switch":
-                return (
-                    <div key={child.id} data-node-id={child.id}>
-                        <SwitchNode {...childProps} />
-                    </div>
-                );
-            case "loop":
-                return (
-                    <div key={child.id} data-node-id={child.id}>
-                        <LoopNode {...childProps} onChildClick={onChildClick} />
-                    </div>
-                );
-            case "map":
-                return (
-                    <div key={child.id} data-node-id={child.id}>
-                        <MapNode {...childProps} onChildClick={onChildClick} />
-                    </div>
-                );
-            case "group":
-                // Nested workflow group - render recursively
-                return (
-                    <div key={child.id} data-node-id={child.id}>
-                        <WorkflowGroup {...childProps} onChildClick={onChildClick} />
-                    </div>
-                );
-            case "parallelBlock": {
-                // Don't render empty parallel blocks
-                if (child.children.length === 0) {
-                    return null;
-                }
-                // Group children by iterationIndex (branch index) for proper chain visualization
-                const branches = new Map<number, LayoutNode[]>();
-                for (const parallelChild of child.children) {
-                    const branchIdx = parallelChild.data.iterationIndex ?? 0;
-                    if (!branches.has(branchIdx)) {
-                        branches.set(branchIdx, []);
+            switch (child.type) {
+                case "agent":
+                    return (
+                        <div key={child.id} data-node-id={child.id}>
+                            <AgentNode {...childProps} onChildClick={onChildClick} />
+                        </div>
+                    );
+                case "switch":
+                    return (
+                        <div key={child.id} data-node-id={child.id}>
+                            <SwitchNode {...childProps} />
+                        </div>
+                    );
+                case "loop":
+                    return (
+                        <div key={child.id} data-node-id={child.id}>
+                            <LoopNode {...childProps} onChildClick={onChildClick} />
+                        </div>
+                    );
+                case "map":
+                    return (
+                        <div key={child.id} data-node-id={child.id}>
+                            <MapNode {...childProps} onChildClick={onChildClick} />
+                        </div>
+                    );
+                case "group":
+                    // Nested workflow group - render recursively
+                    return (
+                        <div key={child.id} data-node-id={child.id}>
+                            <WorkflowGroup {...childProps} onChildClick={onChildClick} />
+                        </div>
+                    );
+                case "parallelBlock": {
+                    // Don't render empty parallel blocks
+                    if (child.children.length === 0) {
+                        return null;
                     }
-                    branches.get(branchIdx)!.push(parallelChild);
+                    // Group children by iterationIndex (branch index) for proper chain visualization
+                    const branches = new Map<number, LayoutNode[]>();
+                    for (const parallelChild of child.children) {
+                        const branchIdx = parallelChild.data.iterationIndex ?? 0;
+                        if (!branches.has(branchIdx)) {
+                            branches.set(branchIdx, []);
+                        }
+                        branches.get(branchIdx)!.push(parallelChild);
+                    }
+
+                    // Sort branches by index
+                    const sortedBranches = Array.from(branches.entries()).sort((a, b) => a[0] - b[0]);
+
+                    // Render parallel block - branches side-by-side, nodes within each branch stacked vertically
+                    // Container is invisible - connectors are drawn via SVG bezier paths
+                    return (
+                        <div key={child.id} data-parallel-block={child.id} data-preceding-node={precedingNodeId} data-following-node={followingNodeId} className="my-12 flex flex-row items-start gap-4">
+                            {sortedBranches.map(([branchIdx, branchChildren]) => (
+                                <div key={`branch-${branchIdx}`} className="flex flex-col items-center gap-2">
+                                    {branchChildren.map((branchChild, nodeIdx) => (
+                                        <Fragment key={branchChild.id}>
+                                            <div data-node-id={branchChild.id} data-branch-start={nodeIdx === 0 ? "true" : undefined} data-branch-end={nodeIdx === branchChildren.length - 1 ? "true" : undefined}>
+                                                {renderChild(branchChild)}
+                                            </div>
+                                            {/* Connector line to next node in branch */}
+                                            {nodeIdx < branchChildren.length - 1 && <div className="h-3 w-0.5 bg-gray-400 dark:bg-gray-600" />}
+                                        </Fragment>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    );
                 }
-
-                // Sort branches by index
-                const sortedBranches = Array.from(branches.entries()).sort((a, b) => a[0] - b[0]);
-
-                // Render parallel block - branches side-by-side, nodes within each branch stacked vertically
-                // Container is invisible - connectors are drawn via SVG bezier paths
-                return (
-                    <div key={child.id} data-parallel-block={child.id} data-preceding-node={precedingNodeId} data-following-node={followingNodeId} className="my-12 flex flex-row items-start gap-4">
-                        {sortedBranches.map(([branchIdx, branchChildren]) => (
-                            <div key={`branch-${branchIdx}`} className="flex flex-col items-center gap-2">
-                                {branchChildren.map((branchChild, nodeIdx) => (
-                                    <React.Fragment key={branchChild.id}>
-                                        <div data-node-id={branchChild.id} data-branch-start={nodeIdx === 0 ? "true" : undefined} data-branch-end={nodeIdx === branchChildren.length - 1 ? "true" : undefined}>
-                                            {renderChild(branchChild)}
-                                        </div>
-                                        {/* Connector line to next node in branch */}
-                                        {nodeIdx < branchChildren.length - 1 && <div className="h-3 w-0.5 bg-gray-400 dark:bg-gray-600" />}
-                                    </React.Fragment>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                );
+                default:
+                    return null;
             }
-            default:
-                return null;
-        }
-    };
+        },
+        [onChildClick, onExpand, onCollapse]
+    );
 
     // Collapsed view - similar to collapsed agent but with workflow styling
     if (isCollapsed) {
@@ -373,11 +376,11 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                     const followingNodeId = followingNode?.id;
 
                     return (
-                        <React.Fragment key={child.id}>
+                        <Fragment key={child.id}>
                             {renderChild(child, precedingNodeId, followingNodeId)}
                             {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
                             {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
-                        </React.Fragment>
+                        </Fragment>
                     );
                 })}
             </div>
