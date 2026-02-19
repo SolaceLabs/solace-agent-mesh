@@ -395,7 +395,9 @@ def _get_schema_from_signature(
                     nullable=is_optional or artifact_type_info.is_optional,
                 )
         else:
-            adk_type = type_map.get(param_type)
+            # Resolve generic aliases (e.g., List[str] -> list, Dict[str, Any] -> dict)
+            resolved_type = get_origin(param_type) or param_type
+            adk_type = type_map.get(resolved_type)
             if not adk_type:
                 # Default to string if type is not supported or specified (e.g., Any)
                 adk_type = adk_types.Type.STRING
