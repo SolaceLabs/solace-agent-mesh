@@ -25,7 +25,7 @@
   <a href="#-key-features">Key Features</a> •
   <a href="#-quick-start-5-minutes">Quickstart</a> •
   <a href="#️-next-steps">Next Steps</a> •
-  <a href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction">Docs</a>
+  <a href="https://solacelabs.github.io/solace-agent-mesh/">Docs</a>
 </p>
 
 
