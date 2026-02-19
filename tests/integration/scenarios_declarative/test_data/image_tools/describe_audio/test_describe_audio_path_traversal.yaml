@@ -20,7 +20,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_audio"
-                  arguments: '{"audio_filename": "../../secret.wav"}'
+                  arguments: '{"input_audio": "../../secret.wav"}'
   - static_response:
       choices:
         - message:

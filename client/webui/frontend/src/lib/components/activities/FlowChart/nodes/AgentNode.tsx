@@ -1,4 +1,4 @@
-import { Fragment, type FC } from "react";
+import { Fragment, useCallback } from "react";
 import { Bot, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import LLMNode from "./LLMNode";
@@ -16,45 +16,48 @@ interface AgentNodeProps {
     onCollapse?: (nodeId: string) => void;
 }
 
-const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }: AgentNodeProps) => {
     // Render a child node recursively
-    const renderChild = (child: LayoutNode) => {
-        const childProps = {
-            node: child,
-            onClick: onChildClick,
-            onExpand,
-            onCollapse,
-        };
+    const renderChild = useCallback(
+        (child: LayoutNode) => {
+            const childProps = {
+                node: child,
+                onClick: onChildClick,
+                onExpand,
+                onCollapse,
+            };
 
-        switch (child.type) {
-            case "agent":
-                // Recursive!
-                return <AgentNode key={child.id} {...childProps} onChildClick={onChildClick} />;
-            case "llm":
-                return <LLMNode key={child.id} {...childProps} />;
-            case "tool":
-                return <ToolNode key={child.id} {...childProps} />;
-            case "switch":
-                return <SwitchNode key={child.id} {...childProps} />;
-            case "loop":
-                return <LoopNode key={child.id} {...childProps} />;
-            case "group":
-                return <WorkflowGroup key={child.id} {...childProps} onChildClick={onChildClick} />;
-            case "parallelBlock":
-                // Don't render empty parallel blocks
-                if (child.children.length === 0) {
+            switch (child.type) {
+                case "agent":
+                    // Recursive!
+                    return <AgentNode key={child.id} {...childProps} onChildClick={onChildClick} />;
+                case "llm":
+                    return <LLMNode key={child.id} {...childProps} />;
+                case "tool":
+                    return <ToolNode key={child.id} {...childProps} />;
+                case "switch":
+                    return <SwitchNode key={child.id} {...childProps} />;
+                case "loop":
+                    return <LoopNode key={child.id} {...childProps} />;
+                case "group":
+                    return <WorkflowGroup key={child.id} {...childProps} onChildClick={onChildClick} />;
+                case "parallelBlock":
+                    // Don't render empty parallel blocks
+                    if (child.children.length === 0) {
+                        return null;
+                    }
+                    // Render parallel block - children displayed side-by-side with bounding box
+                    return (
+                        <div key={child.id} className="flex flex-row items-start gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-gray-600 dark:bg-gray-800/50">
+                            {child.children.map(parallelChild => renderChild(parallelChild))}
+                        </div>
+                    );
+                default:
                     return null;
-                }
-                // Render parallel block - children displayed side-by-side with bounding box
-                return (
-                    <div key={child.id} className="flex flex-row items-start gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-gray-600 dark:bg-gray-800/50">
-                        {child.children.map(parallelChild => renderChild(parallelChild))}
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
+            }
+        },
+        [onChildClick, onExpand, onCollapse]
+    );
 
     // Pill variant for Start/Finish/Join/Map/Fork nodes
     if (node.data.variant === "pill") {
@@ -66,8 +69,8 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
 
         // Color classes based on error status
         const pillColorClasses = isError
-            ? "border-red-500 bg-red-50 text-red-900 dark:border-red-400 dark:bg-red-900/50 dark:text-red-100"
-            : "border-indigo-500 bg-indigo-50 text-indigo-900 dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100";
+            ? "border-(--color-error-wMain) bg-(--color-error-w10) text-(--color-error-wMain) dark:border-(--color-error-w80) dark:bg-(--color-error-w100)/50 dark:text-(--color-error-w10)"
+            : "border-(--color-info-wMain) bg-(--color-info-w10) text-(--color-info-wMain) dark:border-(--color-info-w80) dark:bg-(--color-info-w100)/50 dark:text-(--color-info-w10)";
 
         // If it's a simple pill (no parallel branches and no children), render compact version
         if (!hasParallelBranches && !hasChildren) {
