@@ -8,7 +8,7 @@ import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { useDocumentContent } from "@/lib/api/documents";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
-import { highlightCitationsInText, getFirstCitationPreview } from "@/lib/utils/highlightUtils";
+import { highlightCitationsInText } from "@/lib/utils/highlightUtils";
 import type { RAGSource } from "@/lib/types";
 
 export interface CitationPreviewModalProps {
@@ -78,12 +78,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
         return decodedContent;
     }, [documentData?.content, renderType, citations]);
 
-    // Get first citation preview for PDF files (shown in header)
-    const citationPreview = useMemo(() => {
-        if (renderType !== "pdf") return null;
-        return getFirstCitationPreview(citations);
-    }, [renderType, citations]);
-
     const handleViewFile = () => {
         if (fileUrl) {
             window.open(fileUrl, "_blank", "noopener,noreferrer");
@@ -94,7 +88,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
 
     return (
         <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
-            <DialogContent className="flex h-[85vh] max-h-[900px] w-[90vw] max-w-5xl flex-col">
+            <DialogContent className="flex h-[80vh] min-w-[80vw] flex-col">
                 {/* Header */}
                 <DialogHeader className="flex-none border-b pb-4">
                     <div className="flex items-center justify-between">
@@ -114,14 +108,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                             </Button>
                         )}
                     </div>
-
-                    {/* Citation preview for PDFs */}
-                    {citationPreview && (
-                        <div className="mt-3 rounded-md bg-amber-50 p-3 dark:bg-amber-900/20">
-                            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Cited Text:</p>
-                            <p className="mt-1 text-sm text-amber-700 italic dark:text-amber-300">"{citationPreview}"</p>
-                        </div>
-                    )}
                 </DialogHeader>
 
                 {/* Content */}

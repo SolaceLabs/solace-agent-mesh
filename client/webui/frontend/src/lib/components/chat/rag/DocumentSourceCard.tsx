@@ -32,9 +32,9 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
                         <FileIcon filename={filename} variant="compact" />
 
                         <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-                            <span className="text-foreground text-sm font-medium">Source {sourceIndex + 1}</span>
+                            <span className="text-foreground truncate text-sm font-medium">{filename}</span>
                             <span className="text-muted-foreground truncate text-sm">
-                                {fileExtension} file | {totalCitations} citation
+                                {fileExtension.toUpperCase()} file | {totalCitations} citation
                                 {totalCitations !== 1 ? "s" : ""}
                             </span>
                         </div>
