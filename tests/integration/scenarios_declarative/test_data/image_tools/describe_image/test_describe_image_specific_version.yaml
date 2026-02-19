@@ -31,7 +31,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_image"
-                  arguments: '{"image_filename": "versioned_image.png:1"}'
+                  arguments: '{"input_image": "versioned_image.png:1"}'
     expected_request:
       tools_present: ["describe_image"]
 

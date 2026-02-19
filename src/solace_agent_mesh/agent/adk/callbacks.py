@@ -404,9 +404,9 @@ async def process_artifact_blocks_callback(
                         )
                         save_result = await wrapped_creator(**kwargs_for_call)
 
-                        if save_result.get("status") in ["success", "partial_success"]:
+                        if save_result.status in ["success", "partial"]:
                             status_for_tool = "success"
-                            version_for_tool = save_result.get("data_version", 1)
+                            version_for_tool = save_result.data.get("data_version", 1) if save_result.data else 1
                             try:
                                 logical_task_id = a2a_context.get("logical_task_id")
                                 if logical_task_id:

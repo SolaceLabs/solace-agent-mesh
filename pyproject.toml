@@ -231,6 +231,7 @@ markers = [
     "web_search: marks tests related to web search tools (Tavily, Google, Exa, Brave)",
     "deep_research: marks tests related to deep research tool",
     "dynamic_tools: marks tests related to the dynamic_tools",
+    "artifact_preloading: marks tests related to ArtifactContent type hint pre-loading",
     "auth: marks tests associated with authentication and authorization",
     "oauth: OAuth specific tests",
     "error_handling: Tests related to error handling and recovery",

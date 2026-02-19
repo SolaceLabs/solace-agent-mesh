@@ -21,7 +21,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_audio"
-                  arguments: '{"audio_filename": "audio:file:with:colons.mp3"}'
+                  arguments: '{"input_audio": "audio:file:with:colons.mp3"}'
   - expected_request:
       messages:
         - role: "tool"
