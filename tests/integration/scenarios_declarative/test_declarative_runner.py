@@ -1799,6 +1799,7 @@ async def test_declarative_scenario(
     mixed_discovery_agent_component: SamAgentComponent,
     complex_signatures_agent_component: SamAgentComponent,
     config_context_agent_component: SamAgentComponent,
+    artifact_content_agent_component: SamAgentComponent,
     monkeypatch: pytest.MonkeyPatch,
     mcp_server_harness,
     request: pytest.FixtureRequest,
@@ -1899,6 +1900,7 @@ async def test_declarative_scenario(
         mixed_discovery_agent_component.agent_name: mixed_discovery_agent_component,
         complex_signatures_agent_component.agent_name: complex_signatures_agent_component,
         config_context_agent_component.agent_name: config_context_agent_component,
+        artifact_content_agent_component.agent_name: artifact_content_agent_component,
         "TestAgent_Proxied": a2a_proxy_component,
     }
 

@@ -28,7 +28,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_audio"
-                  arguments: '{"audio_filename": "versioned_audio.mp3:1"}'
+                  arguments: '{"input_audio": "versioned_audio.mp3:1"}'
   - static_response:
       choices:
         - message:

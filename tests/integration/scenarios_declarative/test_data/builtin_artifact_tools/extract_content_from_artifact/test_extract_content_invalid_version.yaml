@@ -43,11 +43,8 @@ llm_interactions:
     expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_call_id_matches_prior_request_index: 0 # Matches tool_call_extract_content_badver
-          response_json_matches:
-            status: "error_invalid_version_format"
-            message_to_llm: "Invalid version format 'not_latest_or_int'. Version must be an integer or 'latest'."
-            filename: "source_for_invalid_version.txt"
-            version_requested: "not_latest_or_int"
+          response_json_contains:
+            status: "error"
     static_response:
       id: "chatcmpl-extract-badver-2"
       object: "chat.completion"

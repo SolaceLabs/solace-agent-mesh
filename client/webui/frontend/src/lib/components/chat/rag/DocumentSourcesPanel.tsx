@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Link2, Search } from "lucide-react";
 
 import { Accordion } from "@/lib/components/ui/accordion";
+import { EmptyState } from "@/lib/components/common/EmptyState";
 import type { RAGSearchResult } from "@/lib/types";
 import { groupDocumentSources } from "@/lib/utils/documentSourceUtils";
 
@@ -25,28 +26,24 @@ export const DocumentSourcesPanel: React.FC<DocumentSourcesPanelProps> = ({ ragD
 
     // Disabled state
     if (!enabled) {
-        return (
-            <div className="flex h-full items-center justify-center p-4">
-                <div className="text-muted-foreground text-center">
-                    <Link2 className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                    <div className="text-lg font-medium">Document Sources</div>
-                    <div className="mt-2 text-sm">Source visibility is disabled in settings</div>
-                </div>
-            </div>
-        );
+        return <EmptyState title="Document Sources" subtitle="Source visibility is disabled in settings" variant="noImage" image={<Link2 className="h-12 w-12 opacity-50" />} />;
     }
 
     // Empty state
     if (!ragData || ragData.length === 0 || groupedDocuments.length === 0) {
         return (
-            <div className="flex h-full items-center justify-center p-4">
-                <div className="text-muted-foreground text-center">
-                    <Search className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                    <div className="text-lg font-medium">Document Sources</div>
-                    <div className="mt-2 text-sm">No document sources available yet</div>
-                    <div className="mt-1 text-xs">Document citations will appear here after a document search</div>
-                </div>
-            </div>
+            <EmptyState
+                title="Document Sources"
+                subtitle={
+                    <>
+                        <span>No document sources available yet</span>
+                        <br />
+                        <span className="text-xs">Document citations will appear here after a document search</span>
+                    </>
+                }
+                variant="noImage"
+                image={<Search className="h-12 w-12 opacity-50" />}
+            />
         );
     }
 

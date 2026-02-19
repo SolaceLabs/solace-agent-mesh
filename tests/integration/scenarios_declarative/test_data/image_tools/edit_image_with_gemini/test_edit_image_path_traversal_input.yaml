@@ -21,7 +21,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "edit_image_with_gemini"
-                  arguments: '{"image_filename": "../../../../etc/passwd", "edit_prompt": "add a hat"}'
+                  arguments: '{"input_image": "../../../../etc/passwd", "edit_prompt": "add a hat"}'
   - expected_request:
       messages:
         - role: "tool"

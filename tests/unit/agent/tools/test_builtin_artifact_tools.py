@@ -22,6 +22,13 @@ from solace_agent_mesh.agent.tools.builtin_artifact_tools import (
     CATEGORY_NAME,
     CATEGORY_DESCRIPTION,
 )
+from solace_agent_mesh.agent.tools.tool_result import ToolResult
+from solace_agent_mesh.agent.tools.artifact_types import Artifact
+
+
+def _make_artifact(filename: str, content: str = "", version: int = 0, mime_type: str = "text/plain") -> Artifact:
+    """Helper to create Artifact objects for testing."""
+    return Artifact(content=content, filename=filename, version=version, mime_type=mime_type)
 
 
 class TestInternalCreateArtifact:
@@ -44,18 +51,19 @@ class TestInternalCreateArtifact:
         """Test successful artifact creation."""
         with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
              patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
-            
+
             mock_save.return_value = {"status": "success", "filename": "test.txt", "data_version": 1}
             mock_session.return_value = "session123"
-            
+
             result = await _internal_create_artifact(
                 filename="test.txt",
                 content="Hello World",
                 mime_type="text/plain",
                 tool_context=mock_tool_context
             )
-            
-            assert result["status"] == "success"
+
+            assert isinstance(result, ToolResult)
+            assert result.status == "success"
             mock_save.assert_called_once()
 
     @pytest.mark.asyncio
@@ -67,9 +75,10 @@ class TestInternalCreateArtifact:
             mime_type="text/plain",
             tool_context=mock_tool_context
         )
-        
-        assert result["status"] == "error"
-        assert "disallowed characters" in result["message"].lower()
+
+        assert isinstance(result, ToolResult)
+        assert result.status == "error"
+        assert "disallowed characters" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_create_artifact_no_tool_context(self):
@@ -80,9 +89,10 @@ class TestInternalCreateArtifact:
             mime_type="text/plain",
             tool_context=None
         )
-        
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+
+        assert isinstance(result, ToolResult)
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
     @pytest.mark.asyncio
     async def test_create_artifact_with_metadata(self, mock_tool_context):
@@ -102,7 +112,7 @@ class TestInternalCreateArtifact:
                 metadata_json='{"key": "value"}'
             )
             
-            assert result["status"] == "success"
+            assert result.status == "success"
             mock_save.assert_called_once()
 
 
@@ -142,9 +152,9 @@ class TestListArtifacts:
             mock_tool_context._invocation_context.artifact_service.load_artifact.return_value = mock_metadata
             
             result = await list_artifacts(tool_context=mock_tool_context)
-            
-            assert result["status"] == "success"
-            assert "artifacts" in result
+
+            assert result.status == "success"
+            assert "artifacts" in result.data
 
     @pytest.mark.asyncio
     async def test_list_artifacts_empty(self, mock_tool_context):
@@ -155,16 +165,16 @@ class TestListArtifacts:
             
             result = await list_artifacts(tool_context=mock_tool_context)
             
-            assert result["status"] == "success"
-            assert result["artifacts"] == []
+            assert result.status == "success"
+            assert result.data["artifacts"] == []
 
     @pytest.mark.asyncio
     async def test_list_artifacts_no_tool_context(self):
         """Test listing without tool context."""
         result = await list_artifacts(tool_context=None)
         
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
 
 class TestLoadArtifact:
@@ -202,7 +212,7 @@ class TestLoadArtifact:
                 tool_context=mock_tool_context
             )
             
-            assert result["status"] == "success"
+            assert result.status == "success"
             mock_load.assert_called_once()
 
     @pytest.mark.asyncio
@@ -220,8 +230,8 @@ class TestLoadArtifact:
                 tool_context=mock_tool_context
             )
             
-            assert result["status"] == "error"
-            assert "not found" in result["message"].lower()
+            assert result.status == "error"
+            assert "not found" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_load_artifact_no_tool_context(self):
@@ -232,8 +242,8 @@ class TestLoadArtifact:
             tool_context=None
         )
         
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
     @pytest.mark.asyncio
     async def test_load_artifact_with_max_length(self, mock_tool_context):
@@ -256,7 +266,7 @@ class TestLoadArtifact:
                 tool_context=mock_tool_context
             )
             
-            assert result["status"] == "success"
+            assert result.status == "success"
             mock_load.assert_called_once()
 
 class TestExtractContentFromArtifact:
@@ -307,10 +317,8 @@ class TestExtractContentFromArtifact:
             tool_context=None
         )
         
-        assert result["status"] == "error_tool_context_missing"
-        # The function returns message_to_llm when tool_context is None
-        assert "message_to_llm" in result
-        assert "ToolContext is missing" in result["message_to_llm"]
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
 
 class TestDeleteArtifact:
@@ -349,12 +357,13 @@ class TestDeleteArtifact:
                 tool_context=mock_tool_context
             )
 
-            assert result["status"] == "confirmation_required"
-            assert result["filename"] == "test.txt"
-            assert result["version_count"] == 3
-            assert result["versions"] == [0, 1, 2]
-            assert "irreversible" in result["message"].lower()
-            assert "confirm_delete=True" in result["message"]
+            assert result.status == "partial"
+            assert result.data.get("confirmation_required") is True
+            assert result.data["filename"] == "test.txt"
+            assert result.data["version_count"] == 3
+            assert result.data["versions"] == [0, 1, 2]
+            assert "irreversible" in result.message.lower()
+            assert "confirm_delete=True" in result.message
 
     @pytest.mark.asyncio
     async def test_delete_artifact_success_with_confirmation(self, mock_tool_context):
@@ -372,10 +381,10 @@ class TestDeleteArtifact:
                 tool_context=mock_tool_context
             )
 
-            assert result["status"] == "success"
-            assert result["filename"] == "test.txt"
-            assert result["versions_deleted"] == 3
-            assert "deleted successfully" in result["message"].lower()
+            assert result.status == "success"
+            assert result.data["filename"] == "test.txt"
+            assert result.data["versions_deleted"] == 3
+            assert "deleted successfully" in result.message.lower()
             mock_tool_context._invocation_context.artifact_service.delete_artifact.assert_called_once()
 
     @pytest.mark.asyncio
@@ -393,12 +402,12 @@ class TestDeleteArtifact:
                 tool_context=mock_tool_context
             )
 
-            assert result["status"] == "error"
-            assert result["filename"] == "test.txt"
-            assert result["version_requested"] == 1
-            assert "not currently supported" in result["message"]
-            assert "ALL versions" in result["message"]
-            assert "confirm_delete=True" in result["message"]
+            assert result.status == "error"
+            assert result.data["filename"] == "test.txt"
+            assert result.data["version_requested"] == 1
+            assert "not currently supported" in result.message
+            assert "ALL versions" in result.message
+            assert "confirm_delete=True" in result.message
 
     @pytest.mark.asyncio
     async def test_delete_artifact_not_found(self, mock_tool_context):
@@ -418,8 +427,8 @@ class TestDeleteArtifact:
                 tool_context=mock_tool_context
             )
 
-            assert result["status"] == "error"
-            assert "not found" in result["message"].lower()
+            assert result.status == "error"
+            assert "not found" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_delete_artifact_no_tool_context(self):
@@ -429,8 +438,8 @@ class TestDeleteArtifact:
             tool_context=None
         )
         
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
 
 class TestAppendToArtifact:
@@ -471,7 +480,7 @@ class TestAppendToArtifact:
                 tool_context=mock_tool_context
             )
             
-            assert result["status"] == "success"
+            assert result.status == "success"
             mock_load.assert_called()
             mock_save.assert_called_once()
 
@@ -494,8 +503,8 @@ class TestAppendToArtifact:
                 tool_context=mock_tool_context
             )
             
-            assert result["status"] == "error"
-            assert "Failed to load original artifact" in result["message"]
+            assert result.status == "error"
+            assert "Failed to load original artifact" in result.message
 
     @pytest.mark.asyncio
     async def test_append_to_artifact_no_tool_context(self):
@@ -507,8 +516,8 @@ class TestAppendToArtifact:
             tool_context=None
         )
 
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
 
 class TestArtifactSearchAndReplaceRegex:
@@ -522,416 +531,233 @@ class TestArtifactSearchAndReplaceRegex:
         mock_context._invocation_context.artifact_service = AsyncMock()
         mock_context._invocation_context.app_name = "test_app"
         mock_context._invocation_context.user_id = "test_user"
-        mock_context._invocation_context.agent = Mock()
-        mock_context._invocation_context.agent.host_component = Mock()
-        mock_context._invocation_context.agent.host_component.get_config = Mock(return_value=20)
         return mock_context
 
     @pytest.mark.asyncio
     async def test_literal_string_replacement_success(self, mock_tool_context):
         """Test successful literal string replacement."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="hello world, hello universe"),
+            search_expression="hello",
+            replace_expression="hi",
+            is_regexp=False,
+            tool_context=mock_tool_context
+        )
 
-            # Setup mocks
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "hello world, hello universe"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 2
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression="hello",
-                replace_expression="hi",
-                is_regexp=False,
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["match_count"] == 2
-            assert result["output_filename"] == "test.txt"
-            assert result["output_version"] == 2
+        assert result.status == "success"
+        assert result.data["match_count"] == 2
+        assert result.data["source_filename"] == "test.txt"
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"hi world, hi universe"
 
     @pytest.mark.asyncio
     async def test_regex_with_capture_groups(self, mock_tool_context):
         """Test regex replacement with capture groups."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="user123 and user456"),
+            search_expression=r"user(\d+)",
+            replace_expression="id:$1",
+            is_regexp=True,
+            regexp_flags="g",
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "user123 and user456"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 2
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression=r"user(\d+)",
-                replace_expression="id:$1",
-                is_regexp=True,
-                regexp_flags="g",
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["match_count"] == 2
-            assert result["replacements_made"] == 2
+        assert result.status == "success"
+        assert result.data["match_count"] == 2
+        assert result.data["replacements_made"] == 2
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"id:123 and id:456"
 
     @pytest.mark.asyncio
     async def test_regex_global_flag_behavior(self, mock_tool_context):
         """Test that global flag replaces all matches vs first match only."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # Without global flag - should replace only first match
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="foo bar foo baz"),
+            search_expression="foo",
+            replace_expression="qux",
+            is_regexp=True,
+            regexp_flags="",
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "foo bar foo baz"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 2
-            }
-
-            # Without global flag - should replace only first match
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression="foo",
-                replace_expression="qux",
-                is_regexp=True,
-                regexp_flags="",
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["match_count"] == 2
-            assert result["replacements_made"] == 1  # Only first match replaced
+        assert result.status == "success"
+        assert result.data["match_count"] == 2
+        assert result.data["replacements_made"] == 1  # Only first match replaced
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"qux bar foo baz"
 
     @pytest.mark.asyncio
     async def test_regex_case_insensitive_flag(self, mock_tool_context):
         """Test case-insensitive flag."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="Hello HELLO hello"),
+            search_expression="hello",
+            replace_expression="hi",
+            is_regexp=True,
+            regexp_flags="gi",  # global + case-insensitive
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "Hello HELLO hello"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 2
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression="hello",
-                replace_expression="hi",
-                is_regexp=True,
-                regexp_flags="gi",  # global + case-insensitive
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["match_count"] == 3
-            assert result["replacements_made"] == 3
+        assert result.status == "success"
+        assert result.data["match_count"] == 3
+        assert result.data["replacements_made"] == 3
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"hi hi hi"
 
     @pytest.mark.asyncio
     async def test_regex_multiline_flag(self, mock_tool_context):
         """Test multiline flag for ^ and $ matching."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="line1\nline2\nline3"),
+            search_expression=r"^line",
+            replace_expression="LINE",
+            is_regexp=True,
+            regexp_flags="gm",  # global + multiline
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "line1\nline2\nline3"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 2
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression=r"^line",
-                replace_expression="LINE",
-                is_regexp=True,
-                regexp_flags="gm",  # global + multiline
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["match_count"] == 3
+        assert result.status == "success"
+        assert result.data["match_count"] == 3
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"LINE1\nLINE2\nLINE3"
 
     @pytest.mark.asyncio
     async def test_regex_dotall_flag(self, mock_tool_context):
         """Test dotall flag for . matching newlines."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="start\nmiddle\nend"),
+            search_expression=r"start.+end",
+            replace_expression="replaced",
+            is_regexp=True,
+            regexp_flags="s",  # dotall
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "start\nmiddle\nend"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 2
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression=r"start.+end",
-                replace_expression="replaced",
-                is_regexp=True,
-                regexp_flags="s",  # dotall
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["match_count"] == 1
+        assert result.status == "success"
+        assert result.data["match_count"] == 1
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"replaced"
 
     @pytest.mark.asyncio
     async def test_new_filename_creation(self, mock_tool_context):
         """Test creating a new artifact with different filename."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="Hello world"),
+            search_expression="world",
+            replace_expression="universe",
+            is_regexp=False,
+            new_filename="modified.txt",
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "Hello world"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 0  # New file, version 0
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression="world",
-                replace_expression="universe",
-                is_regexp=False,
-                new_filename="modified.txt",
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["source_filename"] == "test.txt"
-            assert result["output_filename"] == "modified.txt"
-            assert result["output_version"] == 0
+        assert result.status == "success"
+        assert result.data["source_filename"] == "test.txt"
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].name == "modified.txt"
+        assert result.data_objects[0].content == b"Hello universe"
 
     @pytest.mark.asyncio
     async def test_no_matches_found(self, mock_tool_context):
         """Test behavior when no matches are found."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="Hello world"),
+            search_expression="foobar",
+            replace_expression="baz",
+            is_regexp=False,
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "Hello world"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression="foobar",
-                replace_expression="baz",
-                is_regexp=False,
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "no_matches"
-            assert result["match_count"] == 0
-            assert "No matches found" in result["message"]
+        assert result.status == "partial"
+        assert result.data.get("no_matches") is True
+        assert result.data["match_count"] == 0
+        assert "No matches found" in result.message
 
     @pytest.mark.asyncio
     async def test_artifact_not_found_error(self, mock_tool_context):
         """Test error when artifact doesn't exist."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
+        # With the refactored function, content is embedded in the Artifact object.
+        # This test now verifies that a valid artifact with content produces a
+        # successful result (the "not found" scenario no longer applies since
+        # content is pre-loaded by the framework).
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("nonexistent.txt", content="some content"),
+            search_expression="some",
+            replace_expression="other",
+            is_regexp=False,
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_load.return_value = {
-                "status": "error",
-                "message": "Artifact not found"
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="nonexistent.txt",
-                search_expression="foo",
-                replace_expression="bar",
-                is_regexp=False,
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "error"
-            assert "Failed to load artifact" in result["message"]
+        assert result.status == "success"
+        assert result.data["source_filename"] == "nonexistent.txt"
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"other content"
 
     @pytest.mark.asyncio
     async def test_binary_artifact_error(self, mock_tool_context):
         """Test error when trying to search/replace in binary artifact."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
-
-            mock_session.return_value = "session123"
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
             mock_is_text.return_value = False
 
-            binary_content = b'\x89PNG\r\n\x1a\n'
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": binary_content,
-                "mime_type": "image/png",
-                "version": 1
-            }
-
             result = await artifact_search_and_replace_regex(
-                filename="image.png",
+                filename=_make_artifact("image.png", content=b'\x89PNG\r\n\x1a\n', mime_type="image/png"),
                 search_expression="foo",
                 replace_expression="bar",
                 is_regexp=False,
                 tool_context=mock_tool_context
             )
 
-            assert result["status"] == "error"
-            assert "binary artifact" in result["message"].lower()
-            assert "text-based" in result["message"].lower()
+            assert result.status == "error"
+            assert "binary artifact" in result.message.lower()
+            assert "text-based" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_invalid_regex_pattern_error(self, mock_tool_context):
         """Test error when regex pattern is invalid."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="Hello world"),
+            search_expression="[invalid(",  # Invalid regex
+            replace_expression="bar",
+            is_regexp=True,
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "Hello world"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression="[invalid(",  # Invalid regex
-                replace_expression="bar",
-                is_regexp=True,
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "error"
-            assert "Invalid regular expression" in result["message"]
+        assert result.status == "error"
+        assert "Invalid regular expression" in result.message
 
     @pytest.mark.asyncio
     async def test_no_tool_context_error(self):
         """Test error when tool context is missing."""
         result = await artifact_search_and_replace_regex(
-            filename="test.txt",
+            filename=_make_artifact("test.txt"),
             search_expression="foo",
             replace_expression="bar",
             is_regexp=False,
             tool_context=None
         )
 
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
     @pytest.mark.asyncio
     async def test_empty_search_expression_error(self, mock_tool_context):
         """Test error when search expression is empty."""
         result = await artifact_search_and_replace_regex(
-            filename="test.txt",
+            filename=_make_artifact("test.txt"),
             search_expression="",
             replace_expression="bar",
             is_regexp=False,
             tool_context=mock_tool_context
         )
 
-        assert result["status"] == "error"
-        assert "search_expression cannot be empty" in result["message"]
+        assert result.status == "error"
+        assert "search_expression cannot be empty" in result.message
 
     @pytest.mark.asyncio
     async def test_invalid_new_filename_error(self, mock_tool_context):
         """Test error when new_filename contains invalid characters."""
         result = await artifact_search_and_replace_regex(
-            filename="test.txt",
+            filename=_make_artifact("test.txt"),
             search_expression="foo",
             replace_expression="bar",
             is_regexp=False,
@@ -939,429 +765,248 @@ class TestArtifactSearchAndReplaceRegex:
             tool_context=mock_tool_context
         )
 
-        assert result["status"] == "error"
-        assert "Invalid new_filename" in result["message"]
+        assert result.status == "error"
+        assert "Invalid new_filename" in result.message
 
     @pytest.mark.asyncio
     async def test_custom_description_preserved(self, mock_tool_context):
         """Test that custom description is included in metadata."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="Hello world"),
+            search_expression="world",
+            replace_expression="universe",
+            is_regexp=False,
+            new_description="Custom description for modified file",
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "Hello world"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 2
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                search_expression="world",
-                replace_expression="universe",
-                is_regexp=False,
-                new_description="Custom description for modified file",
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            # Check that save was called with metadata containing the description
-            call_args = mock_save.call_args
-            assert call_args is not None
-            metadata = call_args.kwargs['metadata_dict']
-            assert metadata['description'] == "Custom description for modified file"
+        assert result.status == "success"
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].description == "Custom description for modified file"
 
     @pytest.mark.asyncio
     async def test_regex_escaped_dollar_sign_in_replacement(self, mock_tool_context):
         """Test that $$ in replacement expression becomes a literal $."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # CSV-like content with numbers at end of lines
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.csv", content="item,100\nproduct,200\nservice,300"),
+            search_expression=r",(\d+)$",  # Match comma followed by digits at end of line
+            replace_expression=",$$$1",     # Should become ,$ followed by the captured digits
+            is_regexp=True,
+            regexp_flags="gm",  # global + multiline
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
+        assert result.status == "success"
+        assert result.data["match_count"] == 3
+        assert result.data["replacements_made"] == 3
 
-            # CSV-like content with numbers at end of lines
-            original_content = "item,100\nproduct,200\nservice,300"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            # Capture what was actually saved
-            saved_content = None
-            def capture_save(**kwargs):
-                nonlocal saved_content
-                saved_content = kwargs['content_bytes'].decode('utf-8')
-                return {"status": "success", "data_version": 2}
-
-            mock_save.side_effect = capture_save
-
-            # Test the problematic pattern: ,$$$1 should become ,$ followed by the number
-            result = await artifact_search_and_replace_regex(
-                filename="test.csv",
-                search_expression=r",(\d+)$",  # Match comma followed by digits at end of line
-                replace_expression=",$$$1",     # Should become ,$ followed by the captured digits
-                is_regexp=True,
-                regexp_flags="gm",  # global + multiline
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["match_count"] == 3
-            assert result["replacements_made"] == 3
-
-            # Verify the actual content has literal $ before each number
-            assert saved_content == "item,$100\nproduct,$200\nservice,$300"
+        # Verify the actual content has literal $ before each number
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"item,$100\nproduct,$200\nservice,$300"
 
     @pytest.mark.asyncio
     async def test_regex_no_matches_with_multiline_flag(self, mock_tool_context):
         """Test that multiline flag works correctly and reports no matches when pattern doesn't match."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # CSV with text values (no numbers)
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.csv", content="col1,col2\nrow_6_col_1,row_6_col_2\nrow_7_col_1,row_7_col_2", mime_type="text/csv"),
+            search_expression=r",(\d+)$",  # Looks for digits, but CSV has text
+            replace_expression=",$$$1",
+            is_regexp=True,
+            regexp_flags="gm",  # global + multiline
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            # CSV with text values (no numbers)
-            original_content = "col1,col2\nrow_6_col_1,row_6_col_2\nrow_7_col_1,row_7_col_2"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/csv",
-                "version": 1
-            }
-
-            # Pattern looking for digits at end of line - won't match text values
-            result = await artifact_search_and_replace_regex(
-                filename="test.csv",
-                search_expression=r",(\d+)$",  # Looks for digits, but CSV has text
-                replace_expression=",$$$1",
-                is_regexp=True,
-                regexp_flags="gm",  # global + multiline
-                tool_context=mock_tool_context
-            )
-
-            # Should report no matches
-            assert result["status"] == "no_matches"
-            assert result["match_count"] == 0
-            assert "No matches found" in result["message"]
-            assert "not modified" in result["message"].lower()
+        # Should report no matches
+        assert result.status == "partial"
+        assert result.data.get("no_matches") is True
+        assert result.data["match_count"] == 0
+        assert "No matches found" in result.message
+        assert "not modified" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_batch_replacements_success(self, mock_tool_context):
         """Test successful batch replacements with multiple operations."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # Multiple sequential replacements
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="foo bar baz qux"),
+            replacements=[
+                {"search": "foo", "replace": "FOO", "is_regexp": False},
+                {"search": "bar", "replace": "BAR", "is_regexp": False},
+                {"search": "baz", "replace": "BAZ", "is_regexp": False}
+            ],
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
+        assert result.status == "success"
+        assert result.data["total_replacements"] == 3
+        assert result.data["total_matches"] == 3
+        assert len(result.data["replacement_results"]) == 3
 
-            original_content = "foo bar baz qux"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
+        # Verify all replacements succeeded
+        for r in result.data["replacement_results"]:
+            assert r["status"] == "success"
+            assert r["match_count"] == 1
 
-            saved_content = None
-            def capture_save(**kwargs):
-                nonlocal saved_content
-                saved_content = kwargs['content_bytes'].decode('utf-8')
-                return {"status": "success", "data_version": 2}
-
-            mock_save.side_effect = capture_save
-
-            # Multiple sequential replacements
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                replacements=[
-                    {"search": "foo", "replace": "FOO", "is_regexp": False},
-                    {"search": "bar", "replace": "BAR", "is_regexp": False},
-                    {"search": "baz", "replace": "BAZ", "is_regexp": False}
-                ],
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["total_replacements"] == 3
-            assert result["total_matches"] == 3
-            assert len(result["replacement_results"]) == 3
-
-            # Verify all replacements succeeded
-            for r in result["replacement_results"]:
-                assert r["status"] == "success"
-                assert r["match_count"] == 1
-
-            # Verify final content has all replacements applied
-            assert saved_content == "FOO BAR BAZ qux"
+        # Verify final content has all replacements applied
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"FOO BAR BAZ qux"
 
     @pytest.mark.asyncio
     async def test_batch_replacements_sequential_processing(self, mock_tool_context):
         """Test that batch replacements are applied sequentially (each sees previous results)."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # First replacement: hello -> hi (all 3 instances)
+        # Second replacement: hi -> HI (should find 3 instances of "hi" from first replacement)
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="hello hello hello"),
+            replacements=[
+                {"search": "hello", "replace": "hi", "is_regexp": False},
+                {"search": "hi", "replace": "HI", "is_regexp": False}
+            ],
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "hello hello hello"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            saved_content = None
-            def capture_save(**kwargs):
-                nonlocal saved_content
-                saved_content = kwargs['content_bytes'].decode('utf-8')
-                return {"status": "success", "data_version": 2}
-
-            mock_save.side_effect = capture_save
-
-            # First replacement: hello -> hi (all 3 instances)
-            # Second replacement: hi -> HI (should find 3 instances of "hi" from first replacement)
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                replacements=[
-                    {"search": "hello", "replace": "hi", "is_regexp": False},
-                    {"search": "hi", "replace": "HI", "is_regexp": False}
-                ],
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["replacement_results"][0]["match_count"] == 3
-            assert result["replacement_results"][1]["match_count"] == 3  # Proves sequential processing
-            assert saved_content == "HI HI HI"
+        assert result.status == "success"
+        assert result.data["replacement_results"][0]["match_count"] == 3
+        assert result.data["replacement_results"][1]["match_count"] == 3  # Proves sequential processing
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"HI HI HI"
 
     @pytest.mark.asyncio
     async def test_batch_replacements_atomic_rollback_on_error(self, mock_tool_context):
         """Test that batch replacements rollback all changes if any operation fails."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # Second replacement has invalid regex
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="foo bar baz"),
+            replacements=[
+                {"search": "foo", "replace": "FOO", "is_regexp": False},
+                {"search": "[invalid(", "replace": "BAR", "is_regexp": True},  # Invalid regex
+                {"search": "baz", "replace": "BAZ", "is_regexp": False}
+            ],
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
+        assert result.status == "error"
+        assert "Batch replacement failed" in result.message
+        assert result.data["failed_replacement"]["index"] == 1
+        assert "Invalid regular expression" in result.data["failed_replacement"]["error"]
 
-            original_content = "foo bar baz"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
+        # First replacement should be marked as success
+        assert result.data["replacement_results"][0]["status"] == "success"
+        # Second replacement should be marked as error
+        assert result.data["replacement_results"][1]["status"] == "error"
+        # Third replacement should be skipped
+        assert result.data["replacement_results"][2]["status"] == "skipped"
 
-            # Second replacement has invalid regex
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                replacements=[
-                    {"search": "foo", "replace": "FOO", "is_regexp": False},
-                    {"search": "[invalid(", "replace": "BAR", "is_regexp": True},  # Invalid regex
-                    {"search": "baz", "replace": "BAZ", "is_regexp": False}
-                ],
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "error"
-            assert "Batch replacement failed" in result["message"]
-            assert result["failed_replacement"]["index"] == 1
-            assert "Invalid regular expression" in result["failed_replacement"]["error"]
-
-            # First replacement should be marked as success
-            assert result["replacement_results"][0]["status"] == "success"
-            # Second replacement should be marked as error
-            assert result["replacement_results"][1]["status"] == "error"
-            # Third replacement should be skipped
-            assert result["replacement_results"][2]["status"] == "skipped"
-
-            # Save should not have been called (rollback)
-            mock_save.assert_not_called()
+        # No data objects should be returned on error (rollback)
+        assert not result.data_objects
 
     @pytest.mark.asyncio
     async def test_batch_replacements_no_matches_error(self, mock_tool_context):
         """Test that batch rollback occurs when no matches found."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # Second replacement won't find any matches
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="foo bar baz"),
+            replacements=[
+                {"search": "foo", "replace": "FOO", "is_regexp": False},
+                {"search": "notfound", "replace": "NOTFOUND", "is_regexp": False},
+                {"search": "baz", "replace": "BAZ", "is_regexp": False}
+            ],
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
+        assert result.status == "error"
+        assert "Batch replacement failed" in result.message
+        assert result.data["failed_replacement"]["index"] == 1
+        assert "No matches found" in result.data["failed_replacement"]["error"]
 
-            original_content = "foo bar baz"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            # Second replacement won't find any matches
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                replacements=[
-                    {"search": "foo", "replace": "FOO", "is_regexp": False},
-                    {"search": "notfound", "replace": "NOTFOUND", "is_regexp": False},
-                    {"search": "baz", "replace": "BAZ", "is_regexp": False}
-                ],
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "error"
-            assert "Batch replacement failed" in result["message"]
-            assert result["failed_replacement"]["index"] == 1
-            assert "No matches found" in result["failed_replacement"]["error"]
-
-            # Save should not have been called (rollback)
-            mock_save.assert_not_called()
+        # No data objects should be returned on error (rollback)
+        assert not result.data_objects
 
     @pytest.mark.asyncio
     async def test_batch_replacements_multiple_matches_without_global_flag(self, mock_tool_context):
         """Test that batch mode errors on multiple matches without global flag."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # Regex without global flag but multiple matches - should error in batch mode
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="foo foo foo"),
+            replacements=[
+                {"search": "foo", "replace": "bar", "is_regexp": True, "regexp_flags": ""}  # No 'g' flag
+            ],
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
+        assert result.status == "error"
+        assert "Multiple matches found" in result.data["failed_replacement"]["error"]
+        assert "global flag 'g' not set" in result.data["failed_replacement"]["error"]
 
-            original_content = "foo foo foo"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            # Regex without global flag but multiple matches - should error in batch mode
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                replacements=[
-                    {"search": "foo", "replace": "bar", "is_regexp": True, "regexp_flags": ""}  # No 'g' flag
-                ],
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "error"
-            assert "Multiple matches found" in result["failed_replacement"]["error"]
-            assert "global flag 'g' not set" in result["failed_replacement"]["error"]
-
-            # Save should not have been called (rollback)
-            mock_save.assert_not_called()
+        # No data objects should be returned on error (rollback)
+        assert not result.data_objects
 
     @pytest.mark.asyncio
     async def test_batch_replacements_with_regex_and_literal_mixed(self, mock_tool_context):
         """Test batch replacements with mix of regex and literal operations."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        # Mix of regex with capture groups and literal replacement
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="user123 user456 and hello world"),
+            replacements=[
+                {"search": r"user(\d+)", "replace": "id:$1", "is_regexp": True, "regexp_flags": "g"},
+                {"search": "hello", "replace": "hi", "is_regexp": False}
+            ],
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "user123 user456 and hello world"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            saved_content = None
-            def capture_save(**kwargs):
-                nonlocal saved_content
-                saved_content = kwargs['content_bytes'].decode('utf-8')
-                return {"status": "success", "data_version": 2}
-
-            mock_save.side_effect = capture_save
-
-            # Mix of regex with capture groups and literal replacement
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                replacements=[
-                    {"search": r"user(\d+)", "replace": "id:$1", "is_regexp": True, "regexp_flags": "g"},
-                    {"search": "hello", "replace": "hi", "is_regexp": False}
-                ],
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["total_replacements"] == 2
-            assert result["replacement_results"][0]["match_count"] == 2
-            assert result["replacement_results"][1]["match_count"] == 1
-            assert saved_content == "id:123 id:456 and hi world"
+        assert result.status == "success"
+        assert result.data["total_replacements"] == 2
+        assert result.data["replacement_results"][0]["match_count"] == 2
+        assert result.data["replacement_results"][1]["match_count"] == 1
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].content == b"id:123 id:456 and hi world"
 
     @pytest.mark.asyncio
     async def test_batch_replacements_empty_array_error(self, mock_tool_context):
         """Test error when replacements array is empty."""
         result = await artifact_search_and_replace_regex(
-            filename="test.txt",
+            filename=_make_artifact("test.txt"),
             replacements=[],
             tool_context=mock_tool_context
         )
 
-        assert result["status"] == "error"
-        assert "non-empty array" in result["message"]
+        assert result.status == "error"
+        assert "non-empty array" in result.message
 
     @pytest.mark.asyncio
     async def test_batch_replacements_missing_required_fields(self, mock_tool_context):
         """Test error when replacement entry is missing required fields."""
         result = await artifact_search_and_replace_regex(
-            filename="test.txt",
+            filename=_make_artifact("test.txt"),
             replacements=[
                 {"search": "foo", "replace": "bar"}  # Missing 'is_regexp'
             ],
             tool_context=mock_tool_context
         )
 
-        assert result["status"] == "error"
-        assert "missing required fields" in result["message"]
-        assert "is_regexp" in result["message"]
+        assert result.status == "error"
+        assert "missing required fields" in result.message
+        assert "is_regexp" in result.message
 
     @pytest.mark.asyncio
     async def test_batch_replacements_invalid_type(self, mock_tool_context):
         """Test error when replacement entry is not a dictionary."""
         result = await artifact_search_and_replace_regex(
-            filename="test.txt",
+            filename=_make_artifact("test.txt"),
             replacements=["not a dict"],
             tool_context=mock_tool_context
         )
 
-        assert result["status"] == "error"
-        assert "must be a dictionary" in result["message"]
+        assert result.status == "error"
+        assert "must be a dictionary" in result.message
 
     @pytest.mark.asyncio
     async def test_batch_and_single_mode_mutually_exclusive(self, mock_tool_context):
         """Test error when both replacements array and single search_expression provided."""
         result = await artifact_search_and_replace_regex(
-            filename="test.txt",
+            filename=_make_artifact("test.txt"),
             search_expression="foo",
             replace_expression="bar",
             replacements=[
@@ -1370,87 +1015,46 @@ class TestArtifactSearchAndReplaceRegex:
             tool_context=mock_tool_context
         )
 
-        assert result["status"] == "error"
-        assert "Cannot provide both" in result["message"]
+        assert result.status == "error"
+        assert "Cannot provide both" in result.message
 
     @pytest.mark.asyncio
     async def test_batch_replacements_with_new_filename(self, mock_tool_context):
         """Test batch replacements saving to a new filename."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="foo bar baz"),
+            replacements=[
+                {"search": "foo", "replace": "FOO", "is_regexp": False},
+                {"search": "bar", "replace": "BAR", "is_regexp": False}
+            ],
+            new_filename="modified.txt",
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
-
-            original_content = "foo bar baz"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 0  # New file
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                replacements=[
-                    {"search": "foo", "replace": "FOO", "is_regexp": False},
-                    {"search": "bar", "replace": "BAR", "is_regexp": False}
-                ],
-                new_filename="modified.txt",
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-            assert result["source_filename"] == "test.txt"
-            assert result["output_filename"] == "modified.txt"
-            assert result["output_version"] == 0
+        assert result.status == "success"
+        assert result.data["source_filename"] == "test.txt"
+        assert len(result.data_objects) == 1
+        assert result.data_objects[0].name == "modified.txt"
+        assert result.data_objects[0].content == b"FOO BAR baz"
 
     @pytest.mark.asyncio
     async def test_batch_replacements_metadata_includes_batch_info(self, mock_tool_context):
         """Test that batch replacement metadata includes batch-specific information."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
-             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+        result = await artifact_search_and_replace_regex(
+            filename=_make_artifact("test.txt", content="foo bar baz"),
+            replacements=[
+                {"search": "foo", "replace": "FOO", "is_regexp": False},
+                {"search": "bar", "replace": "BAR", "is_regexp": False}
+            ],
+            tool_context=mock_tool_context
+        )
 
-            mock_session.return_value = "session123"
-            mock_is_text.return_value = True
+        assert result.status == "success"
 
-            original_content = "foo bar baz"
-            mock_load.return_value = {
-                "status": "success",
-                "raw_bytes": original_content.encode("utf-8"),
-                "mime_type": "text/plain",
-                "version": 1
-            }
-
-            mock_save.return_value = {
-                "status": "success",
-                "data_version": 2
-            }
-
-            result = await artifact_search_and_replace_regex(
-                filename="test.txt",
-                replacements=[
-                    {"search": "foo", "replace": "FOO", "is_regexp": False},
-                    {"search": "bar", "replace": "BAR", "is_regexp": False}
-                ],
-                tool_context=mock_tool_context
-            )
-
-            assert result["status"] == "success"
-
-            # Check that save was called with batch metadata
-            call_args = mock_save.call_args
-            assert call_args is not None
-            metadata = call_args.kwargs['metadata_dict']
-            assert "batch" in metadata['source'].lower()
-            assert metadata['total_replacements'] == 2
-            assert metadata['total_matches'] == 2
+        # Check that the data object metadata includes batch info
+        assert len(result.data_objects) == 1
+        metadata = result.data_objects[0].metadata
+        assert metadata is not None
+        assert "batch" in metadata['source'].lower()
+        assert metadata['total_replacements'] == 2
+        assert metadata['total_matches'] == 2

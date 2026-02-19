@@ -11,7 +11,6 @@ export interface PageCitationItemProps {
 /**
  * Individual page row within a document card
  * Displays page label, citation count, and optional "View in Page" button
- * Colors from Figma: title #273749, subtitle #647481
  */
 export const PageCitationItem: React.FC<PageCitationItemProps> = ({ pageLabel, citationCount, onViewInPage }) => {
     return (
