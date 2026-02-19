@@ -11,7 +11,12 @@ from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
-from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, get_artifact_counts_batch
+from ....agent.utils.artifact_helpers import (
+    get_artifact_counts_batch,
+    get_artifact_info_list,
+    is_internal_artifact,
+    save_artifact_with_metadata,
+)
 from ...constants import (
     DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
@@ -89,7 +94,7 @@ class ProjectService:
         )
         self.max_project_size_bytes = int(max_project_size_config) if isinstance(max_project_size_config, (int, float)) else DEFAULT_MAX_PROJECT_SIZE_BYTES
 
-        self.logger.info(
+        self.logger.debug(
             "[ProjectService] Initialized with "
             "max_per_file_upload_size_bytes=%d (%.2f MB), "
             "max_batch_upload_size_bytes=%d (%.2f MB), "
@@ -1469,29 +1474,8 @@ class ProjectService:
         return is_text_based_file(mime_type, content_bytes=None)
 
     def _is_original_artifact(self, filename: str) -> bool:
-        """
-        Determine if artifact is an original user file (not generated).
-
-        Returns False for:
-        - Converted text files (*.converted.txt)
-        - Index files (project_bm25_index.zip)
-
-        Args:
-            filename: The artifact filename
-
-        Returns:
-            bool: True if original user file, False if generated
-        """
-        # Skip converted files
-        if filename.endswith('.converted.txt'):
-            return False
-
-        # Skip index files
-        if filename == 'project_bm25_index.zip':
-            return False
-
-        # Include everything else (original user files)
-        return True
+        """Determine if artifact is an original user file (not generated)."""
+        return not is_internal_artifact(filename)
 
     async def _convert_project_artifacts(
         self,

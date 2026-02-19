@@ -69,6 +69,20 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "Maximum size of the SSE connection queues. Adjust based on expected load.",
         },
         {
+            "name": "visualization_queue_size",
+            "required": False,
+            "type": "integer",
+            "default": 600,
+            "description": "Maximum size of the visualization message queue.",
+        },
+        {
+            "name": "task_logger_queue_size",
+            "required": False,
+            "type": "integer",
+            "default": 600,
+            "description": "Maximum size of the task logger queue.",
+        },
+        {
             "name": "resolve_artifact_uris_in_gateway",
             "required": False,
             "type": "boolean",

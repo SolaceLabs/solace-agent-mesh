@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
+    is_internal_artifact,
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
 )
@@ -175,44 +176,27 @@ async def copy_project_artifacts_to_session(
             project.id,
         )
 
+        # Find original files
+        original_artifacts = [
+            artifact for artifact in project_artifacts
+            if not is_internal_artifact(artifact.filename)
+        ]
+        original_artifact_count = len(original_artifacts)
+        internal_artifact_count = len(project_artifacts) - original_artifact_count
+
         # Filter artifacts based on indexing feature flag
         if not indexing_enabled:
-            # When indexing is disabled, only copy original user files
-            # Skip converted text files and BM25 index
-            original_only_artifacts = [
-                artifact for artifact in project_artifacts
-                if not artifact.filename.endswith('.converted.txt')
-                and artifact.filename != 'project_bm25_index.zip'
-            ]
-            log.info(
-                "%sIndexing disabled: filtering to %d original artifacts (excluded %d generated files)",
-                log_prefix,
-                len(original_only_artifacts),
-                len(project_artifacts) - len(original_only_artifacts),
-            )
-            project_artifacts = original_only_artifacts
-
-        # Categorize artifacts for logging and visibility
-        original_artifacts = []
-        converted_artifacts = []
-        index_artifacts = []
-
-        for artifact in project_artifacts:
-            if artifact.filename.endswith('.converted.txt'):
-                converted_artifacts.append(artifact)
-            elif artifact.filename == 'project_bm25_index.zip':
-                index_artifacts.append(artifact)
-            else:
-                original_artifacts.append(artifact)
+            # When indexing is disabled, only copy original user files and skip internal files
+            log.info("%sIndexing disabled: filtering to %d original artifacts", log_prefix, original_artifact_count)
+            project_artifacts = original_artifacts
 
         log.info(
-            "%sProject %s artifact breakdown (indexing_enabled=%s): %d original, %d converted, %d index",
+            "%sProject %s artifacts (indexing_enabled=%s): %d original, %d internal",
             log_prefix,
             project.id,
             indexing_enabled,
-            len(original_artifacts),
-            len(converted_artifacts),
-            len(index_artifacts),
+            original_artifact_count,
+            internal_artifact_count,
         )
 
         try:
@@ -252,12 +236,7 @@ async def copy_project_artifacts_to_session(
 
             new_artifact_names.append(artifact_info.filename)
 
-            # Identify artifact type for logging
-            artifact_type = "original"
-            if artifact_info.filename.endswith('.converted.txt'):
-                artifact_type = "converted"
-            elif artifact_info.filename == 'project_bm25_index.zip':
-                artifact_type = "index"
+            artifact_type = "internal" if is_internal_artifact(artifact_info.filename) else "original"
 
             log.info(
                 "%sCopying %s artifact %s to session %s",
@@ -334,28 +313,26 @@ async def copy_project_artifacts_to_session(
                     artifact_info.filename,
                     e,
                 )
-                
+
         if artifacts_copied > 0:
-            # Count by type for summary
+            # NOTE: new_artifact_names tracks attempted copies, so these counts
+            # may exceed artifacts_copied if any individual copies failed.
             copied_original = sum(
                 1 for name in new_artifact_names
-                if not name.endswith('.converted.txt')
-                and name != 'project_bm25_index.zip'
+                if not is_internal_artifact(name)
             )
-            copied_converted = sum(
+            copied_internal = sum(
                 1 for name in new_artifact_names
-                if name.endswith('.converted.txt')
+                if is_internal_artifact(name)
             )
-            copied_index = 1 if 'project_bm25_index.zip' in new_artifact_names else 0
 
             log.info(
-                "%sCopied %d artifacts to session %s: %d original, %d converted, %d index",
+                "%sCopied %d artifacts to session %s: %d original, %d internal",
                 log_prefix,
                 artifacts_copied,
                 session_id,
                 copied_original,
-                copied_converted,
-                copied_index,
+                copied_internal,
             )
         else:
             log.debug("%sNo new artifacts to copy to session %s", log_prefix, session_id)
