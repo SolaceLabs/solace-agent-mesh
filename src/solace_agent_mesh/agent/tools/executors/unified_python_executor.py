@@ -18,6 +18,7 @@ from google.adk.tools import BaseTool, ToolContext
 from pydantic import BaseModel
 
 from .base import ToolExecutor, ToolExecutionResult
+from ..tool_result import ToolResult
 from .executor_tool import ExecutorBasedTool
 from ..dynamic_tool import (
     DynamicTool,
@@ -153,6 +154,10 @@ class _FunctionExecutor(ToolExecutor):
                 )
 
             if isinstance(result, ToolExecutionResult):
+                return result
+            # Pass ToolResult through directly so ExecutorBasedTool._run_async_impl
+            # can forward it to the ToolResultProcessor for proper handling
+            if isinstance(result, ToolResult):
                 return result
             elif isinstance(result, dict) and result.get("status") == "error":
                 return ToolExecutionResult.fail(
