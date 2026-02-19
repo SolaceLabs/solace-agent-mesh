@@ -234,7 +234,7 @@ def _filter_session_by_latest_compaction(
     if not session or not session.events:
         return session
 
-    # If compaction_time is not set → no compaction, return immediately (95-99% of sessions)
+    # If compaction_time is not set → no compaction, return immediately (99% of sessions)
     compaction_time = session.state.get('compaction_time')
     if not compaction_time:
         return session
@@ -252,7 +252,6 @@ def _filter_session_by_latest_compaction(
 
             # Only use this compaction if it matches the stored timestamp
             # to ensure only the LAST matching compaction event is kept
-            # This handles cases where multiple retries created duplicate compactions
             if end_ts == compaction_time:
                 latest_compaction = event
                 # Don't append yet - will add after loop to ensure only last one is kept
@@ -271,7 +270,6 @@ def _filter_session_by_latest_compaction(
         return session
 
     # Add the latest compaction event to the beginning of filtered events
-    # This ensures only ONE compaction event is kept (the last one from the loop)
     filtered_events.insert(0, latest_compaction)
 
     # Check if compaction event has actions.compaction with compacted_content
