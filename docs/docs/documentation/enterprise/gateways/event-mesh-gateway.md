@@ -5,7 +5,7 @@ sidebar_position: 1
 
 # Event Mesh Gateway
 
-Event Mesh gateways enable Agent Mesh to consume events from Solace PubSub+ Event Mesh brokers and route them to agents. This gateway type triggers agent workflows in response to business events in real time.
+Event Mesh gateways enable Agent Mesh to consume events from Solace Event Mesh brokers and route them to agents. This gateway type triggers agent workflows in response to business events in real time.
 
 ## Overview
 
@@ -19,7 +19,7 @@ Before creating an Event Mesh gateway, verify that you have the following:
 
 ### Solace Broker Access
 
-You need access to a Solace PubSub+ event broker with appropriate permissions to subscribe to topics. This can be the default SAM broker or a separate external broker.
+You need access to a Solace event broker with appropriate permissions to subscribe to topics. This can be the default SAM broker or a separate external broker.
 
 ### Topic Subscription Permissions
 
