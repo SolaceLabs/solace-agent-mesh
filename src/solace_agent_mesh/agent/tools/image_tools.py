@@ -20,6 +20,7 @@ from .tool_definition import BuiltinTool
 from .tool_result import ToolResult, DataObject, DataDisposition
 from .artifact_types import Artifact
 from .registry import tool_registry
+from ...agent.utils.context_helpers import get_original_session_id
 
 log = logging.getLogger(__name__)
 
