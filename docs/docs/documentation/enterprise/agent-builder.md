@@ -23,6 +23,10 @@ When you submit your description, the AI analyzes it and generates suggested val
 
 These AI-generated values serve as suggestions only. You proceed to the configuration form where you can review, modify, or completely rewrite any of these values before saving the agent.
 
+:::note[LLM Cache Configuration]
+If you encounter an error about "minimum token count to start caching" when using AI-assisted creation, set the `LLM_CACHE_STRATEGY` environment variable to `none` in your Platform Service configuration. This disables LLM prompt caching which requires a minimum token threshold that the AI Assistant's prompts may not meet. See [LLM Configuration](../installing-and-configuring/large_language_models.md#prompt-caching) for more details.
+:::
+
 ### Manual Creation
 
 You can skip AI assistance entirely by clicking the secondary button. The system prompts you to manually enter the agent's name and description in a simple dialog. After you provide these details and click continue, you proceed to the agent configuration form where the Agent Details section is pre-filled with your entered name and description. Other sections (instructions, toolsets, and connectors) remain empty for you to configure manually.
@@ -134,3 +138,7 @@ Agent Builder operations require specific RBAC capabilities. The table below sho
 | `sam:deployments:read` | View deployment status and history |
 
 For information about connector-related capabilities, see [Connectors](connectors/connectors.md#access-control). For detailed information about configuring role-based access control and assigning capabilities to users, see [Setting Up RBAC](rbac-setup-guide.md). For Kubernetes-specific RBAC configuration, see the [Helm Chart RBAC documentation](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs-site/#role-based-access-control-rbac).
+
+## Related Topics
+
+In addition to creating agents through Agent Builder, you can connect external A2A agents that run on separate infrastructure. External agents communicate over HTTPS and integrate with your mesh through a proxy. For more information, see [Connect External Agents](connect-external-agents.md).

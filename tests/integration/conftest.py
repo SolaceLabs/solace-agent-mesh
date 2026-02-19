@@ -112,11 +112,11 @@ def clean_db_fixture(test_db_engine):
                 "chat_messages",
                 "tasks",
                 "sessions",
-                "prompt_group_users",  
-                "prompts",             
-                "prompt_groups",      
-                "project_users",      
-                "projects",            
+                "prompt_group_users",
+                "prompts",
+                "prompt_groups",
+                "project_users",
+                "projects",
                 "users",
             ]
             for table_name in tables_to_clean:
@@ -813,7 +813,8 @@ def shared_solace_connector(
             "tool_type": "builtin",
             "tool_name": "edit_image_with_gemini",
             "tool_config": {
-                "model": "gemini-2.0-flash-preview-image-generation",
+                "model": "gemini-2.5-flash-image",  
+                "pro_model": "gemini-3-pro-image-preview",  # Nano Banana Pro - for complex tasks
                 "gemini_api_key": "fake-gemini-api-key",
             },
         },
@@ -986,6 +987,20 @@ def shared_solace_connector(
         model_suffix="config-context",
     )
 
+    artifact_content_agent_config = create_agent_config(
+        agent_name="ArtifactContentAgent",
+        description="Agent for testing ArtifactContent type hint artifact pre-loading.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.artifact_content_tools",
+            },
+            {"tool_type": "builtin-group", "group_name": "artifact_management"},
+        ],
+        model_suffix="artifact-content",
+    )
+
     # Generic Gateway test apps
     minimal_gateway_config = {
         "namespace": "test_namespace",
@@ -997,6 +1012,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "default-user@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     auth_gateway_config = {
@@ -1009,6 +1025,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "fallback-user@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     file_gateway_config = {
@@ -1019,6 +1036,7 @@ def shared_solace_connector(
             "max_file_size": 1024 * 1024,
         },
         "artifact_service": {"type": "test_in_memory"},
+        "gateway_card_publishing": {"enabled": False},
     }
 
     dispatching_gateway_config = {
@@ -1031,6 +1049,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "default-dispatch@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     app_infos = [
@@ -1048,6 +1067,7 @@ def shared_solace_connector(
                 },
                 "task_logging": {"enabled": True},
                 "artifact_service": {"type": "test_in_memory"},
+                "gateway_card_publishing": {"enabled": False},
             },
         },
         {
@@ -1113,6 +1133,7 @@ def shared_solace_connector(
                 "task_logging": {"enabled": False},
                 "system_purpose": "Test gateway system purpose for metadata validation",
                 "response_format": "Test gateway response format for metadata validation",
+                "gateway_card_publishing": {"enabled": False},
             },
             "broker": {"dev_mode": True},
             "app_module": "sam_test_infrastructure.gateway_interface.app",
@@ -1154,6 +1175,614 @@ def shared_solace_connector(
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
+            "name": "ArtifactContentAgent_App",
+            "app_config": artifact_content_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "TestSimpleWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "SimpleTestWorkflow",
+                "display_name": "Simple Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A simple 2-node workflow for testing",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input_text": {"type": "string"}
+                        },
+                        "required": ["input_text"]
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "final_result": {"type": "string"}
+                        },
+                        "required": ["final_result"]
+                    },
+                    "nodes": [
+                        {
+                            "id": "step_1",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "task_description": "{{workflow.input.input_text}}"
+                            }
+                        },
+                        {
+                            "id": "step_2",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentB",
+                            "depends_on": ["step_1"],
+                            "input": {
+                                "task_description": "Process the output from step 1"
+                            }
+                        }
+                    ],
+                    "output_mapping": {
+                        "final_result": "{{step_2.output}}"
+                    }
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestStructuredWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "StructuredTestWorkflow",
+                "display_name": "Structured Test Workflow with Validation",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow with structured input/output schemas for validation testing",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "customer_name": {"type": "string"},
+                            "order_id": {"type": "string"},
+                            "amount": {"type": "integer"}
+                        },
+                        "required": ["customer_name", "order_id", "amount"]
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "customer_name": {"type": "string"},
+                            "order_id": {"type": "string"},
+                            "amount": {"type": "integer"},
+                            "status": {"type": "string"},
+                            "processed": {"type": "boolean"}
+                        },
+                        "required": ["customer_name", "order_id", "amount", "status", "processed"]
+                    },
+                    "nodes": [
+                        {
+                            "id": "validate_order",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "customer_name": "{{workflow.input.customer_name}}",
+                                "order_id": "{{workflow.input.order_id}}",
+                                "amount": "{{workflow.input.amount}}"
+                            },
+                            "input_schema_override": {
+                                "type": "object",
+                                "properties": {
+                                    "customer_name": {"type": "string"},
+                                    "order_id": {"type": "string"},
+                                    "amount": {"type": "integer"}
+                                },
+                                "required": ["customer_name", "order_id", "amount"]
+                            },
+                            "output_schema_override": {
+                                "type": "object",
+                                "properties": {
+                                    "customer_name": {"type": "string"},
+                                    "order_id": {"type": "string"},
+                                    "amount": {"type": "integer"},
+                                    "status": {"type": "string"}
+                                },
+                                "required": ["customer_name", "order_id", "amount", "status"]
+                            }
+                        },
+                        {
+                            "id": "process_order",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentB",
+                            "depends_on": ["validate_order"],
+                            "input": {
+                                "customer_name": "{{validate_order.output.customer_name}}",
+                                "order_id": "{{validate_order.output.order_id}}",
+                                "amount": "{{validate_order.output.amount}}",
+                                "status": "{{validate_order.output.status}}"
+                            },
+                            "input_schema_override": {
+                                "type": "object",
+                                "properties": {
+                                    "customer_name": {"type": "string"},
+                                    "order_id": {"type": "string"},
+                                    "amount": {"type": "integer"},
+                                    "status": {"type": "string"}
+                                },
+                                "required": ["customer_name", "order_id", "amount", "status"]
+                            },
+                            "output_schema_override": {
+                                "type": "object",
+                                "properties": {
+                                    "customer_name": {"type": "string"},
+                                    "order_id": {"type": "string"},
+                                    "amount": {"type": "integer"},
+                                    "status": {"type": "string"},
+                                    "processed": {"type": "boolean"}
+                                },
+                                "required": ["customer_name", "order_id", "amount", "status", "processed"]
+                            }
+                        }
+                    ],
+                    "output_mapping": {
+                        "customer_name": "{{process_order.output.customer_name}}",
+                        "order_id": "{{process_order.output.order_id}}",
+                        "amount": "{{process_order.output.amount}}",
+                        "status": "{{process_order.output.status}}",
+                        "processed": "{{process_order.output.processed}}"
+                    }
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestConditionalWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "ConditionalTestWorkflow",
+                "display_name": "Conditional Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow with conditional branching based on status",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input_text": {"type": "string"},
+                            "should_succeed": {"type": "boolean"},
+                        },
+                        "required": ["input_text", "should_succeed"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "result": {"type": "string"},
+                            "path_taken": {"type": "string"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "check_status",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "task": "Check status",
+                                "should_succeed": "{{workflow.input.should_succeed}}",
+                            },
+                        },
+                        {
+                            "id": "branch",
+                            "type": "switch",
+                            "cases": [
+                                {
+                                    "condition": "'{{check_status.output.status}}' == 'success'",
+                                    "node": "success_path",
+                                },
+                            ],
+                            "default": "failure_path",
+                            "depends_on": ["check_status"],
+                        },
+                        {
+                            "id": "success_path",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentB",
+                            "depends_on": ["branch"],
+                            "input": {"task": "Handle success"},
+                        },
+                        {
+                            "id": "failure_path",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentC",
+                            "depends_on": ["branch"],
+                            "input": {"task": "Handle failure"},
+                        },
+                    ],
+                    "output_mapping": {
+                        "result": {
+                            "coalesce": [
+                                "{{success_path.output.result}}",
+                                "{{failure_path.output.result}}",
+                            ]
+                        },
+                        "path_taken": {
+                            "coalesce": [
+                                "{{success_path.output.path}}",
+                                "{{failure_path.output.path}}",
+                            ]
+                        },
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestMapWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "MapTestWorkflow",
+                "display_name": "Map Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow that iterates over a list of items",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                        "required": ["items"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "results": {
+                                "type": "array",
+                                "items": {"type": "object"},
+                            },
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "process_items",
+                            "type": "map",
+                            "node": "process_single_item",
+                            "items": "{{workflow.input.items}}",
+                        },
+                        {
+                            "id": "process_single_item",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "item": "{{_map_item}}",
+                                "index": "{{_map_index}}",
+                            },
+                        },
+                    ],
+                    "output_mapping": {
+                        "results": "{{process_items.output}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestSwitchWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "SwitchTestWorkflow",
+                "display_name": "Switch Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow with switch (multi-way) branching",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string"},
+                        },
+                        "required": ["action"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "result": {"type": "string"},
+                            "action_taken": {"type": "string"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "route_action",
+                            "type": "switch",
+                            "cases": [
+                                {
+                                    "condition": "'{{workflow.input.action}}' == 'create'",
+                                    "node": "create_handler",
+                                },
+                                {
+                                    "condition": "'{{workflow.input.action}}' == 'update'",
+                                    "node": "update_handler",
+                                },
+                                {
+                                    "condition": "'{{workflow.input.action}}' == 'delete'",
+                                    "node": "delete_handler",
+                                },
+                            ],
+                            "default": "default_handler",
+                        },
+                        {
+                            "id": "create_handler",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "depends_on": ["route_action"],
+                            "input": {"task": "Create resource"},
+                        },
+                        {
+                            "id": "update_handler",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentB",
+                            "depends_on": ["route_action"],
+                            "input": {"task": "Update resource"},
+                        },
+                        {
+                            "id": "delete_handler",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentC",
+                            "depends_on": ["route_action"],
+                            "input": {"task": "Delete resource"},
+                        },
+                        {
+                            "id": "default_handler",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "depends_on": ["route_action"],
+                            "input": {"task": "Handle unknown action"},
+                        },
+                    ],
+                    "output_mapping": {
+                        "result": {
+                            "coalesce": [
+                                "{{create_handler.output.result}}",
+                                "{{update_handler.output.result}}",
+                                "{{delete_handler.output.result}}",
+                                "{{default_handler.output.result}}",
+                            ]
+                        },
+                        "action_taken": {
+                            "coalesce": [
+                                "{{create_handler.output.action}}",
+                                "{{update_handler.output.action}}",
+                                "{{delete_handler.output.action}}",
+                                "{{default_handler.output.action}}",
+                            ]
+                        },
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestLoopWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "LoopTestWorkflow",
+                "display_name": "Loop Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow with loop iteration",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "max_count": {"type": "integer"},
+                        },
+                        "required": ["max_count"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "final_count": {"type": "integer"},
+                            "iterations": {"type": "integer"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "count_loop",
+                            "type": "loop",
+                            "node": "increment_counter",
+                            "condition": "{{increment_counter.output.count}} < {{workflow.input.max_count}}",
+                            "max_iterations": 10,
+                        },
+                        {
+                            "id": "increment_counter",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "task": "Increment counter",
+                                "current_iteration": "{{_loop_iteration}}",
+                            },
+                        },
+                    ],
+                    "output_mapping": {
+                        "final_count": "{{increment_counter.output.count}}",
+                        "iterations": "{{count_loop.output.iterations_completed}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestInstructionWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "InstructionTestWorkflow",
+                "display_name": "Instruction Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow to test the instruction field on agent nodes",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input_text": {"type": "string"},
+                            "context": {"type": "string"},
+                        },
+                        "required": ["input_text", "context"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "result": {"type": "string"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "process_with_instruction",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            # Uses both static marker and template expression
+                            "instruction": "STATIC_MARKER_123 - Context from workflow input: {{workflow.input.context}}",
+                            "input": {
+                                "task": "{{workflow.input.input_text}}",
+                            },
+                        },
+                    ],
+                    "output_mapping": {
+                        "result": "{{process_with_instruction.output.result}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestSubWorkflowInvokeApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "SubWorkflowInvokeTestWorkflow",
+                "display_name": "Sub-Workflow Invoke Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow that invokes another workflow as a sub-workflow",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input_text": {"type": "string"},
+                        },
+                        "required": ["input_text"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "final_result": {"type": "string"},
+                            "from_parent": {"type": "string"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "prepare_data",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "task": "Prepare data for sub-workflow: {{workflow.input.input_text}}",
+                            },
+                        },
+                        {
+                            "id": "invoke_sub_workflow",
+                            "type": "workflow",
+                            "workflow_name": "SimpleTestWorkflow",
+                            "depends_on": ["prepare_data"],
+                            "input": {
+                                "input_text": "{{prepare_data.output.processed_data}}",
+                            },
+                        },
+                        {
+                            "id": "finalize",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentB",
+                            "depends_on": ["invoke_sub_workflow"],
+                            "input": {
+                                "sub_workflow_result": "{{invoke_sub_workflow.output.final_result}}",
+                            },
+                        },
+                    ],
+                    "output_mapping": {
+                        "final_result": "{{finalize.output.result}}",
+                        "from_parent": "{{prepare_data.output.parent_marker}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestRecursiveWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "RecursiveTestWorkflow",
+                "display_name": "Recursive Test Workflow (for testing recursion prevention)",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow that tries to invoke itself (should fail)",
+                    "nodes": [
+                        {
+                            "id": "prepare",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                        },
+                        {
+                            "id": "recursive_call",
+                            "type": "workflow",
+                            "workflow_name": "RecursiveTestWorkflow",  # Self-reference!
+                            "depends_on": ["prepare"],
+                        },
+                    ],
+                    "output_mapping": {
+                        "result": "{{recursive_call.output}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
             "name": "TestA2AProxyApp",
             "app_config": {
                 "namespace": "test_namespace",
@@ -1185,6 +1814,13 @@ def shared_solace_connector(
     )
     session_monkeypatch.setattr(
         "solace_agent_mesh.agent.proxies.base.component.initialize_artifact_service",
+        lambda component: ScopedArtifactServiceWrapper(
+            wrapped_service=test_artifact_service_instance, component=component
+        ),
+    )
+    # Also patch for workflow and gateway components that import from agent.adk.services
+    session_monkeypatch.setattr(
+        "solace_agent_mesh.agent.adk.services.initialize_artifact_service",
         lambda component: ScopedArtifactServiceWrapper(
             wrapped_service=test_artifact_service_instance, component=component
         ),
@@ -1357,6 +1993,18 @@ def config_context_agent_app_under_test(
     yield app_instance
 
 
+@pytest.fixture(scope="session")
+def artifact_content_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the ArtifactContentAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("ArtifactContentAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve ArtifactContentAgent_App."
+    yield app_instance
+
+
 def get_component_from_app(app: SamAgentApp) -> SamAgentComponent:
     """Helper to get the component from an app."""
     if app.flows and app.flows[0].component_groups:
@@ -1400,6 +2048,30 @@ def peer_c_component(peer_agent_c_app_under_test: SamAgentApp) -> SamAgentCompon
 def peer_d_component(peer_agent_d_app_under_test: SamAgentApp) -> SamAgentComponent:
     """Retrieves the TestPeerAgentD component instance."""
     return get_component_from_app(peer_agent_d_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def test_simple_workflow_app(
+    shared_solace_connector: SolaceAiConnector,
+):
+    """Retrieves the TestSimpleWorkflowApp instance."""
+    from solace_agent_mesh.workflow.app import WorkflowApp
+    app_instance = shared_solace_connector.get_app("TestSimpleWorkflowApp")
+    assert isinstance(
+        app_instance, WorkflowApp
+    ), "Failed to retrieve TestSimpleWorkflowApp."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def test_simple_workflow_component(test_simple_workflow_app):
+    """Retrieves the SimpleTestWorkflow component instance."""
+    from solace_agent_mesh.workflow.component import WorkflowComponent
+    component = get_component_from_app(test_simple_workflow_app)
+    assert isinstance(
+        component, WorkflowComponent
+    ), "Failed to retrieve WorkflowComponent from TestSimpleWorkflowApp."
+    return component
 
 
 @pytest.fixture(scope="session")
@@ -1450,12 +2122,21 @@ def config_context_agent_component(
     return get_component_from_app(config_context_agent_app_under_test)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
+def artifact_content_agent_component(
+    artifact_content_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the ArtifactContentAgent component instance."""
+    return get_component_from_app(artifact_content_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
 def webui_api_client(
     shared_solace_connector: SolaceAiConnector,
 ) -> Generator[TestClient, None, None]:
     """
     Provides a FastAPI TestClient for the running WebUIBackendApp.
+    Session-scoped to avoid ~800ms TestClient teardown overhead per test.
     """
     app_instance = shared_solace_connector.get_app("WebUIBackendApp")
     assert isinstance(
@@ -1472,8 +2153,9 @@ def webui_api_client(
         pytest.fail("WebUIBackendComponent's FastAPI app is not initialized.")
 
     with TestClient(fastapi_app_instance) as client:
-        print("[Fixture] TestClient for WebUIBackendApp created.")
+        print("[SessionFixture] TestClient for WebUIBackendApp created.")
         yield client
+    print("[SessionFixture] TestClient for WebUIBackendApp closed.")
 
 
 @pytest.fixture(scope="session")
@@ -1553,16 +2235,20 @@ def test_gateway_app_instance(
 
 @pytest.fixture(autouse=True, scope="function")
 def clear_test_gateway_state_between_tests(
-    test_gateway_app_instance: TestGatewayComponent,
+    request,
 ):
     """
     Clears state from the session-scoped TestGatewayComponent after each test.
+    Only runs if the test uses shared_solace_connector (directly or indirectly).
     """
     yield
-    test_gateway_app_instance.clear_captured_outputs()
-    test_gateway_app_instance.clear_all_captured_cancel_calls()
-    if test_gateway_app_instance.task_context_manager:
-        test_gateway_app_instance.task_context_manager.clear_all_contexts_for_testing()
+    # Only clear state if the shared connector was actually used by this test
+    if "shared_solace_connector" in request.fixturenames:
+        test_gateway_app_instance = request.getfixturevalue("test_gateway_app_instance")
+        test_gateway_app_instance.clear_captured_outputs()
+        test_gateway_app_instance.clear_all_captured_cancel_calls()
+        if test_gateway_app_instance.task_context_manager:
+            test_gateway_app_instance.task_context_manager.clear_all_contexts_for_testing()
 
 
 def _clear_agent_component_state(agent_app: SamAgentApp):
@@ -1585,45 +2271,50 @@ def _clear_agent_component_state(agent_app: SamAgentApp):
 
 @pytest.fixture(autouse=True, scope="function")
 def clear_all_agent_states_between_tests(
-    sam_app_under_test: SamAgentApp,
-    peer_agent_a_app_under_test: SamAgentApp,
-    peer_agent_b_app_under_test: SamAgentApp,
-    peer_agent_c_app_under_test: SamAgentApp,
-    peer_agent_d_app_under_test: SamAgentApp,
-    combined_dynamic_agent_app_under_test: SamAgentApp,
-    empty_provider_agent_app_under_test: SamAgentApp,
-    docstringless_agent_app_under_test: SamAgentApp,
-    mixed_discovery_agent_app_under_test: SamAgentApp,
-    complex_signatures_agent_app_under_test: SamAgentApp,
-    config_context_agent_app_under_test: SamAgentApp,
-    a2a_proxy_component: "BaseProxyComponent",
-    test_a2a_agent_server_harness: TestA2AAgentServer,
+    request,
 ):
-    """Clears state from all agent components after each test."""
+    """
+    Clears state from all agent components after each test.
+    Only cleans up fixtures that the test actually used to avoid
+    creating session-scoped fixtures during teardown.
+    """
     yield
-    _clear_agent_component_state(sam_app_under_test)
-    _clear_agent_component_state(peer_agent_a_app_under_test)
-    _clear_agent_component_state(peer_agent_b_app_under_test)
-    _clear_agent_component_state(peer_agent_c_app_under_test)
-    _clear_agent_component_state(peer_agent_d_app_under_test)
-    _clear_agent_component_state(combined_dynamic_agent_app_under_test)
-    _clear_agent_component_state(empty_provider_agent_app_under_test)
-    _clear_agent_component_state(docstringless_agent_app_under_test)
-    _clear_agent_component_state(mixed_discovery_agent_app_under_test)
-    _clear_agent_component_state(complex_signatures_agent_app_under_test)
-    _clear_agent_component_state(config_context_agent_app_under_test)
+    # Only clear state if the shared connector was actually used by this test
+    if "shared_solace_connector" not in request.fixturenames:
+        return
 
-    # Clear proxy client cache to ensure fresh clients with updated auth config
-    a2a_proxy_component.clear_client_cache()
+    # Only get and clear fixtures that were actually used by this test
+    # to avoid creating session-scoped fixtures during teardown
+    agent_app_fixtures = [
+        "sam_app_under_test",
+        "peer_agent_a_app_under_test",
+        "peer_agent_b_app_under_test",
+        "peer_agent_c_app_under_test",
+        "peer_agent_d_app_under_test",
+        "combined_dynamic_agent_app_under_test",
+        "empty_provider_agent_app_under_test",
+        "docstringless_agent_app_under_test",
+        "mixed_discovery_agent_app_under_test",
+        "complex_signatures_agent_app_under_test",
+        "config_context_agent_app_under_test",
+    ]
 
-    # Clear captured auth headers from downstream agent server
-    test_a2a_agent_server_harness.clear_captured_auth_headers()
+    for fixture_name in agent_app_fixtures:
+        if fixture_name in request.fixturenames:
+            app = request.getfixturevalue(fixture_name)
+            _clear_agent_component_state(app)
 
-    # Clear captured A2A requests from downstream agent server
-    test_a2a_agent_server_harness.clear_captured_requests()
+    # Clear proxy client cache only if it was used
+    if "a2a_proxy_component" in request.fixturenames:
+        a2a_proxy_component = request.getfixturevalue("a2a_proxy_component")
+        a2a_proxy_component.clear_client_cache()
 
-    # Clear auth validation state from downstream agent server
-    test_a2a_agent_server_harness.clear_auth_state()
+    # Clear A2A server state only if it was used
+    if "test_a2a_agent_server_harness" in request.fixturenames:
+        test_a2a_agent_server_harness = request.getfixturevalue("test_a2a_agent_server_harness")
+        test_a2a_agent_server_harness.clear_captured_auth_headers()
+        test_a2a_agent_server_harness.clear_captured_requests()
+        test_a2a_agent_server_harness.clear_auth_state()
 
 
 @pytest.fixture(scope="function")

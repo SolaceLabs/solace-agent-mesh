@@ -34,6 +34,7 @@ from .repository.interfaces import ITaskRepository
 from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
+from ...shared.api import get_current_user
 
 log = logging.getLogger(__name__)
 
@@ -387,7 +388,7 @@ def get_app_config(
 
 async def get_user_config(
     request: Request,
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     app_config: dict[str, Any] = Depends(get_app_config),
@@ -395,6 +396,7 @@ async def get_user_config(
     """
     FastAPI dependency to get the user-specific configuration.
     """
+    user_id = user.get("id")
     log.debug(f"get_user_config called for user_id: {user_id}")
 
     # TODO: DATAGO-114659-split-cleanup
@@ -405,14 +407,13 @@ async def get_user_config(
             "gateway_app_config": app_config,
             "request": request,
         }
-    return await config_resolver.resolve_user_config(
-        user_id, gateway_context, app_config
-    )
+    return await config_resolver.resolve_user_config(user, gateway_context, app_config)
 
 
 # DEPRECATED: Import from shared location
 # Re-export for backward compatibility
-from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig, get_current_user
+
 
 # Note: ValidatedUserConfig implementation moved to:
 # src/solace_agent_mesh/shared/auth/dependencies.py
@@ -531,7 +532,9 @@ def get_session_validator(
         log.debug("No database configured - using basic session validation")
 
         def validate_without_database(session_id: str, user_id: str) -> bool:
-            if not session_id or not session_id.startswith("web-session-"):
+            # Without a database, accept any non-empty session ID with a valid user
+            # This supports both web-session- prefix (from browser) and plain UUIDs (from CLI)
+            if not session_id:
                 return False
             return bool(user_id)
 
@@ -593,6 +596,20 @@ def get_audio_service(
     return AudioService(config=app_config)
 
 
+def get_title_generation_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> "TitleGenerationService":
+    """FastAPI dependency to get an instance of TitleGenerationService."""
+    from .services.title_generation_service import TitleGenerationService
+    
+    log.debug("get_title_generation_service called")
+    
+    # Get model configuration from component (same pattern as prompt_builder_assistant)
+    model_config = component.get_config("model", {})
+    
+    return TitleGenerationService(model_config=model_config)
+
+
 
 def get_user_display_name(
     request: Request,
@@ -607,5 +624,54 @@ def get_user_display_name(
         user_info = request.state.user
         # Try email first, then name, then fall back to user_id
         return user_info.get("email") or user_info.get("name") or user_id
-    
+
     return user_id
+
+
+def get_authorization_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    config_resolver: ConfigResolver = Depends(get_config_resolver),
+) -> Any | None:
+    """
+    Returns:
+        AuthorizationService instance from enterprise, or None if not available
+    """
+    # Check if this is the enterprise config resolver with authorization support
+    if not hasattr(config_resolver, 'get_authorization_service'):
+        log.debug("Base config resolver - no authorization service available")
+        return None
+
+    gateway_id = getattr(component, "gateway_id", None)
+    app_config = component.component_config.get("app_config", {})
+
+    try:
+        return config_resolver.get_authorization_service(gateway_id, app_config)
+    except Exception as e:
+        log.warning(f"Failed to get authorization service: {e}")
+        return None
+
+
+def get_indexing_task_service(
+    sse_manager: SSEManager = Depends(get_sse_manager),
+    project_service: ProjectService = Depends(get_project_service),
+) -> "IndexingTaskService":
+    """
+    FastAPI dependency to get an instance of IndexingTaskService.
+    
+    Stateless service for background conversion and indexing with SSE progress.
+    
+    Args:
+        sse_manager: SSEManager for sending events
+        project_service: ProjectService for file operations
+    
+    Returns:
+        IndexingTaskService instance
+    """
+    from .services.indexing_task_service import IndexingTaskService
+    
+    log.debug("get_indexing_task_service called")
+    
+    return IndexingTaskService(
+        sse_manager=sse_manager,
+        project_service=project_service
+    )

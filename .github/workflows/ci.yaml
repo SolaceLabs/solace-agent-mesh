@@ -26,7 +26,7 @@ jobs:
       whitesource_product_name: "solaceai"
       whitesource_config_file: "wss-unified-agent.config"
       npm_package_path: client/webui/frontend
-      node_version: 20
+      node_version: "25.5.0"
       npm_lock_file: package-lock.json
       sca_scanners: "fossa"
 
@@ -247,6 +247,12 @@ jobs:
           echo "AMD64 Tag: ${AMD_TAG}"
           echo "ARM64 Tag: ${ARM_TAG}"
 
+          # OCI annotations to ensure unique manifest digest per commit
+          # This allows Prisma Cloud and other tools to index each tag uniquely
+          # while still benefiting from layer caching
+          COMMIT_SHA="${{ needs.prepare-metadata.outputs.commit_hash }}"
+          BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
           # Convert comma-separated tags string to array and create manifest for each
           IFS=',' read -ra TAGS <<< "${{ steps.image_tags.outputs.tags }}"
           for TAG in "${TAGS[@]}"; do
@@ -255,6 +261,9 @@ jobs:
             TAG=$(echo "$TAG" | xargs)
             echo "Creating manifest for tag: $TAG"
             docker buildx imagetools create \
+              --annotation "index:org.opencontainers.image.revision=${COMMIT_SHA}" \
+              --annotation "index:org.opencontainers.image.created=${BUILD_TIME}" \
+              --annotation "index:org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
               --tag "$TAG" \
               "$AMD_TAG" \
               "$ARM_TAG"

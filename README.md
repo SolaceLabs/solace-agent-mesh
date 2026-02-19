@@ -27,6 +27,7 @@
   <a href="#️-next-steps">Next Steps</a>
 </p>
 
+
 ---
 
 **Solace Agent Mesh** is a framework that supports building AI applications where multiple specialized AI agents work together to solve complex problems. It uses the event messaging of [Solace Platform](https://solace.com) for true scalability and reliability.
@@ -77,6 +78,9 @@ To run Solace Agent Mesh locally, you'll need:
 - **pip** (comes with Python)
 - **OS**: MacOS, Linux, or Windows (with [WSL](https://learn.microsoft.com/en-us/windows/wsl/))
 - **LLM API key** (any major provider or custom endpoint)
+
+### 🎸 Vibe Coding
+To quickly setup and customize your Agent Mesh, check out the [Vibe Coding Quickstart Guide](docs/docs/documentation/vibe_coding.md). This guide walks you through the essential steps to get Solace Agent Mesh up and running with minimal effort.
 
 ### 💻 Setup Steps
 

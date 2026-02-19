@@ -6,7 +6,7 @@ from pathlib import Path
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from cli.utils import error_exit
+from cli.utils import error_exit, discover_config_files
 from solace_agent_mesh.common.utils.initializer import initialize
 from solace_ai_connector.common.logging_config import configure_from_file
 
@@ -116,80 +116,11 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
     # Run enterprise initialization if present
     initialize()
 
-    config_files_to_run = []
-    project_root = Path.cwd()
-    configs_dir = project_root / "configs"
-
-    if not files:
-        log.info(
-            "No specific files provided. Discovering YAML files in %s...", configs_dir
-        )
-        if not configs_dir.is_dir():
-            log.error(
-                "Error: Configuration directory '%s' not found. Please run 'init' first or provide specific config files.",
-                configs_dir
-            )
-            sys.exit(1)
-
-        for filepath in configs_dir.rglob("*.yaml"):
-            if filepath.name.startswith("_") or filepath.name.startswith(
-                "shared_config"
-            ):
-                log.info(
-                    "  Skipping discovery: %s (underscore prefix or shared_config)", filepath
-                )
-                continue
-            config_files_to_run.append(str(filepath.resolve()))
-
-        for filepath in configs_dir.rglob("*.yml"):
-            if filepath.name.startswith("_") or filepath.name.startswith(
-                "shared_config"
-            ):
-                log.info(
-                    "  Skipping discovery: %s (underscore prefix or shared_config)", filepath
-                )
-                continue
-            if str(filepath.resolve()) not in config_files_to_run:
-                config_files_to_run.append(str(filepath.resolve()))
-
-    else:
-        log.info("Processing provided configuration files and directories:")
-        processed_files = set()
-        for path_str in files:
-            path = Path(path_str)
-            if path.is_dir():
-                log.info("  Discovering YAML files in directory: %s", path)
-                for yaml_ext in ("*.yaml", "*.yml"):
-                    for filepath in path.rglob(yaml_ext):
-                        if filepath.name.startswith("_") or filepath.name.startswith(
-                            "shared_config"
-                        ):
-                            log.info(
-                                "  Skipping discovery: %s (underscore prefix or shared_config)", filepath
-                            )
-                            continue
-                        processed_files.add(str(filepath.resolve()))
-            elif path.is_file():
-                if path.suffix in [".yaml", ".yml"]:
-                    processed_files.add(str(path.resolve()))
-                else:
-                    log.warning(
-                        "  Ignoring non-YAML file: %s", path
-                    )
-        config_files_to_run = sorted(list(processed_files))
-
-    if skip_files:
-        log.info("Applying --skip for: %s", skip_files)
-        final_list = []
-        skipped_basenames = [os.path.basename(s) for s in skip_files]
-        for cf in config_files_to_run:
-            if os.path.basename(cf) in skipped_basenames:
-                log.info(
-                    "  Skipping execution: %s (due to --skip)", cf
-                )
-                continue
-            final_list.append(cf)
-        config_files_to_run = final_list
+    try:
+        config_files_to_run = discover_config_files(files, skip_files)
+    except FileNotFoundError as e:
+        log.error(str(e))
+        sys.exit(1)
 
     if not config_files_to_run:
         log.warning(

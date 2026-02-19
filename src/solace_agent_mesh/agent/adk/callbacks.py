@@ -3,11 +3,12 @@ ADK Callbacks for the A2A Host Component.
 Includes dynamic instruction injection, artifact metadata injection,
 embed resolution, and logging.
 """
-
 import logging
 import json
 import asyncio
+import time
 import uuid
+import re
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
 
@@ -33,6 +34,7 @@ from ...agent.utils.context_helpers import (
     get_session_from_callback_context,
 )
 from ..tools.tool_definition import BuiltinTool
+from ..tools.workflow_tool import WorkflowAgentTool, WORKFLOW_TOOL_PREFIX
 from ..tools.peer_agent_tool import PEER_TOOL_PREFIX
 
 from ...common.utils.embeds import (
@@ -402,9 +404,9 @@ async def process_artifact_blocks_callback(
                         )
                         save_result = await wrapped_creator(**kwargs_for_call)
 
-                        if save_result.get("status") in ["success", "partial_success"]:
+                        if save_result.status in ["success", "partial"]:
                             status_for_tool = "success"
-                            version_for_tool = save_result.get("data_version", 1)
+                            version_for_tool = save_result.data.get("data_version", 1) if save_result.data else 1
                             try:
                                 logical_task_id = a2a_context.get("logical_task_id")
                                 if logical_task_id:
@@ -635,34 +637,50 @@ async def process_artifact_blocks_callback(
         final_parser_result = parser.finalize()
 
         for event in final_parser_result.events:
-            if isinstance(event, BlockCompletedEvent):
+            if isinstance(event, BlockInvalidatedEvent):
+                # This event is emitted when an unterminated block is detected at the end of a turn.
+                # The rolled_back_text contains the original opening line + buffered content.
+                # We need to:
+                # 1. Send a "cancelled" status to clean up any in-progress UI
+                # 2. Send the original text as a status update so the frontend can display it
                 log.warning(
-                    "%s Unterminated artifact block detected at end of turn.",
+                    "%s Unterminated artifact block detected at end of turn. Rolled back text length: %d",
                     log_identifier,
+                    len(event.rolled_back_text),
                 )
-                params = event.params
-                filename = params.get("filename", "unknown_artifact")
-                if filename == "unknown_artifact":
-                    log.warning(
-                        "%s Unterminated fenced artifact block is missing a valid 'filename'. Failing operation.",
-                        log_identifier,
+                
+                # Try to extract filename from the rolled back text for the cancelled status
+                # The format is: «««save_artifact: filename="test.md" ...\n...content...
+                filename = "unknown_artifact"
+                filename_match = re.search(r'filename="([^"]+)"', event.rolled_back_text)
+                if filename_match:
+                    filename = filename_match.group(1)
+                
+                # Send a "cancelled" status to clean up any in-progress UI that was created
+                # when the block started. This tells the frontend to remove the artifact bubble.
+                a2a_context = callback_context.state.get("a2a_context")
+                if a2a_context:
+                    cancelled_progress_data = ArtifactCreationProgressData(
+                        filename=filename,
+                        status="cancelled",  # Use "cancelled" instead of "failed" for unterminated blocks
+                        bytes_transferred=0,
+                        # Include the rolled back text so the frontend can display it
+                        # This is sent along with the cancelled status so the frontend
+                        # can show the original text that was incorrectly parsed as an artifact
+                        rolled_back_text=event.rolled_back_text,
                     )
-                if (
-                    "completed_artifact_blocks_list" not in session.state
-                    or session.state["completed_artifact_blocks_list"] is None
-                ):
-                    session.state["completed_artifact_blocks_list"] = []
-                session.state["completed_artifact_blocks_list"].append(
-                    {
-                        "filename": filename,
-                        "version": 0,
-                        "status": "error",
-                        "original_text": session.state.get(
-                            "artifact_block_original_text", ""
-                        )
-                        + event.content,
-                    }
-                )
+                    await _publish_data_part_status_update(
+                        host_component, a2a_context, cancelled_progress_data
+                    )
+                    log.debug(
+                        "%s Sent 'cancelled' status with rolled back text for unterminated artifact block: %s",
+                        log_identifier,
+                        filename,
+                    )
+                
+                # Note: We no longer need to store the original text in completed_artifact_blocks_list
+                # because we're sending it directly with the cancelled status.
+                # The frontend will handle displaying the text when it receives the cancelled status.
 
         # If there was any rolled-back text from finalization, append it
         if final_parser_result.user_facing_text:
@@ -1709,6 +1727,27 @@ If a plan is created:
             log_identifier,
         )
 
+    # Check for WorkflowAgentTool instances and inject specific instructions
+    has_workflow_tools = False
+    if llm_request.tools_dict:
+        for tool in llm_request.tools_dict.values():
+            if isinstance(tool, WorkflowAgentTool):
+                has_workflow_tools = True
+                break
+
+    if has_workflow_tools:
+        workflow_instruction = (
+            "**Workflow Execution:**\n"
+            "You have access to workflow tools (prefixed with `workflow_`). These tools represent structured business processes.\n"
+            "They support two modes of invocation:\n"
+            "1. **Parameter Mode:** Provide arguments directly matching the tool's schema. Use this for new data or simple inputs.\n"
+            "2. **Artifact Mode:** Provide a single `input_artifact` argument with the filename of an existing JSON artifact. "
+            "Use this when passing large datasets or outputs from previous steps to avoid re-tokenizing.\n"
+            "Do NOT provide both parameters and `input_artifact` simultaneously."
+        )
+        injected_instructions.append(workflow_instruction)
+        log.debug("%s Injected workflow execution instructions.", log_identifier)
+
     last_call_notification_message_added = False
     try:
         invocation_context = callback_context._invocation_context
@@ -2143,6 +2182,28 @@ def solace_llm_response_callback(
         agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
 
+        # Check for parallel tool calls - if multiple function_calls in this response,
+        # generate a parallel_group_id for the frontend to group them visually
+        function_calls = []
+        if llm_response.content and llm_response.content.parts:
+            function_calls = [
+                p for p in llm_response.content.parts if p.function_call
+            ]
+
+        if len(function_calls) > 1:
+            import uuid
+            parallel_group_id = f"llm_batch_{uuid.uuid4().hex[:8]}"
+            callback_context.state["parallel_group_id"] = parallel_group_id
+            log.debug(
+                "%s Detected %d parallel tool calls, assigned parallel_group_id=%s",
+                log_identifier,
+                len(function_calls),
+                parallel_group_id,
+            )
+        else:
+            # Clear any previous parallel_group_id
+            callback_context.state["parallel_group_id"] = None
+
         llm_response_data = {
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
@@ -2273,10 +2334,14 @@ def notify_tool_invocation_start_callback(
             except TypeError:
                 serializable_args[k] = str(v)
 
+        # Get parallel_group_id from callback state if this is part of a parallel batch
+        parallel_group_id = tool_context.state.get("parallel_group_id")
+
         tool_data = ToolInvocationStartData(
             tool_name=tool.name,
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
+            parallel_group_id=parallel_group_id,
         )
         host_component.publish_data_signal_from_thread(
             a2a_context=a2a_context,
@@ -2484,12 +2549,12 @@ def preregister_long_running_tools_callback(
     if not llm_response.content or not llm_response.content.parts:
         return None
 
-    # Find all long-running tool calls (identified by peer_ prefix)
+    # Find all long-running tool calls (identified by peer_ or workflow_ prefix)
     long_running_calls = []
     for part in llm_response.content.parts:
         if part.function_call:
             tool_name = part.function_call.name
-            if tool_name.startswith(PEER_TOOL_PREFIX):
+            if tool_name.startswith(PEER_TOOL_PREFIX) or tool_name.startswith(WORKFLOW_TOOL_PREFIX):
                 long_running_calls.append(part.function_call)
 
     if not long_running_calls:
@@ -2528,3 +2593,489 @@ def preregister_long_running_tools_callback(
     )
 
     return None  # Don't alter the response
+
+
+# ============================================================================
+# Tool Name Sanitization Callback
+# ============================================================================
+
+# Bedrock tool name validation pattern: must start with letter or underscore, then alphanumeric/underscore/hyphen
+# Note: We allow underscore prefix for internal tools like _notify_artifact_save
+VALID_TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_-]*$')
+
+
+def sanitize_tool_names_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to sanitize and validate tool names in LLM responses.
+    
+    This callback catches hallucinated tool names that would cause 
+    errors when sent back to the LLM provider. 
+    
+    When an invalid tool name is detected:
+    1. The invalid function_call is removed from the response
+    2. A synthetic error message is injected to inform the LLM
+    3. The response is modified to continue the conversation gracefully
+    
+    This prevents the entire request from failing with a provider error.
+    """
+    log_identifier = "[Callback:SanitizeToolNames]"
+    
+    # Only process non-partial responses with function calls
+    if llm_response.partial:
+        return None
+    
+    if not llm_response.content or not llm_response.content.parts:
+        return None
+    
+    # Find all function calls and check for invalid tool names
+    invalid_calls = []  # Calls that need error responses
+    silently_dropped_calls = []  # Calls to drop without error (e.g., redundant internal tool calls)
+    valid_parts = []
+
+    for part in llm_response.content.parts:
+        if part.function_call:
+            tool_name = part.function_call.name
+            function_call_id = part.function_call.id or ""
+
+            # Check for placeholder patterns (tool names starting with $)
+            # This catches $FUNCTION_NAME, $ARTIFACT_TOOL, $TOOL_NAME, etc.
+            is_placeholder = tool_name.startswith('$')
+
+            # Check against Bedrock's validation pattern
+            is_valid_format = VALID_TOOL_NAME_PATTERN.match(tool_name) is not None
+
+            # Check for unauthorized _notify_artifact_save calls
+            # This tool should only be called by the system with host-notify- prefix
+            # LLM-generated calls (without this prefix) should be silently dropped
+            # since the artifact was already saved and a system call was injected
+            is_unauthorized_internal_tool = (
+                tool_name == "_notify_artifact_save"
+                and not function_call_id.startswith("host-notify-")
+            )
+
+            if is_placeholder:
+                log.warning(
+                    "%s Detected hallucinated placeholder tool name: '%s'. "
+                    "This is a known LLM hallucination from training data examples.",
+                    log_identifier,
+                    tool_name,
+                )
+                invalid_calls.append((part.function_call, "placeholder_hallucination"))
+            elif is_unauthorized_internal_tool:
+                # Silently drop LLM-generated _notify_artifact_save calls
+                # The system already injected a valid call, so this is redundant
+                log.info(
+                    "%s Silently dropping redundant LLM-generated call to internal tool: '%s' (id=%s). "
+                    "The system already injected a valid call for this artifact save.",
+                    log_identifier,
+                    tool_name,
+                    function_call_id,
+                )
+                silently_dropped_calls.append(part.function_call)
+                # Don't add to invalid_calls - we don't want to send an error response
+            elif not is_valid_format:
+                log.warning(
+                    "%s Detected invalid tool name format: '%s'. "
+                    "Tool names must match pattern: ^[a-zA-Z][a-zA-Z0-9_-]*$",
+                    log_identifier,
+                    tool_name,
+                )
+                invalid_calls.append((part.function_call, "invalid_format"))
+            else:
+                # Valid tool call, keep it
+                valid_parts.append(part)
+        else:
+            # Non-function-call parts (text, etc.) are always kept
+            valid_parts.append(part)
+
+    if not invalid_calls and not silently_dropped_calls:
+        # All tool names are valid, no modification needed
+        return None
+
+    # If we only have silently dropped calls (no invalid calls needing error responses),
+    # just return a modified response without forcing another turn
+    if not invalid_calls and silently_dropped_calls:
+        log.info(
+            "%s Silently dropped %d redundant internal tool call(s). No error response needed.",
+            log_identifier,
+            len(silently_dropped_calls),
+        )
+        # Return modified response with the dropped calls removed, preserving turn_complete
+        return LlmResponse(
+            content=adk_types.Content(
+                role="model",
+                parts=valid_parts if valid_parts else [adk_types.Part(text=" ")],
+            ),
+            partial=False,
+            turn_complete=llm_response.turn_complete,  # Preserve original turn_complete
+        )
+    
+    # Log the invalid calls for debugging
+    for fc, reason in invalid_calls:
+        log.error(
+            "%s Removing invalid tool call: name='%s', reason='%s', args=%s",
+            log_identifier,
+            fc.name,
+            reason,
+            fc.args,
+        )
+    
+    # Create synthetic error responses for the invalid calls
+    # This informs the LLM that its tool call was invalid
+    error_response_parts = []
+    for fc, reason in invalid_calls:
+        if reason == "placeholder_hallucination":
+            error_message = (
+                f"ERROR: '{fc.name}' is not a valid tool name. "
+                "You appear to have hallucinated a placeholder. "
+                "Please use only the actual tools available to you. "
+                "Review the available tools and try again with a real tool name."
+            )
+        else:
+            error_message = (
+                f"ERROR: '{fc.name}' is not a valid tool name format. "
+                "Tool names must start with a letter and contain only letters, numbers, underscores, and hyphens. "
+                "Please use only the actual tools available to you."
+            )
+        
+        error_response_part = adk_types.Part.from_function_response(
+            name=fc.name,
+            response={"status": "error", "message": error_message},
+        )
+        # Preserve the function call ID for proper pairing
+        if fc.id:
+            error_response_part.function_response.id = fc.id
+        error_response_parts.append(error_response_part)
+    
+    # If there are still valid parts, keep them and add error responses
+    if valid_parts or error_response_parts:
+        # Reconstruct the response with valid parts
+        # The error responses will be added as a follow-up content
+        modified_response = LlmResponse(
+            content=adk_types.Content(
+                role="model",
+                parts=valid_parts if valid_parts else [adk_types.Part(text=" ")],
+            ),
+            partial=False,
+            turn_complete=False,  # Force another turn to handle the error
+        )
+        
+        # Store the error responses in callback state for the framework to handle
+        # The ADK will automatically pair these with the function calls
+        if error_response_parts:
+            # Create a synthetic tool response content to inject
+            error_content = adk_types.Content(
+                role="tool",
+                parts=error_response_parts,
+            )
+            # Store in callback state for potential use by other callbacks
+            callback_context.state["sanitized_tool_error_content"] = error_content
+            
+            log.info(
+                "%s Sanitized %d invalid tool call(s). Response modified to continue gracefully.",
+                log_identifier,
+                len(invalid_calls),
+            )
+        
+        return modified_response
+    
+    # Edge case: all parts were invalid function calls
+    # Return a response asking the LLM to try again
+    log.warning(
+        "%s All function calls in response were invalid. Returning error guidance.",
+        log_identifier,
+    )
+    
+    return LlmResponse(
+        content=adk_types.Content(
+            role="model",
+            parts=[
+                adk_types.Part(
+                    text="I apologize, but I made an error in my tool usage. "
+                    "Let me review the available tools and try again with the correct tool names."
+                )
+            ],
+        ),
+        partial=False,
+        turn_complete=True,
+    )
+
+
+# ============================================================================
+# OpenAPI Tool Audit Logging Callbacks
+# ============================================================================
+
+
+def _is_openapi_tool(tool: BaseTool) -> bool:
+    """
+    Check if a tool is an OpenAPI-based RestApiTool.
+
+    Args:
+        tool: The tool to check
+
+    Returns:
+        True if the tool is OpenAPI-based, False otherwise
+    """
+    # Check the origin attribute set by SAM at initialization
+    return getattr(tool, "origin", None) == "openapi"
+
+
+def _extract_openapi_base_url(tool: BaseTool) -> Optional[str]:
+    """Extract base URL from an OpenAPI tool."""
+    try:
+        # Check for endpoint.base_url attribute (RestApiTool has this)
+        if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "base_url"):
+            return str(tool.endpoint.base_url)
+
+        if hasattr(tool, "base_url") and tool.base_url:
+            return str(tool.base_url)
+
+        if hasattr(tool, "_base_url") and tool._base_url:
+            return str(tool._base_url)
+
+        if hasattr(tool, "_config") and isinstance(tool._config, dict):
+            return tool._config.get("base_url")
+
+    except Exception as e:
+        log.debug("Could not extract base URL: %s", e)
+
+    return None
+
+
+def _extract_openapi_http_method(tool: BaseTool) -> Optional[str]:
+    """Extract HTTP method from OpenAPI tool."""
+    # Get from tool's endpoint (RestApiTool)
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "method"):
+        return str(tool.endpoint.method).upper()
+    return None
+
+
+def _extract_openapi_operation_id(tool: BaseTool) -> Optional[str]:
+    """Extract operation ID from OpenAPI tool."""
+    # Get from tool's operation (RestApiTool)
+    if hasattr(tool, "operation") and hasattr(tool.operation, "operationId"):
+        return tool.operation.operationId
+    return None
+
+
+def _extract_openapi_metadata(tool: BaseTool) -> Dict[str, Optional[str]]:
+    """
+    Extract all OpenAPI metadata from tool in one pass.
+
+    Returns:
+        Dict with keys: operation_id, base_url, http_method, endpoint_path, tool_uri
+    """
+    operation_id = _extract_openapi_operation_id(tool)
+    base_url = _extract_openapi_base_url(tool)
+    http_method = _extract_openapi_http_method(tool)
+
+    # Extract endpoint path template (safe, non-sensitive)
+    endpoint_path = None
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "path"):
+        endpoint_path = tool.endpoint.path
+
+    # Construct URI from base URL + path template
+    tool_uri = base_url
+    if base_url and endpoint_path:
+        base_clean = base_url.rstrip('/')
+        path_clean = endpoint_path.lstrip('/') if endpoint_path.startswith('/') else endpoint_path
+        tool_uri = f"{base_clean}/{path_clean}"
+
+    return {
+        "operation_id": operation_id,
+        "base_url": base_url,
+        "http_method": http_method,
+        "endpoint_path": endpoint_path,
+        "tool_uri": tool_uri,
+    }
+
+
+def audit_log_openapi_tool_invocation_start(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    host_component: "SamAgentComponent",
+) -> None:
+    """
+    ADK before_tool_callback for OpenAPI tools - logs invocation start.
+
+    Args:
+        tool: The tool being invoked
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        host_component: The SamAgentComponent host
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool)
+
+    # Build action field and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    # Store start time for latency calculation
+    tool_context.state["audit_start_time_ms"] = int(time.time() * 1000)
+
+    # Log in MCP-style format: [openapi-tool] [corr:xxx] message
+    log.info(
+        "[openapi-tool] [%s] Tool call: %s - User: %s, Agent: %s, URI: %s",
+        correlation_tag,
+        action,
+        user_id,
+        host_component.agent_name,
+        metadata['tool_uri'],
+        extra={
+            "user_id": user_id,
+            "agent_id": host_component.agent_name,
+            "tool_name": tool.name,
+            "session_id": session_id,
+            "operation_id": metadata['operation_id'],
+            "tool_uri": metadata['tool_uri'],
+        },
+    )
+
+
+async def audit_log_openapi_tool_execution_result(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: Any,
+    host_component: "SamAgentComponent",
+) -> Optional[Dict[str, Any]]:
+    """
+    ADK after_tool_callback for OpenAPI tools - logs execution result.
+
+    Args:
+        tool: The tool that was executed
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        tool_response: Tool response (NOT logged for sensitive data)
+        host_component: The SamAgentComponent host
+
+    Returns:
+        None (does not modify the response)
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return None
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool)
+
+    # Check if request failed or is pending auth
+    has_error = False
+    is_pending_auth = False
+    error_type = None
+
+    if isinstance(tool_response, dict):
+        has_error = "error" in tool_response
+        is_pending_auth = tool_response.get("pending") == True
+
+        # Extract error type if present (safe, non-sensitive)
+        if has_error:
+            error_data = tool_response.get("error", {})
+            if isinstance(error_data, dict):
+                error_type = error_data.get("type") or error_data.get("code")
+            elif isinstance(error_data, str):
+                # If error is just a string, try to classify it
+                error_lower = error_data.lower()
+                if "auth" in error_lower or "unauthorized" in error_lower:
+                    error_type = "auth_error"
+                elif "not found" in error_lower or "404" in error_lower:
+                    error_type = "not_found"
+                elif "timeout" in error_lower:
+                    error_type = "timeout"
+                elif "network" in error_lower or "connection" in error_lower:
+                    error_type = "network_error"
+
+    # Calculate latency
+    latency_ms = None
+    start_time = tool_context.state.get("audit_start_time_ms")
+    if start_time:
+        latency_ms = int(time.time() * 1000) - start_time
+
+    # Build action and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    if has_error:
+        # Build error message with optional error type
+        error_msg = f"[openapi-tool] [{correlation_tag}] {action} failed - Path: {metadata['endpoint_path'] or 'unknown'}"
+        if error_type:
+            error_msg += f", Error Type: {error_type}"
+        error_msg += f", Latency: {latency_ms}ms, User: {user_id}"
+
+        log.error(
+            error_msg,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "endpoint_path": metadata['endpoint_path'],
+                "error_type": error_type,
+            },
+        )
+    elif is_pending_auth:
+        log.warning(
+            "[openapi-tool] [%s] %s pending auth - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "status": "pending_auth",
+            },
+        )
+    else:
+        # SUCCESS format
+        log.info(
+            "[openapi-tool] [%s] %s completed - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+            },
+        )
+
+    return None

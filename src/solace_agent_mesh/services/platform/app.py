@@ -6,10 +6,10 @@ Defines configuration schema and creates the PlatformServiceComponent.
 import logging
 from typing import Any, Dict, List
 
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 
 from .component import PlatformServiceComponent
-from ...common.a2a import get_discovery_topic
+from ...common.a2a import get_discovery_subscription_topic
 
 log = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ info = {
 }
 
 
-class PlatformServiceApp(App):
+class PlatformServiceApp(SamAppBase):
     """
     Platform Service App.
 
@@ -164,10 +164,22 @@ class PlatformServiceApp(App):
         if not namespace:
             raise ValueError("Namespace is required in app_config for PlatformServiceApp")
 
-        # Create subscriptions for agent discovery
+        # Create subscriptions for agent and gateway discovery
         subscriptions = [
-            {"topic": get_discovery_topic(namespace)},
+            {"topic": get_discovery_subscription_topic(namespace)},
         ]
+
+        # Add trust card subscription if trust manager is enabled
+        trust_config = app_config.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ...common.a2a.protocol import get_trust_card_subscription_topic
+
+            trust_card_topic = get_trust_card_subscription_topic(namespace)
+            subscriptions.append({"topic": trust_card_topic})
+            log.info(
+                "Trust Manager enabled for Platform Service, added trust card subscription: %s",
+                trust_card_topic,
+            )
 
         # Create component definition with subscriptions
         # (SAC framework looks for subscriptions in component definition for simplified apps)

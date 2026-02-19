@@ -28,13 +28,14 @@ interface ProjectCardsProps {
     onDelete: (project: Project) => void;
     onExport?: (project: Project) => void;
     isLoading?: boolean;
+    onShare?: (project: Project) => void;
 }
 
-export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false }) => {
+export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false, onShare }) => {
     return (
         <div className="bg-card-background flex h-full flex-col">
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
-                {projects.length > 0 || searchQuery ? <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Filter by name..." className="mb-4 w-xs" /> : null}
+                {projects.length > 0 || searchQuery ? <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Filter by name..." className="mb-4 w-xs" testid="projectSearchInput" /> : null}
 
                 {/* Projects Grid */}
                 {isLoading ? (
@@ -49,7 +50,7 @@ export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuer
                         <div className="flex flex-wrap gap-6">
                             <CreateProjectCard onClick={onCreateNew} />
                             {projects.map(project => (
-                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} />
+                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} onShare={onShare} />
                             ))}
                         </div>
                     </div>

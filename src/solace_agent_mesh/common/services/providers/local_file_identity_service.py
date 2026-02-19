@@ -13,6 +13,7 @@ from ...sac.sam_component_base import SamComponentBase
 
 log = logging.getLogger(__name__)
 
+
 class LocalFileIdentityService(BaseIdentityService):
     """
     Identity service that sources user data from a local JSON file.
@@ -31,7 +32,9 @@ class LocalFileIdentityService(BaseIdentityService):
     ]
     """
 
-    def __init__(self, config: Dict[str, Any], component: Optional[SamComponentBase] = None):
+    def __init__(
+        self, config: Dict[str, Any], component: Optional[SamComponentBase] = None
+    ):
         super().__init__(config, component)
         self.file_path = self.config.get("file_path")
         if not self.file_path:
@@ -107,7 +110,14 @@ class LocalFileIdentityService(BaseIdentityService):
         return profile
 
     async def search_users(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Performs a simple, case-insensitive search on user names and emails."""
+        """
+        Performs a case-insensitive search matching the start of first or last names, or email prefix.
+
+        Examples:
+        - "ed" matches "Edward Smith" (first name starts with "ed")
+        - "smi" matches "Edward Smith" (last name starts with "smi")
+        - "edward.s" matches "edward.smith@example.com" (email starts with "edward.s")
+        """
         if not query:
             return []
 
@@ -124,19 +134,42 @@ class LocalFileIdentityService(BaseIdentityService):
 
         lower_query = query.lower()
         results = []
+
         for user in self.all_users:
             if len(results) >= limit:
                 break
-            if (
-                lower_query in str(user.get("name", "")).lower()
-                or lower_query in str(user.get("email", "")).lower()
-            ):
+
+            # Get user fields
+            name = str(user.get("name", "")).lower()
+            email = str(user.get("email", "")).lower()
+
+            # Split name into parts (first, last, middle names)
+            name_parts = name.split()
+
+            # Check if query matches:
+            # 1. Start of any name part (first, last, middle)
+            # 2. Start of email (before @)
+            match = False
+
+            # Match start of any name part
+            for part in name_parts:
+                if part.startswith(lower_query):
+                    match = True
+                    break
+
+            # Match start of email (before @)
+            if not match and email:
+                email_prefix = email.split("@")[0] if "@" in email else email
+                if email_prefix.startswith(lower_query):
+                    match = True
+
+            if match:
                 results.append(
                     {
                         "id": user.get("id"),
-                        "name": user.get("name"),
-                        "email": user.get("email"),
-                        "title": user.get("title"),
+                        "displayName": user.get("name"),
+                        "workEmail": user.get("email"),
+                        "jobTitle": user.get("title"),
                     }
                 )
 

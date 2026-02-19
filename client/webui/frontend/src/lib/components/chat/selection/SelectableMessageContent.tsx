@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef } from "react";
 
 import { useTextSelection } from "./useTextSelection";
-import { getSelectedText, getSelectionRange, getSelectionBoundingRect, calculateMenuPosition, isValidSelection } from "./selectionUtils";
+import { getSelectedText, getSelectionRange, getSelectionBoundingRect, calculateMenuPosition, isValidSelection, isSelectionContainedInElement } from "./selectionUtils";
 import type { SelectableMessageContentProps } from "./types";
 
-export const SelectableMessageContent: React.FC<SelectableMessageContentProps> = ({ messageId, children, isAIMessage }) => {
+export const SelectableMessageContent: React.FC<SelectableMessageContentProps> = ({ messageId, taskId, children, isAIMessage }) => {
     const { setSelection, clearSelection } = useTextSelection();
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -31,18 +31,19 @@ export const SelectableMessageContent: React.FC<SelectableMessageContentProps> =
                 return;
             }
 
-            // Verify the selection intersects with our container
-            if (!range.intersectsNode(container)) {
+            // Verify the selection is fully contained within this message container
+            // This prevents selections that span across multiple messages
+            if (!isSelectionContainedInElement(range, container)) {
                 return;
             }
 
             // Calculate menu position
             const position = calculateMenuPosition(rect);
 
-            // Update selection state
-            setSelection(text, range, messageId, position);
+            // Update selection state with both messageId and taskId
+            setSelection(text, range, messageId, taskId || "", position);
         }, 10);
-    }, [isAIMessage, messageId, setSelection]);
+    }, [isAIMessage, messageId, taskId, setSelection]);
 
     useEffect(() => {
         const container = containerRef.current;

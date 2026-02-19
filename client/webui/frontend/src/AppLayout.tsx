@@ -1,10 +1,9 @@
 import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { NavigationSidebar, ToastContainer, Button, bottomNavigationItems, getTopNavigationItems } from "@/lib/components";
+import { NavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { ChatProvider } from "@/lib/providers";
-
 import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
 
 function AppLayoutContent() {
@@ -12,7 +11,7 @@ function AppLayoutContent() {
     const navigate = useNavigate();
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
-    const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
+    const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -56,9 +55,18 @@ function AppLayoutContent() {
 
     if (useAuthorization && !isAuthenticated) {
         return (
-            <div className="bg-background flex h-screen items-center justify-center">
-                <Button onClick={login}>Login</Button>
-            </div>
+            <EmptyState
+                variant="noImage"
+                title="Welcome to Solace Agent Mesh!"
+                className="h-screen w-screen"
+                buttons={[
+                    {
+                        text: "Login",
+                        onClick: () => login(),
+                        variant: "default",
+                    },
+                ]}
+            />
         );
     }
 
@@ -83,7 +91,7 @@ function AppLayoutContent() {
                 <Outlet />
             </main>
             <ToastContainer />
-            <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} onClose={clearSelection} />
+            <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} sourceTaskId={sourceTaskId} onClose={clearSelection} />
         </div>
     );
 }

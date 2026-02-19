@@ -8,14 +8,15 @@ from abc import abstractmethod
 from typing import Any, Dict, List, Type
 
 from solace_ai_connector.common.utils import deep_merge
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ...common.a2a import (
-    get_discovery_topic,
+    get_discovery_subscription_topic,
     get_gateway_response_subscription_topic,
     get_gateway_status_subscription_topic,
 )
+from .. import constants
 
 log = logging.getLogger(__name__)
 
@@ -77,14 +78,14 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "name": "gateway_max_artifact_resolve_size_bytes",
             "required": False,
             "type": "integer",
-            "default": 104857600,  # 100MB
+            "default": constants.DEFAULT_MAX_ARTIFACT_RESOLVE_SIZE_BYTES,
             "description": "Maximum size of an individual artifact's raw content for 'artifact_content' embeds and max total accumulated size for a parent artifact after internal recursive resolution.",
         },
         {
             "name": "gateway_recursive_embed_depth",
             "required": False,
             "type": "integer",
-            "default": 12,
+            "default": constants.DEFAULT_GATEWAY_RECURSIVE_EMBED_DEPTH,
             "description": "Maximum depth for recursively resolving 'artifact_content' embeds within files.",
         },
         {
@@ -104,15 +105,29 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "name": "gateway_max_message_size_bytes",
             "required": False,
             "type": "integer",
-            "default": 10_000_000,  # 10MB
+            "default": constants.DEFAULT_GATEWAY_MAX_MESSAGE_SIZE_BYTES,
             "description": "Maximum allowed message size in bytes for messages published by the gateway.",
         },
         {
             "name": "gateway_max_upload_size_bytes",
             "required": False,
             "type": "integer",
-            "default": 52428800,  # 50MB
+            "default": constants.DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
             "description": "Maximum file upload size in bytes. Validated before reading file content to prevent memory exhaustion.",
+        },
+        {
+            "name": "gateway_max_project_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": constants.DEFAULT_MAX_PROJECT_SIZE_BYTES,
+            "description": "Maximum total upload size limit per project in bytes.",
+        },
+        {
+            "name": "gateway_max_batch_upload_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": constants.DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
+            "description": "Maximum total size in bytes for all files in a single batch upload request.",
         },
         # --- Default User Identity Configuration ---
         {
@@ -135,11 +150,54 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": None,
             "description": "Configuration for the pluggable Identity Service provider.",
         },
+        # --- Gateway Type Configuration ---
+        {
+            "name": "gateway_type",
+            "required": False,
+            "type": "string",
+            "default": None,
+            "description": "Type of gateway for discovery and monitoring (e.g., 'rest', 'slack', 'teams', 'http_sse'). Auto-detected if not specified.",
+        },
+        # --- Gateway Card Publishing Configuration ---
+        {
+            "name": "gateway_card_publishing",
+            "required": False,
+            "type": "object",
+            "default": {"enabled": True, "interval_seconds": 30},
+            "description": "Configuration for publishing gateway discovery cards to enable platform monitoring and deployment tracking.",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Enable periodic gateway card publishing for discovery and health monitoring.",
+                },
+                "interval_seconds": {
+                    "type": "integer",
+                    "default": 30,
+                    "description": "Interval in seconds between gateway card publishes. Acts as heartbeat for deployment tracking.",
+                },
+            },
+        },
+        # --- Gateway Card Configuration ---
+        {
+            "name": "gateway_card",
+            "required": False,
+            "type": "object",
+            "default": {},
+            "description": "Metadata for the gateway's discovery card.",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Human-readable description of this gateway instance.",
+                },
+            },
+        },
     ]
 }
 
 
-class BaseGatewayApp(App):
+class BaseGatewayApp(SamAppBase):
     """
     Base class for Gateway applications.
 
@@ -198,7 +256,7 @@ class BaseGatewayApp(App):
         """
         log.debug(
             "Initializing BaseGatewayApp with app_info: %s",
-            app_info.get("name", "Unnamed App"),
+            app_info.get("name"),
         )
 
         code_config_app_block = getattr(self.__class__, "app_config", {}).get(
@@ -217,9 +275,11 @@ class BaseGatewayApp(App):
 
         self.gateway_id: str = resolved_app_config_block.get("gateway_id")
         if not self.gateway_id:
-            self.gateway_id = f"gdk-gateway-{uuid.uuid4().hex[:8]}"
+            self.gateway_id = app_info.get("name")
             resolved_app_config_block["gateway_id"] = self.gateway_id
-            log.info("Generated unique gateway_id: %s", self.gateway_id)
+            log.warning(
+                "No `gateway_id` provided; defaulting to `apps.name`. Ensure `apps.name` is unique across all gateways or specify a unique `gateway_id` to prevent conflicts."
+            )
 
         self.artifact_service_config: Dict = resolved_app_config_block.get(
             "artifact_service", {}
@@ -229,7 +289,7 @@ class BaseGatewayApp(App):
         )
 
         new_size_limit_key = "gateway_max_artifact_resolve_size_bytes"
-        default_new_size_limit = 104857600
+        default_new_size_limit = constants.DEFAULT_MAX_ARTIFACT_RESOLVE_SIZE_BYTES
         old_size_limit_key = "gateway_artifact_content_limit_bytes"
 
         new_value = resolved_app_config_block.get(new_size_limit_key)
@@ -254,23 +314,29 @@ class BaseGatewayApp(App):
             self.gateway_max_artifact_resolve_size_bytes = default_new_size_limit
 
         self.gateway_recursive_embed_depth: int = resolved_app_config_block.get(
-            "gateway_recursive_embed_depth", 12
+            "gateway_recursive_embed_depth", constants.DEFAULT_GATEWAY_RECURSIVE_EMBED_DEPTH
         )
         self.artifact_handling_mode: str = resolved_app_config_block.get(
             "artifact_handling_mode", "reference"
         )
         self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
-            "gateway_max_message_size_bytes", 10_000_000
+            "gateway_max_message_size_bytes", constants.DEFAULT_GATEWAY_MAX_MESSAGE_SIZE_BYTES
         )
         self.gateway_max_upload_size_bytes: int = resolved_app_config_block.get(
-            "gateway_max_upload_size_bytes", 52428800
+            "gateway_max_upload_size_bytes", constants.DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
+        )
+        self.gateway_max_project_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_project_size_bytes", constants.DEFAULT_MAX_PROJECT_SIZE_BYTES
+        )
+        self.gateway_max_batch_upload_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_batch_upload_size_bytes", constants.DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES
         )
 
         modified_app_info = app_info.copy()
         modified_app_info["app_config"] = resolved_app_config_block
 
         subscriptions = [
-            {"topic": get_discovery_topic(self.namespace)},
+            {"topic": get_discovery_subscription_topic(self.namespace)},
             {
                 "topic": get_gateway_response_subscription_topic(
                     self.namespace, self.gateway_id

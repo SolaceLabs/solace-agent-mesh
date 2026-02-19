@@ -76,6 +76,8 @@ Embeds the content of an artifact, with support for a chain of transformations. 
 
 **Note**: If this embed resolves to binary content (like an image), it will be automatically converted into an attached file, similar to `artifact_return`.
 
+**Tip**: If you're building a custom Python tool that needs to process artifact content, consider using the `Artifact` type hint instead of embeds. This allows the framework to automatically load artifact content before your tool executes. For more information, see [Working with Artifacts in Tools](../../developing/creating-python-tools.md#working-with-artifacts-in-tools).
+
 **Modifiers (Data Transformations)**
 Modifiers are applied sequentially to transform the data.
 

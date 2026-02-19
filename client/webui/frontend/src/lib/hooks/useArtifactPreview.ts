@@ -119,11 +119,12 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
                 });
 
                 const fileData = getFileAttachment(filename, mimeType, content);
+                const isProjectArtifactPreview = !!projectId && (!sessionId || sessionId === "null" || sessionId === "undefined");
 
                 // Update all preview state atomically
                 setPreview({
                     filename,
-                    availableVersions: sortedVersions,
+                    availableVersions: isProjectArtifactPreview ? [latestVersion] : sortedVersions,
                     currentVersion: latestVersion,
                     content: fileData,
                 });

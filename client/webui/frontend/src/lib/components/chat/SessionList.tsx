@@ -2,11 +2,66 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Loader2 } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { useChatContext, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
+
+interface SessionNameProps {
+    session: Session;
+    respondingSessionId: string | null;
+}
+
+const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId }) => {
+    const { autoTitleGenerationEnabled } = useConfigContext();
+
+    const displayName = useMemo(() => {
+        if (session.name && session.name.trim()) {
+            return session.name;
+        }
+        // Fallback to "New Chat" if no name
+        return "New Chat";
+    }, [session.name]);
+
+    // Pass session ID to useTitleAnimation so it can listen for title generation events
+    const { text: animatedName, isAnimating, isGenerating } = useTitleAnimation(displayName, session.id);
+
+    const isWaitingForTitle = useMemo(() => {
+        // Always show pulse when isGenerating (manual "Rename with AI")
+        if (isGenerating) {
+            return true;
+        }
+
+        if (!autoTitleGenerationEnabled) {
+            return false; // No pulse when auto title generation is disabled
+        }
+        const isNewChat = !session.name || session.name === "New Chat";
+        // Pulse if this session is the one that started the response
+        const isThisSessionResponding = respondingSessionId === session.id;
+        // Also pulse if this session has a running background task and no title yet
+        // This handles the case where user switched away while task is running
+        const hasBackgroundTaskWithNewTitle = session.hasRunningBackgroundTask && isNewChat;
+        return (isThisSessionResponding && isNewChat) || hasBackgroundTaskWithNewTitle;
+    }, [session.name, session.id, respondingSessionId, isGenerating, autoTitleGenerationEnabled, session.hasRunningBackgroundTask]);
+
+    // Show slow pulse while waiting for title, faster pulse during transition animation
+    const animationClass = useMemo(() => {
+        if (isGenerating || isAnimating) {
+            if (isWaitingForTitle) {
+                return "animate-pulse-slow";
+            }
+            return "animate-pulse opacity-50";
+        }
+        // For automatic title generation waiting state
+        if (isWaitingForTitle) {
+            return "animate-pulse-slow";
+        }
+        return "opacity-100";
+    }, [isWaitingForTitle, isAnimating, isGenerating]);
+
+    return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
+};
 import { formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
 import {
@@ -46,9 +101,33 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
+    const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Track which session started the response to avoid pulsing the wrong session
+    // We use a Map to track task ID -> session ID relationships, plus a version counter to trigger re-renders
+    const taskToSessionRef = useRef<Map<string, string>>(new Map());
+    const [taskMapVersion, setTaskMapVersion] = useState(0);
+
+    // When a new task starts, remember which session it belongs to
+    // Don't rely on currentTaskId changes during session switches
+    useEffect(() => {
+        if (currentTaskId && !taskToSessionRef.current.has(currentTaskId)) {
+            // This is a genuinely new task - capture which session it started in
+            taskToSessionRef.current.set(currentTaskId, sessionId);
+            // Trigger a re-render so respondingSessionId useMemo recomputes
+            setTaskMapVersion(v => v + 1);
+        }
+    }, [currentTaskId, sessionId]);
+
+    // Derive respondingSessionId from the current task's owning session
+    const respondingSessionId = useMemo(() => {
+        if (!currentTaskId) return null;
+        return taskToSessionRef.current.get(currentTaskId) || null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTaskId, taskMapVersion]);
 
     const [sessions, setSessions] = useState<Session[]>([]);
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -59,6 +138,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
+    const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -103,16 +183,38 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 return prevSessions;
             });
         };
+        const handleTitleUpdated = async (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { sessionId: updatedSessionId } = customEvent.detail;
+
+            // Fetch the updated session from backend to get the new title
+            try {
+                const sessionData = await api.webui.get(`/api/v1/sessions/${updatedSessionId}`);
+                const updatedSession = sessionData?.data;
+
+                if (updatedSession) {
+                    setSessions(prevSessions => {
+                        return prevSessions.map(s => (s.id === updatedSessionId ? { ...s, name: updatedSession.name } : s));
+                    });
+                }
+            } catch (error) {
+                console.error("[SessionList] Error fetching updated session:", error);
+                // Fallback: just refresh the entire list
+                fetchSessions(1, false);
+            }
+        };
         const handleBackgroundTaskCompleted = () => {
             // Refresh session list when background task completes to update indicators
             fetchSessions(1, false);
         };
         window.addEventListener("new-chat-session", handleNewSession);
         window.addEventListener("session-updated", handleSessionUpdated as EventListener);
+        window.addEventListener("session-title-updated", handleTitleUpdated);
         window.addEventListener("background-task-completed", handleBackgroundTaskCompleted);
         return () => {
             window.removeEventListener("new-chat-session", handleNewSession);
             window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
+            window.removeEventListener("session-title-updated", handleTitleUpdated);
             window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
     }, [fetchSessions]);
@@ -186,6 +288,67 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         navigate(`/projects/${session.projectId}`);
     };
 
+    const handleRenameWithAI = useCallback(
+        async (session: Session) => {
+            if (regeneratingTitleForSession) {
+                addNotification?.("AI rename already in progress", "info");
+                return;
+            }
+
+            setRegeneratingTitleForSession(session.id);
+
+            try {
+                // Fetch all tasks/messages for this session
+                const data = await api.webui.get(`/api/v1/sessions/${session.id}/chat-tasks`);
+                const tasks = data.tasks || [];
+
+                if (tasks.length === 0) {
+                    addNotification?.("No messages found in this session", "warning");
+                    setRegeneratingTitleForSession(null);
+                    return;
+                }
+
+                // Parse and extract all messages from all tasks
+                const allMessages: string[] = [];
+
+                for (const task of tasks) {
+                    const messageBubbles = JSON.parse(task.messageBubbles);
+                    for (const bubble of messageBubbles) {
+                        const text = bubble.text || "";
+                        if (text.trim()) {
+                            allMessages.push(text.trim());
+                        }
+                    }
+                }
+
+                if (allMessages.length === 0) {
+                    addNotification?.("No text content found in session", "warning");
+                    setRegeneratingTitleForSession(null);
+                    return;
+                }
+
+                // Create a summary of the conversation for better context
+                // Use LAST 3 messages of each type to capture recent conversation
+                const userMessages = allMessages.filter((_, idx) => idx % 2 === 0); // Assuming alternating user/agent
+                const agentMessages = allMessages.filter((_, idx) => idx % 2 === 1);
+
+                const userSummary = userMessages.slice(-3).join(" | ");
+                const agentSummary = agentMessages.slice(-3).join(" | ");
+
+                // Call the title generation service with the full context
+                // Pass current title so polling can detect the change
+                // Pass force=true to bypass the "already has title" check
+                await generateTitle(session.id, userSummary, agentSummary, session.name || "New Chat", true);
+            } catch (error) {
+                console.error("Error regenerating title:", error);
+                addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "warning");
+            } finally {
+                setRegeneratingTitleForSession(null);
+            }
+        },
+        [generateTitle, addNotification, regeneratingTitleForSession]
+    );
+
     const handleMoveConfirm = async (targetProjectId: string | null) => {
         if (!sessionToMove) return;
 
@@ -227,22 +390,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
     const formatSessionDate = (dateString: string) => {
         return formatTimestamp(dateString);
-    };
-
-    const getSessionDisplayName = (session: Session) => {
-        if (session.name && session.name.trim()) {
-            return session.name;
-        }
-        // Generate a short, readable identifier from the session ID
-        const sessionId = session.id;
-        if (sessionId.startsWith("web-session-")) {
-            // Extract the UUID part and create a short identifier
-            const uuid = sessionId.replace("web-session-", "");
-            const shortId = uuid.substring(0, 8);
-            return `Chat ${shortId}`;
-        }
-        // Fallback for other ID formats
-        return `Session ${sessionId.substring(0, 8)}`;
     };
 
     // Get unique project names from sessions, sorted alphabetically
@@ -339,7 +486,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="truncate font-semibold">{getSessionDisplayName(session)}</span>
+                                                        <SessionName session={session} respondingSessionId={respondingSessionId} />
                                                         {session.hasRunningBackgroundTask && (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
@@ -395,6 +542,16 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     >
                                                         <Pencil size={16} className="mr-2" />
                                                         Rename
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleRenameWithAI(session);
+                                                        }}
+                                                        disabled={regeneratingTitleForSession === session.id}
+                                                    >
+                                                        <Sparkles size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-pulse" : ""}`} />
+                                                        Rename with AI
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         onClick={e => {

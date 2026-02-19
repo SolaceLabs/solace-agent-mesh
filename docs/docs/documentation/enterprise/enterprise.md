@@ -5,19 +5,19 @@ sidebar_position: 700
 
 # Agent Mesh Enterprise
 
-Agent Mesh Enterprise extends the open-source framework with production-ready features that enterprise environments require. This version provides enhanced security through single sign-on integration, granular access control through role-based permissions, intelligent data management for cost optimization, and comprehensive observability tools for monitoring agent workflows and system performance.
+Agent Mesh Enterprise extends the open-source framework with features that enterprise environments require. This version provides security through single sign-on integration, access control through role-based permissions, data management for cost optimization, and observability tools for monitoring agent workflows and system performance.
 
 Enterprise is available as a self-managed container image that you can deploy in your own infrastructure. You can obtain access by joining the pilot program at [solace.com/solace-agent-mesh-pilot-registration](https://solace.com/solace-agent-mesh-pilot-registration/).
 
 ## Enterprise Features
 
-The Enterprise version delivers several capabilities that distinguish it from the Community edition.
+The Enterprise version includes several capabilities beyond the Community edition.
 
-Authentication and authorization integrate with your existing identity systems through SSO, eliminating the need for separate credentials while maintaining security standards. You can configure role-based access control to implement granular authorization policies that determine which agents and resources each user can access through the Agent Mesh Gateways.
+Authentication and authorization integrate with your existing identity systems through SSO, eliminating the need for separate credentials and maintaining security standards. You can configure role-based access control to implement authorization policies that determine which agents and resources each user can access through the Agent Mesh Gateways. The Platform Service shares this same authentication and authorization stack with the WebUI Gateway, so a single configuration secures both services. For details, see [Authentication and Authorization](platform-service-auth.md).
 
-Data management features help you optimize costs and improve accuracy. Smart filtering capabilities reduce unnecessary compute expenses while precise data governance helps prevent hallucinations by controlling what information reaches your language models.
+Data management features help you optimize costs and improve accuracy. Filtering capabilities reduce unnecessary compute expenses, and data governance helps prevent hallucinations by controlling what information reaches your language models.
 
-Observability tools provide complete visibility into your agent ecosystem. The built-in workflow viewer tracks LLM interactions and agent communications in real time, giving you the insights needed to monitor performance, diagnose issues, and understand system behavior.
+Observability tools provide visibility into your agent ecosystem. The built-in workflow viewer tracks LLM interactions and agent communications in real time, allowing you to monitor performance, diagnose issues, and understand system behavior.
 
 ## Getting Started with Enterprise
 
@@ -43,6 +43,10 @@ Connectors link agents to external data sources such as databases and APIs, enab
 
 The Enterprise version includes Agent Builder, a visual interface for creating and managing agents without writing configuration files directly. Agent Builder supports both AI-assisted generation from natural language descriptions and manual configuration for precise control over agent capabilities. You can create agents, assign toolsets and connectors, and deploy them dynamically through the Deployer component without restarting services. The Deployer handles deployment operations asynchronously, enabling scalable agent creation through the web interface. You can also download agent configurations as YAML files for version control or infrastructure-as-code deployments. For comprehensive information about creating and managing agents, see [Agent Builder](agent-builder.md).
 
+### Gateways
+
+Gateways connect external systems to your Agent Mesh deployment, enabling users and applications to interact with agents through platforms like Slack, Microsoft Teams, and Solace Event Mesh brokers. You can configure integration points through guided workflows without writing YAML configuration files manually. Gateways use the same Deployer infrastructure as Agent Builder, enabling you to deploy gateways dynamically and monitor their status through the web interface. Each gateway type has specific configuration options for authentication, message routing, and protocol settings. For comprehensive information about creating and managing gateways, see [Gateways](gateways/gateways.md).
+
 ## What's Next
 
-After you complete the initial setup and create agents using Agent Builder, you can begin deploying them to make them available for user interactions. The Enterprise features operate transparently—your agents and tools work the same way, but with the added security, governance, and observability that production environments demand.
+After you complete the initial setup and create agents using Agent Builder, you can begin deploying them to make them available for user interactions. You can also create gateways to connect Agent Mesh with external systems like Slack workspaces and Event Mesh brokers. The Enterprise features operate transparently—your agents and tools work the same way, but with the added security, governance, and observability that production environments require.

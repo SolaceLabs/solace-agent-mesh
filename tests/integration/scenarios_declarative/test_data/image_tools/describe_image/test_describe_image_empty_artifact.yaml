@@ -1,6 +1,6 @@
 # tests/integration/scenarios_declarative/test_data/image_tools/describe_image/test_describe_image_empty_artifact.yaml
 test_case_id: "describe_image_empty_artifact"
-description: "Tests how the tool handles an artifact that is empty (0 bytes) and gets a malformed API response."
+description: "Tests how the tool handles an artifact that is empty (0 bytes). Artifact pre-loading fails before tool execution."
 tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
@@ -26,29 +26,17 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_image"
-                  arguments: '{"image_filename": "empty_image.png"}'
+                  arguments: '{"input_image": "empty_image.png"}'
     expected_request:
       tools_present: ["describe_image"]
 
-  # Second LLM call (to vision API): Primed to return a malformed response
-  - static_response:
-      id: "chatcmpl-empty-error"
-      object: "chat.completion"
-      model: "gpt-4-vision-preview"
-      choices: [] # No choices, which will trigger the tool's error handling
-
-  # Third LLM call: Agent processes the tool's error
+  # Second LLM call: Agent processes the artifact pre-load error
+  # (Artifact loading now happens in wrapper before tool execution)
   - static_response:
       choices:
         - message:
             role: "assistant"
-            content: "I tried to describe the image, but the API response was invalid."
-    expected_request:
-      expected_tool_responses_in_llm_messages:
-        - tool_call_id_matches_prior_request_index: 0
-          response_json_matches:
-            status: "error"
-            message: "API response does not contain valid choices."
+            content: "I tried to describe the image, but the artifact content was not found."
 
 expected_gateway_output:
   - type: "final_response"
@@ -64,4 +52,4 @@ expected_gateway_output:
         parts:
           - type: "text"
             text_contains:
-              - "API response was invalid"
+              - "artifact content was not found"

@@ -14,11 +14,11 @@ patch_adk()
 
 from typing import Any, Dict, List, Optional, Union, Literal
 from pydantic import Field, ValidationError, model_validator
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 
 from ...common.a2a import (
     get_agent_request_topic,
-    get_discovery_topic,
+    get_discovery_subscription_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
@@ -285,6 +285,10 @@ class SamAgentAppConfig(SamConfigBase):
         description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
+    agent_type: Literal["standard", "workflow"] = Field(
+        default="standard",
+        description="Type of agent: 'standard' (default) or 'workflow'.",
+    )
     display_name: str = Field(
         default=None,
         description="Human-friendly display name for this ADK agent instance.",
@@ -401,6 +405,14 @@ class SamAgentAppConfig(SamConfigBase):
         default=True,
         description="Inject instructions about the 'artifact_content' embed type.",
     )
+    input_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent input when used as a workflow node.",
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent output when used as a workflow node.",
+    )
     agent_card: AgentCardConfig = Field(
         ..., description="Static definition of this agent's capabilities for discovery."
     )
@@ -445,6 +457,14 @@ class SamAgentAppConfig(SamConfigBase):
         default=20,
         description="Maximum number of LLM calls allowed for a single A2A task.",
     )
+    max_call_depth: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Maximum allowed call depth for incoming requests. "
+            "Prevents infinite recursion in agent-to-agent or workflow-to-agent calls."
+        ),
+    )
     data_tools_config: DataToolsConfig = Field(
         default_factory=DataToolsConfig,
         description="Runtime configuration parameters for built-in data analysis tools.",
@@ -459,7 +479,7 @@ class SamAgentAppConfig(SamConfigBase):
     )
 
 
-class SamAgentApp(App):
+class SamAgentApp(SamAppBase):
     """
     Custom App class for SAM Agent Host that automatically generates
     the required Solace subscriptions based on namespace and agent name,
@@ -502,7 +522,7 @@ class SamAgentApp(App):
 
         required_topics = [
             get_agent_request_topic(namespace, agent_name),
-            get_discovery_topic(namespace),
+            get_discovery_subscription_topic(namespace),
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),

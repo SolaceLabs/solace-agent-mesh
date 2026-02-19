@@ -2,20 +2,28 @@
 Business service for project-related operations.
 """
 
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Tuple
 import logging
 import json
 import zipfile
+import os
 from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
-from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, get_artifact_counts_batch
-
-# Default max upload size (50MB) - matches gateway_max_upload_size_bytes default
-DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800
-# Default max ZIP upload size (100MB) - for project import ZIP files
-DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 104857600
+from ....agent.utils.artifact_helpers import (
+    get_artifact_counts_batch,
+    get_artifact_info_list,
+    is_internal_artifact,
+    save_artifact_with_metadata,
+)
+from ...constants import (
+    DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_PROJECT_SIZE_BYTES,
+    ARTIFACTS_PREFIX
+)
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -26,11 +34,18 @@ except ImportError:
 
 
 from ....common.a2a.types import ArtifactInfo
+from ....common.middleware.registry import MiddlewareRegistry
+from ....services.resource_sharing_service import ResourceSharingService, ResourceType
 from ..repository.interfaces import IProjectRepository
 from ..repository.entities.project import Project
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
+
+
+def bytes_to_mb(size_bytes: int) -> float:
+    """Convert bytes to megabytes."""
+    return size_bytes / (1024 * 1024)
 
 
 class ProjectService:
@@ -39,33 +54,60 @@ class ProjectService:
     def __init__(
         self,
         component: "WebUIBackendComponent" = None,
+        resource_sharing_service: ResourceSharingService = None,
     ):
         self.component = component
         self.artifact_service = component.get_shared_artifact_service() if component else None
         self.app_name = component.get_config("name", "WebUIBackendApp") if component else "WebUIBackendApp"
         self.logger = logging.getLogger(__name__)
-        # Get max upload size from component config, with fallback to default
-        # Ensure values are integers for proper formatting
-        max_upload_config = (
-            component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_UPLOAD_SIZE_BYTES)
-            if component else DEFAULT_MAX_UPLOAD_SIZE_BYTES
+
+        # Initialize resource sharing service
+        if resource_sharing_service:
+            self._resource_sharing_service = resource_sharing_service
+        else:
+            # Get from registry (returns class, need to instantiate)
+            service_class = MiddlewareRegistry.get_resource_sharing_service()
+            self._resource_sharing_service = service_class()
+
+        # Get config values, with fallback to default (ensure values are integers for proper formatting)
+        max_per_file_upload_config = (
+            component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
+            if component else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
         )
-        self.max_upload_size_bytes = int(max_upload_config) if isinstance(max_upload_config, (int, float)) else DEFAULT_MAX_UPLOAD_SIZE_BYTES
-        
-        # Get max ZIP upload size from component config, with fallback to default (100MB)
+        self.max_per_file_upload_size_bytes = int(max_per_file_upload_config) if isinstance(max_per_file_upload_config, (int, float)) else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
+
+        max_batch_upload_config = (
+            component.get_config("gateway_max_batch_upload_size_bytes", DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES)
+            if component else DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES
+        )
+        self.max_batch_upload_size_bytes = int(max_batch_upload_config) if isinstance(max_batch_upload_config, (int, float)) else DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES
+
         max_zip_config = (
             component.get_config("gateway_max_zip_upload_size_bytes", DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES)
             if component else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
         )
         self.max_zip_upload_size_bytes = int(max_zip_config) if isinstance(max_zip_config, (int, float)) else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
-        
-        self.logger.info(
-            "[ProjectService] Initialized with max_upload_size_bytes=%d (%.2f MB), "
-            "max_zip_upload_size_bytes=%d (%.2f MB)",
-            self.max_upload_size_bytes,
-            self.max_upload_size_bytes / (1024*1024),
+
+        max_project_size_config = (
+            component.get_config("gateway_max_project_size_bytes", DEFAULT_MAX_PROJECT_SIZE_BYTES)
+            if component else DEFAULT_MAX_PROJECT_SIZE_BYTES
+        )
+        self.max_project_size_bytes = int(max_project_size_config) if isinstance(max_project_size_config, (int, float)) else DEFAULT_MAX_PROJECT_SIZE_BYTES
+
+        self.logger.debug(
+            "[ProjectService] Initialized with "
+            "max_per_file_upload_size_bytes=%d (%.2f MB), "
+            "max_batch_upload_size_bytes=%d (%.2f MB), "
+            "max_zip_upload_size_bytes=%d (%.2f MB), "
+            "max_project_size_bytes=%d (%.2f MB)",
+            self.max_per_file_upload_size_bytes,
+            bytes_to_mb(self.max_per_file_upload_size_bytes),
+            self.max_batch_upload_size_bytes,
+            bytes_to_mb(self.max_batch_upload_size_bytes),
             self.max_zip_upload_size_bytes,
-            self.max_zip_upload_size_bytes / (1024*1024)
+            bytes_to_mb(self.max_zip_upload_size_bytes),
+            self.max_project_size_bytes,
+            bytes_to_mb(self.max_project_size_bytes)
         )
 
     def _get_repositories(self, db):
@@ -105,11 +147,11 @@ class ProjectService:
             total_bytes_read += chunk_len
             
             # Validate size during reading (fail fast)
-            if total_bytes_read > self.max_upload_size_bytes:
+            if total_bytes_read > self.max_per_file_upload_size_bytes:
                 error_msg = (
                     f"File '{file.filename}' rejected: size exceeds maximum "
-                    f"{self.max_upload_size_bytes:,} bytes "
-                    f"({self.max_upload_size_bytes / (1024*1024):.2f} MB). "
+                    f"{self.max_per_file_upload_size_bytes:,} bytes "
+                    f"({bytes_to_mb(self.max_per_file_upload_size_bytes):.2f} MB). "
                     f"Read {total_bytes_read:,} bytes so far."
                 )
                 self.logger.warning(f"{log_prefix} {error_msg}")
@@ -145,6 +187,84 @@ class ProjectService:
                 f"{log_prefix} Validated file '{file.filename}': {len(content_bytes):,} bytes"
             )
         return validated_files
+
+    def _validate_batch_upload_size(
+        self,
+        files_size: int,
+        log_prefix: str = ""
+    ) -> None:
+        """
+        Validate that the total size of files in a single upload batch doesn't exceed limit.
+        This is independent of the total project size.
+
+        Args:
+            files_size: Total size of all files being uploaded in this batch (bytes)
+            log_prefix: Logging prefix
+
+        Raises:
+            ValueError: If batch size exceeds limit
+        """
+
+        files_mb = bytes_to_mb(files_size)
+        limit_mb = bytes_to_mb(self.max_batch_upload_size_bytes)
+
+        if files_size > self.max_batch_upload_size_bytes:
+            error_msg = (
+                f"Batch upload size limit exceeded. "
+                f"Total files in this upload: {files_mb:.2f} MB exceeds limit of {limit_mb:.2f} MB."
+            )
+            self.logger.warning(f"{log_prefix} {error_msg}")
+            raise ValueError(error_msg)
+
+        self.logger.debug(
+            f"{log_prefix} Batch upload size check passed: "
+            f"{files_mb:.2f} MB / {limit_mb:.2f} MB "
+            f"({(files_size / self.max_batch_upload_size_bytes * 100):.1f}% of batch limit)"
+        )
+
+    def _validate_project_size_limit(
+        self,
+        current_project_size: int,
+        new_files_size: int,
+        log_prefix: str = ""
+    ) -> None:
+        """
+        Validate that adding new files won't exceed project total size limit.
+
+        Only counts user-uploaded files (source="project") toward the limit.
+        LLM-generated artifacts and system files are excluded.
+
+        Args:
+            current_project_size: Current total size of user-uploaded files in bytes
+            new_files_size: Total size of new files being added in bytes
+            log_prefix: Logging prefix
+
+        Raises:
+            ValueError: If combined size would exceed limit
+        """
+
+        total_size = current_project_size + new_files_size
+
+        current_mb = bytes_to_mb(current_project_size)
+        new_mb = bytes_to_mb(new_files_size)
+        total_mb = bytes_to_mb(total_size)
+        limit_mb = bytes_to_mb(self.max_project_size_bytes)
+
+        if total_size > self.max_project_size_bytes:
+            error_msg = (
+                f"Project size limit exceeded. "
+                f"Current: {current_mb:.2f} MB, "
+                f"New files: {new_mb:.2f} MB, "
+                f"Total: {total_mb:.2f} MB exceeds limit of {limit_mb:.2f} MB."
+            )
+            self.logger.warning(f"{log_prefix} {error_msg}")
+            raise ValueError(error_msg)
+
+        self.logger.debug(
+            f"{log_prefix} Project size check passed: "
+            f"{total_mb:.2f} MB / {limit_mb:.2f} MB "
+            f"({(total_size / self.max_project_size_bytes * 100):.1f}% used)"
+        )
 
     async def create_project(
         self,
@@ -192,10 +312,23 @@ class ProjectService:
             validated_files = await self._validate_files(files, log_prefix)
             self.logger.info(f"{log_prefix} All {len(files)} files passed size validation")
 
+            new_files_size = sum(len(content) for _, content in validated_files)
+
+            self._validate_batch_upload_size(
+                files_size=new_files_size,
+                log_prefix=log_prefix
+            )
+
+            self._validate_project_size_limit(
+                current_project_size=0,
+                new_files_size=new_files_size,
+                log_prefix=log_prefix
+            )
+
         project_repository = self._get_repositories(db)
 
-        # Check for duplicate project name for this user
-        existing_projects = project_repository.get_user_projects(user_id)
+        # Check for duplicate project name for this user (only owned projects)
+        existing_projects = project_repository.get_accessible_projects(user_id, shared_project_ids=[])
         if any(p.name.lower() == name.strip().lower() for p in existing_projects):
             raise ValueError(f"A project with the name '{name.strip()}' already exists")
 
@@ -250,39 +383,62 @@ class ProjectService:
         Returns:
             Optional[Project]: The project if found and accessible, None otherwise
         """
-        project_repository = self._get_repositories(db)
-        return project_repository.get_by_id(project_id, user_id)
+        from ..repository.models import ProjectModel
 
-    def get_user_projects(self, db, user_id: str) -> List[Project]:
+        # Get project without user filter
+        project_model = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
+
+        if not project_model:
+            return None
+
+        # Check if user has access (owner OR shared access via resource sharing service)
+        if not self._has_view_access(db, project_id, user_id):
+            return None
+
+        # Convert to domain entity
+        project_repository = self._get_repositories(db)
+        return project_repository._model_to_entity(project_model)
+
+    def get_user_projects(self, db, user_email: str) -> List[Project]:
         """
-        Get all projects owned by a specific user.
+        Get all projects accessible by a specific user (owned + shared).
 
         Args:
             db: Database session
-            user_id: The user ID
-            
-        Returns:
-            List[DomainProject]: List of user's projects
-        """
-        self.logger.debug(f"Retrieving projects for user {user_id}")
-        project_repository = self._get_repositories(db)
-        db_projects = project_repository.get_user_projects(user_id)
-        return db_projects
+            user_email: The user's email
 
-    async def get_user_projects_with_counts(self, db, user_id: str) -> List[tuple[Project, int]]:
+        Returns:
+            List[Project]: List of user's accessible projects (owned + shared)
         """
-        Get all projects owned by a specific user with artifact counts.
+        self.logger.debug(f"Retrieving accessible projects for user {user_email}")
+
+        # Get shared project IDs from enterprise service (empty list for community)
+        shared_project_ids = self._resource_sharing_service.get_shared_resource_ids(
+            session=db,
+            user_email=user_email,
+            resource_type=ResourceType.PROJECT
+        )
+
+        # Get all accessible projects (owned + shared)
+        project_repository = self._get_repositories(db)
+        return project_repository.get_accessible_projects(user_email, shared_project_ids)
+
+    async def get_user_projects_with_counts(self, db, user_email: str) -> List[tuple[Project, int]]:
+        """
+        Get all projects accessible by a specific user with artifact counts.
         Uses batch counting for efficiency.
 
         Args:
             db: Database session
-            user_id: The user ID
-            
+            user_email: The user's email
+
         Returns:
             List[tuple[Project, int]]: List of tuples (project, artifact_count)
         """
-        self.logger.debug(f"Retrieving projects with artifact counts for user {user_id}")
-        projects = self.get_user_projects(db, user_id)
+        self.logger.debug(f"Retrieving projects with artifact counts for user {user_email}")
+        projects = self.get_user_projects(db, user_email)
         
         if not self.artifact_service or not projects:
             # If no artifact service or no projects, return projects with 0 counts
@@ -296,7 +452,7 @@ class ProjectService:
             counts_by_session = await get_artifact_counts_batch(
                 artifact_service=self.artifact_service,
                 app_name=self.app_name,
-                user_id=user_id,
+                user_id=user_email,
                 session_ids=session_ids,
             )
             
@@ -335,7 +491,7 @@ class ProjectService:
             raise ValueError("Project not found or access denied")
 
         if not self.artifact_service:
-            self.logger.warning(f"Attempted to get artifacts for project {project_id} but no artifact service is configured.")
+            self.logger.warning("Attempted to get artifacts for project but no artifact service is configured.")
             return []
 
         storage_user_id = project.user_id
@@ -343,13 +499,27 @@ class ProjectService:
 
         self.logger.info(f"Fetching artifacts for project {project.id} with storage session {storage_session_id} and user {storage_user_id}")
 
-        artifacts = await get_artifact_info_list(
+        all_artifacts = await get_artifact_info_list(
             artifact_service=self.artifact_service,
             app_name=self.app_name,
             user_id=storage_user_id,
             session_id=storage_session_id,
         )
-        return artifacts
+
+        # Filter out generated files (converted files and indices)
+        # This filtering is flag-independent - users always see only original files
+        original_artifacts = [
+            artifact for artifact in all_artifacts
+            if self._is_original_artifact(artifact.filename)
+        ]
+
+        self.logger.debug(
+            f"Filtered artifacts for project {project_id}: "
+            f"{len(original_artifacts)} original files "
+            f"(excluded {len(all_artifacts) - len(original_artifacts)} generated files)"
+        )
+
+        return original_artifacts
 
     async def add_artifacts_to_project(
         self,
@@ -357,10 +527,14 @@ class ProjectService:
         project_id: str,
         user_id: str,
         files: List[UploadFile],
-        file_metadata: Optional[dict] = None
+        file_metadata: Optional[dict] = None,
+        indexing_enabled: bool = False
     ) -> List[dict]:
         """
-        Add one or more artifacts to a project.
+        Add one or more artifacts to a project with optional conversion and indexing.
+
+        Args:
+            indexing_enabled: If True, convert PDF/DOCX/PPTX to text and build BM25 index
         
         Args:
             db: The database session
@@ -381,6 +555,10 @@ class ProjectService:
         if not project:
             raise ValueError("Project not found or access denied")
 
+        # Only owners can modify artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to modify artifacts")
+
         if not self.artifact_service:
             self.logger.warning(f"Attempted to add artifacts to project {project_id} but no artifact service is configured.")
             raise ValueError("Artifact service is not configured")
@@ -393,6 +571,23 @@ class ProjectService:
         validated_files = await self._validate_files(files, log_prefix)
         self.logger.info(f"{log_prefix} All {len(files)} files passed size validation")
 
+        new_files_size = sum(len(content) for _, content in validated_files)
+
+        self._validate_batch_upload_size(
+            files_size=new_files_size,
+            log_prefix=log_prefix
+        )
+
+        existing_artifacts = await self.get_project_artifacts(db, project_id, user_id)
+        # Only count user-uploaded artifacts, which have the "source" metadata set to "project"
+        current_project_size = sum(artifact.size for artifact in existing_artifacts if artifact.source == "project")
+
+        self._validate_project_size_limit(
+            current_project_size=current_project_size,
+            new_files_size=new_files_size,
+            log_prefix=log_prefix
+        )
+
         self.logger.info(f"Adding {len(validated_files)} artifacts to project {project_id} for user {user_id}")
         storage_session_id = f"project-{project.id}"
         results = []
@@ -403,7 +598,29 @@ class ProjectService:
                 desc = file_metadata[file.filename]
                 if desc:
                     metadata["description"] = desc
-            
+
+            # Add line-range citations for text-based files
+            # This provides granular location info similar to page numbers for PDFs
+            # Generate citations regardless of indexing_enabled (they're just metadata)
+            if self._is_text_file(file.content_type, file.filename):
+                try:
+                    # Decode text content
+                    text_content = content_bytes.decode('utf-8', errors='ignore')
+
+                    # Generate line-range citations
+                    from .file_converter_service import create_line_range_citations
+                    citation_metadata = create_line_range_citations(text_content)
+
+                    # Add to metadata
+                    metadata["text_citations"] = citation_metadata
+
+                    self.logger.debug(
+                        f"Generated {len(citation_metadata.get('citation_map', []))} line-range citations "
+                        f"for {file.filename}"
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Failed to generate citations for {file.filename}: {e}")
+
             result = await save_artifact_with_metadata(
                 artifact_service=self.artifact_service,
                 app_name=self.app_name,
@@ -416,8 +633,52 @@ class ProjectService:
                 timestamp=datetime.now(timezone.utc),
             )
             results.append(result)
-        
+
         self.logger.info(f"Finished adding {len(validated_files)} artifacts to project {project_id}")
+
+        # Post-processing: conversion and indexing (only if feature enabled)
+        if not indexing_enabled:
+            self.logger.debug("Indexing disabled for this project, skipping post-processing")
+            return results
+
+        self.logger.info(f"Indexing enabled - post-processing {len(validated_files)} files")
+
+        # Classify uploaded files by type
+        needs_conversion = []  # PDF, DOCX, PPTX
+        is_text_based = []     # .txt, .md, .json, .py, etc.
+
+        for idx, (file, content_bytes) in enumerate(validated_files):
+            filename = file.filename
+            mime_type = file.content_type
+            file_version = results[idx]["data_version"]
+
+            if self._should_convert_file(mime_type, filename):
+                needs_conversion.append((filename, file_version, mime_type))
+                self.logger.debug(f"File {filename} v{file_version} marked for conversion")
+            elif self._is_text_file(mime_type, filename):
+                is_text_based.append((filename, file_version))
+                self.logger.debug(f"File {filename} v{file_version} is text-based")
+
+        # Convert binary files to text
+        conversion_happened = False
+        if needs_conversion:
+            try:
+                conversion_results = await self._convert_project_artifacts(
+                    project, needs_conversion, indexing_enabled
+                )
+                conversion_happened = len(conversion_results) > 0
+                self.logger.info(f"Converted {len(conversion_results)}/{len(needs_conversion)} files")
+            except Exception as e:
+                self.logger.error(f"Conversion failed (non-critical): {e}")
+
+        # Rebuild index if text files were added or conversions happened
+        if is_text_based or conversion_happened:
+            try:
+                await self._rebuild_project_index(project, indexing_enabled)
+                self.logger.info("Rebuilt index for project")
+            except Exception as e:
+                self.logger.error(f"Index rebuild failed (non-critical): {e}")
+
         return results
 
     async def update_artifact_metadata(
@@ -430,23 +691,38 @@ class ProjectService:
     ) -> bool:
         """
         Update metadata (description) for a project artifact.
-        
+
+        IMPORTANT: This creates a new version of the file with updated metadata,
+        but does NOT trigger conversion or indexing. This is intentional.
+
+        Example:
+        - Original file: report.pdf v0, v1, v2
+        - Update metadata for report.pdf → creates v3 (metadata only)
+        - Converted file: report.pdf.converted.txt v0 (unchanged - no re-conversion)
+        - Index: stays at current version (no rebuild)
+
+        Versions being out of sync is expected and acceptable for metadata-only updates.
+
         Args:
             db: The database session
             project_id: The project ID
             user_id: The requesting user ID
             filename: The filename of the artifact to update
             description: New description for the artifact
-            
+
         Returns:
             bool: True if update was successful, False if project not found
-            
+
         Raises:
             ValueError: If user cannot modify the project or artifact service is missing
         """
         project = self.get_project(db, project_id, user_id)
         if not project:
             return False
+
+        # Only owners can edit artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to edit artifacts")
 
         if not self.artifact_service:
             self.logger.warning(f"Attempted to update artifact metadata in project {project_id} but no artifact service is configured.")
@@ -494,19 +770,23 @@ class ProjectService:
             self.logger.error(f"Error updating artifact metadata: {e}")
             raise
 
-    async def delete_artifact_from_project(self, db, project_id: str, user_id: str, filename: str) -> bool:
+    async def delete_artifact_from_project(
+        self, db, project_id: str, user_id: str, filename: str,
+        indexing_enabled: bool = False
+    ) -> bool:
         """
-        Deletes an artifact from a project.
-        
+        Deletes an artifact from a project with optional cleanup and index rebuild.
+
         Args:
             db: The database session
             project_id: The project ID
             user_id: The requesting user ID
             filename: The filename of the artifact to delete
-            
+            indexing_enabled: If True, delete converted files and rebuild index
+
         Returns:
             bool: True if deletion was attempted, False if project not found
-            
+
         Raises:
             ValueError: If user cannot modify the project or artifact service is missing
         """
@@ -514,20 +794,75 @@ class ProjectService:
         if not project:
             return False
 
+        # Only owners can delete artifacts (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to delete artifacts")
+
         if not self.artifact_service:
             self.logger.warning(f"Attempted to delete artifact from project {project_id} but no artifact service is configured.")
             raise ValueError("Artifact service is not configured")
 
         storage_session_id = f"project-{project.id}"
-        
+
+        # Determine file type before deletion (only if indexing enabled - optimization)
+        mime_type = ""
+        if indexing_enabled:
+            try:
+                from ....agent.utils.artifact_helpers import load_artifact_content_or_metadata
+                metadata_result = await load_artifact_content_or_metadata(
+                    artifact_service=self.artifact_service,
+                    app_name=self.app_name,
+                    user_id=project.user_id,
+                    session_id=storage_session_id,
+                    filename=filename,
+                    version="latest",
+                    load_metadata_only=True
+                )
+                mime_type = metadata_result.get("metadata", {}).get("mime_type", "")
+            except Exception as e:
+                self.logger.warning(f"Could not load metadata for {filename}: {e}")
+                mime_type = ""
+
         self.logger.info(f"Deleting artifact '{filename}' from project {project_id} for user {user_id}")
-        
+
+        # Delete original file (all versions) - ALWAYS happens
         await self.artifact_service.delete_artifact(
             app_name=self.app_name,
             user_id=project.user_id, # Always use project owner's ID for storage
             session_id=storage_session_id,
             filename=filename,
         )
+        self.logger.info(f"Deleted all versions of {filename}")
+
+        # Post-deletion cleanup and indexing (only if feature enabled)
+        if not indexing_enabled:
+            self.logger.debug(f"Indexing disabled for project {project_id}")
+            return True
+
+        # Delete converted file if this was a convertible binary
+        deleted_converted = False
+        if self._should_convert_file(mime_type, filename):
+            converted_filename = f"{filename}.converted.txt"
+            try:
+                await self.artifact_service.delete_artifact(
+                    app_name=self.app_name,
+                    user_id=project.user_id,
+                    session_id=storage_session_id,
+                    filename=converted_filename,
+                )
+                deleted_converted = True
+                self.logger.info(f"Deleted all versions of converted file: {converted_filename}")
+            except Exception as e:
+                self.logger.debug(f"No converted file to delete: {e}")
+
+        # Rebuild index if text file or converted file was deleted
+        if self._is_text_file(mime_type, filename) or deleted_converted:
+            try:
+                await self._rebuild_project_index(project, indexing_enabled)
+                self.logger.info(f"Rebuilt index after deleting {filename}")
+            except Exception as e:
+                self.logger.error(f"Index rebuild failed (non-critical): {e}")
+
         return True
 
     def update_project(self, db, project_id: str, user_id: str,
@@ -567,9 +902,16 @@ class ProjectService:
             # Nothing to update - get existing project
             return self.get_project(db, project_id, user_id)
 
+        # First check if user can view the project (404 if not)
+        if not self._has_view_access(db, project_id, user_id):
+            return None
+
+        # Only owners can edit projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to edit project")
+
         project_repository = self._get_repositories(db)
-        self.logger.info(f"Updating project {project_id} for user {user_id}")
-        updated_project = project_repository.update(project_id, user_id, update_data)
+        updated_project = project_repository.update(project_id, update_data)
 
         if updated_project:
             self.logger.info(f"Successfully updated project {project_id}")
@@ -588,19 +930,24 @@ class ProjectService:
         Returns:
             bool: True if deleted successfully, False otherwise
         """
-        # First verify the project exists and user has access
-        existing_project = self.get_project(db, project_id, user_id)
-        if not existing_project:
+        # Only owners can delete projects
+        if not self._is_project_owner(db, project_id, user_id):
             return False
 
-        project_repository = self._get_repositories(db)
-        self.logger.info(f"Deleting project {project_id} for user {user_id}")
-        success = project_repository.delete(project_id, user_id)
+        # Delete all shares for this project (cascade)
+        self._resource_sharing_service.delete_resource_shares(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT
+        )
 
-        if success:
+        project_repository = self._get_repositories(db)
+        deleted = project_repository.delete(project_id)
+
+        if deleted:
             self.logger.info(f"Successfully deleted project {project_id}")
 
-        return success
+        return deleted
 
     def soft_delete_project(self, db, project_id: str, user_id: str) -> bool:
         """
@@ -613,27 +960,44 @@ class ProjectService:
             user_id: The requesting user ID
 
         Returns:
-            bool: True if soft deleted successfully, False otherwise
+            bool: True if soft deleted successfully, False if not found
+
+        Raises:
+            ValueError: If user lacks permission to delete
         """
-        # First verify the project exists and user has access
-        existing_project = self.get_project(db, project_id, user_id)
-        if not existing_project:
-            self.logger.warning(f"Attempted to soft delete non-existent project {project_id} by user {user_id}")
+        # First check if user can view the project (404 if not)
+        if not self._has_view_access(db, project_id, user_id):
             return False
+
+        # Only owners can delete projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to delete project")
 
         self.logger.info(f"Soft deleting project {project_id} and its associated sessions for user {user_id}")
 
         project_repository = self._get_repositories(db)
-        # Soft delete the project
-        success = project_repository.soft_delete(project_id, user_id)
+        soft_deleted = project_repository.soft_delete(project_id, user_id)
 
-        if success:
-            from ..repository.session_repository import SessionRepository
-            session_repo = SessionRepository()
-            deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
-            self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+        if not soft_deleted:
+            return False
 
-        return success
+        from ..repository.session_repository import SessionRepository
+        session_repo = SessionRepository()
+
+        owner_deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
+
+        self._resource_sharing_service.delete_resource_shares(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT
+        )
+
+        self.logger.info(
+            f"Successfully soft deleted project {project_id} and {owner_deleted_count} owner sessions "
+            f"(shared users handled by sharing service)"
+        )
+
+        return True
 
     async def export_project_as_zip(
         self, db, project_id: str, user_id: str
@@ -657,6 +1021,10 @@ class ProjectService:
         project = self.get_project(db, project_id, user_id)
         if not project:
             raise ValueError("Project not found or access denied")
+
+        # Only owners can export projects (viewers have read-only access)
+        if not self._is_project_owner(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to export project")
         
         # Get artifacts
         artifacts = await self.get_project_artifacts(db, project_id, user_id)
@@ -723,7 +1091,7 @@ class ProjectService:
                         if artifact_part and artifact_part.inline_data:
                             # Add to ZIP under artifacts/ directory
                             zip_file.writestr(
-                                f'artifacts/{artifact.filename}',
+                                f'{ARTIFACTS_PREFIX}{artifact.filename}',
                                 artifact_part.inline_data.data
                             )
                     except Exception as e:
@@ -736,18 +1104,20 @@ class ProjectService:
 
     async def import_project_from_zip(
         self, db, zip_file: UploadFile, user_id: str,
-        preserve_name: bool = False, custom_name: Optional[str] = None
+        preserve_name: bool = False, custom_name: Optional[str] = None,
+        indexing_enabled: bool = False
     ) -> tuple[Project, int, List[str]]:
         """
-        Import project from ZIP file.
-        
+        Import project from ZIP file with optional conversion and indexing.
+
         Args:
             db: Database session
             zip_file: Uploaded ZIP file
             user_id: The importing user ID
             preserve_name: Whether to preserve original name
             custom_name: Custom name to use (overrides preserve_name)
-            
+            indexing_enabled: If True, convert binaries and build index
+
         Returns:
             tuple: (created_project, artifacts_count, warnings)
             
@@ -765,8 +1135,8 @@ class ProjectService:
         
         # Validate ZIP file size (separate, larger limit than individual artifacts)
         if zip_size > self.max_zip_upload_size_bytes:
-            max_size_mb = self.max_zip_upload_size_bytes / (1024 * 1024)
-            file_size_mb = zip_size / (1024 * 1024)
+            max_size_mb = bytes_to_mb(self.max_zip_upload_size_bytes)
+            file_size_mb = bytes_to_mb(zip_size)
             error_msg = (
                 f"ZIP file '{zip_file.filename}' rejected: size ({file_size_mb:.2f} MB) "
                 f"exceeds maximum allowed ({max_size_mb:.2f} MB)"
@@ -811,7 +1181,36 @@ class ProjectService:
                 # Get default agent ID, but set to None if not provided
                 # The agent may not exist in the target environment
                 imported_agent_id = project_data['project'].get('defaultAgentId')
-                
+
+                # Pre-calculate total artifacts size for limit validation
+                artifact_files = [
+                    name for name in zip_ref.namelist()
+                    if name.startswith(ARTIFACTS_PREFIX) and name != ARTIFACTS_PREFIX
+                ]
+
+                total_artifacts_size = 0
+                oversized_artifacts = []
+
+                for artifact_path in artifact_files:
+                    file_info = zip_ref.getinfo(artifact_path)
+                    uncompressed_size = file_info.file_size
+
+                    # Track oversized files (will be skipped during import)
+                    if uncompressed_size > self.max_per_file_upload_size_bytes:
+                        safe_filename = os.path.basename(artifact_path)
+                        oversized_artifacts.append(
+                            (safe_filename, uncompressed_size)
+                        )
+                        continue
+
+                    total_artifacts_size += uncompressed_size
+
+                self._validate_project_size_limit(
+                    current_project_size=0,
+                    new_files_size=total_artifacts_size,
+                    log_prefix=log_prefix
+                )
+
                 # Create project (agent validation happens in create_project if needed)
                 project = await self.create_project(
                     db=db,
@@ -833,20 +1232,23 @@ class ProjectService:
                 artifacts_imported = 0
                 if self.artifact_service:
                     storage_session_id = f"project-{project.id}"
-                    artifact_files = [
-                        name for name in zip_ref.namelist()
-                        if name.startswith('artifacts/') and name != 'artifacts/'
-                    ]
                     
                     for artifact_path in artifact_files:
                         try:
-                            filename = artifact_path.replace('artifacts/', '')
+                            filename = os.path.basename(artifact_path)
+
+                            # Validate filename is safe
+                            if not filename or filename in ('.', '..'):
+                                self.logger.warning(f"{log_prefix} Skipping invalid filename in ZIP: {artifact_path}")
+                                warnings.append(f"Skipped invalid filename: {artifact_path}")
+                                continue
+
                             content_bytes = zip_ref.read(artifact_path)
                             
                             # Skip oversized artifacts with a warning (don't fail the entire import)
-                            if len(content_bytes) > self.max_upload_size_bytes:
-                                max_size_mb = self.max_upload_size_bytes / (1024 * 1024)
-                                file_size_mb = len(content_bytes) / (1024 * 1024)
+                            if len(content_bytes) > self.max_per_file_upload_size_bytes:
+                                max_size_mb = bytes_to_mb(self.max_per_file_upload_size_bytes)
+                                file_size_mb = bytes_to_mb(len(content_bytes))
                                 skip_msg = (
                                     f"Skipped '{filename}': size ({file_size_mb:.2f} MB) "
                                     f"exceeds maximum allowed ({max_size_mb:.2f} MB)"
@@ -884,7 +1286,56 @@ class ProjectService:
                                 f"Failed to import artifact {artifact_path}: {e}"
                             )
                             warnings.append(f"Failed to import artifact: {filename}")
-                
+
+                # Post-processing: conversion and indexing (only if feature enabled)
+                if not indexing_enabled:
+                    self.logger.debug("Indexing disabled for import, skipping post-processing")
+                else:
+                    self.logger.info(f"Indexing enabled - post-processing imported files")
+
+                    # Classify imported files by type
+                    needs_conversion = []  # PDF, DOCX, PPTX
+                    is_text_based = []     # .txt, .md, .json, .py, etc.
+
+                    for artifact_path in artifact_files:
+                        try:
+                            filename = artifact_path.replace('artifacts/', '')
+                            artifact_meta = next(
+                                (a for a in project_data.get('artifacts', [])
+                                 if a['filename'] == filename),
+                                None
+                            )
+                            mime_type = artifact_meta.get('mimeType', '') if artifact_meta else ''
+
+                            if self._should_convert_file(mime_type, filename):
+                                needs_conversion.append((filename, 0, mime_type))  # v0 on import
+                                self.logger.debug(f"File {filename} marked for conversion")
+                            elif self._is_text_file(mime_type, filename):
+                                is_text_based.append((filename, 0))
+                                self.logger.debug(f"File {filename} is text-based")
+                        except Exception as e:
+                            self.logger.warning(f"Error classifying {filename}: {e}")
+
+                    # Convert binary files
+                    conversion_happened = False
+                    if needs_conversion:
+                        try:
+                            conversion_results = await self._convert_project_artifacts(
+                                project, needs_conversion, indexing_enabled
+                            )
+                            conversion_happened = len(conversion_results) > 0
+                            self.logger.info(f"Converted {len(conversion_results)}/{len(needs_conversion)} files")
+                        except Exception as e:
+                            self.logger.error(f"Conversion failed (non-critical): {e}")
+
+                    # Build index if text files or conversions happened
+                    if is_text_based or conversion_happened:
+                        try:
+                            await self._rebuild_project_index(project, indexing_enabled)
+                            self.logger.info(f"Built index for imported project {project.id}")
+                        except Exception as e:
+                            self.logger.error(f"Index build failed (non-critical): {e}")
+
                 self.logger.info(
                     f"Successfully imported project {project.id} with {artifacts_imported} artifacts"
                 )
@@ -913,7 +1364,8 @@ class ProjectService:
             str: A unique project name
         """
         project_repository = self._get_repositories(db)
-        existing_projects = project_repository.get_user_projects(user_id)
+        # Get only owned projects for name conflict checking
+        existing_projects = project_repository.get_accessible_projects(user_id, shared_project_ids=[])
         existing_names = {p.name.lower() for p in existing_projects}
         
         if desired_name.lower() not in existing_names:
@@ -928,3 +1380,216 @@ class ProjectService:
             counter += 1
             if counter > 100:  # Safety limit
                 raise ValueError("Unable to resolve name conflict")
+
+    def _is_project_owner(self, db, project_id: str, user_id: str) -> bool:
+        """
+        Check if user is the owner of the project.
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID (email)
+
+        Returns:
+            bool: True if user is the project owner, False otherwise
+        """
+        from ..repository.models import ProjectModel
+
+        project = db.query(ProjectModel).filter_by(
+            id=project_id, user_id=user_id, deleted_at=None
+        ).first()
+        return project is not None
+
+    def _has_view_access(self, db, project_id: str, user_id: str) -> bool:
+        """
+        Check if user can view the project.
+
+        Returns True if user is owner OR has any shared access level (viewer).
+        Since we only support "viewer" access level for sharing:
+        - Owner = full access (edit, delete, share, export, artifacts)
+        - Shared viewer = view only
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID (email)
+
+        Returns:
+            bool: True if user can view the project, False otherwise
+        """
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+
+        # Check for shared access (viewer level)
+        access_level = self._resource_sharing_service.check_user_access(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT,
+            user_email=user_id
+        )
+        return access_level is not None
+
+
+    # ==========================================
+    # BM25 Indexing Feature - Helper Methods
+    # ==========================================
+
+    def _should_convert_file(self, mime_type: str, filename: str) -> bool:
+        """
+        Check if file is PDF/DOCX/PPTX that needs conversion.
+
+        Args:
+            mime_type: The MIME type of the file
+            filename: The filename
+
+        Returns:
+            bool: True if file should be converted
+        """
+        if not mime_type:
+            return False
+
+        convertible_types = [
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # DOCX
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"  # PPTX
+        ]
+
+        return mime_type in convertible_types
+
+    def _is_text_file(self, mime_type: str, filename: str) -> bool:
+        """
+        Check if file is text-based (affects index).
+
+        Uses existing SAM helper for comprehensive text file detection.
+        Covers all text-based MIME types.
+
+        Args:
+            mime_type: The MIME type of the file
+            filename: The filename
+
+        Returns:
+            bool: True if file is text-based
+        """
+        from ....common.utils.mime_helpers import is_text_based_file
+        return is_text_based_file(mime_type, content_bytes=None)
+
+    def _is_original_artifact(self, filename: str) -> bool:
+        """Determine if artifact is an original user file (not generated)."""
+        return not is_internal_artifact(filename)
+
+    async def _convert_project_artifacts(
+        self,
+        project: Project,
+        files_to_convert: List[Tuple[str, int, str]],
+        indexing_enabled: bool
+    ) -> List[dict]:
+        """
+        Convert list of binary artifacts to text.
+
+        Args:
+            project: The project
+            files_to_convert: List of (filename, version, mime_type)
+            indexing_enabled: Safety parameter (should always be True when called)
+
+        Returns:
+            List of conversion results (one per successful conversion)
+        """
+        # Safety check (defense in depth)
+        if not indexing_enabled:
+            self.logger.warning("_convert_project_artifacts called with indexing disabled")
+            return []
+
+        from .file_converter_service import convert_and_save_artifact
+
+        results = []
+        storage_session_id = f"project-{project.id}"
+
+        for filename, version, mime_type in files_to_convert:
+            try:
+                result = await convert_and_save_artifact(
+                    artifact_service=self.artifact_service,
+                    app_name=self.app_name,
+                    user_id=project.user_id,
+                    session_id=storage_session_id,
+                    source_filename=filename,
+                    source_version=version,
+                    mime_type=mime_type
+                )
+                if result:
+                    results.append(result)
+                    self.logger.info(
+                        f"Converted {filename} v{version} → "
+                        f"{filename}.converted.txt v{result.get('data_version')}"
+                    )
+            except Exception as e:
+                self.logger.error(f"Failed to convert {filename} v{version}: {e}")
+                # Continue with other conversions
+
+        return results
+
+    async def _rebuild_project_index(
+        self,
+        project: Project,
+        indexing_enabled: bool
+    ) -> Optional[dict]:
+        """
+        Rebuild BM25 search index for project.
+        Creates new version of project_bm25_index.zip.
+
+        Args:
+            project: The project
+            indexing_enabled: Safety parameter (should always be True when called)
+
+        Returns:
+            Index save result with version info, or None if skipped
+        """
+        # Safety check (defense in depth)
+        if not indexing_enabled:
+            self.logger.warning("_rebuild_project_index called with indexing disabled")
+            return None
+
+        from .bm25_indexer_service import (
+            collect_project_text_files_stream,
+            build_bm25_index,
+            save_project_index
+        )
+
+        try:
+            # Stream text files (memory-efficient batch processing)
+            text_files_stream = collect_project_text_files_stream(
+                artifact_service=self.artifact_service,
+                app_name=self.app_name,
+                user_id=project.user_id,
+                project_id=project.id
+            )
+
+            # Build index with streaming (processes files in batches)
+            index_zip_bytes, manifest = await build_bm25_index(text_files_stream, project.id)
+
+            # Check if any files were indexed
+            if manifest.get("file_count", 0) == 0:
+                self.logger.info(f"No text files to index for project {project.id}")
+                return None
+
+            # Save index
+            result = await save_project_index(
+                artifact_service=self.artifact_service,
+                app_name=self.app_name,
+                user_id=project.user_id,
+                project_id=project.id,
+                index_zip_bytes=index_zip_bytes,
+                manifest=manifest
+            )
+
+            return result
+
+        except ValueError as e:
+            # Handle case where no documents/chunks were created
+            if "No chunks created" in str(e):
+                self.logger.info(f"No text files to index for project {project.id}")
+                return None
+            self.logger.error(f"Index rebuild failed for project {project.id}: {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Index rebuild failed for project {project.id}: {e}")
+            return None

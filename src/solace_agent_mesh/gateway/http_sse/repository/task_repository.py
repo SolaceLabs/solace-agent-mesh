@@ -2,7 +2,11 @@
 Task repository implementation using SQLAlchemy.
 """
 
+import logging
+
 from sqlalchemy.orm import Session as DBSession
+
+log = logging.getLogger(__name__)
 
 from solace_agent_mesh.shared.api.pagination import PaginationParams
 from solace_agent_mesh.shared.utils.types import UserId
@@ -29,6 +33,10 @@ class TaskRepository(ITaskRepository):
             model.last_activity_time = task.last_activity_time
             model.background_execution_enabled = task.background_execution_enabled
             model.max_execution_time_ms = task.max_execution_time_ms
+            # SSE event buffer state
+            model.session_id = task.session_id
+            model.events_buffered = task.events_buffered
+            model.events_consumed = task.events_consumed
         else:
             model = TaskModel(
                 id=task.id,
@@ -46,6 +54,10 @@ class TaskRepository(ITaskRepository):
                 last_activity_time=task.last_activity_time,
                 background_execution_enabled=task.background_execution_enabled,
                 max_execution_time_ms=task.max_execution_time_ms,
+                # SSE event buffer state
+                session_id=task.session_id,
+                events_buffered=task.events_buffered,
+                events_consumed=task.events_consumed,
             )
             session.add(model)
 
@@ -66,8 +78,9 @@ class TaskRepository(ITaskRepository):
         )
         session.add(model)
         session.flush()
-        session.refresh(model)
-        return self._event_model_to_entity(model)
+        # Note: We don't refresh here since we already have all the data,
+        # and refresh can fail in certain edge cases (e.g., foreign key constraints)
+        return event
 
     def find_by_id(self, session: DBSession, task_id: str) -> Task | None:
         """Find a task by its ID."""
@@ -209,6 +222,117 @@ class TaskRepository(ITaskRepository):
                     to_process.append(child.id)
 
         return list(all_task_ids)
+
+    # Maximum recursion depth for child task traversal to prevent infinite loops
+    MAX_CHILD_TASK_DEPTH = 50
+
+    def find_active_children(
+        self, session: DBSession, parent_task_id: str, _depth: int = 0
+    ) -> list[tuple[str, str | None]]:
+        """
+        Find all active (running/pending) child tasks of a given parent task.
+        Returns a list of tuples: (task_id, target_agent_name).
+        
+        Uses the indexed parent_task_id column for efficient lookup.
+        The target_agent_name is extracted from the first request event's metadata.
+        
+        Args:
+            session: Database session
+            parent_task_id: The parent task ID to find children for
+            _depth: Internal recursion depth counter (do not set manually)
+            
+        Returns:
+            List of (task_id, target_agent_name) tuples for active child tasks
+        """
+        from sqlalchemy import or_
+        
+        # Prevent infinite recursion with a sanity check on depth
+        if _depth >= self.MAX_CHILD_TASK_DEPTH:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Max recursion depth ({self.MAX_CHILD_TASK_DEPTH}) reached while "
+                f"finding child tasks for parent {parent_task_id}. "
+                "This may indicate a circular parent-child relationship."
+            )
+            return []
+        
+        # Find all direct children that are still running
+        # Use OR to properly handle NULL status (SQL NULL doesn't work with IN clause)
+        child_models = (
+            session.query(TaskModel)
+            .filter(
+                TaskModel.parent_task_id == parent_task_id,
+                or_(
+                    TaskModel.status.is_(None),
+                    TaskModel.status.in_(["running", "pending"]),
+                ),
+            )
+            .all()
+        )
+        
+        results = []
+        for child in child_models:
+            # Extract target agent from the first request event
+            target_agent = self._extract_target_agent_from_events(session, child.id)
+            results.append((child.id, target_agent))
+            
+            # Recursively find children of this child
+            results.extend(self.find_active_children(session, child.id, _depth + 1))
+        
+        return results
+    
+    def _extract_target_agent_from_events(self, session: DBSession, task_id: str) -> str | None:
+        """
+        Extract the target agent name from a task's request event.
+        
+        Args:
+            session: Database session
+            task_id: The task ID to extract agent from
+            
+        Returns:
+            The target agent name, or None if not found
+        """
+        # Find the first request event for this task
+        event = (
+            session.query(TaskEventModel)
+            .filter(
+                TaskEventModel.task_id == task_id,
+                TaskEventModel.direction == "request",
+            )
+            .order_by(TaskEventModel.created_time.asc())
+            .first()
+        )
+        
+        if not event or not event.payload:
+            return None
+        
+        try:
+            # Navigate the expected A2A request structure
+            # Structure: payload["params"]["message"]["metadata"]["agent_name" | "workflow_name"]
+            metadata = (
+                event.payload
+                .get("params", {})
+                .get("message", {})
+                .get("metadata", {})
+            )
+
+            # Prefer workflow_name for workflow invocations
+            return metadata.get("workflow_name") or metadata.get("agent_name")
+
+        except AttributeError as e:
+            # Payload structure doesn't match expected dict structure
+            log.debug(
+                f"Failed to extract agent from task {task_id}: "
+                f"unexpected payload structure - {e}"
+            )
+            return None
+        except Exception as e:
+            # Unexpected error - log at warning level
+            log.warning(
+                f"Unexpected error extracting agent from task {task_id}: {e}",
+                exc_info=True
+            )
+            return None
 
     def find_background_tasks_by_status(
         self, session: DBSession, status: str | None = None
