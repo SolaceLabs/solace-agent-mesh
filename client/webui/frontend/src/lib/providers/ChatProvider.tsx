@@ -1216,7 +1216,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 metadata: {
                                                     favicon: source.favicon || `https://www.google.com/s2/favicons?domain=${source.url}&sz=32`,
                                                     type: "web_search",
-                                                    sourceType: source.source_type || "web",
+                                                    source_type: source.source_type || "web",
                                                 },
                                             }));
 

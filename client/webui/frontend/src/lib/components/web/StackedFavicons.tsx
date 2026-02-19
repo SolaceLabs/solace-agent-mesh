@@ -19,8 +19,8 @@ interface StackedFaviconsProps {
  * Source icon component - handles web favicons, enterprise sources, and document file type icons
  */
 function SourceIcon({ source, className = "", size = 16 }: { source: SearchSource; className?: string; size?: number }) {
-    // Check if this is a document source (has filename but no link, or sourceType is 'document')
-    const isDocument = source.sourceType === "document" || (source.filename && !source.link);
+    // Check if this is a document source (has filename but no link, or source_type is 'document')
+    const isDocument = source.source_type === "document" || (source.filename && !source.link);
 
     if (isDocument && source.filename) {
         // Show file type icon for documents - reuses getFileTypeIcon from FileIcon component
