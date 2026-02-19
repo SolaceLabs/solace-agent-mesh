@@ -16,7 +16,7 @@ const meta = {
     },
     decorators: [
         Story => (
-            <div style={{ height: "100vh", width: "400px" }}>
+            <div style={{ height: "100vh", width: "400px", marginLeft: "auto" }}>
                 <Story />
             </div>
         ),
@@ -42,8 +42,26 @@ export const Default: Story = {
         expect(await canvas.findByText("Workflow Details")).toBeInTheDocument();
         expect(await canvas.findByText("Version")).toBeInTheDocument();
         expect(await canvas.findByText("Nodes")).toBeInTheDocument();
-        expect(await canvas.findByText("Input Schema")).toBeInTheDocument();
-        expect(await canvas.findByText("Output Schema")).toBeInTheDocument();
+        expect(await canvas.findByRole("tab", { name: "Input" })).toBeInTheDocument();
+        expect(await canvas.findByRole("tab", { name: "Output" })).toBeInTheDocument();
+    },
+};
+
+export const Output: Story = {
+    args: {
+        workflow: completeOrderWorkflow,
+        config: completeOrderWorkflowConfig,
+        onClose: () => alert("Close clicked"),
+        showOpenButton: false, // Hide Open Workflow button in Storybook to prevent navigation
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify panel renders with workflow data
+        expect(await canvas.findByRole("complementary", { name: "Workflow details panel" })).toBeInTheDocument();
+        expect(await canvas.findByText("Complete Order Workflow")).toBeInTheDocument();
+
+        (await canvas.findByRole("tab", { name: "Output" })).click();
         expect(await canvas.findByText("Output Mapping")).toBeInTheDocument();
     },
 };
