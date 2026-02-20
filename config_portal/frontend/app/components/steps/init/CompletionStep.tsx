@@ -108,7 +108,7 @@ export default function CompletionStep({
       case "solace":
         return "Existing Solace Pub/Sub+ broker";
       case "container":
-        return "New local Solace PubSub+ broker container (podman/docker)";
+        return "New local Solace broker container (podman/docker)";
       case "dev_mode":
         return "Run in 'dev mode' - all in one process (not recommended for production)";
       default:

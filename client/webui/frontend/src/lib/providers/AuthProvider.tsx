@@ -17,6 +17,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [userInfo, setUserInfo] = useState<Record<string, unknown> | null>(null);
 
     useEffect(() => {
+        // Clean up any stale logout flags from previous sessions
+        sessionStorage.removeItem("logout_in_progress");
         let isMounted = true;
 
         const checkAuthStatus = async () => {
@@ -54,7 +56,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         checkAuthStatus();
 
         const handleStorageChange = (event: StorageEvent) => {
-            if (event.key === "access_token") {
+            if (event.key === "access_token" || event.key === "sam_access_token") {
                 checkAuthStatus();
             }
         };
@@ -74,20 +76,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const logout = async () => {
         try {
             if (configUseAuthorization) {
+                // Set flag to prevent automatic token refresh during logout
+                sessionStorage.setItem("logout_in_progress", "true");
+
+                // Call logout while we have an access token
                 await api.webui.post("/api/v1/auth/logout");
-                setIsAuthenticated(false);
-                setUserInfo(null);
-                clearCsrfToken();
-
-                // Clear tokens from localStorage - set in authCallback.tsx
-                localStorage.removeItem("access_token");
-                localStorage.removeItem("refresh_token");
-
-                // Force redirect to login - prevents token refresh
-                window.location.href = configAuthLoginUrl;
             }
         } catch (error) {
-            console.error("Error calling logout endpoint:", error);
+            console.warn("Error during logout:", error);
+        } finally {
+            // Clear tokens from localStorage
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("sam_access_token");
+            localStorage.removeItem("refresh_token");
+
+            // Clear local state
+            setIsAuthenticated(false);
+            setUserInfo(null);
+            clearCsrfToken();
+
+            // Clean up logout flag
+            sessionStorage.removeItem("logout_in_progress");
+
+            // Redirect to home page
+            window.location.href = "/";
         }
     };
 

@@ -18,42 +18,45 @@ import base64
 import hashlib
 import json
 import logging
-from typing import Any
-from typing import AsyncGenerator
-from typing import cast
-from typing import Dict
-from typing import Generator
-from typing import Iterable
-from typing import List
-from typing import Literal
-from typing import Optional
-from typing import Tuple
-from typing import Union
-
-from google.genai import types
-from litellm import acompletion
-from litellm import ChatCompletionAssistantMessage
-from litellm import ChatCompletionAssistantToolCall
-from litellm import ChatCompletionDeveloperMessage
-from litellm import ChatCompletionImageUrlObject
-from litellm import ChatCompletionMessageToolCall
-from litellm import ChatCompletionTextObject
-from litellm import ChatCompletionToolMessage
-from litellm import ChatCompletionUserMessage
-from litellm import ChatCompletionVideoUrlObject
-from litellm import completion
-from litellm import CustomStreamWrapper
-from litellm import Function
-from litellm import Message
-from litellm import ModelResponse
-from litellm import OpenAIMessageContent
-from pydantic import BaseModel
-from pydantic import Field
-from typing_extensions import override
+from typing import (
+    Any,
+    AsyncGenerator,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
+from google.genai import types
+from litellm import (
+    ChatCompletionAssistantMessage,
+    ChatCompletionAssistantToolCall,
+    ChatCompletionDeveloperMessage,
+    ChatCompletionImageUrlObject,
+    ChatCompletionMessageToolCall,
+    ChatCompletionTextObject,
+    ChatCompletionToolMessage,
+    ChatCompletionUserMessage,
+    ChatCompletionVideoUrlObject,
+    CustomStreamWrapper,
+    Function,
+    Message,
+    ModelResponse,
+    OpenAIMessageContent,
+    acompletion,
+    completion,
+)
+from pydantic import BaseModel, Field
+from typing_extensions import override
+
 from .oauth2_token_manager import OAuth2ClientCredentialsTokenManager
 
 logger = logging.getLogger("google_adk." + __name__)
@@ -147,33 +150,33 @@ def _safe_json_serialize(obj) -> str:
 
 def _truncate_tool_call_id(tool_call_id: str, max_length: int = 40) -> str:
     """Truncates tool call ID to meet OpenAI's maximum length requirement.
-    
+
     OpenAI requires tool_call_id to be at most 40 characters. If the ID exceeds
     this limit, we create a deterministic hash-based truncation to ensure:
     1. The ID stays within the limit
     2. The same input always produces the same output (deterministic)
     3. Collisions are extremely unlikely
-    
+
     Args:
         tool_call_id: The original tool call ID
         max_length: Maximum allowed length (default: 40 for OpenAI)
-    
+
     Returns:
         Truncated tool call ID that meets the length requirement
     """
     if len(tool_call_id) <= max_length:
         return tool_call_id
-    
+
     # Use first part of ID + hash of full ID to maintain uniqueness
     # Format: prefix_hash where prefix is from original and hash ensures uniqueness
     prefix_length = max_length - 33  # Reserve 33 chars for hash (32) + underscore (1)
     if prefix_length < 1:
         prefix_length = 1
-    
+
     prefix = tool_call_id[:prefix_length]
     # Use SHA256 and take first 32 hex characters for uniqueness
     hash_suffix = hashlib.sha256(tool_call_id.encode()).hexdigest()[:32]
-    
+
     return f"{prefix}_{hash_suffix}"
 
 
@@ -317,6 +320,32 @@ TYPE_LABELS = {
 }
 
 
+def _normalize_schema_dict(schema_dict: dict) -> dict:
+    """Normalizes a schema dictionary to handle MCP server quirks like integer enums.
+
+    Args:
+        schema_dict: The schema dictionary to normalize.
+
+    Returns:
+        The normalized schema dictionary.
+    """
+    # Convert enum values to strings if present
+    if "enum" in schema_dict and isinstance(schema_dict["enum"], list):
+        schema_dict["enum"] = [str(v) for v in schema_dict["enum"]]
+
+    # Recursively normalize nested items
+    if "items" in schema_dict and isinstance(schema_dict["items"], dict):
+        schema_dict["items"] = _normalize_schema_dict(schema_dict["items"])
+
+    # Recursively normalize nested properties
+    if "properties" in schema_dict and isinstance(schema_dict["properties"], dict):
+        for key, value in schema_dict["properties"].items():
+            if isinstance(value, dict):
+                schema_dict["properties"][key] = _normalize_schema_dict(value)
+
+    return schema_dict
+
+
 def _schema_to_dict(schema: types.Schema) -> dict:
     """Recursively converts a types.Schema to a dictionary.
 
@@ -345,7 +374,7 @@ def _schema_to_dict(schema: types.Schema) -> dict:
         elif isinstance(schema_dict["items"], dict):
             # If items is already a dict, validate and recurse
             schema_dict["items"] = _schema_to_dict(
-                types.Schema.model_validate(schema_dict["items"])
+                types.Schema.model_validate(_normalize_schema_dict(schema_dict["items"]))
             )
 
     # Recursively handle properties (for object types)
@@ -358,7 +387,7 @@ def _schema_to_dict(schema: types.Schema) -> dict:
             elif isinstance(value, dict):
                 # If it's already a dict, validate and recurse to handle nested Type enums
                 properties[key] = _schema_to_dict(
-                    types.Schema.model_validate(value)
+                    types.Schema.model_validate(_normalize_schema_dict(value))
                 )
             else:
                 # For other types, just copy as-is
@@ -881,6 +910,10 @@ class LiteLlm(BaseLlm):
         if not tools and completion_args.get("parallel_tool_calls", False):
             # Setting parallel_tool_calls without any tools causes an error from Anthropic.
             completion_args.pop("parallel_tool_calls")
+
+        # Remove stream_options when not streaming (Azure doesn't support it)
+        if not stream:
+            completion_args.pop("stream_options", None)
 
         if stream:
             text = ""

@@ -92,3 +92,4 @@ Instructs the system to transmit a specific artifact version to the caller.
 - **Metadata-Driven Context**: The automatic injection and summarization of metadata are fundamental to providing agents with situational awareness.
 - **Signaled Return**: Artifacts are transmitted to the user only upon an explicit request from the agent via the `signal_artifact_for_return` tool.
 - **Synergy with Embeds**: These tools can be used in conjunction with [Dynamic Embeds](embeds.md), such as `«artifact_meta:report.csv»`, for more efficient file handling.
+- **Custom Tool Integration**: When building custom Python tools that need to process artifacts, you can use the `Artifact` type hint to have artifact content automatically loaded before your tool executes. For more information, see [Working with Artifacts in Tools](../../developing/creating-python-tools.md#working-with-artifacts-in-tools).

@@ -752,14 +752,14 @@ class TestUserConfig:
     @pytest.mark.asyncio
     async def test_get_user_config(self, mock_request, mock_component):
         """Test getting user config asynchronously."""
-        user_id = "test-user"
+        user = {"id": "test-user"}
         config_resolver = Mock()
         config_resolver.resolve_user_config = AsyncMock(return_value={"user": "config"})
         app_config = {"app": "config"}
 
         result = await get_user_config(
             mock_request,
-            user_id,
+            user,
             config_resolver,
             mock_component,
             app_config,
@@ -894,13 +894,17 @@ class TestSessionValidator:
         assert result is True
 
     def test_session_validator_without_db_invalid_format(self, mock_component):
-        """Test basic session validation for invalid format."""
+        """Test basic session validation for empty/missing values.
+
+        Note: Without a database, the validator accepts any non-empty session ID
+        to support both web-session- prefix (from browser) and plain UUIDs (from CLI).
+        """
         dependencies.SessionLocal = None
 
         validator = get_session_validator(mock_component)
 
-        # Test invalid session ID format
-        assert validator("invalid-session", "user-456") is False
+        # Any non-empty session ID with a user is valid (supports CLI with plain UUIDs)
+        assert validator("any-session-format", "user-456") is True
         # Test empty session ID
         assert validator("", "user-456") is False
         # Test None session ID

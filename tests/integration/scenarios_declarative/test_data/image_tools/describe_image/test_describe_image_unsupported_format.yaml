@@ -4,6 +4,12 @@ description: "Tests the tool's rejection of unsupported image file extensions."
 tags: ["all", "agent", "tools", "image_tools"]
 skip_intermediate_events: true
 
+# Create the artifact so it can be pre-loaded, then the format check happens
+setup_artifacts:
+  - filename: "document.tiff"
+    mime_type: "image/tiff"
+    content_base64: "SUkqAAgAAAAIAAABAwABAAAAEAAAAAABAwABAAAAEAAAABIBAwABAAA="  # Minimal TIFF header
+
 gateway_input:
   user_prompt: "Can you tell me what is in document.tiff?"
   user_identity: "test_user@example.com"
@@ -21,7 +27,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_image"
-                  arguments: '{"image_filename": "document.tiff"}'
+                  arguments: '{"input_image": "document.tiff"}'
     expected_request:
       tools_present: ["describe_image"]
 

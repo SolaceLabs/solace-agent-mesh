@@ -7,17 +7,48 @@ sidebar_position: 10
 
 Agent Mesh offers flexible deployment options designed to meet different operational requirements. Understanding these options helps you choose the right approach for your specific environment and scale needs.
 
+Agent and workflow deployments follow identical processes in Solace Agent Mesh. Both agents and workflows are configured using YAML files and deployed using the same commands and infrastructure. From a deployment perspective, workflows are treated as specialized agents that orchestrate other agents through defined steps.
+:::note
+Workflows cannot run independently. They must be triggered by an LLM agent, such as the Orchestrator. Therefore, at least one LLM agent must be deployed alongside the workflows. This requirement may change in the future.
+:::
+
 ## Development Environment
 
 During development, simplicity and rapid iteration are key priorities. The Agent Mesh CLI provides a streamlined way to run your entire project as a single application, making it easy to test changes and debug issues locally.
 
 The development setup automatically loads environment variables from your configuration file (typically a `.env` file at the project root), eliminating the need for complex environment management:
 
+**Run your entire project:**
+
 ```bash
 sam run
 ```
 
 This command starts all configured components together, providing immediate feedback and allowing you to see how different agents interact within your mesh.
+
+**Run a specific agent or workflow:**
+
+```bash
+sam run <agent or workflow config file path>
+```
+
+**Run multiple components together:**
+
+```bash
+sam run <agent config file path> <workflow config file path>
+```
+
+This flexibility allows you to test individual components in isolation or verify how agents and workflows interact within your agent mesh. Workflows often invoke multiple standalone agents, which must be loaded via the `run` command. For example, if workflow W1 requires agents A1 and A2, the following command runs them all together.
+
+```bash
+sam run <agent A1 config file path> <agent A2 config file path> <workflow W1 config file path>
+```
+
+If workflow W1 depends on workflow W2, you can invoke them together by running the following command:
+
+```bash
+sam run <agent A1 config file path> <agent A2 config file path> <workflow W2 config file path> <workflow W1 config file path>
+```
 
 ## Production Environment
 
@@ -48,9 +79,18 @@ COPY . /app
 
 CMD ["run", "--system-env"]
 
-# To run one specific component, use:
+# To run one specific agent use:
 # CMD ["run", "--system-env", "configs/agents/main_orchestrator.yaml"]
 
+# To run one specific workflow, use:
+# CMD ["run", "--system-env", "YOUR-WORKFLOW.yaml"]
+
+```
+
+You can deploy your workflow’s dependencies (agents and other workflows) in the same container, as shown below, or in separate containers.
+
+```
+CMD ["run", "--system-env", "YOUR-AGENT.yaml", "YOUR-WORKFLOW.yaml"]
 ```
 
 To optimize build performance and security, create a `.dockerignore` file that excludes unnecessary files from the Docker build context:
@@ -92,10 +132,14 @@ For example, you might run your main orchestrator in one deployment while scalin
 When deploying multiple containers, shared storage becomes critical for maintaining consistency across your Agent Mesh deployment. All container instances must access the same storage location with identical configurations to ensure proper operation.
 
 :::warning Shared Storage Requirement
-If using multiple containers, ensure all instances access the same storage with identical configurations. Inconsistent storage configurations can lead to data synchronization issues and unpredictable behavior.
+If you are using multiple containers, ensure all instances access the same storage with identical configurations. Inconsistent storage configurations can lead to data synchronization issues and unpredictable behavior.
 :::
 
 Consider using persistent volumes in Kubernetes or shared file systems in Docker deployments to meet this requirement.
+
+:::note 
+Workflow deployment requires special attention, especially when workflows call agents running in separate containers. Agents must be discoverable and accessible for the workflow to function correctly.
+:::
 
 ### Implementing Security Best Practices
 

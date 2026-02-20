@@ -1,7 +1,7 @@
 import { PromptsPage } from "@/lib";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
-import { defaultPromptGroups, languagePromptGroup } from "./data";
+import { defaultPromptGroups, languagePromptGroup } from "../data/prompts";
 import { expect, userEvent, within } from "storybook/test";
 
 const handlers = [

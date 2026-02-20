@@ -23,6 +23,7 @@ class TestGatewaySubmitA2ATaskRBAC:
         component.log_identifier = "[TestGateway]"
         component.gateway_id = "test-gateway"
         component.namespace = "/test/namespace"
+        component.component_config = {"app_config": {}}
         component.get_config = Mock(side_effect=lambda key, default="": {
             "system_purpose": "",
             "response_format": "",

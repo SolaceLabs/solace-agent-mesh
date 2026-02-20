@@ -4,8 +4,10 @@ export interface ValidationLimits {
     projectNameMax?: number;
     projectDescriptionMax?: number;
     projectInstructionsMax?: number;
-    maxUploadSizeBytes?: number;
+    maxPerFileUploadSizeBytes?: number;
+    maxBatchUploadSizeBytes?: number;
     maxZipUploadSizeBytes?: number;
+    maxProjectSizeBytes?: number;
 }
 
 export interface ConfigContextValue {
@@ -58,6 +60,19 @@ export interface ConfigContextValue {
      * When false, platform-dependent features (agent builder, connectors, etc.) are unavailable.
      */
     platformConfigured: boolean;
+
+    /**
+     * Whether automatic title generation is enabled for new chat sessions.
+     * When true, the first message exchange will trigger AI-powered title generation.
+     * Requires persistence to be enabled.
+     */
+    autoTitleGenerationEnabled?: boolean;
+
+    /**
+     * Whether Identity Service is configured.
+     * When null, Identity Service is not configured.
+     */
+    identityServiceType: string | null;
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);

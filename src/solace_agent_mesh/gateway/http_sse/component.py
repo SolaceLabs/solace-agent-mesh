@@ -47,6 +47,7 @@ from a2a.types import (
     JSONRPCResponse,
     Task,
     TaskArtifactUpdateEvent,
+    TaskState,
     TaskStatusUpdateEvent,
 )
 
@@ -234,9 +235,21 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         self._visualization_internal_app: SACApp | None = None
         self._visualization_broker_input: BrokerInput | None = None
-        self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
-        self._task_logger_queue: queue.Queue = queue.Queue(maxsize=200)
+
+        viz_queue_size = self.get_config("visualization_queue_size", 600)
+        task_logger_queue_size = self.get_config("task_logger_queue_size", 600)
+
+        self._visualization_message_queue = asyncio.Queue(maxsize=viz_queue_size)
+        self._task_logger_queue = asyncio.Queue(maxsize=task_logger_queue_size)
         self._active_visualization_streams: dict[str, dict[str, Any]] = {}
+
+        log.info(
+            "%s Queues initialized - Visualization: %d, TaskLogger: %d (asyncio.Queue)",
+            self.log_identifier,
+            viz_queue_size,
+            task_logger_queue_size
+        )
+
         self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
@@ -308,6 +321,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        # Initialize system (including any installed plugins/enterprise features)
+        # This must happen before migrations so plugins can register migration hooks
+        from ...common.utils.initializer import initialize
+        initialize()
+        log.info("%s System initialization completed", self.log_identifier)
+
+        # Run database migrations (any registered hooks will execute automatically)
         if self.database_url:
             log.info("%s Running database migrations...", self.log_identifier)
             self._run_database_migrations()
@@ -691,6 +711,22 @@ class WebUIBackendComponent(BaseGatewayComponent):
         )
         return default_config
 
+    def get_db_engine(self):
+        """
+        Get the SQLAlchemy database engine for health checks.
+
+        Returns the engine bound to SessionLocal if database is configured,
+        otherwise returns None.
+
+        Returns:
+            Engine or None: The SQLAlchemy engine if available.
+        """
+        from . import dependencies
+
+        if dependencies.SessionLocal is not None:
+            return dependencies.SessionLocal.kw.get("bind")
+        return None
+
     async def _visualization_message_processor_loop(self) -> None:
         """
         Asynchronously consumes messages from the _visualization_message_queue,
@@ -698,212 +734,221 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         log_id_prefix = f"{self.log_identifier}[VizMsgProcessor]"
         log.info("%s Starting visualization message processor loop...", log_id_prefix)
-        loop = asyncio.get_running_loop()
 
         while not self.stop_signal.is_set():
             msg_data = None
             try:
-                msg_data = await loop.run_in_executor(
-                    None,
-                    self._visualization_message_queue.get,
-                    True,
-                    1.0,
-                )
+                try:
+                    msg_data = await asyncio.wait_for(
+                        self._visualization_message_queue.get(),
+                        timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    continue
 
                 if msg_data is None:
                     log.info(
                         "%s Received shutdown signal for viz processor loop.",
                         log_id_prefix,
                     )
+                    self._visualization_message_queue.task_done()
                     break
 
-                current_size = self._visualization_message_queue.qsize()
-                max_size = self._visualization_message_queue.maxsize
-                if max_size > 0 and (current_size / max_size) > 0.90:
-                    log.warning(
-                        "%s Visualization message queue is over 90%% full. Current size: %d/%d",
-                        log_id_prefix,
-                        current_size,
-                        max_size,
-                    )
-
-                topic = msg_data.get("topic")
-                payload_dict = msg_data.get("payload")
-
-                log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
-
-                if "/a2a/v1/discovery/" in topic:
-                    self._visualization_message_queue.task_done()
-                    continue
-
-                event_details_for_owner = self._infer_visualization_event_details(
-                    topic, payload_dict
-                )
-                task_id_for_context = event_details_for_owner.get("task_id")
-                message_owner_id = None
-                if task_id_for_context:
-                    root_task_id = task_id_for_context.split(":", 1)[0]
-                    context = self.task_context_manager.get_context(root_task_id)
-                    if context and "user_identity" in context:
-                        message_owner_id = context["user_identity"].get("id")
-                        log.debug(
-                            "%s Found owner '%s' for task %s via local context (root: %s).",
+                try:
+                    current_size = self._visualization_message_queue.qsize()
+                    max_size = self._visualization_message_queue.maxsize
+                    if max_size > 0 and (current_size / max_size) > 0.90:
+                        log.warning(
+                            "%s Visualization message queue is over 90%% full. Current size: %d/%d",
                             log_id_prefix,
-                            message_owner_id,
-                            task_id_for_context,
-                            root_task_id,
+                            current_size,
+                            max_size,
                         )
 
-                    if not message_owner_id:
-                        user_properties = msg_data.get("user_properties") or {}
+                    topic = msg_data.get("topic")
+                    payload_dict = msg_data.get("payload")
 
-                        if not user_properties:
-                            log.warning(
-                                "%s No user_properties found for task %s (root: %s). Cannot determine owner via message properties.",
+                    log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
+
+                    is_working_state = payload_dict.get("result", {}).get("status", {}).get('state') == "working"
+                    parts = payload_dict.get("result", {}).get("status", {}).get("message", {}).get("parts", [])
+                    is_in_progress_data = bool(parts) and all(
+                        part.get("data", {}).get("status") == "in-progress" for part in parts
+                    )
+                    is_text_update = bool(parts) and all(part.get("kind") == "text" for part in parts)
+
+                    # Ignoring discovery messages and in-progress updates for files and LLM stream to reduce noise in visualization streams
+                    if ("/a2a/v1/discovery/" in topic) or (
+                        is_working_state and (is_in_progress_data or is_text_update)
+                    ):
+                        continue
+
+                    event_details_for_owner = self._infer_visualization_event_details(
+                        topic, payload_dict
+                    )
+                    task_id_for_context = event_details_for_owner.get("task_id")
+                    message_owner_id = None
+                    if task_id_for_context:
+                        root_task_id = task_id_for_context.split(":", 1)[0]
+                        context = self.task_context_manager.get_context(root_task_id)
+                        if context and "user_identity" in context:
+                            message_owner_id = context["user_identity"].get("id")
+                            log.debug(
+                                "%s Found owner '%s' for task %s via local context (root: %s).",
                                 log_id_prefix,
+                                message_owner_id,
                                 task_id_for_context,
                                 root_task_id,
                             )
-                        user_config = user_properties.get(
-                            "a2aUserConfig"
-                        ) or user_properties.get("a2a_user_config")
 
-                        if (
-                            isinstance(user_config, dict)
-                            and "user_profile" in user_config
-                            and isinstance(user_config.get("user_profile"), dict)
-                        ):
-                            message_owner_id = user_config["user_profile"].get("id")
-                            if message_owner_id:
-                                log.debug(
-                                    "%s Found owner '%s' for task %s via message properties.",
+                        if not message_owner_id:
+                            user_properties = msg_data.get("user_properties") or {}
+
+                            if not user_properties:
+                                log.warning(
+                                    "%s No user_properties found for task %s (root: %s). Cannot determine owner via message properties.",
                                     log_id_prefix,
-                                    message_owner_id,
                                     task_id_for_context,
+                                    root_task_id,
                                 )
-                async with self._get_visualization_lock():
-                    for (
-                        stream_id,
-                        stream_config,
-                    ) in self._active_visualization_streams.items():
-                        sse_queue_for_stream = stream_config.get("sse_queue")
-                        if not sse_queue_for_stream:
-                            log.warning(
-                                "%s SSE queue not found for stream %s. Skipping.",
-                                log_id_prefix,
-                                stream_id,
-                            )
-                            continue
+                            user_config = user_properties.get(
+                                "a2aUserConfig"
+                            ) or user_properties.get("a2a_user_config")
 
-                        is_permitted = False
-                        stream_owner_id = stream_config.get("user_id")
-                        abstract_targets = stream_config.get("abstract_targets", [])
-
-                        for abstract_target in abstract_targets:
-                            if abstract_target.status != "subscribed":
-                                continue
-
-                            if abstract_target.type == "my_a2a_messages":
-                                if (
-                                    stream_owner_id
-                                    and message_owner_id
-                                    and stream_owner_id == message_owner_id
-                                ):
-                                    is_permitted = True
-                                    break
-                            else:
-                                subscribed_topics_for_stream = stream_config.get(
-                                    "solace_topics", set()
-                                )
-                                if any(
-                                    a2a.topic_matches_subscription(topic, pattern)
-                                    for pattern in subscribed_topics_for_stream
-                                ):
-                                    is_permitted = True
-                                    break
-
-                        if is_permitted:
-                            event_details = self._infer_visualization_event_details(
-                                topic, payload_dict
-                            )
-
-                            sse_event_payload = {
-                                "event_type": "a2a_message",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                                "solace_topic": topic,
-                                "direction": event_details["direction"],
-                                "source_entity": event_details["source_entity"],
-                                "target_entity": event_details["target_entity"],
-                                "message_id": event_details["message_id"],
-                                "task_id": event_details["task_id"],
-                                "payload_summary": event_details["payload_summary"],
-                                "full_payload": payload_dict,
-                                "debug_type": event_details["debug_type"],
-                            }
-
-                            try:
-                                log.debug(
-                                    "%s Attempting to put message on SSE queue for stream %s. Queue size: %d",
-                                    log_id_prefix,
-                                    stream_id,
-                                    sse_queue_for_stream.qsize(),
-                                )
-                                sse_queue_for_stream.put_nowait(
-                                    {
-                                        "event": "a2a_message",
-                                        "data": json.dumps(sse_event_payload),
-                                    }
-                                )
-                                log.debug(
-                                    "%s [VIZ_DATA_SENT] Stream %s: Topic: %s, Direction: %s",
-                                    log_id_prefix,
-                                    stream_id,
-                                    topic,
-                                    event_details["direction"],
-                                )
-                            except asyncio.QueueFull:
-                                # Check if this is a background task
-                                is_background = False
-                                if task_id_for_context and self.database_url:
-                                    try:
-                                        from .repository.task_repository import TaskRepository
-                                        db = dependencies.SessionLocal()
-                                        try:
-                                            repo = TaskRepository()
-                                            task = repo.find_by_id(db, task_id_for_context)
-                                            is_background = task and task.background_execution_enabled
-                                        finally:
-                                            db.close()
-                                    except Exception:
-                                        pass
-                                
-                                if is_background:
+                            if (
+                                isinstance(user_config, dict)
+                                and "user_profile" in user_config
+                                and isinstance(user_config.get("user_profile"), dict)
+                            ):
+                                message_owner_id = user_config["user_profile"].get("id")
+                                if message_owner_id:
                                     log.debug(
-                                        "%s SSE queue full for stream %s. Dropping visualization message for background task %s.",
+                                        "%s Found owner '%s' for task %s via message properties.",
                                         log_id_prefix,
-                                        stream_id,
+                                        message_owner_id,
                                         task_id_for_context,
                                     )
-                                else:
-                                    log.warning(
-                                        "%s SSE queue full for stream %s. Visualization message dropped.",
-                                        log_id_prefix,
-                                        stream_id,
-                                    )
-                            except Exception as send_err:
-                                log.error(
-                                    "%s Error sending formatted message to SSE queue for stream %s: %s",
+                    async with self._get_visualization_lock():
+                        for (
+                            stream_id,
+                            stream_config,
+                        ) in self._active_visualization_streams.items():
+                            sse_queue_for_stream = stream_config.get("sse_queue")
+                            if not sse_queue_for_stream:
+                                log.warning(
+                                    "%s SSE queue not found for stream %s. Skipping.",
                                     log_id_prefix,
                                     stream_id,
-                                    send_err,
                                 )
-                        else:
-                            pass
+                                continue
 
-                self._visualization_message_queue.task_done()
+                            is_permitted = False
+                            stream_owner_id = stream_config.get("user_id")
+                            abstract_targets = stream_config.get("abstract_targets", [])
 
-            except queue.Empty:
-                continue
+                            for abstract_target in abstract_targets:
+                                if abstract_target.status != "subscribed":
+                                    continue
+
+                                if abstract_target.type == "my_a2a_messages":
+                                    if (
+                                        stream_owner_id
+                                        and message_owner_id
+                                        and stream_owner_id == message_owner_id
+                                    ):
+                                        is_permitted = True
+                                        break
+                                else:
+                                    subscribed_topics_for_stream = stream_config.get(
+                                        "solace_topics", set()
+                                    )
+                                    if any(
+                                        a2a.topic_matches_subscription(topic, pattern)
+                                        for pattern in subscribed_topics_for_stream
+                                    ):
+                                        is_permitted = True
+                                        break
+
+                            if is_permitted:
+                                event_details = self._infer_visualization_event_details(
+                                    topic, payload_dict
+                                )
+
+                                sse_event_payload = {
+                                    "event_type": "a2a_message",
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                    "solace_topic": topic,
+                                    "direction": event_details["direction"],
+                                    "source_entity": event_details["source_entity"],
+                                    "target_entity": event_details["target_entity"],
+                                    "message_id": event_details["message_id"],
+                                    "task_id": event_details["task_id"],
+                                    "payload_summary": event_details["payload_summary"],
+                                    "full_payload": payload_dict,
+                                    "debug_type": event_details["debug_type"],
+                                }
+
+                                try:
+                                    log.debug(
+                                        "%s Attempting to put message on SSE queue for stream %s. Queue size: %d",
+                                        log_id_prefix,
+                                        stream_id,
+                                        sse_queue_for_stream.qsize(),
+                                    )
+                                    sse_queue_for_stream.put_nowait(
+                                        {
+                                            "event": "a2a_message",
+                                            "data": json.dumps(sse_event_payload),
+                                        }
+                                    )
+                                    log.debug(
+                                        "%s [VIZ_DATA_SENT] Stream %s: Topic: %s, Direction: %s",
+                                        log_id_prefix,
+                                        stream_id,
+                                        topic,
+                                        event_details["direction"],
+                                    )
+                                except asyncio.QueueFull:
+                                    # Check if this is a background task
+                                    is_background = False
+                                    if task_id_for_context and self.database_url:
+                                        try:
+                                            from .repository.task_repository import TaskRepository
+                                            db = dependencies.SessionLocal()
+                                            try:
+                                                repo = TaskRepository()
+                                                task = repo.find_by_id(db, task_id_for_context)
+                                                is_background = task and task.background_execution_enabled
+                                            finally:
+                                                db.close()
+                                        except Exception:
+                                            pass
+                                    
+                                    if is_background:
+                                        log.debug(
+                                            "%s SSE queue full for stream %s. Dropping visualization message for background task %s.",
+                                            log_id_prefix,
+                                            stream_id,
+                                            task_id_for_context,
+                                        )
+                                    else:
+                                        log.warning(
+                                            "%s SSE queue full for stream %s. Visualization message dropped.",
+                                            log_id_prefix,
+                                            stream_id,
+                                        )
+                                except Exception as send_err:
+                                    log.error(
+                                        "%s Error sending formatted message to SSE queue for stream %s: %s",
+                                        log_id_prefix,
+                                        stream_id,
+                                        send_err,
+                                    )
+                            else:
+                                pass
+                finally:
+                    self._visualization_message_queue.task_done()
+
             except asyncio.CancelledError:
                 log.info(
                     "%s Visualization message processor loop cancelled.", log_id_prefix
@@ -915,8 +960,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     log_id_prefix,
                     e,
                 )
-                if msg_data and self._visualization_message_queue:
-                    self._visualization_message_queue.task_done()
                 await asyncio.sleep(1)
 
         log.info("%s Visualization message processor loop finished.", log_id_prefix)
@@ -928,37 +971,38 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         log_id_prefix = f"{self.log_identifier}[TaskLoggerLoop]"
         log.info("%s Starting task logger loop...", log_id_prefix)
-        loop = asyncio.get_running_loop()
 
         while not self.stop_signal.is_set():
             msg_data = None
             try:
-                msg_data = await loop.run_in_executor(
-                    None,
-                    self._task_logger_queue.get,
-                    True,
-                    1.0,
-                )
+                try:
+                    msg_data = await asyncio.wait_for(
+                        self._task_logger_queue.get(),
+                        timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    continue
 
                 if msg_data is None:
                     log.info(
                         "%s Received shutdown signal for task logger loop.",
                         log_id_prefix,
                     )
+                    self._task_logger_queue.task_done()
                     break
 
-                if self.task_logger_service:
-                    self.task_logger_service.log_event(msg_data)
-                else:
-                    log.warning(
-                        "%s Task logger service not available. Cannot log event.",
-                        log_id_prefix,
-                    )
+                try:
+                    if self.task_logger_service:
+                        self.task_logger_service.log_event(msg_data)
+                    else:
+                        log.warning(
+                            "%s Task logger service not available. Cannot log event.",
+                            log_id_prefix,
+                        )
+                finally:
+                    # Ensure task_done() is called for each successfully retrieved message
+                    self._task_logger_queue.task_done()
 
-                self._task_logger_queue.task_done()
-
-            except queue.Empty:
-                continue
             except asyncio.CancelledError:
                 log.info("%s Task logger loop cancelled.", log_id_prefix)
                 break
@@ -968,8 +1012,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     log_id_prefix,
                     e,
                 )
-                if msg_data and self._task_logger_queue:
-                    self._task_logger_queue.task_done()
                 await asyncio.sleep(1)
 
         log.info("%s Task logger loop finished.", log_id_prefix)
@@ -1308,17 +1350,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
             # This must be done *after* setup_dependencies has run.
             session_factory = dependencies.SessionLocal if self.database_url else None
             
+            # Get task logging config for hybrid buffer settings
+            # Hybrid buffer is OFF by default for safety - it buffers events in RAM
+            # before flushing to DB to reduce database writes
+            task_logging_config = self.get_config("task_logging", {})
+            hybrid_buffer_config = task_logging_config.get("hybrid_buffer", {})
+            hybrid_buffer_enabled = hybrid_buffer_config.get("enabled", False)
+            hybrid_buffer_threshold = hybrid_buffer_config.get("flush_threshold", 10)
+            
             # Initialize SSE manager with session factory for background task detection
             self.sse_manager = SSEManager(
                 max_queue_size=self.sse_max_queue_size,
                 event_buffer=self.sse_event_buffer,
-                session_factory=session_factory
+                session_factory=session_factory,
+                hybrid_buffer_enabled=hybrid_buffer_enabled,
+                hybrid_buffer_threshold=hybrid_buffer_threshold,
             )
             log.debug(
-                "%s SSE manager initialized with database session factory.",
+                "%s SSE manager initialized with database session factory (hybrid_buffer=%s, threshold=%d).",
                 self.log_identifier,
+                hybrid_buffer_enabled,
+                hybrid_buffer_threshold,
             )
-            task_logging_config = self.get_config("task_logging", {})
+            # task_logging_config already obtained above for hybrid_buffer settings
             self.task_logger_service = TaskLoggerService(
                 session_factory=session_factory, config=task_logging_config
             )
@@ -1572,9 +1626,35 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self.cancel_timer(self.health_check_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
-            self._visualization_message_queue.put(None)
+            try:
+                self._visualization_message_queue.put_nowait(None)
+            except asyncio.QueueFull:
+                # Queue is full, drain one item and retry to ensure shutdown signal is delivered
+                try:
+                    self._visualization_message_queue.get_nowait()
+                    self._visualization_message_queue.task_done()
+                    self._visualization_message_queue.put_nowait(None)
+                except Exception as e:
+                    log.warning(
+                        "%s Failed to send shutdown signal to visualization queue: %s",
+                        self.log_identifier,
+                        e,
+                    )
         if self._task_logger_queue:
-            self._task_logger_queue.put(None)
+            try:
+                self._task_logger_queue.put_nowait(None)
+            except asyncio.QueueFull:
+                # Queue is full, drain one item and retry to ensure shutdown signal is delivered
+                try:
+                    self._task_logger_queue.get_nowait()
+                    self._task_logger_queue.task_done()
+                    self._task_logger_queue.put_nowait(None)
+                except Exception as e:
+                    log.warning(
+                        "%s Failed to send shutdown signal to task logger queue: %s",
+                        self.log_identifier,
+                        e,
+                    )
 
         if (
             self._visualization_processor_task
@@ -1723,6 +1803,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if result.metadata
                             else None
                         )
+                        task_status = a2a.get_task_status(result)
+                        # Guard against task_status being an Enum (TaskState) instead of TaskStatus object
+                        if (
+                            task_status
+                            and not isinstance(task_status, TaskState)
+                            and hasattr(task_status, "message")
+                        ):
+                            data_parts = a2a.get_data_parts_from_message(
+                                task_status.message
+                            )
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "task_result"
+                                )
                     elif isinstance(result, TaskArtifactUpdateEvent):
                         artifact = a2a.get_artifact_from_artifact_update(result)
                         if artifact:
@@ -1758,6 +1852,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if message.metadata
                             else None
                         )
+                        data_parts = a2a.get_data_parts_from_message(message)
+                        if data_parts:
+                            details["debug_type"] = data_parts[0].data.get(
+                                "type", method
+                            )
                 elif method == "tasks/cancel":
                     details["task_id"] = a2a.get_task_id_from_cancel_request(
                         rpc_request

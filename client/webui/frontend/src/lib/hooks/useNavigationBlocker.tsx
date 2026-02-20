@@ -12,6 +12,7 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
     const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
     const [isNavigationAllowed, setIsNavigationAllowed] = useState(false);
     const [blockingEnabled, setBlockingEnabled] = useState(false);
+    const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
 
     const blocker = useBlocker(({ currentLocation, nextLocation }) => blockingEnabled && !isNavigationAllowed && currentLocation.pathname !== nextLocation.pathname);
 
@@ -20,6 +21,13 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
             setShowConfirmationDialog(true);
         }
     }, [blocker]);
+
+    useEffect(() => {
+        if (isNavigationAllowed && pendingNavigation) {
+            pendingNavigation();
+            setPendingNavigation(null);
+        }
+    }, [isNavigationAllowed, pendingNavigation]);
 
     const confirmNavigation = useCallback(() => {
         setShowConfirmationDialog(false);
@@ -36,10 +44,9 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
     }, [blocker]);
 
     const allowNavigation = useCallback((navigationFn: () => void) => {
+        setBlockingEnabled(false); // ensure this is false for consumers
         setIsNavigationAllowed(true);
-        setTimeout(() => {
-            navigationFn();
-        }, 0);
+        setPendingNavigation(() => navigationFn);
     }, []);
 
     const NavigationBlocker = useCallback(() => {

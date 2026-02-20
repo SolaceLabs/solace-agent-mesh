@@ -1,7 +1,6 @@
-import React from "react";
 import { MessageCircle, Calendar, Plus } from "lucide-react";
 
-import { useProjectSessions } from "@/lib/hooks/useProjectSessions";
+import { useProjectSessions } from "@/lib/api/projects/hooks";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Button } from "@/lib/components/ui";
 import { formatTimestamp } from "@/lib/utils/format";
@@ -11,17 +10,18 @@ interface ProjectChatsSectionProps {
     project: Project;
     onChatClick: (sessionId: string) => void;
     onStartNewChat?: () => void;
+    isDisabled?: boolean;
 }
 
-export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ project, onChatClick, onStartNewChat }) => {
-    const { sessions, isLoading, error } = useProjectSessions(project.id);
+export const ProjectChatsSection = ({ project, onChatClick, onStartNewChat, isDisabled = false }: ProjectChatsSectionProps) => {
+    const { data: sessions = [], isLoading, error } = useProjectSessions(project.id);
 
     return (
         <div className="px-6 py-4">
             <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-foreground text-sm font-semibold">Chats</h3>
                 {onStartNewChat && (
-                    <Button onClick={onStartNewChat} size="sm">
+                    <Button onClick={onStartNewChat} size="sm" testid="startNewChatButton" disabled={isDisabled}>
                         <Plus className="mr-2 h-4 w-4" />
                         New Chat
                     </Button>
@@ -34,14 +34,14 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ projec
                 </div>
             )}
 
-            {error && <div className="text-destructive border-destructive/50 rounded-md border p-4 text-sm">Error loading chats: {error}</div>}
+            {error && <div className="text-destructive border-destructive/50 rounded-md border p-4 text-sm">Error loading chats: {error.message}</div>}
 
             {!isLoading && !error && sessions.length === 0 && (
                 <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
                     <MessageCircle className="text-muted-foreground mb-2 h-8 w-8" />
                     <p className="text-muted-foreground mb-4 text-sm">No chats. Start a chat with all the knowledge and context from this project.</p>
                     {onStartNewChat && (
-                        <Button onClick={onStartNewChat} size="sm">
+                        <Button onClick={onStartNewChat} size="sm" testid="startNewChatButtonNoChats" disabled={isDisabled}>
                             <Plus className="mr-2 h-4 w-4" />
                             Start New Chat
                         </Button>

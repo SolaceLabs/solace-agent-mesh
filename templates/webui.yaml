@@ -42,6 +42,10 @@ apps:
       enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
       gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
       sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
+      
+      # Queue Configuration
+      visualization_queue_size: ${VISUALIZATION_QUEUE_SIZE, 600}
+      task_logger_queue_size: ${TASK_LOGGER_QUEUE_SIZE, 600}
 
       system_purpose: >
             The system is an AI Chatbot with agentic capabilities.
@@ -60,15 +64,25 @@ apps:
       frontend_bot_name: __FRONTEND_BOT_NAME__
       frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__
       frontend_logo_url: __FRONTEND_LOGO_URL__
+
+      task_logging:
+        enabled: true
+        hybrid_buffer:
+          enabled: false   # false=events go directly to DB (default); true=buffer in RAM first, then flush to DB
+          flush_threshold: 10     # Flush to DB after N events (lower for easier testing)
+        log_status_updates: true
+        log_artifact_events: true
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
       
       # --- Frontend Feature Flags ---
       # Uncomment to control speech features in the UI
       frontend_feature_enablement:
-      #   speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
-      #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
+        speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
+        textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
       #   projects: true
       #   promptLibrary: true
-        background_tasks: true  # Enable background task execution
+        background_tasks: true  # NOTE: task_logging must also be enabled for background tasks to work
 
       # --- Background Tasks Configuration ---
       background_tasks:

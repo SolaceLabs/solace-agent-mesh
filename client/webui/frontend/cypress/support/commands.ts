@@ -18,6 +18,7 @@ declare global {
             startNewChat(): Chainable;
             navigateToChat(): Chainable;
             navigateToAgents(): Chainable;
+            navigateToWorkflows(): Chainable;
         }
         interface SuiteConfigOverrides {
             tags?: string[];
@@ -48,7 +49,18 @@ Cypress.Commands.add("navigateToChat", () => {
 
 Cypress.Commands.add("navigateToAgents", () => {
     cy.log("Navigating to Agents page");
-    cy.findByRole("button", { name: "Agents" }).should("be.visible").click();
+    cy.findByRole("button", { name: "Agent Mesh" }).should("be.visible").click();
+});
+
+Cypress.Commands.add("navigateToWorkflows", () => {
+    cy.log("Navigating to Workflows page");
+    // First navigate to Agent Mesh page
+    cy.findByRole("button", { name: "Agent Mesh" }).should("be.visible").click();
+    // Then click the Workflows tab
+    cy.findByRole("tab", { name: /workflows/i })
+        .should("be.visible")
+        .click();
+    cy.url().should("include", "tab=workflows");
 });
 
 export {};

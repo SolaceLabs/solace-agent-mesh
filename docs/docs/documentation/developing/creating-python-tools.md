@@ -51,12 +51,13 @@ Create a Python file (e.g., `src/my_agent/tools.py`) and define your tool.
 # src/my_agent/tools.py
 from typing import Any, Dict, Optional
 from google.adk.tools import ToolContext
+from solace_agent_mesh.agent.tools import ToolResult
 
 async def greet_user(
     name: str,
     tool_context: Optional[ToolContext] = None,
     tool_config: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Greets a user with a personalized message.
 
@@ -64,7 +65,7 @@ async def greet_user(
         name: The name of the person to greet.
 
     Returns:
-        A dictionary with the greeting message.
+        A ToolResult with the greeting message.
     """
     greeting_prefix = "Hello"
     if tool_config:
@@ -72,10 +73,7 @@ async def greet_user(
 
     greeting_message = f"{greeting_prefix}, {name}! Welcome to Agent Mesh!"
 
-    return {
-        "status": "success",
-        "message": greeting_message
-    }
+    return ToolResult.ok(greeting_message)
 ```
 
 **Key Requirements:**
@@ -83,6 +81,7 @@ async def greet_user(
 - The function's docstring is used as the tool's `description` for the LLM.
 - Type hints (`str`, `int`, `bool`) are used to generate the parameter schema.
 - The function should accept `tool_context` and `tool_config` as optional keyword arguments to receive framework context and YAML configuration.
+- Use `ToolResult` as the return type for consistent, structured responses. See [Structured Tool Results with ToolResult](#structured-tool-results-with-toolresult) for details.
 
 ### Step 2: Configure the Tool
 
@@ -117,6 +116,7 @@ Instead of a function, define a class that implements the `DynamicTool` abstract
 from typing import Optional, Dict, Any
 from google.genai import types as adk_types
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
+from solace_agent_mesh.agent.tools import ToolResult
 
 class WeatherTool(DynamicTool):
     """A dynamic tool that fetches current weather information."""
@@ -141,14 +141,14 @@ class WeatherTool(DynamicTool):
             required=["location"],
         )
 
-    async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+    async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> ToolResult:
         location = args["location"]
         # Access config via self.tool_config
         api_key = self.tool_config.get("api_key")
         if not api_key:
-            return {"status": "error", "message": "API key not configured"}
+            return ToolResult.error("API key not configured")
         # ... implementation to call weather API ...
-        return {"status": "success", "weather": "Sunny"}
+        return ToolResult.ok(f"The weather in {location} is sunny.", data={"weather": "Sunny"})
 ```
 
 ### Step 2: Configure the Tool
@@ -182,6 +182,7 @@ You can also use the `@register_tool` decorator on simple functions to have them
 from typing import Optional, Dict, Any, List
 from google.genai import types as adk_types
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
+from solace_agent_mesh.agent.tools import ToolResult
 
 # --- Tool Implementations ---
 class DatabaseQueryTool(DynamicTool):
@@ -215,10 +216,10 @@ class DatabaseToolProvider(DynamicToolProvider):
 
 # NOTE that you must use the decorator outside of any class with the provider's class name.
 @DatabaseToolProvider.register_tool
-async def get_database_server_version(tool_config: dict, **kwargs) -> dict:
+async def get_database_server_version(tool_config: dict, **kwargs) -> ToolResult:
     """Returns the version of the connected PostgreSQL server."""
     # ... implementation ...
-    return {"version": "PostgreSQL 15.3"}
+    return ToolResult.ok("Database version retrieved.", data={"version": "PostgreSQL 15.3"})
 
 ```
 
@@ -262,6 +263,7 @@ In your tool's Python file (e.g., `src/my_agent/db_tools.py`), define the tool f
 # src/my_agent/db_tools.py
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.tool_config_types import AnyToolConfig
+from solace_agent_mesh.agent.tools import ToolResult
 from google.adk.tools import ToolContext
 from typing import Dict, Any
 
@@ -286,14 +288,14 @@ async def close_db_connection(component: SamAgentComponent, tool_config_model: A
 
 # --- Tool Function ---
 
-async def query_database(query: str, tool_context: ToolContext, **kwargs) -> Dict[str, Any]:
+async def query_database(query: str, tool_context: ToolContext, **kwargs) -> ToolResult:
     """Queries the database using the initialized connection."""
     host_component = tool_context._invocation_context.agent.host_component
     db_client = host_component.get_agent_specific_state("db_client")
     if not db_client:
-        return {"error": "Database connection not initialized."}
+        return ToolResult.error("Database connection not initialized.")
     # ... use db_client to run query ...
-    return {"result": "some data"}
+    return ToolResult.ok("Query executed successfully.", data={"result": "some data"})
 ```
 
 #### Step 2: Configure the Hooks in YAML
@@ -329,6 +331,7 @@ Here, we extend a `DynamicTool` to manage its own API client.
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
 from solace_agent_mesh.agent.tools.tool_config_types import AnyToolConfig
+from solace_agent_mesh.agent.tools import ToolResult
 # Assume WeatherApiClient is a custom class for an external service
 from my_agent.api_client import WeatherApiClient
 
@@ -352,13 +355,13 @@ class WeatherTool(DynamicTool):
 
     # ... other required properties like tool_name, tool_description, etc. ...
 
-    async def _run_async_impl(self, args: dict, **kwargs) -> dict:
+    async def _run_async_impl(self, args: dict, **kwargs) -> ToolResult:
         """Uses the initialized client to perform its task."""
         location = args.get("location")
         if not hasattr(self, "api_client"):
-            return {"error": "API client not initialized. Check lifecycle hooks."}
+            return ToolResult.error("API client not initialized. Check lifecycle hooks.")
         weather_data = await self.api_client.get_weather(location)
-        return {"weather": weather_data}
+        return ToolResult.ok(f"Weather retrieved for {location}.", data={"weather": weather_data})
 ```
 
 The YAML configuration remains simple, as the lifecycle logic is now part of the tool's code.
@@ -411,6 +414,7 @@ from typing import Dict, Any
 from pydantic import BaseModel, Field
 from google.genai import types as adk_types
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
+from solace_agent_mesh.agent.tools import ToolResult
 
 # 1. Define the configuration model
 class WeatherConfig(BaseModel):
@@ -446,9 +450,9 @@ class GetCurrentWeatherTool(DynamicTool):
             required=["location"],
         )
 
-    async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+    async def _run_async_impl(self, args: Dict[str, Any], **kwargs) -> ToolResult:
         # ... implementation using self.api_key ...
-        return {"weather": f"Sunny in {args['location']}"}
+        return ToolResult.ok(f"Weather in {args['location']} retrieved.", data={"weather": "Sunny"})
 ```
 
 #### Step 2: Configure the Tool in YAML
@@ -509,6 +513,411 @@ tools:
     tool_config:
       api_key: ${WEATHER_API_KEY}
       default_unit: "fahrenheit" # Optional, overrides the model's default
+```
+
+---
+
+## Working with Artifacts in Tools
+
+When your tool needs to process files that users have uploaded or that were created by other tools, you can use the `Artifact` type hint to have the framework automatically load artifact content before your tool executes. This is particularly useful for tools that process documents, analyze data files, or transform content.
+
+### How Artifact Pre-Loading Works
+
+When you annotate a parameter with the `Artifact` type:
+
+1. The LLM sees the parameter as a simple string (the artifact filename)
+2. The framework intercepts the call and loads the artifact content
+3. Your tool receives a full `Artifact` object with content and metadata
+
+This pattern simplifies tool development because your code receives ready-to-use artifact data rather than having to manually load artifacts.
+
+### The Artifact Class
+
+The `Artifact` class provides access to both the artifact content and its metadata:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `content` | `bytes` or `str` | The actual artifact data |
+| `filename` | `str` | Original filename of the artifact |
+| `version` | `int` | Version number that was loaded |
+| `mime_type` | `str` | MIME type (e.g., "text/plain", "image/png") |
+| `metadata` | `dict` | Custom metadata dictionary |
+
+The class also provides helper methods:
+
+| Method | Description |
+|--------|-------------|
+| `as_text(encoding="utf-8")` | Get content as a string |
+| `as_bytes(encoding="utf-8")` | Get content as bytes |
+
+### Example: Single Artifact Parameter
+
+The following example shows a function-based tool that processes a single artifact:
+
+```python
+# src/my_agent/document_tools.py
+from typing import Dict, Any
+from google.adk.tools import ToolContext
+from solace_agent_mesh.agent.tools import Artifact, ToolResult
+
+async def analyze_document(
+    document: Artifact,
+    include_word_count: bool = True,
+    tool_context: ToolContext = None,
+) -> ToolResult:
+    """
+    Analyzes a document and returns statistics.
+
+    Args:
+        document: The document to analyze (pre-loaded by framework).
+        include_word_count: Whether to include word count in results.
+
+    Returns:
+        ToolResult with analysis statistics.
+    """
+    # Get content as text - handles bytes/str conversion automatically
+    text = document.as_text()
+
+    data = {
+        "filename": document.filename,
+        "version": document.version,
+        "mime_type": document.mime_type,
+        "character_count": len(text),
+    }
+
+    if include_word_count:
+        data["word_count"] = len(text.split())
+
+    return ToolResult.ok(
+        f"Analyzed {document.filename}: {len(text)} characters.",
+        data=data
+    )
+```
+
+Configure this tool in your agent's YAML:
+
+```yaml
+tools:
+  - tool_type: python
+    component_module: "my_agent.document_tools"
+    function_name: "analyze_document"
+```
+
+When the LLM calls this tool with `{"document": "report.txt", "include_word_count": true}`, the framework automatically loads `report.txt` and passes the full `Artifact` object to your function.
+
+### Example: Multiple Artifacts with List[Artifact]
+
+To process multiple artifacts, use `List[Artifact]`:
+
+```python
+from typing import List, Dict, Any
+from solace_agent_mesh.agent.tools import Artifact, ToolResult
+
+async def merge_documents(
+    documents: List[Artifact],
+    separator: str = "\n\n---\n\n",
+) -> ToolResult:
+    """
+    Merges multiple documents into one.
+
+    Args:
+        documents: List of documents to merge (pre-loaded by framework).
+        separator: Text to insert between documents.
+
+    Returns:
+        ToolResult with merged content and source metadata.
+    """
+    merged_parts = []
+    source_info = []
+
+    for doc in documents:
+        merged_parts.append(doc.as_text())
+        source_info.append({
+            "filename": doc.filename,
+            "version": doc.version,
+        })
+
+    return ToolResult.ok(
+        f"Merged {len(documents)} documents.",
+        data={
+            "merged_content": separator.join(merged_parts),
+            "document_count": len(documents),
+            "sources": source_info,
+        }
+    )
+```
+
+The LLM provides an array of filenames: `{"documents": ["doc1.txt", "doc2.txt", "doc3.txt"]}`, and your tool receives a list of `Artifact` objects.
+
+### Example: Optional Artifact Parameter
+
+Use `Optional[Artifact]` when an artifact parameter is not required:
+
+```python
+from typing import Optional, Dict, Any
+from solace_agent_mesh.agent.tools import Artifact, ToolResult
+
+async def process_with_template(
+    data: Artifact,
+    template: Optional[Artifact] = None,
+) -> ToolResult:
+    """
+    Processes data, optionally using a template.
+
+    Args:
+        data: The data to process (required).
+        template: Optional template to apply.
+
+    Returns:
+        ToolResult with processed result.
+    """
+    content = data.as_text()
+
+    if template is not None:
+        template_text = template.as_text()
+        # Apply template logic...
+        return ToolResult.ok("Processed data with template.")
+
+    return ToolResult.ok("Processed data without template.")
+```
+
+### Specifying Artifact Versions
+
+The LLM can request a specific version of an artifact using the `filename:version` format. For example, `"report.txt:0"` requests version 0 (the original), while `"report.txt:2"` requests version 2. If no version is specified, the latest version is loaded.
+
+Your tool receives the `Artifact` object with the `version` property set to the actual version that was loaded, so you can verify which version you're working with.
+
+### Using Artifact Type with DynamicToolProvider
+
+The `Artifact` type hint also works with the `@register_tool` decorator pattern:
+
+```python
+from typing import List
+from solace_agent_mesh.agent.tools.dynamic_tool import DynamicToolProvider
+from solace_agent_mesh.agent.tools import Artifact, ToolResult
+
+class DocumentToolProvider(DynamicToolProvider):
+    """Provider for document processing tools."""
+
+    def create_tools(self, tool_config=None):
+        return []
+
+@DocumentToolProvider.register_tool
+async def compare_documents(
+    self,
+    original: Artifact,
+    modified: Artifact,
+) -> ToolResult:
+    """
+    Compares two document versions.
+
+    Args:
+        original: The original document.
+        modified: The modified document.
+
+    Returns:
+        ToolResult with comparison results.
+    """
+    original_text = original.as_text()
+    modified_text = modified.as_text()
+
+    length_diff = len(modified_text) - len(original_text)
+
+    return ToolResult.ok(
+        f"Compared {original.filename} with {modified.filename}.",
+        data={
+            "original_length": len(original_text),
+            "modified_length": len(modified_text),
+            "length_difference": length_diff,
+        }
+    )
+```
+
+---
+
+## Structured Tool Results with ToolResult
+
+For tools that produce files or need fine-grained control over how results are returned, Agent Mesh provides the `ToolResult` class. This abstraction allows you to return both a message for the LLM and data objects (files) that can be saved as artifacts or returned inline.
+
+### The ToolResult Class
+
+Import `ToolResult` and related types from the tools package:
+
+```python
+from solace_agent_mesh.agent.tools import ToolResult, DataObject, DataDisposition
+```
+
+`ToolResult` provides three factory methods for common scenarios:
+
+| Method | Description |
+|--------|-------------|
+| `ToolResult.ok(message, data=None, data_objects=None)` | Create a success result |
+| `ToolResult.error(message, data=None)` | Create an error result |
+| `ToolResult.partial(message, data=None, data_objects=None)` | Create a partial success result |
+
+### The DataObject Class
+
+Use `DataObject` to include file data in your tool results:
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `str` | Yes | Filename for the data |
+| `content` | `bytes` or `str` | Yes | The actual data |
+| `mime_type` | `str` | No | MIME type (default: "application/octet-stream") |
+| `disposition` | `DataDisposition` | No | How to handle the data (default: "auto") |
+| `description` | `str` | No | Human-readable description |
+| `preview` | `str` | No | Preview text for large files |
+| `metadata` | `dict` | No | Custom metadata |
+
+### Data Disposition Options
+
+The `DataDisposition` enum controls how data objects are handled:
+
+| Value | Description |
+|-------|-------------|
+| `auto` | Framework decides based on size and type (default) |
+| `artifact` | Always save as an artifact |
+| `inline` | Always return inline to the LLM |
+| `artifact_with_preview` | Save as artifact but include preview text |
+
+### Example: Tool That Generates a File
+
+The following example shows a tool that generates a CSV file:
+
+```python
+from typing import Dict, Any
+from solace_agent_mesh.agent.tools import ToolResult, DataObject, DataDisposition
+
+async def generate_report(
+    title: str,
+    include_headers: bool = True,
+) -> ToolResult:
+    """
+    Generates a CSV report.
+
+    Args:
+        title: Report title.
+        include_headers: Whether to include column headers.
+
+    Returns:
+        ToolResult containing the generated CSV file.
+    """
+    # Generate CSV content
+    rows = []
+    if include_headers:
+        rows.append("Name,Value,Category")
+    rows.append("Item A,100,Type 1")
+    rows.append("Item B,200,Type 2")
+    rows.append("Item C,150,Type 1")
+
+    csv_content = "\n".join(rows)
+
+    return ToolResult.ok(
+        message=f"Generated report '{title}' with {len(rows)} rows.",
+        data_objects=[
+            DataObject(
+                name=f"{title.lower().replace(' ', '_')}.csv",
+                content=csv_content,
+                mime_type="text/csv",
+                disposition=DataDisposition.ARTIFACT,
+                description=f"CSV report: {title}",
+            )
+        ]
+    )
+```
+
+### Example: Combining Artifact Input with ToolResult Output
+
+This example shows a complete workflow: reading an artifact, processing it, and producing a new artifact:
+
+```python
+from solace_agent_mesh.agent.tools import Artifact, ToolResult, DataObject, DataDisposition
+
+async def transform_document(
+    source: Artifact,
+    output_format: str = "uppercase",
+) -> ToolResult:
+    """
+    Transforms a document's content.
+
+    Args:
+        source: The source document to transform.
+        output_format: Transformation type ("uppercase" or "lowercase").
+
+    Returns:
+        ToolResult with the transformed document.
+    """
+    content = source.as_text()
+
+    if output_format == "uppercase":
+        transformed = content.upper()
+    elif output_format == "lowercase":
+        transformed = content.lower()
+    else:
+        return ToolResult.error(f"Unknown format: {output_format}")
+
+    # Generate output filename based on source
+    base_name = source.filename.rsplit(".", 1)[0]
+    extension = source.filename.rsplit(".", 1)[-1] if "." in source.filename else "txt"
+    output_name = f"{base_name}_{output_format}.{extension}"
+
+    return ToolResult.ok(
+        message=f"Transformed {source.filename} to {output_format}.",
+        data_objects=[
+            DataObject(
+                name=output_name,
+                content=transformed,
+                mime_type=source.mime_type,
+                disposition=DataDisposition.ARTIFACT,
+                metadata={
+                    "source_filename": source.filename,
+                    "source_version": source.version,
+                    "transformation": output_format,
+                },
+            )
+        ]
+    )
+```
+
+### Example: Returning Multiple Files
+
+You can include multiple `DataObject` instances in a single result:
+
+```python
+async def split_document(
+    document: Artifact,
+    chunk_size: int = 1000,
+) -> ToolResult:
+    """
+    Splits a document into smaller chunks.
+
+    Args:
+        document: The document to split.
+        chunk_size: Maximum characters per chunk.
+
+    Returns:
+        ToolResult with multiple chunk files.
+    """
+    content = document.as_text()
+    chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size)]
+
+    base_name = document.filename.rsplit(".", 1)[0]
+    extension = document.filename.rsplit(".", 1)[-1] if "." in document.filename else "txt"
+
+    data_objects = [
+        DataObject(
+            name=f"{base_name}_chunk_{i+1}.{extension}",
+            content=chunk,
+            mime_type=document.mime_type,
+            disposition=DataDisposition.ARTIFACT,
+        )
+        for i, chunk in enumerate(chunks)
+    ]
+
+    return ToolResult.ok(
+        message=f"Split {document.filename} into {len(chunks)} chunks.",
+        data_objects=data_objects,
+    )
 ```
 
 ---
