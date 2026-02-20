@@ -345,6 +345,8 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
         // or when dependencies change
         return () => {
             abortController.abort();
+            // Reset the ref so remount can retry (important for React Strict Mode)
+            conversionStartedRef.current = null;
         };
     }, [content, filename, checkConversionService, convertToPdf, binaryArtifactPreviewEnabled]);
 
