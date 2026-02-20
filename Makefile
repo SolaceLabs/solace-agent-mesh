@@ -62,8 +62,10 @@ eval-setup: check-uv
 	UV_VENV_CLEAR=1 uv venv --python 3.12
 	@echo "Building wheel directly (skipping UI builds and sdist for speed)..."
 	SAM_SKIP_UI_BUILD=true uv build --wheel
-	@echo "Installing Solace Agent Mesh with eval dependencies from wheel..."
-	uv pip install "$$(ls dist/solace_agent_mesh-*.whl | head -1)[eval]" --reinstall
+	@echo "Installing Solace Agent Mesh from wheel..."
+	uv pip install "$$(ls dist/solace_agent_mesh-*.whl | head -1)" --reinstall
+	@echo "Installing sam-rest-gateway plugin for local evaluations..."
+	uv pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"
 	@echo "Installing Playwright browsers..."
 	.venv/bin/playwright install
 
