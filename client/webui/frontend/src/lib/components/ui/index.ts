@@ -41,7 +41,8 @@ export { ChatMessageList } from "./chat/chat-message-list";
 export { CHAT_STYLES } from "./chat/chatStyles";
 export { default as MessageLoading } from "./chat/message-loading";
 export { Badge } from "./badge";
-export { ExperimentalBadge } from "./experimental-badge";
+export { LifecycleBadge } from "./lifecycleBadge";
+export { NavItem, type NavItemProps } from "./navItem";
 
 // Toast Components
 export { ToastContainer } from "./toast-container";
