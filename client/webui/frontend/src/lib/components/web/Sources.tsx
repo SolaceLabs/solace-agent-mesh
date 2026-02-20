@@ -4,16 +4,7 @@
 
 import { useMemo } from "react";
 import { StackedFavicons } from "./StackedFavicons";
-import type { RAGSource } from "@/lib/types/fe";
-
-interface SearchSource {
-    link: string;
-    title?: string;
-    snippet?: string;
-    attribution?: string;
-    processed?: boolean;
-    source_type?: string;
-}
+import type { RAGSource, SearchSource } from "@/lib/types/fe";
 
 /**
  * Main Sources Component
@@ -39,6 +30,28 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
         ragMetadata.sources.forEach((s: RAGSource) => {
             const sourceType = s.sourceType || "web";
 
+            // For document sources (from document_search), use filename
+            if (sourceType === "document" || (!s.sourceUrl && !s.metadata?.link && s.filename)) {
+                const source: SearchSource = {
+                    filename: s.filename || "Unknown document",
+                    title: s.metadata?.title || s.filename || "Unknown document",
+                    snippet: s.contentPreview || "",
+                    attribution: s.filename || "",
+                    processed: false,
+                    sourceType: "document",
+                };
+
+                // Create a unique key for deduplication (use filename for documents)
+                const uniqueKey = `document:${source.filename}`;
+
+                if (seenSources.has(uniqueKey)) {
+                    return;
+                }
+                seenSources.add(uniqueKey);
+                sources.push(source);
+                return;
+            }
+
             // For image sources, use the source page link (not the image URL)
             let link: string;
             let title: string;
@@ -58,7 +71,7 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
                 snippet: s.contentPreview || "",
                 attribution: s.filename || "",
                 processed: false,
-                source_type: sourceType,
+                sourceType: sourceType,
             };
 
             // Create a unique key for deduplication

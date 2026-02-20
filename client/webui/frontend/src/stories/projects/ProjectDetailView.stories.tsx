@@ -1,39 +1,19 @@
+import { useEffect, type ReactNode } from "react";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
+
 import { ProjectDetailView } from "@/lib";
-import { populatedProject, emptyProject } from "../data/projects";
-import { ownerWithAuthorization } from "../data/parameters";
-import { pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact } from "../data/artifactInfo";
-import type { Session } from "@/lib/types/fe";
+import { transformAgentCard, useStartIndexing } from "@/lib/hooks";
+
 import { getMockAgentCards, mockAgentCards } from "../mocks/data";
-import { transformAgentCard } from "@/lib/hooks/useAgentCards";
+import { emptyProject, imageArtifact, jsonArtifact, markdownArtifact, ownerWithAuthorization, pdfArtifact, populatedProject, sessions } from "../data";
 
 // ============================================================================
-// Mock Data
+// Mocks
 // ============================================================================
-
-const mockSessions: Session[] = [
-    {
-        id: "session-1",
-        name: "Debug authentication flow",
-        createdTime: new Date("2024-03-18T10:30:00Z").toISOString(),
-        updatedTime: new Date("2024-03-20T14:22:00Z").toISOString(),
-        projectId: populatedProject.id,
-        projectName: populatedProject.name,
-    },
-    {
-        id: "session-2",
-        name: "Implement password reset",
-        createdTime: new Date("2024-03-15T09:15:00Z").toISOString(),
-        updatedTime: new Date("2024-03-19T16:45:00Z").toISOString(),
-        projectId: populatedProject.id,
-        projectName: populatedProject.name,
-    },
-];
 
 const mockArtifacts = [pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact];
-
 const transformedMockAgents = mockAgentCards.concat(getMockAgentCards(2)).map(transformAgentCard);
 const agentNameDisplayNameMap = transformedMockAgents.reduce(
     (acc, agent) => {
@@ -42,6 +22,32 @@ const agentNameDisplayNameMap = transformedMockAgents.reduce(
     },
     {} as Record<string, string>
 );
+
+/**
+ * Helper to register a mock indexing task on mount
+ */
+const MockIndexingTask = ({ projectId, children }: { projectId: string; children: ReactNode }) => {
+    const startIndexing = useStartIndexing();
+
+    useEffect(() => {
+        startIndexing("/api/v1/sse/subscribe/mock-indexing-task", projectId, "upload");
+    }, [startIndexing, projectId]);
+
+    return <>{children}</>;
+};
+
+/**
+ * Helper to register a mock failed indexing task on mount
+ */
+const MockFailedIndexingTask = ({ projectId, children }: { projectId: string; children: ReactNode }) => {
+    const startIndexing = useStartIndexing();
+
+    useEffect(() => {
+        startIndexing("/api/v1/sse/subscribe/mock-failed-indexing-task", projectId, "upload");
+    }, [startIndexing, projectId]);
+
+    return <>{children}</>;
+};
 
 // ============================================================================
 // MSW Handlers
@@ -53,7 +59,7 @@ const handlers = [
         const projectId = url.searchParams.get("project_id");
 
         if (projectId === populatedProject.id) {
-            return HttpResponse.json({ data: mockSessions });
+            return HttpResponse.json({ data: sessions });
         }
         return HttpResponse.json({ data: [] });
     }),
@@ -65,6 +71,45 @@ const handlers = [
             return HttpResponse.json(mockArtifacts);
         }
         return HttpResponse.json([]);
+    }),
+
+    // Mock SSE endpoint for indexing - keeps connection open indefinitely
+    http.get("/api/v1/sse/subscribe/mock-indexing-task", () => {
+        const stream = new ReadableStream({
+            start(controller) {
+                // Send initial connection event
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"task_started"}\n\n'));
+            },
+        });
+
+        return new HttpResponse(stream, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                Connection: "keep-alive",
+            },
+        });
+    }),
+
+    // Mock SSE endpoint for failed indexing - sends error then closes
+    http.get("/api/v1/sse/subscribe/mock-failed-indexing-task", () => {
+        const stream = new ReadableStream({
+            async start(controller) {
+                // Small delay to allow EventSource to fully connect and register handlers
+                await new Promise(resolve => setTimeout(resolve, 100));
+                // Send error event
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"conversion_failed","error":"Failed to convert \'document.pdf\'"}\n\n'));
+                controller.close();
+            },
+        });
+
+        return new HttpResponse(stream, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                Connection: "keep-alive",
+            },
+        });
     }),
 ];
 
@@ -86,6 +131,8 @@ const meta = {
     },
     decorators: [
         (Story: StoryFn, context: StoryContext) => {
+            // Clear any stale SSE tasks from sessionStorage on story mount
+            sessionStorage.removeItem("sam_sse_tasks");
             const storyResult = Story(context.args, context);
             return <div style={{ height: "100vh", width: "100vw" }}>{storyResult}</div>;
         },
@@ -197,5 +244,69 @@ export const EditDetailsDescriptionLimit: Story = {
         expect(await dialogContent.findByText("Description must be less than 1000 characters")).toBeInTheDocument();
 
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeDisabled();
+    },
+};
+
+/**
+ * Indexing state - Shows the UI when project files are being indexed.
+ * All action buttons should be disabled and an info banner should be visible.
+ */
+export const Indexing: Story = {
+    args: {
+        project: populatedProject,
+        onBack: () => alert("Will navigate back to project list"),
+        onStartNewChat: () => alert("Will start a new chat"),
+        onChatClick: (sessionId: string) => alert("Will open chat " + sessionId),
+    },
+    parameters: ownerWithAuthorization("user-id"),
+    decorators: [
+        (Story: StoryFn, context: StoryContext) => {
+            const storyResult = Story(context.args, context);
+            return <MockIndexingTask projectId={populatedProject.id}>{storyResult}</MockIndexingTask>;
+        },
+    ],
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify info banner is shown
+        expect(await canvas.findByTestId("messageBanner")).toBeVisible();
+
+        // Verify buttons disabled
+        expect(await canvas.findByTestId("editDetailsButton")).toBeDisabled();
+        expect(await canvas.findByTestId("editInstructions")).toBeDisabled();
+        expect(await canvas.findByTestId("editDefaultAgent")).toBeDisabled();
+        expect(await canvas.findByTestId("startNewChatButton")).toBeDisabled();
+    },
+};
+
+/**
+ * Indexing Error state - Shows the UI when indexing fails with an error.
+ * The error message should be displayed and buttons should be re-enabled.
+ */
+export const IndexingError: Story = {
+    args: {
+        project: populatedProject,
+        onBack: () => alert("Will navigate back to project list"),
+        onStartNewChat: () => alert("Will start a new chat"),
+        onChatClick: (sessionId: string) => alert("Will open chat " + sessionId),
+    },
+    parameters: ownerWithAuthorization("user-id"),
+    decorators: [
+        (Story: StoryFn, context: StoryContext) => {
+            const storyResult = Story(context.args, context);
+            return <MockFailedIndexingTask projectId={populatedProject.id}>{storyResult}</MockFailedIndexingTask>;
+        },
+    ],
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify info banner is shown
+        expect(await canvas.findByTestId("messageBanner")).toBeVisible();
+
+        // Verify buttons enabled - wait for first to ensure page is updated
+        await waitFor(async () => expect(await canvas.findByTestId("editDetailsButton", {}, { timeout: 2000 })).toBeEnabled());
+        expect(await canvas.findByTestId("editInstructions")).toBeEnabled();
+        expect(await canvas.findByTestId("editDefaultAgent")).toBeEnabled();
+        expect(await canvas.findByTestId("startNewChatButton")).toBeEnabled();
     },
 };

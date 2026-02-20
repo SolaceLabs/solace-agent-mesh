@@ -26,7 +26,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "edit_image_with_gemini"
-                  arguments: '{"image_filename": "document.txt", "edit_prompt": "make it pretty"}'
+                  arguments: '{"input_image": "document.txt", "edit_prompt": "make it pretty"}'
   - expected_request:
       messages:
         - role: "tool"

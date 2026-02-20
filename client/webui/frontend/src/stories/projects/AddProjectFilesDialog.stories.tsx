@@ -67,6 +67,30 @@ export const MultipleFiles: Story = {
 };
 
 /**
+ * Description exceeds the max length limit — validation error shown, upload button disabled
+ */
+export const DescriptionOverLimit: Story = {
+    args: {
+        isOpen: true,
+        files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
+        onClose: () => {},
+        onConfirm: () => {},
+        isSubmitting: false,
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        const descriptionBox = await dialogContent.findByRole("textbox");
+        await userEvent.click(descriptionBox);
+        await userEvent.paste("a".repeat(1001));
+
+        expect(await dialogContent.findByText(/exceeds the maximum of/i)).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Upload 1 File(s)" })).toBeDisabled();
+    },
+};
+
+/**
  * Loading state while uploading
  */
 export const Loading: Story = {

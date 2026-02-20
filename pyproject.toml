@@ -71,13 +71,22 @@ dependencies = [
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
     "azure-cognitiveservices-speech==1.41.1",
-    "authlib==1.6.5"  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
+    "authlib==1.6.5",  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
+    "cryptography==46.0.5",  # [CVE-2026-26007] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
+    "pillow==12.1.1",  # [CVE-2026-25990] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
+    "bm25s==0.2.14",
+    "pypdf==6.6.2",
+    "python-pptx==1.0.2",
+    "python-docx==1.2.0"
 ]
 
 [project.optional-dependencies]
 gcs = ["google-cloud-storage==3.5.0"]
 vertex = ["google-cloud-aiplatform==1.126.1"]
 employee_tools = ["holidays==0.81.0"]
+eval = [
+    "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"
+]
 test = [
     "pytest-asyncio",
     "pytest>=8.0.0",
@@ -114,6 +123,10 @@ dependencies = [
     "aiosqlite",
     "psycopg2-binary",
     "asyncpg",
+    "bm25s==0.2.14",
+    "pypdf==6.6.2",
+    "python-pptx==1.0.2",
+    "python-docx==1.2.0",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
 post-install-commands = [
@@ -221,6 +234,7 @@ markers = [
     "web_search: marks tests related to web search tools (Tavily, Google, Exa, Brave)",
     "deep_research: marks tests related to deep research tool",
     "dynamic_tools: marks tests related to the dynamic_tools",
+    "artifact_preloading: marks tests related to ArtifactContent type hint pre-loading",
     "auth: marks tests associated with authentication and authorization",
     "oauth: OAuth specific tests",
     "error_handling: Tests related to error handling and recovery",

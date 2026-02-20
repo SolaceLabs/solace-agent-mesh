@@ -76,8 +76,15 @@ shared_config:
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
 
 
-    multimodal: &multimodal_model  "gemini-2.5-flash-preview-04-17"
-    gemini_pro: &gemini_pro_model "gemini-2.5-pro-exp-03-25"
+    multimodal: &multimodal_model
+      model: "openai/gemini-3-flash-preview"
+      api_base: ${LLM_SERVICE_ENDPOINT}
+      api_key: ${LLM_SERVICE_API_KEY}
+
+    gemini_pro: &gemini_pro_model
+      model: "openai/gemini-3-pro-preview"
+      api_base: ${LLM_SERVICE_ENDPOINT}
+      api_key: ${LLM_SERVICE_API_KEY}
 
     # OAuth 2.0 Client Credentials authentication example
     oauth_planning: &oauth_planning_model

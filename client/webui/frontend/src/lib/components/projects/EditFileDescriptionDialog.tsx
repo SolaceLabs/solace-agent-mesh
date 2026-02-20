@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
+import { useForm } from "react-hook-form";
 
 import { Textarea } from "@/lib/components/ui";
-import { ConfirmationDialog } from "@/lib/components/common";
+import { Form, FormField, FormItem, FormControl, FormError, FormInputLabel } from "@/lib/components/ui/form";
+import { MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import type { ArtifactInfo } from "@/lib/types";
+import { useConfigContext } from "@/lib/hooks";
+import { DEFAULT_MAX_FILE_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
 import { FileLabel } from "../chat/file/FileLabel";
 
@@ -15,20 +19,43 @@ interface EditFileDescriptionDialogProps {
 }
 
 export const EditFileDescriptionDialog: React.FC<EditFileDescriptionDialogProps> = ({ isOpen, artifact, onClose, onSave, isSaving = false }) => {
-    const [description, setDescription] = useState("");
+    const { validationLimits } = useConfigContext();
+    const FILE_DESCRIPTION_MAX = validationLimits?.projectFileDescriptionMax ?? DEFAULT_MAX_FILE_DESCRIPTION_LENGTH;
+
+    const form = useForm<{ description: string }>({
+        mode: "onChange",
+        defaultValues: {
+            description: "",
+        },
+    });
 
     useEffect(() => {
         if (isOpen && artifact) {
-            setDescription(artifact.description || "");
+            form.reset({ description: artifact.description || "" });
         }
-    }, [isOpen, artifact]);
+    }, [isOpen, artifact, form]);
+
+    const currentDescription = form.watch("description");
+
+    /**
+     * If an existing description exceeds the current limit, warn the user. In this case,
+     * they will not be able to save changes unless they reduce the length to be within the limit.
+     */
+    const initialLength = artifact?.description?.length || 0;
+    const wasOverLimit = initialLength > FILE_DESCRIPTION_MAX;
+
+    const hasErrors = Object.keys(form.formState.errors).length > 0;
 
     const handleSave = async () => {
-        await onSave(description);
+        const isValid = await form.trigger();
+        if (!isValid) return;
+
+        const { description } = form.getValues();
+        await onSave(description.trim());
     };
 
     const handleCancel = () => {
-        setDescription(artifact?.description || "");
+        form.reset({ description: artifact?.description || "" });
         onClose();
     };
 
@@ -36,10 +63,35 @@ export const EditFileDescriptionDialog: React.FC<EditFileDescriptionDialogProps>
 
     const dialogContent = (
         <div className="my-5 flex flex-col gap-4">
+            {wasOverLimit && <MessageBanner variant="warning" message={`This file's description (${initialLength} characters) exceeds the current limit of ${FILE_DESCRIPTION_MAX} characters. Please reduce it to save changes.`} />}
+
             <FileLabel fileName={artifact.filename} fileSize={artifact.size} />
-            <div>
-                <Textarea className="mt-1" rows={2} disabled={isSaving} value={description} onChange={e => setDescription(e.target.value)} />
-            </div>
+
+            <Form {...form}>
+                <FormField
+                    control={form.control}
+                    name="description"
+                    rules={{
+                        maxLength: {
+                            value: FILE_DESCRIPTION_MAX,
+                            message: `Description exceeds the maximum of ${FILE_DESCRIPTION_MAX} characters`,
+                        },
+                    }}
+                    render={({ field, fieldState }) => (
+                        <FormItem>
+                            <FormControl>
+                                <Textarea {...field} rows={2} disabled={isSaving} maxLength={FILE_DESCRIPTION_MAX + 1} className="mt-1 resize-none text-sm" />
+                            </FormControl>
+                            <FormError />
+                            {!fieldState.error && (
+                                <FormInputLabel rightAlign>
+                                    {currentDescription.length} / {FILE_DESCRIPTION_MAX}
+                                </FormInputLabel>
+                            )}
+                        </FormItem>
+                    )}
+                />
+            </Form>
         </div>
     );
 
@@ -55,6 +107,7 @@ export const EditFileDescriptionDialog: React.FC<EditFileDescriptionDialogProps>
                 confirm: "Save",
             }}
             isLoading={isSaving}
+            isEnabled={!hasErrors}
             onConfirm={handleSave}
             onCancel={handleCancel}
         />

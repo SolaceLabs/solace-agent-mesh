@@ -8,7 +8,7 @@ import { StepComponentProps } from "../../InitializationFlow";
 
 const brokerOptions = [
   { value: "solace", label: "Existing Solace Pub/Sub+ broker" },
-  { value: "container", label: "New local Solace PubSub+ broker container" },
+  { value: "container", label: "New local Solace broker container" },
   { value: "dev_mode", label: "Dev mode (simplified setup)" },
 ];
 
@@ -293,7 +293,7 @@ export default function BrokerSetup({
         {showBrokerDetails && (
           <div className="space-y-4 p-4 border border-gray-200 rounded-md">
             <InfoBox className="mb-4">
-              Connect to an existing Solace PubSub+ broker running locally or in
+              Connect to an existing Solace broker running locally or in
               the cloud. You will need your broker credentials.
             </InfoBox>
 
@@ -362,7 +362,7 @@ export default function BrokerSetup({
         {showContainerDetails && (
           <div className="space-y-4 p-4 border border-gray-200 rounded-md">
             <InfoBox className="mb-4">
-              This option will download and run a local Solace PubSub+ broker
+              This option will download and run a local Solace broker
               container on your machine using Docker or Podman. You need to have
               Docker or Podman installed on your system.
             </InfoBox>
