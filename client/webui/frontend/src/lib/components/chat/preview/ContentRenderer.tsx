@@ -13,9 +13,10 @@ interface ContentRendererProps {
     isStreaming?: boolean;
     ragData?: RAGSearchResult;
     initialPage?: number;
+    highlightTexts?: string[];
 }
 
-export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData, initialPage }) => {
+export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData, initialPage, highlightTexts }) => {
     switch (rendererType) {
         case "csv":
             return <CsvRenderer content={content} setRenderError={setRenderError} />;
@@ -39,7 +40,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rende
         case "pdf":
         case "application/pdf":
             if (url && filename) {
-                return <PdfRenderer url={url} filename={filename} initialPage={initialPage} />;
+                return <PdfRenderer url={url} filename={filename} initialPage={initialPage} highlightTexts={highlightTexts} />;
             }
             setRenderError("URL and filename are required for PDF preview.");
             return null;

@@ -55,6 +55,11 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
         return `/api/v1/artifacts/null/${encodedFilename}/versions/latest?project_id=${projectId}`;
     }, [filename, projectId]);
 
+    // Extract citation texts for PDF highlighting
+    const highlightTexts = useMemo(() => {
+        return citations.map(c => c.contentPreview).filter((t): t is string => !!t && t.length > 20);
+    }, [citations]);
+
     // Process content for text-based files (apply highlighting)
     const processedContent = useMemo(() => {
         if (!documentData?.content || !renderType) return "";
@@ -130,7 +135,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                         <div className="h-full overflow-auto">
                             {renderType === "pdf" ? (
                                 fileUrl ? (
-                                    <ContentRenderer content="" rendererType={renderType} mime_type={documentData?.mimeType} url={fileUrl} filename={filename} setRenderError={setRenderError} initialPage={pageNumber} />
+                                    <ContentRenderer content="" rendererType={renderType} mime_type={documentData?.mimeType} url={fileUrl} filename={filename} setRenderError={setRenderError} initialPage={pageNumber} highlightTexts={highlightTexts} />
                                 ) : (
                                     <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2">
                                         <AlertCircle className="h-8 w-8" />

@@ -20,6 +20,7 @@ interface PdfRendererProps {
     url: string;
     filename: string;
     initialPage?: number;
+    highlightTexts?: string[];
 }
 
 interface SelectionRect {
@@ -33,7 +34,7 @@ type InteractionMode = "text" | "pan" | "snip";
 
 const pdfOptions = { withCredentials: true };
 
-const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage }) => {
+const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, highlightTexts = [] }) => {
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -71,6 +72,41 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage })
             return () => clearTimeout(timer);
         }
     }, [initialPage, numPages]);
+
+    // Highlight citation text in the PDF text layer after render
+    useEffect(() => {
+        if (!highlightTexts.length || !numPages || !viewerRef.current) return;
+
+        const timer = setTimeout(() => {
+            const textSpans = viewerRef.current?.querySelectorAll(".react-pdf__Page__textContent span");
+            if (!textSpans) return;
+
+            const matchedSpans: HTMLElement[] = [];
+
+            textSpans.forEach(span => {
+                const spanText = span.textContent?.toLowerCase().trim() || "";
+                if (spanText.length < 4) return; // Skip tiny spans
+
+                const isMatch = highlightTexts.some(citation => {
+                    const normalizedCitation = citation.toLowerCase().replace(/\s+/g, " ");
+                    // Check if span text is part of citation or vice versa
+                    return normalizedCitation.includes(spanText) || spanText.includes(normalizedCitation.substring(0, 30));
+                });
+
+                if (isMatch) {
+                    span.classList.add("citation-highlight");
+                    matchedSpans.push(span as HTMLElement);
+                }
+            });
+
+            // Scroll to first highlight if no initialPage was specified
+            if (matchedSpans.length > 0 && !initialPage) {
+                matchedSpans[0].scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [highlightTexts, numPages, initialPage, zoomLevel]);
 
     function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }): void {
         setNumPages(nextNumPages);
