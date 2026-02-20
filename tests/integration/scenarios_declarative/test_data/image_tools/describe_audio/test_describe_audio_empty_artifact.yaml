@@ -16,6 +16,7 @@ gateway_input:
     a2a_session_id: "session_empty_artifact"
 
 llm_interactions:
+  # First LLM call: Agent decides to use the tool
   - static_response:
       choices:
         - message:
@@ -25,12 +26,9 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_audio"
-                  arguments: '{"audio_filename": "empty.wav"}'
-  - static_response:
-      choices:
-        - message:
-            role: "assistant"
-            content: "Content for audio artifact 'empty.wav' v1 not found."
+                  arguments: '{"input_audio": "empty.wav"}'
+  # Second LLM call: Agent processes the artifact pre-load error
+  # (Artifact loading now happens in wrapper before tool execution)
   - static_response:
       choices:
         - message:

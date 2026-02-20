@@ -17,7 +17,7 @@ class DevBroker:
     """
     Development Solace broker simulator for testing.
     
-    Provides a lightweight, in-memory broker that simulates Solace PubSub+ functionality
+    Provides a lightweight, in-memory broker that simulates Solace functionality
     for testing the Event Mesh Gateway.
     """
     

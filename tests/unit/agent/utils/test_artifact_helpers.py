@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from solace_agent_mesh.agent.adk.services import BaseArtifactService
 from solace_agent_mesh.agent.utils.artifact_helpers import (
     is_filename_safe,
+    is_internal_artifact,
     sanitize_to_filename,
     ensure_correct_extension,
     format_artifact_uri,
@@ -25,6 +26,7 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
     format_metadata_for_llm,
     decode_and_get_bytes,
     get_latest_artifact_version,
+    get_artifact_counts_batch,
     load_artifact_content_or_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
 )
@@ -1477,3 +1479,79 @@ class TestArtifactHelpersWithFixtures:
         wrong_ext_filename = filename.replace(".csv", ".txt")
         corrected = ensure_correct_extension(wrong_ext_filename, "csv")
         assert corrected == filename
+
+
+class TestIsInternalArtifact:
+    """Test the is_internal_artifact function."""
+
+    def test_metadata_files(self):
+        """Test that metadata files are identified as internal."""
+        assert is_internal_artifact("report.pdf.metadata.json")
+        assert is_internal_artifact("data.csv.metadata.json")
+        assert is_internal_artifact("notes.md.metadata.json")
+
+    def test_converted_text_files(self):
+        """Test that converted text files are identified as internal."""
+        assert is_internal_artifact("report.pdf.converted.txt")
+        assert is_internal_artifact("document.docx.converted.txt")
+        assert is_internal_artifact("our solar system.pdf.converted.txt")
+
+    def test_bm25_index_file(self):
+        """Test that the BM25 index file is identified as internal."""
+        assert is_internal_artifact("project_bm25_index.zip")
+
+    def test_user_uploaded_files(self):
+        """Test that regular user files are not identified as internal."""
+        assert not is_internal_artifact("report.pdf")
+        assert not is_internal_artifact("data.csv")
+        assert not is_internal_artifact("notes.md")
+        assert not is_internal_artifact("image.png")
+        assert not is_internal_artifact("solar_system_planets.md")
+        assert not is_internal_artifact("astronomy.pdf")
+
+    def test_similar_but_not_internal_filenames(self):
+        """Test edge cases with similar filenames that are not internal."""
+        # A file that contains 'metadata.json' but doesn't end with the suffix
+        assert not is_internal_artifact("metadata.json.backup")
+        # A file named just 'converted.txt' without the dot prefix pattern
+        assert not is_internal_artifact("converted.txt")
+        # A zip file that isn't the BM25 index
+        assert not is_internal_artifact("other_index.zip")
+        assert not is_internal_artifact("project_bm25_index.zip.bak")
+
+
+class TestGetArtifactCountsBatch:
+    """Test the get_artifact_counts_batch function."""
+
+    @pytest.fixture
+    def mock_artifact_service(self):
+        """Mock artifact service for testing."""
+        service = Mock(spec=BaseArtifactService)
+        return service
+
+    @pytest.mark.asyncio
+    async def test_counts_only_user_artifacts(self, mock_artifact_service):
+        """Test that count excludes metadata, converted, and index files."""
+        mock_artifact_service.list_artifact_keys = AsyncMock(return_value=[
+            "astronomy.pdf",
+            "astronomy.pdf.metadata.json",
+            "astronomy.pdf.converted.txt",
+            "astronomy.pdf.converted.txt.metadata.json",
+            "our solar system.pdf",
+            "our solar system.pdf.metadata.json",
+            "our solar system.pdf.converted.txt",
+            "our solar system.pdf.converted.txt.metadata.json",
+            "project_bm25_index.zip",
+            "project_bm25_index.zip.metadata.json",
+            "solar_system_planets.md",
+            "solar_system_planets.md.metadata.json",
+        ])
+
+        result = await get_artifact_counts_batch(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_ids=["session1"],
+        )
+
+        assert result["session1"] == 3

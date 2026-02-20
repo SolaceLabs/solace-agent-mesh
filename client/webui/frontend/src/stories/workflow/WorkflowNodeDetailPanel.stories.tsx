@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import WorkflowNodeDetailPanel from "@/lib/components/workflowVisualization/WorkflowNodeDetailPanel";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
+import type { AgentCardInfo } from "@/lib/types";
 
 const meta: Meta<typeof WorkflowNodeDetailPanel> = {
-    title: "Workflow/WorkflowNodeDetailPanel",
+    title: "Workflow/WorkflowVisualization/WorkflowNodeDetailPanel",
     component: WorkflowNodeDetailPanel,
     tags: ["autodocs"],
     decorators: [
@@ -19,7 +20,21 @@ const meta: Meta<typeof WorkflowNodeDetailPanel> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const createLoopNode = (delay?: string): LayoutNode => ({
+const mockValidateOrderAgent: AgentCardInfo = {
+    name: "validate_order",
+    displayName: "OrderValidator",
+    description: "Validates order data and ensures all required fields are present",
+    version: "1.0.0",
+    capabilities: {},
+    defaultInputModes: [],
+    defaultOutputModes: [],
+    protocolVersion: "1.0",
+    provider: { organization: "solace", url: "" },
+    url: "",
+    skills: [],
+};
+
+const loopNode: LayoutNode = {
     id: "polling_loop",
     type: "loop",
     x: 0,
@@ -31,11 +46,49 @@ const createLoopNode = (delay?: string): LayoutNode => ({
         label: "Polling Loop",
         condition: "{{check_status.output.ready}} == false",
         maxIterations: 10,
-        ...(delay && { delay }),
+        delay: "5s",
     },
-});
+};
 
-const createMapNode = (): LayoutNode => ({
+const agentNode: LayoutNode = {
+    id: "validate_order",
+    type: "agent",
+    x: 0,
+    y: 0,
+    width: 280,
+    height: 56,
+    children: [],
+    data: {
+        agentName: "validate_order",
+        label: "OrderValidator",
+        originalConfig: {
+            id: "validate_order",
+            type: "agent",
+            agent_name: "validate_order",
+            input: {
+                order_data: "{{workflow.input.order}}",
+                customer_id: "{{workflow.input.customer_id}}",
+            },
+            input_schema_override: {
+                type: "object",
+                properties: {
+                    order_data: { type: "object", description: "Order details to validate" },
+                    customer_id: { type: "string", description: "Customer identifier" },
+                },
+                required: ["order_data"],
+            },
+            output_schema_override: {
+                type: "object",
+                properties: {
+                    is_valid: { type: "boolean", description: "Whether order is valid" },
+                    validation_errors: { type: "array", items: { type: "string" }, description: "List of validation errors" },
+                },
+            },
+        },
+    },
+};
+
+const mapNode: LayoutNode = {
     id: "process_items",
     type: "map",
     x: 0,
@@ -45,12 +98,12 @@ const createMapNode = (): LayoutNode => ({
     children: [],
     data: {
         label: "Process Items",
-        items: "{{input.items}}",
+        items: "{{workflow.input.order_items}}",
     },
-});
+};
 
-const createSwitchNode = (): LayoutNode => ({
-    id: "route_request",
+const switchNode: LayoutNode = {
+    id: "check_priority",
     type: "switch",
     x: 0,
     y: 0,
@@ -58,90 +111,71 @@ const createSwitchNode = (): LayoutNode => ({
     height: 60,
     children: [],
     data: {
-        label: "Route Request",
+        label: "Check Priority",
         cases: [
-            { condition: "{{input.type}} == 'A'", node: "handle_a" },
-            { condition: "{{input.type}} == 'B'", node: "handle_b" },
+            { condition: "{{priority}} == 'high'", node: "fast_path" },
+            { condition: "{{priority}} == 'low'", node: "slow_path" },
         ],
-    },
-});
-
-export const LoopNodeWithDelay: Story = {
-    args: {
-        node: createLoopNode("5s"),
-        workflowConfig: null,
-        agents: [],
-    },
-    play: async () => {
-        // Verify delay is rendered
-        expect(screen.getByText("Delay")).toBeInTheDocument();
-        expect(screen.getByText("5s")).toBeInTheDocument();
     },
 };
 
-export const LoopNodeWithoutDelay: Story = {
+export const LoopNode: Story = {
     args: {
-        node: createLoopNode(),
+        node: loopNode,
         workflowConfig: null,
         agents: [],
     },
-    play: async () => {
-        // Verify node ID appears in the Node ID section
-        expect(screen.getByText("polling_loop")).toBeInTheDocument();
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(await canvas.findByRole("complementary", { name: "Node details panel" })).toBeInTheDocument();
+        // Panel shows node ID as title; appears multiple times in panel
+        expect(canvas.getAllByText("polling_loop").length).toBeGreaterThan(0);
+        expect(canvas.getByText("Max Iterations")).toBeInTheDocument();
+    },
+};
 
-        // Verify type label "Loop" appears in the UI (title and Node Type section)
-        const loopElements = screen.getAllByText("Loop");
-        expect(loopElements.length).toBeGreaterThanOrEqual(2);
-
-        // Verify expected properties are rendered
-        expect(screen.getByText("Max Iterations")).toBeInTheDocument();
-        expect(screen.getByText("10")).toBeInTheDocument();
-        expect(screen.getByText("Condition")).toBeInTheDocument();
-
-        // Verify description for loop nodes is rendered
-        expect(screen.getByText("Repeats a node until a condition becomes false. The first iteration always runs; the condition is checked before subsequent iterations.")).toBeInTheDocument();
-
-        // Verify delay is NOT rendered
-        const delayLabel = screen.queryByText("Delay");
-        expect(delayLabel).not.toBeInTheDocument();
+export const AgentNode: Story = {
+    args: {
+        node: agentNode,
+        workflowConfig: null,
+        agents: [mockValidateOrderAgent],
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(await canvas.findByRole("complementary", { name: "Node details panel" })).toBeInTheDocument();
+        // Panel shows agent displayName; may appear multiple times
+        expect(canvas.getAllByText("OrderValidator").length).toBeGreaterThan(0);
+        expect(canvas.getByRole("tab", { name: "Input" })).toBeInTheDocument();
+        expect(canvas.getByRole("tab", { name: "Output" })).toBeInTheDocument();
     },
 };
 
 export const MapNode: Story = {
     args: {
-        node: createMapNode(),
+        node: mapNode,
         workflowConfig: null,
         agents: [],
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-
-        expect(canvas.getByText("process_items")).toBeInTheDocument();
-
-        // Verify description for map nodes is rendered
-        expect(canvas.getByText("Executes a node for each item in a collection. Items are processed in parallel by default.")).toBeInTheDocument();
-
-        // Verify items property is rendered
+        expect(await canvas.findByRole("complementary", { name: "Node details panel" })).toBeInTheDocument();
+        // Panel shows node ID as title; appears multiple times in panel
+        expect(canvas.getAllByText("process_items").length).toBeGreaterThan(0);
         expect(canvas.getByText("Items")).toBeInTheDocument();
-        expect(canvas.getByText("{{input.items}}")).toBeInTheDocument();
     },
 };
 
 export const SwitchNode: Story = {
     args: {
-        node: createSwitchNode(),
+        node: switchNode,
         workflowConfig: null,
         agents: [],
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-
-        expect(canvas.getByText("route_request")).toBeInTheDocument();
-
-        // Verify description for switch nodes is rendered
-        expect(canvas.getByText("Routes execution based on conditions. Cases are evaluated in order; the first match wins.")).toBeInTheDocument();
-
-        // Verify cases are rendered
+        expect(await canvas.findByRole("complementary", { name: "Node details panel" })).toBeInTheDocument();
+        // Panel shows node ID as title; appears multiple times in panel
+        expect(canvas.getAllByText("check_priority").length).toBeGreaterThan(0);
         expect(canvas.getByText("Cases")).toBeInTheDocument();
     },
 };

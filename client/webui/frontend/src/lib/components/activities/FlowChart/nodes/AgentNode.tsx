@@ -1,4 +1,4 @@
-import { Fragment, type FC } from "react";
+import { Fragment, useCallback } from "react";
 import { Bot, Maximize2, Minimize2 } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
@@ -20,45 +20,48 @@ interface AgentNodeProps {
     onCollapse?: (nodeId: string) => void;
 }
 
-const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }: AgentNodeProps) => {
     // Render a child node recursively
-    const renderChild = (child: LayoutNode) => {
-        const childProps = {
-            node: child,
-            onClick: onChildClick,
-            onExpand,
-            onCollapse,
-        };
+    const renderChild = useCallback(
+        (child: LayoutNode) => {
+            const childProps = {
+                node: child,
+                onClick: onChildClick,
+                onExpand,
+                onCollapse,
+            };
 
-        switch (child.type) {
-            case "agent":
-                // Recursive!
-                return <AgentNode key={child.id} {...childProps} onChildClick={onChildClick} />;
-            case "llm":
-                return <LLMNode key={child.id} {...childProps} />;
-            case "tool":
-                return <ToolNode key={child.id} {...childProps} />;
-            case "switch":
-                return <SwitchNode key={child.id} {...childProps} />;
-            case "loop":
-                return <LoopNode key={child.id} {...childProps} />;
-            case "group":
-                return <WorkflowGroup key={child.id} {...childProps} onChildClick={onChildClick} />;
-            case "parallelBlock":
-                // Don't render empty parallel blocks
-                if (child.children.length === 0) {
+            switch (child.type) {
+                case "agent":
+                    // Recursive!
+                    return <AgentNode key={child.id} {...childProps} onChildClick={onChildClick} />;
+                case "llm":
+                    return <LLMNode key={child.id} {...childProps} />;
+                case "tool":
+                    return <ToolNode key={child.id} {...childProps} />;
+                case "switch":
+                    return <SwitchNode key={child.id} {...childProps} />;
+                case "loop":
+                    return <LoopNode key={child.id} {...childProps} />;
+                case "group":
+                    return <WorkflowGroup key={child.id} {...childProps} onChildClick={onChildClick} />;
+                case "parallelBlock":
+                    // Don't render empty parallel blocks
+                    if (child.children.length === 0) {
+                        return null;
+                    }
+                    // Render parallel block - children displayed side-by-side with bounding box
+                    return (
+                        <div key={child.id} className="flex flex-row items-start gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-gray-600 dark:bg-gray-800/50">
+                            {child.children.map(parallelChild => renderChild(parallelChild))}
+                        </div>
+                    );
+                default:
                     return null;
-                }
-                // Render parallel block - children displayed side-by-side with bounding box
-                return (
-                    <div key={child.id} className="flex flex-row items-start gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-gray-600 dark:bg-gray-800/50">
-                        {child.children.map(parallelChild => renderChild(parallelChild))}
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
+            }
+        },
+        [onChildClick, onExpand, onCollapse]
+    );
 
     // Pill variant for Start/Finish/Join/Map/Fork nodes
     if (node.data.variant === "pill") {
@@ -67,16 +70,16 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
         const hasChildren = node.children && node.children.length > 0;
         const isError = node.data.status === "error";
 
-        // Error color overrides - only apply when there's an error, otherwise use PILL base styling
-        const errorColorClasses = isError
-            ? "!bg-red-50 !text-red-900 dark:!bg-red-900/50 dark:!text-red-100"
-            : "";
+        // Color classes based on error status
+        const pillColorClasses = isError
+            ? "border-(--color-error-wMain) bg-(--color-error-w10) text-(--color-error-wMain) dark:border-(--color-error-w80) dark:bg-(--color-error-w100)/50 dark:text-(--color-error-w10)"
+            : "border-(--color-info-wMain) bg-(--color-info-w10) text-(--color-info-wMain) dark:border-(--color-info-w80) dark:bg-(--color-info-w100)/50 dark:text-(--color-info-w10)";
 
         // If it's a simple pill (no parallel branches and no children), render compact version
         if (!hasParallelBranches && !hasChildren) {
             return (
                 <div
-                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${errorColorClasses} ${opacityClass} ${
+                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${pillColorClasses} ${opacityClass} ${
                         isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
                     }`}
                     style={{
@@ -103,7 +106,7 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
                 <div className={`flex flex-col items-center ${opacityClass}`}>
                     {/* Pill label */}
                     <div
-                        className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${errorColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                        className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${pillColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                         style={{
                             minWidth: "80px",
                             textAlign: "center",
@@ -136,10 +139,10 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
 
         // Map/Fork pill with parallel branches
         return (
-            <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
+            <div className={`flex flex-col items-center ${opacityClass}`}>
                 {/* Pill label */}
                 <div
-                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${errorColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${pillColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                     style={{
                         minWidth: "80px",
                         textAlign: "center",
@@ -198,7 +201,6 @@ const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick
     // Layout constants - match workflow visualization
     const AGENT_WIDTH = 280; // Match workflow AGENT width
     const HEADER_HEIGHT = 44; // Match CONTAINER_HEADER height
-    const DOTTED_PADDING = 16; // Padding on each side to extend beyond header
 
     // When collapsed or no children, render as simple rectangular node
     if (isCollapsed || !hasContent) {

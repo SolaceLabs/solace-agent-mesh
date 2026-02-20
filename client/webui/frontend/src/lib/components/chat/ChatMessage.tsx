@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 
-import { AlertCircle, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertCircle, Quote, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
@@ -14,6 +14,7 @@ import { DeepResearchReportContent } from "@/lib/components/research/DeepResearc
 import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
+import { hasDocumentSearchResults } from "@/lib/utils/sourceUrlHelpers";
 import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
@@ -125,16 +126,269 @@ const getUserFriendlyErrorMessage = (technicalMessage: string): string => {
     return technicalMessage;
 };
 
-const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>(({ message, isStreaming }) => {
+const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; highlightedText?: string | null }>(({ message, isStreaming, highlightedText }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
     const { sessionId, ragData, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const contentRef = React.useRef<HTMLDivElement>(null);
+
+    // Effect to highlight specific text when highlightedText changes
+    React.useEffect(() => {
+        if (!highlightedText || !contentRef.current) return;
+
+        const highlightStyle = "background-color: color-mix(in srgb, var(--color-brand-wMain) 30%, transparent); color: inherit; transition: background-color 0.5s ease-out;";
+        const highlightMarks: HTMLElement[] = [];
+
+        // Normalize text for matching (collapse whitespace, handle line breaks)
+        const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim();
+        const searchTextNormalized = normalizeText(highlightedText);
+
+        // Helper: Collect all text nodes and build a position map
+        const collectTextNodes = (container: HTMLElement): { node: Text; start: number; end: number }[] => {
+            const textNodes: { node: Text; start: number; end: number }[] = [];
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+            let node: Text | null;
+            let position = 0;
+
+            while ((node = walker.nextNode() as Text | null)) {
+                const text = node.textContent || "";
+                if (text.length > 0) {
+                    textNodes.push({
+                        node,
+                        start: position,
+                        end: position + text.length,
+                    });
+                    position += text.length;
+                }
+            }
+            return textNodes;
+        };
+
+        // Helper: Find text position within text nodes using simple string search
+        const findTextInNodes = (textNodes: { node: Text; start: number; end: number }[], searchText: string): { found: boolean; nodeRanges: { node: Text; startOffset: number; endOffset: number }[] } => {
+            // Concatenate all text from text nodes
+            const fullText = textNodes.map(t => t.node.textContent || "").join("");
+
+            // Normalize both texts for comparison
+            const normalizedFullText = normalizeText(fullText);
+            const normalizedSearchText = normalizeText(searchText);
+
+            // Find the normalized search text in the normalized full text
+            const normalizedIndex = normalizedFullText.indexOf(normalizedSearchText);
+
+            if (normalizedIndex === -1) {
+                // Try case-insensitive search
+                const lowerNormalizedIndex = normalizedFullText.toLowerCase().indexOf(normalizedSearchText.toLowerCase());
+                if (lowerNormalizedIndex === -1) {
+                    return { found: false, nodeRanges: [] };
+                }
+            }
+
+            // Build mapping from normalized positions back to original positions
+            // This handles collapsed whitespace
+            const normalizedToOriginal: number[] = [];
+            let lastWasSpace = false;
+
+            for (let i = 0; i < fullText.length; i++) {
+                const char = fullText[i];
+                const isSpace = /\s/.test(char);
+
+                if (isSpace) {
+                    if (!lastWasSpace) {
+                        // This is the first space in a sequence - maps to a single space in normalized
+                        normalizedToOriginal.push(i);
+                    }
+                    // Subsequent spaces don't add to normalizedToOriginal
+                    lastWasSpace = true;
+                } else {
+                    normalizedToOriginal.push(i);
+                    lastWasSpace = false;
+                }
+            }
+
+            // Skip leading whitespace in mapping (since normalizeText trims)
+            let leadingSpaceCount = 0;
+            for (const char of fullText) {
+                if (/\s/.test(char)) leadingSpaceCount++;
+                else break;
+            }
+
+            // Adjust mapping for leading whitespace
+            const trimmedMapping = normalizedToOriginal.filter(pos => pos >= leadingSpaceCount);
+
+            // Find the actual index (using case-insensitive if needed)
+            let actualNormalizedIndex = normalizedFullText.indexOf(normalizedSearchText);
+            if (actualNormalizedIndex === -1) {
+                actualNormalizedIndex = normalizedFullText.toLowerCase().indexOf(normalizedSearchText.toLowerCase());
+            }
+
+            if (actualNormalizedIndex === -1 || actualNormalizedIndex >= trimmedMapping.length) {
+                return { found: false, nodeRanges: [] };
+            }
+
+            // Map normalized positions to original positions
+            const searchEndIndex = Math.min(actualNormalizedIndex + normalizedSearchText.length - 1, trimmedMapping.length - 1);
+
+            if (searchEndIndex < 0 || actualNormalizedIndex < 0) {
+                return { found: false, nodeRanges: [] };
+            }
+
+            const originalStart = trimmedMapping[actualNormalizedIndex];
+            const originalEnd = trimmedMapping[searchEndIndex] + 1;
+
+            // Find which text nodes contain this range
+            const nodeRanges: { node: Text; startOffset: number; endOffset: number }[] = [];
+            let currentPos = 0;
+
+            for (const { node } of textNodes) {
+                const text = node.textContent || "";
+                const nodeStart = currentPos;
+                const nodeEnd = currentPos + text.length;
+
+                if (nodeEnd > originalStart && nodeStart < originalEnd) {
+                    // This node overlaps with our search range
+                    const startOffset = Math.max(0, originalStart - nodeStart);
+                    const endOffset = Math.min(text.length, originalEnd - nodeStart);
+
+                    if (startOffset < endOffset) {
+                        nodeRanges.push({ node, startOffset, endOffset });
+                    }
+                }
+
+                currentPos = nodeEnd;
+            }
+
+            return { found: nodeRanges.length > 0, nodeRanges };
+        };
+
+        // Helper: Highlight portions of text nodes
+        const highlightNodeRanges = (nodeRanges: { node: Text; startOffset: number; endOffset: number }[]): HTMLElement[] => {
+            const marks: HTMLElement[] = [];
+
+            for (const { node, startOffset, endOffset } of nodeRanges) {
+                const text = node.textContent || "";
+                const parent = node.parentNode;
+                if (!parent) continue;
+
+                // Get the text to be highlighted
+                const highlightText = text.slice(startOffset, endOffset);
+
+                // Skip whitespace-only nodes to prevent visual glitches
+                if (/^\s*$/.test(highlightText)) {
+                    continue;
+                }
+
+                // Create document fragment with before, highlighted, and after parts
+                const frag = document.createDocumentFragment();
+
+                if (startOffset > 0) {
+                    frag.appendChild(document.createTextNode(text.slice(0, startOffset)));
+                }
+
+                const mark = document.createElement("mark");
+                mark.style.cssText = highlightStyle;
+                mark.textContent = highlightText;
+                frag.appendChild(mark);
+                marks.push(mark);
+
+                if (endOffset < text.length) {
+                    frag.appendChild(document.createTextNode(text.slice(endOffset)));
+                }
+
+                parent.replaceChild(frag, node);
+            }
+
+            return marks;
+        };
+
+        // Main logic: Try to find and highlight the text
+        const textNodes = collectTextNodes(contentRef.current);
+
+        // Strategy 1: Try exact match (handles multi-node spanning)
+        let result = findTextInNodes(textNodes, highlightedText);
+
+        // Strategy 2: If not found, try progressively shorter versions
+        if (!result.found) {
+            const words = searchTextNormalized.split(/\s+/);
+            for (const wordCount of [Math.min(5, words.length), 4, 3, 2, 1]) {
+                if (result.found) break;
+                if (words.length < wordCount) continue;
+
+                const searchText = words.slice(0, wordCount).join(" ");
+                if (searchText.length < 3) continue;
+
+                // Re-collect text nodes (in case DOM was modified)
+                const freshTextNodes = collectTextNodes(contentRef.current!);
+                result = findTextInNodes(freshTextNodes, searchText);
+            }
+        }
+
+        // Strategy 3: Fuzzy match - find text containing most of the words
+        if (!result.found && searchTextNormalized.length > 0) {
+            const words = searchTextNormalized.split(/\s+/).filter(w => w.length >= 2);
+            if (words.length > 0) {
+                const freshTextNodes = collectTextNodes(contentRef.current!);
+                const fullText = freshTextNodes.map(t => t.node.textContent || "").join("");
+                const normalizedFullText = normalizeText(fullText).toLowerCase();
+
+                // Find the best matching region that contains the most consecutive words
+                for (let startWord = 0; startWord < words.length && !result.found; startWord++) {
+                    for (let endWord = words.length; endWord > startWord && !result.found; endWord--) {
+                        const searchPhrase = words.slice(startWord, endWord).join(" ").toLowerCase();
+                        if (normalizedFullText.includes(searchPhrase)) {
+                            // Found a match! Now find it properly
+                            const latestTextNodes = collectTextNodes(contentRef.current!);
+                            result = findTextInNodes(latestTextNodes, words.slice(startWord, endWord).join(" "));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Apply highlights if we found matches
+        if (result.found && result.nodeRanges.length > 0) {
+            const marks = highlightNodeRanges(result.nodeRanges);
+            highlightMarks.push(...marks);
+        }
+
+        // Scroll and fade handling
+        if (highlightMarks.length > 0) {
+            // Scroll the first highlight into view
+            highlightMarks[0].scrollIntoView({ behavior: "smooth", block: "center" });
+
+            // Fade out all highlights after 3 seconds
+            setTimeout(() => {
+                highlightMarks.forEach(mark => {
+                    mark.style.backgroundColor = "transparent";
+                });
+            }, 3000);
+
+            // Remove all mark elements after fade completes
+            setTimeout(() => {
+                highlightMarks.forEach(mark => {
+                    if (mark.parentNode) {
+                        const textNode = document.createTextNode(mark.textContent || "");
+                        mark.parentNode.replaceChild(textNode, mark);
+                    }
+                });
+            }, 3500);
+        }
+    }, [highlightedText]);
 
     // Extract text content from message parts
-    const textContent =
+    let textContent =
         message.parts
             ?.filter(p => p.kind === "text")
             .map(p => (p as TextPart).text)
             .join("") || "";
+
+    // For user messages with contextQuote, strip the "Context: ..." prefix from the displayed text
+    // The context is shown separately above the message bubble via the contextQuote field
+    if (message.isUser && message.contextQuote) {
+        // Match and remove the context prefix pattern: Context: "quoted text"\n\n
+        const contextPrefixRegex = /^Context:\s*"[^"]*"\s*\n\n/;
+        textContent = textContent.replace(contextPrefixRegex, "");
+    }
 
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
@@ -232,11 +486,25 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
 
     // If user message has displayHtml (with mention chips), render that instead
     if (message.isUser && message.displayHtml) {
+        // Strip out any embedded context quote HTML from displayHtml
+        // (for backward compatibility with old messages that had context embedded in displayHtml)
+        // The context quote is now rendered separately above the message bubble
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(message.displayHtml, "text/html");
+
+        // Remove all context-quote-badge elements
+        const quoteBadges = doc.querySelectorAll(".context-quote-badge");
+        quoteBadges.forEach(badge => badge.remove());
+
+        // Get the cleaned HTML from body
+        const htmlToRender = doc.body.innerHTML;
+
         // Sanitize the HTML to prevent XSS
         // Allow mention chips and their data attributes
-        const cleanHtml = DOMPurify.sanitize(message.displayHtml, {
-            ALLOWED_TAGS: ["span", "br"],
-            ALLOWED_ATTR: ["class", "contenteditable", "data-internal", "data-person-id", "data-person-name", "data-display"],
+        const cleanHtml = DOMPurify.sanitize(htmlToRender, {
+            ALLOWED_TAGS: ["span", "br", "div", "svg", "path"],
+            ALLOWED_ATTR: ["class", "contenteditable", "data-internal", "data-person-id", "data-person-name", "data-display", "xmlns", "width", "height", "viewBox", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "d"],
         });
 
         return <div className="message-with-mentions break-words whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: cleanHtml }} />;
@@ -283,13 +551,15 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
     // Wrap AI messages with SelectableMessageContent for text selection
     if (!message.isUser) {
         return (
-            <SelectableMessageContent messageId={message.metadata?.messageId || ""} isAIMessage={true}>
-                {renderContent()}
-            </SelectableMessageContent>
+            <div ref={contentRef}>
+                <SelectableMessageContent messageId={message.metadata?.messageId || ""} taskId={message.taskId} isAIMessage={true}>
+                    {renderContent()}
+                </SelectableMessageContent>
+            </div>
         );
     }
 
-    return renderContent();
+    return <div ref={contentRef}>{renderContent()}</div>;
 });
 
 const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; className?: string }>(({ message, children, className }) => {
@@ -324,7 +594,7 @@ const DeepResearchReportBubble: React.FC<{
     return (
         <ChatBubble variant="received">
             <ChatBubbleMessage variant="received">
-                <SelectableMessageContent messageId={message.metadata?.messageId || ""} isAIMessage={true}>
+                <SelectableMessageContent messageId={message.metadata?.messageId || ""} taskId={message.taskId} isAIMessage={true}>
                     <DeepResearchReportContent artifact={deepResearchReportInfo.artifact} sessionId={deepResearchReportInfo.sessionId} ragData={deepResearchReportInfo.ragData} onContentLoaded={onContentLoaded} />
                 </SelectableMessageContent>
             </ChatBubbleMessage>
@@ -340,7 +610,8 @@ const getChatBubble = (
     sourcesElement?: React.ReactNode,
     deepResearchReportInfo?: DeepResearchReportInfo,
     onReportContentLoaded?: (content: string) => void,
-    reportContentOverride?: string
+    reportContentOverride?: string,
+    highlightedText?: string | null
 ): React.ReactNode => {
     const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
 
@@ -482,6 +753,29 @@ const getChatBubble = (
 
     return (
         <div key={message.metadata?.messageId} className="space-y-6">
+            {/* Render context quote above user message if present */}
+            {message.isUser && message.contextQuote && (
+                <div className="flex justify-end pr-4">
+                    <button
+                        className={`bg-muted/50 flex max-w-fit items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm ${message.contextQuoteSourceId ? "hover:bg-muted cursor-pointer transition-colors" : "cursor-default"}`}
+                        onClick={() => {
+                            if (message.contextQuoteSourceId) {
+                                // Dispatch event to scroll to and highlight the quoted text in the source message
+                                window.dispatchEvent(
+                                    new CustomEvent("scroll-to-message", {
+                                        detail: { taskId: message.contextQuoteSourceId, quotedText: message.contextQuote },
+                                    })
+                                );
+                            }
+                        }}
+                        disabled={!message.contextQuoteSourceId}
+                        title={message.contextQuoteSourceId ? "Click to scroll to original message" : undefined}
+                    >
+                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                        <span className="text-muted-foreground truncate italic">"{message.contextQuote}"</span>
+                    </button>
+                </div>
+            )}
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
                 const isLastPart = index === lastPartIndex;
@@ -511,7 +805,7 @@ const getChatBubble = (
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
                             <ChatBubbleMessage variant={variant}>
-                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: textContent }] }} isStreaming={shouldStream} />
+                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: textContent }] }} isStreaming={shouldStream} highlightedText={highlightedText} />
                                 {/* Show actions on the last part if it's text */}
                                 {isLastPart && (
                                     <MessageActions
@@ -564,6 +858,40 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     // State to track deep research report content for message actions functionality
     const [reportContent, setReportContent] = useState<string | null>(null);
+
+    // State for highlight animation when scrolled to from context quote link
+    const [isHighlighted, setIsHighlighted] = useState(false);
+    const [highlightedText, setHighlightedText] = useState<string | null>(null);
+    const messageRef = React.useRef<HTMLDivElement>(null);
+
+    // Listen for scroll-to-message events
+    React.useEffect(() => {
+        const handleScrollToMessage = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { taskId, quotedText } = customEvent.detail;
+
+            // Check if this message matches the target taskId
+            if (message.taskId === taskId && messageRef.current) {
+                // Scroll the message into view
+                messageRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                // If we have quoted text, highlight just that portion
+                if (quotedText) {
+                    setHighlightedText(quotedText);
+                    setTimeout(() => setHighlightedText(null), 2000);
+                } else {
+                    // Fallback to highlighting the entire message
+                    setIsHighlighted(true);
+                    setTimeout(() => setIsHighlighted(false), 2000);
+                }
+            }
+        };
+
+        window.addEventListener("scroll-to-message", handleScrollToMessage);
+        return () => {
+            window.removeEventListener("scroll-to-message", handleScrollToMessage);
+        };
+    }, [message.taskId]);
 
     // Get RAG metadata for this task
     const taskRagData = useMemo(() => {
@@ -660,10 +988,16 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
 
-    // Check if this is a completed web search message (has web_search sources but not deep research)
-    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.searchType === "web_search");
+    // Base condition for non-deep-research completed searches
+    const isNonDeepResearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources;
 
-    // Handler for sources click (works for both deep research and web search)
+    // Check if this is a completed web search message (has web_search sources but not deep research)
+    const isWebSearchComplete = isNonDeepResearchComplete && taskRagData?.some(r => r.searchType === "web_search");
+
+    // Check if this is a completed document search message (has document_search sources)
+    const isDocumentSearchComplete = isNonDeepResearchComplete && hasDocumentSearchResults(taskRagData);
+
+    // Handler for sources click (works for deep research, web search, and document search)
     const handleSourcesClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
@@ -672,7 +1006,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     };
 
     return (
-        <>
+        <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
             {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
             {isDeepResearchComplete &&
                 hasRagSources &&
@@ -712,8 +1046,8 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 chatContext,
                 isLastWithTaskId,
                 isStreaming,
-                // Show sources element for both deep research and web search (in message actions area)
-                !message.isUser && (isDeepResearchComplete || isWebSearchComplete) && hasRagSources
+                // Show sources element for deep research, web search, and document search (in message actions area)
+                !message.isUser && (isDeepResearchComplete || isWebSearchComplete || isDocumentSearchComplete) && hasRagSources
                     ? (() => {
                           const allSources = taskRagData.flatMap(r => r.sources);
 
@@ -749,7 +1083,9 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 // Callback to capture report content for TTS/copy
                 setReportContent,
                 // Pass report content to MessageActions for TTS/copy
-                reportContent || undefined
+                reportContent || undefined,
+                // Pass highlighted text for scroll-to-source feature
+                highlightedText
             )}
 
             {/* Render images separately at the end for web search */}
@@ -780,6 +1116,6 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 })()}
 
             {getUploadedFiles(message)}
-        </>
+        </div>
     );
 };

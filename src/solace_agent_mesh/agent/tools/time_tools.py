@@ -11,6 +11,7 @@ from google.adk.tools import ToolContext
 from google.genai import types as adk_types
 
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult
 from .registry import tool_registry
 from ...agent.utils.context_helpers import get_user_timezone
 
@@ -23,7 +24,7 @@ CATEGORY_DESCRIPTION = "Get current time and date information in the user's time
 async def get_current_time(
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Gets the current date and time in the user's local timezone.
 
@@ -32,13 +33,13 @@ async def get_current_time(
         tool_config: Optional. Configuration passed by the ADK, generally not used by this tool.
 
     Returns:
-        A dictionary with status, current time information, and timezone details.
+        ToolResult with current time information and timezone details.
     """
     log_identifier = "[TimeTools:get_current_time]"
-    
+
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     try:
         inv_context = tool_context._invocation_context
@@ -85,26 +86,27 @@ async def get_current_time(
             f"{log_identifier} Successfully retrieved time for timezone {user_timezone_str}: {formatted_time}"
         )
 
-        return {
-            "status": "success",
-            "current_time": iso_format,
-            "timezone": user_timezone_str,
-            "timezone_offset": timezone_offset,
-            "timezone_abbreviation": tz_abbrev,
-            "formatted_time": formatted_time,
-            "timestamp": timestamp,
-            "date": date_only,
-            "time": time_only,
-            "day_of_week": day_of_week,
-            "message": f"Current time in {user_timezone_str}: {formatted_time}",
-        }
+        return ToolResult.ok(
+            f"Current time in {user_timezone_str}: {formatted_time}",
+            data={
+                "current_time": iso_format,
+                "timezone": user_timezone_str,
+                "timezone_offset": timezone_offset,
+                "timezone_abbreviation": tz_abbrev,
+                "formatted_time": formatted_time,
+                "timestamp": timestamp,
+                "date": date_only,
+                "time": time_only,
+                "day_of_week": day_of_week,
+            },
+        )
 
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}", exc_info=True)
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in get_current_time: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 get_current_time_tool_def = BuiltinTool(

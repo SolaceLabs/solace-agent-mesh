@@ -12,7 +12,7 @@ import { useProjectContext } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
 import { Button, Header } from "@/lib/components";
 import { downloadBlob, getErrorMessage } from "@/lib/utils";
-import { useChatContext, useIsProjectSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useIsProjectSharingEnabled, useStartIndexing } from "@/lib/hooks";
 import { useExportProject, useImportProject, useFetchProjectsOnMount } from "@/lib/api/projects/hooks";
 
 export const ProjectsPage: React.FC = () => {
@@ -24,6 +24,7 @@ export const ProjectsPage: React.FC = () => {
     const { projects, isLoading, createProject, activeProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
     const isSharingEnabled = useIsProjectSharingEnabled();
+    const startIndexing = useStartIndexing();
     const exportProjectMutation = useExportProject();
     const importProjectMutation = useImportProject();
 
@@ -143,6 +144,10 @@ export const ProjectsPage: React.FC = () => {
             if (result.warnings && result.warnings.length > 0) {
                 const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
                 addNotification(warningMessage, "info");
+            }
+
+            if (result.sseLocation) {
+                startIndexing(result.sseLocation, result.projectId, "import");
             }
 
             // Navigate to the newly imported project

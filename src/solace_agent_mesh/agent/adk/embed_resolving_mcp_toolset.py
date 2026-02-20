@@ -9,6 +9,7 @@ This module uses dynamic inheritance to support both standard and enterprise MCP
 The base class is determined at import time based on enterprise package availability.
 """
 
+import json
 import logging
 import time
 from typing import Any
@@ -26,6 +27,8 @@ from ...common.utils.embeds import (
 )
 from ...common.utils.embeds.types import ResolutionMode
 from ..utils.context_helpers import get_original_session_id
+from .mcp_ssl_config import SslConfig
+from .ssl_mcp_session_manager import SslConfigurableMCPSessionManager
 
 log = logging.getLogger(__name__)
 
@@ -334,6 +337,63 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
         return data
 
 
+    def _is_auth_error(self, result: dict) -> bool:
+        """Check if an MCP tool result indicates an authentication/authorization error."""
+        if not isinstance(result, dict):
+            return False
+
+        content = result.get("content", [])
+        if not isinstance(content, list):
+            return False
+
+        for item in content:
+            if not isinstance(item, dict) or item.get("type") != "text":
+                continue
+
+            text = item.get("text", "")
+
+            # Try parsing as JSON (e.g. {"code":401,"message":"Unauthorized"})
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    code = parsed.get("code")
+                    if code is None:
+                        code = parsed.get("status")
+                    if code in (401, 403):
+                        return True
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            # Fall back to string matching
+            text_lower = text.lower()
+            if "401" in text_lower and "unauthorized" in text_lower:
+                return True
+            if "403" in text_lower and "forbidden" in text_lower:
+                return True
+
+        return False
+
+    async def _clear_cached_credentials(self, tool_context: ToolContext) -> None:
+        """Clear cached credentials from both in-memory cache and credential service."""
+        if not self._credentials_manager:
+            return
+
+        auth_config = self._credentials_manager._auth_config
+        auth_config.exchanged_auth_credential = None
+
+        # Also clear the wrapped tool's credential manager cache
+        original_cm = getattr(self._original_mcp_tool, "_credentials_manager", None)
+        if original_cm and hasattr(original_cm, "_auth_config"):
+            original_cm._auth_config.exchanged_auth_credential = None
+
+        try:
+            await tool_context.save_credential(auth_config)
+        except Exception:
+            log.debug(
+                "Failed to clear persisted credential (best-effort).",
+                exc_info=True,
+            )
+
     async def _execute_tool_with_audit_logs(self, tool_call, tool_context):
         _log_mcp_tool_call(
             tool_context.session.user_id,
@@ -411,12 +471,29 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
             )
             resolved_args = args
         # Call the original MCP tool with resolved parameters
-        return await self._execute_tool_with_audit_logs(
+        result = await self._execute_tool_with_audit_logs(
             lambda: self._original_mcp_tool._run_async_impl(
                 args=resolved_args, tool_context=tool_context, credential=credential
             ),
             tool_context,
         )
+
+        if self._is_auth_error(result):
+            log.warning(
+                "%s Received authentication error from MCP server. "
+                "Clearing cached credentials.",
+                log_identifier,
+            )
+            await self._clear_cached_credentials(tool_context)
+            if self._credentials_manager:
+                await self._credentials_manager.request_credential(tool_context)
+                return {"error": "Pending user authorization."}
+            return {
+                "error": "Authentication has expired or been revoked. "
+                "Please try your request again."
+            }
+
+        return result
 
 # Get the base toolset class to use for inheritance
 _BaseMcpToolsetClass, _base_toolset_supports_tool_config = _get_base_mcp_toolset_class()
@@ -439,6 +516,7 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
         auth_discovery=None,
         tool_config: dict | None = None,
         credential_manager: CredentialManager | None = None,
+        ssl_config: SslConfig | None = None,
     ):
         # Store tool_config for later use
         self._tool_config = tool_config or {}
@@ -462,6 +540,13 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
                 tool_name_prefix=tool_name_prefix,
                 auth_scheme=auth_scheme,
                 auth_credential=auth_credential,
+            )
+
+        # Replace session manager with SSL-configurable version if SSL config provided
+        if ssl_config is not None:
+            self._mcp_session_manager = SslConfigurableMCPSessionManager(
+                connection_params=connection_params,
+                ssl_config=ssl_config,
             )
 
         self._tool_cache = []

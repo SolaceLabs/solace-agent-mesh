@@ -16,6 +16,7 @@ from ...constants import (
     DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_PROJECT_SIZE_BYTES,
+    DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
 )
 
 if TYPE_CHECKING:
@@ -31,7 +32,6 @@ def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[st
     Extract validation limits from Pydantic models to expose to frontend.
     This ensures frontend and backend validation limits stay in sync.
     """
-    # Extract limits from CreateProjectRequest model
     create_fields = CreateProjectRequest.model_fields
 
     max_per_file_upload_size_bytes = (
@@ -58,6 +58,7 @@ def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[st
         "projectNameMax": create_fields["name"].metadata[1].max_length if create_fields["name"].metadata else 255,
         "projectDescriptionMax": create_fields["description"].metadata[0].max_length if create_fields["description"].metadata else 1000,
         "projectInstructionsMax": create_fields["system_prompt"].metadata[0].max_length if create_fields["system_prompt"].metadata else 4000,
+        "projectFileDescriptionMax": DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
         "maxPerFileUploadSizeBytes": max_per_file_upload_size_bytes,
         "maxBatchUploadSizeBytes": max_batch_upload_size_bytes,
         "maxZipUploadSizeBytes": max_zip_upload_size_bytes,
