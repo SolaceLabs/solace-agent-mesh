@@ -46,8 +46,7 @@ export const removeFileFromProject = async (projectId: string, filename: string)
         throw new Error(await getErrorFromResponse(response));
     }
 
-    const result = await response.json();
-    return { ...result, sseLocation: response.headers.get("sse-location") };
+    return { sseLocation: response.headers.get("sse-location") };
 };
 
 export const updateFileMetadata = async (projectId: string, filename: string, description: string) => {
