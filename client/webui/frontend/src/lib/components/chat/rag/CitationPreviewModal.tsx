@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from "react";
-import { ExternalLink, Loader2, AlertCircle } from "lucide-react";
+import { ExternalLink, AlertCircle } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, VisuallyHidden } from "@/lib/components/ui/dialog";
 import { Button } from "@/lib/components/ui/button";
 import { FileIcon } from "@/lib/components/chat/file/FileIcon";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
+import { LoadingState, ErrorState, NoPreviewState } from "@/lib/components/chat/preview/Renderers";
 import { useDocumentContent } from "@/lib/api/documents";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
-import { highlightCitationsInText } from "@/lib/utils/highlightUtils";
+import { highlightCitationsInText, extractCitationTexts } from "@/lib/utils/highlightUtils";
 import type { RAGSource } from "@/lib/types";
 
 export interface CitationPreviewModalProps {
@@ -33,21 +34,16 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
 
     const [renderError, setRenderError] = useState<string | null>(null);
 
-    // Fetch document content when modal is open
     const { data: documentData, isLoading, error: fetchError } = useDocumentContent(isOpen ? projectId : null, isOpen ? filename : null);
 
-    // Determine render type from filename
     // For PDFs, prioritize filename extension over mimeType since backend may return
     // application/json wrapper which would incorrectly trigger JSON renderer
-    const renderType = useMemo(() => {
+    const renderType = (() => {
         const lowerFilename = filename.toLowerCase();
-        if (lowerFilename.endsWith(".pdf")) {
-            return "pdf";
-        }
+        if (lowerFilename.endsWith(".pdf")) return "pdf";
         return getRenderType(filename, documentData?.mimeType);
-    }, [filename, documentData?.mimeType]);
+    })();
 
-    // Build URL for PDF rendering and file download
     // Use "latest" version to get actual file content (without version, endpoint returns version list as JSON)
     const fileUrl = useMemo(() => {
         if (!projectId) return null;
@@ -55,25 +51,16 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
         return `/api/v1/artifacts/null/${encodedFilename}/versions/latest?project_id=${projectId}`;
     }, [filename, projectId]);
 
-    // Extract citation texts for PDF highlighting
-    const highlightTexts = useMemo(() => {
-        return citations.map(c => c.contentPreview).filter((t): t is string => !!t && t.length > 20);
-    }, [citations]);
-
-    // Process content for text-based files (apply highlighting)
+    const highlightTexts = extractCitationTexts(citations);
     const processedContent = useMemo(() => {
         if (!documentData?.content || !renderType) return "";
-
-        // For URL-based renderers (PDF), we don't need to process content
         if (renderType === "pdf") return "";
 
-        // For binary formats that need raw base64 (docx, pptx), return content as-is
-        // The OfficeDocumentRenderer expects base64-encoded content for conversion
+        // For binary formats (docx, pptx), the OfficeDocumentRenderer expects base64-encoded content
         if (["docx", "pptx"].includes(renderType)) {
             return documentData.content;
         }
 
-        // Decode base64 content for text-based formats
         let decodedContent: string;
         try {
             decodedContent = decodeBase64Content(documentData.content);
@@ -81,7 +68,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
             return documentData.content;
         }
 
-        // Apply highlighting for text-based content
         if (["text", "markdown"].includes(renderType)) {
             return highlightCitationsInText(decodedContent, citations);
         }
@@ -100,7 +86,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
     return (
         <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
             <DialogContent className="flex h-[80vh] min-w-[80vw] flex-col">
-                {/* Header */}
                 <DialogHeader className="flex-none border-b pb-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -121,21 +106,10 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                     </div>
                 </DialogHeader>
 
-                {/* Content */}
                 <div className="relative flex-1 overflow-hidden">
-                    {isLoading && (
-                        <div className="flex h-full items-center justify-center">
-                            <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
-                            <span className="text-muted-foreground ml-2">Loading document...</span>
-                        </div>
-                    )}
+                    {isLoading && <LoadingState message="Loading document..." />}
 
-                    {error && (
-                        <div className="text-destructive flex h-full flex-col items-center justify-center gap-2">
-                            <AlertCircle className="h-8 w-8" />
-                            <p className="text-sm">{error instanceof Error ? error.message : String(error)}</p>
-                        </div>
-                    )}
+                    {error && <ErrorState message={error instanceof Error ? error.message : String(error)} />}
 
                     {!isLoading && !error && renderType && (
                         <div className="h-full overflow-auto">
@@ -149,7 +123,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                     </div>
                                 )
                             ) : renderType === "text" || renderType === "markdown" ? (
-                                // Use dangerouslySetInnerHTML for highlighted text content
                                 <div className="h-full overflow-auto p-4">
                                     <pre className="whitespace-pre-wrap select-text focus-visible:outline-none" style={{ overflowWrap: "anywhere" }} dangerouslySetInnerHTML={{ __html: processedContent }} />
                                 </div>
@@ -159,20 +132,9 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                         </div>
                     )}
 
-                    {!isLoading && !error && !renderType && (
-                        <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2">
-                            <AlertCircle className="h-8 w-8" />
-                            <p className="text-sm">Preview not available for this file type</p>
-                            {fileUrl && (
-                                <Button variant="link" onClick={handleViewFile}>
-                                    Download file instead
-                                </Button>
-                            )}
-                        </div>
-                    )}
+                    {!isLoading && !error && !renderType && <NoPreviewState />}
                 </div>
 
-                {/* Footer */}
                 <DialogFooter className="flex-none border-t pt-4">
                     <p className="text-muted-foreground flex-1 text-xs">This is a preview of the document containing the citation</p>
                     <Button variant="outline" onClick={onClose}>

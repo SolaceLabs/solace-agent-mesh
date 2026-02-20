@@ -1,5 +1,18 @@
 import type { RAGSource } from "@/lib/types";
 
+const MIN_CITATION_LENGTH = 20;
+
+/**
+ * Extracts citation preview texts from RAGSource array, filtering out short/empty previews.
+ * Used for PDF highlighting where we need an array of text strings.
+ *
+ * @param citations - Array of RAGSource objects
+ * @returns Array of citation preview texts suitable for highlighting
+ */
+export function extractCitationTexts(citations: RAGSource[]): string[] {
+    return citations.map(c => c.contentPreview).filter((t): t is string => !!t && t.length > MIN_CITATION_LENGTH);
+}
+
 /**
  * Escapes special regex characters in a string
  */
