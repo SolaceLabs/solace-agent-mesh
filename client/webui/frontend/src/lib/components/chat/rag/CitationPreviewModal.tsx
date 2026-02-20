@@ -67,7 +67,13 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
         // For URL-based renderers (PDF), we don't need to process content
         if (renderType === "pdf") return "";
 
-        // Decode base64 content
+        // For binary formats that need raw base64 (docx, pptx), return content as-is
+        // The OfficeDocumentRenderer expects base64-encoded content for conversion
+        if (["docx", "pptx"].includes(renderType)) {
+            return documentData.content;
+        }
+
+        // Decode base64 content for text-based formats
         let decodedContent: string;
         try {
             decodedContent = decodeBase64Content(documentData.content);
@@ -148,7 +154,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                     <pre className="whitespace-pre-wrap select-text focus-visible:outline-none" style={{ overflowWrap: "anywhere" }} dangerouslySetInnerHTML={{ __html: processedContent }} />
                                 </div>
                             ) : (
-                                <ContentRenderer content={processedContent} rendererType={renderType} mime_type={documentData?.mimeType} setRenderError={setRenderError} />
+                                <ContentRenderer content={processedContent} rendererType={renderType} mime_type={documentData?.mimeType} setRenderError={setRenderError} highlightTexts={highlightTexts} />
                             )}
                         </div>
                     )}

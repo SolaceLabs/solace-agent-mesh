@@ -8,6 +8,7 @@ interface OfficeDocumentRendererProps {
     filename: string;
     documentType: "docx" | "pptx";
     setRenderError: (error: string | null) => void;
+    highlightTexts?: string[];
 }
 
 interface ConversionStatusResponse {
@@ -143,7 +144,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
  * - Caches converted PDFs to avoid re-conversion on tab switches
  * - Adds request timeout to prevent hung requests
  */
-export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ content, filename, documentType, setRenderError }) => {
+export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ content, filename, documentType, setRenderError, highlightTexts }) => {
     const config = useContext(ConfigContext);
 
     // Conversion state machine: 'idle' | 'checking' | 'converting' | 'success' | 'error'
@@ -371,7 +372,7 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
 
     // If we have a PDF URL, render using PdfRenderer
     if (pdfDataUrl) {
-        return <PdfRenderer url={pdfDataUrl} filename={filename} />;
+        return <PdfRenderer url={pdfDataUrl} filename={filename} highlightTexts={highlightTexts} />;
     }
 
     // Error state - show message to download the file

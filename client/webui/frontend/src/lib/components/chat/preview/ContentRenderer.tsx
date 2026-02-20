@@ -34,9 +34,9 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rende
         case "audio":
             return <AudioRenderer content={content} mime_type={mime_type} setRenderError={setRenderError} />;
         case "docx":
-            return <OfficeDocumentRenderer content={content} filename={filename || "document.docx"} documentType="docx" setRenderError={setRenderError} />;
+            return <OfficeDocumentRenderer content={content} filename={filename || "document.docx"} documentType="docx" setRenderError={setRenderError} highlightTexts={highlightTexts} />;
         case "pptx":
-            return <OfficeDocumentRenderer content={content} filename={filename || "presentation.pptx"} documentType="pptx" setRenderError={setRenderError} />;
+            return <OfficeDocumentRenderer content={content} filename={filename || "presentation.pptx"} documentType="pptx" setRenderError={setRenderError} highlightTexts={highlightTexts} />;
         case "pdf":
         case "application/pdf":
             if (url && filename) {
