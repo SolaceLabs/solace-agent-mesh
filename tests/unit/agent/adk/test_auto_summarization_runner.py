@@ -413,8 +413,8 @@ class TestSendTruncationNotification:
             # Verify message was created with interactive warning
             call_args = mock_a2a.create_agent_text_message.call_args
             notification_text = call_args[1]['text']
-            assert "⚠️" in notification_text
-            assert "token limit!" in notification_text
+            assert "ℹ️" in notification_text
+            assert "Your conversation history reached the limit" in notification_text
             assert "Test summary of conversation" in notification_text
 
             # Verify publish was called
