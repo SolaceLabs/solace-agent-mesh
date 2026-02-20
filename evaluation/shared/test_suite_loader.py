@@ -174,7 +174,7 @@ class TestSuiteConfiguration(BaseModel):
         """Add eval_backend.yaml if not present in agent configs."""
         if self.agent_configs and not any(Path(p).name == "eval_backend.yaml" for p in self.agent_configs):
             project_root = Path.cwd()
-            eval_backend_path = str(project_root / "configs" / "eval_backend.yaml")
+            eval_backend_path = str(project_root / ".configs" / "eval_backend.yaml")
             self.agent_configs.append(eval_backend_path)
         return self
 
