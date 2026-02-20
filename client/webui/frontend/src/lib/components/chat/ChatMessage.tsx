@@ -128,7 +128,7 @@ const getUserFriendlyErrorMessage = (technicalMessage: string): string => {
 
 const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; highlightedText?: string | null }>(({ message, isStreaming, highlightedText }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    const { sessionId, ragData, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const { sessionId, ragData, openSidePanelTab, setTaskIdInSidePanel, setExpandedDocumentFilename } = useChatContext();
     const contentRef = React.useRef<HTMLDivElement>(null);
 
     // Effect to highlight specific text when highlightedText changes
@@ -476,10 +476,14 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
         return parseCitations(modifiedText, taskRagData);
     }, [modifiedText, taskRagData, message.isUser]);
 
-    const handleCitationClick = () => {
+    const handleCitationClick = (citation: { source?: { filename?: string } }) => {
         // Open RAG panel when citation is clicked
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
+            // Set the document to auto-expand if the citation has a filename
+            if (citation.source?.filename) {
+                setExpandedDocumentFilename(citation.source.filename);
+            }
             openSidePanelTab("rag");
         }
     };
