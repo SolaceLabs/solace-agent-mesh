@@ -5,7 +5,7 @@ import { useConfigContext, useDownload, useIsProjectOwner, useIndexingSSE } from
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
-import { formatRelativeTime, validateFileSizes, validateBatchUploadSize, validateProjectSizeLimit, calculateTotalFileSize } from "@/lib/utils";
+import { validateFileSizes, validateBatchUploadSize, validateProjectSizeLimit, calculateTotalFileSize } from "@/lib/utils";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
@@ -214,7 +214,7 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
                                             <ArtifactBar
                                                 key={artifact.filename}
                                                 filename={artifact.filename}
-                                                description={artifact.description || formatRelativeTime(artifact.last_modified)}
+                                                description={artifact.description || "No description provided"}
                                                 mimeType={artifact.mime_type}
                                                 size={artifact.size}
                                                 status="completed"
