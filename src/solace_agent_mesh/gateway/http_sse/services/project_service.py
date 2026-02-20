@@ -22,6 +22,7 @@ from ...constants import (
     DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_PROJECT_SIZE_BYTES,
+    DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
     ARTIFACTS_PREFIX
 )
 
@@ -188,6 +189,15 @@ class ProjectService:
             )
         return validated_files
 
+    def _validate_file_descriptions(self, file_metadata: dict) -> None:
+        """Validate that all file descriptions are within the max length."""
+        limit = DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH
+        for filename, desc in file_metadata.items():
+            if isinstance(desc, str) and len(desc) > limit:
+                raise ValueError(
+                    f"Description for '{filename}' exceeds maximum length of {limit} characters ({len(desc)} provided)"
+                )
+
     def _validate_batch_upload_size(
         self,
         files_size: int,
@@ -341,6 +351,9 @@ class ProjectService:
             default_agent_id=default_agent_id,
         )
 
+        if file_metadata:
+            self._validate_file_descriptions(file_metadata)
+
         if validated_files and self.artifact_service:
             self.logger.info(
                 f"Project {project_domain.id} created, now saving {len(validated_files)} artifacts."
@@ -348,10 +361,9 @@ class ProjectService:
             project_session_id = f"project-{project_domain.id}"
             for file, content_bytes in validated_files:
                 metadata = {"source": "project"}
-                if file_metadata and file.filename in file_metadata:
-                    desc = file_metadata[file.filename]
-                    if desc:
-                        metadata["description"] = desc
+                desc = file_metadata.get(file.filename) if file_metadata else None
+                if desc:
+                    metadata["description"] = desc
 
                 await save_artifact_with_metadata(
                     artifact_service=self.artifact_service,
@@ -590,14 +602,17 @@ class ProjectService:
 
         self.logger.info(f"Adding {len(validated_files)} artifacts to project {project_id} for user {user_id}")
         storage_session_id = f"project-{project.id}"
+
+        if file_metadata:
+            self._validate_file_descriptions(file_metadata)
+
         results = []
 
         for file, content_bytes in validated_files:
             metadata = {"source": "project"}
-            if file_metadata and file.filename in file_metadata:
-                desc = file_metadata[file.filename]
-                if desc:
-                    metadata["description"] = desc
+            desc = file_metadata.get(file.filename) if file_metadata else None
+            if desc:
+                metadata["description"] = desc
 
             # Add line-range citations for text-based files
             # This provides granular location info similar to page numbers for PDFs
@@ -740,16 +755,17 @@ class ProjectService:
                 session_id=storage_session_id,
                 filename=filename,
             )
-            
+
             if not artifact_part or not artifact_part.inline_data:
                 self.logger.warning(f"Artifact '{filename}' not found in project {project_id}")
                 return False
-            
+
             # Prepare updated metadata
             metadata = {"source": "project"}
             if description is not None:
+                self._validate_file_descriptions({filename: description})
                 metadata["description"] = description
-            
+
             # Save the artifact with updated metadata
             await save_artifact_with_metadata(
                 artifact_service=self.artifact_service,
