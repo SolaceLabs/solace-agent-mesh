@@ -98,7 +98,7 @@ check-remote-eval-env:
 	@echo "Validating required environment variables..."
 	@test -n "$(EVAL_REMOTE_URL)" || (echo "ERROR: EVAL_REMOTE_URL not set. Export it before running make" && exit 1)
 	@test -n "$(EVAL_NAMESPACE)" || (echo "ERROR: EVAL_NAMESPACE not set. Export it before running make" && exit 1)
-	@test -n "$(EVAL_NAMESPACE)" || (echo "ERROR: EVAL_NAMESPACE not set. Export it before running make" && exit 1)
+	@test -n "$(EVAL_AUTH_TOKEN)" || (echo "ERROR: EVAL_AUTH_TOKEN not set. Export it before running make" && exit 1)
 	@echo "✓ All required remote environment variables are set"
 
 # Define env vars to pass through to eval commands
