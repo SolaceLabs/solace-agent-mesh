@@ -509,7 +509,21 @@ class ModelEvaluator:
         subscriber.start()
 
         log.info("Waiting for subscriber to be ready...")
-        subscription_ready_event.wait()
+        if not subscription_ready_event.wait(timeout=30):
+            subscriber.stop()
+            subscriber.join(timeout=5)
+            raise RuntimeError(
+                "Subscriber failed to connect within 30 seconds. "
+                "Check broker credentials (SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, "
+                "SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN)"
+            )
+
+        if not subscriber.is_alive():
+            raise RuntimeError(
+                "Subscriber thread died during startup. "
+                "Check broker credentials and logs above for connection errors."
+            )
+
         log.info("Subscriber is ready.")
 
         return subscriber

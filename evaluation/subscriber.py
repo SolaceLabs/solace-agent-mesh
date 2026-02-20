@@ -629,6 +629,9 @@ class Subscriber(threading.Thread):
 
         except Exception as e:
             log.error(f"Error in subscriber thread: {e}")
+            # Signal that subscriber is "ready" (failed) so main thread doesn't wait forever
+            self._subscription_ready_event.set()
+            raise
         finally:
             self._cleanup()
 

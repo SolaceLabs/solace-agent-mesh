@@ -198,7 +198,12 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
+<<<<<<< HEAD:examples/workflows/level6_workflow_composition.yaml
       name: "WorkflowCompositionParent"
+=======
+      name: "WorkflowCompositionWorkflow"
+      agent_name: "WorkflowCompositionParent"
+>>>>>>> b11179397 (fix workflows, env vars):examples/agents/eval_workflows/level6_workflow_composition.yaml
       display_name: "Workflow Composition Parent"
 
       # Timeout configurations

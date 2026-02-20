@@ -82,35 +82,59 @@ test-all:
 	@echo "Running all tests..."
 	uv run pytest
 
+# Helper target to validate required environment variables
+check-eval-env:
+	@echo "Validating required environment variables..."
+	@test -n "$(SOLACE_BROKER_URL)" || (echo "ERROR: SOLACE_BROKER_URL not set. Export it before running make" && exit 1)
+	@test -n "$(SOLACE_BROKER_USERNAME)" || (echo "ERROR: SOLACE_BROKER_USERNAME not set. Export it before running make" && exit 1)
+	@test -n "$(SOLACE_BROKER_PASSWORD)" || (echo "ERROR: SOLACE_BROKER_PASSWORD not set. Export it before running make" && exit 1)
+	@test -n "$(SOLACE_BROKER_VPN)" || (echo "ERROR: SOLACE_BROKER_VPN not set. Export it before running make" && exit 1)
+	@test -n "$(LLM_SERVICE_ENDPOINT)" || (echo "ERROR: LLM_SERVICE_ENDPOINT not set. Export it before running make" && exit 1)
+	@test -n "$(LLM_SERVICE_API_KEY)" || (echo "ERROR: LLM_SERVICE_API_KEY not set. Export it before running make" && exit 1)
+	@echo "✓ All required environment variables are set"
+
+
+check-remote-eval-env:
+	@echo "Validating required environment variables..."
+	@test -n "$(EVAL_REMOTE_URL)" || (echo "ERROR: EVAL_REMOTE_URL not set. Export it before running make" && exit 1)
+	@test -n "$(EVAL_NAMESPACE)" || (echo "ERROR: EVAL_NAMESPACE not set. Export it before running make" && exit 1)
+	@test -n "$(EVAL_NAMESPACE)" || (echo "ERROR: EVAL_NAMESPACE not set. Export it before running make" && exit 1)
+	@echo "✓ All required remote environment variables are set"
+
+# Define env vars to pass through to eval commands
+EVAL_ENV_VARS = SOLACE_BROKER_URL="$(SOLACE_BROKER_URL)" \
+	SOLACE_BROKER_USERNAME="$(SOLACE_BROKER_USERNAME)" \
+	SOLACE_BROKER_PASSWORD="$(SOLACE_BROKER_PASSWORD)" \
+	SOLACE_BROKER_VPN="$(SOLACE_BROKER_VPN)" \
+	LLM_SERVICE_ENDPOINT="$(LLM_SERVICE_ENDPOINT)" \
+	LLM_SERVICE_API_KEY="$(LLM_SERVICE_API_KEY)"
+
+
+# Define env vars to pass through to eval commands
+REMOTE_EVAL_ENV_VARS = EVAL_REMOTE_URL="$(EVAL_REMOTE_URL)" \
+	EVAL_NAMESPACE="$(EVAL_NAMESPACE)" \
+	EVAL_AUTH_TOKEN="$(EVAL_AUTH_TOKEN)"
+
 # Run evaluation tests (default: local)
 test-eval: test-eval-local
 
 # Run local evaluation tests
-test-eval-local: eval-setup
+test-eval-local: eval-setup check-eval-env
 	@echo "Running local evaluation tests..."
-	@echo "Note: Ensure environment variables are set on your local system:"
-	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
-	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
-	.venv/bin/sam eval tests/evaluation/local_example.json
+	$(EVAL_ENV_VARS) .venv/bin/sam eval tests/evaluation/local_example.json -v
 
 # Run workflow evaluation tests
-test-eval-workflow: eval-setup
+test-eval-workflow: eval-setup check-eval-env
 	@echo "Running workflow evaluation tests..."
-	@echo "Note: Ensure environment variables are set on your local system:"
-	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
-	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
-	.venv/bin/sam eval tests/evaluation/workflow_eval.json
+	$(EVAL_ENV_VARS) .venv/bin/sam eval tests/evaluation/workflow_eval.json
 
 # Run remote evaluation tests
-test-eval-remote: eval-setup
+test-eval-remote: eval-setup check-eval-env check-remote-eval-env
 	@echo "Running remote evaluation tests..."
-	@echo "Note: Ensure environment variables are set on your local system:"
-	@echo "  - SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN"
-	@echo "  - LLM_SERVICE_ENDPOINT, LLM_SERVICE_API_KEY"
 	@echo ""
-	.venv/bin/sam eval tests/evaluation/remote_example.json
+	$(EVAL_ENV_VARS) $(REMOTE_EVAL_ENV_VARS) .venv/bin/sam eval tests/evaluation/remote_example.json -v
 
 # Run unit tests only
 test-unit:
