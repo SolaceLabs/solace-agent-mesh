@@ -656,7 +656,7 @@ async def _send_truncation_notification(
     if is_background:
         notification_text = (
             f"\n\n---\n\n"
-            f"**ℹ️ Note:** Conversation history was automatically summarized to stay within token limits.\n\n"
+            f"**ℹ️ Note:** Conversation history was automatically summarized to stay within limits.\n\n"
             f"**Summary of earlier messages:**\n\n"
             f"*{summary}*\n\n"
             f"---\n"
@@ -664,8 +664,7 @@ async def _send_truncation_notification(
     else:
         notification_text = (
             f"\n\n---\n\n"
-            f"**⚠️ Your conversation history reached the token limit!**\n\n"
-            f"We've automatically summarized older messages to continue. "
+            f"**ℹ️ Your conversation history reached the limit. We automatically summarized your older messages to keep things running smoothly. All important context is preserved, so you can keep chatting seamlessly.**\n\n"
             f"Alternatively, you can start a new chat for a fresh conversation.\n\n"
             f"**Summary of earlier messages:**\n\n"
             f"*{summary}*\n\n"
