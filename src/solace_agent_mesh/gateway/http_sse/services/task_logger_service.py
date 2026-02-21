@@ -64,6 +64,10 @@ class TaskLoggerService:
             # Ignore discovery messages
             return
 
+        if "/trust/" in topic:
+            # Ignore trust/heartbeat messages early to avoid queue buildup
+            return
+
         # Parse the event into a Pydantic model first.
         parsed_event = self._parse_a2a_event(topic, payload)
         if parsed_event is None:
