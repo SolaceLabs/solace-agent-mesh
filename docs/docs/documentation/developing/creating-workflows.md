@@ -15,7 +15,7 @@ This guide walks through building workflows that orchestrate multiple agents. Yo
 
 Before creating workflows, you need:
 - A running Solace Agent Mesh instance
-- The shared configuration file [`examples/shared_config.yaml`](https://github.com/SolaceDev/solace-agent-mesh/blob/main/examples/shared_config.yaml) which defines broker connections, LLM models, and service configurations
+- The shared configuration file [`examples/shared_config.yaml`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/examples/shared_config.yaml) which defines broker connections, LLM models, and service configurations
 - Familiarity with YAML configuration files
 
 ## Your First Workflow
