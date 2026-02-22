@@ -339,3 +339,62 @@ class SSEEventBufferRepository:
             )
         
         return deleted
+
+    def cleanup_old_events(
+        self,
+        db: DBSession,
+        older_than_ms: int,
+        batch_size: int = 1000,
+    ) -> int:
+        """
+        Clean up ALL events (both consumed and unconsumed) older than the specified time.
+        
+        This is necessary because unconsumed events can accumulate indefinitely if users
+        don't return to their sessions to replay them. The chat_tasks table serves as a
+        fallback for displaying old chat history.
+        
+        Args:
+            db: Database session
+            older_than_ms: Delete events created before this epoch time (ms)
+            batch_size: Number of events to delete per batch
+            
+        Returns:
+            Total number of events deleted
+        """
+        total_deleted = 0
+        
+        while True:
+            # Delete in batches to avoid long-running transactions
+            # Get IDs of events to delete
+            events_to_delete = db.query(SSEEventBufferModel.id)\
+                .filter(SSEEventBufferModel.created_at < older_than_ms)\
+                .limit(batch_size)\
+                .all()
+            
+            if not events_to_delete:
+                break
+            
+            event_ids = [e.id for e in events_to_delete]
+            deleted = db.query(SSEEventBufferModel)\
+                .filter(SSEEventBufferModel.id.in_(event_ids))\
+                .delete(synchronize_session=False)
+            
+            db.commit()
+            total_deleted += deleted
+            
+            log.debug(
+                "%s Deleted batch of %d old SSE events (total so far: %d)",
+                self.log_identifier,
+                deleted,
+                total_deleted,
+            )
+        
+        if total_deleted > 0:
+            log.info(
+                "%s Cleaned up %d SSE events older than %d ms",
+                self.log_identifier,
+                total_deleted,
+                older_than_ms,
+            )
+        
+        return total_deleted
