@@ -173,6 +173,10 @@ Want to go further? Here are some hands-on tutorials to help you get started:
 
 ---
 
+## Security
+
+The Web UI backend may use the request’s `Host` and `X-Forwarded-Host` / `X-Forwarded-Proto` headers to build the visualization SSE stream URL in API responses. To avoid [host header poisoning](https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/17-Testing_for_Host_Header_Injection) in production or when the server is reachable by untrusted clients, set the **`SOLACE_AGENT_MESH_ALLOWED_HOSTS`** environment variable to a comma-separated list of allowed hostnames (e.g. `localhost,127.0.0.1,myapp.example.com`). When the request host is not in this list, the API returns a path-only SSE URL so the response cannot contain an attacker-controlled host. If unset or set to `*`, all hosts are accepted (original behavior).
+
 ## 👥 Contributors
 
 Solace Agent Mesh is built with the help of our amazing community. Thanks to everyone who has contributed ideas, code and time to make this project better!

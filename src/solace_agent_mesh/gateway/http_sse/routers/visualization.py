@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import os
 import uuid
+from urllib.parse import urlparse
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -134,34 +137,95 @@ class VisualizationSubscriptionError(BaseModel):
 
 from sse_starlette.sse import EventSourceResponse
 
+# HNP mitigation: see README "Security" section. Env SOLACE_AGENT_MESH_ALLOWED_HOSTS (default "*") = comma-separated allowed hosts.
+_ALLOWED_HOSTS_ENV = "SOLACE_AGENT_MESH_ALLOWED_HOSTS"
+
+
+def _strip_port(host: str) -> str:
+    """Strip optional :port from host for comparison. Handles IPv6 [addr]:port."""
+    if not host or not isinstance(host, str):
+        return host or ""
+    if host.startswith("["):
+        idx = host.find("]:")
+        return host[: idx + 1] if idx > 0 else host
+    idx = host.rfind(":")
+    if idx > 0 and host[idx + 1 :].isdigit():
+        return host[:idx]
+    return host
+
+
+def _parse_allowed_hosts() -> str | list[str]:
+    """Parse allowed hosts from env. Returns '*' or list of normalized host strings."""
+    raw = os.environ.get(_ALLOWED_HOSTS_ENV, "*")
+    if raw is None or (isinstance(raw, str) and raw.strip() in ("", "*")):
+        return "*"
+    if isinstance(raw, str):
+        return [_strip_port(h.strip()) for h in raw.split(",") if h.strip()]
+    return "*"
+
+
+def _get_candidate_host(request: FastAPIRequest) -> str | None:
+    """Candidate host for HNP check: X-Forwarded-Host or request host."""
+    host = request.headers.get("x-forwarded-host")
+    if host:
+        return host.split(",")[0].strip()
+    url = getattr(request, "url", None)
+    if url is not None and getattr(url, "hostname", None):
+        return url.hostname
+    return None
+
+
+def _is_host_allowed(candidate: str | None, allowed: str | list[str]) -> bool:
+    if not candidate:
+        return False
+    h = _strip_port(candidate.split(",")[0].strip())
+    if allowed == "*":
+        return True
+    if isinstance(allowed, list):
+        return h in allowed
+    return False
+
 
 def _generate_sse_url(fastapi_request: FastAPIRequest, stream_id: str) -> str:
     """
     Generate SSE endpoint URL with proper scheme and host detection for reverse proxy scenarios.
+    When the request host is not in SOLACE_AGENT_MESH_ALLOWED_HOSTS, returns path-only to mitigate HNP.
 
     Args:
         fastapi_request: The FastAPI request object
         stream_id: The stream ID for the SSE endpoint
 
     Returns:
-        Complete SSE URL with correct scheme (http/https) and host.
+        Complete SSE URL or path-only (e.g. /api/v1/sse/viz/{stream_id}/events) when host not allowed.
     """
     base_url = fastapi_request.url_for(
         "get_visualization_stream_events", stream_id=stream_id
     )
+    allowed_hosts = _parse_allowed_hosts()
+    candidate_host = _get_candidate_host(fastapi_request)
+    if not _is_host_allowed(candidate_host, allowed_hosts):
+        # Mitigate HNP: return path-only so response does not contain attacker-controlled host
+        path = getattr(base_url, "path", None) or urlparse(str(base_url)).path
+        return path or f"/api/v1/sse/viz/{stream_id}/events"
 
     forwarded_proto = fastapi_request.headers.get("x-forwarded-proto")
     forwarded_host = fastapi_request.headers.get("x-forwarded-host")
 
+    # Scheme: when no forwarded_proto use request.url.scheme to avoid https->http downgrade; restrict to http/https
+    orig_scheme = getattr(getattr(fastapi_request, "url", None), "scheme", None) or "http"
+    orig_scheme = "https" if str(orig_scheme).strip().lower() == "https" else "http"
+    safe_proto = (
+        "https"
+        if (forwarded_proto and str(forwarded_proto).strip().lower() == "https")
+        else (orig_scheme if not forwarded_proto else "http")
+    )
     if forwarded_proto and forwarded_host:
-        # In a reverse proxy environment like GitHub Codespaces, reconstruct the URL
-        # using the forwarded headers to ensure it's publicly accessible.
-        return str(base_url.replace(scheme=forwarded_proto, netloc=forwarded_host))
+        # Use strip_port for netloc so port is not attacker-controlled
+        netloc = _strip_port(forwarded_host.strip().split(",")[0])
+        return str(base_url.replace(scheme=safe_proto, netloc=netloc))
     elif forwarded_proto:
-        # Handle cases with only a forwarded protocol (standard reverse proxy)
-        return str(base_url.replace(scheme=forwarded_proto))
+        return str(base_url.replace(scheme=safe_proto))
     else:
-        # Default behavior when not behind a reverse proxy
         return str(base_url)
 
 
