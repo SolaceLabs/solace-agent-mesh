@@ -10,18 +10,20 @@ from sqlalchemy.orm import Session as DBSession
 
 from ..repository.feedback_repository import FeedbackRepository
 from ..repository.task_repository import TaskRepository
+from ..repository.document_conversion_cache_repository import DocumentConversionCacheRepository
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 log = logging.getLogger(__name__)
 
 class DataRetentionService:
     """
-    Service for automatically cleaning up old tasks, task events, and feedback
-    based on configurable retention policies.
+    Service for automatically cleaning up old tasks, task events, feedback,
+    and document conversion cache based on configurable retention policies.
     """
 
     # Validation constants
     MIN_RETENTION_DAYS = 1
+    MIN_RETENTION_HOURS = 1  # For document conversion cache (hours-based retention)
     MIN_CLEANUP_INTERVAL_HOURS = 1
     MIN_BATCH_SIZE = 1
     MAX_BATCH_SIZE = 10000
@@ -45,10 +47,11 @@ class DataRetentionService:
 
         log.info(
             "%s Initialized with task_retention=%d days, feedback_retention=%d days, "
-            "cleanup_interval=%d hours, batch_size=%d",
+            "conversion_cache_retention=%d hours, cleanup_interval=%d hours, batch_size=%d",
             self.log_identifier,
             self.config.get("task_retention_days"),
             self.config.get("feedback_retention_days"),
+            self.config.get("conversion_cache_retention_hours"),
             self.config.get("cleanup_interval_hours"),
             self.config.get("batch_size"),
         )
@@ -118,6 +121,19 @@ class DataRetentionService:
         else:
             self.config["batch_size"] = batch_size
 
+        # Validate conversion cache retention hours (default 24 hours)
+        cache_retention = self.config.get("conversion_cache_retention_hours", 24)
+        if cache_retention < self.MIN_RETENTION_HOURS:
+            log.warning(
+                "%s conversion_cache_retention_hours (%d) is below minimum (%d hours). Using minimum.",
+                self.log_identifier,
+                cache_retention,
+                self.MIN_RETENTION_HOURS,
+            )
+            self.config["conversion_cache_retention_hours"] = self.MIN_RETENTION_HOURS
+        else:
+            self.config["conversion_cache_retention_hours"] = cache_retention
+
     def cleanup_old_data(self) -> None:
         """
         Main orchestration method for cleaning up old data.
@@ -149,12 +165,18 @@ class DataRetentionService:
             feedback_retention_days = self.config.get("feedback_retention_days")
             feedback_deleted = self._cleanup_old_feedback(feedback_retention_days)
 
+            # Cleanup old conversion cache entries
+            cache_retention_hours = self.config.get("conversion_cache_retention_hours")
+            cache_deleted = self._cleanup_conversion_cache(cache_retention_hours)
+
             elapsed_time = time.time() - start_time
             log.info(
-                "%s Cleanup completed. Tasks deleted: %d, Feedback deleted: %d, Time taken: %.2f seconds",
+                "%s Cleanup completed. Tasks deleted: %d, Feedback deleted: %d, "
+                "Cache entries deleted: %d, Time taken: %.2f seconds",
                 self.log_identifier,
                 tasks_deleted,
                 feedback_deleted,
+                cache_deleted,
                 elapsed_time,
             )
 
@@ -263,6 +285,55 @@ class DataRetentionService:
         except Exception as e:
             log.error(
                 "%s Error cleaning up old feedback: %s",
+                self.log_identifier,
+                e,
+                exc_info=True,
+            )
+            db.rollback()
+            return 0
+        finally:
+            db.close()
+
+    def _cleanup_conversion_cache(self, retention_hours: int) -> int:
+        """
+        Deletes document conversion cache entries older than the retention period.
+
+        Args:
+            retention_hours: Number of hours to retain cache entries
+
+        Returns:
+            Total number of cache entries deleted
+        """
+        log.info(
+            "%s Cleaning up conversion cache entries older than %d hours...",
+            self.log_identifier,
+            retention_hours,
+        )
+
+        db = self.session_factory()
+        try:
+            repo = DocumentConversionCacheRepository(db)
+            total_deleted = repo.cleanup_old_entries(retention_hours)
+
+            if total_deleted == 0:
+                log.info(
+                    "%s No conversion cache entries found older than %d hours.",
+                    self.log_identifier,
+                    retention_hours,
+                )
+            else:
+                log.info(
+                    "%s Deleted %d conversion cache entries older than %d hours.",
+                    self.log_identifier,
+                    total_deleted,
+                    retention_hours,
+                )
+
+            return total_deleted
+
+        except Exception as e:
+            log.error(
+                "%s Error cleaning up conversion cache: %s",
                 self.log_identifier,
                 e,
                 exc_info=True,
