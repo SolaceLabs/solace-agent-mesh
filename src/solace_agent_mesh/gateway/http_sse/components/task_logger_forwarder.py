@@ -77,7 +77,7 @@ class TaskLoggerForwarderComponent(ComponentBase):
             topic = data.get("topic", "")
             
             # Filter out discovery and trust messages early to prevent queue buildup
-            if "/discovery/" in topic or "/trust/" in topic:
+            if "/a2a/v1/discovery/" in topic or "/a2a/v1/trust/" in topic:
                 message.call_acknowledgements()
                 log.debug(
                     "%s Skipping discovery/trust message: %s",

@@ -80,7 +80,7 @@ class VisualizationForwarderComponent(ComponentBase):
             # Filter out discovery and trust messages early to prevent queue buildup
             # Note: discovery is also filtered in the processor loop, but filtering here
             # prevents unnecessary queue usage
-            if "/discovery/" in topic or "/trust/" in topic:
+            if "/a2a/v1/discovery/" in topic or "/a2a/v1/trust/" in topic:
                 message.call_acknowledgements()
                 log.debug(
                     "%s Skipping discovery/trust message: %s",

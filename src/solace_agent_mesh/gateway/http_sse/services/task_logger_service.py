@@ -60,12 +60,12 @@ class TaskLoggerService:
             )
             return
 
-        if "discovery" in topic:
+        if "/a2a/v1/discovery/" in topic:
             # Ignore discovery messages
             return
 
-        if "/trust/" in topic:
-            # Ignore trust/heartbeat messages early to avoid queue buildup
+        if "/a2a/v1/trust/" in topic:
+            # Ignore trust messages early to avoid queue buildup
             return
 
         # Parse the event into a Pydantic model first.
