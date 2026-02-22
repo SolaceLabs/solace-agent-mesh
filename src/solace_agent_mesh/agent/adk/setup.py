@@ -8,14 +8,12 @@ import logging
 import os
 from typing import (
     TYPE_CHECKING,
-    Any,
     Callable,
     Dict,
     List,
     Optional,
     Set,
     Tuple,
-    Type,
     Union,
 )
 
@@ -38,7 +36,7 @@ from solace_ai_connector.common.utils import import_module
 from ...agent.adk import callbacks as adk_callbacks
 from ...agent.adk.models.lite_llm import LiteLlm
 from ...common.utils.type_utils import is_subclass_by_name
-from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
+# DynamicTool and DynamicToolProvider are loaded via PythonToolLoader
 from ..tools.registry import tool_registry
 from ..tools.tool_config_types import (
     AnyToolConfig,
@@ -47,9 +45,12 @@ from ..tools.tool_config_types import (
     McpToolConfig,
     PythonToolConfig,
 )
+from ..tools.executors import PythonToolLoader
 from ..tools.tool_definition import BuiltinTool
 from .app_llm_agent import AppLlmAgent
 from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
+from .mcp_ssl_config import SslConfig
+from .tool_result_processor import ToolResultProcessor
 from .tool_wrapper import ADKToolWrapper
 
 if TYPE_CHECKING:
@@ -60,24 +61,6 @@ log = logging.getLogger(__name__)
 # Define a clear return type for all tool-loading helpers
 # (tools, builtin_tools, cleanup_hooks, tool_scopes_map)
 ToolLoadingResult = Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable], Dict[str, List[str]]]
-
-
-def _find_dynamic_tool_class(module) -> Optional[type]:
-    """Finds a single non-abstract DynamicTool subclass in a module."""
-    found_classes = []
-    for name, obj in inspect.getmembers(module, inspect.isclass):
-        if (
-            is_subclass_by_name(obj, "DynamicTool")
-            and not is_subclass_by_name(obj, "DynamicToolProvider")
-            and not inspect.isabstract(obj)
-        ):
-            found_classes.append(obj)
-    if len(found_classes) > 1:
-        raise TypeError(
-            f"Module '{module.__name__}' contains multiple DynamicTool subclasses. "
-            "Please specify which one to use with 'class_name' in the config."
-        )
-    return found_classes[0] if found_classes else None
 
 
 async def _execute_lifecycle_hook(
@@ -157,22 +140,6 @@ def _create_cleanup_partial(
         raise RuntimeError(f"Tool lifecycle setup failed: {e}") from e
 
 
-def _find_dynamic_tool_provider_class(module) -> Optional[type]:
-    """Finds a single non-abstract DynamicToolProvider subclass in a module."""
-    found_classes = []
-    for name, obj in inspect.getmembers(module, inspect.isclass):
-        if is_subclass_by_name(obj, "DynamicToolProvider") and not inspect.isabstract(
-            obj
-        ):
-            found_classes.append(obj)
-    if len(found_classes) > 1:
-        raise TypeError(
-            f"Module '{module.__name__}' contains multiple DynamicToolProvider subclasses. "
-            "Only one is permitted per module."
-        )
-    return found_classes[0] if found_classes else None
-
-
 def _check_and_register_tool_name(name: str, source: str, loaded_tool_names: Set[str]):
     """Checks for duplicate tool names and raises ValueError if found."""
     if name in loaded_tool_names:
@@ -242,157 +209,53 @@ async def _create_python_tool_lifecycle_hooks(
     return list(reversed(cleanup_hooks))
 
 
-def _load_python_class_based_tool(
-    module: Any,
-    tool_config: Dict,
-    component: "SamAgentComponent",
-) -> List[DynamicTool]:
-    """
-    Loads a class-based tool, which can be a single DynamicTool or a
-    DynamicToolProvider that generates multiple tools.
-    """
-    from pydantic import BaseModel, ValidationError
-
-    specific_tool_config = tool_config.get("tool_config")
-    dynamic_tools: List[DynamicTool] = []
-    module_name = module.__name__
-
-    # Determine the class to load
-    tool_class = None
-    class_name = tool_config.get("class_name")
-    if class_name:
-        tool_class = getattr(module, class_name)
-    else:
-        # Auto-discover: provider first, then single tool
-        tool_class = _find_dynamic_tool_provider_class(module)
-        if not tool_class:
-            tool_class = _find_dynamic_tool_class(module)
-
-    if not tool_class:
-        raise TypeError(
-            f"Module '{module_name}' does not contain a 'function_name' or 'class_name' to load, "
-            "and no DynamicTool or DynamicToolProvider subclass could be auto-discovered."
-        )
-
-    # Check for a Pydantic model declaration on the tool class
-    config_model: Optional[Type["BaseModel"]] = getattr(
-        tool_class, "config_model", None
-    )
-    validated_config: Union[dict, "BaseModel"] = specific_tool_config
-
-    if config_model:
-        log.debug(
-            "%s Found config_model '%s' for tool class '%s'. Validating...",
-            component.log_identifier,
-            config_model.__name__,
-            tool_class.__name__,
-        )
-        try:
-            # Validate the raw dict and get a Pydantic model instance
-            validated_config = config_model.model_validate(specific_tool_config or {})
-            log.debug(
-                "%s Successfully validated tool_config for '%s'.",
-                component.log_identifier,
-                tool_class.__name__,
-            )
-        except ValidationError as e:
-            # Provide a clear error message and raise
-            error_msg = (
-                f"Configuration error for tool '{tool_class.__name__}' from module '{module_name}'. "
-                f"The provided 'tool_config' in your YAML is invalid:\n{e}"
-            )
-            log.error("%s %s", component.log_identifier, error_msg)
-            raise ValueError(error_msg) from e
-
-    # Instantiate tools from the class
-    if is_subclass_by_name(tool_class, "DynamicToolProvider"):
-        provider_instance = tool_class()
-        dynamic_tools = provider_instance.get_all_tools_for_framework(
-            tool_config=validated_config
-        )
-        log.info(
-            "%s Loaded %d tools from DynamicToolProvider '%s' in %s",
-            component.log_identifier,
-            len(dynamic_tools),
-            tool_class.__name__,
-            module_name,
-        )
-    elif is_subclass_by_name(tool_class, "DynamicTool"):
-        tool_instance = tool_class(tool_config=validated_config)
-        dynamic_tools = [tool_instance]
-    else:
-        raise TypeError(
-            f"Class '{tool_class.__name__}' in module '{module_name}' is not a valid "
-            "DynamicTool or DynamicToolProvider subclass."
-        )
-
-    # Post-process all generated tools
-    for tool in dynamic_tools:
-        tool.origin = "dynamic"
-        declaration = tool._get_declaration()
-        if not declaration:
-            log.warning(
-                "Dynamic tool '%s' from module '%s' did not generate a valid declaration. Skipping.",
-                tool.__class__.__name__,
-                module_name,
-            )
-            continue
-        log.info(
-            "%s Loaded dynamic tool: %s from %s",
-            component.log_identifier,
-            declaration.name,
-            module_name,
-        )
-
-    return dynamic_tools
-
-
 async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    """
+    Load Python tools using the PythonToolLoader.
+
+    This function handles all Python tool patterns through a unified interface:
+    - Simple functions (component_module + function_name)
+    - DynamicTool classes (component_module + class_name)
+    - DynamicToolProvider classes (component_module with auto-discovery)
+
+    The PythonToolLoader internally handles:
+    - Schema auto-detection from function signatures
+    - Artifact parameter detection from type hints
+    - ToolContextFacade parameter detection and injection
+    """
     from pydantic import TypeAdapter
 
     python_tool_adapter = TypeAdapter(PythonToolConfig)
     tool_config_model = python_tool_adapter.validate_python(tool_config)
 
     module_name = tool_config_model.component_module
-    base_path = tool_config_model.component_base_path
     if not module_name:
         raise ValueError("'component_module' is required for python tools.")
-    module = import_module(module_name, base_path=base_path)
 
-    loaded_python_tools: List[Union[BaseTool, Callable]] = []
+    # Create the loader with all configuration
+    loader = PythonToolLoader(
+        module=module_name,
+        function_name=tool_config_model.function_name,
+        class_name=tool_config_model.class_name,
+        tool_config=tool_config_model.tool_config,
+        tool_name=tool_config_model.tool_name,
+        tool_description=tool_config_model.tool_description,
+        raw_string_args=tool_config_model.raw_string_args,
+        base_path=tool_config_model.component_base_path,
+    )
 
-    # Case 1: Simple function-based tool
-    if tool_config_model.function_name:
-        func = getattr(module, tool_config_model.function_name)
-        if not callable(func):
-            raise TypeError(
-                f"'{tool_config_model.function_name}' in module '{module_name}' is not callable."
-            )
+    # Initialize the loader (imports module and creates tools)
+    await loader.initialize(component, tool_config_model.model_dump())
 
-        tool_callable = ADKToolWrapper(
-            func,
-            tool_config_model.tool_config,
-            tool_config_model.function_name,
-            origin="python",
-            raw_string_args=tool_config_model.raw_string_args,
-        )
+    # Get the loaded tools
+    loaded_python_tools = loader.get_loaded_tools()
 
-        if tool_config_model.tool_name:
-            tool_callable.__name__ = tool_config_model.tool_name
-        if tool_config_model.tool_description:
-            tool_callable.__doc__ = tool_config_model.tool_description
-
-        loaded_python_tools.append(tool_callable)
-        log.info(
-            "%s Loaded Python tool: %s from %s.",
-            component.log_identifier,
-            tool_callable.__name__,
-            module_name,
-        )
-    # Case 2: Advanced class-based dynamic tool or provider
-    else:
-        dynamic_tools = _load_python_class_based_tool(module, tool_config, component)
-        loaded_python_tools.extend(dynamic_tools)
+    log.info(
+        "%s Loaded %d Python tool(s) from %s via PythonToolLoader.",
+        component.log_identifier,
+        len(loaded_python_tools),
+        module_name,
+    )
 
     # --- Lifecycle Hook Execution for all Python Tools ---
     cleanup_hooks = await _create_python_tool_lifecycle_hooks(
@@ -429,6 +292,7 @@ async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) 
             sam_tool_def.name,
             origin="builtin",
             raw_string_args=sam_tool_def.raw_string_args,
+            artifact_args=sam_tool_def.artifact_args,
         )
         log.info(
             "%s Loaded SAM built-in tool: %s",
@@ -530,6 +394,7 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
             tool_def.name,
             origin="builtin",
             raw_string_args=tool_def.raw_string_args,
+            artifact_args=tool_def.artifact_args,
         )
         loaded_tools.append(tool_callable)
         enabled_builtin_tools.append(tool_def)
@@ -590,6 +455,29 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
         k: v for k, v in connection_params_config.items() if k != "type"
     }
     connection_args["timeout"] = connection_args.get("timeout", 30)
+
+    # Extract SSL configuration if provided
+    ssl_config_dict = connection_args.pop("ssl_config", None)
+    ssl_config = None
+    if ssl_config_dict and isinstance(ssl_config_dict, dict):
+        ssl_verify = ssl_config_dict.get("verify", True)
+        ssl_ca_bundle = ssl_config_dict.get("ca_bundle")
+
+        # Log warning when SSL verification is disabled
+        if ssl_verify is False:
+            log.warning(
+                "%s SSL verification is disabled for MCP connection. "
+                "This should only be used in development environments.",
+                component.log_identifier,
+            )
+
+        ssl_config = SslConfig(verify=ssl_verify, ca_bundle=ssl_ca_bundle)
+        log.debug(
+            "%s SSL configuration for MCP tool: verify=%s, ca_bundle=%s",
+            component.log_identifier,
+            ssl_verify,
+            ssl_ca_bundle,
+        )
 
     environment_variables = tool_config_model.environment_variables
     env_param = {}
@@ -726,6 +614,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
         "tool_filter": tool_filter,
         "tool_name_prefix": tool_config_model.tool_name_prefix,
         "tool_config": tool_config,
+        "ssl_config": ssl_config,
     }
 
     # Merge additional parameters from configurator
@@ -869,6 +758,7 @@ def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[
                 None,  # No specific config for internal tools
                 tool_def.name,
                 origin="internal",
+                artifact_args=tool_def.artifact_args,
             )
 
             tool_callable.__doc__ = tool_def.description
@@ -990,9 +880,14 @@ async def load_adk_tools(
                         # Special handling for MCPToolset which can load multiple tools
                         await _check_and_register_tool_name_mcp(component, loaded_tool_names, tool)
                     else:
-                        tool_name = getattr(
-                            tool, "name", getattr(tool, "__name__", None)
-                        )
+                        # For DynamicTool subclasses, use tool_name property
+                        # (the inherited 'name' attr may still be the placeholder)
+                        if hasattr(tool, "tool_name"):
+                            tool_name = tool.tool_name
+                        else:
+                            tool_name = getattr(
+                                tool, "name", getattr(tool, "__name__", None)
+                            )
                         if tool_name:
                             _check_and_register_tool_name(
                                 tool_name, tool_type, loaded_tool_names
@@ -1255,6 +1150,9 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
+        # Create ToolResult processor for handling structured tool responses
+        tool_result_processor = ToolResultProcessor(component)
+
         large_response_cb_with_component = functools.partial(
             adk_callbacks.manage_large_mcp_tool_responses_callback,
             host_component=component,
@@ -1288,10 +1186,21 @@ def initialize_adk_agent(
             )
 
             try:
-                # First, notify the UI about the raw result.
+                # Step 0: Process ToolResult objects if present.
+                # This converts ToolResult to a dict with automatic artifact handling.
+                processed_tool_response = await tool_result_processor.process(
+                    tool_response, tool_context, tool.name
+                )
+                effective_response = (
+                    processed_tool_response
+                    if processed_tool_response is not None
+                    else tool_response
+                )
+
+                # Step 1: Notify the UI about the result.
                 # This is a fire-and-forget notification that does not modify the response.
                 notify_tool_result_cb_with_component(
-                    tool, args, tool_context, tool_response
+                    tool, args, tool_context, effective_response
                 )
 
                 # Log OpenAPI audit on RAW response (before any processing).
@@ -1300,14 +1209,14 @@ def initialize_adk_agent(
                     tool, args, tool_context, tool_response
                 )
 
-                # Now, proceed with the existing chain that modifies the response for the LLM.
+                # Step 2: Handle large MCP responses.
                 processed_by_large_handler = await large_response_cb_with_component(
-                    tool, args, tool_context, tool_response
+                    tool, args, tool_context, effective_response
                 )
                 response_for_metadata_injector = (
                     processed_by_large_handler
                     if processed_by_large_handler is not None
-                    else tool_response
+                    else effective_response
                 )
 
                 final_response_after_metadata = (
@@ -1347,7 +1256,8 @@ def initialize_adk_agent(
 
         agent.after_tool_callback = chained_after_tool_callback
         log.debug(
-            "%s Chained 'manage_large_mcp_tool_responses_callback' and 'after_tool_callback_inject_metadata' as after_tool_callback.",
+            "%s Chained after_tool callbacks: ToolResultProcessor -> "
+            "manage_large_mcp_tool_responses -> inject_metadata -> track_artifacts",
             component.log_identifier,
         )
 

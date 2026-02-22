@@ -6,7 +6,7 @@ import logging
 import asyncio
 import functools
 import inspect
-from typing import Callable, Dict, List, Optional, Literal
+from typing import Any, Callable, Dict, List, Optional, Literal, Set
 
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -16,8 +16,15 @@ from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
 )
 from ...common.utils.embeds.types import ResolutionMode
+from ..tools.artifact_types import Artifact, is_artifact_type, get_artifact_info, ArtifactTypeInfo
+from ..tools.artifact_preloading import (
+    is_tool_context_facade_param as _is_tool_context_facade_param,
+    resolve_artifact_params,
+)
+from ..utils.tool_context_facade import ToolContextFacade
 
 log = logging.getLogger(__name__)
+
 
 class ADKToolWrapper:
     """
@@ -36,6 +43,7 @@ class ADKToolWrapper:
         origin: str,
         raw_string_args: Optional[List[str]] = None,
         resolution_type: Literal["early", "all"] = "all",
+        artifact_args: Optional[List[str]] = None,
     ):
         self._original_func = original_func
         self._tool_config = tool_config or {}
@@ -84,6 +92,103 @@ class ADKToolWrapper:
             self.__signature__ = None
             self._accepts_tool_config = False
             log.warning("Could not determine signature for tool '%s'.", self._tool_name)
+
+        # Initialize artifact params from explicit config
+        # Maps param name to ArtifactTypeInfo
+        self._artifact_params: Dict[str, ArtifactTypeInfo] = {}
+        if artifact_args:
+            for name in artifact_args:
+                self._artifact_params[name] = ArtifactTypeInfo(is_artifact=True)
+
+        # Track if the function expects a ToolContextFacade
+        self._ctx_facade_param_name: Optional[str] = None
+
+        # Auto-detect Artifact and ToolContextFacade type annotations
+        self._detect_special_params()
+
+        # Sanitize __signature__ so ADK doesn't see types it can't parse.
+        # Replace Artifact annotations with str, remove ToolContextFacade params.
+        self._sanitize_signature()
+
+    def _sanitize_signature(self) -> None:
+        """Replace Artifact type annotations with str and remove framework-injected
+        params (ToolContextFacade) from the exposed signature so that ADK's
+        automatic function declaration parser doesn't choke on unknown types."""
+        if self.__signature__ is None:
+            return
+
+        new_params = []
+        for param_name, param in self.__signature__.parameters.items():
+            # Remove ToolContextFacade params — they are injected by the framework
+            if param_name == self._ctx_facade_param_name:
+                continue
+
+            # Replace Artifact annotations with str
+            if param_name in self._artifact_params:
+                new_param = param.replace(annotation=str)
+                new_params.append(new_param)
+            else:
+                new_params.append(param)
+
+        self.__signature__ = self.__signature__.replace(parameters=new_params)
+
+    @property
+    def _artifact_args(self) -> Set[str]:
+        """Property returning set of artifact param names."""
+        return set(self._artifact_params.keys())
+
+    def _detect_special_params(self) -> None:
+        """
+        Detect special parameter types:
+        - Artifact / List[Artifact]: Will have artifact pre-loaded
+        - ToolContextFacade: Will have facade injected automatically
+        """
+        if self.__signature__ is None:
+            return
+
+        for param_name, param in self.__signature__.parameters.items():
+            if param_name in ("tool_context", "tool_config", "kwargs", "self", "cls"):
+                continue
+
+            # Check for Artifact (including List[Artifact])
+            artifact_type_info = get_artifact_info(param.annotation)
+            if artifact_type_info.is_artifact:
+                self._artifact_params[param_name] = artifact_type_info
+                if artifact_type_info.is_list:
+                    log.debug(
+                        "[ADKToolWrapper:%s] Detected List[Artifact] param: %s",
+                        self._tool_name,
+                        param_name,
+                    )
+                else:
+                    log.debug(
+                        "[ADKToolWrapper:%s] Detected Artifact param: %s",
+                        self._tool_name,
+                        param_name,
+                    )
+
+            # Check for ToolContextFacade
+            if _is_tool_context_facade_param(param.annotation):
+                self._ctx_facade_param_name = param_name
+                log.debug(
+                    "[ADKToolWrapper:%s] Detected ToolContextFacade param: %s",
+                    self._tool_name,
+                    param_name,
+                )
+
+        if self._artifact_params:
+            log.info(
+                "[ADKToolWrapper:%s] Will pre-load artifacts for params: %s",
+                self._tool_name,
+                list(self._artifact_params.keys()),
+            )
+
+        if self._ctx_facade_param_name:
+            log.info(
+                "[ADKToolWrapper:%s] Will inject ToolContextFacade as '%s'",
+                self._tool_name,
+                self._ctx_facade_param_name,
+            )
 
     async def __call__(self, *args, **kwargs):
         # Allow overriding the context for embed resolution, e.g., when called from a callback
@@ -144,6 +249,31 @@ class ADKToolWrapper:
                 "%s Tool was provided a 'tool_config' but its function signature does not accept it. The config will be ignored.",
                 log_identifier,
             )
+
+        # Inject ToolContextFacade if the function expects it
+        if self._ctx_facade_param_name and context_for_embeds:
+            facade = ToolContextFacade(
+                tool_context=context_for_embeds,
+                tool_config=self._tool_config,
+            )
+            resolved_kwargs[self._ctx_facade_param_name] = facade
+            log.debug(
+                "%s Injected ToolContextFacade as '%s'",
+                log_identifier,
+                self._ctx_facade_param_name,
+            )
+
+        # Pre-load artifacts for Artifact parameters
+        if self._artifact_params and context_for_embeds:
+            error = await resolve_artifact_params(
+                artifact_params=self._artifact_params,
+                resolved_kwargs=resolved_kwargs,
+                tool_context=context_for_embeds,
+                tool_name=self._tool_name,
+                log_identifier=log_identifier,
+            )
+            if error is not None:
+                return error
 
         try:
             if self._is_async:

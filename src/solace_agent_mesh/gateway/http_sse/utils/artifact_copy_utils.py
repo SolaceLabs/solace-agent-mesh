@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
+    is_internal_artifact,
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
 )
@@ -90,15 +91,24 @@ async def copy_project_artifacts_to_session(
     component: "WebUIBackendComponent",
     db: "DbSession",
     log_prefix: str = "",
+    indexing_enabled: bool = False,
 ) -> tuple[int, list[str]]:
     """
-    Copy all artifacts from a project to a session.
+    Copy artifacts from a project to a session.
+
+    Behavior depends on the indexing_enabled feature flag:
+    - When indexing_enabled=False (default): Copies only original user files
+      (backward compatible behavior)
+    - When indexing_enabled=True: Copies all artifacts including converted text
+      files and BM25 index (complete context for search)
 
     This function handles:
     - Loading artifacts from the project storage
+    - Filtering based on indexing feature flag
     - Checking which artifacts already exist in the session
     - Copying new artifacts to the session
-    - Setting the 'source' metadata field to 'project'
+    - Preserving all metadata (conversion info, citations, etc.)
+    - Setting the 'project_context_pending' flag for context injection
 
     Args:
         project_id: ID of the project containing artifacts
@@ -108,6 +118,9 @@ async def copy_project_artifacts_to_session(
         component: WebUIBackendComponent for accessing artifact service
         db: Database session to use for queries
         log_prefix: Optional prefix for log messages
+        indexing_enabled: Whether BM25 indexing is enabled. When False, only
+            original files are copied. When True, converted text files and
+            BM25 index are also copied. Defaults to False for backward compatibility.
 
     Returns:
         Tuple of (artifacts_copied_count, list_of_new_artifact_names)
@@ -163,6 +176,29 @@ async def copy_project_artifacts_to_session(
             project.id,
         )
 
+        # Find original files
+        original_artifacts = [
+            artifact for artifact in project_artifacts
+            if not is_internal_artifact(artifact.filename)
+        ]
+        original_artifact_count = len(original_artifacts)
+        internal_artifact_count = len(project_artifacts) - original_artifact_count
+
+        # Filter artifacts based on indexing feature flag
+        if not indexing_enabled:
+            # When indexing is disabled, only copy original user files and skip internal files
+            log.info("%sIndexing disabled: filtering to %d original artifacts", log_prefix, original_artifact_count)
+            project_artifacts = original_artifacts
+
+        log.info(
+            "%sProject %s artifacts (indexing_enabled=%s): %d original, %d internal",
+            log_prefix,
+            project.id,
+            indexing_enabled,
+            original_artifact_count,
+            internal_artifact_count,
+        )
+
         try:
             session_artifacts = await get_artifact_info_list(
                 artifact_service=artifact_service,
@@ -200,9 +236,12 @@ async def copy_project_artifacts_to_session(
 
             new_artifact_names.append(artifact_info.filename)
 
+            artifact_type = "internal" if is_internal_artifact(artifact_info.filename) else "original"
+
             log.info(
-                "%sCopying artifact %s to session %s",
+                "%sCopying %s artifact %s to session %s",
                 log_prefix,
+                artifact_type,
                 artifact_info.filename,
                 session_id,
             )
@@ -254,9 +293,11 @@ async def copy_project_artifacts_to_session(
                     )
                     artifacts_copied += 1
                     log.info(
-                        "%sSuccessfully copied artifact %s to session",
+                        "%sSuccessfully copied %s artifact %s (v%s) to session",
                         log_prefix,
+                        artifact_type,
                         artifact_info.filename,
+                        loaded_artifact.get("version", "unknown"),
                     )
                 else:
                     log.warning(
@@ -272,13 +313,26 @@ async def copy_project_artifacts_to_session(
                     artifact_info.filename,
                     e,
                 )
-                
+
         if artifacts_copied > 0:
+            # NOTE: new_artifact_names tracks attempted copies, so these counts
+            # may exceed artifacts_copied if any individual copies failed.
+            copied_original = sum(
+                1 for name in new_artifact_names
+                if not is_internal_artifact(name)
+            )
+            copied_internal = sum(
+                1 for name in new_artifact_names
+                if is_internal_artifact(name)
+            )
+
             log.info(
-                "%sCopied %d new artifacts to session %s",
+                "%sCopied %d artifacts to session %s: %d original, %d internal",
                 log_prefix,
                 artifacts_copied,
                 session_id,
+                copied_original,
+                copied_internal,
             )
         else:
             log.debug("%sNo new artifacts to copy to session %s", log_prefix, session_id)

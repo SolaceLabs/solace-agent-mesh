@@ -26,7 +26,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "edit_image_with_gemini"
-                  arguments: '{"image_filename": "test_image.png", "edit_prompt": "place a blue dot in the center", "output_filename": "edited_image.jpg"}'
+                  arguments: '{"input_image": "test_image.png", "edit_prompt": "place a blue dot in the center", "output_filename": "edited_image.jpg"}'
   - expected_request:
       messages:
         - role: "tool"

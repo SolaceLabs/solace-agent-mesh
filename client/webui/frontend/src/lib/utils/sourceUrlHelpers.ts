@@ -126,3 +126,23 @@ export function hasClickableExternalUrl(source: SourceLike): boolean {
     const { hasUrl, sourceType } = getSourceUrl(source);
     return hasUrl && isWebBasedSource(sourceType);
 }
+
+/**
+ * Check if RAG data contains document search results.
+ * Document search results come from project-indexed documents.
+ *
+ * @param ragData - Array of RAG search results to check
+ * @returns true if any search result is of type "document_search"
+ *
+ * @example
+ * ```ts
+ * const hasDocuments = hasDocumentSearchResults(ragData);
+ * if (hasDocuments) {
+ *   // Show document sources panel
+ * }
+ * ```
+ */
+export function hasDocumentSearchResults(ragData: RAGSearchResult[] | undefined): boolean {
+    if (!ragData?.length) return false;
+    return ragData.some(search => search.searchType === "document_search");
+}

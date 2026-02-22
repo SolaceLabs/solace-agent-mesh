@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Bot, Pencil } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
@@ -10,9 +10,10 @@ interface DefaultAgentSectionProps {
     project: Project;
     onSave: (defaultAgentId: string | null) => Promise<void>;
     isSaving: boolean;
+    isDisabled?: boolean;
 }
 
-export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving }) => {
+export const DefaultAgentSection = ({ project, onSave, isSaving, isDisabled = false }: DefaultAgentSectionProps) => {
     const { agents, agentsLoading, agentNameDisplayNameMap } = useChatContext();
     const isOwner = useIsProjectOwner(project.userId);
     const [isEditing, setIsEditing] = useState(false);
@@ -40,7 +41,7 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ projec
                 <div className="mb-3 flex items-center justify-between px-4">
                     <h3 className="text-foreground text-sm font-semibold">Default Agent</h3>
                     {isOwner && (
-                        <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} disabled={agentsLoading} className="h-8 w-8 p-0" tooltip="Edit">
+                        <Button variant="ghost" testid="editDefaultAgent" size="sm" onClick={() => setIsEditing(true)} disabled={agentsLoading || isDisabled} className="h-8 w-8 p-0" tooltip="Edit">
                             <Pencil className="h-4 w-4" />
                         </Button>
                     )}
