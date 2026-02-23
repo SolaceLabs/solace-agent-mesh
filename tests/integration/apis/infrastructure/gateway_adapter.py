@@ -272,13 +272,8 @@ class GatewayAdapter:
                 )
                 conn.execute(prompt_query)
 
-                # Update group with production prompt reference
-                update_query = (
-                    sa.update(prompt_groups_table)
-                    .where(prompt_groups_table.c.id == group_id)
-                    .values(production_prompt_id=prompt_id, updated_at=now_epoch_ms())
-                )
-                conn.execute(update_query)
+                # Note: production_prompt_id is deprecated - latest version is always active
+                # No need to update production_prompt_id
 
             if conn.in_transaction():
                 conn.commit()
