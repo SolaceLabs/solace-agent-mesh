@@ -21,27 +21,29 @@ from typing import Optional
 
 from google.genai import types
 
-def _filter_whitespace_only_text_parts(content: types.Content) -> types.Content:
-    """Filter out whitespace-only text parts from content.
+def _filter_whitespace_only_text_parts_inplace(content: types.Content) -> bool:
+    """Filter out whitespace-only text parts from content IN-PLACE.
     
-    This is needed because some LLM providers  reject
-    requests containing text content blocks with only whitespace characters.
+    This is needed because some LLM providers reject requests containing
+    text content blocks with only whitespace characters.
     The ADK's _contains_empty_content only checks for truly empty content,
     not whitespace-only content like ' '.
     
-    We filter out only the whitespace-only text parts while preserving
-    function calls, function responses, and valid text parts.
+    This function modifies the content in-place to avoid creating new objects,
+    since the ADK already does copy.deepcopy() on every event for every LLM turn.
+    We just filter the already-copied content.
     
     Args:
-        content: The content to filter.
+        content: The content to filter (modified in-place).
         
     Returns:
-        A new Content object with whitespace-only text parts removed.
-        If all parts are removed, returns None.
+        True if content still has valid parts after filtering.
+        False if all parts were removed (content should be skipped).
     """
     if not content or not content.parts:
-        return content
+        return bool(content and content.parts)
     
+    # Filter in-place by building list of parts to keep
     filtered_parts = []
     for part in content.parts:
         # Keep function calls and function responses
@@ -58,15 +60,13 @@ def _filter_whitespace_only_text_parts(content: types.Content) -> types.Content:
             # Keep any other part types
             filtered_parts.append(part)
     
-    # If no parts remain, return None to signal this content should be skipped
+    # If no parts remain, signal this content should be skipped
     if not filtered_parts:
-        return None
+        return False
     
-    # Create a new Content with filtered parts
-    return types.Content(
-        role=content.role,
-        parts=filtered_parts
-    )
+    # Update parts in-place (content is already a deep copy)
+    content.parts = filtered_parts
+    return True
 
 
 
@@ -114,11 +114,10 @@ def _patch_get_contents(
   for event in result_events:
     content = copy.deepcopy(event.content)
     remove_client_function_call_id(content)
-    # Filter whitespace-only text parts from the content
-    filtered_content = _filter_whitespace_only_text_parts(content)
-    # Only add content if it has remaining parts after filtering
-    if filtered_content is not None:
-      contents.append(filtered_content)
+    # Filter whitespace-only text parts in-place on the deep-copied content
+    # Only add content if it still has valid parts after filtering
+    if _filter_whitespace_only_text_parts_inplace(content):
+      contents.append(content)
   return contents
 
 # =============================================================================
