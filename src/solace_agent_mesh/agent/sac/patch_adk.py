@@ -21,6 +21,55 @@ from typing import Optional
 
 from google.genai import types
 
+def _filter_whitespace_only_text_parts(content: types.Content) -> types.Content:
+    """Filter out whitespace-only text parts from content.
+    
+    This is needed because some LLM providers  reject
+    requests containing text content blocks with only whitespace characters.
+    The ADK's _contains_empty_content only checks for truly empty content,
+    not whitespace-only content like ' '.
+    
+    We filter out only the whitespace-only text parts while preserving
+    function calls, function responses, and valid text parts.
+    
+    Args:
+        content: The content to filter.
+        
+    Returns:
+        A new Content object with whitespace-only text parts removed.
+        If all parts are removed, returns None.
+    """
+    if not content or not content.parts:
+        return content
+    
+    filtered_parts = []
+    for part in content.parts:
+        # Keep function calls and function responses
+        if hasattr(part, 'function_call') and part.function_call:
+            filtered_parts.append(part)
+        elif hasattr(part, 'function_response') and part.function_response:
+            filtered_parts.append(part)
+        # For text parts, only keep if they have non-whitespace content
+        elif hasattr(part, 'text') and part.text is not None:
+            if part.text.strip():
+                filtered_parts.append(part)
+            # Skip whitespace-only text parts
+        else:
+            # Keep any other part types
+            filtered_parts.append(part)
+    
+    # If no parts remain, return None to signal this content should be skipped
+    if not filtered_parts:
+        return None
+    
+    # Create a new Content with filtered parts
+    return types.Content(
+        role=content.role,
+        parts=filtered_parts
+    )
+
+
+
 def _patch_get_contents(
     current_branch: Optional[str], events: list[Event], agent_name: str = ''
 ) -> list[types.Content]:
@@ -60,12 +109,16 @@ def _patch_get_contents(
       result_events
   )
 
-  # Convert events to contents
+  # Convert events to contents, filtering out whitespace-only text parts
   contents = []
   for event in result_events:
     content = copy.deepcopy(event.content)
     remove_client_function_call_id(content)
-    contents.append(content)
+    # Filter whitespace-only text parts from the content
+    filtered_content = _filter_whitespace_only_text_parts(content)
+    # Only add content if it has remaining parts after filtering
+    if filtered_content is not None:
+      contents.append(filtered_content)
   return contents
 
 # =============================================================================
