@@ -352,3 +352,14 @@
 .dark .citation-highlight {
     background-color: rgb(251 191 36 / 0.3); /* slightly more subtle in dark mode */
 }
+
+/* Citation highlight for text-based content (markdown, HTML, etc.) - needs different dark mode styling */
+mark.citation-highlight {
+    background-color: rgb(251 191 36 / 0.4); /* amber-400 with opacity */
+    color: inherit;
+}
+
+.dark mark.citation-highlight {
+    background-color: rgb(234 179 8 / 0.5); /* yellow-500 with higher opacity for dark backgrounds */
+    color: rgb(250 250 249); /* stone-50 for readability on dark */
+}
