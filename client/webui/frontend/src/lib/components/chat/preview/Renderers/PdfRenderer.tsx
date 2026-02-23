@@ -16,11 +16,18 @@ export interface SnipToChatEventDetail {
 // Configure PDF.js worker from local npm package (pdfjs-dist)
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
+export interface CitationMapEntry {
+    location: string; // e.g., "physical_page_5"
+    char_start: number;
+    char_end: number;
+}
+
 interface PdfRendererProps {
     url: string;
     filename: string;
     initialPage?: number;
     highlightTexts?: string[];
+    citationMaps?: CitationMapEntry[];
 }
 
 interface SelectionRect {
@@ -34,7 +41,7 @@ type InteractionMode = "text" | "pan" | "snip";
 
 const pdfOptions = { withCredentials: true };
 
-const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, highlightTexts = [] }) => {
+const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, highlightTexts = [], citationMaps = [] }) => {
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -46,6 +53,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
     const [selection, setSelection] = useState<SelectionRect | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
     const [snipStatus, setSnipStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
+    // Document-wide page character boundaries: pageCharBoundaries[i] = char position where page i+1 starts
+    const [pageCharBoundaries, setPageCharBoundaries] = useState<number[]>([]);
     const viewerRef = useRef<HTMLDivElement>(null);
     const documentContainerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -73,40 +82,131 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
         }
     }, [initialPage, numPages]);
 
-    // Highlight citation text in the PDF text layer after render
+    // Build document-wide character boundaries for each page
     useEffect(() => {
-        if (!highlightTexts.length || !numPages || !viewerRef.current) return;
+        if (!citationMaps.length || !numPages || !url) return;
+
+        const buildPageBoundaries = async () => {
+            try {
+                const loadingTask = pdfjs.getDocument({ url, withCredentials: true });
+                const pdf = await loadingTask.promise;
+
+                // Build character boundaries for each page
+                let charCount = 0;
+                const boundaries: number[] = [0]; // Page 1 starts at char 0
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+
+                    for (const item of content.items) {
+                        if ("str" in item) {
+                            charCount += item.str.length;
+                        }
+                    }
+                    boundaries.push(charCount);
+                }
+
+                console.log("[PdfRenderer] Page char boundaries:", boundaries);
+                console.log(
+                    "[PdfRenderer] Citation maps:",
+                    citationMaps.map(m => `${m.location}: ${m.char_start}-${m.char_end}`)
+                );
+                setPageCharBoundaries(boundaries);
+            } catch (err) {
+                console.error("[PdfRenderer] Failed to build page boundaries:", err);
+            }
+        };
+
+        buildPageBoundaries();
+    }, [citationMaps, numPages, url]);
+
+    // Highlight citation text using character positions from citation_map
+    useEffect(() => {
+        if (!numPages || !viewerRef.current) return;
+
+        // Need either citation_maps with boundaries OR highlightTexts for fallback
+        const hasCitationMaps = citationMaps.length > 0 && pageCharBoundaries.length > 0;
+        const hasHighlightTexts = highlightTexts.length > 0;
+
+        if (!hasCitationMaps && !hasHighlightTexts) return;
 
         const timer = setTimeout(() => {
-            const textSpans = viewerRef.current?.querySelectorAll(".react-pdf__Page__textContent span");
-            if (!textSpans) return;
-
             const matchedSpans: HTMLElement[] = [];
 
-            textSpans.forEach(span => {
-                const spanText = span.textContent?.toLowerCase().trim() || "";
-                if (spanText.length < 4) return; // Skip tiny spans
+            if (hasCitationMaps) {
+                // CHARACTER-POSITION BASED HIGHLIGHTING
+                console.log("[PdfRenderer] Using character-position highlighting from citation_map");
 
-                const isMatch = highlightTexts.some(citation => {
-                    const normalizedCitation = citation.toLowerCase().replace(/\s+/g, " ");
-                    // Check if span text is part of citation or vice versa
-                    return normalizedCitation.includes(spanText) || spanText.includes(normalizedCitation.substring(0, 30));
-                });
+                // For each page, highlight spans that fall within any citation_map range
+                for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                    const pageElement = pageRefs.current.get(pageNum);
+                    if (!pageElement) continue;
 
-                if (isMatch) {
-                    span.classList.add("citation-highlight");
-                    matchedSpans.push(span as HTMLElement);
+                    const pageStart = pageCharBoundaries[pageNum - 1] || 0;
+                    const pageEnd = pageCharBoundaries[pageNum] || pageStart;
+
+                    // Find citation_maps that overlap with this page
+                    const relevantMaps = citationMaps.filter(m => m.char_start < pageEnd && m.char_end > pageStart);
+
+                    if (relevantMaps.length === 0) continue;
+
+                    console.log(`[PdfRenderer] Page ${pageNum} (chars ${pageStart}-${pageEnd}): ${relevantMaps.length} citations`);
+
+                    const textSpans = pageElement.querySelectorAll(".react-pdf__Page__textContent span");
+                    let charPos = pageStart; // Start at page's document-wide position
+
+                    textSpans.forEach(span => {
+                        const spanText = span.textContent || "";
+                        const spanStart = charPos;
+                        const spanEnd = charPos + spanText.length;
+
+                        // Check if this span overlaps with ANY citation range
+                        const overlaps = relevantMaps.some(m => spanStart < m.char_end && spanEnd > m.char_start);
+
+                        if (overlaps && spanText.trim().length > 0) {
+                            console.log(`[PdfRenderer] Page ${pageNum} HIGHLIGHT chars ${spanStart}-${spanEnd}: "${spanText.substring(0, 40)}"`);
+                            span.classList.add("citation-highlight");
+                            matchedSpans.push(span as HTMLElement);
+                        }
+
+                        charPos = spanEnd;
+                    });
                 }
-            });
+            } else if (hasHighlightTexts) {
+                // FALLBACK: Text matching (for when citation_map not available)
+                console.log("[PdfRenderer] Fallback: Using text matching");
 
-            // Scroll to first highlight if no initialPage was specified
+                const textSpans = initialPage ? pageRefs.current.get(initialPage)?.querySelectorAll(".react-pdf__Page__textContent span") : viewerRef.current?.querySelectorAll(".react-pdf__Page__textContent span");
+
+                if (!textSpans) return;
+
+                textSpans.forEach(span => {
+                    const spanText = span.textContent?.toLowerCase().trim() || "";
+                    if (spanText.length < 8) return;
+
+                    const isMatch = highlightTexts.some(citation => {
+                        const normalizedCitation = citation.toLowerCase().replace(/\s+/g, " ");
+                        return normalizedCitation.includes(spanText);
+                    });
+
+                    if (isMatch) {
+                        span.classList.add("citation-highlight");
+                        matchedSpans.push(span as HTMLElement);
+                    }
+                });
+            }
+
+            console.log(`[PdfRenderer] Total highlighted spans: ${matchedSpans.length}`);
+
+            // Scroll to first highlight
             if (matchedSpans.length > 0 && !initialPage) {
                 matchedSpans[0].scrollIntoView({ behavior: "smooth", block: "center" });
             }
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [highlightTexts, numPages, initialPage, zoomLevel]);
+    }, [citationMaps, pageCharBoundaries, highlightTexts, numPages, initialPage, zoomLevel]);
 
     function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }): void {
         setNumPages(nextNumPages);

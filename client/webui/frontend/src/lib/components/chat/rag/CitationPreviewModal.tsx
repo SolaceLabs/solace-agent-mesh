@@ -11,6 +11,7 @@ import { useProjectContext } from "@/lib/providers/ProjectProvider";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
 import { highlightCitationsInText, extractCitationTexts } from "@/lib/utils/highlightUtils";
 import type { RAGSource } from "@/lib/types";
+import type { CitationMapEntry } from "@/lib/components/chat/preview/Renderers/PdfRenderer";
 
 export interface CitationPreviewModalProps {
     isOpen: boolean;
@@ -52,6 +53,12 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
     }, [filename, projectId]);
 
     const highlightTexts = extractCitationTexts(citations);
+
+    // Extract citation_map entries for precise character-position highlighting
+    const citationMaps = useMemo((): CitationMapEntry[] => {
+        return citations.flatMap(c => (c.metadata?.citation_map as CitationMapEntry[]) || []);
+    }, [citations]);
+
     const processedContent = useMemo(() => {
         if (!documentData?.content || !renderType) return "";
         if (renderType === "pdf") return "";
@@ -115,7 +122,17 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                         <div className="h-full overflow-auto">
                             {renderType === "pdf" ? (
                                 fileUrl ? (
-                                    <ContentRenderer content="" rendererType={renderType} mime_type={documentData?.mimeType} url={fileUrl} filename={filename} setRenderError={setRenderError} initialPage={pageNumber} highlightTexts={highlightTexts} />
+                                    <ContentRenderer
+                                        content=""
+                                        rendererType={renderType}
+                                        mime_type={documentData?.mimeType}
+                                        url={fileUrl}
+                                        filename={filename}
+                                        setRenderError={setRenderError}
+                                        initialPage={pageNumber}
+                                        highlightTexts={highlightTexts}
+                                        citationMaps={citationMaps}
+                                    />
                                 ) : (
                                     <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2">
                                         <AlertCircle className="h-8 w-8" />
