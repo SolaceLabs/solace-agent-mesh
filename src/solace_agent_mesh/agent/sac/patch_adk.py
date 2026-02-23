@@ -29,12 +29,11 @@ def _filter_whitespace_only_text_parts_inplace(content: types.Content) -> bool:
     The ADK's _contains_empty_content only checks for truly empty content,
     not whitespace-only content like ' '.
     
-    This function modifies the content in-place to avoid creating new objects,
-    since the ADK already does copy.deepcopy() on every event for every LLM turn.
-    We just filter the already-copied content.
+    - First, do a quick scan to check if ANY whitespace-only text parts exist
+    - Only if found, then create the filtered list and do the actual filtering
     
     Args:
-        content: The content to filter (modified in-place).
+        content: The content to filter (modified in-place if needed).
         
     Returns:
         True if content still has valid parts after filtering.
@@ -43,7 +42,16 @@ def _filter_whitespace_only_text_parts_inplace(content: types.Content) -> bool:
     if not content or not content.parts:
         return bool(content and content.parts)
     
-    # Filter in-place by building list of parts to keep
+    has_whitespace_only = False
+    for part in content.parts:
+        if hasattr(part, 'text') and part.text is not None:
+            if not part.text.strip():
+                has_whitespace_only = True
+                break
+    
+    if not has_whitespace_only:
+        return True
+    
     filtered_parts = []
     for part in content.parts:
         # Keep function calls and function responses
