@@ -694,10 +694,34 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         )
 
     def add_timer(
-        self, delay_ms: int, callback: Callable, interval_ms: Optional[int] = None
+        self,
+        delay_ms: int,
+        timer_id: Optional[str] = None,
+        interval_ms: Optional[int] = None,
+        callback: Optional[Callable] = None,
     ) -> str:
-        timer_id = f"adapter-timer-{len(self.timer_manager.timers)}"
-        super().add_timer(delay_ms, timer_id, interval_ms, {"callback": callback})
+        """Add a timer with optional callback.
+
+        This method supports two calling conventions:
+        1. Adapter pattern: add_timer(delay_ms, callback=fn, interval_ms=ms)
+           - Used by GatewayAdapter implementations
+           - timer_id is auto-generated
+        2. Trust Manager pattern: add_timer(delay_ms, timer_id=id, interval_ms=ms, callback=fn)
+           - Used by Trust Manager for periodic publishing
+           - timer_id is explicitly provided
+
+        Args:
+            delay_ms: Initial delay in milliseconds
+            timer_id: Optional unique timer identifier (auto-generated if not provided)
+            interval_ms: Repeat interval in milliseconds (0 or None for one-shot)
+            callback: Callback function to invoke when timer fires
+
+        Returns:
+            The timer_id (either provided or auto-generated)
+        """
+        if timer_id is None:
+            timer_id = f"adapter-timer-{len(self.timer_manager.timers)}"
+        super().add_timer(delay_ms, timer_id, interval_ms or 0, {"callback": callback})
         return timer_id
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
