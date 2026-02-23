@@ -15,7 +15,7 @@ const getFileExtension = (filename: string): string => {
     return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
 };
 
-const getFileStyles = (type: string) => {
+export const getFileStyles = (type: string) => {
     switch (type) {
         case "html":
             return "bg-[#e34c26]";
@@ -27,6 +27,12 @@ const getFileStyles = (type: string) => {
             return "bg-[#6c757d]";
         case "text":
             return "bg-[#5c6bc0]";
+        case "pdf":
+            return "bg-[#d32f2f]";
+        case "word":
+            return "bg-[#2b579a]";
+        case "powerpoint":
+            return "bg-[#d24726]";
         default:
             return "bg-gray-500";
     }
@@ -143,7 +149,7 @@ export const getFileTypeIcon = (mimeType?: string, filename?: string, iconProps:
     }
 };
 
-const getFileTypeColor = (mimeType?: string, filename?: string): string => {
+export const getFileTypeColor = (mimeType?: string, filename?: string): string => {
     if (mimeType) {
         if (mimeType.startsWith("text/html") || mimeType === "application/xhtml+xml") {
             return getFileStyles("html");
@@ -178,6 +184,14 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
             return getFileStyles("markdown");
         case "txt":
             return getFileStyles("text");
+        case "pdf":
+            return getFileStyles("pdf");
+        case "doc":
+        case "docx":
+            return getFileStyles("word");
+        case "ppt":
+        case "pptx":
+            return getFileStyles("powerpoint");
         default:
             return getFileStyles("default");
     }

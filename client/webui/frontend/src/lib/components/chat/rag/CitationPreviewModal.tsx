@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from "react";
 import { AlertCircle } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, VisuallyHidden } from "@/lib/components/ui/dialog";
 import { Button } from "@/lib/components/ui/button";
-import { FileIcon } from "@/lib/components/chat/file/FileIcon";
+import { FileIcon, getFileTypeColor } from "@/lib/components/chat/file/FileIcon";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { LoadingState, ErrorState, NoPreviewState } from "@/lib/components/chat/preview/Renderers";
 import { useDocumentContent } from "@/lib/api/documents";
@@ -99,8 +100,8 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                             <FileIcon filename={filename} variant="compact" />
                             <div className="flex flex-col gap-0.5">
                                 <DialogTitle className="text-base font-semibold">Source {sourceIndex + 1}</DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-sm">
-                                    {pageLabel} · {fileExtension.toUpperCase()} file
+                                <DialogDescription className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                                    {pageLabel} · <span className={cn("rounded px-1.5 py-0.5 text-xs font-semibold text-white", getFileTypeColor(undefined, `file.${fileExtension}`))}>{fileExtension.toUpperCase()}</span>
                                 </DialogDescription>
                             </div>
                         </div>
