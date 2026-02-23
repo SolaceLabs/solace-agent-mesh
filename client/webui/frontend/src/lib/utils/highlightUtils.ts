@@ -76,24 +76,3 @@ export function highlightCitationsInText(content: string, citations: RAGSource[]
 
     return highlightedContent;
 }
-
-/**
- * Gets the first citation preview text for display in modal header.
- * Useful for PDF previews where text can't be highlighted in the document.
- *
- * @param citations - Array of RAGSource objects
- * @returns The first non-empty content preview, truncated if needed
- */
-export function getFirstCitationPreview(citations: RAGSource[]): string | null {
-    const firstCitation = citations.find(c => c.contentPreview && c.contentPreview.length > 0);
-    if (!firstCitation?.contentPreview) {
-        return null;
-    }
-
-    const preview = firstCitation.contentPreview;
-    // Truncate if too long (for display in header)
-    if (preview.length > 300) {
-        return preview.substring(0, 300) + "...";
-    }
-    return preview;
-}
