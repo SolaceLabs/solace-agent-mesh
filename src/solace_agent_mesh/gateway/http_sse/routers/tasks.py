@@ -649,6 +649,18 @@ async def _submit_task(
             if msg_metadata.get("maxExecutionTimeMs"):
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
 
+        # Pass project_id to agent for project-context-aware tool injection (e.g., index_search).
+        # Gated on project_indexing.enabled — remove this gate when the flag is retired.
+        if project_id:
+            project_indexing_config = component.get_config("project_indexing", {})
+            indexing_enabled = (
+                project_indexing_config.get("enabled", False)
+                if isinstance(project_indexing_config, dict)
+                else False
+            )
+            if indexing_enabled:
+                additional_metadata["project_id"] = project_id
+
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,
             a2a_parts=a2a_parts,

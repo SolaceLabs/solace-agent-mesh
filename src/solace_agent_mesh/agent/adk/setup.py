@@ -1065,6 +1065,16 @@ def initialize_adk_agent(
                 component.log_identifier,
             )
 
+        # Project-context tools (e.g., index_search) must be injected before capability filtering
+        if hasattr(component, "_inject_project_tools_callback"):
+            callbacks_in_order_for_before_model.append(
+                component._inject_project_tools_callback
+            )
+            log.debug(
+                "%s Added _inject_project_tools_callback to before_model chain.",
+                component.log_identifier,
+            )
+
         if hasattr(component, "_filter_tools_by_capability_callback"):
             callbacks_in_order_for_before_model.append(
                 component._filter_tools_by_capability_callback

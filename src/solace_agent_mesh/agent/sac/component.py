@@ -42,6 +42,7 @@ from google.adk.models import LlmResponse
 from google.adk.models.llm_request import LlmRequest
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
+from google.adk.tools import FunctionTool
 from google.adk.tools.mcp_tool import MCPToolset
 from google.adk.tools.openapi_tool import OpenAPIToolset
 from google.genai import types as adk_types
@@ -57,11 +58,13 @@ from ...agent.adk.services import (
     initialize_memory_service,
     initialize_session_service,
 )
+from ...agent.adk.callbacks import _generate_tool_instructions_from_registry
 from ...agent.adk.setup import (
     initialize_adk_agent,
     initialize_adk_runner,
     load_adk_tools,
 )
+from ...agent.adk.tool_wrapper import ADKToolWrapper
 from ...agent.protocol.event_handlers import process_event, publish_agent_card
 from ...agent.tools.peer_agent_tool import (
     CORRELATION_DATA_PREFIX,
@@ -1112,6 +1115,97 @@ class SamAgentComponent(SamComponentBase):
                     e,
                     exc_info=True,
                 )
+        return None
+
+    def _inject_project_tools_callback(
+        self, callback_context: CallbackContext, llm_request: LlmRequest
+    ) -> Optional[LlmResponse]:
+        """Dynamically add project-specific tools (e.g., index_search) when in a project chat."""
+        log.debug("%s Running _inject_project_tools_callback...", self.log_identifier)
+
+        a2a_context = callback_context.state.get("a2a_context", {})
+        if not isinstance(a2a_context, dict):
+            return None
+
+        original_metadata = a2a_context.get("original_message_metadata", {})
+        if not isinstance(original_metadata, dict):
+            return None
+
+        if not original_metadata.get("project_id"):
+            log.debug(
+                "%s No project_id in metadata, skipping project tool injection.",
+                self.log_identifier,
+            )
+            return None
+
+        if "index_search" in llm_request.tools_dict:
+            log.debug(
+                "%s index_search already in tools_dict, skipping project tool injection.",
+                self.log_identifier,
+            )
+            return None
+
+        tool_def = tool_registry.get_tool_by_name("index_search")
+        if not tool_def:
+            log.debug(
+                "%s index_search not found in tool registry, skipping.",
+                self.log_identifier,
+            )
+            return None
+
+        try:
+            tool_callable = ADKToolWrapper(
+                tool_def.implementation,
+                None,
+                tool_def.name,
+                # Use "builtin" so _filter_tools_by_capability_callback looks up scopes from the registry
+                origin="builtin",
+                raw_string_args=tool_def.raw_string_args,
+                artifact_args=tool_def.artifact_args,
+            )
+
+            # tools_dict entries must be BaseTool-compatible (name, description,
+            # is_long_running, run_async). FunctionTool wraps our callable into
+            # a proper BaseTool. It gets name from __name__ and description from
+            # __doc__, both set by ADKToolWrapper.
+            tool_callable.__doc__ = tool_def.description
+            function_tool = FunctionTool(tool_callable)
+            # Preserve origin for _filter_tools_by_capability_callback
+            function_tool.origin = "builtin"
+
+            declaration = adk_types.FunctionDeclaration(
+                name=tool_def.name,
+                description=tool_def.description,
+                parameters=tool_def.parameters,
+            )
+
+            if llm_request.config.tools is None:
+                llm_request.config.tools = []
+            if not llm_request.config.tools:
+                llm_request.config.tools.append(
+                    adk_types.Tool(function_declarations=[])
+                )
+            llm_request.tools_dict[tool_def.name] = function_tool
+            llm_request.config.tools[0].function_declarations.append(declaration)
+
+            instructions = _generate_tool_instructions_from_registry(
+                [tool_def], self.log_identifier
+            )
+            if instructions:
+                callback_context.state["project_tool_instructions"] = instructions
+
+            log.debug(
+                "%s Dynamically injected index_search tool for project chat.",
+                self.log_identifier,
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to inject project tools: %s",
+                self.log_identifier,
+                e,
+                exc_info=True,
+            )
+
         return None
 
     def _filter_tools_by_capability_callback(
