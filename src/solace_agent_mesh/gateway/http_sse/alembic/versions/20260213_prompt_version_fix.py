@@ -1,6 +1,6 @@
 """Deprecate production_prompt_id field - latest version is always active
 
-Revision ID: 20260213_deprecate_production_prompt_id
+Revision ID: 20260213_prompt_version_fix
 Revises: 20260207_sse_event_buffer
 Create Date: 2026-02-13
 
@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '20260213_deprecate_production_prompt_id'
+revision = '20260213_prompt_version_fix'
 down_revision = '20260207_sse_event_buffer'
 branch_labels = None
 depends_on = None
