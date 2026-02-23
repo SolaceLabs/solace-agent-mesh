@@ -87,16 +87,20 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
     useEffect(() => {
         if (!citationMaps.length || !numPages || !url) return;
 
+        let cancelled = false;
+        const loadingTask = pdfjs.getDocument({ url, withCredentials: true });
+
         const buildPageBoundaries = async () => {
             try {
-                const loadingTask = pdfjs.getDocument({ url, withCredentials: true });
                 const pdf = await loadingTask.promise;
+                if (cancelled) return;
 
                 // Build character boundaries for each page
                 let charCount = 0;
                 const boundaries: number[] = [0]; // Page 1 starts at char 0
 
                 for (let i = 1; i <= pdf.numPages; i++) {
+                    if (cancelled) return;
                     const page = await pdf.getPage(i);
                     const content = await page.getTextContent();
 
@@ -108,18 +112,22 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
                     boundaries.push(charCount);
                 }
 
-                console.log("[PdfRenderer] Page char boundaries:", boundaries);
-                console.log(
-                    "[PdfRenderer] Citation maps:",
-                    citationMaps.map(m => `${m.location}: ${m.char_start}-${m.char_end}`)
-                );
-                setPageCharBoundaries(boundaries);
+                if (!cancelled) {
+                    setPageCharBoundaries(boundaries);
+                }
             } catch (err) {
-                console.error("[PdfRenderer] Failed to build page boundaries:", err);
+                if (!cancelled && !(err instanceof Error && err.name === "AbortException")) {
+                    console.error("[PdfRenderer] Failed to build page boundaries:", err);
+                }
             }
         };
 
         buildPageBoundaries();
+
+        return () => {
+            cancelled = true;
+            loadingTask.destroy();
+        };
     }, [citationMaps, numPages, url]);
 
     // Highlight citation text using character positions from citation_map
@@ -137,8 +145,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
 
             if (hasCitationMaps) {
                 // CHARACTER-POSITION BASED HIGHLIGHTING
-                console.log("[PdfRenderer] Using character-position highlighting from citation_map");
-
                 // For each page, highlight spans that fall within any citation_map range
                 for (let pageNum = 1; pageNum <= numPages; pageNum++) {
                     const pageElement = pageRefs.current.get(pageNum);
@@ -152,8 +158,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
 
                     if (relevantMaps.length === 0) continue;
 
-                    console.log(`[PdfRenderer] Page ${pageNum} (chars ${pageStart}-${pageEnd}): ${relevantMaps.length} citations`);
-
                     const textSpans = pageElement.querySelectorAll(".react-pdf__Page__textContent span");
                     let charPos = pageStart; // Start at page's document-wide position
 
@@ -166,7 +170,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
                         const overlaps = relevantMaps.some(m => spanStart < m.char_end && spanEnd > m.char_start);
 
                         if (overlaps && spanText.trim().length > 0) {
-                            console.log(`[PdfRenderer] Page ${pageNum} HIGHLIGHT chars ${spanStart}-${spanEnd}: "${spanText.substring(0, 40)}"`);
                             span.classList.add("citation-highlight");
                             matchedSpans.push(span as HTMLElement);
                         }
@@ -176,8 +179,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
                 }
             } else if (hasHighlightTexts) {
                 // FALLBACK: Text matching (for when citation_map not available)
-                console.log("[PdfRenderer] Fallback: Using text matching");
-
                 const textSpans = initialPage ? pageRefs.current.get(initialPage)?.querySelectorAll(".react-pdf__Page__textContent span") : viewerRef.current?.querySelectorAll(".react-pdf__Page__textContent span");
 
                 if (!textSpans) return;
@@ -198,8 +199,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
                 });
             }
 
-            console.log(`[PdfRenderer] Total highlighted spans: ${matchedSpans.length}`);
-
             // Scroll to first highlight
             if (matchedSpans.length > 0 && !initialPage) {
                 matchedSpans[0].scrollIntoView({ behavior: "smooth", block: "center" });
@@ -207,7 +206,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [citationMaps, pageCharBoundaries, highlightTexts, numPages, initialPage, zoomLevel]);
+    }, [citationMaps, pageCharBoundaries, highlightTexts, numPages, initialPage]);
 
     function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }): void {
         setNumPages(nextNumPages);
@@ -385,18 +384,11 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
 
     // Send the snip to chat input
     const sendToChat = (blob: Blob) => {
-        console.info("[PdfRenderer] sendToChat called, snipBlob:", blob ? "exists" : "null");
-
-        if (!blob) {
-            console.info("[PdfRenderer] No snipBlob available");
-            return;
-        }
+        if (!blob) return;
 
         // Create a File object from the blob
         const snipFilename = `${filename.replace(/\.[^/.]+$/, "")}-snip.png`;
         const file = new File([blob], snipFilename, { type: "image/png" });
-
-        console.info("[PdfRenderer] Dispatching snip-to-chat event with file:", snipFilename, "size:", file.size);
 
         // Dispatch custom event to send the file to chat input
         const event = new CustomEvent<SnipToChatEventDetail>(SNIP_TO_CHAT_EVENT, {
