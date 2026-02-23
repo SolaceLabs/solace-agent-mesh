@@ -75,9 +75,22 @@ class VisualizationForwarderComponent(ComponentBase):
         """
         log_id_prefix = f"{self.log_identifier}[Invoke]"
         try:
+            topic = data.get("topic", "")
+            
+            # Filter out discovery and trust messages early to prevent queue buildup
+            # Note: discovery is also filtered in the processor loop, but filtering here
+            # prevents unnecessary queue usage
+            if "/a2a/v1/discovery/" in topic or "/a2a/v1/trust/" in topic:
+                message.call_acknowledgements()
+                log.debug(
+                    "%s Skipping discovery/trust message: %s",
+                    log_id_prefix,
+                    topic,
+                )
+                return None
 
             forward_data = {
-                "topic": data.get("topic"),
+                "topic": topic,
                 "payload": data.get("payload"),
                 "user_properties": data.get("user_properties") or {},
                 "_original_broker_message": message,
