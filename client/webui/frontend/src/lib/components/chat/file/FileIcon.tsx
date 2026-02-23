@@ -160,11 +160,12 @@ export const getFileTypeColor = (mimeType?: string, filename?: string): string =
         if (mimeType === "application/yaml" || mimeType === "text/yaml" || mimeType === "application/x-yaml" || mimeType === "text/x-yaml") {
             return getFileStyles("yaml");
         }
-        if (mimeType.startsWith("text/")) {
-            return getFileStyles("text");
-        }
+        // Check markdown before generic text/* to avoid unreachable code
         if (mimeType.startsWith("text/markdown") || mimeType === "application/markdown") {
             return getFileStyles("markdown");
+        }
+        if (mimeType.startsWith("text/")) {
+            return getFileStyles("text");
         }
     }
 

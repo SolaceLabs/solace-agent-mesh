@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import DOMPurify from "dompurify";
 import { AlertCircle } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, VisuallyHidden } from "@/lib/components/ui/dialog";
@@ -76,7 +77,9 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
         }
 
         if (["text", "markdown"].includes(renderType)) {
-            return highlightCitationsInText(decodedContent, citations);
+            const highlighted = highlightCitationsInText(decodedContent, citations);
+            // Sanitize to prevent XSS while allowing <mark> tags for highlights
+            return DOMPurify.sanitize(highlighted, { ALLOWED_TAGS: ["mark"], ALLOWED_ATTR: ["class"] });
         }
 
         return decodedContent;
