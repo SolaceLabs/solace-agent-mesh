@@ -310,6 +310,26 @@ class WebUIBackendApp(BaseGatewayApp):
             },
         },
         {
+            "name": "background_tasks",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for background task execution and monitoring.",
+            "dict_schema": {
+                "default_timeout_ms": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 3600000,
+                    "description": "Default timeout for background tasks in milliseconds. Default: 1 hour (3600000ms).",
+                },
+                "monitor_interval_ms": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 300000,
+                    "description": "How often to check for timed-out background tasks in milliseconds. Default: 5 minutes (300000ms).",
+                },
+            },
+        },
+        {
             "name": "data_retention",
             "required": False,
             "type": "dict",
@@ -319,7 +339,25 @@ class WebUIBackendApp(BaseGatewayApp):
                     "type": "boolean",
                     "required": False,
                     "default": True,
-                    "description": "Enable/disable automatic data cleanup.",
+                    "description": "Enable/disable automatic data cleanup (master switch).",
+                },
+                "cleanup_tasks": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Enable/disable cleanup of old tasks. Set to false to disable task cleanup while keeping other cleanup enabled.",
+                },
+                "cleanup_feedback": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Enable/disable cleanup of old feedback. Set to false to disable feedback cleanup while keeping other cleanup enabled.",
+                },
+                "cleanup_sse_events": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Enable/disable cleanup of old SSE events. Set to false to disable SSE event cleanup while keeping other cleanup enabled.",
                 },
                 "task_retention_days": {
                     "type": "integer",
@@ -338,6 +376,12 @@ class WebUIBackendApp(BaseGatewayApp):
                     "required": False,
                     "default": 24,
                     "description": "How often to run the cleanup job (in hours). Minimum: 1 hour.",
+                },
+                "sse_event_retention_days": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 30,
+                    "description": "Number of days to retain SSE event buffer records. Minimum: 1 day.",
                 },
                 "batch_size": {
                     "type": "integer",
