@@ -62,7 +62,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
     useEffect(() => {
         if (pageWidth && viewerRef.current) {
             const containerWidth = viewerRef.current.clientWidth;
-            const scale = (containerWidth - 40) / pageWidth;
+            // Start at 50% of fit-to-width for a more zoomed out initial view
+            const scale = ((containerWidth - 40) / pageWidth) * 0.5;
             setZoomLevel(scale);
             setPan({ x: 0, y: 0 });
         }
