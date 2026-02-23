@@ -267,6 +267,11 @@ class GatewayAdapter:
                     group_id=group_id,
                     user_id=user_id,
                     version=1,
+                    # Store metadata on the prompt for version-specific metadata
+                    name=name,
+                    description=description,
+                    category=category,
+                    command=command,
                     created_at=now,
                     updated_at=now,
                 )
