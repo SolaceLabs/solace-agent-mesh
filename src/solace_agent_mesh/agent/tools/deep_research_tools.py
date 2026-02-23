@@ -1939,10 +1939,11 @@ async def deep_research(
         from ..utils.context_helpers import get_original_session_id
         
         # Generate filename from research question using utility function
+        # Use "_deep_research_report.md" suffix to clearly identify deep research reports
         artifact_filename = sanitize_to_filename(
             research_question,
             max_length=50,
-            suffix="_report.md"
+            suffix="_deep_research_report.md"
         )
         # Get artifact service from invocation context
         inv_context = tool_context._invocation_context

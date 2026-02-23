@@ -56,7 +56,6 @@ export function isDeepResearchReportFilename(filename: string): boolean {
         return false;
     }
 
-    // Deep research reports are saved with "_report.md" suffix
-    // e.g., "what_is_the_latest_news_on_ai_report.md"
-    return filename.toLowerCase().endsWith("_report.md");
+    // Deep research reports are saved with "_deep_research_report.md" suffix
+    return filename.toLowerCase().endsWith("_deep_research_report.md");
 }
