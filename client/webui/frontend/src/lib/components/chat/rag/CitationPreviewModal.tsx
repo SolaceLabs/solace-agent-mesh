@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { ExternalLink, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, VisuallyHidden } from "@/lib/components/ui/dialog";
 import { Button } from "@/lib/components/ui/button";
@@ -106,7 +106,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                         </div>
                         {fileUrl && (
                             <Button variant="outline" size="sm" onClick={handleViewFile}>
-                                <ExternalLink className="mr-1.5 h-4 w-4" />
                                 View File
                             </Button>
                         )}
