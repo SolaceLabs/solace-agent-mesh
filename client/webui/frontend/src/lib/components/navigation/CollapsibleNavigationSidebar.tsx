@@ -310,7 +310,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     }, [projectsEnabled, additionalSystemManagementItems, additionalNavItems]);
 
     return (
-        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-[var(--color-background-wMain)] transition-all duration-300", isCollapsed ? "w-16" : "w-64")}>
+        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-[var(--color-background-wMain)]", isCollapsed ? "w-16" : "w-64")}>
             {isCollapsed ? (
                 /* Collapsed View - Icon Only */
                 <>
