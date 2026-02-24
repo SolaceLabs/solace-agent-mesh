@@ -205,7 +205,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
                 </div>
 
                 {/* Right Panel - Metadata Sidebar */}
-                <div className="flex min-h-0 w-[40%] flex-col">
+                <div className="flex min-h-0 w-[40%] flex-col overflow-y-auto">
                     <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} isDisabled={isIndexing} error={error} />
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isDisabled={isIndexing} />
                     <KnowledgeSection project={project} isDisabled={isIndexing} />
