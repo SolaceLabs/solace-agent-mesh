@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { Plus, Bot, FolderOpen, BookOpenText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Bell, User, LayoutGrid, Settings, LogOut } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, LifecycleBadge } from "@/lib/components/ui";
-import { useChatContext, useConfigContext, useAuthContext, useSessionStorage } from "@/lib/hooks";
+import { useChatContext, useAuthContext, useSessionStorage } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
@@ -113,6 +113,9 @@ export interface NavItemConfig {
     // Submenu
     children?: NavItemConfig[]; // Sub-items (creates expandable submenu)
     defaultExpanded?: boolean; // Start with submenu expanded
+
+    // Position
+    position?: "top" | "bottom"; // Where to render the item (default: "top")
 }
 
 /** Header configuration */
@@ -180,9 +183,8 @@ const NavItemButton: React.FC<{
 };
 
 export interface CollapsibleNavigationSidebarProps {
-    // Navigation items
-    navItems?: NavItemConfig[]; // Main navigation items
-    bottomItems?: NavItemConfig[]; // Bottom section items (Notifications, User, etc.)
+    // Navigation items - REQUIRED, single prop with position indicator
+    items: NavItemConfig[]; // All navigation items (position determines top vs bottom)
 
     // Header
     header?: HeaderConfig | React.ReactNode;
@@ -190,6 +192,7 @@ export interface CollapsibleNavigationSidebarProps {
     // Special sections
     showNewChatButton?: boolean; // Show/hide "New Chat" button (default: true)
     newChatConfig?: NewChatConfig; // Customize "New Chat" button
+    showRecentChats?: boolean; // Show/hide Recent Chats section (default: true)
 
     // Callbacks
     onNavigate?: (itemId: string, route?: string) => void;
@@ -199,38 +202,20 @@ export interface CollapsibleNavigationSidebarProps {
     activeItemId?: string; // Controlled active state
     isCollapsed?: boolean; // Controlled collapse state
     defaultCollapsed?: boolean; // Uncontrolled default collapse
-
-    // @deprecated - use navItems instead
-    additionalSystemManagementItems?: Array<{ id: string; label: string; icon?: React.ElementType }>;
-    // @deprecated - use navItems instead
-    additionalNavItems?: Array<{ id: string; label: string; icon: React.ElementType; position?: "before-agents" | "after-agents" | "after-system-management" }>;
 }
 
 export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebarProps> = ({
-    navItems: navItemsProp,
-    bottomItems: bottomItemsProp,
+    items,
     header,
     showNewChatButton = true,
     newChatConfig,
+    showRecentChats = true,
     onNavigate,
     onCollapseChange,
     activeItemId: controlledActiveItemId,
     isCollapsed: controlledIsCollapsed,
     defaultCollapsed = false,
-    // Deprecated props
-    additionalSystemManagementItems,
-    additionalNavItems = [],
 }) => {
-    // Deprecation warnings
-    if (process.env.NODE_ENV === "development") {
-        if (additionalSystemManagementItems) {
-            console.warn("[CollapsibleNavigationSidebar] additionalSystemManagementItems is deprecated. Use navItems instead.");
-        }
-        if (additionalNavItems.length > 0) {
-            console.warn("[CollapsibleNavigationSidebar] additionalNavItems is deprecated. Use navItems instead.");
-        }
-    }
-
     const { logout } = useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();
@@ -252,9 +237,9 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     };
 
     const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>(() => {
-        // Initialize expanded state from navItems defaultExpanded
+        // Initialize expanded state from items defaultExpanded
         const initial: Record<string, boolean> = { assets: false, systemManagement: false };
-        navItemsProp?.forEach(item => {
+        items.forEach(item => {
             if (item.children && item.defaultExpanded !== undefined) {
                 initial[item.id] = item.defaultExpanded;
             }
@@ -265,12 +250,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const { handleNewSession, addNotification } = useChatContext();
-    const { configUseAuthorization, configFeatureEnablement } = useConfigContext();
     const { projects } = useProjectContext();
-
-    // Feature flags
-    const projectsEnabled = configFeatureEnablement?.projects ?? false;
-    const logoutEnabled = configUseAuthorization && configFeatureEnablement?.logout ? true : false;
 
     // Helper to check if an item matches the current route
     const isItemActiveByRoute = useCallback(
@@ -305,39 +285,20 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     useEffect(() => {
         if (controlledActiveItemId !== undefined) return; // Controlled mode - don't sync
 
-        // If navItems prop is provided, use routeMatch-based detection
-        if (navItemsProp) {
-            const matchedId = findActiveItemId(navItemsProp);
-            if (matchedId) {
-                setInternalActiveItem(matchedId);
-                // Auto-expand parent menu if child is active
-                navItemsProp.forEach(item => {
-                    if (item.children?.some(child => child.id === matchedId)) {
-                        setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
-                    }
-                });
-            } else {
-                setInternalActiveItem("chats");
-            }
-            return;
-        }
-
-        // Legacy behavior for backward compatibility
-        const path = location.pathname;
-        if (path.startsWith("/agents")) {
-            setInternalActiveItem("agents");
-        } else if (path.startsWith("/projects")) {
-            setInternalActiveItem("projects");
-        } else if (path.startsWith("/prompts")) {
-            setInternalActiveItem("prompts");
-            setExpandedMenus(prev => ({ ...prev, assets: true }));
-        } else if (path.startsWith("/artifacts")) {
-            setInternalActiveItem("artifacts");
-            setExpandedMenus(prev => ({ ...prev, assets: true }));
+        // Use routeMatch-based detection from items
+        const matchedId = findActiveItemId(items);
+        if (matchedId) {
+            setInternalActiveItem(matchedId);
+            // Auto-expand parent menu if child is active
+            items.forEach(item => {
+                if (item.children?.some(child => child.id === matchedId)) {
+                    setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
+                }
+            });
         } else {
             setInternalActiveItem("chats");
         }
-    }, [location.pathname, navItemsProp, controlledActiveItemId, findActiveItemId]);
+    }, [location.pathname, items, controlledActiveItemId, findActiveItemId]);
 
     // Handle move session dialog event
     const handleOpenMoveDialog = useCallback((event: CustomEvent<{ session: Session }>) => {
@@ -436,119 +397,10 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         return convertItem(config);
     }, []);
 
-    // Resolve navigation items - use prop if provided, otherwise fall back to legacy behavior
-    const navItems: NavItem[] = useMemo(() => {
-        // If navItems prop is provided, use it directly
-        if (navItemsProp) {
-            return navItemsProp.filter(item => !item.hidden).map(toNavItem);
-        }
+    // Split items by position - top items (default) and bottom items
+    const navItems: NavItem[] = useMemo(() => items.filter(item => !item.hidden && item.position !== "bottom").map(toNavItem), [items, toNavItem]);
 
-        // Legacy behavior for backward compatibility
-        const items: NavItem[] = [];
-
-        // Projects
-        if (projectsEnabled) {
-            items.push({
-                id: "projects",
-                label: "Projects",
-                icon: FolderOpen,
-            });
-        }
-
-        // Assets with submenu
-        items.push({
-            id: "assets",
-            label: "Assets",
-            icon: BookOpenText,
-            hasSubmenu: true,
-            children: [
-                { id: "artifacts", label: "Artifacts", icon: BookOpenText },
-                { id: "prompts", label: "Prompts", icon: BookOpenText, lifecycle: "experimental" },
-            ],
-        });
-
-        // Add additional nav items positioned "before-agents"
-        additionalNavItems
-            .filter(item => item.position === "before-agents")
-            .forEach(item => {
-                items.push({
-                    id: item.id,
-                    label: item.label,
-                    icon: item.icon,
-                });
-            });
-
-        // Agents
-        items.push({
-            id: "agents",
-            label: "Agents",
-            icon: Bot,
-        });
-
-        // Add additional nav items positioned "after-agents"
-        additionalNavItems
-            .filter(item => item.position === "after-agents")
-            .forEach(item => {
-                items.push({
-                    id: item.id,
-                    label: item.label,
-                    icon: item.icon,
-                });
-            });
-
-        // System Management with submenu (enterprise-only)
-        // Only shown when additionalSystemManagementItems is provided
-        if (additionalSystemManagementItems && additionalSystemManagementItems.length > 0) {
-            const systemManagementChildren: NavItem[] = [{ id: "agentManagement", label: "Agent Management", icon: Settings }];
-
-            // Add any additional items passed from enterprise (e.g., Activities)
-            additionalSystemManagementItems.forEach(item => {
-                systemManagementChildren.push({
-                    id: item.id,
-                    label: item.label,
-                    icon: item.icon || Settings,
-                });
-            });
-
-            items.push({
-                id: "systemManagement",
-                label: "System Management",
-                icon: LayoutGrid,
-                hasSubmenu: true,
-                children: systemManagementChildren,
-            });
-        }
-
-        // Add additional nav items positioned "after-system-management" or with no position specified
-        additionalNavItems
-            .filter(item => item.position === "after-system-management" || !item.position)
-            .forEach(item => {
-                items.push({
-                    id: item.id,
-                    label: item.label,
-                    icon: item.icon,
-                });
-            });
-
-        return items;
-    }, [navItemsProp, projectsEnabled, additionalSystemManagementItems, additionalNavItems, toNavItem]);
-
-    // Resolve bottom items - use prop if provided, otherwise use legacy hardcoded items
-    const bottomItems: NavItem[] = useMemo(() => {
-        if (bottomItemsProp) {
-            return bottomItemsProp.filter(item => !item.hidden).map(toNavItem);
-        }
-
-        // Legacy behavior - hardcoded items
-        const items: NavItem[] = [
-            { id: "notifications", label: "Notifications", icon: Bell },
-            { id: "userAccount", label: "User Account", icon: User },
-        ];
-        if (logoutEnabled) {
-            items.push({ id: "logout", label: "Log Out", icon: LogOut });
-        }
-        return items;
-    }, [bottomItemsProp, logoutEnabled, toNavItem]);
+    const bottomItems: NavItem[] = useMemo(() => items.filter(item => !item.hidden && item.position === "bottom").map(toNavItem), [items, toNavItem]);
 
     // Handle new chat click - uses custom config if provided
     const handleNewChatClickResolved = useCallback(() => {
@@ -742,21 +594,21 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                             })}
                         </div>
 
-                        {/* Divider */}
-                        <div className="my-4 border-t border-[var(--color-secondary-w70)]" />
-
-                        {/* Recent Chats Section */}
-                        <div className="mb-2 flex items-center justify-between pr-4 pl-6">
-                            <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Recent Chats</span>
-                            <button onClick={() => navigate("/chats")} className="text-sm font-normal text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
-                                View All
-                            </button>
-                        </div>
-
-                        {/* Recent Chats List - fills available space until Notifications */}
-                        <div className="flex-1">
-                            <RecentChatsList maxItems={MAX_RECENT_CHATS} />
-                        </div>
+                        {/* Recent Chats Section - conditionally rendered */}
+                        {showRecentChats && (
+                            <>
+                                <div className="my-4 border-t border-[var(--color-secondary-w70)]" />
+                                <div className="mb-2 flex items-center justify-between pr-4 pl-6">
+                                    <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Recent Chats</span>
+                                    <button onClick={() => navigate("/chats")} className="text-sm font-normal text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
+                                        View All
+                                    </button>
+                                </div>
+                                <div className="flex-1">
+                                    <RecentChatsList maxItems={MAX_RECENT_CHATS} />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Bottom Section - Notifications and User Account */}

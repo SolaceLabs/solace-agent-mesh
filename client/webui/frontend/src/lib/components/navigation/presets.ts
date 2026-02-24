@@ -52,10 +52,16 @@ export const SAM_NAV_ITEMS: NavItemConfig[] = [
  * External consumers can use these as a reference or import them directly.
  */
 export const SAM_BOTTOM_ITEMS: NavItemConfig[] = [
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "userAccount", label: "User Account", icon: User },
-    { id: "logout", label: "Log Out", icon: LogOut },
+    { id: "notifications", label: "Notifications", icon: Bell, position: "bottom" },
+    { id: "userAccount", label: "User Account", icon: User, position: "bottom" },
+    { id: "logout", label: "Log Out", icon: LogOut, position: "bottom" },
 ];
+
+/**
+ * Combined navigation items for Solace Agent Mesh.
+ * Use this with the single `items` prop on CollapsibleNavigationSidebar.
+ */
+export const SAM_ITEMS: NavItemConfig[] = [...SAM_NAV_ITEMS, ...SAM_BOTTOM_ITEMS];
 
 /**
  * Helper to filter nav items by feature flags.
@@ -84,6 +90,25 @@ export function filterNavItems(items: NavItemConfig[], enabledFeatures: Record<s
 export function filterBottomItems(items: NavItemConfig[], enabledFeatures: Record<string, boolean>): NavItemConfig[] {
     return items.filter(item => {
         const featureMap: Record<string, string> = {
+            logout: "logout",
+        };
+        const featureKey = featureMap[item.id];
+        if (featureKey && enabledFeatures[featureKey] === false) {
+            return false;
+        }
+        return true;
+    });
+}
+
+/**
+ * Helper to filter combined items (both top and bottom) by feature flags.
+ * @example
+ * filterItems(SAM_ITEMS, { projects: true, logout: true })
+ */
+export function filterItems(items: NavItemConfig[], enabledFeatures: Record<string, boolean>): NavItemConfig[] {
+    return items.filter(item => {
+        const featureMap: Record<string, string> = {
+            projects: "projects",
             logout: "logout",
         };
         const featureKey = featureMap[item.id];
