@@ -77,11 +77,13 @@ dependencies = [
     "bm25s==0.2.14",
     "pypdf==6.6.2",
     "python-pptx==1.0.2",
-    "python-docx==1.2.0"
+    "python-docx==1.2.0",
+    "google-cloud-storage==3.9.0",
+    "azure-storage-blob==12.28.0"
 ]
 
 [project.optional-dependencies]
-gcs = ["google-cloud-storage==3.5.0"]
+gcs = ["google-cloud-storage==3.9.0"]
 vertex = ["google-cloud-aiplatform==1.126.1"]
 employee_tools = ["holidays==0.81.0"]
 test = [
