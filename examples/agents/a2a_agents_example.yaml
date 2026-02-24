@@ -203,6 +203,8 @@ apps:
           tool_name: "web_request"
         - tool_type: builtin-group
           group_name: "artifact_management"
+        - tool_type: builtin
+          tool_name: "index_search"
 
       session_service:
         type: "memory"

@@ -3,8 +3,7 @@
 Unit tests for the SamAgentComponent class
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from google.genai import types as adk_types
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
@@ -46,16 +45,21 @@ class TestExtractToolOrigin:
         assert result == "unknown"
 
 
-class TestInjectProjectToolsCallback:
-    """Test cases for _inject_project_tools_callback on SamAgentComponent."""
+class TestSyncToolsCallback:
+    """Test cases for _sync_tools_callback on SamAgentComponent."""
 
     def _create_component(self):
         """Create a mock SamAgentComponent with log_identifier."""
         component = Mock(spec=SamAgentComponent)
         component.log_identifier = "[Test]"
-        # Bind the real method to our mock
-        component._inject_project_tools_callback = (
-            SamAgentComponent._inject_project_tools_callback.__get__(
+        # Bind the real methods to our mock
+        component._sync_tools_callback = (
+            SamAgentComponent._sync_tools_callback.__get__(
+                component, SamAgentComponent
+            )
+        )
+        component._ensure_tool_in_tools_dict = (
+            SamAgentComponent._ensure_tool_in_tools_dict.__get__(
                 component, SamAgentComponent
             )
         )
@@ -108,25 +112,35 @@ class TestInjectProjectToolsCallback:
         tool_def.examples = []
         return tool_def
 
-    def test_skips_when_no_project_id(self):
-        """Callback returns None and does not mutate llm_request when no project_id."""
+    @patch(
+        "src.solace_agent_mesh.agent.sac.component.tool_registry"
+    )
+    def test_skips_when_no_project_id_and_not_in_registry(self, mock_registry):
+        """Callback returns None when no project_id and tool not in registry."""
+        mock_registry.get_tool_by_name.return_value = None
         component = self._create_component()
         ctx = self._create_callback_context(project_id=None)
         request = self._create_llm_request()
 
-        result = component._inject_project_tools_callback(ctx, request)
+        result = component._sync_tools_callback(ctx, request)
 
         assert result is None
         assert "index_search" not in request.tools_dict
 
-    def test_skips_when_index_search_already_in_tools_dict(self):
-        """Callback returns None when index_search is already present."""
+    def test_skips_when_index_search_already_declared(self):
+        """Callback returns None when index_search declaration already exists."""
         component = self._create_component()
         ctx = self._create_callback_context(project_id="proj-123")
         existing_tool = Mock()
+        declaration = adk_types.FunctionDeclaration(
+            name="index_search",
+            description="Search docs",
+            parameters=adk_types.Schema(type=adk_types.Type.OBJECT),
+        )
         request = self._create_llm_request(tools_dict={"index_search": existing_tool})
+        request.config.tools[0].function_declarations.append(declaration)
 
-        result = component._inject_project_tools_callback(ctx, request)
+        result = component._sync_tools_callback(ctx, request)
 
         assert result is None
         # The existing tool should remain unchanged
@@ -142,11 +156,10 @@ class TestInjectProjectToolsCallback:
         ctx = self._create_callback_context(project_id="proj-123")
         request = self._create_llm_request()
 
-        result = component._inject_project_tools_callback(ctx, request)
+        result = component._sync_tools_callback(ctx, request)
 
         assert result is None
         assert "index_search" not in request.tools_dict
-        mock_registry.get_tool_by_name.assert_called_once_with("index_search")
 
     @patch(
         "src.solace_agent_mesh.agent.sac.component._generate_tool_instructions_from_registry"
@@ -166,7 +179,7 @@ class TestInjectProjectToolsCallback:
         ctx = self._create_callback_context(project_id="proj-123")
         request = self._create_llm_request()
 
-        result = component._inject_project_tools_callback(ctx, request)
+        result = component._sync_tools_callback(ctx, request)
 
         assert result is None
 
@@ -185,3 +198,151 @@ class TestInjectProjectToolsCallback:
         assert ctx.state["project_tool_instructions"] == (
             "Use index_search to search documents."
         )
+
+    def test_removes_static_index_search_when_no_project_id(self):
+        """Statically-configured index_search declaration is removed when no project_id."""
+        component = self._create_component()
+        ctx = self._create_callback_context(project_id=None)
+        # Simulate stale instructions from a previous project context
+        ctx.state["project_tool_instructions"] = "Use index_search to search documents."
+
+        # Simulate index_search loaded from YAML config
+        existing_tool = Mock()
+        declaration = adk_types.FunctionDeclaration(
+            name="index_search",
+            description="Search docs",
+            parameters=adk_types.Schema(type=adk_types.Type.OBJECT),
+        )
+        request = self._create_llm_request(tools_dict={"index_search": existing_tool})
+        request.config.tools[0].function_declarations.append(declaration)
+
+        result = component._sync_tools_callback(ctx, request)
+
+        assert result is None
+        # tools_dict keeps the tool for ADK dispatch safety
+        assert "index_search" in request.tools_dict
+        # Declaration should be removed so LLM doesn't see it
+        for tool_obj in (request.config.tools or []):
+            assert not any(
+                fd.name == "index_search" for fd in (tool_obj.function_declarations or [])
+            )
+        # Stale instructions should be cleared so LLM doesn't get citation prompts
+        assert "project_tool_instructions" not in ctx.state
+
+    def test_removes_static_index_search_when_no_metadata(self):
+        """index_search declaration removed when original_message_metadata is absent (structured A2A)."""
+        component = self._create_component()
+        ctx = Mock(spec=CallbackContext)
+        # Structured A2A: a2a_context exists but has no original_message_metadata
+        ctx.state = {"a2a_context": {"session_id": "sess-1"}}
+
+        existing_tool = Mock()
+        declaration = adk_types.FunctionDeclaration(
+            name="index_search",
+            description="Search docs",
+            parameters=adk_types.Schema(type=adk_types.Type.OBJECT),
+        )
+        request = self._create_llm_request(tools_dict={"index_search": existing_tool})
+        request.config.tools[0].function_declarations.append(declaration)
+
+        result = component._sync_tools_callback(ctx, request)
+
+        assert result is None
+        # tools_dict keeps the tool for ADK dispatch safety
+        assert "index_search" in request.tools_dict
+        # Declaration should be removed
+        for tool_obj in (request.config.tools or []):
+            assert not any(
+                fd.name == "index_search" for fd in (tool_obj.function_declarations or [])
+            )
+
+    def test_leaves_other_tools_when_removing_index_search(self):
+        """Other tools are untouched when index_search declaration is removed."""
+        component = self._create_component()
+        ctx = self._create_callback_context(project_id=None)
+
+        other_tool = Mock()
+        index_tool = Mock()
+        other_decl = adk_types.FunctionDeclaration(
+            name="web_request",
+            description="Fetch web content",
+            parameters=adk_types.Schema(type=adk_types.Type.OBJECT),
+        )
+        index_decl = adk_types.FunctionDeclaration(
+            name="index_search",
+            description="Search docs",
+            parameters=adk_types.Schema(type=adk_types.Type.OBJECT),
+        )
+        request = self._create_llm_request(
+            tools_dict={"web_request": other_tool, "index_search": index_tool}
+        )
+        request.config.tools[0].function_declarations.extend([other_decl, index_decl])
+
+        component._sync_tools_callback(ctx, request)
+
+        # Both tools stay in tools_dict for ADK dispatch safety
+        assert "web_request" in request.tools_dict
+        assert request.tools_dict["web_request"] is other_tool
+        assert "index_search" in request.tools_dict
+        # Only index_search declaration is removed
+        remaining_names = [
+            fd.name
+            for t in (request.config.tools or [])
+            for fd in (t.function_declarations or [])
+        ]
+        assert "web_request" in remaining_names
+        assert "index_search" not in remaining_names
+
+    def test_keeps_static_index_search_when_project_id_present(self):
+        """Statically-configured index_search stays when project_id is present."""
+        component = self._create_component()
+        ctx = self._create_callback_context(project_id="proj-123")
+        existing_tool = Mock()
+        declaration = adk_types.FunctionDeclaration(
+            name="index_search",
+            description="Search docs",
+            parameters=adk_types.Schema(type=adk_types.Type.OBJECT),
+        )
+        request = self._create_llm_request(tools_dict={"index_search": existing_tool})
+        request.config.tools[0].function_declarations.append(declaration)
+
+        result = component._sync_tools_callback(ctx, request)
+
+        assert result is None
+        assert "index_search" in request.tools_dict
+        assert request.tools_dict["index_search"] is existing_tool
+        # Declaration should still be present
+        assert any(
+            fd.name == "index_search"
+            for t in request.config.tools
+            for fd in (t.function_declarations or [])
+        )
+
+    @patch(
+        "src.solace_agent_mesh.agent.sac.component.tool_registry"
+    )
+    def test_tools_dict_populated_on_fresh_request_without_project(
+        self, mock_registry
+    ):
+        """When chat moves out of project, tools_dict is rebuilt fresh (no
+        index_search). _ensure_tool_in_tools_dict should add it from the
+        registry so the ADK can dispatch if LLM calls from history."""
+        tool_def = self._create_mock_tool_def()
+        mock_registry.get_tool_by_name.return_value = tool_def
+
+        component = self._create_component()
+        ctx = self._create_callback_context(project_id=None)
+        # Fresh tools_dict — simulates ADK rebuilding from agent.tools
+        # where index_search was NOT statically configured
+        request = self._create_llm_request()
+
+        component._sync_tools_callback(ctx, request)
+
+        # Declaration should NOT be present — LLM shouldn't see it
+        for tool_obj in (request.config.tools or []):
+            assert not any(
+                fd.name == "index_search"
+                for fd in (tool_obj.function_declarations or [])
+            )
+        # tools_dict should have it — ADK can dispatch if LLM calls from history
+        assert "index_search" in request.tools_dict

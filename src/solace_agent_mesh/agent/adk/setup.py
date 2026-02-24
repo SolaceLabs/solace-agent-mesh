@@ -1065,13 +1065,13 @@ def initialize_adk_agent(
                 component.log_identifier,
             )
 
-        # Project-context tools (e.g., index_search) must be injected before capability filtering
-        if hasattr(component, "_inject_project_tools_callback"):
+        # Sync tools with request context, must run before capability filtering
+        if hasattr(component, "_sync_tools_callback"):
             callbacks_in_order_for_before_model.append(
-                component._inject_project_tools_callback
+                component._sync_tools_callback
             )
             log.debug(
-                "%s Added _inject_project_tools_callback to before_model chain.",
+                "%s Added _sync_tools_callback to before_model chain.",
                 component.log_identifier,
             )
 
