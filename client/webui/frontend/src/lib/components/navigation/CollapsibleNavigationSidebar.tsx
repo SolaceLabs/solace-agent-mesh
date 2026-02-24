@@ -41,18 +41,18 @@ const NavItemButton: React.FC<{
         <Button
             variant="ghost"
             onClick={item.hasSubmenu ? onToggleExpand : onClick}
-            className={cn("h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w200)]", className)}
+            className={cn("h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w100)]", className)}
         >
             {indent ? (
                 // Subitem - no icon wrapper, just text
-                <span className={cn(isActive ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                <span className={cn(isActive ? "text-white" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
             ) : (
                 // Main item - with icon wrapper
                 <>
-                    <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
-                        <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                    <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
+                        <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                     </div>
-                    <span className={cn(isActive || hasActiveChild ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                    <span className={cn(isActive || hasActiveChild ? "text-white" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
                 </>
             )}
             {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
@@ -327,16 +327,16 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     <div className="flex flex-col items-center gap-2 py-3">
                         {/* New Chat */}
                         <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]" tooltip="New Chat">
-                            <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
-                                <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                            <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
+                                <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                             </div>
                         </Button>
 
                         {/* Navigation Icons */}
                         {projectsEnabled && (
                             <Button variant="ghost" onClick={() => handleItemClick("projects", { id: "projects", label: "Projects", icon: FolderOpen })} className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]" tooltip="Projects">
-                                <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "projects" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
-                                    <FolderOpen className={cn("size-6", activeItem === "projects" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                                <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "projects" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
+                                    <FolderOpen className={cn("size-6", activeItem === "projects" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                                 </div>
                             </Button>
                         )}
@@ -354,15 +354,15 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                             <div
                                 className={cn(
                                     "flex size-8 items-center justify-center rounded",
-                                    (activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts") && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]"
+                                    (activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts") && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]"
                                 )}
                             >
-                                <BookOpenText className={cn("size-6", activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                                <BookOpenText className={cn("size-6", activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                             </div>
                         </Button>
                         <Button variant="ghost" onClick={() => handleItemClick("agents", { id: "agents", label: "Agents", icon: Bot })} className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]" tooltip="Agents">
-                            <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "agents" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
-                                <Bot className={cn("size-6", activeItem === "agents" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                            <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "agents" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
+                                <Bot className={cn("size-6", activeItem === "agents" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                             </div>
                         </Button>
                         {additionalSystemManagementItems && additionalSystemManagementItems.length > 0 && (
@@ -380,11 +380,11 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                 <div
                                     className={cn(
                                         "flex size-8 items-center justify-center rounded",
-                                        (activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities") && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]"
+                                        (activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities") && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]"
                                     )}
                                 >
                                     <LayoutGrid
-                                        className={cn("size-6", activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")}
+                                        className={cn("size-6", activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")}
                                     />
                                 </div>
                             </Button>
@@ -423,10 +423,10 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     <div className="flex-1 overflow-y-auto px-2 py-3">
                         {/* New Chat Button */}
                         <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
-                            <div className={cn("mr-2 flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
-                                <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                            <div className={cn("mr-2 flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
+                                <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                             </div>
-                            <span className={cn(activeItem === "chats" ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>New Chat</span>
+                            <span className={cn(activeItem === "chats" ? "text-white" : "text-[var(--color-secondary-text-w50)]")}>New Chat</span>
                         </Button>
 
                         {/* Navigation Items */}
@@ -488,20 +488,20 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     <div className="mt-2 border-t border-[var(--color-secondary-w70)] px-2 pt-2">
                         <Button variant="ghost" className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
                             <div className="mr-2 flex size-8 items-center justify-center rounded">
-                                <Bell className="size-6 text-[var(--color-secondary-wMain)]" />
+                                <Bell className="size-6 text-[var(--color-secondary-text-w50)]" />
                             </div>
                             <span className="text-[var(--color-secondary-text-w50)]">Notifications</span>
                         </Button>
                         <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
                             <div className="mr-2 flex size-8 items-center justify-center rounded">
-                                <User className="size-6 text-[var(--color-secondary-wMain)]" />
+                                <User className="size-6 text-[var(--color-secondary-text-w50)]" />
                             </div>
                             <span className="text-[var(--color-secondary-text-w50)]">User Account</span>
                         </Button>
                         {logoutEnabled && (
                             <Button variant="ghost" onClick={() => logout()} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
                                 <div className="mr-2 flex size-8 items-center justify-center rounded">
-                                    <LogOut className="size-6 text-[var(--color-secondary-wMain)]" />
+                                    <LogOut className="size-6 text-[var(--color-secondary-text-w50)]" />
                                 </div>
                                 <span className="text-[var(--color-secondary-text-w50)]">Log Out</span>
                             </Button>
