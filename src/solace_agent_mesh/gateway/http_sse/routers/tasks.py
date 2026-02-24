@@ -184,13 +184,12 @@ async def _check_project_has_bm25_index(
         )
         return len(versions) > 0
     except Exception as e:
-        log.warning(
-            "%sFailed to check BM25 index existence for project %s: %s",
+        log.exception(
+            "%sFailed to check BM25 index existence for project %s: %s. "
+            "Returning True (tool will handle the error).",
             log_prefix,
             project.id,
-            e,
         )
-        # On error, pass project_id anyway so the tool can report its own error
         return True
 
 
@@ -704,6 +703,12 @@ async def _submit_task(
                 )
                 if has_index:
                     additional_metadata["project_id"] = project_id
+                    log.info(
+                        "%sPassing project_id %s to agent (session=%s)",
+                        log_prefix,
+                        project_id,
+                        session_id,
+                    )
 
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,
