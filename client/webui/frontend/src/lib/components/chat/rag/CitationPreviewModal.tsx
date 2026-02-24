@@ -95,7 +95,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
 
     return (
         <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
-            <DialogContent className="flex h-[80vh] min-w-[80vw] flex-col">
+            <DialogContent className="flex h-[80vh] min-w-[60vw] flex-col">
                 <DialogHeader className="flex-none border-b pb-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">

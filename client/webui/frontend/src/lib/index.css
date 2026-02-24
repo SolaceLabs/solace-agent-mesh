@@ -5,9 +5,12 @@
 
 /* Custom animation for title generation pulse */
 @keyframes pulse-generating {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.4;
     }
@@ -342,24 +345,14 @@
     white-space: nowrap;
 }
 
-/* Citation highlight styles for document preview */
 .citation-highlight {
-    background-color: rgb(251 191 36 / 0.4); /* amber-400 with opacity */
+    background-color: color-mix(in srgb, var(--color-accent-n6-wMain), transparent 80%);
     padding: 0.125rem 0;
     border-radius: 0.125rem;
 }
 
-.dark .citation-highlight {
-    background-color: rgb(251 191 36 / 0.3); /* slightly more subtle in dark mode */
-}
-
 /* Citation highlight for text-based content (markdown, HTML, etc.) - needs different dark mode styling */
 mark.citation-highlight {
-    background-color: rgb(251 191 36 / 0.4); /* amber-400 with opacity */
+    background-color: color-mix(in srgb, var(--color-accent-n6-wMain), transparent 40%);
     color: inherit;
-}
-
-.dark mark.citation-highlight {
-    background-color: rgb(234 179 8 / 0.5); /* yellow-500 with higher opacity for dark backgrounds */
-    color: rgb(250 250 249); /* stone-50 for readability on dark */
 }
