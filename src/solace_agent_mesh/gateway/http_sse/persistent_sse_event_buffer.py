@@ -82,6 +82,7 @@ class PersistentSSEEventBuffer:
         self._async_write_queue_size = async_write_queue_size
         self._async_write_queue: queue.Queue = queue.Queue(maxsize=async_write_queue_size)
         self._async_write_worker: Optional[threading.Thread] = None
+        self._async_write_worker_lock = threading.Lock()
         self._shutdown_event = threading.Event()
         self._dropped_events_count = 0
         self._dropped_events_lock = threading.Lock()
@@ -111,46 +112,49 @@ class PersistentSSEEventBuffer:
 
     def _start_async_write_worker(self) -> None:
         """Start the background worker thread for async database writes."""
-        if self._async_write_worker is not None and self._async_write_worker.is_alive():
-            return  # Already running
-        
-        self._shutdown_event.clear()
-        self._async_write_worker = threading.Thread(
-            target=self._async_write_worker_loop,
-            name="PersistentSSEEventBuffer-AsyncWriter",
-            daemon=True,
-        )
-        self._async_write_worker.start()
-        log.info("%s Started async write worker thread", self.log_identifier)
+        with self._async_write_worker_lock:
+            if self._async_write_worker is not None and self._async_write_worker.is_alive():
+                return  # Already running
+            
+            self._shutdown_event.clear()
+            self._async_write_worker = threading.Thread(
+                target=self._async_write_worker_loop,
+                name="PersistentSSEEventBuffer-AsyncWriter",
+                daemon=True,
+            )
+            self._async_write_worker.start()
+            log.info("%s Started async write worker thread", self.log_identifier)
 
-    def _stop_async_write_worker(self, timeout: float = 5.0) -> None:
+    def _stop_async_write_worker(self, timeout: float = 30.0) -> None:
         """
         Stop the background worker thread gracefully.
         
         Args:
-            timeout: Maximum time to wait for worker to finish (seconds)
+            timeout: Maximum time to wait for worker to finish (seconds). Default 30s
+                     to allow time for draining the queue during shutdown.
         """
-        if self._async_write_worker is None or not self._async_write_worker.is_alive():
-            return
-        
-        log.info("%s Stopping async write worker thread...", self.log_identifier)
-        self._shutdown_event.set()
-        
-        # Put a sentinel value to wake up the worker if it's blocked on get()
-        try:
-            self._async_write_queue.put_nowait(None)
-        except queue.Full:
-            pass  # Queue is full, worker will see shutdown event
-        
-        self._async_write_worker.join(timeout=timeout)
-        if self._async_write_worker.is_alive():
-            log.warning(
-                "%s Async write worker did not stop within %s seconds",
-                self.log_identifier,
-                timeout,
-            )
-        else:
-            log.info("%s Async write worker stopped", self.log_identifier)
+        with self._async_write_worker_lock:
+            if self._async_write_worker is None or not self._async_write_worker.is_alive():
+                return
+            
+            log.info("%s Stopping async write worker thread...", self.log_identifier)
+            self._shutdown_event.set()
+            
+            # Put a sentinel value to wake up the worker if it's blocked on get()
+            try:
+                self._async_write_queue.put_nowait(None)
+            except queue.Full:
+                pass  # Queue is full, worker will see shutdown event
+            
+            self._async_write_worker.join(timeout=timeout)
+            if self._async_write_worker.is_alive():
+                log.warning(
+                    "%s Async write worker did not stop within %s seconds",
+                    self.log_identifier,
+                    timeout,
+                )
+            else:
+                log.info("%s Async write worker stopped", self.log_identifier)
 
     def _async_write_worker_loop(self) -> None:
         """
@@ -162,6 +166,7 @@ class PersistentSSEEventBuffer:
         log.debug("%s Async write worker loop started", self.log_identifier)
         
         while not self._shutdown_event.is_set():
+            item = None
             try:
                 # Wait for an item with timeout to check shutdown periodically
                 try:
@@ -171,6 +176,7 @@ class PersistentSSEEventBuffer:
                 
                 # Check for sentinel value (shutdown signal)
                 if item is None:
+                    self._async_write_queue.task_done()
                     continue
                 
                 # Unpack the write request
@@ -179,9 +185,6 @@ class PersistentSSEEventBuffer:
                 # Perform the actual database write
                 self._write_event_to_db_sync(task_id, event_type, event_data, session_id, user_id)
                 
-                # Mark task as done
-                self._async_write_queue.task_done()
-                
             except Exception as e:
                 log.error(
                     "%s Error in async write worker: %s",
@@ -189,6 +192,14 @@ class PersistentSSEEventBuffer:
                     e,
                     exc_info=True,
                 )
+            finally:
+                # Always mark task as done if we got an item (prevents queue.join() from hanging)
+                if item is not None:
+                    try:
+                        self._async_write_queue.task_done()
+                    except ValueError:
+                        # task_done() called too many times - ignore
+                        pass
         
         # Drain remaining items on shutdown
         self._drain_queue_on_shutdown()
@@ -584,18 +595,20 @@ class PersistentSSEEventBuffer:
     
     def flush_task_buffer(self, task_id: str) -> int:
         """
-        Flush RAM buffer for a specific task to database.
+        Flush RAM buffer for a specific task to database via async queue.
         
         This is called:
         1. When RAM buffer reaches threshold
         2. When SSE connection is closed
         3. When task completes
         
+        Events are enqueued to the async write queue for non-blocking processing.
+        
         Args:
             task_id: The task ID to flush
             
         Returns:
-            Number of events flushed
+            Number of events enqueued for flushing
         """
         if not self.is_hybrid_mode_enabled():
             return 0
@@ -608,52 +621,47 @@ class PersistentSSEEventBuffer:
         if not events_to_flush:
             return 0
         
-        # Flush to database outside the lock
-        try:
-            from .repository.sse_event_buffer_repository import SSEEventBufferRepository
+        # Enqueue events to async write queue (non-blocking)
+        enqueued_count = 0
+        failed_events = []
+        
+        for event_type, event_data, timestamp, session_id, user_id in events_to_flush:
+            # Create write request tuple matching _buffer_event_to_db format
+            write_request = (task_id, event_type, event_data, session_id, user_id)
             
-            db = self._session_factory()
             try:
-                repo = SSEEventBufferRepository()
-                
-                for event_type, event_data, timestamp, session_id, user_id in events_to_flush:
-                    repo.buffer_event(
-                        db=db,
-                        task_id=task_id,
-                        session_id=session_id,
-                        user_id=user_id,
-                        event_type=event_type,
-                        event_data=event_data,
-                        created_time=timestamp,
-                    )
-                
-                db.commit()
-                
-                log.info(
-                    "%s [Hybrid] Flushed %d events for task %s from RAM to DB",
-                    self.log_identifier,
-                    len(events_to_flush),
-                    task_id,
-                )
-                
-                return len(events_to_flush)
-            finally:
-                db.close()
-        except Exception as e:
-            log.error(
-                "%s [Hybrid] Failed to flush events for task %s: %s. Events lost: %d",
+                self._async_write_queue.put_nowait(write_request)
+                enqueued_count += 1
+            except queue.Full:
+                # Queue is full - track failed events
+                failed_events.append((event_type, event_data, timestamp, session_id, user_id))
+                with self._dropped_events_lock:
+                    self._dropped_events_count += 1
+        
+        if enqueued_count > 0:
+            log.info(
+                "%s [Hybrid] Enqueued %d events for task %s to async write queue",
                 self.log_identifier,
+                enqueued_count,
                 task_id,
-                e,
-                len(events_to_flush),
             )
-            # Re-add events to buffer on failure for retry
+        
+        if failed_events:
+            log.warning(
+                "%s [Hybrid] Failed to enqueue %d events for task %s (queue full). "
+                "Re-adding to RAM buffer for retry.",
+                self.log_identifier,
+                len(failed_events),
+                task_id,
+            )
+            # Re-add failed events to buffer for retry
             with self._lock:
                 if task_id not in self._ram_buffer:
                     self._ram_buffer[task_id] = []
                 # Prepend the failed events (they came first)
-                self._ram_buffer[task_id] = events_to_flush + self._ram_buffer[task_id]
-            return 0
+                self._ram_buffer[task_id] = failed_events + self._ram_buffer[task_id]
+        
+        return enqueued_count
     
     def flush_all_buffers(self) -> int:
         """
