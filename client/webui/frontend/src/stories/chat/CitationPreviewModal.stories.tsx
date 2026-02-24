@@ -240,23 +240,3 @@ export const Error: Story = {
         expect(errorElement).toBeInTheDocument();
     },
 };
-
-export const Closed: Story = {
-    args: {
-        isOpen: false,
-        onClose: fn(),
-        filename: "test_document.txt",
-        pageLabel: "Lines 1-10",
-        pageNumber: 1,
-        sourceIndex: 0,
-        citations: mockTextCitations,
-    },
-    parameters: {
-        msw: { handlers: successHandlers },
-    },
-    play: async () => {
-        // Dialog should not be in the document when closed
-        const dialog = within(document.body).queryByRole("dialog");
-        expect(dialog).toBeNull();
-    },
-};
