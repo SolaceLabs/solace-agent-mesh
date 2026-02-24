@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { NavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { ChatProvider } from "@/lib/providers";
 import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
@@ -40,6 +40,9 @@ function AppLayoutContent() {
 
     // Get navigation items based on feature flags
     const topNavItems = getTopNavigationItems(configFeatureEnablement);
+
+    // Feature flag for new collapsible navigation
+    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
 
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
@@ -86,7 +89,7 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+            {useNewNav ? <CollapsibleNavigationSidebar /> : <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />}
             <main className="h-full w-full flex-1 overflow-auto">
                 <Outlet />
             </main>

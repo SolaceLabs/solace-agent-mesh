@@ -12,5 +12,6 @@ export { MarkdownHTMLConverter } from "./MarkdownHTMLConverter";
 export * from "./MarkdownWrapper";
 export { MessageBanner } from "./MessageBanner";
 export * from "./messageColourVariants";
+export { SolaceIcon } from "./SolaceIcon";
 export * from "./StreamingMarkdown";
 export { UserTypeahead } from "./UserTypeahead";

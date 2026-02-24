@@ -1,4 +1,5 @@
 export { NavigationSidebar } from "./NavigationSidebar";
+export { CollapsibleNavigationSidebar } from "./CollapsibleNavigationSidebar";
 export { NavigationHeader } from "./NavigationHeader";
 export { NavigationList } from "./NavigationList";
 export { NavigationButton } from "./NavigationButton";
