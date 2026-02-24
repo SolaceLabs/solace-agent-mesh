@@ -694,20 +694,69 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         )
 
     def add_timer(
-        self, delay_ms: int, callback: Callable, interval_ms: Optional[int] = None
+        self,
+        delay_ms: int,
+        timer_id: Optional[str] = None,
+        interval_ms: Optional[int] = None,
+        callback: Optional[Callable] = None,
     ) -> str:
-        timer_id = f"adapter-timer-{len(self.timer_manager.timers)}"
-        super().add_timer(delay_ms, timer_id, interval_ms, {"callback": callback})
+        """Add a timer with optional callback.
+
+        This method supports two calling conventions:
+        1. Adapter pattern: add_timer(delay_ms, callback=fn, interval_ms=ms)
+           - Used by GatewayAdapter implementations
+           - timer_id is auto-generated
+        2. Trust Manager pattern: add_timer(delay_ms, timer_id=id, interval_ms=ms, callback=fn)
+           - Used by Trust Manager for periodic publishing
+           - timer_id is explicitly provided
+
+        Args:
+            delay_ms: Initial delay in milliseconds
+            timer_id: Optional unique timer identifier (auto-generated if not provided)
+            interval_ms: Repeat interval in milliseconds (0 or None for one-shot)
+            callback: Callback function to invoke when timer fires
+
+        Returns:
+            The timer_id (either provided or auto-generated)
+        """
+        if timer_id is None:
+            timer_id = f"adapter-timer-{len(self.timer_manager.timers)}"
+
+        # Create a wrapper callback that handles async callbacks properly
+        # The wrapper receives timer_data from SamComponentBase.process_event()
+        if callback:
+            original_callback = callback
+
+            def timer_callback_wrapper(timer_data: Dict[str, Any]):
+                """Wrapper that handles both sync and async callbacks."""
+                import inspect
+
+                if inspect.iscoroutinefunction(original_callback):
+                    # Async callback - schedule on event loop
+                    asyncio.run_coroutine_threadsafe(
+                        original_callback(), self.get_async_loop()
+                    )
+                else:
+                    # Sync callback - call directly
+                    original_callback()
+
+            super().add_timer(delay_ms, timer_id, interval_ms or 0, timer_callback_wrapper)
+        else:
+            super().add_timer(delay_ms, timer_id, interval_ms or 0, None)
+
         return timer_id
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
-        """Handles timer events and calls the adapter's callback."""
-        callback = timer_data.get("payload", {}).get("callback")
-        if callable(callback):
-            # Run async callback in the component's event loop
-            asyncio.run_coroutine_threadsafe(callback(), self.get_async_loop())
-        else:
-            log.warning("Timer fired but no valid callback found in payload.")
+        """Handles timer events - kept for backward compatibility.
+
+        Note: Timer callbacks are now handled via the callback wrapper in add_timer().
+        This method is kept for any legacy code that might override it.
+        """
+        log.debug(
+            "%s handle_timer_event called with timer_data: %s",
+            self.log_identifier,
+            timer_data,
+        )
 
     def get_task_state(self, task_id: str, key: str, default: Any = None) -> Any:
         cache_key = f"task_state:{task_id}:{key}"
