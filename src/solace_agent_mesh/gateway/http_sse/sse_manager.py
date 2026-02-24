@@ -632,6 +632,7 @@ class SSEManager:
         """Closes all active SSE connections managed by this instance.
         
         In hybrid mode, flushes all RAM buffers to DB before closing to ensure no events are lost.
+        Also shuts down the persistent buffer's async write worker for explicit lifecycle management.
         """
         self.cleanup_old_locks()
         
@@ -672,4 +673,12 @@ class SSEManager:
             self.log_identifier,
             closed_count,
             all_task_ids,
+        )
+        
+        # Explicitly shutdown the persistent buffer's async write worker
+        # This ensures all pending writes are processed and the worker thread stops cleanly
+        self._persistent_buffer.shutdown()
+        log.debug(
+            "%s Shutdown persistent buffer async write worker",
+            self.log_identifier,
         )

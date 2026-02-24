@@ -560,18 +560,19 @@ class TestGetBufferedEvents:
             hybrid_mode_enabled=True,
         )
 
-        with patch.object(buffer, 'flush_task_buffer') as mock_flush:
-            with patch(
-                'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
-            ) as MockRepo:
-                mock_repo_instance = Mock()
-                mock_repo_instance.get_buffered_events.return_value = []
-                MockRepo.return_value = mock_repo_instance
+        with patch.object(buffer, 'flush_task_buffer', return_value=0) as mock_flush:
+            with patch.object(buffer, 'wait_for_pending_writes', return_value=True):
+                with patch(
+                    'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
+                ) as MockRepo:
+                    mock_repo_instance = Mock()
+                    mock_repo_instance.get_buffered_events.return_value = []
+                    MockRepo.return_value = mock_repo_instance
 
-                buffer.get_buffered_events("task-123")
+                    buffer.get_buffered_events("task-123")
 
-                # flush_task_buffer should be called first
-                mock_flush.assert_called_once_with("task-123")
+                    # flush_task_buffer should be called first
+                    mock_flush.assert_called_once_with("task-123")
 
 
 class TestHasUnconsumedEvents:

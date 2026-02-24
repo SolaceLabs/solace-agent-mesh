@@ -93,16 +93,20 @@ class PersistentSSEEventBuffer:
         # Cache for task metadata to avoid repeated DB queries
         self._task_metadata_cache: Dict[str, Dict[str, str]] = {}
         
-        # RAM buffer for hybrid mode: task_id -> list of (event_type, event_data, timestamp)
-        self._ram_buffer: Dict[str, List[Tuple[str, Dict[str, Any], int]]] = {}
+        # RAM buffer for hybrid mode: task_id -> list of (event_type, event_data, timestamp, session_id, user_id)
+        # Note: 5-tuple format used by _buffer_event_hybrid and flush_task_buffer
+        self._ram_buffer: Dict[str, List[Tuple[str, Dict[str, Any], int, str, str]]] = {}
         
         # Async write queue and worker thread
+        # LOCK ORDERING CONTRACT: Always acquire _lock before _dropped_events_lock, never the reverse.
+        # This prevents deadlocks when both locks are needed.
         self._async_write_queue_size = async_write_queue_size
         self._async_write_queue: queue.Queue = queue.Queue(maxsize=async_write_queue_size)
         self._async_write_worker: Optional[threading.Thread] = None
         self._async_write_worker_lock = threading.Lock()
         self._shutdown_event = threading.Event()
         self._dropped_events_count = 0
+        self._failed_write_count = 0  # Track DB write failures separately from dropped events
         self._dropped_events_lock = threading.Lock()
         
         # Start the async write worker if enabled
@@ -240,6 +244,8 @@ class PersistentSSEEventBuffer:
             try:
                 item = self._async_write_queue.get_nowait()
                 if item is None:
+                    # Always call task_done() for sentinel values to prevent queue.join() hangs
+                    self._async_write_queue.task_done()
                     continue
                 
                 task_id, event_type, event_data, session_id, user_id, created_time = item
@@ -323,6 +329,9 @@ class PersistentSSEEventBuffer:
                 task_id,
                 e,
             )
+            # Track failed writes separately from dropped events
+            with self._dropped_events_lock:
+                self._failed_write_count += 1
             return False
 
     def get_async_queue_stats(self) -> Dict[str, Any]:
@@ -330,15 +339,22 @@ class PersistentSSEEventBuffer:
         Get statistics about the async write queue.
         
         Returns:
-            Dictionary with queue statistics
+            Dictionary with queue statistics including:
+            - queue_size: Current number of items in queue
+            - max_queue_size: Maximum queue capacity
+            - dropped_events: Events dropped due to queue full
+            - failed_writes: Events that failed to write to DB (transient errors)
+            - worker_alive: Whether the worker thread is running
         """
         with self._dropped_events_lock:
             dropped = self._dropped_events_count
+            failed = self._failed_write_count
         
         return {
             "queue_size": self._async_write_queue.qsize(),
             "max_queue_size": self._async_write_queue_size,
             "dropped_events": dropped,
+            "failed_writes": failed,
             "worker_alive": self._async_write_worker is not None and self._async_write_worker.is_alive(),
         }
 
@@ -360,6 +376,51 @@ class PersistentSSEEventBuffer:
                     self.log_identifier,
                     self._dropped_events_count,
                 )
+            if self._failed_write_count > 0:
+                log.warning(
+                    "%s Total events failed to write to DB: %d",
+                    self.log_identifier,
+                    self._failed_write_count,
+                )
+
+    def wait_for_pending_writes(self, timeout: Optional[float] = 5.0) -> bool:
+        """
+        Wait for all pending async writes to complete.
+        
+        This should be called before reading from DB after flushing to ensure
+        all flushed events are visible in the database.
+        
+        Args:
+            timeout: Maximum time to wait in seconds. None = wait forever.
+            
+        Returns:
+            True if all writes completed, False if timeout expired
+        """
+        if not self._async_write_worker or not self._async_write_worker.is_alive():
+            return True
+        
+        # Use a polling approach with timeout since queue.join() doesn't have timeout
+        if timeout is None:
+            self._async_write_queue.join()
+            return True
+        
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self._async_write_queue.empty():
+                # Queue is empty, but worker might be processing the last item
+                # Give it a tiny bit more time and check again
+                time.sleep(0.01)
+                if self._async_write_queue.empty():
+                    return True
+            time.sleep(0.05)
+        
+        log.warning(
+            "%s wait_for_pending_writes timed out after %.1fs with %d items still in queue",
+            self.log_identifier,
+            timeout,
+            self._async_write_queue.qsize(),
+        )
+        return False
 
     def set_task_metadata(
         self,
@@ -749,8 +810,9 @@ class PersistentSSEEventBuffer:
         """
         Get all buffered events for a task.
         
-        In hybrid mode: first flushes RAM buffer to DB, then retrieves from DB.
-        This ensures all events are returned in correct order.
+        In hybrid mode: first flushes RAM buffer to DB, waits for async writes
+        to complete, then retrieves from DB. This ensures all events are
+        returned in correct order without race conditions.
         
         Args:
             task_id: The task ID
@@ -764,7 +826,12 @@ class PersistentSSEEventBuffer:
         
         # In hybrid mode, flush RAM buffer first to ensure all events are in DB
         if self.is_hybrid_mode_enabled():
-            self.flush_task_buffer(task_id)
+            flushed_count = self.flush_task_buffer(task_id)
+            if flushed_count > 0:
+                # CRITICAL: Wait for async writes to complete before reading from DB
+                # Without this, we have a race condition where flushed events may not
+                # be visible in DB yet (they're still in the async queue being processed)
+                self.wait_for_pending_writes(timeout=5.0)
         
         try:
             from .repository.sse_event_buffer_repository import SSEEventBufferRepository
@@ -803,7 +870,7 @@ class PersistentSSEEventBuffer:
         """
         Check if a task has unconsumed buffered events.
         
-        In hybrid mode, also checks RAM buffer.
+        In hybrid mode, also checks RAM buffer and in-flight async queue.
         
         Args:
             task_id: The task ID
@@ -819,6 +886,14 @@ class PersistentSSEEventBuffer:
             with self._lock:
                 if self._ram_buffer.get(task_id):
                     return True
+            
+            # Also check if there are events in the async queue for this task
+            # This prevents false negatives when events were just flushed from RAM
+            # but haven't been written to DB yet
+            if not self._async_write_queue.empty():
+                # There are pending writes - they might be for this task
+                # Wait briefly for them to complete, then check DB
+                self.wait_for_pending_writes(timeout=1.0)
         
         try:
             from .repository.sse_event_buffer_repository import SSEEventBufferRepository
