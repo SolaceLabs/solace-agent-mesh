@@ -242,8 +242,10 @@ class PersistentSSEEventBuffer:
                 if item is None:
                     continue
                 
-                task_id, event_type, event_data, session_id, user_id = item
-                self._write_event_to_db_sync(task_id, event_type, event_data, session_id, user_id)
+                task_id, event_type, event_data, session_id, user_id, created_time = item
+                self._write_event_to_db_sync(
+                    task_id, event_type, event_data, session_id, user_id, created_time
+                )
                 self._async_write_queue.task_done()
                 drained_count += 1
             except queue.Empty:
@@ -648,30 +650,44 @@ class PersistentSSEEventBuffer:
         if not self.is_hybrid_mode_enabled():
             return 0
         
-        # Extract events from RAM buffer under lock
-        events_to_flush = []
+        # Hold lock for entire operation to prevent race conditions where
+        # new events could be added between pop and re-add, causing out-of-order events.
         with self._lock:
             events_to_flush = self._ram_buffer.pop(task_id, [])
-        
-        if not events_to_flush:
-            return 0
-        
-        # Enqueue events to async write queue (non-blocking)
-        enqueued_count = 0
-        failed_events = []
-        
-        for event_type, event_data, timestamp, session_id, user_id in events_to_flush:
-            # Create write request tuple with timestamp (6-tuple)
-            write_request = (task_id, event_type, event_data, session_id, user_id, timestamp)
             
-            try:
-                self._async_write_queue.put_nowait(write_request)
-                enqueued_count += 1
-            except queue.Full:
-                # Queue is full - track failed events
-                failed_events.append((event_type, event_data, timestamp, session_id, user_id))
-                with self._dropped_events_lock:
-                    self._dropped_events_count += 1
+            if not events_to_flush:
+                return 0
+            
+            # Enqueue events to async write queue (non-blocking)
+            enqueued_count = 0
+            failed_events = []
+            
+            for event_type, event_data, timestamp, session_id, user_id in events_to_flush:
+                # Create write request tuple with timestamp (6-tuple)
+                write_request = (task_id, event_type, event_data, session_id, user_id, timestamp)
+                
+                try:
+                    self._async_write_queue.put_nowait(write_request)
+                    enqueued_count += 1
+                except queue.Full:
+                    # Queue is full - track failed events
+                    failed_events.append((event_type, event_data, timestamp, session_id, user_id))
+                    with self._dropped_events_lock:
+                        self._dropped_events_count += 1
+            
+            # Re-add failed events to buffer for retry (still under same lock)
+            if failed_events:
+                log.warning(
+                    "%s [Hybrid] Failed to enqueue %d events for task %s (queue full). "
+                    "Re-adding to RAM buffer for retry.",
+                    self.log_identifier,
+                    len(failed_events),
+                    task_id,
+                )
+                if task_id not in self._ram_buffer:
+                    self._ram_buffer[task_id] = []
+                # Prepend the failed events (they came first)
+                self._ram_buffer[task_id] = failed_events + self._ram_buffer[task_id]
         
         if enqueued_count > 0:
             log.info(
@@ -680,21 +696,6 @@ class PersistentSSEEventBuffer:
                 enqueued_count,
                 task_id,
             )
-        
-        if failed_events:
-            log.warning(
-                "%s [Hybrid] Failed to enqueue %d events for task %s (queue full). "
-                "Re-adding to RAM buffer for retry.",
-                self.log_identifier,
-                len(failed_events),
-                task_id,
-            )
-            # Re-add failed events to buffer for retry
-            with self._lock:
-                if task_id not in self._ram_buffer:
-                    self._ram_buffer[task_id] = []
-                # Prepend the failed events (they came first)
-                self._ram_buffer[task_id] = failed_events + self._ram_buffer[task_id]
         
         return enqueued_count
     
