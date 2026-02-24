@@ -4,48 +4,45 @@ import { cva } from "class-variance-authority";
 import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, LifecycleBadge } from "@/lib/components/ui";
-import { useChatContext, useAuthContext, useSessionStorage } from "@/lib/hooks";
-import { useProjectContext } from "@/lib/providers";
+import { useChatContext, useSessionStorage } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
-import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
-import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
-import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Session } from "@/lib/types";
 
 // ============================================================================
 // CVA Style Definitions
 // ============================================================================
 
-/** Navigation button styles - full width buttons in expanded sidebar */
-const navButtonStyles = cva(["h-10", "w-full", "justify-start", "pr-4", "text-sm", "font-normal", "enabled:hover:bg-[var(--color-background-w100)]"], {
+// Shared color constants - matches RecentChatsList hover styling
+const HOVER_BG = "enabled:hover:bg-[var(--color-background-w100)]";
+const ACTIVE_BG = "bg-[var(--color-background-w100)]";
+
+/** Unified navigation button styles with variant support */
+const navButtonStyles = cva(["h-10", "transition-colors", HOVER_BG], {
     variants: {
-        indent: {
-            true: "pl-4",
-            false: "pl-6",
+        variant: {
+            expanded: "w-full justify-start pr-4 pl-6 text-sm font-normal",
+            collapsed: "w-10 p-0",
+            bottom: "w-10 p-2 text-[var(--color-primary-text-w10)]",
         },
         active: {
-            true: "bg-[var(--color-background-w100)]",
+            true: ACTIVE_BG,
+            false: "",
+        },
+        indent: {
+            true: "pl-4",
             false: "",
         },
     },
-    compoundVariants: [
-        {
-            indent: true,
-            active: true,
-            className: "bg-[var(--color-background-w100)]",
-        },
-    ],
-    defaultVariants: { indent: false, active: false },
+    defaultVariants: { variant: "expanded", active: false, indent: false },
 });
 
 /** Icon wrapper container styles */
 const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify-center", "rounded"], {
     variants: {
         active: {
-            true: "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]",
+            true: `border border-[var(--color-brand-w60)] ${ACTIVE_BG}`,
             false: "",
         },
         withMargin: {
@@ -81,12 +78,6 @@ const navTextStyles = cva([], {
     },
     defaultVariants: { active: false },
 });
-
-/** Collapsed mode icon button styles */
-const collapsedButtonStyles = cva(["h-10", "w-10", "p-0", "enabled:hover:bg-[var(--color-background-w100)]"]);
-
-/** Bottom section button styles (notifications, user, logout) */
-const bottomButtonStyles = cva(["h-10", "w-10", "p-2", "text-[var(--color-primary-text-w10)]", "enabled:hover:bg-[var(--color-background-w100)]"]);
 
 // ============================================================================
 // Public Types - exported for external consumers
@@ -216,7 +207,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     isCollapsed: controlledIsCollapsed,
     defaultCollapsed = false,
 }) => {
-    const { logout } = useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -246,11 +236,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         });
         return initial;
     });
-    const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
-    const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
-    const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
-    const { handleNewSession, addNotification } = useChatContext();
-    const { projects } = useProjectContext();
+    const { handleNewSession } = useChatContext();
 
     // Helper to check if an item matches the current route
     const isItemActiveByRoute = useCallback(
@@ -300,41 +286,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         }
     }, [location.pathname, items, controlledActiveItemId, findActiveItemId]);
 
-    // Handle move session dialog event
-    const handleOpenMoveDialog = useCallback((event: CustomEvent<{ session: Session }>) => {
-        setSessionToMove(event.detail.session);
-        setIsMoveDialogOpen(true);
-    }, []);
-
-    useEffect(() => {
-        window.addEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
-        return () => {
-            window.removeEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
-        };
-    }, [handleOpenMoveDialog]);
-
-    const handleMoveConfirm = async (targetProjectId: string | null) => {
-        if (!sessionToMove) return;
-
-        await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
-
-        // Dispatch event to notify other components
-        if (typeof window !== "undefined") {
-            window.dispatchEvent(
-                new CustomEvent("session-moved", {
-                    detail: {
-                        sessionId: sessionToMove.id,
-                        projectId: targetProjectId,
-                    },
-                })
-            );
-            // Also trigger session-updated to refresh the list
-            window.dispatchEvent(new CustomEvent("session-updated", { detail: { sessionId: sessionToMove.id } }));
-        }
-
-        addNotification?.("Session moved successfully", "success");
-    };
-
     const handleItemClick = (itemId: string, item: NavItem) => {
         setActiveItem(itemId);
 
@@ -349,30 +300,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         // If item has a route defined, use it
         if (item.route) {
             navigate(item.route);
-            return;
-        }
-
-        // Legacy behavior: handle known routes by itemId
-        switch (itemId) {
-            case "agents":
-                navigate("/agents");
-                break;
-            case "chats":
-                navigate("/chat");
-                break;
-            case "projects":
-                navigate("/projects");
-                break;
-            case "prompts":
-                navigate("/prompts");
-                break;
-            case "artifacts":
-                navigate("/artifacts");
-                break;
-            default:
-                // Try to navigate to /{itemId} as a fallback
-                navigate(`/${itemId}`);
-                break;
         }
     };
 
@@ -436,23 +363,9 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     // Check if collapse button should be hidden
     const hideCollapseButton = header && typeof header === "object" && "hideCollapseButton" in header && (header as HeaderConfig).hideCollapseButton;
 
-    // Handle bottom item click
+    // Handle bottom item click - delegates to item's onClick handler
     const handleBottomItemClick = (item: NavItem) => {
-        if (item.onClick) {
-            item.onClick();
-            return;
-        }
-
-        // Default behaviors for known items
-        switch (item.id) {
-            case "userAccount":
-                setIsSettingsDialogOpen(true);
-                break;
-            case "logout":
-                logout();
-                break;
-            // Notifications and other items - no default action
-        }
+        item.onClick?.();
     };
 
     // Check if a nav item or its children is active (for collapsed view icon highlighting)
@@ -487,7 +400,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     <div className="flex flex-col items-center gap-2 py-3">
                         {/* New Chat */}
                         {showNewChatButton && (
-                            <Button variant="ghost" onClick={handleNewChatClickResolved} className={collapsedButtonStyles()} tooltip={newChatLabel}>
+                            <Button variant="ghost" onClick={handleNewChatClickResolved} className={navButtonStyles({ variant: "collapsed" })} tooltip={newChatLabel}>
                                 <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
                                     <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
                                 </div>
@@ -513,7 +426,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                             handleItemClick(item.id, item);
                                         }
                                     }}
-                                    className={collapsedButtonStyles()}
+                                    className={navButtonStyles({ variant: "collapsed" })}
                                     tooltip={item.label}
                                     disabled={item.disabled}
                                 >
@@ -528,7 +441,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     {/* Bottom items */}
                     <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] p-2">
                         {bottomItems.map(item => (
-                            <Button key={item.id} variant="ghost" onClick={() => handleBottomItemClick(item)} className={bottomButtonStyles()} tooltip={item.label} disabled={item.disabled}>
+                            <Button key={item.id} variant="ghost" onClick={() => handleBottomItemClick(item)} className={navButtonStyles({ variant: "bottom" })} tooltip={item.label} disabled={item.disabled}>
                                 <item.icon className="size-6" />
                             </Button>
                         ))}
@@ -625,22 +538,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     </div>
                 </>
             )}
-
-            {/* Move Session Dialog */}
-            <MoveSessionDialog
-                isOpen={isMoveDialogOpen}
-                onClose={() => {
-                    setIsMoveDialogOpen(false);
-                    setSessionToMove(null);
-                }}
-                onConfirm={handleMoveConfirm}
-                session={sessionToMove}
-                projects={projects}
-                currentProjectId={sessionToMove?.projectId}
-            />
-
-            {/* Settings Dialog */}
-            <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
         </aside>
     );
 };
