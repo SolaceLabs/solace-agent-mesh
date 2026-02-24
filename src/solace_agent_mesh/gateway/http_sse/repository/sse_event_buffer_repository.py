@@ -136,6 +136,71 @@ class SSEEventBufferRepository:
         )
         raise last_error
 
+    def buffer_events_batch(
+        self,
+        db: DBSession,
+        task_id: str,
+        events: List[tuple],
+    ) -> int:
+        """
+        Buffer multiple SSE events in a single batch insert.
+
+        
+        Args:
+            db: Database session
+            task_id: The task ID these events belong to
+            events: List of tuples (event_type, event_data, timestamp, session_id, user_id)
+            
+        Returns:
+            Number of events inserted
+        """
+        if not events:
+            return 0
+        
+        # Get the current max sequence number for this task with row-level lock
+        # This prevents race conditions if multiple flushes happen concurrently
+        # Note: We lock on the task row to serialize sequence number assignment
+        task = db.query(TaskModel).filter(TaskModel.id == task_id).with_for_update().first()
+        
+        # Get max sequence (this is now safe since we hold the task lock)
+        max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
+            .filter(SSEEventBufferModel.task_id == task_id)\
+            .scalar() or 0
+        
+        # Build list of model instances with sequential sequence numbers
+        buffer_entries = []
+        for i, (event_type, event_data, timestamp, session_id, user_id) in enumerate(events):
+            buffer_entries.append(SSEEventBufferModel(
+                task_id=task_id,
+                session_id=session_id,
+                user_id=user_id,
+                event_sequence=max_seq + i + 1,
+                event_type=event_type,
+                event_data=event_data,
+                created_at=timestamp,
+                consumed=False,
+            ))
+        
+        # Bulk insert all events
+        db.bulk_save_objects(buffer_entries)
+        
+        # Mark task as having buffered events (task already fetched above)
+        if task and not task.events_buffered:
+            task.events_buffered = True
+        
+        db.flush()
+        
+        log.debug(
+            "%s Batch buffered %d events for task %s (sequences %d-%d)",
+            self.log_identifier,
+            len(events),
+            task_id,
+            max_seq + 1,
+            max_seq + len(events),
+        )
+        
+        return len(events)
+
     def get_buffered_events(
         self,
         db: DBSession,
