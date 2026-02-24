@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState, SAM_NAV_ITEMS, SAM_BOTTOM_ITEMS, filterNavItems, filterBottomItems } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { ChatProvider } from "@/lib/providers";
 import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
@@ -43,6 +43,14 @@ function AppLayoutContent() {
 
     // Feature flag for new collapsible navigation
     const useNewNav = configFeatureEnablement?.newNavigation ?? false;
+
+    // Feature flags for new navigation
+    const projectsEnabled = configFeatureEnablement?.projects ?? false;
+    const logoutEnabled = configFeatureEnablement?.logout ?? false;
+
+    // Filter SAM nav items based on feature flags
+    const filteredNavItems = filterNavItems(SAM_NAV_ITEMS, { projects: projectsEnabled });
+    const filteredBottomItems = filterBottomItems(SAM_BOTTOM_ITEMS, { logout: logoutEnabled });
 
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
@@ -89,7 +97,11 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            {useNewNav ? <CollapsibleNavigationSidebar /> : <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />}
+            {useNewNav ? (
+                <CollapsibleNavigationSidebar navItems={filteredNavItems} bottomItems={filteredBottomItems} showNewChatButton />
+            ) : (
+                <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+            )}
             <main className="h-full w-full flex-1 overflow-auto">
                 <Outlet />
             </main>

@@ -88,16 +88,49 @@ const collapsedButtonStyles = cva(["h-10", "w-10", "p-0", "enabled:hover:bg-[var
 /** Bottom section button styles (notifications, user, logout) */
 const bottomButtonStyles = cva(["h-10", "w-10", "p-2", "text-[var(--color-primary-text-w10)]", "enabled:hover:bg-[var(--color-background-w100)]"]);
 
-interface NavItem {
+// ============================================================================
+// Public Types - exported for external consumers
+// ============================================================================
+
+/** Single navigation item configuration */
+export interface NavItemConfig {
     id: string;
     label: string;
     icon: React.ElementType;
-    onClick?: () => void;
-    badge?: string;
-    tooltip?: string;
-    hasSubmenu?: boolean;
-    children?: NavItem[];
+
+    // Routing
+    route?: string; // Route to navigate to (e.g., "/agents")
+    routeMatch?: string | string[] | RegExp; // Pattern(s) to match for active state
+    onClick?: () => void; // Custom click handler (overrides routing)
+
+    // Visual
+    badge?: string; // Badge text (e.g., "Beta")
+    tooltip?: string; // Tooltip text
+    disabled?: boolean; // Disable the item
+    hidden?: boolean; // Hide the item
+
+    // Submenu
+    children?: NavItemConfig[]; // Sub-items (creates expandable submenu)
+    defaultExpanded?: boolean; // Start with submenu expanded
 }
+
+/** Header configuration */
+export interface HeaderConfig {
+    /** Custom component to render instead of SolaceIcon (full override) */
+    component?: React.ReactNode;
+    /** Hide collapse/expand button */
+    hideCollapseButton?: boolean;
+}
+
+/** New Chat button configuration */
+export interface NewChatConfig {
+    label?: string;
+    icon?: React.ElementType;
+    onClick?: () => void;
+}
+
+// Internal type alias for backward compatibility
+type NavItem = NavItemConfig & { hasSubmenu?: boolean };
 
 // Navigation item button component - uses dark theme colors always
 const NavItemButton: React.FC<{
@@ -144,28 +177,87 @@ const NavItemButton: React.FC<{
     return buttonContent;
 };
 
-interface CollapsibleNavigationSidebarProps {
-    onNavigate?: (page: string) => void;
-    /**
-     * Items for the System Management submenu (enterprise-only feature).
-     */
+export interface CollapsibleNavigationSidebarProps {
+    // Navigation items
+    navItems?: NavItemConfig[]; // Main navigation items
+    bottomItems?: NavItemConfig[]; // Bottom section items (Notifications, User, etc.)
+
+    // Header
+    header?: HeaderConfig | React.ReactNode;
+
+    // Special sections
+    showNewChatButton?: boolean; // Show/hide "New Chat" button (default: true)
+    newChatConfig?: NewChatConfig; // Customize "New Chat" button
+
+    // Callbacks
+    onNavigate?: (itemId: string, route?: string) => void;
+    onCollapseChange?: (isCollapsed: boolean) => void;
+
+    // State control (for controlled component pattern)
+    activeItemId?: string; // Controlled active state
+    isCollapsed?: boolean; // Controlled collapse state
+    defaultCollapsed?: boolean; // Uncontrolled default collapse
+
+    // @deprecated - use navItems instead
     additionalSystemManagementItems?: Array<{ id: string; label: string; icon?: React.ElementType }>;
-    /** Additional top-level navigation items (for enterprise extensions like Gateways) */
+    // @deprecated - use navItems instead
     additionalNavItems?: Array<{ id: string; label: string; icon: React.ElementType; position?: "before-agents" | "after-agents" | "after-system-management" }>;
 }
 
-export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebarProps> = ({ onNavigate, additionalSystemManagementItems, additionalNavItems = [] }) => {
+export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebarProps> = ({
+    navItems: navItemsProp,
+    bottomItems: bottomItemsProp,
+    header,
+    showNewChatButton = true,
+    newChatConfig,
+    onNavigate,
+    onCollapseChange,
+    activeItemId: controlledActiveItemId,
+    isCollapsed: controlledIsCollapsed,
+    defaultCollapsed = false,
+    // Deprecated props
+    additionalSystemManagementItems,
+    additionalNavItems = [],
+}) => {
+    // Deprecation warnings
+    if (process.env.NODE_ENV === "development") {
+        if (additionalSystemManagementItems) {
+            console.warn("[CollapsibleNavigationSidebar] additionalSystemManagementItems is deprecated. Use navItems instead.");
+        }
+        if (additionalNavItems.length > 0) {
+            console.warn("[CollapsibleNavigationSidebar] additionalNavItems is deprecated. Use navItems instead.");
+        }
+    }
+
     const { logout } = useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Persist collapse state - default to expanded (false = not collapsed)
-    const [isCollapsed, setIsCollapsed] = useSessionStorage("nav-collapsed", false);
+    // Persist collapse state - supports controlled and uncontrolled modes
+    const [internalCollapsed, setInternalCollapsed] = useSessionStorage("nav-collapsed", defaultCollapsed);
+    const isCollapsed = controlledIsCollapsed ?? internalCollapsed;
+    const setIsCollapsed = (value: boolean) => {
+        setInternalCollapsed(value);
+        onCollapseChange?.(value);
+    };
 
-    const [activeItem, setActiveItem] = useState<string>("chats");
-    const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
-        assets: false,
-        systemManagement: false,
+    const [internalActiveItem, setInternalActiveItem] = useState<string>("chats");
+    const activeItem = controlledActiveItemId ?? internalActiveItem;
+    const setActiveItem = (value: string) => {
+        if (controlledActiveItemId === undefined) {
+            setInternalActiveItem(value);
+        }
+    };
+
+    const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>(() => {
+        // Initialize expanded state from navItems defaultExpanded
+        const initial: Record<string, boolean> = { assets: false, systemManagement: false };
+        navItemsProp?.forEach(item => {
+            if (item.children && item.defaultExpanded !== undefined) {
+                initial[item.id] = item.defaultExpanded;
+            }
+        });
+        return initial;
     });
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
@@ -178,25 +270,72 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
     const logoutEnabled = configUseAuthorization && configFeatureEnablement?.logout ? true : false;
 
-    // Sync active item with current route
+    // Helper to check if an item matches the current route
+    const isItemActiveByRoute = useCallback(
+        (item: NavItemConfig): boolean => {
+            if (!item.routeMatch) return false;
+
+            const patterns = Array.isArray(item.routeMatch) ? item.routeMatch : [item.routeMatch];
+            return patterns.some(pattern => {
+                if (pattern instanceof RegExp) return pattern.test(location.pathname);
+                return location.pathname.startsWith(pattern);
+            });
+        },
+        [location.pathname]
+    );
+
+    // Find active item ID from resolved nav items
+    const findActiveItemId = useCallback(
+        (items: NavItemConfig[]): string | null => {
+            for (const item of items) {
+                if (isItemActiveByRoute(item)) return item.id;
+                if (item.children) {
+                    const childMatch = item.children.find(child => isItemActiveByRoute(child));
+                    if (childMatch) return childMatch.id;
+                }
+            }
+            return null;
+        },
+        [isItemActiveByRoute]
+    );
+
+    // Sync active item with current route (only in uncontrolled mode)
     useEffect(() => {
+        if (controlledActiveItemId !== undefined) return; // Controlled mode - don't sync
+
+        // If navItems prop is provided, use routeMatch-based detection
+        if (navItemsProp) {
+            const matchedId = findActiveItemId(navItemsProp);
+            if (matchedId) {
+                setInternalActiveItem(matchedId);
+                // Auto-expand parent menu if child is active
+                navItemsProp.forEach(item => {
+                    if (item.children?.some(child => child.id === matchedId)) {
+                        setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
+                    }
+                });
+            } else {
+                setInternalActiveItem("chats");
+            }
+            return;
+        }
+
+        // Legacy behavior for backward compatibility
         const path = location.pathname;
         if (path.startsWith("/agents")) {
-            setActiveItem("agents");
+            setInternalActiveItem("agents");
         } else if (path.startsWith("/projects")) {
-            setActiveItem("projects");
+            setInternalActiveItem("projects");
         } else if (path.startsWith("/prompts")) {
-            setActiveItem("prompts");
-            // Auto-expand Assets menu when on prompts page
+            setInternalActiveItem("prompts");
             setExpandedMenus(prev => ({ ...prev, assets: true }));
         } else if (path.startsWith("/artifacts")) {
-            setActiveItem("artifacts");
-            // Auto-expand Assets menu when on artifacts page
+            setInternalActiveItem("artifacts");
             setExpandedMenus(prev => ({ ...prev, assets: true }));
         } else {
-            setActiveItem("chats");
+            setInternalActiveItem("chats");
         }
-    }, [location.pathname]);
+    }, [location.pathname, navItemsProp, controlledActiveItemId, findActiveItemId]);
 
     // Handle move session dialog event
     const handleOpenMoveDialog = useCallback((event: CustomEvent<{ session: Session }>) => {
@@ -241,11 +380,16 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
             return;
         }
 
-        // Handle navigation based on item id using React Router
-        // First call onNavigate callback so enterprise can handle custom navigation
-        onNavigate?.(itemId);
+        // Call onNavigate callback with both itemId and route
+        onNavigate?.(itemId, item.route);
 
-        // Then handle known routes
+        // If item has a route defined, use it
+        if (item.route) {
+            navigate(item.route);
+            return;
+        }
+
+        // Legacy behavior: handle known routes by itemId
         switch (itemId) {
             case "agents":
                 navigate("/agents");
@@ -262,19 +406,11 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
             case "artifacts":
                 navigate("/artifacts");
                 break;
-            // For unknown items (like enterprise-specific ones),
-            // the onNavigate callback above handles navigation
             default:
                 // Try to navigate to /{itemId} as a fallback
                 navigate(`/${itemId}`);
                 break;
         }
-    };
-
-    const handleNewChatClick = () => {
-        // Switch to chat view first, then directly start new session
-        navigate("/chat");
-        handleNewSession();
     };
 
     const toggleMenu = (menuId: string) => {
@@ -288,8 +424,24 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         setIsCollapsed(!isCollapsed);
     };
 
-    // Define navigation items matching the screenshot
+    // Convert NavItemConfig to internal NavItem format (adds hasSubmenu flag)
+    const toNavItem = useCallback((config: NavItemConfig): NavItem => {
+        const convertItem = (item: NavItemConfig): NavItem => ({
+            ...item,
+            hasSubmenu: !!item.children?.length,
+            children: item.children?.map(convertItem),
+        });
+        return convertItem(config);
+    }, []);
+
+    // Resolve navigation items - use prop if provided, otherwise fall back to legacy behavior
     const navItems: NavItem[] = useMemo(() => {
+        // If navItems prop is provided, use it directly
+        if (navItemsProp) {
+            return navItemsProp.filter(item => !item.hidden).map(toNavItem);
+        }
+
+        // Legacy behavior for backward compatibility
         const items: NavItem[] = [];
 
         // Projects
@@ -377,7 +529,84 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
             });
 
         return items;
-    }, [projectsEnabled, additionalSystemManagementItems, additionalNavItems]);
+    }, [navItemsProp, projectsEnabled, additionalSystemManagementItems, additionalNavItems, toNavItem]);
+
+    // Resolve bottom items - use prop if provided, otherwise use legacy hardcoded items
+    const bottomItems: NavItem[] = useMemo(() => {
+        if (bottomItemsProp) {
+            return bottomItemsProp.filter(item => !item.hidden).map(toNavItem);
+        }
+
+        // Legacy behavior - hardcoded items
+        const items: NavItem[] = [
+            { id: "notifications", label: "Notifications", icon: Bell },
+            { id: "userAccount", label: "User Account", icon: User },
+        ];
+        if (logoutEnabled) {
+            items.push({ id: "logout", label: "Log Out", icon: LogOut });
+        }
+        return items;
+    }, [bottomItemsProp, logoutEnabled, toNavItem]);
+
+    // Handle new chat click - uses custom config if provided
+    const handleNewChatClickResolved = useCallback(() => {
+        if (newChatConfig?.onClick) {
+            newChatConfig.onClick();
+            return;
+        }
+        // Default behavior
+        navigate("/chat");
+        handleNewSession();
+    }, [newChatConfig, navigate, handleNewSession]);
+
+    // Resolve new chat button props
+    const newChatLabel = newChatConfig?.label ?? "New Chat";
+    const NewChatIcon = newChatConfig?.icon ?? Plus;
+
+    // Helper to render header content
+    const renderHeader = (): React.ReactNode => {
+        // Check if header is a HeaderConfig object
+        if (header && typeof header === "object" && header !== null && "component" in header) {
+            const headerConfig = header as HeaderConfig;
+            if (headerConfig.component) return headerConfig.component;
+            // HeaderConfig without component - use default SolaceIcon
+        } else if (header !== undefined && header !== null) {
+            // header is a React.ReactNode (not HeaderConfig)
+            return header as React.ReactNode;
+        }
+
+        // Default: SolaceIcon with appropriate variant based on collapsed state
+        return <SolaceIcon variant={isCollapsed ? "short" : "full"} className={isCollapsed ? "h-8 w-8" : "h-8 w-24"} />;
+    };
+
+    // Check if collapse button should be hidden
+    const hideCollapseButton = header && typeof header === "object" && "hideCollapseButton" in header && (header as HeaderConfig).hideCollapseButton;
+
+    // Handle bottom item click
+    const handleBottomItemClick = (item: NavItem) => {
+        if (item.onClick) {
+            item.onClick();
+            return;
+        }
+
+        // Default behaviors for known items
+        switch (item.id) {
+            case "userAccount":
+                setIsSettingsDialogOpen(true);
+                break;
+            case "logout":
+                logout();
+                break;
+            // Notifications and other items - no default action
+        }
+    };
+
+    // Check if a nav item or its children is active (for collapsed view icon highlighting)
+    const isNavItemOrChildActive = (item: NavItem): boolean => {
+        if (activeItem === item.id) return true;
+        if (item.children?.some(child => activeItem === child.id)) return true;
+        return false;
+    };
 
     return (
         <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-[var(--color-background-wMain)]", isCollapsed ? "w-16" : "w-64")}>
@@ -386,82 +615,69 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                 <>
                     {/* Header with Short Logo */}
                     <div className="relative flex w-full items-center justify-center overflow-visible border-b border-[var(--color-secondary-w70)] py-3">
-                        <SolaceIcon variant="short" className="h-8 w-8" />
+                        {renderHeader()}
                         {/* Expand Chevron - positioned outside the panel */}
-                        <Button variant="ghost" onClick={handleToggle} className="absolute -right-3 z-10 h-6 w-6 rounded bg-[var(--color-background-wMain)] p-0.5 shadow-md enabled:hover:bg-[var(--color-background-w100)]" tooltip="Expand Navigation">
-                            <ChevronRight className="size-4 text-[var(--color-primary-text-w10)]" />
-                        </Button>
+                        {!hideCollapseButton && (
+                            <Button
+                                variant="ghost"
+                                onClick={handleToggle}
+                                className="absolute -right-3 z-10 h-6 w-6 rounded bg-[var(--color-background-wMain)] p-0.5 shadow-md enabled:hover:bg-[var(--color-background-w100)]"
+                                tooltip="Expand Navigation"
+                            >
+                                <ChevronRight className="size-4 text-[var(--color-primary-text-w10)]" />
+                            </Button>
+                        )}
                     </div>
 
                     {/* Icon Stack */}
                     <div className="flex flex-col items-center gap-2 py-3">
                         {/* New Chat */}
-                        <Button variant="ghost" onClick={handleNewChatClick} className={collapsedButtonStyles()} tooltip="New Chat">
-                            <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
-                                <Plus className={iconStyles({ active: activeItem === "chats" })} />
-                            </div>
-                        </Button>
+                        {showNewChatButton && (
+                            <Button variant="ghost" onClick={handleNewChatClickResolved} className={collapsedButtonStyles()} tooltip={newChatLabel}>
+                                <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
+                                    <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
+                                </div>
+                            </Button>
+                        )}
 
-                        {/* Navigation Icons */}
-                        {projectsEnabled && (
-                            <Button variant="ghost" onClick={() => handleItemClick("projects", { id: "projects", label: "Projects", icon: FolderOpen })} className={collapsedButtonStyles()} tooltip="Projects">
-                                <div className={iconWrapperStyles({ active: activeItem === "projects" })}>
-                                    <FolderOpen className={iconStyles({ active: activeItem === "projects" })} />
-                                </div>
-                            </Button>
-                        )}
-                        <Button
-                            variant="ghost"
-                            onClick={() => {
-                                // Expand sidebar, open Assets submenu, and select parent
-                                setActiveItem("assets");
-                                setExpandedMenus(prev => ({ ...prev, assets: true }));
-                                setIsCollapsed(false);
-                            }}
-                            className={collapsedButtonStyles()}
-                            tooltip="Assets"
-                        >
-                            <div className={iconWrapperStyles({ active: activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts" })}>
-                                <BookOpenText className={iconStyles({ active: activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts" })} />
-                            </div>
-                        </Button>
-                        <Button variant="ghost" onClick={() => handleItemClick("agents", { id: "agents", label: "Agents", icon: Bot })} className={collapsedButtonStyles()} tooltip="Agents">
-                            <div className={iconWrapperStyles({ active: activeItem === "agents" })}>
-                                <Bot className={iconStyles({ active: activeItem === "agents" })} />
-                            </div>
-                        </Button>
-                        {additionalSystemManagementItems && additionalSystemManagementItems.length > 0 && (
-                            <Button
-                                variant="ghost"
-                                onClick={() => {
-                                    // Expand sidebar, open System Management submenu, and select parent
-                                    setActiveItem("systemManagement");
-                                    setExpandedMenus(prev => ({ ...prev, systemManagement: true }));
-                                    setIsCollapsed(false);
-                                }}
-                                className={collapsedButtonStyles()}
-                                tooltip="System Management"
-                            >
-                                <div className={iconWrapperStyles({ active: activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" })}>
-                                    <LayoutGrid className={iconStyles({ active: activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" })} />
-                                </div>
-                            </Button>
-                        )}
+                        {/* Navigation Icons - rendered from navItems */}
+                        {navItems.map(item => {
+                            const isActive = isNavItemOrChildActive(item);
+                            const hasSubmenu = item.hasSubmenu && item.children?.length;
+
+                            return (
+                                <Button
+                                    key={item.id}
+                                    variant="ghost"
+                                    onClick={() => {
+                                        if (hasSubmenu) {
+                                            // Expand sidebar and open submenu
+                                            setActiveItem(item.id);
+                                            setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
+                                            setIsCollapsed(false);
+                                        } else {
+                                            handleItemClick(item.id, item);
+                                        }
+                                    }}
+                                    className={collapsedButtonStyles()}
+                                    tooltip={item.label}
+                                    disabled={item.disabled}
+                                >
+                                    <div className={iconWrapperStyles({ active: isActive })}>
+                                        <item.icon className={iconStyles({ active: isActive })} />
+                                    </div>
+                                </Button>
+                            );
+                        })}
                     </div>
 
                     {/* Bottom items */}
                     <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] p-2">
-                        <Button variant="ghost" className={bottomButtonStyles()} tooltip="Notifications">
-                            <Bell className="size-6" />
-                        </Button>
-                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className={bottomButtonStyles()} tooltip="Settings">
-                            <User className="size-6" />
-                        </Button>
-                        {logoutEnabled && (
-                            <Button variant="ghost" onClick={() => logout()} className={bottomButtonStyles()} tooltip="Log Out">
-                                <LogOut className="size-6" />
+                        {bottomItems.map(item => (
+                            <Button key={item.id} variant="ghost" onClick={() => handleBottomItemClick(item)} className={bottomButtonStyles()} tooltip={item.label} disabled={item.disabled}>
+                                <item.icon className="size-6" />
                             </Button>
-                        )}
+                        ))}
                     </div>
                 </>
             ) : (
@@ -469,23 +685,25 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                 <>
                     {/* Header with Solace Logo and Collapse Button */}
                     <div className="flex items-center justify-between border-b border-[var(--color-secondary-w70)] py-3 pr-4 pl-6">
-                        <div className="flex items-center gap-2">
-                            <SolaceIcon className="h-8 w-24" />
-                        </div>
-                        <Button variant="ghost" onClick={handleToggle} className="h-8 w-8 p-1 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Collapse Navigation">
-                            <ChevronLeft className="size-6" />
-                        </Button>
+                        <div className="flex items-center gap-2">{renderHeader()}</div>
+                        {!hideCollapseButton && (
+                            <Button variant="ghost" onClick={handleToggle} className="h-8 w-8 p-1 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Collapse Navigation">
+                                <ChevronLeft className="size-6" />
+                            </Button>
+                        )}
                     </div>
 
                     {/* Scrollable Navigation Section */}
                     <div className="flex-1 overflow-y-auto py-3">
                         {/* New Chat Button */}
-                        <Button variant="ghost" onClick={handleNewChatClick} className={navButtonStyles()}>
-                            <div className={iconWrapperStyles({ active: activeItem === "chats", withMargin: true })}>
-                                <Plus className={iconStyles({ active: activeItem === "chats" })} />
-                            </div>
-                            <span className={navTextStyles({ active: activeItem === "chats" })}>New Chat</span>
-                        </Button>
+                        {showNewChatButton && (
+                            <Button variant="ghost" onClick={handleNewChatClickResolved} className={navButtonStyles()}>
+                                <div className={iconWrapperStyles({ active: activeItem === "chats", withMargin: true })}>
+                                    <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
+                                </div>
+                                <span className={navTextStyles({ active: activeItem === "chats" })}>{newChatLabel}</span>
+                            </Button>
+                        )}
 
                         {/* Navigation Items */}
                         <div>
@@ -542,26 +760,14 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     {/* Bottom Section - Notifications and User Account */}
                     {/* Spacing: 8px above divider (mt-2) + 8px below divider (pt-2) = 16px total */}
                     <div className="mt-2 border-t border-[var(--color-secondary-w70)] pt-2">
-                        <Button variant="ghost" className={navButtonStyles()}>
-                            <div className={iconWrapperStyles({ withMargin: true })}>
-                                <Bell className={iconStyles()} />
-                            </div>
-                            <span className={navTextStyles()}>Notifications</span>
-                        </Button>
-                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className={navButtonStyles()}>
-                            <div className={iconWrapperStyles({ withMargin: true })}>
-                                <User className={iconStyles()} />
-                            </div>
-                            <span className={navTextStyles()}>User Account</span>
-                        </Button>
-                        {logoutEnabled && (
-                            <Button variant="ghost" onClick={() => logout()} className={navButtonStyles()}>
+                        {bottomItems.map(item => (
+                            <Button key={item.id} variant="ghost" onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
                                 <div className={iconWrapperStyles({ withMargin: true })}>
-                                    <LogOut className={iconStyles()} />
+                                    <item.icon className={iconStyles()} />
                                 </div>
-                                <span className={navTextStyles()}>Log Out</span>
+                                <span className={navTextStyles()}>{item.label}</span>
                             </Button>
-                        )}
+                        ))}
                     </div>
                 </>
             )}
