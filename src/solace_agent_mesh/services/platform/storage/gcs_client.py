@@ -1,6 +1,7 @@
 """Google Cloud Storage client."""
 
 import logging
+from datetime import timedelta
 
 from google.api_core.exceptions import Forbidden, NotFound
 from google.cloud import storage as gcs
@@ -27,11 +28,13 @@ class GcsStorageClient(ObjectStorageClient):
         credentials_path: str | None = None,
     ):
         self._bucket_name = bucket_name
+        self._credentials = None
         kwargs: dict = {}
         if project:
             kwargs["project"] = project
         if credentials_path:
-            kwargs["credentials"] = service_account.Credentials.from_service_account_file(credentials_path)
+            self._credentials = service_account.Credentials.from_service_account_file(credentials_path)
+            kwargs["credentials"] = self._credentials
 
         self._gcs_client = gcs.Client(**kwargs)
         self._bucket = self._gcs_client.bucket(bucket_name)
@@ -86,6 +89,24 @@ class GcsStorageClient(ObjectStorageClient):
         except Exception as e:
             raise self._translate_error(e) from e
 
+    def list_objects(self, prefix: str) -> list[str]:
+        try:
+            return [blob.name for blob in self._bucket.list_blobs(prefix=prefix)]
+        except Exception as e:
+            raise self._translate_error(e) from e
+
+    def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        try:
+            blob = self._bucket.blob(key)
+            return blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(seconds=expires_in),
+                method="GET",
+                credentials=self._credentials,
+            )
+        except Exception as e:
+            raise self._translate_error(e, key) from e
+
     def get_public_url(self, key: str) -> str:
         return f"https://storage.googleapis.com/{self._bucket_name}/{key}"
 
@@ -93,6 +114,8 @@ class GcsStorageClient(ObjectStorageClient):
         if isinstance(error, NotFound):
             return StorageNotFoundError(str(error), key=key, cause=error)
         if isinstance(error, Forbidden):
+            return StoragePermissionError(str(error), key=key, cause=error)
+        if isinstance(error, ValueError) and "credentials" in str(error).lower():
             return StoragePermissionError(str(error), key=key, cause=error)
         if isinstance(error, ConnectionError):
             return StorageConnectionError(str(error), key=key, cause=error)

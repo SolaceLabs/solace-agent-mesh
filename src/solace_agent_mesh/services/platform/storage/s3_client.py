@@ -112,6 +112,27 @@ class S3StorageClient(ObjectStorageClient):
         except ClientError as e:
             raise self._translate_error(e) from e
 
+    def list_objects(self, prefix: str) -> list[str]:
+        keys: list[str] = []
+        try:
+            paginator = self._client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    keys.append(obj["Key"])
+            return keys
+        except ClientError as e:
+            raise self._translate_error(e) from e
+
+    def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        try:
+            return self._client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": self._bucket, "Key": key},
+                ExpiresIn=expires_in,
+            )
+        except ClientError as e:
+            raise self._translate_error(e, key) from e
+
     def get_public_url(self, key: str) -> str:
         if self._endpoint_url:
             return f"{self._endpoint_url.rstrip('/')}/{self._bucket}/{key}"

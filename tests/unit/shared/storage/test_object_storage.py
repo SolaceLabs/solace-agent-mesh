@@ -252,6 +252,73 @@ class TestS3PublicUrl:
         assert url == "http://localhost:8333/b/key"
 
 
+class TestS3ListObjects:
+    def _setup_paginator(self, mock_boto3, pages: list[dict]):
+        paginator = MagicMock()
+        paginator.paginate.return_value = pages
+        mock_boto3.get_paginator.return_value = paginator
+
+    def test_single_page(self, s3_client, mock_boto3):
+        self._setup_paginator(mock_boto3, [
+            {"Contents": [{"Key": "ns/a.txt"}, {"Key": "ns/b.txt"}]},
+        ])
+
+        assert s3_client.list_objects("ns/") == ["ns/a.txt", "ns/b.txt"]
+
+    def test_multiple_pages(self, s3_client, mock_boto3):
+        self._setup_paginator(mock_boto3, [
+            {"Contents": [{"Key": "p/1"}]},
+            {"Contents": [{"Key": "p/2"}, {"Key": "p/3"}]},
+        ])
+
+        assert s3_client.list_objects("p/") == ["p/1", "p/2", "p/3"]
+
+    def test_empty_returns_empty_list(self, s3_client, mock_boto3):
+        self._setup_paginator(mock_boto3, [{}])
+
+        assert s3_client.list_objects("empty/") == []
+
+    def test_translates_errors(self, s3_client, mock_boto3):
+        paginator = MagicMock()
+        paginator.paginate.side_effect = _make_client_error("AccessDenied")
+        mock_boto3.get_paginator.return_value = paginator
+
+        with pytest.raises(StoragePermissionError):
+            s3_client.list_objects("forbidden/")
+
+
+class TestS3GeneratePresignedUrl:
+    def test_returns_url(self, s3_client, mock_boto3):
+        mock_boto3.generate_presigned_url.return_value = "https://signed-url"
+
+        assert s3_client.generate_presigned_url("file.txt") == "https://signed-url"
+
+    def test_passes_correct_params(self, s3_client, mock_boto3):
+        mock_boto3.generate_presigned_url.return_value = "https://url"
+
+        s3_client.generate_presigned_url("ns/key.zip")
+
+        mock_boto3.generate_presigned_url.assert_called_once_with(
+            ClientMethod="get_object",
+            Params={"Bucket": "test-bucket", "Key": "ns/key.zip"},
+            ExpiresIn=3600,
+        )
+
+    def test_custom_expiry(self, s3_client, mock_boto3):
+        mock_boto3.generate_presigned_url.return_value = "https://url"
+
+        s3_client.generate_presigned_url("k", expires_in=600)
+
+        call_kwargs = mock_boto3.generate_presigned_url.call_args.kwargs
+        assert call_kwargs["ExpiresIn"] == 600
+
+    def test_translates_errors(self, s3_client, mock_boto3):
+        mock_boto3.generate_presigned_url.side_effect = _make_client_error("AccessDenied")
+
+        with pytest.raises(StoragePermissionError):
+            s3_client.generate_presigned_url("forbidden.txt")
+
+
 class TestFactory:
     @patch("solace_agent_mesh.services.platform.storage.s3_client.boto3")
     def test_defaults_to_s3_backend(self, _mock_boto3):

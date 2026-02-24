@@ -39,5 +39,13 @@ class ObjectStorageClient(ABC):
         """Delete all objects under a prefix. Returns count of deleted objects."""
 
     @abstractmethod
+    def list_objects(self, prefix: str) -> list[str]:
+        """List all object keys under the given prefix."""
+
+    @abstractmethod
+    def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        """Generate a time-limited URL for downloading the given key."""
+
+    @abstractmethod
     def get_public_url(self, key: str) -> str:
         """Return the public URL for the given key."""
