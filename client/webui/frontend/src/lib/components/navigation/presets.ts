@@ -19,13 +19,14 @@ export const SAM_NAV_ITEMS: NavItemConfig[] = [
         label: "Assets",
         icon: BookOpenText,
         children: [
-            {
-                id: "artifacts",
-                label: "Artifacts",
-                icon: BookOpenText,
-                route: "/artifacts",
-                routeMatch: "/artifacts",
-            },
+            // Artifacts page is not ready yet, so commenting out for now but keeping in presets for reference
+            // {
+            //     id: "artifacts",
+            //     label: "Artifacts",
+            //     icon: BookOpenText,
+            //     route: "/artifacts",
+            //     routeMatch: "/artifacts",
+            // },
             {
                 id: "prompts",
                 label: "Prompts",
