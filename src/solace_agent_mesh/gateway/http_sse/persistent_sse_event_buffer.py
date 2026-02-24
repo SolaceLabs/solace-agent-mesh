@@ -19,13 +19,31 @@ This reduces database write pressure for short-lived tasks while maintaining
 durability for longer-running background tasks.
 """
 
+import atexit
 import logging
 import queue
 import threading
 import time
+import weakref
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
+
+# Global registry of buffer instances for atexit cleanup
+_buffer_instances: weakref.WeakSet = weakref.WeakSet()
+
+
+def _atexit_shutdown_all_buffers():
+    """Shutdown all registered buffer instances on program exit."""
+    for buffer in list(_buffer_instances):
+        try:
+            buffer.shutdown()
+        except Exception as e:
+            log.warning("Error shutting down buffer on exit: %s", e)
+
+
+# Register the atexit handler
+atexit.register(_atexit_shutdown_all_buffers)
 
 
 class PersistentSSEEventBuffer:
@@ -91,6 +109,9 @@ class PersistentSSEEventBuffer:
         if self._enabled and self._session_factory is not None:
             self._start_async_write_worker()
         
+        # Register this instance for atexit cleanup
+        _buffer_instances.add(self)
+        
         log.info(
             "%s Initialized (enabled=%s, has_session_factory=%s, hybrid_mode=%s, "
             "flush_threshold=%d, async_queue_size=%d)",
@@ -111,7 +132,12 @@ class PersistentSSEEventBuffer:
         return self._hybrid_mode_enabled and self.is_enabled()
 
     def _start_async_write_worker(self) -> None:
-        """Start the background worker thread for async database writes."""
+        """Start the background worker thread for async database writes.
+        
+        Note: The thread IS a daemon thread (daemon=True) so Python can exit
+        cleanly. The atexit handler runs BEFORE daemon threads are killed,
+        so the queue is still properly drained during shutdown.
+        """
         with self._async_write_worker_lock:
             if self._async_write_worker is not None and self._async_write_worker.is_alive():
                 return  # Already running
@@ -180,10 +206,12 @@ class PersistentSSEEventBuffer:
                     continue
                 
                 # Unpack the write request
-                task_id, event_type, event_data, session_id, user_id = item
+                task_id, event_type, event_data, session_id, user_id, created_time = item
                 
                 # Perform the actual database write
-                self._write_event_to_db_sync(task_id, event_type, event_data, session_id, user_id)
+                self._write_event_to_db_sync(
+                    task_id, event_type, event_data, session_id, user_id, created_time
+                )
                 
             except Exception as e:
                 log.error(
@@ -241,6 +269,7 @@ class PersistentSSEEventBuffer:
         event_data: Dict[str, Any],
         session_id: str,
         user_id: str,
+        created_time: Optional[int] = None,
     ) -> bool:
         """
         Synchronously write an event to the database.
@@ -253,6 +282,8 @@ class PersistentSSEEventBuffer:
             event_data: The event payload
             session_id: The session ID
             user_id: The user ID
+            created_time: Optional timestamp (ms since epoch) for the event.
+                         If None, current time will be used.
             
         Returns:
             True if written successfully
@@ -270,6 +301,7 @@ class PersistentSSEEventBuffer:
                     user_id=user_id,
                     event_type=event_type,
                     event_data=event_data,
+                    created_time=created_time,
                 )
                 db.commit()
                 
@@ -560,8 +592,11 @@ class PersistentSSEEventBuffer:
         Returns:
             True if the event was enqueued, False if dropped
         """
-        # Create the write request tuple
-        write_request = (task_id, event_type, event_data, session_id, user_id)
+        # Create timestamp for the event (current time in ms)
+        created_time = int(time.time() * 1000)
+        
+        # Create the write request tuple (6-tuple with timestamp)
+        write_request = (task_id, event_type, event_data, session_id, user_id, created_time)
         
         try:
             # Try to enqueue without blocking
@@ -626,8 +661,8 @@ class PersistentSSEEventBuffer:
         failed_events = []
         
         for event_type, event_data, timestamp, session_id, user_id in events_to_flush:
-            # Create write request tuple matching _buffer_event_to_db format
-            write_request = (task_id, event_type, event_data, session_id, user_id)
+            # Create write request tuple with timestamp (6-tuple)
+            write_request = (task_id, event_type, event_data, session_id, user_id, timestamp)
             
             try:
                 self._async_write_queue.put_nowait(write_request)
