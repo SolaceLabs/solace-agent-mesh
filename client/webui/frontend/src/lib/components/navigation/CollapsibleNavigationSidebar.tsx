@@ -41,18 +41,18 @@ const NavItemButton: React.FC<{
         <Button
             variant="ghost"
             onClick={item.hasSubmenu ? onToggleExpand : onClick}
-            className={cn("h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w100)]", className)}
+            className={cn("h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w100)]", className)}
         >
             {indent ? (
                 // Subitem - no icon wrapper, just text
-                <span className={cn(isActive ? "text-white" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                <span className={cn(isActive ? "font-bold text-white" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
             ) : (
                 // Main item - with icon wrapper
                 <>
                     <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
                         <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                     </div>
-                    <span className={cn(isActive || hasActiveChild ? "text-white" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                    <span className={cn(isActive || hasActiveChild ? "font-bold text-white" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
                 </>
             )}
             {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
@@ -318,7 +318,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     <div className="relative flex w-full items-center justify-center overflow-visible border-b border-[var(--color-secondary-w70)] py-3">
                         <SolaceIcon variant="short" className="h-8 w-8" />
                         {/* Expand Chevron - positioned outside the panel */}
-                        <Button variant="ghost" onClick={handleToggle} className="absolute -right-3 z-10 h-6 w-6 rounded bg-[var(--color-background-wMain)] p-0.5 shadow-md hover:bg-[var(--color-background-w100)]" tooltip="Expand Navigation">
+                        <Button variant="ghost" onClick={handleToggle} className="absolute -right-3 z-10 h-6 w-6 rounded bg-[var(--color-background-wMain)] p-0.5 shadow-md enabled:hover:bg-[var(--color-background-w100)]" tooltip="Expand Navigation">
                             <ChevronRight className="size-4 text-[var(--color-primary-text-w10)]" />
                         </Button>
                     </div>
@@ -326,7 +326,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     {/* Icon Stack */}
                     <div className="flex flex-col items-center gap-2 py-3">
                         {/* New Chat */}
-                        <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]" tooltip="New Chat">
+                        <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]" tooltip="New Chat">
                             <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
                                 <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                             </div>
@@ -334,7 +334,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
 
                         {/* Navigation Icons */}
                         {projectsEnabled && (
-                            <Button variant="ghost" onClick={() => handleItemClick("projects", { id: "projects", label: "Projects", icon: FolderOpen })} className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]" tooltip="Projects">
+                            <Button variant="ghost" onClick={() => handleItemClick("projects", { id: "projects", label: "Projects", icon: FolderOpen })} className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]" tooltip="Projects">
                                 <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "projects" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
                                     <FolderOpen className={cn("size-6", activeItem === "projects" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                                 </div>
@@ -348,7 +348,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                 setExpandedMenus(prev => ({ ...prev, assets: true }));
                                 setIsCollapsed(false);
                             }}
-                            className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]"
+                            className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]"
                             tooltip="Assets"
                         >
                             <div
@@ -360,7 +360,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                 <BookOpenText className={cn("size-6", activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                             </div>
                         </Button>
-                        <Button variant="ghost" onClick={() => handleItemClick("agents", { id: "agents", label: "Agents", icon: Bot })} className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]" tooltip="Agents">
+                        <Button variant="ghost" onClick={() => handleItemClick("agents", { id: "agents", label: "Agents", icon: Bot })} className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]" tooltip="Agents">
                             <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "agents" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
                                 <Bot className={cn("size-6", activeItem === "agents" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                             </div>
@@ -374,7 +374,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                     setExpandedMenus(prev => ({ ...prev, systemManagement: true }));
                                     setIsCollapsed(false);
                                 }}
-                                className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]"
+                                className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]"
                                 tooltip="System Management"
                             >
                                 <div
@@ -393,14 +393,14 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
 
                     {/* Bottom items */}
                     <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] p-2">
-                        <Button variant="ghost" className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]" tooltip="Notifications">
+                        <Button variant="ghost" className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Notifications">
                             <Bell className="size-6" />
                         </Button>
-                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]" tooltip="Settings">
+                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Settings">
                             <User className="size-6" />
                         </Button>
                         {logoutEnabled && (
-                            <Button variant="ghost" onClick={() => logout()} className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]" tooltip="Log Out">
+                            <Button variant="ghost" onClick={() => logout()} className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Log Out">
                                 <LogOut className="size-6" />
                             </Button>
                         )}
@@ -410,23 +410,23 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                 /* Expanded View */
                 <>
                     {/* Header with Solace Logo and Collapse Button */}
-                    <div className="flex items-center justify-between border-b border-[var(--color-secondary-w70)] px-4 py-3">
+                    <div className="flex items-center justify-between border-b border-[var(--color-secondary-w70)] py-3 pr-4 pl-6">
                         <div className="flex items-center gap-2">
                             <SolaceIcon className="h-8 w-24" />
                         </div>
-                        <Button variant="ghost" onClick={handleToggle} className="h-8 w-8 p-1 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]" tooltip="Collapse Navigation">
+                        <Button variant="ghost" onClick={handleToggle} className="h-8 w-8 p-1 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Collapse Navigation">
                             <ChevronLeft className="size-6" />
                         </Button>
                     </div>
 
                     {/* Scrollable Navigation Section */}
-                    <div className="flex-1 overflow-y-auto px-2 py-3">
+                    <div className="flex-1 overflow-y-auto py-3">
                         {/* New Chat Button */}
-                        <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
+                        <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]">
                             <div className={cn("mr-2 flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
                                 <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
                             </div>
-                            <span className={cn(activeItem === "chats" ? "text-white" : "text-[var(--color-secondary-text-w50)]")}>New Chat</span>
+                            <span className={cn(activeItem === "chats" ? "font-bold text-white" : "text-[var(--color-secondary-text-w50)]")}>New Chat</span>
                         </Button>
 
                         {/* Navigation Items */}
@@ -446,15 +446,13 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                         />
                                         {/* Submenu items with vertical line */}
                                         {item.hasSubmenu && expandedMenus[item.id] && item.children && (
-                                            <div className="relative ml-12">
-                                                {/* Vertical section line */}
-                                                <div className="absolute top-0 left-0 h-full w-px" style={{ backgroundColor: "color-mix(in srgb, var(--color-brand-wMain) 30%, transparent)" }} />
+                                            <div className="ml-10">
                                                 {item.children.map(child => {
                                                     const isChildActive = activeItem === child.id;
                                                     return (
-                                                        <div key={child.id} className="relative">
-                                                            {/* Selected state line - thicker when active */}
-                                                            {isChildActive && <div className="absolute top-0 left-0 h-full w-[3px] bg-[var(--color-brand-w60)]" />}
+                                                        <div key={child.id} className="group relative">
+                                                            {/* Left border line - 1px default, 3px on hover/active */}
+                                                            <div className={cn("absolute top-0 left-0 h-full bg-[var(--color-brand-w60)] transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
                                                             <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
                                                         </div>
                                                     );
@@ -470,36 +468,36 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         <div className="my-4 border-t border-[var(--color-secondary-w70)]" />
 
                         {/* Recent Chats Section */}
-                        <div className="mb-2 flex items-center justify-between px-2">
-                            <span className="text-sm font-normal text-[var(--color-primary-text-w10)]">Recent Chats</span>
-                            <button onClick={() => navigate("/chats")} className="text-sm font-normal text-[var(--color-secondary-w70)] hover:text-[var(--color-primary-text-w10)]">
+                        <div className="mb-2 flex items-center justify-between pr-4 pl-6">
+                            <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Recent Chats</span>
+                            <button onClick={() => navigate("/chats")} className="text-sm font-normal text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
                                 View All
                             </button>
                         </div>
 
                         {/* Recent Chats List - fills available space until Notifications */}
-                        <div className="flex-1 px-2">
+                        <div className="flex-1">
                             <RecentChatsList maxItems={MAX_RECENT_CHATS} />
                         </div>
                     </div>
 
                     {/* Bottom Section - Notifications and User Account */}
                     {/* Spacing: 8px above divider (mt-2) + 8px below divider (pt-2) = 16px total */}
-                    <div className="mt-2 border-t border-[var(--color-secondary-w70)] px-2 pt-2">
-                        <Button variant="ghost" className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
+                    <div className="mt-2 border-t border-[var(--color-secondary-w70)] pt-2">
+                        <Button variant="ghost" className="h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]">
                             <div className="mr-2 flex size-8 items-center justify-center rounded">
                                 <Bell className="size-6 text-[var(--color-secondary-text-w50)]" />
                             </div>
                             <span className="text-[var(--color-secondary-text-w50)]">Notifications</span>
                         </Button>
-                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
+                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]">
                             <div className="mr-2 flex size-8 items-center justify-center rounded">
                                 <User className="size-6 text-[var(--color-secondary-text-w50)]" />
                             </div>
                             <span className="text-[var(--color-secondary-text-w50)]">User Account</span>
                         </Button>
                         {logoutEnabled && (
-                            <Button variant="ghost" onClick={() => logout()} className="h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]">
+                            <Button variant="ghost" onClick={() => logout()} className="h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]">
                                 <div className="mr-2 flex size-8 items-center justify-center rounded">
                                     <LogOut className="size-6 text-[var(--color-secondary-text-w50)]" />
                                 </div>

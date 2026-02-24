@@ -118,7 +118,7 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
                 <button
                     key={session.id}
                     onClick={() => handleSessionClick(session.id)}
-                    className={cn("flex h-10 w-full items-center gap-2 rounded px-2 text-left transition-colors hover:bg-[var(--color-background-w100)]", session.id === sessionId && "bg-[var(--color-background-w200)]")}
+                    className={cn("flex h-10 w-full items-center gap-2 rounded pr-4 pl-6 text-left transition-colors hover:bg-[var(--color-background-w100)]", session.id === sessionId && "bg-[var(--color-background-w100)]")}
                 >
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
