@@ -145,6 +145,8 @@ class SSEEventBufferRepository:
         """
         Buffer multiple SSE events in a single batch insert.
 
+        For PostgreSQL: Uses SELECT FOR UPDATE to prevent race conditions.
+        For SQLite: Relies on database-level locking (SQLite serializes writes).
         
         Args:
             db: Database session
@@ -157,12 +159,17 @@ class SSEEventBufferRepository:
         if not events:
             return 0
         
-        # Get the current max sequence number for this task with row-level lock
-        # This prevents race conditions if multiple flushes happen concurrently
-        # Note: We lock on the task row to serialize sequence number assignment
-        task = db.query(TaskModel).filter(TaskModel.id == task_id).with_for_update().first()
+        # Check if database supports row-level locking (PostgreSQL does, SQLite doesn't)
+        dialect_name = db.bind.dialect.name if db.bind else "unknown"
+        supports_row_locking = dialect_name in ("postgresql", "mysql", "oracle")
         
-        # Get max sequence (this is now safe since we hold the task lock)
+        # Get task with optional row lock for databases that support it
+        task_query = db.query(TaskModel).filter(TaskModel.id == task_id)
+        if supports_row_locking:
+            task_query = task_query.with_for_update()
+        task = task_query.first()
+        
+        # Get max sequence (safe due to row lock on PostgreSQL, or DB-level lock on SQLite)
         max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
             .filter(SSEEventBufferModel.task_id == task_id)\
             .scalar() or 0
