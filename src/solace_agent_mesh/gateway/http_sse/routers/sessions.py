@@ -365,6 +365,12 @@ async def save_task(
                 task_metadata=request.task_metadata,  # Already a string
             )
             
+            # Guard against None return from save_task
+            if saved_task is None:
+                raise ValueError(
+                    f"save_task returned None for task_id={request.task_id}"
+                )
+            
             # Commit the transaction immediately after DB operations
             db.commit()
             
@@ -374,29 +380,23 @@ async def save_task(
                 "updated" if is_update else "created",
                 session_id,
             )
-        except Exception as db_error:
+        except Exception:
             db.rollback()
-            raise db_error
+            raise
         finally:
             db.close()
 
-        # ============================================================
-        # PHASE 3: Post-commit cleanup (non-critical, no DB needed)
-        # ============================================================
-        
         # Clear SSE event buffer for this task (implicit cleanup)
         # This is done AFTER the DB transaction is committed
         try:
-            from ..dependencies import get_sac_component
-            cleanup_component = get_sac_component()
             log.debug(
                 "[BufferCleanup] Task %s: Starting cleanup. component=%s, sse_manager=%s",
                 request.task_id,
-                cleanup_component is not None,
-                cleanup_component.sse_manager is not None if cleanup_component else False,
+                component is not None,
+                component.sse_manager is not None if component else False,
             )
-            if cleanup_component and cleanup_component.sse_manager:
-                persistent_buffer = cleanup_component.sse_manager.get_persistent_buffer()
+            if component and component.sse_manager:
+                persistent_buffer = component.sse_manager.get_persistent_buffer()
                 log.debug(
                     "[BufferCleanup] Task %s: persistent_buffer=%s, is_enabled=%s",
                     request.task_id,
