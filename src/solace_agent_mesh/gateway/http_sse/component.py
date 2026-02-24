@@ -769,20 +769,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     payload_dict = msg_data.get("payload")
 
                     log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
-
-                    is_working_state = payload_dict.get("result", {}).get("status", {}).get('state') == "working"
-                    parts = payload_dict.get("result", {}).get("status", {}).get("message", {}).get("parts", [])
-                    is_in_progress_data = bool(parts) and all(
-                        part.get("data", {}).get("status") == "in-progress" for part in parts
-                    )
-                    is_text_update = bool(parts) and all(part.get("kind") == "text" for part in parts)
-
-                    # Ignoring discovery messages and in-progress updates for files and LLM stream to reduce noise in visualization streams
-                    if ("/a2a/v1/discovery/" in topic) or (
-                        is_working_state and (is_in_progress_data or is_text_update)
-                    ):
-                        continue
-
                     event_details_for_owner = self._infer_visualization_event_details(
                         topic, payload_dict
                     )
