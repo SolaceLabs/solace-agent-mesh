@@ -185,7 +185,7 @@ async def _check_project_has_bm25_index(
         return len(versions) > 0
     except Exception as e:
         log.exception(
-            "%sFailed to check BM25 index existence for project %s: %s. "
+            "%sFailed to check BM25 index existence for project %s. "
             "Returning True (tool will handle the error).",
             log_prefix,
             project.id,
