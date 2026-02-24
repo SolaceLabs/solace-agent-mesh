@@ -85,12 +85,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
         return decodedContent;
     }, [documentData?.content, renderType, citations]);
 
-    const handleViewFile = () => {
-        if (fileUrl) {
-            window.open(fileUrl, "_blank", "noopener,noreferrer");
-        }
-    };
-
     const error = fetchError || renderError;
 
     return (
@@ -105,11 +99,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                 <DialogDescription className="text-muted-foreground flex items-center gap-1.5 text-sm">{pageLabel}</DialogDescription>
                             </div>
                         </div>
-                        {fileUrl && (
-                            <Button variant="outline" size="sm" onClick={handleViewFile}>
-                                View File
-                            </Button>
-                        )}
                     </div>
                 </DialogHeader>
 
