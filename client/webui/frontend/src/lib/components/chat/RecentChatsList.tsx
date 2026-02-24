@@ -1,13 +1,44 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { cva } from "class-variance-authority";
 import { MessageCircle, Loader2 } from "lucide-react";
 
 import { useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks";
-import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
+
+// ============================================================================
+// CVA Style Definitions
+// ============================================================================
+
+/** Session button styles */
+const sessionButtonStyles = cva(["flex", "h-10", "w-full", "items-center", "gap-2", "rounded", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-[var(--color-background-w100)]"], {
+    variants: {
+        active: {
+            true: "bg-[var(--color-background-w100)]",
+            false: "",
+        },
+    },
+    defaultVariants: { active: false },
+});
+
+/** Session name text styles */
+const sessionTextStyles = cva(["truncate", "text-sm", "transition-opacity", "duration-300"], {
+    variants: {
+        active: {
+            true: "text-[var(--color-primary-text-w10)]",
+            false: "text-[var(--color-secondary-text-w50)]",
+        },
+        animation: {
+            pulseGenerate: "animate-pulse-slow",
+            pulseWait: "animate-pulse opacity-50",
+            none: "opacity-100",
+        },
+    },
+    defaultVariants: { active: false, animation: "none" },
+});
 
 interface SessionNameProps {
     session: Session;
@@ -40,20 +71,17 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
         return isThisSessionResponding && isNewChat;
     }, [session.name, session.id, respondingSessionId, isGenerating, autoTitleGenerationEnabled]);
 
-    const animationClass = useMemo(() => {
+    const animationVariant = useMemo((): "pulseGenerate" | "pulseWait" | "none" => {
         if (isGenerating || isAnimating) {
-            if (isWaitingForTitle) {
-                return "animate-pulse-slow";
-            }
-            return "animate-pulse opacity-50";
+            return isWaitingForTitle ? "pulseGenerate" : "pulseWait";
         }
         if (isWaitingForTitle) {
-            return "animate-pulse-slow";
+            return "pulseGenerate";
         }
-        return "opacity-100";
+        return "none";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
-    return <span className={cn("truncate text-sm transition-opacity duration-300", animationClass, isActive ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{animatedName}</span>;
+    return <span className={sessionTextStyles({ active: isActive, animation: animationVariant })}>{animatedName}</span>;
 };
 
 interface RecentChatsListProps {
@@ -115,11 +143,7 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
     return (
         <div className="flex flex-col">
             {sessions.slice(0, maxItems).map(session => (
-                <button
-                    key={session.id}
-                    onClick={() => handleSessionClick(session.id)}
-                    className={cn("flex h-10 w-full items-center gap-2 rounded pr-4 pl-6 text-left transition-colors hover:bg-[var(--color-background-w100)]", session.id === sessionId && "bg-[var(--color-background-w100)]")}
-                >
+                <button key={session.id} onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                             <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} />

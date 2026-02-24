@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-
+import { cva } from "class-variance-authority";
 import { Plus, Bot, FolderOpen, BookOpenText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Bell, User, LayoutGrid, Settings, LogOut } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -14,6 +14,79 @@ import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Session } from "@/lib/types";
+
+// ============================================================================
+// CVA Style Definitions
+// ============================================================================
+
+/** Navigation button styles - full width buttons in expanded sidebar */
+const navButtonStyles = cva(["h-10", "w-full", "justify-start", "pr-4", "text-sm", "font-normal", "enabled:hover:bg-[var(--color-background-w100)]"], {
+    variants: {
+        indent: {
+            true: "pl-4",
+            false: "pl-6",
+        },
+        active: {
+            true: "bg-[var(--color-background-w100)]",
+            false: "",
+        },
+    },
+    compoundVariants: [
+        {
+            indent: true,
+            active: true,
+            className: "bg-[var(--color-background-w100)]",
+        },
+    ],
+    defaultVariants: { indent: false, active: false },
+});
+
+/** Icon wrapper container styles */
+const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify-center", "rounded"], {
+    variants: {
+        active: {
+            true: "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]",
+            false: "",
+        },
+        withMargin: {
+            true: "mr-2",
+            false: "",
+        },
+    },
+    defaultVariants: { active: false, withMargin: false },
+});
+
+/** Icon element styles */
+const iconStyles = cva(["size-6"], {
+    variants: {
+        active: {
+            true: "text-[var(--color-brand-w60)]",
+            false: "text-[var(--color-secondary-text-w50)]",
+        },
+        muted: {
+            true: "text-[var(--color-primary-text-w10)]",
+            false: "",
+        },
+    },
+    defaultVariants: { active: false, muted: false },
+});
+
+/** Navigation text styles */
+const navTextStyles = cva([], {
+    variants: {
+        active: {
+            true: "font-bold text-white",
+            false: "text-[var(--color-secondary-text-w50)]",
+        },
+    },
+    defaultVariants: { active: false },
+});
+
+/** Collapsed mode icon button styles */
+const collapsedButtonStyles = cva(["h-10", "w-10", "p-0", "enabled:hover:bg-[var(--color-background-w100)]"]);
+
+/** Bottom section button styles (notifications, user, logout) */
+const bottomButtonStyles = cva(["h-10", "w-10", "p-2", "text-[var(--color-primary-text-w10)]", "enabled:hover:bg-[var(--color-background-w100)]"]);
 
 interface NavItem {
     id: string;
@@ -37,22 +110,19 @@ const NavItemButton: React.FC<{
     indent?: boolean;
     hasActiveChild?: boolean;
 }> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild }) => {
+    const isHighlighted = isActive || hasActiveChild;
     const buttonContent = (
-        <Button
-            variant="ghost"
-            onClick={item.hasSubmenu ? onToggleExpand : onClick}
-            className={cn("h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w100)]", className)}
-        >
+        <Button variant="ghost" onClick={item.hasSubmenu ? onToggleExpand : onClick} className={cn(navButtonStyles({ indent: !!indent, active: !!indent && isActive }), className)}>
             {indent ? (
                 // Subitem - no icon wrapper, just text
-                <span className={cn(isActive ? "font-bold text-white" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                <span className={navTextStyles({ active: isActive })}>{item.label}</span>
             ) : (
                 // Main item - with icon wrapper
                 <>
-                    <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
-                        <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
+                    <div className={iconWrapperStyles({ active: isHighlighted, withMargin: true })}>
+                        <item.icon className={iconStyles({ active: isHighlighted })} />
                     </div>
-                    <span className={cn(isActive || hasActiveChild ? "font-bold text-white" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                    <span className={navTextStyles({ active: isHighlighted })}>{item.label}</span>
                 </>
             )}
             {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
@@ -326,17 +396,17 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     {/* Icon Stack */}
                     <div className="flex flex-col items-center gap-2 py-3">
                         {/* New Chat */}
-                        <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]" tooltip="New Chat">
-                            <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
-                                <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
+                        <Button variant="ghost" onClick={handleNewChatClick} className={collapsedButtonStyles()} tooltip="New Chat">
+                            <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
+                                <Plus className={iconStyles({ active: activeItem === "chats" })} />
                             </div>
                         </Button>
 
                         {/* Navigation Icons */}
                         {projectsEnabled && (
-                            <Button variant="ghost" onClick={() => handleItemClick("projects", { id: "projects", label: "Projects", icon: FolderOpen })} className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]" tooltip="Projects">
-                                <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "projects" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
-                                    <FolderOpen className={cn("size-6", activeItem === "projects" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
+                            <Button variant="ghost" onClick={() => handleItemClick("projects", { id: "projects", label: "Projects", icon: FolderOpen })} className={collapsedButtonStyles()} tooltip="Projects">
+                                <div className={iconWrapperStyles({ active: activeItem === "projects" })}>
+                                    <FolderOpen className={iconStyles({ active: activeItem === "projects" })} />
                                 </div>
                             </Button>
                         )}
@@ -348,21 +418,16 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                 setExpandedMenus(prev => ({ ...prev, assets: true }));
                                 setIsCollapsed(false);
                             }}
-                            className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]"
+                            className={collapsedButtonStyles()}
                             tooltip="Assets"
                         >
-                            <div
-                                className={cn(
-                                    "flex size-8 items-center justify-center rounded",
-                                    (activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts") && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]"
-                                )}
-                            >
-                                <BookOpenText className={cn("size-6", activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
+                            <div className={iconWrapperStyles({ active: activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts" })}>
+                                <BookOpenText className={iconStyles({ active: activeItem === "assets" || activeItem === "artifacts" || activeItem === "prompts" })} />
                             </div>
                         </Button>
-                        <Button variant="ghost" onClick={() => handleItemClick("agents", { id: "agents", label: "Agents", icon: Bot })} className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]" tooltip="Agents">
-                            <div className={cn("flex size-8 items-center justify-center rounded", activeItem === "agents" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
-                                <Bot className={cn("size-6", activeItem === "agents" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
+                        <Button variant="ghost" onClick={() => handleItemClick("agents", { id: "agents", label: "Agents", icon: Bot })} className={collapsedButtonStyles()} tooltip="Agents">
+                            <div className={iconWrapperStyles({ active: activeItem === "agents" })}>
+                                <Bot className={iconStyles({ active: activeItem === "agents" })} />
                             </div>
                         </Button>
                         {additionalSystemManagementItems && additionalSystemManagementItems.length > 0 && (
@@ -374,18 +439,11 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                     setExpandedMenus(prev => ({ ...prev, systemManagement: true }));
                                     setIsCollapsed(false);
                                 }}
-                                className="h-10 w-10 p-0 enabled:hover:bg-[var(--color-background-w100)]"
+                                className={collapsedButtonStyles()}
                                 tooltip="System Management"
                             >
-                                <div
-                                    className={cn(
-                                        "flex size-8 items-center justify-center rounded",
-                                        (activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities") && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]"
-                                    )}
-                                >
-                                    <LayoutGrid
-                                        className={cn("size-6", activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")}
-                                    />
+                                <div className={iconWrapperStyles({ active: activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" })}>
+                                    <LayoutGrid className={iconStyles({ active: activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" })} />
                                 </div>
                             </Button>
                         )}
@@ -393,14 +451,14 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
 
                     {/* Bottom items */}
                     <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] p-2">
-                        <Button variant="ghost" className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Notifications">
+                        <Button variant="ghost" className={bottomButtonStyles()} tooltip="Notifications">
                             <Bell className="size-6" />
                         </Button>
-                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Settings">
+                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className={bottomButtonStyles()} tooltip="Settings">
                             <User className="size-6" />
                         </Button>
                         {logoutEnabled && (
-                            <Button variant="ghost" onClick={() => logout()} className="h-10 w-10 p-2 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Log Out">
+                            <Button variant="ghost" onClick={() => logout()} className={bottomButtonStyles()} tooltip="Log Out">
                                 <LogOut className="size-6" />
                             </Button>
                         )}
@@ -422,11 +480,11 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     {/* Scrollable Navigation Section */}
                     <div className="flex-1 overflow-y-auto py-3">
                         {/* New Chat Button */}
-                        <Button variant="ghost" onClick={handleNewChatClick} className="h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]">
-                            <div className={cn("mr-2 flex size-8 items-center justify-center rounded", activeItem === "chats" && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w100)]")}>
-                                <Plus className={cn("size-6", activeItem === "chats" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-text-w50)]")} />
+                        <Button variant="ghost" onClick={handleNewChatClick} className={navButtonStyles()}>
+                            <div className={iconWrapperStyles({ active: activeItem === "chats", withMargin: true })}>
+                                <Plus className={iconStyles({ active: activeItem === "chats" })} />
                             </div>
-                            <span className={cn(activeItem === "chats" ? "font-bold text-white" : "text-[var(--color-secondary-text-w50)]")}>New Chat</span>
+                            <span className={navTextStyles({ active: activeItem === "chats" })}>New Chat</span>
                         </Button>
 
                         {/* Navigation Items */}
@@ -484,24 +542,24 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     {/* Bottom Section - Notifications and User Account */}
                     {/* Spacing: 8px above divider (mt-2) + 8px below divider (pt-2) = 16px total */}
                     <div className="mt-2 border-t border-[var(--color-secondary-w70)] pt-2">
-                        <Button variant="ghost" className="h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]">
-                            <div className="mr-2 flex size-8 items-center justify-center rounded">
-                                <Bell className="size-6 text-[var(--color-secondary-text-w50)]" />
+                        <Button variant="ghost" className={navButtonStyles()}>
+                            <div className={iconWrapperStyles({ withMargin: true })}>
+                                <Bell className={iconStyles()} />
                             </div>
-                            <span className="text-[var(--color-secondary-text-w50)]">Notifications</span>
+                            <span className={navTextStyles()}>Notifications</span>
                         </Button>
-                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className="h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]">
-                            <div className="mr-2 flex size-8 items-center justify-center rounded">
-                                <User className="size-6 text-[var(--color-secondary-text-w50)]" />
+                        <Button variant="ghost" onClick={() => setIsSettingsDialogOpen(true)} className={navButtonStyles()}>
+                            <div className={iconWrapperStyles({ withMargin: true })}>
+                                <User className={iconStyles()} />
                             </div>
-                            <span className="text-[var(--color-secondary-text-w50)]">User Account</span>
+                            <span className={navTextStyles()}>User Account</span>
                         </Button>
                         {logoutEnabled && (
-                            <Button variant="ghost" onClick={() => logout()} className="h-10 w-full justify-start pr-4 pl-6 text-sm font-normal enabled:hover:bg-[var(--color-background-w100)]">
-                                <div className="mr-2 flex size-8 items-center justify-center rounded">
-                                    <LogOut className="size-6 text-[var(--color-secondary-text-w50)]" />
+                            <Button variant="ghost" onClick={() => logout()} className={navButtonStyles()}>
+                                <div className={iconWrapperStyles({ withMargin: true })}>
+                                    <LogOut className={iconStyles()} />
                                 </div>
-                                <span className="text-[var(--color-secondary-text-w50)]">Log Out</span>
+                                <span className={navTextStyles()}>Log Out</span>
                             </Button>
                         )}
                     </div>
