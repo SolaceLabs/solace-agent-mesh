@@ -721,17 +721,42 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         """
         if timer_id is None:
             timer_id = f"adapter-timer-{len(self.timer_manager.timers)}"
-        super().add_timer(delay_ms, timer_id, interval_ms or 0, {"callback": callback})
+
+        # Create a wrapper callback that handles async callbacks properly
+        # The wrapper receives timer_data from SamComponentBase.process_event()
+        if callback:
+            original_callback = callback
+
+            def timer_callback_wrapper(timer_data: Dict[str, Any]):
+                """Wrapper that handles both sync and async callbacks."""
+                import inspect
+
+                if inspect.iscoroutinefunction(original_callback):
+                    # Async callback - schedule on event loop
+                    asyncio.run_coroutine_threadsafe(
+                        original_callback(), self.get_async_loop()
+                    )
+                else:
+                    # Sync callback - call directly
+                    original_callback()
+
+            super().add_timer(delay_ms, timer_id, interval_ms or 0, timer_callback_wrapper)
+        else:
+            super().add_timer(delay_ms, timer_id, interval_ms or 0, None)
+
         return timer_id
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
-        """Handles timer events and calls the adapter's callback."""
-        callback = timer_data.get("payload", {}).get("callback")
-        if callable(callback):
-            # Run async callback in the component's event loop
-            asyncio.run_coroutine_threadsafe(callback(), self.get_async_loop())
-        else:
-            log.warning("Timer fired but no valid callback found in payload.")
+        """Handles timer events - kept for backward compatibility.
+
+        Note: Timer callbacks are now handled via the callback wrapper in add_timer().
+        This method is kept for any legacy code that might override it.
+        """
+        log.debug(
+            "%s handle_timer_event called with timer_data: %s",
+            self.log_identifier,
+            timer_data,
+        )
 
     def get_task_state(self, task_id: str, key: str, default: Any = None) -> Any:
         cache_key = f"task_state:{task_id}:{key}"
