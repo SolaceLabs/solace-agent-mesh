@@ -46,6 +46,17 @@ def _atexit_shutdown_all_buffers():
 atexit.register(_atexit_shutdown_all_buffers)
 
 
+# Critical event types that should never be dropped (use blocking put instead)
+# These events are essential for task lifecycle - losing them causes UI to show
+# tasks as "running" forever.
+CRITICAL_EVENT_TYPES = frozenset({
+    "final_response",
+})
+
+# Timeout for blocking put on critical events (seconds)
+CRITICAL_EVENT_QUEUE_TIMEOUT = 2.0
+
+
 class PersistentSSEEventBuffer:
     """
     Database-backed buffer for SSE events.
@@ -58,6 +69,11 @@ class PersistentSSEEventBuffer:
     When enabled, events are buffered in RAM first and batched to DB to reduce
     database write pressure. This is off by default for safety but can be
     enabled via config for performance optimization.
+    
+    Events with types in CRITICAL_EVENT_TYPES (e.g., "final_response")
+    use blocking put with timeout to guarantee delivery. If queue is still full after
+    timeout, they fall back to synchronous write to prevent task lifecycle events
+    from being lost.
     """
 
     # Default max queue size for async writes (prevents unbounded memory growth)
@@ -526,6 +542,7 @@ class PersistentSSEEventBuffer:
         event_data: Dict[str, Any],
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
+        is_critical: Optional[bool] = None,
     ) -> bool:
         """
         Buffer an SSE event.
@@ -539,6 +556,8 @@ class PersistentSSEEventBuffer:
             event_data: The event data payload (already serialized)
             session_id: The session ID (optional, will use cached if not provided)
             user_id: The user ID (optional, will use cached if not provided)
+            is_critical: Override critical detection. If None, auto-detects based
+                        on event_type. Set True to force critical handling.
             
         Returns:
             True if the event was buffered, False otherwise
@@ -561,12 +580,16 @@ class PersistentSSEEventBuffer:
             )
             return False
         
+        # Auto-detect critical events if not explicitly specified
+        if is_critical is None:
+            is_critical = event_type in CRITICAL_EVENT_TYPES
+        
         # HYBRID MODE: Buffer to RAM first, flush to DB on threshold
         if self.is_hybrid_mode_enabled():
-            return self._buffer_event_hybrid(task_id, event_type, event_data, session_id, user_id)
+            return self._buffer_event_hybrid(task_id, event_type, event_data, session_id, user_id, is_critical)
         
         # NORMAL MODE: Write directly to database
-        return self._buffer_event_to_db(task_id, event_type, event_data, session_id, user_id)
+        return self._buffer_event_to_db(task_id, event_type, event_data, session_id, user_id, is_critical)
     
     def _buffer_event_hybrid(
         self,
@@ -575,6 +598,7 @@ class PersistentSSEEventBuffer:
         event_data: Dict[str, Any],
         session_id: str,
         user_id: str,
+        is_critical: bool = False,
     ) -> bool:
         """
         Buffer event to RAM, flush to DB when threshold reached.
@@ -585,6 +609,7 @@ class PersistentSSEEventBuffer:
             event_data: The event payload
             session_id: The session ID
             user_id: The user ID
+            is_critical: Whether this is a critical event (affects flush behavior)
             
         Returns:
             True if buffered successfully
@@ -637,13 +662,17 @@ class PersistentSSEEventBuffer:
         event_data: Dict[str, Any],
         session_id: str,
         user_id: str,
+        is_critical: bool = False,
     ) -> bool:
         """
         Buffer event to database asynchronously via the write queue.
         
         This method enqueues the write request and returns immediately,
         preventing the calling thread from blocking on slow database writes.
-        If the queue is full, the event is dropped with a warning.
+        
+        For normal events: If the queue is full, the event is dropped with a warning.
+        For critical events (is_critical=True): Uses blocking put with timeout,
+        and falls back to synchronous write if still full, to guarantee delivery.
         
         Args:
             task_id: The task ID
@@ -651,9 +680,10 @@ class PersistentSSEEventBuffer:
             event_data: The event payload
             session_id: The session ID
             user_id: The user ID
+            is_critical: Whether this is a critical event that must not be dropped
             
         Returns:
-            True if the event was enqueued, False if dropped
+            True if the event was enqueued/written, False if dropped
         """
         # Create timestamp for the event (current time in ms)
         created_time = int(time.time() * 1000)
@@ -661,8 +691,14 @@ class PersistentSSEEventBuffer:
         # Create the write request tuple (6-tuple with timestamp)
         write_request = (task_id, event_type, event_data, session_id, user_id, created_time)
         
+        if is_critical:
+            # CRITICAL EVENT: Never drop. Use blocking put, then sync fallback.
+            return self._enqueue_critical_event(
+                write_request, task_id, event_type, event_data, session_id, user_id, created_time
+            )
+        
+        # NORMAL EVENT: Non-blocking put, drop if queue full
         try:
-            # Try to enqueue without blocking
             self._async_write_queue.put_nowait(write_request)
             
             log.debug(
@@ -681,15 +717,93 @@ class PersistentSSEEventBuffer:
                 dropped_count = self._dropped_events_count
             
             log.warning(
-                "%s Async write queue is full (%d/%d). Event dropped for task %s. "
+                "%s Async write queue is full (%d/%d). Event dropped for task %s (type=%s). "
                 "Total dropped: %d. Consider increasing async_write_queue_size.",
                 self.log_identifier,
                 self._async_write_queue.qsize(),
                 self._async_write_queue_size,
                 task_id,
+                event_type,
                 dropped_count,
             )
             return False
+    
+    def _enqueue_critical_event(
+        self,
+        write_request: Tuple,
+        task_id: str,
+        event_type: str,
+        event_data: Dict[str, Any],
+        session_id: str,
+        user_id: str,
+        created_time: int,
+    ) -> bool:
+        """
+        Enqueue a critical event with fallback to synchronous write.
+         
+        Strategy:
+        1. Try blocking put with timeout (CRITICAL_EVENT_QUEUE_TIMEOUT seconds)
+        2. If that fails, write synchronously (blocks caller but guarantees delivery)
+        
+        Args:
+            write_request: The pre-built write request tuple
+            task_id: The task ID
+            event_type: The event type
+            event_data: The event payload
+            session_id: The session ID
+            user_id: The user ID
+            created_time: Event timestamp in ms
+            
+        Returns:
+            True if event was written (should always succeed)
+        """
+        try:
+            # First attempt: blocking put with timeout
+            self._async_write_queue.put(write_request, timeout=CRITICAL_EVENT_QUEUE_TIMEOUT)
+            
+            log.info(
+                "%s [Critical] Enqueued critical event: task=%s, type=%s, queue_size=%d",
+                self.log_identifier,
+                task_id,
+                event_type,
+                self._async_write_queue.qsize(),
+            )
+            return True
+            
+        except queue.Full:
+            # Queue still full after timeout - fall back to synchronous write
+            log.warning(
+                "%s [Critical] Queue still full after %.1fs timeout for critical event "
+                "(task=%s, type=%s). Falling back to synchronous write.",
+                self.log_identifier,
+                CRITICAL_EVENT_QUEUE_TIMEOUT,
+                task_id,
+                event_type,
+            )
+            
+            # Synchronous fallback - this blocks but guarantees delivery
+            success = self._write_event_to_db_sync(
+                task_id, event_type, event_data, session_id, user_id, created_time
+            )
+            
+            if success:
+                log.info(
+                    "%s [Critical] Successfully wrote critical event synchronously: task=%s, type=%s",
+                    self.log_identifier,
+                    task_id,
+                    event_type,
+                )
+            else:
+                # This is very bad - critical event couldn't be written at all
+                log.error(
+                    "%s [Critical] FAILED to write critical event! Task %s may appear stuck. "
+                    "Event type=%s",
+                    self.log_identifier,
+                    task_id,
+                    event_type,
+                )
+            
+            return success
     
     def flush_task_buffer(self, task_id: str) -> int:
         """
