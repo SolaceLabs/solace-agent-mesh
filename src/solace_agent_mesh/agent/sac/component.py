@@ -1246,9 +1246,9 @@ class SamAgentComponent(SamComponentBase):
                     "%s Removed index_search declaration (no project or index available).",
                     self.log_identifier,
                 )
-            # Clear stale instructions from a previous project context so the
-            # LLM doesn't receive index_search citation/usage prompts
-            callback_context.state.pop("project_tool_instructions", None)
+            # Set stale instructions to None for any previous project context so the
+            # LLM doesn't receive index_search related prompts.
+            callback_context.state["project_tool_instructions"] = None
             return None
 
         # Project is present — ensure the declaration exists

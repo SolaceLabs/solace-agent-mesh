@@ -227,7 +227,7 @@ class TestSyncToolsCallback:
                 fd.name == "index_search" for fd in (tool_obj.function_declarations or [])
             )
         # Stale instructions should be cleared so LLM doesn't get citation prompts
-        assert "project_tool_instructions" not in ctx.state
+        assert ctx.state.get("project_tool_instructions") is None
 
     def test_removes_static_index_search_when_no_metadata(self):
         """index_search declaration removed when original_message_metadata is absent (structured A2A)."""

@@ -7,7 +7,7 @@ rather than mocking the artifact service interface.
 """
 
 import pytest
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 from google.genai import types as adk_types
 
 from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
@@ -106,7 +106,7 @@ async def test_returns_true_on_artifact_service_error(
 ):
     """Artifact service raises an exception — should return True (permissive fallback)."""
     broken_service = Mock()
-    broken_service.list_versions = Mock(side_effect=RuntimeError("S3 unavailable"))
+    broken_service.list_versions = AsyncMock(side_effect=RuntimeError("S3 unavailable"))
 
     comp = Mock()
     comp.get_shared_artifact_service.return_value = broken_service
