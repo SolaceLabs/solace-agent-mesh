@@ -734,11 +734,11 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 if inspect.iscoroutinefunction(original_callback):
                     # Async callback - schedule on event loop
                     asyncio.run_coroutine_threadsafe(
-                        original_callback(), self.get_async_loop()
+                        original_callback(timer_data), self.get_async_loop()
                     )
                 else:
                     # Sync callback - call directly
-                    original_callback()
+                    original_callback(timer_data)
 
             super().add_timer(delay_ms, timer_id, interval_ms or 0, timer_callback_wrapper)
         else:

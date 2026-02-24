@@ -93,10 +93,12 @@ class TestAddTimerCallback:
         This was the bug: callback was being passed as {"callback": fn} instead of fn.
         """
         callback_called = False
+        received_timer_data = None
         
-        def my_callback():
-            nonlocal callback_called
+        def my_callback(timer_data):
+            nonlocal callback_called, received_timer_data
             callback_called = True
+            received_timer_data = timer_data
         
         # Call add_timer with Trust Manager pattern
         mock_component.add_timer(
@@ -114,12 +116,17 @@ class TestAddTimerCallback:
             f"Registered callback should be callable, got {type(registered_callback)}"
         
         # Verify calling it doesn't raise "'dict' object is not callable"
+        test_timer_data = {"timer_id": "test_timer"}
         try:
-            registered_callback({})  # Pass timer_data as SamComponentBase.process_event does
+            registered_callback(test_timer_data)  # Pass timer_data as SamComponentBase.process_event does
         except TypeError as e:
             if "'dict' object is not callable" in str(e):
                 pytest.fail("Callback was registered as dict instead of callable function")
             raise
+        
+        # Verify callback was called with timer_data
+        assert callback_called, "Callback should have been called"
+        assert received_timer_data == test_timer_data, "Callback should receive timer_data"
 
 
 class TestAddTimerAsyncCallback:
@@ -137,6 +144,76 @@ class TestAddTimerAsyncCallback:
         
         assert inspect.iscoroutinefunction(async_callback), "async_callback should be detected as coroutine"
         assert not inspect.iscoroutinefunction(sync_callback), "sync_callback should not be detected as coroutine"
+
+
+class TestTimerDataPassing:
+    """Test that timer_data is properly passed to callbacks.
+    """
+
+    @pytest.fixture
+    def mock_component_with_parent(self):
+        """Create a mock GenericGatewayComponent with parent's add_timer capturing the wrapper."""
+        with patch('solace_agent_mesh.gateway.generic.component.GenericGatewayComponent.__init__', return_value=None):
+            from solace_agent_mesh.gateway.generic.component import GenericGatewayComponent
+            component = GenericGatewayComponent.__new__(GenericGatewayComponent)
+            
+            # Set up required attributes
+            component.timer_manager = MagicMock()
+            component.timer_manager.timers = []
+            component.log_identifier = "[test]"
+            
+            # Capture the wrapper callback that's passed to super().add_timer()
+            captured_wrappers = {}
+            
+            def mock_parent_add_timer(self, delay_ms, timer_id, interval_ms, callback):
+                captured_wrappers[timer_id] = callback
+            
+            # Patch the parent class's add_timer method
+            with patch.object(component.__class__.__bases__[0], 'add_timer', mock_parent_add_timer):
+                yield component, captured_wrappers
+
+    def test_sync_callback_receives_timer_data(self, mock_component_with_parent):
+        """Test that sync callbacks receive timer_data argument.
+        
+        This test would have caught the bug where original_callback() was called
+        without timer_data, causing TypeError for callbacks expecting timer_data.
+        """
+        component, captured_wrappers = mock_component_with_parent
+        received_data = []
+        
+        def callback_expecting_timer_data(timer_data):
+            received_data.append(timer_data)
+        
+        # Register timer with callback that expects timer_data
+        component.add_timer(
+            delay_ms=1000,
+            timer_id="test_timer",
+            interval_ms=1000,
+            callback=callback_expecting_timer_data
+        )
+        
+        # Get the wrapper that was registered
+        wrapper = captured_wrappers.get("test_timer")
+        assert wrapper is not None, "Wrapper should be registered"
+        
+        # Simulate what SamComponentBase.process_event() does - call with timer_data
+        test_timer_data = {"timer_id": "test_timer", "some_key": "some_value"}
+        
+        # This should NOT raise TypeError about missing positional argument
+        try:
+            wrapper(test_timer_data)
+        except TypeError as e:
+            if "missing 1 required positional argument" in str(e):
+                pytest.fail(
+                    f"Callback did not receive timer_data! Error: {e}\n"
+                    "This is the bug: timer_callback_wrapper calls original_callback() "
+                    "without passing timer_data."
+                )
+            raise
+        
+        # Verify the callback received the timer_data
+        assert len(received_data) == 1, "Callback should have been called once"
+        assert received_data[0] == test_timer_data, "Callback should receive timer_data"
 
 
 if __name__ == "__main__":
