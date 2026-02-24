@@ -429,6 +429,21 @@ wheels = [
 ]
 
 [[package]]
+name = "azure-storage-blob"
+version = "12.28.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "azure-core" },
+    { name = "cryptography" },
+    { name = "isodate" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/71/24/072ba8e27b0e2d8fec401e9969b429d4f5fc4c8d4f0f05f4661e11f7234a/azure_storage_blob-12.28.0.tar.gz", hash = "sha256:e7d98ea108258d29aa0efbfd591b2e2075fa1722a2fae8699f0b3c9de11eff41", size = 604225, upload-time = "2026-01-06T23:48:57.282Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d8/3a/6ef2047a072e54e1142718d433d50e9514c999a58f51abfff7902f3a72f8/azure_storage_blob-12.28.0-py3-none-any.whl", hash = "sha256:00fb1db28bf6a7b7ecaa48e3b1d5c83bfadacc5a678b77826081304bd87d6461", size = 431499, upload-time = "2026-01-06T23:48:58.995Z" },
+]
+
+[[package]]
 name = "babel"
 version = "2.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1707,7 +1722,7 @@ wheels = [
 
 [[package]]
 name = "google-cloud-storage"
-version = "3.5.0"
+version = "3.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-api-core" },
@@ -1717,9 +1732,9 @@ dependencies = [
     { name = "google-resumable-media" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/98/c0c6d10f893509585c755a6567689e914df3501ae269f46b0d67d7e7c70a/google_cloud_storage-3.5.0.tar.gz", hash = "sha256:10b89e1d1693114b3e0ca921bdd28c5418701fd092e39081bb77e5cee0851ab7", size = 17242207, upload-time = "2025-11-05T12:41:02.715Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/b1/4f0798e88285b50dfc60ed3a7de071def538b358db2da468c2e0deecbb40/google_cloud_storage-3.9.0.tar.gz", hash = "sha256:f2d8ca7db2f652be757e92573b2196e10fbc09649b5c016f8b422ad593c641cc", size = 17298544, upload-time = "2026-02-02T13:36:34.119Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/81/a567236070e7fe79a17a11b118d7f5ce4adefe2edd18caf1824d7e29a30a/google_cloud_storage-3.5.0-py3-none-any.whl", hash = "sha256:e28fd6ad8764e60dbb9a398a7bc3296e7920c494bc329057d828127e5f9630d3", size = 289998, upload-time = "2025-11-05T12:41:01.212Z" },
+    { url = "https://files.pythonhosted.org/packages/46/0b/816a6ae3c9fd096937d2e5f9670558908811d57d59ddf69dd4b83b326fd1/google_cloud_storage-3.9.0-py3-none-any.whl", hash = "sha256:2dce75a9e8b3387078cbbdad44757d410ecdb916101f8ba308abf202b6968066", size = 321324, upload-time = "2026-02-02T13:36:32.271Z" },
 ]
 
 [[package]]
@@ -4878,6 +4893,7 @@ dependencies = [
     { name = "asteval" },
     { name = "authlib" },
     { name = "azure-cognitiveservices-speech" },
+    { name = "azure-storage-blob" },
     { name = "beautifulsoup4" },
     { name = "bm25s" },
     { name = "boto3" },
@@ -4888,6 +4904,7 @@ dependencies = [
     { name = "flask-cors" },
     { name = "gitpython" },
     { name = "google-adk" },
+    { name = "google-cloud-storage" },
     { name = "google-genai" },
     { name = "holidays" },
     { name = "httpx" },
@@ -4936,9 +4953,6 @@ dependencies = [
 employee-tools = [
     { name = "holidays" },
 ]
-gcs = [
-    { name = "google-cloud-storage" },
-]
 test = [
     { name = "aiosqlite" },
     { name = "asyncpg" },
@@ -4968,6 +4982,7 @@ requires-dist = [
     { name = "asyncpg", marker = "extra == 'test'" },
     { name = "authlib", specifier = "==1.6.5" },
     { name = "azure-cognitiveservices-speech", specifier = "==1.41.1" },
+    { name = "azure-storage-blob", specifier = "==12.28.0" },
     { name = "beautifulsoup4", specifier = "==4.13.5" },
     { name = "bm25s", specifier = "==0.2.14" },
     { name = "boto3", specifier = "==1.40.37" },
@@ -4980,7 +4995,7 @@ requires-dist = [
     { name = "gitpython", specifier = "==3.1.45" },
     { name = "google-adk", specifier = "==1.18.0" },
     { name = "google-cloud-aiplatform", marker = "extra == 'vertex'", specifier = "==1.126.1" },
-    { name = "google-cloud-storage", marker = "extra == 'gcs'", specifier = "==3.5.0" },
+    { name = "google-cloud-storage", specifier = "==3.9.0" },
     { name = "google-genai", specifier = "==1.49.0" },
     { name = "holidays", specifier = "==0.81.0" },
     { name = "holidays", marker = "extra == 'employee-tools'", specifier = "==0.81.0" },
@@ -5036,7 +5051,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = "==0.37.0" },
     { name = "wheel", specifier = "==0.46.2" },
 ]
-provides-extras = ["employee-tools", "gcs", "test", "vertex"]
+provides-extras = ["employee-tools", "test", "vertex"]
 
 [[package]]
 name = "solace-ai-connector"
