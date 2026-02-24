@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Button, Tooltip, TooltipContent, TooltipTrigger, LifecycleBadge } from "@/lib/components/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useChatContext, useSessionStorage } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
@@ -83,30 +83,86 @@ const navTextStyles = cva([], {
 // Public Types - exported for external consumers
 // ============================================================================
 
-/** Single navigation item configuration */
+/**
+ * Configuration for a single navigation item.
+ *
+ * This interface is used by external repos (e.g., solace-chat) to define
+ * custom navigation structures. All properties support the presentational
+ * component pattern where business logic is injected via callbacks.
+ *
+ * @example
+ * ```tsx
+ * const myNavItem: NavItemConfig = {
+ *   id: "settings",
+ *   label: "Settings",
+ *   icon: SettingsIcon,
+ *   onClick: () => openSettingsDialog(),
+ *   badge: <LifecycleBadge>BETA</LifecycleBadge>,
+ * };
+ * ```
+ */
 export interface NavItemConfig {
+    /** Unique identifier for this item, used for active state tracking and event handling */
     id: string;
+
+    /** Display text shown next to the icon in expanded mode */
     label: string;
+
+    /** Lucide icon component or any React component that accepts className prop */
     icon: React.ElementType;
 
-    // Routing
-    route?: string; // Route to navigate to (e.g., "/agents")
-    routeMatch?: string | string[] | RegExp; // Pattern(s) to match for active state
-    onClick?: () => void; // Custom click handler (overrides routing)
+    /**
+     * Route path to navigate to when clicked (e.g., "/agents").
+     * Ignored if `onClick` is provided.
+     */
+    route?: string;
 
-    // Visual
-    badge?: string; // Badge text (e.g., "Beta") - for custom badges
-    lifecycle?: "experimental" | "beta"; // Lifecycle badge (uses LifecycleBadge component)
-    tooltip?: string; // Tooltip text
-    disabled?: boolean; // Disable the item
-    hidden?: boolean; // Hide the item
+    /**
+     * Pattern(s) to determine active state based on current URL.
+     * Supports string prefix matching, array of prefixes, or RegExp.
+     * @example "/projects" matches "/projects" and "/projects/123"
+     * @example ["/chat", "/conversations"] matches either prefix
+     * @example /^\/users\/\d+$/ matches "/users/123" but not "/users"
+     */
+    routeMatch?: string | string[] | RegExp;
 
-    // Submenu
-    children?: NavItemConfig[]; // Sub-items (creates expandable submenu)
-    defaultExpanded?: boolean; // Start with submenu expanded
+    /**
+     * Custom click handler that overrides default routing behavior.
+     * Use for items that open dialogs, trigger actions, or need custom logic.
+     */
+    onClick?: () => void;
 
-    // Position
-    position?: "top" | "bottom"; // Where to render the item (default: "top")
+    /**
+     * Optional badge component rendered after the label.
+     * Accepts any React node for full flexibility (e.g., LifecycleBadge, custom pill).
+     * @example badge: <LifecycleBadge>EXPERIMENTAL</LifecycleBadge>
+     */
+    badge?: React.ReactNode;
+
+    /** Tooltip text shown on hover (both collapsed and expanded modes) */
+    tooltip?: string;
+
+    /** When true, item is rendered but non-interactive */
+    disabled?: boolean;
+
+    /** When true, item is completely hidden from the navigation */
+    hidden?: boolean;
+
+    /**
+     * Child items that create an expandable submenu.
+     * Parent item becomes a toggle button; clicking expands/collapses children.
+     */
+    children?: NavItemConfig[];
+
+    /** When true, submenu starts in expanded state on initial render */
+    defaultExpanded?: boolean;
+
+    /**
+     * Determines whether item renders in the main nav area or bottom section.
+     * Bottom items typically include user account, settings, and logout.
+     * @default "top"
+     */
+    position?: "top" | "bottom";
 }
 
 /** Header configuration */
@@ -154,8 +210,7 @@ const NavItemButton: React.FC<{
                 </>
             )}
             {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
-            {item.lifecycle && <LifecycleBadge className="scale-90 border-[var(--color-secondary-text-w50)] text-[var(--color-secondary-text-w50)]">{item.lifecycle === "beta" ? "BETA" : "EXPERIMENTAL"}</LifecycleBadge>}
-            {item.badge && !item.lifecycle && <span className="ml-auto rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-600">{item.badge}</span>}
+            {item.badge}
         </Button>
     );
 

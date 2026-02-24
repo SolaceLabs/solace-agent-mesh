@@ -1,5 +1,7 @@
+import React from "react";
 import { Bot, FolderOpen, BookOpenText, Bell, User, LogOut } from "lucide-react";
 
+import { LifecycleBadge } from "@/lib/components/ui";
 import type { NavItemConfig } from "./CollapsibleNavigationSidebar";
 
 /**
@@ -33,7 +35,13 @@ export const SAM_NAV_ITEMS: NavItemConfig[] = [
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                lifecycle: "experimental",
+                badge: React.createElement(
+                    LifecycleBadge,
+                    {
+                        className: "scale-90 border-[var(--color-secondary-text-w50)] text-[var(--color-secondary-text-w50)]",
+                    },
+                    "EXPERIMENTAL"
+                ),
             },
         ],
         defaultExpanded: false,
