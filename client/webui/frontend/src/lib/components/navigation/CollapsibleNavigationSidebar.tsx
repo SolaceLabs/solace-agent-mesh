@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { Plus, Bot, FolderOpen, BookOpenText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Bell, User, LayoutGrid, Settings, LogOut } from "lucide-react";
 
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger, LifecycleBadge } from "@/lib/components/ui";
 import { useChatContext, useConfigContext, useAuthContext, useSessionStorage } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
@@ -104,7 +104,8 @@ export interface NavItemConfig {
     onClick?: () => void; // Custom click handler (overrides routing)
 
     // Visual
-    badge?: string; // Badge text (e.g., "Beta")
+    badge?: string; // Badge text (e.g., "Beta") - for custom badges
+    lifecycle?: "experimental" | "beta"; // Lifecycle badge (uses LifecycleBadge component)
     tooltip?: string; // Tooltip text
     disabled?: boolean; // Disable the item
     hidden?: boolean; // Hide the item
@@ -159,7 +160,8 @@ const NavItemButton: React.FC<{
                 </>
             )}
             {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
-            {item.badge && <span className="ml-auto rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-600">{item.badge}</span>}
+            {item.lifecycle && <LifecycleBadge className="scale-90 border-[var(--color-secondary-text-w50)] text-[var(--color-secondary-text-w50)]">{item.lifecycle === "beta" ? "BETA" : "EXPERIMENTAL"}</LifecycleBadge>}
+            {item.badge && !item.lifecycle && <span className="ml-auto rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-600">{item.badge}</span>}
         </Button>
     );
 
@@ -461,7 +463,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
             hasSubmenu: true,
             children: [
                 { id: "artifacts", label: "Artifacts", icon: BookOpenText },
-                { id: "prompts", label: "Prompts", icon: BookOpenText, tooltip: "Experimental Feature" },
+                { id: "prompts", label: "Prompts", icon: BookOpenText, lifecycle: "experimental" },
             ],
         });
 

@@ -33,7 +33,7 @@ export const SAM_NAV_ITEMS: NavItemConfig[] = [
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                tooltip: "Experimental Feature",
+                lifecycle: "experimental",
             },
         ],
         defaultExpanded: false,
