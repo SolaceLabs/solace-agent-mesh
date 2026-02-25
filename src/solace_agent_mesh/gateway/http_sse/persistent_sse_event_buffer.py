@@ -383,7 +383,7 @@ class PersistentSSEEventBuffer:
         if not events_to_flush:
             return 0
         
-        # Flush to database outside the lock
+        # Flush to database outside the lock using batch insert
         try:
             from .repository.sse_event_buffer_repository import SSEEventBufferRepository
             
@@ -391,27 +391,22 @@ class PersistentSSEEventBuffer:
             try:
                 repo = SSEEventBufferRepository()
                 
-                for event_type, event_data, timestamp, session_id, user_id in events_to_flush:
-                    repo.buffer_event(
-                        db=db,
-                        task_id=task_id,
-                        session_id=session_id,
-                        user_id=user_id,
-                        event_type=event_type,
-                        event_data=event_data,
-                        created_time=timestamp,
-                    )
+                count = repo.buffer_events_batch(
+                    db=db,
+                    task_id=task_id,
+                    events=events_to_flush,
+                )
                 
                 db.commit()
                 
                 log.info(
-                    "%s [Hybrid] Flushed %d events for task %s from RAM to DB",
+                    "%s [Hybrid] Flushed %d events for task %s from RAM to DB (batch insert)",
                     self.log_identifier,
-                    len(events_to_flush),
+                    count,
                     task_id,
                 )
                 
-                return len(events_to_flush)
+                return count
             finally:
                 db.close()
         except Exception as e:

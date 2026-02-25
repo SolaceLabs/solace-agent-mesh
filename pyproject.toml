@@ -61,7 +61,7 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==3.3.1",
+    "solace_ai_connector==3.3.2",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
@@ -77,11 +77,12 @@ dependencies = [
     "bm25s==0.2.14",
     "pypdf==6.6.2",
     "python-pptx==1.0.2",
-    "python-docx==1.2.0"
+    "python-docx==1.2.0",
+    "google-cloud-storage==3.9.0",
+    "azure-storage-blob==12.28.0"
 ]
 
 [project.optional-dependencies]
-gcs = ["google-cloud-storage==3.5.0"]
 vertex = ["google-cloud-aiplatform==1.126.1"]
 employee_tools = ["holidays==0.81.0"]
 test = [
@@ -105,7 +106,7 @@ test = [
 parallel = false
 installer = "uv"
 dependencies = [
-    "solace-agent-mesh[gcs,vertex,employee_tools]",
+    "solace-agent-mesh[vertex,employee_tools]",
     "pytest-asyncio",
     "pytest>=8.0.0",
     "pytest-mock>=3.0.0",

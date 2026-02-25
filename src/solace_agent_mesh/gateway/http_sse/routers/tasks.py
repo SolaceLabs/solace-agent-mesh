@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session as DBSession
 from ....gateway.http_sse.services.project_service import ProjectService
 
 from ....agent.utils.artifact_helpers import (
+    BM25_INDEX_FILENAME,
     get_artifact_info_list,
 )
 
@@ -156,8 +157,40 @@ async def get_active_background_tasks(
 
 
 # =============================================================================
-# Project Context Injection Helper
+# Project Context Injection Helpers
 # =============================================================================
+
+
+async def _check_project_has_bm25_index(
+    project,
+    project_service: ProjectService,
+    component: "WebUIBackendComponent",
+    log_prefix: str,
+) -> bool:
+    """Check whether a project has a BM25 search index artifact.
+
+    Uses artifact_service.list_versions to check if index exists
+    """
+    artifact_service = component.get_shared_artifact_service()
+    if not artifact_service:
+        return False
+
+    try:
+        versions = await artifact_service.list_versions(
+            app_name=project_service.app_name,
+            user_id=project.user_id,
+            session_id=f"project-{project.id}",
+            filename=BM25_INDEX_FILENAME,
+        )
+        return len(versions) > 0
+    except Exception:
+        log.exception(
+            "%sFailed to check BM25 index existence for project %s. "
+            "Returning True (tool will handle the error).",
+            log_prefix,
+            project.id,
+        )
+        return True
 
 
 async def _inject_project_context(
@@ -259,7 +292,7 @@ async def _inject_project_context(
                     original_artifacts_for_display = [
                         artifact for artifact in project_artifacts
                         if not artifact.filename.endswith('.converted.txt')
-                        and artifact.filename != 'project_bm25_index.zip'
+                        and artifact.filename != BM25_INDEX_FILENAME
                     ]
 
                     if original_artifacts_for_display:
@@ -445,6 +478,8 @@ async def _submit_task(
                     db.close()
 
         # Security: Validate user still has project access
+        # Retain project object for downstream index existence check
+        project = None
         if project_id and project_service:
             if SessionLocal is not None:
                 db = SessionLocal()
@@ -648,6 +683,32 @@ async def _submit_task(
                 additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
             if msg_metadata.get("maxExecutionTimeMs"):
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
+
+        # Pass project_id to agent for project-context-aware tool injection (e.g., index_search).
+        # Gated on project_indexing.enabled and BM25 index existence — the agent callback
+        # injects index_search when it sees project_id, so only pass it when the tool is usable.
+        if project_id:
+            project_indexing_config = component.get_config("project_indexing", {})
+            indexing_enabled = (
+                project_indexing_config.get("enabled", False)
+                if isinstance(project_indexing_config, dict)
+                else False
+            )
+            if indexing_enabled and project:
+                has_index = await _check_project_has_bm25_index(
+                    project=project,
+                    project_service=project_service,
+                    component=component,
+                    log_prefix=log_prefix,
+                )
+                if has_index:
+                    additional_metadata["project_id"] = project_id
+                    log.info(
+                        "%sPassing project_id %s to agent (session=%s)",
+                        log_prefix,
+                        project_id,
+                        session_id,
+                    )
 
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,
