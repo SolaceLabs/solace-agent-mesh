@@ -460,19 +460,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "component_name": f"{self.gateway_id}_viz_broker_input",
                 "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/viz/{self.gateway_id}",
                 "create_queue_on_start": True,
+                # Inherit all broker config from parent app (including
+                # broker_type, dev_broker_* settings, etc.)
                 "component_config": {
-                    "broker_url": main_broker_config.get("broker_url"),
-                    "broker_username": main_broker_config.get("broker_username"),
-                    "broker_password": main_broker_config.get("broker_password"),
-                    "broker_vpn": main_broker_config.get("broker_vpn"),
-                    "trust_store_path": main_broker_config.get("trust_store_path"),
-                    "dev_mode": main_broker_config.get("dev_mode"),
+                    **main_broker_config,
                     "broker_subscriptions": [],
-                    "reconnection_strategy": main_broker_config.get(
-                        "reconnection_strategy"
-                    ),
-                    "retry_interval": main_broker_config.get("retry_interval"),
-                    "retry_count": main_broker_config.get("retry_count"),
                     "temporary_queue": main_broker_config.get("temporary_queue", True),
                 },
             }
@@ -594,19 +586,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "component_name": f"{self.gateway_id}_task_log_broker_input",
                 "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/task_log/{self.gateway_id}",
                 "create_queue_on_start": True,
+                # Inherit all broker config from parent app (including
+                # broker_type, dev_broker_* settings, etc.)
                 "component_config": {
-                    "broker_url": main_broker_config.get("broker_url"),
-                    "broker_username": main_broker_config.get("broker_username"),
-                    "broker_password": main_broker_config.get("broker_password"),
-                    "broker_vpn": main_broker_config.get("broker_vpn"),
-                    "trust_store_path": main_broker_config.get("trust_store_path"),
-                    "dev_mode": main_broker_config.get("dev_mode"),
+                    **main_broker_config,
                     "broker_subscriptions": subscriptions,
-                    "reconnection_strategy": main_broker_config.get(
-                        "reconnection_strategy"
-                    ),
-                    "retry_interval": main_broker_config.get("retry_interval"),
-                    "retry_count": main_broker_config.get("retry_count"),
                     "temporary_queue": main_broker_config.get("temporary_queue", True),
                 },
             }
@@ -1450,60 +1434,78 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
 
                     if self.fastapi_event_loop:
-                        log.debug(
-                            "%s Ensuring visualization flow is running...",
-                            self.log_identifier,
-                        )
-                        self._ensure_visualization_flow_is_running()
-
-                        if (
-                            self._visualization_processor_task is None
-                            or self._visualization_processor_task.done()
-                        ):
+                        # Visualization and task logger flow init failures are
+                        # non-fatal: the gateway continues without those features.
+                        try:
                             log.debug(
-                                "%s Starting visualization message processor task.",
+                                "%s Ensuring visualization flow is running...",
                                 self.log_identifier,
                             )
-                            self._visualization_processor_task = (
-                                self.fastapi_event_loop.create_task(
-                                    self._visualization_message_processor_loop()
-                                )
-                            )
-                        else:
-                            log.debug(
-                                "%s Visualization message processor task already running.",
-                                self.log_identifier,
-                            )
-
-                        task_logging_config = self.get_config("task_logging", {})
-                        if task_logging_config.get("enabled", False):
-                            log.info(
-                                "%s Task logging is enabled. Ensuring flow is running...",
-                                self.log_identifier,
-                            )
-                            self._ensure_task_logger_flow_is_running()
+                            self._ensure_visualization_flow_is_running()
 
                             if (
-                                self._task_logger_processor_task is None
-                                or self._task_logger_processor_task.done()
+                                self._visualization_processor_task is None
+                                or self._visualization_processor_task.done()
                             ):
-                                log.info(
-                                    "%s Starting task logger processor task.",
+                                log.debug(
+                                    "%s Starting visualization message processor task.",
                                     self.log_identifier,
                                 )
-                                self._task_logger_processor_task = (
+                                self._visualization_processor_task = (
                                     self.fastapi_event_loop.create_task(
-                                        self._task_logger_loop()
+                                        self._visualization_message_processor_loop()
                                     )
                                 )
                             else:
-                                log.info(
-                                    "%s Task logger processor task already running.",
+                                log.debug(
+                                    "%s Visualization message processor task already running.",
                                     self.log_identifier,
                                 )
-                        else:
-                            log.info(
-                                "%s Task logging is disabled.", self.log_identifier
+                        except Exception as viz_err:
+                            log.warning(
+                                "%s Visualization flow failed to start. "
+                                "Gateway will continue without visualization support: %s",
+                                self.log_identifier,
+                                viz_err,
+                            )
+
+                        try:
+                            task_logging_config = self.get_config("task_logging", {})
+                            if task_logging_config.get("enabled", False):
+                                log.info(
+                                    "%s Task logging is enabled. Ensuring flow is running...",
+                                    self.log_identifier,
+                                )
+                                self._ensure_task_logger_flow_is_running()
+
+                                if (
+                                    self._task_logger_processor_task is None
+                                    or self._task_logger_processor_task.done()
+                                ):
+                                    log.info(
+                                        "%s Starting task logger processor task.",
+                                        self.log_identifier,
+                                    )
+                                    self._task_logger_processor_task = (
+                                        self.fastapi_event_loop.create_task(
+                                            self._task_logger_loop()
+                                        )
+                                    )
+                                else:
+                                    log.info(
+                                        "%s Task logger processor task already running.",
+                                        self.log_identifier,
+                                    )
+                            else:
+                                log.info(
+                                    "%s Task logging is disabled.", self.log_identifier
+                                )
+                        except Exception as task_log_err:
+                            log.warning(
+                                "%s Task logger flow failed to start. "
+                                "Gateway will continue without task logging support: %s",
+                                self.log_identifier,
+                                task_log_err,
                             )
                     else:
                         log.error(
@@ -1513,7 +1515,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                 except Exception as startup_err:
                     log.exception(
-                        "%s [_start_listener] Error during FastAPI startup event (capture_event_loop or viz setup): %s",
+                        "%s [_start_listener] Critical error during FastAPI startup event: %s",
                         self.log_identifier,
                         startup_err,
                     )
