@@ -1982,10 +1982,11 @@ class BaseGatewayComponent(SamComponentBase):
 
         if is_truly_final_event_for_context_cleanup:
             log.info(
-                "%s Truly final event processed for task %s. Removing context.",
+                "%s Truly final event processed for task %s. Closing connections and removing context.",
                 log_id_prefix,
                 a2a_task_id,
             )
+            await self._close_external_connections(external_request_context)
             self.task_context_manager.remove_context(a2a_task_id)
             self.task_context_manager.remove_context(f"{a2a_task_id}_stream_buffer")
 
@@ -2331,6 +2332,17 @@ class BaseGatewayComponent(SamComponentBase):
     async def _send_error_to_external(
         self, external_request_context: Dict[str, Any], error_data: JSONRPCError
     ) -> None:
+        pass
+
+    async def _close_external_connections(
+        self, external_request_context: Dict[str, Any]
+    ) -> None:
+        """Close external connections (e.g., SSE) during context cleanup.
+
+        Called after the final event is fully processed, ensuring any
+        pending status updates are delivered before the connection closes.
+        Subclasses should override to perform transport-specific cleanup.
+        """
         pass
 
     def _detect_gateway_type(self) -> str:
