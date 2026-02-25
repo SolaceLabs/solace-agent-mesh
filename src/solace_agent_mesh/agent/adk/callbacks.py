@@ -1727,6 +1727,16 @@ If a plan is created:
             log_identifier,
         )
 
+    project_tool_instructions = callback_context.state.get(
+        "project_tool_instructions"
+    )
+    if project_tool_instructions and isinstance(project_tool_instructions, str):
+        injected_instructions.append(project_tool_instructions)
+        log.debug(
+            "%s Injected project tool instructions from callback state.",
+            log_identifier,
+        )
+
     # Check for WorkflowAgentTool instances and inject specific instructions
     has_workflow_tools = False
     if llm_request.tools_dict:
