@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { FolderOpen, BookOpenText, Bot, User, LogOut } from "lucide-react";
 import { LifecycleBadge } from "@/lib/components/ui";
-import type { NavItemConfig } from "@/lib/components/navigation";
+import type { NavItemConfig } from "@/lib/types/fe";
 
 interface UseNavigationItemsProps {
     projectsEnabled: boolean;

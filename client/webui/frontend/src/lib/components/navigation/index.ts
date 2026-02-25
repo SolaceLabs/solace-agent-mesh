@@ -1,7 +1,11 @@
 export { NavigationSidebar } from "./NavigationSidebar";
 export { CollapsibleNavigationSidebar } from "./CollapsibleNavigationSidebar";
-export type { NavItemConfig, HeaderConfig, NewChatConfig, CollapsibleNavigationSidebarProps } from "./CollapsibleNavigationSidebar";
+export type { CollapsibleNavigationSidebarProps } from "./CollapsibleNavigationSidebar";
 export { NavigationHeader } from "./NavigationHeader";
 export { NavigationList } from "./NavigationList";
 export { NavigationButton } from "./NavigationButton";
+export { NavItemButton } from "./NavItemButton";
+export type { NavItemButtonProps } from "./NavItemButton";
+export { navButtonStyles, iconWrapperStyles, iconStyles, navTextStyles } from "./navigationStyles";
 export { bottomNavigationItems, topNavigationItems, getTopNavigationItems } from "./navigation";
+export type { NavItemConfig, HeaderConfig, NewChatConfig } from "@/lib/types/fe";
