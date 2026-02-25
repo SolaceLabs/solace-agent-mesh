@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { MessageCircle, Loader2 } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 
 import { useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
@@ -13,8 +13,7 @@ import type { Session } from "@/lib/types";
 // CVA Style Definitions
 // ============================================================================
 
-/** Session button styles */
-const sessionButtonStyles = cva(["flex", "h-10", "w-full", "items-center", "gap-2", "rounded", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-[var(--color-background-w100)]"], {
+const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-[var(--color-background-w100)]"], {
     variants: {
         active: {
             true: "bg-[var(--color-background-w100)]",
@@ -25,7 +24,7 @@ const sessionButtonStyles = cva(["flex", "h-10", "w-full", "items-center", "gap-
 });
 
 /** Session name text styles */
-const sessionTextStyles = cva(["truncate", "text-sm", "transition-opacity", "duration-300"], {
+const sessionTextStyles = cva(["block", "truncate", "text-sm", "transition-opacity", "duration-300"], {
     variants: {
         active: {
             true: "text-[var(--color-primary-text-w10)]",
@@ -125,8 +124,12 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
 
     if (isLoading && sessions.length === 0) {
         return (
-            <div className="flex items-center justify-center py-4">
-                <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+            <div className="flex flex-col gap-1 py-2">
+                {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex h-10 items-center pl-6">
+                        <span className="text-muted-foreground animate-pulse text-sm">Loading...</span>
+                    </div>
+                ))}
             </div>
         );
     }
@@ -142,23 +145,21 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
 
     return (
         <div className="flex flex-col">
-            {sessions.slice(0, maxItems).map(session => (
-                <button key={session.id} onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                            <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} />
-                            {session.hasRunningBackgroundTask && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Loader2 className="text-primary h-3 w-3 flex-shrink-0 animate-spin" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>Background task running</TooltipContent>
-                                </Tooltip>
-                            )}
-                        </div>
-                    </div>
-                </button>
-            ))}
+            {sessions.slice(0, maxItems).map(session => {
+                const displayName = session.name?.trim() || "New Chat";
+                return (
+                    <Tooltip key={session.id}>
+                        <TooltipTrigger asChild>
+                            <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                                <div className="min-w-0 flex-1">
+                                    <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} />
+                                </div>
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">{displayName}</TooltipContent>
+                    </Tooltip>
+                );
+            })}
         </div>
     );
 };
