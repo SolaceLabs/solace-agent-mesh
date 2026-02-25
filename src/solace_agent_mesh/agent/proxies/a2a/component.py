@@ -30,6 +30,7 @@ from a2a.types import (
     DataPart,
     InternalError,
     Message,
+    Part,
     SendMessageRequest,
     SendStreamingMessageRequest,
     Task,
@@ -1688,8 +1689,6 @@ class A2AProxyComponent(BaseProxyComponent):
                             mime_type=mime_type,
                             metadata=a2a.get_metadata_from_part(file_part),
                         )
-                        from a2a.types import Part
-
                         artifact.parts[i] = Part(root=new_file_part)
 
                         saved_artifacts_manifest.append(
@@ -1808,11 +1807,6 @@ class A2AProxyComponent(BaseProxyComponent):
         # Handle raw transport events (from streaming workaround)
         if isinstance(event, (Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
             event_payload = event
-            log.debug(
-                "%s Received raw transport event: %s",
-                log_identifier,
-                type(event).__name__,
-            )
         elif a2a.is_client_event(event):
             # Unpack the ClientEvent tuple
             task, update_event = a2a.unpack_client_event(event)
@@ -1938,6 +1932,7 @@ class A2AProxyComponent(BaseProxyComponent):
                                         flushed_event, task_context, agent_name
                                     )
                                     task_context.clear_streaming_buffer()
+                                    task_context.mark_batched_text_published()
 
                                 # Forward the large update immediately without buffering
                                 # (continue to normal processing - don't accumulate or return)
@@ -1953,22 +1948,7 @@ class A2AProxyComponent(BaseProxyComponent):
                                 buffer_size_bytes = len(buffer_content.encode("utf-8"))
                                 threshold_met = buffer_size_bytes >= batching_threshold
 
-                                log.debug(
-                                    "%s Text batching: buffer_size=%d bytes, threshold=%d bytes, disabled=%s, threshold_met=%s",
-                                    log_identifier,
-                                    buffer_size_bytes,
-                                    batching_threshold,
-                                    batching_disabled,
-                                    threshold_met,
-                                )
-
                                 if not batching_disabled and not threshold_met:
-                                    # Buffer not full yet - don't forward this update
-                                    log.debug(
-                                        "%s Buffering text update (not forwarding yet). Buffer size: %d bytes",
-                                        log_identifier,
-                                        buffer_size_bytes,
-                                    )
                                     return
 
                                 # Threshold met or batching disabled - flush buffer
@@ -1984,6 +1964,8 @@ class A2AProxyComponent(BaseProxyComponent):
                                 batched_message = a2a.update_message_parts(message, [batched_text_part])
                                 event_payload.status.message = batched_message
                                 task_context.clear_streaming_buffer()
+                                # Mark that we've published batched text (to skip redundant artifacts later)
+                                task_context.mark_batched_text_published()
 
                         elif has_non_text_parts:
                             # Mixed or non-text update - flush any accumulated text first
@@ -2017,39 +1999,141 @@ class A2AProxyComponent(BaseProxyComponent):
                                 )
 
                                 task_context.clear_streaming_buffer()
+                                task_context.mark_batched_text_published()
 
                             # Now continue processing the current event with non-text parts
 
-            # If this is a final event, flush any remaining buffered text
+            # If this is a final event, handle buffered text and check for redundant content
             if isinstance(event_payload, TaskStatusUpdateEvent) and event_payload.final:
                 buffer_content = task_context.get_streaming_buffer_content()
-                if buffer_content:
-                    log.debug(
-                        "%s Final event - flushing %d bytes of remaining buffered text",
-                        log_identifier,
-                        len(buffer_content.encode("utf-8")),
-                    )
 
-                    # Prepend buffered text to the final event's text
+                # If we've already published streaming text (batched or artifact), discard the buffer and remove text from final event
+                # The final event's text is redundant with the streamed content
+                if task_context.has_published_streaming_text():
+                    if buffer_content:
+                        log.debug(
+                            "%s Final event - discarding %d bytes of buffered text (redundant with published streaming text)",
+                            log_identifier,
+                            len(buffer_content.encode("utf-8")),
+                        )
+                        task_context.clear_streaming_buffer()
+
+                    # Remove text parts from final status update (redundant with streamed text)
                     if event_payload.status and event_payload.status.message:
                         message = event_payload.status.message
                         original_parts = a2a.get_parts_from_message(message)
+                        non_text_parts = [part for part in original_parts if not isinstance(part, TextPart)]
 
-                        # Create a text part with buffered content and prepend it
-                        buffered_text_part = TextPart(kind="text", text=buffer_content)
-                        combined_parts = [buffered_text_part] + (original_parts or [])
-                        event_payload.status.message = a2a.update_message_parts(message, combined_parts)
-                    else:
-                        # No message in final event - create one with buffered text
-                        from a2a.types import Message as A2AMessage, Part
-                        buffered_text_part = TextPart(kind="text", text=buffer_content)
-                        event_payload.status.message = A2AMessage(
-                            message_id=str(uuid.uuid4()),
-                            role="agent",
-                            parts=[Part(root=buffered_text_part)],
+                        if len(non_text_parts) < len(original_parts):
+                            log.debug(
+                                "%s Removing %d text parts from final status update (redundant with streaming text)",
+                                log_identifier,
+                                len(original_parts) - len(non_text_parts),
+                            )
+                            event_payload.status.message = a2a.update_message_parts(message, non_text_parts)
+                else:
+                    # No streaming text was published - use buffer if available
+                    if buffer_content:
+                        log.debug(
+                            "%s Final event - flushing %d bytes of remaining buffered text",
+                            log_identifier,
+                            len(buffer_content.encode("utf-8")),
                         )
 
-                    task_context.clear_streaming_buffer()
+                        # Merge buffered text with the final event's text into a single TextPart
+                        if event_payload.status and event_payload.status.message:
+                            message = event_payload.status.message
+                            original_parts = a2a.get_parts_from_message(message)
+
+                            existing_text = "".join(
+                                part.text for part in original_parts
+                                if isinstance(part, TextPart) and part.text
+                            )
+                            non_text_parts = [
+                                part for part in original_parts
+                                if not isinstance(part, TextPart)
+                            ]
+                            merged_text_part = TextPart(kind="text", text=buffer_content + existing_text)
+                            combined_parts = [merged_text_part] + non_text_parts
+                            event_payload.status.message = a2a.update_message_parts(message, combined_parts)
+                        else:
+                            # No message in final event - create one with buffered text
+                            buffered_text_part = TextPart(kind="text", text=buffer_content)
+                            event_payload.status.message = Message(
+                                message_id=str(uuid.uuid4()),
+                                role="agent",
+                                parts=[Part(root=buffered_text_part)],
+                            )
+
+                        task_context.clear_streaming_buffer()
+
+            # Handle buffered text when a completed Task arrives (not a TaskStatusUpdateEvent)
+            # Some A2A agents send a Task object as the final streaming event instead of a
+            # TaskStatusUpdateEvent with final=True. In that case, the buffer was never flushed
+            # and no status update was published, so the activity view has no AGENT_RESPONSE_TEXT steps.
+            if (
+                isinstance(event_payload, Task)
+                and event_payload.status
+                and event_payload.status.state == TaskState.completed
+            ):
+                buffer_content = task_context.get_streaming_buffer_content()
+
+                if task_context.has_published_streaming_text():
+                    # Already published streaming text - just discard any remaining buffer
+                    if buffer_content:
+                        log.debug(
+                            "%s Completed Task event - discarding %d bytes of buffered text "
+                            "(redundant with published streaming text)",
+                            log_identifier,
+                            len(buffer_content.encode("utf-8")),
+                        )
+                        task_context.clear_streaming_buffer()
+                else:
+                    # No streaming was published yet - flush buffer and/or Task text as a status update
+                    # This ensures the activity view gets AGENT_RESPONSE_TEXT steps
+                    task_text = ""
+                    if event_payload.status.message:
+                        task_message = event_payload.status.message
+                        task_parts = a2a.get_parts_from_message(task_message)
+                        task_text = "".join(
+                            p.text for p in task_parts
+                            if isinstance(p, TextPart) and p.text
+                        )
+
+                    combined_text = buffer_content + task_text
+                    if combined_text:
+                        log.debug(
+                            "%s Completed Task event - publishing %d bytes of text as status update "
+                            "(buffer: %d, task: %d)",
+                            log_identifier,
+                            len(combined_text.encode("utf-8")),
+                            len(buffer_content.encode("utf-8")),
+                            len(task_text.encode("utf-8")),
+                        )
+                        text_message = a2a.create_agent_text_message(
+                            text=combined_text,
+                            task_id=task_context.task_id,
+                            context_id=task_context.a2a_context.get("session_id"),
+                        )
+                        status_event = TaskStatusUpdateEvent(
+                            task_id=task_context.task_id,
+                            context_id=task_context.a2a_context.get("session_id"),
+                            kind="status-update",
+                            status=TaskStatus(state=TaskState.working, message=text_message),
+                            final=False,
+                            metadata=(
+                                event_payload.metadata.copy()
+                                if event_payload.metadata
+                                else {"agent_name": agent_name}
+                            ),
+                        )
+                        await self._process_and_forward_status_update(
+                            status_event, task_context, agent_name
+                        )
+                        task_context.mark_batched_text_published()
+
+                    if buffer_content:
+                        task_context.clear_streaming_buffer()
 
         except Exception as batching_error:
             # Batching failed - log error and continue with normal processing (fallback to immediate forwarding)
@@ -2068,17 +2152,6 @@ class A2AProxyComponent(BaseProxyComponent):
         if isinstance(event_payload, TaskStatusUpdateEvent) and not event_payload.final:
             agent_config = self._get_agent_config(agent_name)
             convert_progress = agent_config.get("convert_progress_updates", True) if agent_config else True
-
-            # DEBUG: Log config lookup results
-            log.info(
-                "%s DEBUG convert_progress_updates: agent_name='%s', agent_config_name='%s', agent_config_keys=%s, convert_progress_value=%s, convert_progress=%s",
-                log_identifier,
-                agent_name,
-                agent_config.get('name') if agent_config else None,
-                list(agent_config.keys()) if agent_config else None,
-                agent_config.get("convert_progress_updates") if agent_config else None,
-                convert_progress,
-            )
 
             if convert_progress and event_payload.status and event_payload.status.message:
                 message = event_payload.status.message
@@ -2107,14 +2180,8 @@ class A2AProxyComponent(BaseProxyComponent):
                             converted_parts.append(part)
 
                     if text_parts_converted > 0:
-                        # Update the message with converted parts
                         event_payload.status.message = a2a.update_message_parts(
                             message, converted_parts
-                        )
-                        log.debug(
-                            "%s Converted %d TextPart(s) to AgentProgressUpdateData in status update",
-                            log_identifier,
-                            text_parts_converted,
                         )
 
         # Capture the downstream task ID before we replace it
@@ -2181,16 +2248,12 @@ class A2AProxyComponent(BaseProxyComponent):
                 )
 
                 if not event_payload.status.message:
-                    from a2a.types import Part
-
                     event_payload.status.message = Message(
                         message_id=str(uuid.uuid4()),
                         role="agent",
                         parts=[Part(root=summary_message_part)],
                     )
                 else:
-                    from a2a.types import Part
-
                     event_payload.status.message.parts.append(
                         Part(root=summary_message_part)
                     )
@@ -2200,16 +2263,22 @@ class A2AProxyComponent(BaseProxyComponent):
         if isinstance(event_payload, TaskArtifactUpdateEvent):
             artifact = event_payload.artifact
             if a2a.is_text_only_artifact(artifact):
-                log.info(
-                    "%s Converting text-only artifact to status update",
-                    log_identifier,
-                )
-                # Extract text from text-only artifact
+                # Clear any buffered text - artifact contains the complete response
+                # (even if we published batched text earlier, artifact likely has the full response)
+                buffer_content = task_context.get_streaming_buffer_content()
+                if buffer_content:
+                    log.debug(
+                        "%s Discarding %d bytes of buffered text (artifact contains complete response)",
+                        log_identifier,
+                        len(buffer_content.encode("utf-8")),
+                    )
+                    task_context.clear_streaming_buffer()
+
                 text_content = "\n".join(a2a.get_text_content_from_artifact(artifact))
 
-                # Convert to status update
-                # Use SAM's session_id, not the remote agent's context_id
+                # Convert artifact to status update for the chat window
                 sam_session_id = task_context.a2a_context.get("session_id")
+
                 text_message = a2a.create_agent_text_message(
                     text=text_content,
                     task_id=task_context.task_id,
@@ -2225,10 +2294,11 @@ class A2AProxyComponent(BaseProxyComponent):
                     metadata=event_payload.metadata,
                 )
 
-                # Replace event_payload with the converted status update
                 event_payload = status_event
-                log.info(
-                    "%s Converted text-only artifact (length: %d bytes) to status update",
+                task_context.mark_converted_artifact_published()
+
+                log.debug(
+                    "%s Converted text-only artifact to status update (%d bytes)",
                     log_identifier,
                     len(text_content.encode("utf-8")),
                 )
@@ -2261,21 +2331,20 @@ class A2AProxyComponent(BaseProxyComponent):
             )
 
         elif isinstance(event_payload, TaskStatusUpdateEvent):
-            # Forward status update to status topic
             await self._publish_status_update(event_payload, task_context.a2a_context)
 
             # Check if final event - construct and send Task
             if event_payload.final:
-                log.info(
-                    "%s Received final status update (final=true). Constructing completed Task.",
-                    log_identifier,
-                )
 
                 # Construct Task from final status update
-                # Copy the status but ensure state is "completed"
+                # Use the event's status message directly - when streaming text was already
+                # published, TextParts have been stripped to avoid duplication. When no streaming
+                # occurred, the message retains its full content.
+                task_message = event_payload.status.message if event_payload.status else None
+
                 final_task_status = TaskStatus(
                     state=TaskState.completed,
-                    message=event_payload.status.message if event_payload.status else None,
+                    message=task_message,
                 )
 
                 # Use SAM's task_id and session_id, not the remote agent's values

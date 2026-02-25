@@ -648,8 +648,9 @@ class BaseProxyComponent(ComponentBase, ABC):
         response = create_success_response(
             result=event, request_id=a2a_context.get("jsonrpc_request_id")
         )
+        serialized = response.model_dump(by_alias=True, exclude_none=True)
         self._publish_a2a_message(
-            response.model_dump(exclude_none=True),
+            serialized,
             target_topic,
             user_properties=a2a_context.get("user_properties")
         )
@@ -668,8 +669,9 @@ class BaseProxyComponent(ComponentBase, ABC):
         response = create_success_response(
             result=task, request_id=a2a_context.get("jsonrpc_request_id")
         )
+        serialized = response.model_dump(by_alias=True, exclude_none=True)
         self._publish_a2a_message(
-            response.model_dump(exclude_none=True),
+            serialized,
             target_topic,
             user_properties=a2a_context.get("user_properties")
         )
