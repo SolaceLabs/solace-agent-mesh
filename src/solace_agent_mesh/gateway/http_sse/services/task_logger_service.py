@@ -5,6 +5,7 @@ Service for logging A2A tasks and events to the database.
 import copy
 import json
 import logging
+import math
 import uuid
 from typing import Any, Callable, Dict, Union
 
@@ -367,12 +368,37 @@ class TaskLoggerService:
         return True
 
     def _sanitize_payload(self, payload: Dict) -> Dict:
-        """Strips or truncates file content from payload based on configuration."""
+        """
+        Sanitizes payload for database storage:
+        1. Strips or truncates file content based on configuration
+        2. Replaces non-finite floats (NaN, Infinity, -Infinity) with None
+           since PostgreSQL JSON type doesn't support these values
+        """
         new_payload = copy.deepcopy(payload)
+
+        def sanitize_value(value: Any) -> Any:
+            """Recursively sanitize a value, replacing non-finite floats with None."""
+            if isinstance(value, float):
+                # Replace NaN, Infinity, -Infinity with None (JSON null)
+                if math.isnan(value) or math.isinf(value):
+                    return None
+                return value
+            elif isinstance(value, dict):
+                return {k: sanitize_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [sanitize_value(item) for item in value]
+            else:
+                return value
 
         def walk_and_sanitize(node):
             if isinstance(node, dict):
                 for key, value in list(node.items()):
+                    # Handle non-finite floats anywhere in the payload
+                    if isinstance(value, float):
+                        if math.isnan(value) or math.isinf(value):
+                            node[key] = None
+                            continue
+                    
                     if key == "parts" and isinstance(value, list):
                         new_parts = []
                         for part in value:
@@ -391,7 +417,7 @@ class TaskLoggerService:
                                             file_dict["bytes"] = (
                                                 f"[Content stripped, size > {max_bytes} bytes]"
                                             )
-                                new_parts.append(part)
+                                new_parts.append(sanitize_value(part))
                             else:
                                 walk_and_sanitize(part)
                                 new_parts.append(part)
@@ -399,11 +425,15 @@ class TaskLoggerService:
                     else:
                         walk_and_sanitize(value)
             elif isinstance(node, list):
-                for item in node:
-                    walk_and_sanitize(item)
+                for i, item in enumerate(node):
+                    if isinstance(item, float) and (math.isnan(item) or math.isinf(item)):
+                        node[i] = None
+                    else:
+                        walk_and_sanitize(item)
 
         walk_and_sanitize(new_payload)
-        return new_payload
+        # Final pass to ensure all values are sanitized (handles nested structures)
+        return sanitize_value(new_payload)
 
     def _save_chat_messages_for_background_task(
         self, db: DBSession, task_id: str, task: Task, repo: TaskRepository
