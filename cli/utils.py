@@ -3,6 +3,7 @@ import os
 import re
 from pathlib import Path
 from time import sleep
+from sqlalchemy import create_engine, event
 
 import click
 import requests
@@ -284,7 +285,6 @@ def create_and_validate_database(database_url: str, db_name: str = "database") -
     Returns:
         bool: True if successful, raises exception if failed
     """
-    from sqlalchemy import create_engine, event
     try:
 
         # Handle SQLite file creation
