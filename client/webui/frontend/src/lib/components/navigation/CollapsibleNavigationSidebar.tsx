@@ -527,7 +527,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                 <div className="my-4 border-t border-[var(--color-secondary-w70)]" />
                                 <div className="mb-2 flex items-center justify-between pr-4 pl-6">
                                     <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Recent Chats</span>
-                                    <button onClick={() => navigate("/chats")} className="text-sm font-normal text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
+                                    <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm font-normal text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
                                         View All
                                     </button>
                                 </div>
