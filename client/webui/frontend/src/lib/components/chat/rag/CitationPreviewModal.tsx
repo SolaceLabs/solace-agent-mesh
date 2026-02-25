@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import DOMPurify from "dompurify";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, VisuallyHidden } from "@/lib/components/ui/dialog";
@@ -13,6 +13,7 @@ import { useProjectContext } from "@/lib/providers/ProjectProvider";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
 import { highlightCitationsInText } from "@/lib/utils/highlightUtils";
 import { getArtifactUrl } from "@/lib/utils/file";
+import { useScrollToHighlight } from "@/lib/hooks/useScrollToHighlight";
 import type { RAGSource } from "@/lib/types";
 import type { CitationMapEntry } from "@/lib/components/chat/preview/Renderers/PdfRenderer";
 
@@ -37,6 +38,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
     const projectId = activeProject?.id ?? null;
 
     const [renderError, setRenderError] = useState<string | null>(null);
+    const textContentRef = useRef<HTMLDivElement>(null);
 
     const { data: artifactData, isLoading, error: fetchError } = useArtifactContent(isOpen ? projectId : null, isOpen ? filename : null);
 
@@ -86,6 +88,9 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
 
     const error = fetchError || renderError;
 
+    const shouldScrollText = !isLoading && !error && (renderType === "text" || renderType === "markdown") && isOpen;
+    useScrollToHighlight(textContentRef, "mark", shouldScrollText, [isOpen, processedContent, citations]);
+
     return (
         <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
             <DialogContent className="flex h-[80vh] min-w-[60vw] flex-col">
@@ -115,7 +120,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                     <MessageBanner variant="warning" message="Unable to preview PDF: No active project context" />
                                 )
                             ) : renderType === "text" || renderType === "markdown" ? (
-                                <div className="p-4">
+                                <div ref={textContentRef} className="p-4">
                                     <pre className="whitespace-pre-wrap select-text focus-visible:outline-none" style={{ overflowWrap: "anywhere" }} dangerouslySetInnerHTML={{ __html: processedContent }} />
                                 </div>
                             ) : (

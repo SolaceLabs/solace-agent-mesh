@@ -4,6 +4,7 @@ import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+import { scrollToElement } from "@/lib/hooks/useScrollToHighlight";
 
 // Custom event for snip-to-chat functionality
 export const SNIP_TO_CHAT_EVENT = "snip-to-chat";
@@ -191,11 +192,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
             }
 
             // Scroll to first highlight after browser paints the highlights
-            // requestAnimationFrame ensures highlighting CSS is painted before scroll
             if (matchedSpans.length > 0) {
-                requestAnimationFrame(() => {
-                    matchedSpans[0].scrollIntoView({ behavior: "smooth", block: "center" });
-                    // Now that highlighting and scroll are complete, hide the loading state
+                scrollToElement(matchedSpans[0], () => {
                     setIsWaitingForHighlight(false);
                 });
             } else {
