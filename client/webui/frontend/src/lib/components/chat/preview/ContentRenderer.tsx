@@ -14,11 +14,10 @@ interface ContentRendererProps {
     isStreaming?: boolean;
     ragData?: RAGSearchResult;
     initialPage?: number;
-    highlightTexts?: string[];
     citationMaps?: CitationMapEntry[];
 }
 
-export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData, initialPage, highlightTexts, citationMaps }) => {
+export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData, initialPage, citationMaps }) => {
     switch (rendererType) {
         case "csv":
             return <CsvRenderer content={content} setRenderError={setRenderError} />;
@@ -36,13 +35,13 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rende
         case "audio":
             return <AudioRenderer content={content} mime_type={mime_type} setRenderError={setRenderError} />;
         case "docx":
-            return <OfficeDocumentRenderer content={content} filename={filename || "document.docx"} documentType="docx" setRenderError={setRenderError} highlightTexts={highlightTexts} />;
+            return <OfficeDocumentRenderer content={content} filename={filename || "document.docx"} documentType="docx" setRenderError={setRenderError} />;
         case "pptx":
-            return <OfficeDocumentRenderer content={content} filename={filename || "presentation.pptx"} documentType="pptx" setRenderError={setRenderError} highlightTexts={highlightTexts} />;
+            return <OfficeDocumentRenderer content={content} filename={filename || "presentation.pptx"} documentType="pptx" setRenderError={setRenderError} />;
         case "pdf":
         case "application/pdf":
             if (url && filename) {
-                return <PdfRenderer url={url} filename={filename} initialPage={initialPage} highlightTexts={highlightTexts} citationMaps={citationMaps} />;
+                return <PdfRenderer url={url} filename={filename} initialPage={initialPage} citationMaps={citationMaps} />;
             }
             setRenderError("URL and filename are required for PDF preview.");
             return null;

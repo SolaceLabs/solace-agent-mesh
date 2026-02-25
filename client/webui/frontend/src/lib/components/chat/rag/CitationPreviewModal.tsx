@@ -11,7 +11,7 @@ import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { useArtifactContent } from "@/lib/api/artifacts";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
-import { highlightCitationsInText, extractCitationTexts } from "@/lib/utils/highlightUtils";
+import { highlightCitationsInText } from "@/lib/utils/highlightUtils";
 import { getArtifactUrl } from "@/lib/utils/file";
 import type { RAGSource } from "@/lib/types";
 import type { CitationMapEntry } from "@/lib/components/chat/preview/Renderers/PdfRenderer";
@@ -53,8 +53,6 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
         if (!projectId) return null;
         return getArtifactUrl({ filename, projectId, version: "latest" });
     }, [filename, projectId]);
-
-    const highlightTexts = extractCitationTexts(citations);
 
     // Extract citation_map entries for precise character-position highlighting
     const citationMaps = useMemo((): CitationMapEntry[] => {
@@ -112,17 +110,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                         <div className="h-full overflow-auto">
                             {renderType === "pdf" ? (
                                 fileUrl ? (
-                                    <ContentRenderer
-                                        content=""
-                                        rendererType={renderType}
-                                        mime_type={artifactData?.mimeType}
-                                        url={fileUrl}
-                                        filename={filename}
-                                        setRenderError={setRenderError}
-                                        initialPage={pageNumber}
-                                        highlightTexts={highlightTexts}
-                                        citationMaps={citationMaps}
-                                    />
+                                    <ContentRenderer content="" rendererType={renderType} mime_type={artifactData?.mimeType} url={fileUrl} filename={filename} setRenderError={setRenderError} initialPage={pageNumber} citationMaps={citationMaps} />
                                 ) : (
                                     <MessageBanner variant="warning" message="Unable to preview PDF: No active project context" />
                                 )
@@ -131,7 +119,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                     <pre className="whitespace-pre-wrap select-text focus-visible:outline-none" style={{ overflowWrap: "anywhere" }} dangerouslySetInnerHTML={{ __html: processedContent }} />
                                 </div>
                             ) : (
-                                <ContentRenderer content={processedContent} rendererType={renderType} mime_type={artifactData?.mimeType} setRenderError={setRenderError} highlightTexts={highlightTexts} />
+                                <ContentRenderer content={processedContent} rendererType={renderType} mime_type={artifactData?.mimeType} setRenderError={setRenderError} />
                             )}
                         </div>
                     )}
