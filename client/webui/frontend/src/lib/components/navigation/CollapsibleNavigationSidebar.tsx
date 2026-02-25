@@ -3,22 +3,22 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { Plus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useChatContext, useSessionStorage } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { cn } from "@/lib/utils";
 
-const HOVER_BG = "enabled:hover:bg-[var(--color-background-w100)]";
+const HOVER_BG = "hover:bg-[var(--color-background-w100)]";
 const ACTIVE_BG = "bg-[var(--color-background-w100)]";
 
-const navButtonStyles = cva(["h-10", "transition-colors", HOVER_BG], {
+const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "transition-colors", HOVER_BG], {
     variants: {
         variant: {
             expanded: "w-full justify-start pr-4 pl-6 text-sm font-normal",
-            collapsed: "w-10 p-0",
-            bottom: "w-10 p-2 text-[var(--color-primary-text-w10)]",
+            collapsed: "w-10 justify-center p-0",
+            bottom: "w-10 justify-center p-2 text-[var(--color-primary-text-w10)]",
         },
         active: {
             true: ACTIVE_BG,
@@ -181,7 +181,7 @@ const NavItemButton: React.FC<{
 }> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild }) => {
     const isHighlighted = isActive || hasActiveChild;
     const buttonContent = (
-        <Button variant="ghost" onClick={item.hasSubmenu ? onToggleExpand : onClick} className={cn(navButtonStyles({ indent: !!indent, active: !!indent && isActive }), className)}>
+        <button onClick={item.hasSubmenu ? onToggleExpand : onClick} className={cn(navButtonStyles({ indent: !!indent, active: !!indent && isActive }), className)}>
             {indent ? (
                 <span className={navTextStyles({ active: isActive })}>{item.label}</span>
             ) : (
@@ -194,7 +194,7 @@ const NavItemButton: React.FC<{
             )}
             {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
             {item.badge}
-        </Button>
+        </button>
     );
 
     if (item.tooltip) {
@@ -393,24 +393,32 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         {renderHeader()}
                         {/* Positioned outside panel bounds to create floating expand button effect */}
                         {!hideCollapseButton && (
-                            <Button
-                                variant="ghost"
-                                onClick={handleToggle}
-                                className="absolute -right-3 z-10 h-6 w-6 rounded bg-[var(--color-background-wMain)] p-0.5 shadow-md enabled:hover:bg-[var(--color-background-w100)]"
-                                tooltip="Expand Navigation"
-                            >
-                                <ChevronRight className="size-4 text-[var(--color-primary-text-w10)]" />
-                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={handleToggle}
+                                        className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-[var(--color-background-wMain)] p-0.5 shadow-md hover:bg-[var(--color-background-w100)]"
+                                    >
+                                        <ChevronRight className="size-4 text-[var(--color-primary-text-w10)]" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">Expand Navigation</TooltipContent>
+                            </Tooltip>
                         )}
                     </div>
 
                     <div className="flex flex-col items-center gap-2 py-3">
                         {showNewChatButton && (
-                            <Button variant="ghost" onClick={handleNewChatClickResolved} className={navButtonStyles({ variant: "collapsed" })} tooltip={newChatLabel}>
-                                <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
-                                    <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
-                                </div>
-                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button onClick={handleNewChatClickResolved} className={navButtonStyles({ variant: "collapsed" })}>
+                                        <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
+                                            <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
+                                        </div>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">{newChatLabel}</TooltipContent>
+                            </Tooltip>
                         )}
 
                         {navItems.map(item => {
@@ -418,35 +426,42 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                             const hasSubmenu = item.hasSubmenu && item.children?.length;
 
                             return (
-                                <Button
-                                    key={item.id}
-                                    variant="ghost"
-                                    onClick={() => {
-                                        if (hasSubmenu) {
-                                            setActiveItem(item.id);
-                                            setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
-                                            setIsCollapsed(false);
-                                        } else {
-                                            handleItemClick(item.id, item);
-                                        }
-                                    }}
-                                    className={navButtonStyles({ variant: "collapsed" })}
-                                    tooltip={item.label}
-                                    disabled={item.disabled}
-                                >
-                                    <div className={iconWrapperStyles({ active: isActive })}>
-                                        <item.icon className={iconStyles({ active: isActive })} />
-                                    </div>
-                                </Button>
+                                <Tooltip key={item.id}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={() => {
+                                                if (hasSubmenu) {
+                                                    setActiveItem(item.id);
+                                                    setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
+                                                    setIsCollapsed(false);
+                                                } else {
+                                                    handleItemClick(item.id, item);
+                                                }
+                                            }}
+                                            className={navButtonStyles({ variant: "collapsed" })}
+                                            disabled={item.disabled}
+                                        >
+                                            <div className={iconWrapperStyles({ active: isActive })}>
+                                                <item.icon className={iconStyles({ active: isActive })} />
+                                            </div>
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">{item.label}</TooltipContent>
+                                </Tooltip>
                             );
                         })}
                     </div>
 
                     <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] p-2">
                         {bottomItems.map(item => (
-                            <Button key={item.id} variant="ghost" onClick={() => handleBottomItemClick(item)} className={navButtonStyles({ variant: "bottom" })} tooltip={item.label} disabled={item.disabled}>
-                                <item.icon className="size-6" />
-                            </Button>
+                            <Tooltip key={item.id}>
+                                <TooltipTrigger asChild>
+                                    <button onClick={() => handleBottomItemClick(item)} className={navButtonStyles({ variant: "bottom" })} disabled={item.disabled}>
+                                        <item.icon className="size-6" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">{item.label}</TooltipContent>
+                            </Tooltip>
                         ))}
                     </div>
                 </>
@@ -455,20 +470,25 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     <div className="flex items-center justify-between border-b border-[var(--color-secondary-w70)] py-3 pr-4 pl-6">
                         <div className="flex items-center gap-2">{renderHeader()}</div>
                         {!hideCollapseButton && (
-                            <Button variant="ghost" onClick={handleToggle} className="h-8 w-8 p-1 text-[var(--color-primary-text-w10)] enabled:hover:bg-[var(--color-background-w100)]" tooltip="Collapse Navigation">
-                                <ChevronLeft className="size-6" />
-                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button onClick={handleToggle} className="flex h-8 w-8 cursor-pointer items-center justify-center p-1 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]">
+                                        <ChevronLeft className="size-6" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">Collapse Navigation</TooltipContent>
+                            </Tooltip>
                         )}
                     </div>
 
                     <div className="flex-1 overflow-y-auto py-3">
                         {showNewChatButton && (
-                            <Button variant="ghost" onClick={handleNewChatClickResolved} className={navButtonStyles()}>
+                            <button onClick={handleNewChatClickResolved} className={navButtonStyles()}>
                                 <div className={iconWrapperStyles({ active: activeItem === "chats", withMargin: true })}>
                                     <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
                                 </div>
                                 <span className={navTextStyles({ active: activeItem === "chats" })}>{newChatLabel}</span>
-                            </Button>
+                            </button>
                         )}
 
                         <div>
@@ -520,12 +540,12 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
 
                     <div className="mt-2 border-t border-[var(--color-secondary-w70)] pt-2">
                         {bottomItems.map(item => (
-                            <Button key={item.id} variant="ghost" onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
+                            <button key={item.id} onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
                                 <div className={iconWrapperStyles({ withMargin: true })}>
                                     <item.icon className={iconStyles()} />
                                 </div>
                                 <span className={navTextStyles()}>{item.label}</span>
-                            </Button>
+                            </button>
                         ))}
                     </div>
                 </>
