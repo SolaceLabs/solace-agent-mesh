@@ -43,9 +43,6 @@ export const DocumentSourcesPanel: React.FC<DocumentSourcesPanelProps> = ({ ragD
             });
         }
 
-        // Why requestAnimationFrame: Ensures state reset happens after accordion expansion
-        // animation completes its first paint. Prevents flicker where state clears before
-        // visual expansion finishes. Pattern matches popoverManual.tsx:47-62.
         requestAnimationFrame(() => {
             setExpandedDocumentFilename(null);
         });

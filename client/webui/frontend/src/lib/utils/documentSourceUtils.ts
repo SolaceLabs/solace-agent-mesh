@@ -36,27 +36,10 @@ export const getFileExtension = (filename: string): string => {
 export const formatLocationLabel = (locationString: string): string => {
     if (!locationString) return locationString;
 
-    // Line ranges: Replace underscores with dashes (Lines 1_50 -> Lines 1-50)
     if (locationString.startsWith("Lines ")) {
         return locationString.replace(/Lines (\d+)_(\d+)/g, "Lines $1-$2");
     }
 
-    // Pages: No transformation needed (already formatted: "Page 3", "Pages 3-5")
-    if (locationString.startsWith("Page")) {
-        return locationString;
-    }
-
-    // Paragraphs: No transformation needed (already formatted: "Paragraph 5")
-    if (locationString.startsWith("Paragraph")) {
-        return locationString;
-    }
-
-    // Slides: No transformation needed (already formatted: "Slide 3")
-    if (locationString.startsWith("Slide")) {
-        return locationString;
-    }
-
-    // Unknown format: return as-is
     return locationString;
 };
 
