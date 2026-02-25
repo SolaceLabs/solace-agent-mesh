@@ -42,7 +42,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, logo
                         icon: BookOpenText,
                         route: "/prompts",
                         routeMatch: "/prompts",
-                        badge: <LifecycleBadge className="scale-90">EXPERIMENTAL</LifecycleBadge>,
+                        badge: <LifecycleBadge className="scale-90 border-white/60 text-white/90">EXPERIMENTAL</LifecycleBadge>,
                     },
                 ],
                 position: "top",
