@@ -92,7 +92,18 @@ def init_database(database_url: str):
                 "pool_recycle": 1800,
                 "pool_pre_ping": True,
             }
-            log.info(f"Configuring {dialect_name} database with connection pooling")
+            # Add PostgreSQL-specific connection options to prevent deadlocks
+            if dialect_name == "postgresql":
+                # idle_in_transaction_session_timeout (60s): Auto-terminate connections that sit
+                # "idle in transaction" for more than 60 seconds to prevent deadlocks
+                # statement_timeout (120s): Prevent any single statement from running more than
+                # 2 minutes.
+                engine_kwargs["connect_args"] = {
+                    "options": "-c idle_in_transaction_session_timeout=60000 -c statement_timeout=120000"
+                }
+                log.info(f"Configuring {dialect_name} database with connection pooling and transaction timeouts (idle_in_transaction=60s, statement=120s)")
+            else:
+                log.info(f"Configuring {dialect_name} database with connection pooling")
 
         else:
             log.warning(f"Using default configuration for dialect: {dialect_name}")

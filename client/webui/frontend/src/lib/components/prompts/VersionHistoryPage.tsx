@@ -15,7 +15,7 @@ interface VersionHistoryPageProps {
     onBackToPromptDetail: () => void;
     onEdit: (group: PromptGroup) => void;
     onDeleteAll: (id: string, name: string) => void;
-    onRestoreVersion: (promptId: string) => Promise<void>;
+    onRestoreVersion: (promptId: string, groupId: string) => Promise<void>;
 }
 
 export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, onBack, onEdit, onDeleteAll, onRestoreVersion }) => {
@@ -126,8 +126,9 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
     const handleDeleteVersion = async () => {
         if (!selectedVersion) return;
 
-        // Prevent deleting the active version
-        if (selectedVersion.id === currentGroup.productionPromptId) {
+        // Prevent deleting the latest/active version (highest version number)
+        const latestVersion = versions.reduce((max, v) => (v.version > max.version ? v : max), versions[0]);
+        if (selectedVersion.id === latestVersion?.id) {
             setShowDeleteActiveError(true);
             setTimeout(() => setShowDeleteActiveError(false), 5000);
             return;
@@ -146,16 +147,23 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
     };
 
     const handleRestoreVersion = async () => {
-        if (selectedVersion && selectedVersion.id !== currentGroup.productionPromptId) {
-            await onRestoreVersion(selectedVersion.id);
-            // Refresh group data to get updated production_prompt_id
-            await fetchGroupData();
-            // Refetch versions to update the UI, preserving the current selection
-            await fetchVersions(true);
+        // Restore creates a new version with the selected version's content
+        // The new version becomes the latest (and thus active) version
+        if (selectedVersion) {
+            const latestVersion = versions.reduce((max, v) => (v.version > max.version ? v : max), versions[0]);
+            if (selectedVersion.id !== latestVersion?.id) {
+                await onRestoreVersion(selectedVersion.id, currentGroup.id);
+                // Refresh group data
+                await fetchGroupData();
+                // Refetch versions to show the new version
+                await fetchVersions(true);
+            }
         }
     };
 
-    const isActiveVersion = selectedVersion?.id === currentGroup.productionPromptId;
+    // Latest version (highest version number) is always the active version
+    const latestVersion = versions.length > 0 ? versions.reduce((max, v) => (v.version > max.version ? v : max), versions[0]) : null;
+    const isActiveVersion = selectedVersion?.id === latestVersion?.id;
 
     return (
         <div className="flex h-full flex-col">
@@ -181,7 +189,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
             />
 
             {/* Error Banner */}
-            {showDeleteActiveError && <MessageBanner variant="error" message="Cannot delete the active version. Please make another version active first." />}
+            {showDeleteActiveError && <MessageBanner variant="error" message="Cannot delete the latest version. To use an older version, restore it to create a new version." />}
 
             {/* Content */}
             <div className="flex min-h-0 flex-1">
@@ -196,7 +204,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                         ) : (
                             <div className="space-y-2">
                                 {versions.map(version => {
-                                    const isActive = version.id === currentGroup.productionPromptId;
+                                    const isActive = version.id === latestVersion?.id;
                                     const isSelected = selectedVersion?.id === version.id;
 
                                     return (
@@ -223,7 +231,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                 <div className="flex items-center justify-between">
                                     <h2 className="text-lg font-semibold">Version {selectedVersion.version} Details</h2>
                                     <div className="flex items-center gap-2">
-                                        <Button variant="ghost" size="sm" onClick={handleEditVersion}>
+                                        <Button variant="ghost" size="sm" onClick={handleEditVersion} disabled={!isActiveVersion} tooltip={!isActiveVersion ? "Only the latest version can be edited. Restore this version to edit it." : undefined}>
                                             <Pencil className="h-4 w-4" />
                                             Edit
                                         </Button>
@@ -237,7 +245,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                                 {!isActiveVersion && (
                                                     <DropdownMenuItem onClick={handleRestoreVersion}>
                                                         <Check size={14} className="mr-2" />
-                                                        Make Active Version
+                                                        Restore as New Version
                                                     </DropdownMenuItem>
                                                 )}
                                                 <DropdownMenuItem onClick={handleDeleteVersion}>

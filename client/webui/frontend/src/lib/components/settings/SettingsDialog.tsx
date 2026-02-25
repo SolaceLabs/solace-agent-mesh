@@ -4,7 +4,7 @@ import { Info, Settings, Type, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useConfigContext } from "@/lib/hooks";
 
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, LifecycleBadge, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
 import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
@@ -18,9 +18,9 @@ interface SidebarItemProps {
     onClick: () => void;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick }) => {
+const SidebarItem = ({ icon, label, active, onClick }: SidebarItemProps) => {
     return (
-        <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "dark:bg-accent bg-[var(--color-brand-w10)]" : "text-muted-foreground hover:bg-accent/50")}>
+        <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "dark:bg-accent bg-(--color-brand-w10)" : "text-muted-foreground hover:bg-accent/50")}>
             {icon}
             <span>{label}</span>
         </button>
@@ -84,7 +84,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             <DialogTrigger asChild>
                                 <button
                                     type="button"
-                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
+                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-(--color-primary-w100) px-3 py-5 text-xs text-(--color-primary-text-w10) transition-colors hover:bg-(--color-primary-w90) hover:text-(--color-primary-text-w10)"
                                     aria-label="Open Settings"
                                 >
                                     <Settings className="h-6 w-6" />
@@ -101,7 +101,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                         </Button>
                     </DialogTrigger>
                 ))}
-            <DialogContent className="max-h-[90vh] w-[90vw] !max-w-[1200px] gap-0 p-0" showCloseButton={true}>
+            <DialogContent className="max-h-[90vh] w-[90vw] max-w-300! gap-0 p-0" showCloseButton={true}>
                 <VisuallyHidden>
                     <DialogTitle>Settings</DialogTitle>
                     <DialogDescription>Configure application settings</DialogDescription>
@@ -130,13 +130,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                     {/* Main Content */}
                     <div className="flex min-w-0 flex-1 flex-col">
                         {/* Header */}
-                        <div className="flex items-center border-b px-6 py-4">
+                        <div className="flex items-center gap-2 border-b px-6 py-4">
                             <h3 className="text-xl font-semibold">{getSectionTitle()}</h3>
-                            {activeSection === "speech" && (
-                                <Badge variant="outline" className="bg-secondary text-secondary-foreground ml-3 h-5 text-[10px] uppercase">
-                                    Experimental
-                                </Badge>
-                            )}
+                            {activeSection === "speech" && <LifecycleBadge variant="transparent" />}
                         </div>
 
                         {/* Content Area */}
