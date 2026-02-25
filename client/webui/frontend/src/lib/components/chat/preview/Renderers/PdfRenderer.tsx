@@ -60,6 +60,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
     const [snipStatus, setSnipStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
     // Document-wide page character boundaries: pageCharBoundaries[i] = char position where page i+1 starts
     const [pageCharBoundaries, setPageCharBoundaries] = useState<number[]>([]);
+    // Track if we're waiting for highlighting to complete before showing the PDF
+    const [isWaitingForHighlight, setIsWaitingForHighlight] = useState(citationMaps.length > 0);
     const viewerRef = useRef<HTMLDivElement>(null);
     const documentContainerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -188,11 +190,17 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                 });
             }
 
-            // Scroll to first highlight
-            // Note: This works even when initialPage is set because the page scroll completes
-            // before this 300ms delayed highlight scroll executes
+            // Scroll to first highlight after browser paints the highlights
+            // requestAnimationFrame ensures highlighting CSS is painted before scroll
             if (matchedSpans.length > 0) {
-                matchedSpans[0].scrollIntoView({ behavior: "smooth", block: "center" });
+                requestAnimationFrame(() => {
+                    matchedSpans[0].scrollIntoView({ behavior: "smooth", block: "center" });
+                    // Now that highlighting and scroll are complete, hide the loading state
+                    setIsWaitingForHighlight(false);
+                });
+            } else {
+                // No matches found, still hide loading state
+                setIsWaitingForHighlight(false);
             }
         }, 300);
 
@@ -535,6 +543,13 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                 onWheel={handleWheel}
                 style={{ cursor: getCursor() }}
             >
+                {/* Loading overlay while waiting for highlighting to complete */}
+                {isWaitingForHighlight && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Loading PDF...</div>
+                    </div>
+                )}
+
                 {/* Selection overlay */}
                 {selection && getSelectionStyle() && <div style={getSelectionStyle()!} />}
 
