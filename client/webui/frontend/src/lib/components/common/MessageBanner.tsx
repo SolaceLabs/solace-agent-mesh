@@ -21,6 +21,10 @@ const iconMap = {
     success: CheckCircle,
 };
 
+const iconColorMap: Record<string, string> = {
+    warning: "text-[var(--color-warning-wMain)]",
+};
+
 export interface MessageBannerBaseProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof messageBannerVariants> {
     message: string | React.ReactNode;
     icon?: React.ReactNode;
@@ -35,7 +39,7 @@ function MessageBanner({ className, variant = "error", message, icon, dismissibl
 
     return (
         <div data-testid="messageBanner" className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
-            {icon || <IconComponent className="size-5 shrink-0" />}
+            {icon || <IconComponent className={cn("size-5 shrink-0", iconColorMap[variant || "error"])} />}
             {typeof message === "string" ? <span>{message}</span> : message}
 
             <div className="ml-auto flex items-center gap-1">
