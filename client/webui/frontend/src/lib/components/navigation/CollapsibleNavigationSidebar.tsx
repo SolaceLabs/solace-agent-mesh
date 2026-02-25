@@ -13,12 +13,12 @@ import { cn } from "@/lib/utils";
 const HOVER_BG = "hover:bg-[var(--color-background-w100)]";
 const ACTIVE_BG = "bg-[var(--color-background-w100)]";
 
-const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "transition-colors", "py-6", HOVER_BG], {
+const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "transition-colors", "py-6", "w-full", HOVER_BG], {
     variants: {
         variant: {
-            expanded: "w-full justify-start pr-4 pl-6 text-sm font-normal",
-            collapsed: "w-10 justify-center p-0",
-            bottom: "w-10 justify-center p-2 text-[var(--color-primary-text-w10)]",
+            expanded: "justify-start pr-4 pl-6 text-sm font-normal",
+            collapsed: "justify-center p-0",
+            bottom: "justify-center p-2 text-[var(--color-primary-text-w10)]",
         },
         active: {
             true: ACTIVE_BG,
