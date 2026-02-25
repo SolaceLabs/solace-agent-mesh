@@ -484,7 +484,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
     }
 
     return (
-        <div className="flex h-full flex-col overflow-auto bg-gray-100 p-4 dark:bg-gray-800">
+        <div className="flex h-full flex-col bg-gray-100 p-4 dark:bg-gray-800">
             <div className="mb-2 flex items-center justify-center">
                 <div className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:bg-gray-700/80">
                     <Tooltip>

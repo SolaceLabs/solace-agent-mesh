@@ -127,7 +127,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                     <MessageBanner variant="warning" message="Unable to preview PDF: No active project context" />
                                 )
                             ) : renderType === "text" || renderType === "markdown" ? (
-                                <div className="h-full overflow-auto p-4">
+                                <div className="p-4">
                                     <pre className="whitespace-pre-wrap select-text focus-visible:outline-none" style={{ overflowWrap: "anywhere" }} dangerouslySetInnerHTML={{ __html: processedContent }} />
                                 </div>
                             ) : (
