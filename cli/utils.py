@@ -6,7 +6,6 @@ from time import sleep
 
 import click
 import requests
-from sqlalchemy import create_engine, event
 
 
 def ask_yes_no_question(question: str, default=False) -> bool:
@@ -285,7 +284,9 @@ def create_and_validate_database(database_url: str, db_name: str = "database") -
     Returns:
         bool: True if successful, raises exception if failed
     """
+    from sqlalchemy import create_engine, event
     try:
+
         # Handle SQLite file creation
         if database_url.startswith("sqlite:///"):
             db_file_path_str = database_url.replace("sqlite:///", "")
