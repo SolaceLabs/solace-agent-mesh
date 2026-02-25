@@ -43,9 +43,10 @@ interface SessionNameProps {
     session: Session;
     respondingSessionId: string | null;
     isActive: boolean;
+    hasRunningBackgroundTask?: boolean;
 }
 
-const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId, isActive }) => {
+const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId, isActive, hasRunningBackgroundTask }) => {
     const { autoTitleGenerationEnabled } = useConfigContext();
 
     const displayName = useMemo(() => {
@@ -71,6 +72,9 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
     }, [session.name, session.id, respondingSessionId, isGenerating, autoTitleGenerationEnabled]);
 
     const animationVariant = useMemo((): "pulseGenerate" | "pulseWait" | "none" => {
+        if (hasRunningBackgroundTask) {
+            return "pulseGenerate";
+        }
         if (isGenerating || isAnimating) {
             return isWaitingForTitle ? "pulseGenerate" : "pulseWait";
         }
@@ -78,7 +82,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
             return "pulseGenerate";
         }
         return "none";
-    }, [isWaitingForTitle, isAnimating, isGenerating]);
+    }, [isWaitingForTitle, isAnimating, isGenerating, hasRunningBackgroundTask]);
 
     return <span className={sessionTextStyles({ active: isActive, animation: animationVariant })}>{animatedName}</span>;
 };
@@ -124,10 +128,10 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
 
     if (isLoading && sessions.length === 0) {
         return (
-            <div className="flex flex-col gap-1 py-2">
+            <div className="flex flex-col py-2">
                 {[...Array(3)].map((_, i) => (
                     <div key={i} className="flex h-10 items-center pl-6">
-                        <span className="text-muted-foreground animate-pulse text-sm">Loading...</span>
+                        <span className="animate-pulse-slow text-sm text-[var(--color-secondary-text-w50)]">Loading...</span>
                     </div>
                 ))}
             </div>
@@ -152,7 +156,7 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
                         <TooltipTrigger asChild>
                             <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
                                 <div className="min-w-0 flex-1">
-                                    <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} />
+                                    <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
                                 </div>
                             </button>
                         </TooltipTrigger>
