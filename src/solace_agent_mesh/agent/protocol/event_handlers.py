@@ -46,7 +46,10 @@ from ...common.a2a import (
     get_client_response_topic,
     get_discovery_subscription_topic,
     get_sam_events_subscription_topic,
+    get_sam_remote_tool_response_subscription,
+    get_sam_remote_tool_status_subscription,
     get_text_from_message,
+    extract_task_id_from_topic,
     is_gateway_card,
     topic_matches_subscription,
     translate_a2a_to_adk_content,
@@ -176,6 +179,14 @@ async def process_event(component, event: Event):
             agent_status_sub_prefix = (
                 get_agent_status_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
+            sandbox_response_sub = get_sam_remote_tool_response_subscription(
+                namespace, agent_name
+            )
+            sandbox_status_sub = get_sam_remote_tool_status_subscription(
+                namespace, agent_name
+            )
+            sandbox_response_sub_prefix = sandbox_response_sub[:-2] + "/"
+            sandbox_status_sub_prefix = sandbox_status_sub[:-2] + "/"
             sam_events_topic = get_sam_events_subscription_topic(namespace, "session")
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
@@ -187,6 +198,10 @@ async def process_event(component, event: Event):
                     message.call_acknowledgements()
             elif topic_matches_subscription(topic, sam_events_topic):
                 handle_sam_event(component, message, topic)
+            elif topic.startswith(sandbox_response_sub_prefix):
+                handle_sandbox_response(component, message, topic, sandbox_response_sub)
+            elif topic.startswith(sandbox_status_sub_prefix):
+                handle_sandbox_status(component, message, topic, sandbox_status_sub)
             elif topic.startswith(agent_response_sub_prefix) or topic.startswith(
                 agent_status_sub_prefix
             ):
@@ -327,7 +342,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
 
         # Extract properties from message user properties
         client_id = message.get_user_properties().get("clientId", "default_client")
-        status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
+        status_topic_from_peer = message.get_user_properties().get("statusTo")
         reply_topic_from_peer = message.get_user_properties().get("replyTo")
         namespace = component.get_config("namespace")
         a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
@@ -1278,6 +1293,70 @@ def handle_agent_card_message(component, message: SolaceMessage):
         )
         message.call_acknowledgements()
         component.handle_error(e, Event(EventType.MESSAGE, message))
+
+
+def handle_sandbox_response(component, message: SolaceMessage, topic: str, subscription: str):
+    """Handle a response from a sandbox worker, routing it to the correct executor."""
+    try:
+        correlation_id = extract_task_id_from_topic(
+            topic, subscription, component.log_identifier
+        )
+        if not correlation_id:
+            log.error(
+                "%s Could not extract correlation ID from sandbox response topic: %s",
+                component.log_identifier,
+                topic,
+            )
+            return
+
+        payload = message.get_payload()
+        log.info(
+            "%s Sandbox response received for correlation_id=%s",
+            component.log_identifier,
+            correlation_id,
+        )
+        component.handle_sandbox_response(correlation_id, payload)
+    except Exception as e:
+        log.exception(
+            "%s Error handling sandbox response: %s", component.log_identifier, e
+        )
+    finally:
+        message.call_acknowledgements()
+
+
+def handle_sandbox_status(component, message: SolaceMessage, topic: str, subscription: str):
+    """Handle a status update from a sandbox worker."""
+    try:
+        correlation_id = extract_task_id_from_topic(
+            topic, subscription, component.log_identifier
+        )
+        if not correlation_id:
+            log.error(
+                "%s Could not extract correlation ID from sandbox status topic: %s",
+                component.log_identifier,
+                topic,
+            )
+            return
+
+        payload = message.get_payload()
+        if isinstance(payload, dict) and "params" in payload:
+            params = payload["params"]
+            status_text = params.get("status_text", "") if isinstance(params, dict) else ""
+        else:
+            status_text = payload.get("status_text", "") if isinstance(payload, dict) else ""
+        log.info(
+            "%s Sandbox status received for correlation_id=%s: %s",
+            component.log_identifier,
+            correlation_id,
+            status_text,
+        )
+        component.handle_sandbox_status(correlation_id, status_text)
+    except Exception as e:
+        log.exception(
+            "%s Error handling sandbox status: %s", component.log_identifier, e
+        )
+    finally:
+        message.call_acknowledgements()
 
 
 async def handle_a2a_response(component, message: SolaceMessage):

@@ -1,0 +1,303 @@
+"""
+Sandbox Worker Application.
+
+This module defines the SandboxWorkerApp class which configures the
+sandbox worker component with appropriate Solace subscriptions and
+broker settings. Subscriptions are derived from the tool manifest.
+"""
+
+import logging
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import Field, ValidationError
+
+from ..common.app_base import SamAppBase
+from ..common.a2a import (
+    get_sam_remote_tool_invoke_topic,
+    get_sam_remote_tool_init_topic,
+    get_discovery_subscription_topic,
+)
+from ..common.utils.pydantic_utils import SamConfigBase
+from .component import SandboxWorkerComponent
+from .manifest import ToolManifest
+
+log = logging.getLogger(__name__)
+
+# Try to import TrustManagerConfig from enterprise repo
+try:
+    from solace_agent_mesh_enterprise.common.trust.config import TrustManagerConfig
+except ImportError:
+    # Enterprise features not available - create a placeholder type
+    TrustManagerConfig = Dict[str, Any]  # type: ignore
+
+info = {
+    "class_name": "SandboxWorkerApp",
+    "description": "Application for running sandboxed Python tools via bubblewrap (bwrap).",
+}
+
+
+# --- Pydantic Models for Configuration Validation ---
+
+
+class SandboxConfig(SamConfigBase):
+    """Configuration for sandbox execution.
+
+    Supports two modes:
+    - 'bwrap': Full bubblewrap sandboxing (Linux, containers) — default
+    - 'direct': Plain subprocess (no isolation) — for local dev on any OS
+    """
+
+    mode: str = Field(
+        default="bwrap",
+        description="Execution mode: 'bwrap' for sandboxed, 'direct' for plain subprocess (dev).",
+    )
+    python_bin: str = Field(
+        default="/usr/local/bin/python3",
+        description="Python binary path (used in both bwrap and direct modes).",
+    )
+    work_base_dir: str = Field(
+        default="/sandbox/work",
+        description="Base directory for tool execution work directories.",
+    )
+    default_profile: str = Field(
+        default="standard",
+        description="Default sandbox profile to use (restrictive, standard, permissive).",
+    )
+    max_concurrent_executions: int = Field(
+        default=4,
+        description="Maximum number of concurrent tool executions.",
+    )
+
+
+class ToolSyncConfig(SamConfigBase):
+    """Configuration for in-container tool sync from object storage."""
+
+    enabled: bool = Field(default=False, description="Enable in-container tool sync (replaces sidecar).")
+    interval: int = Field(default=10, description="Seconds between sync cycles.")
+    storage_type: Optional[str] = Field(default=None, description="Storage backend: s3, gcs, azure.")
+    bucket_name: Optional[str] = Field(default=None, description="Bucket/container name override.")
+
+
+class ArtifactServiceConfig(SamConfigBase):
+    """Configuration for the artifact service."""
+
+    type: str = Field(
+        default="memory",
+        description="Type of artifact service (memory, filesystem, s3, gcs).",
+    )
+    base_path: Optional[str] = Field(
+        default=None,
+        description="Base path for filesystem artifact service.",
+    )
+    bucket_name: Optional[str] = Field(
+        default=None,
+        description="Bucket name for S3/GCS artifact service.",
+    )
+    region: Optional[str] = Field(
+        default=None,
+        description="Region for S3 artifact service.",
+    )
+
+
+class SandboxWorkerAppConfig(SamConfigBase):
+    """Pydantic model for the sandbox worker application configuration."""
+
+    namespace: str = Field(
+        ...,
+        description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
+    )
+    worker_id: str = Field(
+        default="sandbox-worker-001",
+        description="Unique identifier for this sandbox worker instance.",
+    )
+    manifest_path: str = Field(
+        default="/tools/manifest.yaml",
+        description="Path to the tool manifest YAML file.",
+    )
+    tools_python_dir: str = Field(
+        default="/tools/python",
+        description="Directory containing Python tool modules.",
+    )
+    max_message_size_bytes: int = Field(
+        default=10_000_000,
+        description="Maximum message size in bytes.",
+    )
+    default_timeout_seconds: int = Field(
+        default=300,
+        description="Default timeout for tool executions in seconds.",
+    )
+    sandbox: SandboxConfig = Field(
+        default_factory=SandboxConfig,
+        description="Configuration for bubblewrap sandbox execution.",
+    )
+    artifact_service: ArtifactServiceConfig = Field(
+        default_factory=lambda: ArtifactServiceConfig(type="memory"),
+        description="Configuration for the artifact service.",
+    )
+    tool_sync: ToolSyncConfig = Field(
+        default_factory=ToolSyncConfig,
+        description="Configuration for in-container tool sync from object storage.",
+    )
+    trust_manager: Optional[Union[TrustManagerConfig, Dict[str, Any]]] = Field(
+        default=None,
+        description="Configuration for the Trust Manager (enterprise feature).",
+    )
+
+
+class SandboxWorkerApp(SamAppBase):
+    """
+    Application class for the Sandbox Worker.
+
+    Configures the sandbox worker component with appropriate Solace
+    subscriptions and broker settings. Subscriptions are derived from
+    the tool manifest - one topic per tool.
+    """
+
+    app_schema = {}
+
+    def __init__(self, app_info: Dict[str, Any], **kwargs):
+        log.debug("Initializing SandboxWorkerApp...")
+
+        app_config_dict = app_info.get("app_config", {})
+
+        try:
+            # Validate and clean the configuration
+            app_config = SandboxWorkerAppConfig.model_validate_and_clean(app_config_dict)
+            # Overwrite the raw dict with the validated object
+            app_info["app_config"] = app_config
+        except ValidationError as e:
+            message = SandboxWorkerAppConfig.format_validation_error_message(
+                e, app_info.get("name", "unknown"), app_config_dict.get("worker_id")
+            )
+            log.error("Invalid Sandbox Worker configuration:\n%s", message)
+            raise
+
+        namespace = app_config.get("namespace")
+        worker_id = app_config.get("worker_id")
+        manifest_path = app_config.get("manifest_path")
+
+        log.info(
+            "Configuring SandboxWorkerApp: worker_id='%s' in namespace='%s'",
+            worker_id,
+            namespace,
+        )
+
+        # Start tool sync if enabled — must complete before reading the manifest
+        self._tool_sync_service = None
+        tool_sync_cfg = app_config.get("tool_sync")
+        if tool_sync_cfg and tool_sync_cfg.get("enabled", False):
+            self._tool_sync_service = self._start_tool_sync(
+                tool_sync_cfg, namespace, worker_id
+            )
+
+        # Read manifest to build initial per-tool subscriptions
+        manifest = ToolManifest(manifest_path)
+        tool_names = manifest.get_tool_names()
+
+        required_topics = []
+
+        # One subscription per tool from the manifest
+        for tool_name in sorted(tool_names):
+            required_topics.append(
+                get_sam_remote_tool_invoke_topic(namespace, tool_name)
+            )
+            # Add init topic for class-based tools (DynamicTool)
+            entry = manifest.get_tool(tool_name)
+            if entry and entry.class_name:
+                required_topics.append(
+                    get_sam_remote_tool_init_topic(namespace, tool_name)
+                )
+
+        # Discovery messages (to track available agents if needed)
+        required_topics.append(get_discovery_subscription_topic(namespace))
+
+        # Add trust card subscription if trust manager is enabled
+        trust_config = app_config.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ..common.a2a.protocol import get_trust_card_subscription_topic
+
+            trust_card_topic = get_trust_card_subscription_topic(namespace)
+            required_topics.append(trust_card_topic)
+            log.info(
+                "Trust Manager enabled for worker '%s', added trust card subscription: %s",
+                worker_id,
+                trust_card_topic,
+            )
+
+        generated_subs = [{"topic": topic} for topic in required_topics]
+        log.info(
+            "Generated subscriptions for SandboxWorker '%s': %s",
+            worker_id,
+            generated_subs,
+        )
+
+        # Define the component
+        component_definition = {
+            "name": f"{worker_id}_component",
+            "component_class": SandboxWorkerComponent,
+            "component_config": {},
+            "subscriptions": generated_subs,
+        }
+
+        app_info["components"] = [component_definition]
+        log.debug("Configured component definition for SandboxWorkerComponent")
+
+        # Configure broker settings
+        broker_config = app_info.setdefault("broker", {})
+        broker_config["input_enabled"] = True
+        broker_config["output_enabled"] = True
+
+        # Generate queue name following SAM conventions
+        generated_queue_name = f"{namespace.strip('/')}/q/sandbox/{worker_id}"
+        broker_config["queue_name"] = generated_queue_name
+        log.debug("Generated broker queue name: %s", generated_queue_name)
+
+        # Use temporary queue by default (can be overridden in config)
+        broker_config["temporary_queue"] = app_info.get("broker", {}).get(
+            "temporary_queue", True
+        )
+
+        super().__init__(app_info, **kwargs)
+        log.info("SandboxWorkerApp '%s' initialization complete", worker_id)
+
+    def _start_tool_sync(self, cfg, namespace: str, worker_id: str):
+        from .storage import create_sync_client
+        from .tool_sync_service import ToolSyncService
+
+        remote_prefix = f"{namespace}/str-runtime/"
+        local_dir = cfg.get("local_dir", "/tools")
+        interval = cfg.get("interval", 10)
+
+        log.info(
+            "Starting tool sync for worker '%s': prefix=%s local=%s interval=%ds",
+            worker_id,
+            remote_prefix,
+            local_dir,
+            interval,
+        )
+
+        client = create_sync_client(
+            storage_type=cfg.get("storage_type"),
+            bucket_name=cfg.get("bucket_name"),
+        )
+        service = ToolSyncService(
+            client=client,
+            remote_prefix=remote_prefix,
+            local_dir=local_dir,
+            interval=float(interval),
+        )
+        service.start()
+
+        if not service.wait_for_first_sync(timeout=120.0):
+            log.warning(
+                "Tool sync first cycle did not succeed within timeout — "
+                "continuing startup (manifest may be empty)"
+            )
+
+        return service
+
+    def stop(self):
+        if self._tool_sync_service:
+            log.info("Stopping tool sync service")
+            self._tool_sync_service.stop()
+        super().stop()

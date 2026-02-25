@@ -22,6 +22,8 @@ from ...common.a2a import (
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
+    get_sam_remote_tool_response_subscription,
+    get_sam_remote_tool_status_subscription,
 )
 from ...common.constants import (
     DEFAULT_COMMUNICATION_TIMEOUT,
@@ -526,6 +528,8 @@ class SamAgentApp(SamAppBase):
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
+            get_sam_remote_tool_response_subscription(namespace, agent_name),
+            get_sam_remote_tool_status_subscription(namespace, agent_name),
         ]
 
         # Add trust card subscription if trust manager is enabled
