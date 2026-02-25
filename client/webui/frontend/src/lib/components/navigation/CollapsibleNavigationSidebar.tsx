@@ -10,15 +10,9 @@ import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { cn } from "@/lib/utils";
 
-// ============================================================================
-// CVA Style Definitions
-// ============================================================================
-
-// Shared color constants - matches RecentChatsList hover styling
 const HOVER_BG = "enabled:hover:bg-[var(--color-background-w100)]";
 const ACTIVE_BG = "bg-[var(--color-background-w100)]";
 
-/** Unified navigation button styles with variant support */
 const navButtonStyles = cva(["h-10", "transition-colors", HOVER_BG], {
     variants: {
         variant: {
@@ -38,7 +32,6 @@ const navButtonStyles = cva(["h-10", "transition-colors", HOVER_BG], {
     defaultVariants: { variant: "expanded", active: false, indent: false },
 });
 
-/** Icon wrapper container styles */
 const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify-center", "rounded"], {
     variants: {
         active: {
@@ -53,7 +46,6 @@ const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify-center
     defaultVariants: { active: false, withMargin: false },
 });
 
-/** Icon element styles */
 const iconStyles = cva(["size-6"], {
     variants: {
         active: {
@@ -68,7 +60,6 @@ const iconStyles = cva(["size-6"], {
     defaultVariants: { active: false, muted: false },
 });
 
-/** Navigation text styles */
 const navTextStyles = cva([], {
     variants: {
         active: {
@@ -78,10 +69,6 @@ const navTextStyles = cva([], {
     },
     defaultVariants: { active: false },
 });
-
-// ============================================================================
-// Public Types - exported for external consumers
-// ============================================================================
 
 /**
  * Configuration for a single navigation item.
@@ -180,10 +167,8 @@ export interface NewChatConfig {
     onClick?: () => void;
 }
 
-// Internal type alias for backward compatibility
 type NavItem = NavItemConfig & { hasSubmenu?: boolean };
 
-// Navigation item button component - uses dark theme colors always
 const NavItemButton: React.FC<{
     item: NavItem;
     isActive: boolean;
@@ -198,10 +183,8 @@ const NavItemButton: React.FC<{
     const buttonContent = (
         <Button variant="ghost" onClick={item.hasSubmenu ? onToggleExpand : onClick} className={cn(navButtonStyles({ indent: !!indent, active: !!indent && isActive }), className)}>
             {indent ? (
-                // Subitem - no icon wrapper, just text
                 <span className={navTextStyles({ active: isActive })}>{item.label}</span>
             ) : (
-                // Main item - with icon wrapper
                 <>
                     <div className={iconWrapperStyles({ active: isHighlighted, withMargin: true })}>
                         <item.icon className={iconStyles({ active: isHighlighted })} />
@@ -229,25 +212,21 @@ const NavItemButton: React.FC<{
 };
 
 export interface CollapsibleNavigationSidebarProps {
-    // Navigation items - REQUIRED, single prop with position indicator
-    items: NavItemConfig[]; // All navigation items (position determines top vs bottom)
+    items: NavItemConfig[];
 
-    // Header
     header?: HeaderConfig | React.ReactNode;
 
-    // Special sections
-    showNewChatButton?: boolean; // Show/hide "New Chat" button (default: true)
-    newChatConfig?: NewChatConfig; // Customize "New Chat" button
-    showRecentChats?: boolean; // Show/hide Recent Chats section (default: true)
+    showNewChatButton?: boolean;
+    newChatConfig?: NewChatConfig;
+    showRecentChats?: boolean;
 
     // Callbacks
     onNavigate?: (itemId: string, route?: string) => void;
     onCollapseChange?: (isCollapsed: boolean) => void;
 
-    // State control (for controlled component pattern)
-    activeItemId?: string; // Controlled active state
-    isCollapsed?: boolean; // Controlled collapse state
-    defaultCollapsed?: boolean; // Uncontrolled default collapse
+    activeItemId?: string;
+    isCollapsed?: boolean;
+    defaultCollapsed?: boolean;
 }
 
 export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebarProps> = ({
@@ -265,7 +244,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Persist collapse state - supports controlled and uncontrolled modes
     const [internalCollapsed, setInternalCollapsed] = useSessionStorage("nav-collapsed", defaultCollapsed);
     const isCollapsed = controlledIsCollapsed ?? internalCollapsed;
     const setIsCollapsed = (value: boolean) => {
@@ -282,7 +260,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     };
 
     const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>(() => {
-        // Initialize expanded state from items defaultExpanded
         const initial: Record<string, boolean> = { assets: false, systemManagement: false };
         items.forEach(item => {
             if (item.children && item.defaultExpanded !== undefined) {
@@ -293,7 +270,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     });
     const { handleNewSession } = useChatContext();
 
-    // Helper to check if an item matches the current route
     const isItemActiveByRoute = useCallback(
         (item: NavItemConfig): boolean => {
             if (!item.routeMatch) return false;
@@ -307,7 +283,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         [location.pathname]
     );
 
-    // Find active item ID from resolved nav items
     const findActiveItemId = useCallback(
         (items: NavItemConfig[]): string | null => {
             for (const item of items) {
@@ -322,15 +297,12 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         [isItemActiveByRoute]
     );
 
-    // Sync active item with current route (only in uncontrolled mode)
     useEffect(() => {
-        if (controlledActiveItemId !== undefined) return; // Controlled mode - don't sync
+        if (controlledActiveItemId !== undefined) return;
 
-        // Use routeMatch-based detection from items
         const matchedId = findActiveItemId(items);
         if (matchedId) {
             setInternalActiveItem(matchedId);
-            // Auto-expand parent menu if child is active
             items.forEach(item => {
                 if (item.children?.some(child => child.id === matchedId)) {
                     setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
@@ -349,10 +321,8 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
             return;
         }
 
-        // Call onNavigate callback with both itemId and route
         onNavigate?.(itemId, item.route);
 
-        // If item has a route defined, use it
         if (item.route) {
             navigate(item.route);
         }
@@ -369,7 +339,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         setIsCollapsed(!isCollapsed);
     };
 
-    // Convert NavItemConfig to internal NavItem format (adds hasSubmenu flag)
     const toNavItem = useCallback((config: NavItemConfig): NavItem => {
         const convertItem = (item: NavItemConfig): NavItem => ({
             ...item,
@@ -379,51 +348,37 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         return convertItem(config);
     }, []);
 
-    // Split items by position - top items (default) and bottom items
     const navItems: NavItem[] = useMemo(() => items.filter(item => !item.hidden && item.position !== "bottom").map(toNavItem), [items, toNavItem]);
-
     const bottomItems: NavItem[] = useMemo(() => items.filter(item => !item.hidden && item.position === "bottom").map(toNavItem), [items, toNavItem]);
 
-    // Handle new chat click - uses custom config if provided
     const handleNewChatClickResolved = useCallback(() => {
         if (newChatConfig?.onClick) {
             newChatConfig.onClick();
             return;
         }
-        // Default behavior
         navigate("/chat");
         handleNewSession();
     }, [newChatConfig, navigate, handleNewSession]);
 
-    // Resolve new chat button props
     const newChatLabel = newChatConfig?.label ?? "New Chat";
     const NewChatIcon = newChatConfig?.icon ?? Plus;
 
-    // Helper to render header content
     const renderHeader = (): React.ReactNode => {
-        // Check if header is a HeaderConfig object
         if (header && typeof header === "object" && header !== null && "component" in header) {
             const headerConfig = header as HeaderConfig;
             if (headerConfig.component) return headerConfig.component;
-            // HeaderConfig without component - use default SolaceIcon
         } else if (header !== undefined && header !== null) {
-            // header is a React.ReactNode (not HeaderConfig)
             return header as React.ReactNode;
         }
-
-        // Default: SolaceIcon with appropriate variant based on collapsed state
         return <SolaceIcon variant={isCollapsed ? "short" : "full"} className={isCollapsed ? "h-8 w-8" : "h-8 w-24"} />;
     };
 
-    // Check if collapse button should be hidden
     const hideCollapseButton = header && typeof header === "object" && "hideCollapseButton" in header && (header as HeaderConfig).hideCollapseButton;
 
-    // Handle bottom item click - delegates to item's onClick handler
     const handleBottomItemClick = (item: NavItem) => {
         item.onClick?.();
     };
 
-    // Check if a nav item or its children is active (for collapsed view icon highlighting)
     const isNavItemOrChildActive = (item: NavItem): boolean => {
         if (activeItem === item.id) return true;
         if (item.children?.some(child => activeItem === child.id)) return true;
@@ -433,12 +388,10 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     return (
         <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-[var(--color-background-wMain)]", isCollapsed ? "w-16" : "w-64")}>
             {isCollapsed ? (
-                /* Collapsed View - Icon Only */
                 <>
-                    {/* Header with Short Logo */}
                     <div className="relative flex w-full items-center justify-center overflow-visible border-b border-[var(--color-secondary-w70)] py-3">
                         {renderHeader()}
-                        {/* Expand Chevron - positioned outside the panel */}
+                        {/* Positioned outside panel bounds to create floating expand button effect */}
                         {!hideCollapseButton && (
                             <Button
                                 variant="ghost"
@@ -451,9 +404,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         )}
                     </div>
 
-                    {/* Icon Stack */}
                     <div className="flex flex-col items-center gap-2 py-3">
-                        {/* New Chat */}
                         {showNewChatButton && (
                             <Button variant="ghost" onClick={handleNewChatClickResolved} className={navButtonStyles({ variant: "collapsed" })} tooltip={newChatLabel}>
                                 <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
@@ -462,7 +413,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                             </Button>
                         )}
 
-                        {/* Navigation Icons - rendered from navItems */}
                         {navItems.map(item => {
                             const isActive = isNavItemOrChildActive(item);
                             const hasSubmenu = item.hasSubmenu && item.children?.length;
@@ -473,7 +423,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                     variant="ghost"
                                     onClick={() => {
                                         if (hasSubmenu) {
-                                            // Expand sidebar and open submenu
                                             setActiveItem(item.id);
                                             setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
                                             setIsCollapsed(false);
@@ -493,7 +442,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         })}
                     </div>
 
-                    {/* Bottom items */}
                     <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] p-2">
                         {bottomItems.map(item => (
                             <Button key={item.id} variant="ghost" onClick={() => handleBottomItemClick(item)} className={navButtonStyles({ variant: "bottom" })} tooltip={item.label} disabled={item.disabled}>
@@ -503,9 +451,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     </div>
                 </>
             ) : (
-                /* Expanded View */
                 <>
-                    {/* Header with Solace Logo and Collapse Button */}
                     <div className="flex items-center justify-between border-b border-[var(--color-secondary-w70)] py-3 pr-4 pl-6">
                         <div className="flex items-center gap-2">{renderHeader()}</div>
                         {!hideCollapseButton && (
@@ -515,9 +461,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         )}
                     </div>
 
-                    {/* Scrollable Navigation Section */}
                     <div className="flex-1 overflow-y-auto py-3">
-                        {/* New Chat Button */}
                         {showNewChatButton && (
                             <Button variant="ghost" onClick={handleNewChatClickResolved} className={navButtonStyles()}>
                                 <div className={iconWrapperStyles({ active: activeItem === "chats", withMargin: true })}>
@@ -527,10 +471,8 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                             </Button>
                         )}
 
-                        {/* Navigation Items */}
                         <div>
                             {navItems.map(item => {
-                                // Check if any child is active
                                 const hasActiveChild = item.children?.some(child => activeItem === child.id) ?? false;
                                 return (
                                     <div key={item.id}>
@@ -542,14 +484,12 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                             onToggleExpand={() => toggleMenu(item.id)}
                                             hasActiveChild={hasActiveChild}
                                         />
-                                        {/* Submenu items with vertical line */}
                                         {item.hasSubmenu && expandedMenus[item.id] && item.children && (
                                             <div className="ml-10">
                                                 {item.children.map(child => {
                                                     const isChildActive = activeItem === child.id;
                                                     return (
                                                         <div key={child.id} className="group relative">
-                                                            {/* Left border line - 1px default, 3px on hover/active */}
                                                             <div className={cn("absolute top-0 left-0 h-full bg-[var(--color-brand-w60)] transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
                                                             <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
                                                         </div>
@@ -562,7 +502,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                             })}
                         </div>
 
-                        {/* Recent Chats Section - conditionally rendered */}
                         {showRecentChats && (
                             <>
                                 <div className="my-4 border-t border-[var(--color-secondary-w70)]" />
@@ -579,8 +518,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         )}
                     </div>
 
-                    {/* Bottom Section - Notifications and User Account */}
-                    {/* Spacing: 8px above divider (mt-2) + 8px below divider (pt-2) = 16px total */}
                     <div className="mt-2 border-t border-[var(--color-secondary-w70)] pt-2">
                         {bottomItems.map(item => (
                             <Button key={item.id} variant="ghost" onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>

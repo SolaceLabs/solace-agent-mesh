@@ -19,7 +19,6 @@ function AppLayoutContent() {
     const { addNotification } = useChatContext();
     const { projects } = useProjectContext();
 
-    // Dialog state (moved from CollapsibleNavigationSidebar)
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
@@ -36,7 +35,6 @@ function AppLayoutContent() {
             }
         });
 
-        // Observe changes to body styles and DOM changes for overlays
         observer.observe(document.body, {
             attributes: true,
             attributeFilter: ["style"],
@@ -49,7 +47,6 @@ function AppLayoutContent() {
         };
     }, []);
 
-    // Handle move session dialog event (moved from CollapsibleNavigationSidebar)
     const handleOpenMoveDialog = useCallback((event: CustomEvent<{ session: Session }>) => {
         setSessionToMove(event.detail.session);
         setIsMoveDialogOpen(true);
@@ -67,7 +64,6 @@ function AppLayoutContent() {
 
         await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
 
-        // Dispatch event to notify other components
         if (typeof window !== "undefined") {
             window.dispatchEvent(
                 new CustomEvent("session-moved", {
@@ -77,27 +73,19 @@ function AppLayoutContent() {
                     },
                 })
             );
-            // Also trigger session-updated to refresh the list
+            // RecentChatsList listens for this event to refresh its data
             window.dispatchEvent(new CustomEvent("session-updated", { detail: { sessionId: sessionToMove.id } }));
         }
 
         addNotification?.("Session moved successfully", "success");
     };
 
-    // Get navigation items based on feature flags
     const topNavItems = getTopNavigationItems(configFeatureEnablement);
-
-    // Feature flag for new collapsible navigation
     const useNewNav = configFeatureEnablement?.newNavigation ?? false;
-
-    // Feature flags for new navigation
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
     const logoutEnabled = configFeatureEnablement?.logout ?? false;
-
-    // Filter SAM items based on feature flags
     const filteredItems = filterItems(SAM_ITEMS, { projects: projectsEnabled, logout: logoutEnabled });
 
-    // Inject onClick handlers for bottom items that need special behavior
     const itemsWithHandlers = filteredItems.map(item => {
         if (item.id === "userAccount") {
             return { ...item, onClick: () => setIsSettingsDialogOpen(true) };
@@ -108,7 +96,6 @@ function AppLayoutContent() {
         return item;
     });
 
-    // Enable beforeunload warning when chat data is present
     useBeforeUnload();
 
     const getActiveItem = () => {
@@ -164,7 +151,6 @@ function AppLayoutContent() {
             <ToastContainer />
             <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} sourceTaskId={sourceTaskId} onClose={clearSelection} />
 
-            {/* Dialogs (moved from CollapsibleNavigationSidebar) */}
             <MoveSessionDialog
                 isOpen={isMoveDialogOpen}
                 onClose={() => {
