@@ -79,9 +79,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
         if (!hasParallelBranches && !hasChildren) {
             return (
                 <div
-                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${pillColorClasses} ${opacityClass} ${
-                        isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
-                    }`}
+                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${pillColorClasses} ${opacityClass} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                     style={{
                         width: `${node.width}px`,
                         minWidth: "80px",
@@ -198,20 +196,11 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
     const hasParallelBranches = node.parallelBranches && node.parallelBranches.length > 0;
     const hasContent = hasChildren || hasParallelBranches;
 
-    // Layout constants - match workflow visualization
-    const AGENT_WIDTH = 280; // Match workflow AGENT width
-    const HEADER_HEIGHT = 44; // Match CONTAINER_HEADER height
-
     // When collapsed or no children, render as simple rectangular node
     if (isCollapsed || !hasContent) {
         return (
             <div
-                className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${opacityClass} ${borderStyleClass} ${
-                    isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
-                } ${haloClass}`}
-                style={{
-                    width: `${AGENT_WIDTH}px`,
-                }}
+                className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${opacityClass} ${borderStyleClass} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
@@ -240,21 +229,23 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
         );
     }
 
-    // When expanded with children, render with straddling header and dotted container
+    // When expanded with children, render with solid container and divider
     return (
-        <div className={`flex flex-col px-4 ${opacityClass} ${haloClass}`} style={{ minWidth: `${AGENT_WIDTH+72}px` }}>
-            {/* Solid Header Box - positioned at top, centered via CONTAINER_HEADER mx-auto */}
+        <div className={`flex flex-col ${opacityClass} ${haloClass}`}>
+            {/* Solid Container with Header and Content */}
             <div
-                className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-                    style={{
-                    width: `${AGENT_WIDTH}px`,
-                }}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
+                className={`rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:!shadow-none ${
+                    isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
+                }`}
             >
-                <div className="flex items-center justify-between gap-4 px-4 py-2">
+                {/* Header */}
+                <div
+                    className="group flex cursor-pointer items-center justify-between gap-4 px-4 py-2"
+                    onClick={e => {
+                        e.stopPropagation();
+                        onClick?.(node);
+                    }}
+                >
                     <div className="flex min-w-0 items-center gap-2">
                         <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
                         <div className="truncate text-sm font-semibold">{node.data.label}</div>
@@ -278,15 +269,12 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                         </div>
                     )}
                 </div>
-            </div>
 
-            {/* Dotted Children Container - grows with content, extends 16px beyond header on each side via outer px-4 */}
-            <div
-                className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
-                style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
-            >
+                {/* Divider */}
+                <div className="border-t border-(--color-secondary-w40) dark:border-(--color-secondary-w70)" />
+
                 {/* Children content */}
-                <div className="px-3 pb-4">
+                <div className="bg-(--color-secondary-w10) px-4 py-4 dark:bg-(--color-secondary-w100)">
                     <div className="flex flex-col items-center gap-2">
                         {/* Sequential children */}
                         {hasChildren &&

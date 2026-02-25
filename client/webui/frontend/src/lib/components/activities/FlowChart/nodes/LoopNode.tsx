@@ -85,7 +85,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
 
                 {/* Dotted Children Container - grows with content */}
                 <div
-                    className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
+                    className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
                     style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + (hasConditionRow ? 32 : 16)}px`, minWidth: `${LOOP_WIDTH + 72}px` }}
                 >
                     <div className="px-3 pb-4">
@@ -100,9 +100,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
 
                             {/* Iteration Counter (if in progress and more iterations coming) */}
                             {node.data.status === "in-progress" && currentIteration > node.children.length && (
-                                <div className="mt-2 rounded bg-(--color-background-w10) px-2 py-1 text-[9px] font-medium text-gray-600 dark:bg-(--color-background-wMain) dark:text-gray-300">
-                                    Processing iteration {currentIteration}...
-                                </div>
+                                <div className="mt-2 rounded bg-(--color-background-w10) px-2 py-1 text-[9px] font-medium text-gray-600 dark:bg-(--color-background-wMain) dark:text-gray-300">Processing iteration {currentIteration}...</div>
                             )}
                         </div>
                     </div>
@@ -115,7 +113,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     return (
         <div
             className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-            style={{ width: 'fit-content', minWidth: '120px' }}
+            style={{ width: "fit-content", minWidth: "120px" }}
             onClick={e => {
                 e.stopPropagation();
                 onClick?.(node);

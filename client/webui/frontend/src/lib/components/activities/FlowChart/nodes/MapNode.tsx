@@ -58,7 +58,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
     // If the node has children, render as expanded container with dotted border
     if (hasChildren) {
         return (
-            <div className="flex flex-col px-4" style={{ width: 'fit-content', minWidth: '200px' }}>
+            <div className="flex flex-col px-4" style={{ width: "fit-content", minWidth: "200px" }}>
                 {/* Solid Header Box - positioned at top */}
                 <div
                     className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
@@ -75,7 +75,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
 
                 {/* Dotted Children Container - grows with content */}
                 <div
-                    className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
+                    className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
                     style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
                 >
                     <div className="px-3 pb-4">
@@ -103,7 +103,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
     return (
         <div
             className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-            style={{ width: 'fit-content', minWidth: '120px' }}
+            style={{ width: "fit-content", minWidth: "120px" }}
             onClick={e => {
                 e.stopPropagation();
                 onClick?.(node);
