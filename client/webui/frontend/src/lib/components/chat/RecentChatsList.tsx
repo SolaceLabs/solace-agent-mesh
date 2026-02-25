@@ -9,10 +9,6 @@ import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
 
-// ============================================================================
-// CVA Style Definitions
-// ============================================================================
-
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-[var(--color-background-w100)]"], {
     variants: {
         active: {
@@ -96,10 +92,8 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
     const { sessionId, handleSwitchSession, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
 
-    // Fetch recent sessions using React Query
     const { data: sessions = [], isLoading } = useRecentSessions(maxItems);
 
-    // Track which session started the response
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
 

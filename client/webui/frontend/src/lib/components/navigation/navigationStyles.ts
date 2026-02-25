@@ -1,10 +1,8 @@
 import { cva } from "class-variance-authority";
 
-// Style constants
 export const HOVER_BG = "hover:bg-[var(--color-background-w100)]";
 export const ACTIVE_BG = "bg-[var(--color-background-w100)]";
 
-// CVA style definitions for navigation components
 export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "transition-colors", "py-6", "w-full", HOVER_BG], {
     variants: {
         variant: {
