@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { Wrench } from "lucide-react";
 
+import { Badge } from "@/lib/components/ui";
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS } from "../utils/nodeStyles";
 
@@ -18,7 +19,7 @@ const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
             className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
-            style={{ width: '225px' }}
+            style={{ width: "225px" }}
             onClick={e => {
                 e.stopPropagation();
                 onClick?.(node);
@@ -30,9 +31,9 @@ const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
             </div>
             {artifactCount > 0 && (
                 <div className="px-4 pt-0 pb-2 pl-10">
-                    <div className="text-xs text-(--color-secondary-text-wMain)">
-                        {artifactCount} {artifactCount === 1 ? "artifact" : "artifacts"} created
-                    </div>
+                    <Badge variant="default">
+                        {artifactCount} {artifactCount === 1 ? "artifact" : "artifacts"}
+                    </Badge>
                 </div>
             )}
         </div>
