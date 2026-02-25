@@ -21,6 +21,16 @@ interface AgentNodeProps {
 }
 
 const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }: AgentNodeProps) => {
+    // Reusable agent header with icon and label
+    const AgentHeader = () => (
+        <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10) dark:bg-(--color-accent-n2-w100)">
+                <Bot className="h-4 w-4 text-(--color-brand-w100)" />
+            </div>
+            <div className="truncate text-sm font-semibold">{node.data.label}</div>
+        </div>
+    );
+
     // Render a child node recursively
     const renderChild = useCallback(
         (child: LayoutNode) => {
@@ -206,12 +216,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                     onClick?.(node);
                 }}
             >
-                <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10)">
-                        <Bot className="h-4 w-4 text-(--color-brand-w100)" />
-                    </div>
-                    <div className="truncate text-sm font-semibold">{node.data.label}</div>
-                </div>
+                <AgentHeader />
                 {/* Expand control */}
                 {isCollapsed && onExpand && (
                     <Button
@@ -248,12 +253,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                         onClick?.(node);
                     }}
                 >
-                    <div className="flex min-w-0 items-center gap-2">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10)">
-                            <Bot className="h-4 w-4 text-(--color-brand-w100)" />
-                        </div>
-                        <div className="truncate text-sm font-semibold">{node.data.label}</div>
-                    </div>
+                    <AgentHeader />
 
                     {/* Collapse control */}
                     {isExpanded && onCollapse && (
