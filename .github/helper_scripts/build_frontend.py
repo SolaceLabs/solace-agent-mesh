@@ -83,10 +83,22 @@ class CustomBuildHook(BuildHookInterface):
         log(">>> Building Solace Agent Mesh Web UI\n")
         os.chdir("client/webui/frontend")
         try:
-            log("### npm ci")
-            subprocess.run(
-                [npm, "ci"], check=True, stdout=log_file, stderr=subprocess.STDOUT
-            )
+            # Check if a pre-built UI package tarball is provided (e.g. from custom CI builds)
+            ui_package_override = os.environ.get("SAM_UI_PACKAGE_OVERRIDE", "")
+            if ui_package_override and os.path.isfile(ui_package_override):
+                log(f"### Using pre-built UI package override: {ui_package_override}\n")
+                # Install the pre-built tarball as the @SolaceLabs/solace-agent-mesh-ui package
+                subprocess.run(
+                    [npm, "install", "--no-save", ui_package_override],
+                    check=True,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                )
+            else:
+                log("### npm ci")
+                subprocess.run(
+                    [npm, "ci"], check=True, stdout=log_file, stderr=subprocess.STDOUT
+                )
             log("\n### npm run build\n")
             subprocess.run(
                 [npm, "run", "build"],
