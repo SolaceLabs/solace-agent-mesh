@@ -21,8 +21,8 @@ export interface CitationPreviewModalProps {
     isOpen: boolean;
     onClose: () => void;
     filename: string;
-    pageLabel: string;
-    pageNumber: number;
+    locationLabel: string;
+    initialLocation: number;
     sourceIndex: number;
     citations: RAGSource[];
     fileExtension?: string;
@@ -31,9 +31,9 @@ export interface CitationPreviewModalProps {
 /**
  * Modal for previewing document citations.
  * Displays the document content with highlighted citations (for text files)
- * or scrolls to the relevant page (for PDFs).
+ * or scrolls to the relevant location (for PDFs: page, for text: line).
  */
-export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOpen, onClose, filename, pageLabel, pageNumber, sourceIndex, citations }) => {
+export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOpen, onClose, filename, locationLabel, initialLocation, sourceIndex, citations }) => {
     const { activeProject } = useProjectContext();
     const projectId = activeProject?.id ?? null;
 
@@ -100,7 +100,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                             <FileIcon filename={filename} variant="compact" />
                             <div className="flex flex-col gap-0.5">
                                 <DialogTitle className="text-base font-semibold">Source {sourceIndex + 1}</DialogTitle>
-                                <DialogDescription className="text-muted-foreground flex items-center gap-1.5 text-sm">{pageLabel}</DialogDescription>
+                                <DialogDescription className="text-muted-foreground flex items-center gap-1.5 text-sm">{locationLabel}</DialogDescription>
                             </div>
                         </div>
                     </div>
@@ -115,7 +115,16 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                         <div className="h-full overflow-auto">
                             {renderType === "pdf" ? (
                                 fileUrl ? (
-                                    <ContentRenderer content="" rendererType={renderType} mime_type={artifactData?.mimeType} url={fileUrl} filename={filename} setRenderError={setRenderError} initialPage={pageNumber} citationMaps={citationMaps} />
+                                    <ContentRenderer
+                                        content=""
+                                        rendererType={renderType}
+                                        mime_type={artifactData?.mimeType}
+                                        url={fileUrl}
+                                        filename={filename}
+                                        setRenderError={setRenderError}
+                                        initialPage={initialLocation}
+                                        citationMaps={citationMaps}
+                                    />
                                 ) : (
                                     <MessageBanner variant="warning" message="Unable to preview PDF: No active project context" />
                                 )
@@ -139,10 +148,9 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                     </Button>
                 </DialogFooter>
 
-                {/* Accessible title for screen readers */}
                 <VisuallyHidden>
                     <DialogDescription>
-                        Preview of {filename} showing citation from {pageLabel}
+                        Preview of {filename} showing citation from {locationLabel}
                     </DialogDescription>
                 </VisuallyHidden>
             </DialogContent>
