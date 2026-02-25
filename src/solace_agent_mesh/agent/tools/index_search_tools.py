@@ -887,7 +887,7 @@ index_search_tool_def = BuiltinTool(
         "- If results are poor, rephrase with synonyms or broader terms\n"
         "- For complex questions, run multiple targeted searches — each gets unique citation IDs (idx0r*, idx1r*, idx2r*)\n"
         "- Adjust top_k (1-3 focused, 5 balanced, 7-10 comprehensive) and min_score (5.0+ moderate, 10.0+ strict) as needed\n"
-        "- Do NOT hallucinate facts not found in the results\n"
+        "- Do NOT claim facts are from the indexed documents unless they appear in the search results and you provide proper citations\n"
         "- If search results do not adequately answer the question, you SHOULD use your general knowledge or other available tools (e.g., web_request) — do NOT tell the user the answer was not found without first trying other tools\n"
         "\n"
         "EXAMPLES:\n"
