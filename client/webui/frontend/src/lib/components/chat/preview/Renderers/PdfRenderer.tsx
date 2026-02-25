@@ -76,8 +76,10 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
     }, [pageWidth]);
 
     // Scroll to initial page when document loads
+    // Skip this if we have highlighting - let the highlight scroll handle positioning instead
     useEffect(() => {
-        if (initialPage && initialPage > 0 && numPages && initialPage <= numPages) {
+        const hasHighlighting = citationMaps.length > 0 || highlightTexts.length > 0;
+        if (initialPage && initialPage > 0 && numPages && initialPage <= numPages && !hasHighlighting) {
             // Why requestAnimationFrame over setTimeout: Syncs with browser paint cycle instead of
             // arbitrary 100ms delay. Eliminates race condition where scroll fires before DOM paint
             // completes, causing scroll-to-wrong-position bug. Pattern matches useAutoScroll.tsx:147-150.
@@ -88,15 +90,10 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
                 }
             });
         }
-    }, [initialPage, numPages]);
+    }, [initialPage, numPages, citationMaps.length, highlightTexts.length]);
 
     // Build document-wide character boundaries for each page
     // Performance trade-off: Rendering all pages upfront for citation highlighting accuracy.
-    // Why not virtualized: Character-position highlighting requires full-document text extraction
-    // to build page boundaries (line 86-131). Virtualizing pages would break char offsets.
-    // Optimization opportunity: Could defer boundary building until first highlight is needed,
-    // but adds complexity for marginal UX gain since most citation PDFs are <50 pages.
-    // If sluggish for 100+ page docs, consider lazy boundary building on scroll (PR #TBD).
     useEffect(() => {
         if (!citationMaps.length || !numPages || !url) return;
 
