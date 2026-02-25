@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState, filterItems, SAM_ITEMS } from "@/lib/components";
+import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/types";
 
@@ -83,16 +83,14 @@ function AppLayoutContent() {
     const useNewNav = configFeatureEnablement?.newNavigation ?? false;
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
     const logoutEnabled = configFeatureEnablement?.logout ?? false;
-    const filteredItems = filterItems(SAM_ITEMS, { projects: projectsEnabled, logout: logoutEnabled });
 
-    const itemsWithHandlers = filteredItems.map(item => {
-        if (item.id === "userAccount") {
-            return { ...item, onClick: () => setIsSettingsDialogOpen(true) };
-        }
-        if (item.id === "logout") {
-            return { ...item, onClick: logout };
-        }
-        return item;
+    const { items, activeItemId } = useNavigationItems({
+        projectsEnabled,
+        promptLibraryEnabled: configFeatureEnablement?.promptLibrary ?? false,
+        logoutEnabled,
+        isAuthenticated,
+        onUserAccountClick: () => setIsSettingsDialogOpen(true),
+        onLogoutClick: logout,
     });
 
     useBeforeUnload();
@@ -140,7 +138,7 @@ function AppLayoutContent() {
     return (
         <div className={`relative flex h-screen`}>
             {useNewNav ? (
-                <CollapsibleNavigationSidebar items={itemsWithHandlers} showNewChatButton showRecentChats />
+                <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
             ) : (
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}

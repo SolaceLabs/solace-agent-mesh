@@ -212,6 +212,11 @@ const NavItemButton: React.FC<{
 };
 
 export interface CollapsibleNavigationSidebarProps {
+    /**
+     * Navigation items to display. Items are rendered as-is with no filtering.
+     * Use `position: "bottom"` to place items in the bottom section.
+     * Items should include onClick handlers or routes pre-configured.
+     */
     items: NavItemConfig[];
 
     header?: HeaderConfig | React.ReactNode;
@@ -224,6 +229,10 @@ export interface CollapsibleNavigationSidebarProps {
     onNavigate?: (itemId: string, route?: string) => void;
     onCollapseChange?: (isCollapsed: boolean) => void;
 
+    /**
+     * Controls which item appears active. When provided, disables automatic
+     * route-based detection. Parent should compute this from location.pathname.
+     */
     activeItemId?: string;
     isCollapsed?: boolean;
     defaultCollapsed?: boolean;
@@ -298,11 +307,13 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     );
 
     useEffect(() => {
+        // Only run auto-detection if NOT controlled
         if (controlledActiveItemId !== undefined) return;
 
         const matchedId = findActiveItemId(items);
         if (matchedId) {
             setInternalActiveItem(matchedId);
+            // Auto-expand parent menus
             items.forEach(item => {
                 if (item.children?.some(child => child.id === matchedId)) {
                     setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
@@ -348,8 +359,8 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         return convertItem(config);
     }, []);
 
-    const navItems: NavItem[] = useMemo(() => items.filter(item => !item.hidden && item.position !== "bottom").map(toNavItem), [items, toNavItem]);
-    const bottomItems: NavItem[] = useMemo(() => items.filter(item => !item.hidden && item.position === "bottom").map(toNavItem), [items, toNavItem]);
+    const navItems: NavItem[] = useMemo(() => items.filter(item => item.position !== "bottom").map(toNavItem), [items, toNavItem]);
+    const bottomItems: NavItem[] = useMemo(() => items.filter(item => item.position === "bottom").map(toNavItem), [items, toNavItem]);
 
     const handleNewChatClickResolved = useCallback(() => {
         if (newChatConfig?.onClick) {
