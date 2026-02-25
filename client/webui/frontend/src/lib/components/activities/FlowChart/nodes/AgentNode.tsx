@@ -207,7 +207,9 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 }}
             >
                 <div className="flex min-w-0 items-center gap-2">
-                    <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10)">
+                        <Bot className="h-4 w-4 text-(--color-brand-w100)" />
+                    </div>
                     <div className="truncate text-sm font-semibold">{node.data.label}</div>
                 </div>
                 {/* Expand control */}
@@ -247,7 +249,9 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                     }}
                 >
                     <div className="flex min-w-0 items-center gap-2">
-                        <Bot className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10)">
+                            <Bot className="h-4 w-4 text-(--color-brand-w100)" />
+                        </div>
                         <div className="truncate text-sm font-semibold">{node.data.label}</div>
                     </div>
 
