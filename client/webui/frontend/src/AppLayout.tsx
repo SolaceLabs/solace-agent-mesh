@@ -5,7 +5,7 @@ import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottom
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
-import { ChatProvider, useProjectContext } from "@/lib/providers";
+import { ChatProvider } from "@/lib/providers";
 import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/types";
@@ -17,7 +17,6 @@ function AppLayoutContent() {
     const { configFeatureEnablement } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
     const { addNotification } = useChatContext();
-    const { projects } = useProjectContext();
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
@@ -159,7 +158,6 @@ function AppLayoutContent() {
                 }}
                 onConfirm={handleMoveConfirm}
                 session={sessionToMove}
-                projects={projects}
                 currentProjectId={sessionToMove?.projectId}
             />
             <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
