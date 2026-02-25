@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
 import PdfRenderer from "./PdfRenderer";
-import { LoadingState, NoPreviewState } from "./index";
+import { NoPreviewState } from "./index";
+import { EmptyState } from "@/lib/components/common/EmptyState";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
 
 interface OfficeDocumentRendererProps {
@@ -338,7 +339,7 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
 
     if (conversionState === "checking" || conversionState === "converting") {
         const message = conversionState === "checking" ? "Checking service availability..." : "Converting document to PDF...";
-        return <LoadingState message={message} />;
+        return <EmptyState variant="loading" title={message} />;
     }
 
     if (pdfDataUrl) {

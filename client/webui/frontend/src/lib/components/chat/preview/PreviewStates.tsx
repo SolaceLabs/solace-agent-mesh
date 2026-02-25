@@ -1,27 +1,5 @@
 import React from "react";
-import { AlertCircle, Download, FileType, Loader2 } from "lucide-react";
-
-interface LoadingStateProps {
-    message?: string;
-}
-
-export const LoadingState: React.FC<LoadingStateProps> = ({ message = "Loading..." }) => (
-    <div className="flex h-full flex-col items-center justify-center gap-4">
-        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
-        <p className="text-muted-foreground">{message}</p>
-    </div>
-);
-
-interface ErrorStateProps {
-    message: string;
-}
-
-export const ErrorState: React.FC<ErrorStateProps> = ({ message }) => (
-    <div className="text-destructive flex h-full flex-col items-center justify-center gap-2">
-        <AlertCircle className="h-8 w-8" />
-        <p className="text-sm">{message}</p>
-    </div>
-);
+import { Download, FileType } from "lucide-react";
 
 interface NoPreviewStateProps {
     documentType?: string;

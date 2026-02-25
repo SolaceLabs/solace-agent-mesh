@@ -234,7 +234,7 @@ export const Error: Story = {
 
         const dialogContent = within(dialog);
 
-        // Check error state is shown (the ErrorState component shows an error message)
+        // Check error state is shown (the EmptyState component shows an error message)
         // Wait for the error to appear after the failed fetch
         const errorElement = await dialogContent.findByText(/error|failed|unable/i, {}, { timeout: 5000 });
         expect(errorElement).toBeInTheDocument();

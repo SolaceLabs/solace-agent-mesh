@@ -15,6 +15,17 @@ const getFileExtension = (filename: string): string => {
     return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
 };
 
+/**
+ * Returns hardcoded color classes for file type badges.
+ *
+ * Why hardcoded instead of theme colors:
+ * - File type colors are semantic identifiers (HTML orange #e34c26, PDF red #d32f2f)
+ *   with industry-wide recognition that aids user recognition across applications
+ * - Theme colors represent UI chrome, not content - mixing them would conflate
+ *   interface state with content type, reducing scanability
+ * - Consistency requirement: file types must maintain color identity across
+ *   light/dark themes to prevent user confusion when switching modes
+ */
 export const getFileStyles = (type: string) => {
     switch (type) {
         case "html":

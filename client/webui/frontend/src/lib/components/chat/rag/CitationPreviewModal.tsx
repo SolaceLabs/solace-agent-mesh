@@ -1,16 +1,18 @@
 import React, { useState, useMemo } from "react";
 import DOMPurify from "dompurify";
-import { AlertCircle } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, VisuallyHidden } from "@/lib/components/ui/dialog";
 import { Button } from "@/lib/components/ui/button";
 import { FileIcon } from "@/lib/components/chat/file/FileIcon";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
-import { LoadingState, ErrorState, NoPreviewState } from "@/lib/components/chat/preview/Renderers";
-import { useDocumentContent } from "@/lib/api/documents";
+import { NoPreviewState } from "@/lib/components/chat/preview/Renderers";
+import { EmptyState } from "@/lib/components/common/EmptyState";
+import { MessageBanner } from "@/lib/components/common/MessageBanner";
+import { useArtifactContent } from "@/lib/api/artifacts";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
 import { highlightCitationsInText, extractCitationTexts } from "@/lib/utils/highlightUtils";
+import { getArtifactUrl } from "@/lib/utils/file";
 import type { RAGSource } from "@/lib/types";
 import type { CitationMapEntry } from "@/lib/components/chat/preview/Renderers/PdfRenderer";
 
@@ -36,21 +38,20 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
 
     const [renderError, setRenderError] = useState<string | null>(null);
 
-    const { data: documentData, isLoading, error: fetchError } = useDocumentContent(isOpen ? projectId : null, isOpen ? filename : null);
+    const { data: artifactData, isLoading, error: fetchError } = useArtifactContent(isOpen ? projectId : null, isOpen ? filename : null);
 
     // For PDFs, prioritize filename extension over mimeType since backend may return
     // application/json wrapper which would incorrectly trigger JSON renderer
     const renderType = (() => {
         const lowerFilename = filename.toLowerCase();
         if (lowerFilename.endsWith(".pdf")) return "pdf";
-        return getRenderType(filename, documentData?.mimeType);
+        return getRenderType(filename, artifactData?.mimeType);
     })();
 
-    // Use "latest" version to get actual file content (without version, endpoint returns version list as JSON)
+    // Use "latest" version to get actual file content (using unified getArtifactUrl helper)
     const fileUrl = useMemo(() => {
         if (!projectId) return null;
-        const encodedFilename = encodeURIComponent(filename);
-        return `/api/v1/artifacts/null/${encodedFilename}/versions/latest?project_id=${projectId}`;
+        return getArtifactUrl({ filename, projectId, version: "latest" });
     }, [filename, projectId]);
 
     const highlightTexts = extractCitationTexts(citations);
@@ -61,19 +62,19 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
     }, [citations]);
 
     const processedContent = useMemo(() => {
-        if (!documentData?.content || !renderType) return "";
+        if (!artifactData?.content || !renderType) return "";
         if (renderType === "pdf") return "";
 
         // For binary formats (docx, pptx), the OfficeDocumentRenderer expects base64-encoded content
         if (["docx", "pptx"].includes(renderType)) {
-            return documentData.content;
+            return artifactData.content;
         }
 
         let decodedContent: string;
         try {
-            decodedContent = decodeBase64Content(documentData.content);
+            decodedContent = decodeBase64Content(artifactData.content);
         } catch {
-            return documentData.content;
+            return artifactData.content;
         }
 
         if (["text", "markdown"].includes(renderType)) {
@@ -83,7 +84,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
         }
 
         return decodedContent;
-    }, [documentData?.content, renderType, citations]);
+    }, [artifactData?.content, renderType, citations]);
 
     const error = fetchError || renderError;
 
@@ -103,9 +104,9 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                 </DialogHeader>
 
                 <div className="relative flex-1 overflow-hidden">
-                    {isLoading && <LoadingState message="Loading document..." />}
+                    {isLoading && <EmptyState variant="loading" title="Loading document..." />}
 
-                    {error && <ErrorState message={error instanceof Error ? error.message : String(error)} />}
+                    {error && <EmptyState variant="error" title={error instanceof Error ? error.message : String(error)} />}
 
                     {!isLoading && !error && renderType && (
                         <div className="h-full overflow-auto">
@@ -114,7 +115,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                     <ContentRenderer
                                         content=""
                                         rendererType={renderType}
-                                        mime_type={documentData?.mimeType}
+                                        mime_type={artifactData?.mimeType}
                                         url={fileUrl}
                                         filename={filename}
                                         setRenderError={setRenderError}
@@ -123,17 +124,14 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                         citationMaps={citationMaps}
                                     />
                                 ) : (
-                                    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2">
-                                        <AlertCircle className="h-8 w-8" />
-                                        <p className="text-sm">Unable to preview PDF: No active project context</p>
-                                    </div>
+                                    <MessageBanner variant="warning" message="Unable to preview PDF: No active project context" />
                                 )
                             ) : renderType === "text" || renderType === "markdown" ? (
                                 <div className="h-full overflow-auto p-4">
                                     <pre className="whitespace-pre-wrap select-text focus-visible:outline-none" style={{ overflowWrap: "anywhere" }} dangerouslySetInnerHTML={{ __html: processedContent }} />
                                 </div>
                             ) : (
-                                <ContentRenderer content={processedContent} rendererType={renderType} mime_type={documentData?.mimeType} setRenderError={setRenderError} highlightTexts={highlightTexts} />
+                                <ContentRenderer content={processedContent} rendererType={renderType} mime_type={artifactData?.mimeType} setRenderError={setRenderError} highlightTexts={highlightTexts} />
                             )}
                         </div>
                     )}
