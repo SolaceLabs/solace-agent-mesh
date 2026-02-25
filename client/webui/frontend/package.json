@@ -169,9 +169,7 @@
     },
     "overrides": {
         "cross-spawn": "^7.0.6",
-        "minimatch": {
-            "@isaacs/brace-expansion": "5.0.1"
-        }
+        "minimatch": "^10.2.1"
     },
     "msw": {
         "workerDirectory": [
