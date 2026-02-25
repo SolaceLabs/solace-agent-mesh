@@ -126,9 +126,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                 }
             } catch (err) {
                 if (!cancelled && !(err instanceof Error && err.name === "AbortException")) {
-                    // Why silent failure: Character-position highlighting is a progressive enhancement.
-                    // Graceful degradation: PDF renders normally + fallback text matching still works.
-                    // User impact: None - citation highlighting uses regex fallback without char boundaries.
                     console.error("[PdfRenderer] Failed to build page boundaries (char-position highlighting disabled):", err);
                 }
             }
