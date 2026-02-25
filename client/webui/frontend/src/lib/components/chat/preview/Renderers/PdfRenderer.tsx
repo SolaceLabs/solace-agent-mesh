@@ -82,9 +82,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
     useEffect(() => {
         const hasHighlighting = citationMaps.length > 0;
         if (initialPage && initialPage > 0 && numPages && initialPage <= numPages && !hasHighlighting) {
-            // Why requestAnimationFrame over setTimeout: Syncs with browser paint cycle instead of
-            // arbitrary 100ms delay. Eliminates race condition where scroll fires before DOM paint
-            // completes, causing scroll-to-wrong-position bug. Pattern matches useAutoScroll.tsx:147-150.
             requestAnimationFrame(() => {
                 const pageElement = pageRefs.current.get(initialPage);
                 if (pageElement && viewerRef.current) {
