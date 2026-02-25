@@ -31,9 +31,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create sandbox directories
+# Create sandbox directories and non-root user
 RUN mkdir -p /sandbox/work \
-    && mkdir -p /app
+    && mkdir -p /app \
+    && mkdir -p /tools/python /tools/wheels \
+    && useradd -r -s /usr/sbin/nologin sandbox
 
 # Install SAM and dependencies
 WORKDIR /app
@@ -65,6 +67,10 @@ RUN pip install --no-cache-dir /app/sam-src/
 COPY sandbox-worker/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt || true
 
+# Remove curl (only needed during build) to reduce attack surface
+RUN apt-get update && apt-get purge -y curl && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy the entrypoint
 COPY sandbox-worker/entrypoint.py /app/entrypoint.py
 
@@ -80,9 +86,15 @@ ENV SOLACE_VPN=""
 ENV SOLACE_USERNAME=""
 ENV SOLACE_PASSWORD=""
 
-# Health check - verifies worker is running
+# Health check — uses the built-in HTTP health server
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD pgrep -f "python.*entrypoint" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8081/healthz')" || exit 1
+
+# The container process runs as root because bwrap requires CAP_SYS_ADMIN
+# for namespace creation. Sandboxed tool code is isolated via bwrap's
+# --unshare-user (mapped to nobody/65534), so tools cannot escalate.
+# When K8s user namespaces (hostUsers: false) are available, the pod can
+# run as non-root and bwrap still works — see README for details.
 
 # Run the sandbox worker
 ENTRYPOINT ["python", "/app/entrypoint.py"]

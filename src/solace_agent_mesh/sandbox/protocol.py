@@ -226,6 +226,7 @@ class SandboxErrorCodes:
     INTERNAL_ERROR = "INTERNAL_ERROR"
     INIT_ERROR = "INIT_ERROR"
     AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED"
+    RESOURCE_EXHAUSTED = "RESOURCE_EXHAUSTED"
 
 
 # ---------------------------------------------------------------------------

@@ -55,16 +55,17 @@ TOOL_RUNNER_MODULE = "solace_agent_mesh.sandbox.tool_runner"
 # Resource limits are enforced via resource.setrlimit() in preexec_fn.
 # Namespace isolation and filesystem mounts are handled in _build_bwrap_command().
 #
-# All profiles use --ro-bind / / as the base filesystem, then overlay --proc /proc
-# (fresh procfs for PID namespace isolation) and --dev /dev (minimal device nodes).
-# The container needs CAP_SYS_ADMIN and --security-opt label=disable (to allow
-# procfs mounts inside bwrap).
+# Filesystem: whitelist mounts (only /usr, /lib, /bin, /sbin, select /etc files,
+# and the tool source directory). --proc /proc provides a fresh procfs for PID
+# namespace isolation, and --dev /dev provides minimal device nodes.
+# The container needs CAP_SYS_ADMIN for namespace creation.
 SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
     "restrictive": {
         "rlimit_as_mb": 512,
         "rlimit_cpu_sec": 60,
         "rlimit_fsize_mb": 64,
         "rlimit_nofile": 128,
+        "rlimit_nproc": 32,
         "network_isolated": True,
         "keep_env": False,
         "writable_var": False,
@@ -74,6 +75,7 @@ SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
         "rlimit_cpu_sec": 300,
         "rlimit_fsize_mb": 256,
         "rlimit_nofile": 512,
+        "rlimit_nproc": 128,
         "network_isolated": False,
         "keep_env": True,
         "writable_var": False,
@@ -83,6 +85,7 @@ SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
         "rlimit_cpu_sec": 600,
         "rlimit_fsize_mb": 1024,
         "rlimit_nofile": 1024,
+        "rlimit_nproc": 512,
         "network_isolated": False,
         "keep_env": True,
         "writable_var": True,
@@ -138,11 +141,36 @@ class SandboxRunner:
             self._config.max_concurrent_executions
         )
 
+        self._cleanup_stale_work_dirs()
+
         log.info(
             "SandboxRunner initialized: mode=%s, max_concurrent=%d",
             self._config.mode,
             self._config.max_concurrent_executions,
         )
+
+    @staticmethod
+    def _safe_filename(filename: str, base_dir: Path) -> Path:
+        """Validate a filename and return a safe path under base_dir.
+
+        Rejects path traversal attempts (``..``, absolute paths) and verifies
+        the resolved path stays within base_dir as defense-in-depth.
+
+        Raises:
+            ValueError: If the filename is unsafe.
+        """
+        if not filename:
+            raise ValueError("Empty filename")
+
+        if ".." in filename or filename.startswith("/") or filename.startswith("\\"):
+            raise ValueError(f"Unsafe filename rejected: {filename}")
+
+        candidate = (base_dir / filename).resolve()
+        base_resolved = base_dir.resolve()
+        if not str(candidate).startswith(str(base_resolved) + os.sep) and candidate != base_resolved:
+            raise ValueError(f"Filename escapes base directory: {filename}")
+
+        return candidate
 
     def _get_profile(self, profile_name: str) -> Dict[str, Any]:
         """Get a sandbox profile by name, falling back to standard."""
@@ -182,7 +210,7 @@ class SandboxRunner:
         # Create named pipe for status messages
         status_pipe = work_dir / STATUS_PIPE_FILENAME
         if not status_pipe.exists():
-            os.mkfifo(status_pipe)
+            os.mkfifo(status_pipe, 0o600)
 
         log.debug("Created work directory: %s", work_dir)
         return work_dir
@@ -195,6 +223,57 @@ class SandboxRunner:
                 log.debug("Cleaned up work directory: %s", work_dir)
         except Exception as e:
             log.warning("Failed to clean up work directory %s: %s", work_dir, e)
+
+    @staticmethod
+    def _check_disk_space(path: str, min_free_mb: int = 500) -> bool:
+        """Return True if *path* has at least *min_free_mb* MB free.
+
+        Fails open (returns True) if the check itself errors, so a broken
+        ``statvfs`` does not block all executions.
+        """
+        try:
+            usage = shutil.disk_usage(path)
+            free_mb = usage.free / (1024 * 1024)
+            if free_mb < min_free_mb:
+                log.warning(
+                    "Low disk space on %s: %.0f MB free (minimum %d MB)",
+                    path,
+                    free_mb,
+                    min_free_mb,
+                )
+                return False
+            return True
+        except Exception as e:
+            log.warning("Disk space check failed (allowing execution): %s", e)
+            return True
+
+    def _cleanup_stale_work_dirs(self, max_age_hours: float = 1.0) -> int:
+        """Remove work directories older than *max_age_hours*.
+
+        Returns the number of directories removed.
+        """
+        base = Path(self._config.work_base_dir)
+        if not base.exists():
+            return 0
+
+        cutoff = time.time() - (max_age_hours * 3600)
+        removed = 0
+        try:
+            for child in base.iterdir():
+                if not child.is_dir():
+                    continue
+                try:
+                    mtime = child.stat().st_mtime
+                    if mtime < cutoff:
+                        shutil.rmtree(child)
+                        removed += 1
+                        log.info("Removed stale work directory: %s", child)
+                except Exception as e:
+                    log.warning("Failed to clean stale dir %s: %s", child, e)
+        except Exception as e:
+            log.warning("Error scanning stale work dirs: %s", e)
+
+        return removed
 
     async def _preload_artifacts(
         self,
@@ -232,7 +311,11 @@ class SandboxRunner:
         import base64
 
         for param_name, artifact in preloaded_artifacts.items():
-            file_path = input_dir / artifact.filename
+            try:
+                file_path = self._safe_filename(artifact.filename, input_dir)
+            except ValueError as e:
+                log.warning("Skipping unsafe preloaded artifact %s: %s", param_name, e)
+                continue
             content = base64.b64decode(artifact.content)
             file_path.write_bytes(content)
             artifact_paths[param_name] = str(file_path)
@@ -253,6 +336,11 @@ class SandboxRunner:
         if artifact_service and artifact_references:
             for param_name, ref in artifact_references.items():
                 try:
+                    safe_path = self._safe_filename(ref.filename, input_dir)
+                except ValueError as e:
+                    log.warning("Skipping unsafe artifact reference %s: %s", param_name, e)
+                    continue
+                try:
                     artifact = await artifact_service.load_artifact(
                         app_name=app_name,
                         user_id=user_id,
@@ -261,7 +349,7 @@ class SandboxRunner:
                         version=ref.version,
                     )
                     if artifact:
-                        file_path = input_dir / ref.filename
+                        file_path = safe_path
                         # artifact.inline_data contains the bytes
                         file_path.write_bytes(artifact.inline_data)
                         artifact_paths[param_name] = str(file_path)
@@ -450,6 +538,9 @@ class SandboxRunner:
             if profile.get("rlimit_nofile"):
                 limit = profile["rlimit_nofile"]
                 resource.setrlimit(resource.RLIMIT_NOFILE, (limit, limit))
+            if profile.get("rlimit_nproc"):
+                limit = profile["rlimit_nproc"]
+                resource.setrlimit(resource.RLIMIT_NPROC, (limit, limit))
             # No core dumps
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
@@ -493,6 +584,39 @@ class SandboxRunner:
         args_file.write_text(json.dumps(tool_runner_args))
         return args_file
 
+    @staticmethod
+    def _build_filesystem_mounts(tools_python_dir: str) -> List[str]:
+        """Build whitelist filesystem mounts for bwrap.
+
+        Instead of ``--ro-bind / /`` (which exposes /app, /etc/shadow,
+        /var/run/secrets, etc.), mount only what Python and tools need.
+
+        Args:
+            tools_python_dir: Path to the tool source directory
+
+        Returns:
+            List of bwrap mount arguments
+        """
+        mounts: List[str] = []
+
+        mounts.extend(["--ro-bind", "/usr", "/usr"])
+
+        for path in ("/lib", "/lib64", "/bin", "/sbin"):
+            if os.path.islink(path):
+                mounts.extend(["--symlink", os.readlink(path), path])
+            elif os.path.exists(path):
+                mounts.extend(["--ro-bind", path, path])
+
+        mounts.extend(["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"])
+        mounts.extend(["--ro-bind", "/etc/ssl", "/etc/ssl"])
+        for optional_etc in ("/etc/ld.so.cache", "/etc/localtime", "/etc/nsswitch.conf", "/etc/hosts"):
+            if os.path.exists(optional_etc):
+                mounts.extend(["--ro-bind", optional_etc, optional_etc])
+
+        mounts.extend(["--ro-bind", tools_python_dir, tools_python_dir])
+
+        return mounts
+
     def _build_bwrap_command(
         self,
         work_dir: Path,
@@ -505,19 +629,23 @@ class SandboxRunner:
         """
         Build the bubblewrap command line.
 
-        Uses --ro-bind / / as the base filesystem, then overlays:
-        - --proc /proc  — fresh procfs scoped to the new PID namespace
+        Uses whitelist filesystem mounts (only /usr, /lib, /bin, /sbin, select
+        /etc files, and the tool source directory) instead of --ro-bind / /.
+        This prevents sandboxed code from reading /app (worker source),
+        /etc/shadow, /var/run/secrets (K8s SA token), or other sensitive paths.
+
+        Overlays on the whitelist:
         - --dev /dev    — minimal device nodes (null, zero, urandom, etc.)
+        - --proc /proc  — fresh procfs (only shows sandboxed processes)
         - --tmpfs /tmp  — writable temp directory
         - --bind work_dir — writable work directory for tool I/O
+        - --tmpfs /var/run/secrets — defense-in-depth: hides K8s SA token
 
-        The --proc /proc mount provides proper PID namespace isolation: the
-        sandboxed process can only see its own PIDs, cannot read environment
-        variables of container processes, and tools like ``ps`` work correctly.
+        User isolation: --unshare-user maps the sandboxed process to
+        nobody (uid 65534), preventing SUID abuse and privilege escalation.
 
-        The container must be started with:
-        - --cap-add=SYS_ADMIN (for user namespace creation)
-        - --security-opt label=disable (to allow procfs mounts)
+        The container should be started with --cap-add=SYS_ADMIN for
+        namespace creation.
 
         Module and function are resolved from the manifest entry (not from the
         request params), so the agent doesn't need to know implementation details.
@@ -542,6 +670,13 @@ class SandboxRunner:
         # Start building the bwrap command
         cmd: List[str] = [self._config.bwrap_bin]
 
+        # User namespace — run sandboxed tool as nobody to prevent SUID abuse
+        cmd.extend([
+            "--unshare-user",
+            "--uid", "65534",
+            "--gid", "65534",
+        ])
+
         # Namespace isolation
         cmd.extend([
             "--die-with-parent",
@@ -554,18 +689,17 @@ class SandboxRunner:
         if profile.get("network_isolated"):
             cmd.append("--unshare-net")
 
-        # Base filesystem: bind entire root read-only, then overlay proc/dev.
-        # Order matters: --ro-bind / / first, then --proc and --dev overlay
-        # the bind-mounted /proc and /dev with fresh isolated mounts.
-        cmd.extend(["--ro-bind", "/", "/"])
-
-        # Fresh procfs scoped to new PID namespace — sandboxed process can only
-        # see its own PIDs and cannot read /proc/<pid>/environ of other processes.
-        # Requires --security-opt label=disable on the container.
-        cmd.extend(["--proc", "/proc"])
+        # Whitelist filesystem — only mount what Python + tools need
+        cmd.extend(self._build_filesystem_mounts(tools_python_dir))
 
         # Minimal /dev with only essential device nodes
         cmd.extend(["--dev", "/dev"])
+
+        # Fresh /proc for PID namespace — only shows sandboxed processes
+        cmd.extend(["--proc", "/proc"])
+
+        # Hide K8s service account token (defense-in-depth)
+        cmd.extend(["--tmpfs", "/var/run/secrets"])
 
         # Writable overlays
         cmd.extend(["--tmpfs", "/tmp"])
@@ -684,6 +818,17 @@ class SandboxRunner:
             or self._config.default_profile
         )
         profile = self._get_profile(profile_name)
+
+        self._cleanup_stale_work_dirs()
+
+        if not self._check_disk_space(self._config.work_base_dir):
+            return SandboxToolInvocationResponse(
+                id=request.id,
+                error={
+                    "code": SandboxErrorCodes.RESOURCE_EXHAUSTED,
+                    "message": "Insufficient disk space to execute tool",
+                },
+            )
 
         # Acquire semaphore to limit concurrent executions
         async with self._execution_semaphore:
@@ -980,6 +1125,9 @@ class SandboxRunner:
                 cmd: List[str] = [self._config.bwrap_bin]
 
                 cmd.extend([
+                    "--unshare-user",
+                    "--uid", "65534",
+                    "--gid", "65534",
                     "--die-with-parent",
                     "--new-session",
                     "--unshare-pid",
@@ -990,9 +1138,10 @@ class SandboxRunner:
                 if profile.get("network_isolated"):
                     cmd.append("--unshare-net")
 
-                cmd.extend(["--ro-bind", "/", "/"])
-                cmd.extend(["--proc", "/proc"])
+                cmd.extend(self._build_filesystem_mounts(tools_python_dir))
                 cmd.extend(["--dev", "/dev"])
+                cmd.extend(["--proc", "/proc"])
+                cmd.extend(["--tmpfs", "/var/run/secrets"])
                 cmd.extend(["--tmpfs", "/tmp"])
                 cmd.extend(["--bind", str(work_dir), str(work_dir)])
                 cmd.extend(["--chdir", str(work_dir)])

@@ -508,7 +508,15 @@ class SandboxWorkerComponent(SamComponentBase):
         request_id = "unknown"
 
         try:
-            # Parse the request
+            # Validate auth BEFORE parsing to avoid leaking schema info
+            user_props = message.get_user_properties() or {}
+            reply_to = user_props.get("replyTo")
+            status_topic = user_props.get("statusTo")
+
+            if not self._validate_auth_token(message, request_id):
+                return
+
+            # Parse the request (only after auth succeeds)
             payload = message.get_payload()
             request = SandboxToolInvocationRequest.model_validate(payload)
             request_id = request.id
@@ -520,15 +528,6 @@ class SandboxWorkerComponent(SamComponentBase):
                 request_id,
                 params.tool_name,
             )
-
-            # Validate user auth token
-            if not self._validate_auth_token(message, request_id):
-                return
-
-            # Get routing info from user properties
-            user_props = message.get_user_properties() or {}
-            reply_to = user_props.get("replyTo")
-            status_topic = user_props.get("statusTo")
 
             if not reply_to:
                 log.error(
@@ -658,6 +657,14 @@ class SandboxWorkerComponent(SamComponentBase):
         request_id = "unknown"
 
         try:
+            # Validate auth BEFORE parsing to avoid leaking schema info
+            user_props = message.get_user_properties() or {}
+            reply_to = user_props.get("replyTo")
+
+            if not self._validate_service_token(message, request_id):
+                return
+
+            # Parse the request (only after auth succeeds)
             payload = message.get_payload()
             request = SandboxToolInitRequest.model_validate(payload)
             request_id = request.id
@@ -669,14 +676,6 @@ class SandboxWorkerComponent(SamComponentBase):
                 request_id,
                 params.tool_name,
             )
-
-            # Validate service token for init request
-            if not self._validate_service_token(message, request_id):
-                return
-
-            # Get routing info
-            user_props = message.get_user_properties() or {}
-            reply_to = user_props.get("replyTo")
 
             if not reply_to:
                 log.error(

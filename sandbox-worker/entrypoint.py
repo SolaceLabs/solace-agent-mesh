@@ -158,6 +158,7 @@ def build_app_info() -> Dict[str, Any]:
             "sandbox": sandbox_config,
             "artifact_service": artifact_config,
             "tool_sync": tool_sync_config,
+            "health_port": get_env_int("HEALTH_PORT", 8081),
         },
         "broker": broker_config,
     }

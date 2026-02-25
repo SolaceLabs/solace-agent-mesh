@@ -142,6 +142,10 @@ class SandboxWorkerAppConfig(SamConfigBase):
         default=None,
         description="Configuration for the Trust Manager (enterprise feature).",
     )
+    health_port: int = Field(
+        default=8081,
+        description="Port for the HTTP health check server (K8s probes).",
+    )
 
 
 class SandboxWorkerApp(SamAppBase):
@@ -191,8 +195,8 @@ class SandboxWorkerApp(SamAppBase):
             )
 
         # Read manifest to build initial per-tool subscriptions
-        manifest = ToolManifest(manifest_path)
-        tool_names = manifest.get_tool_names()
+        self._manifest = ToolManifest(manifest_path)
+        tool_names = self._manifest.get_tool_names()
 
         required_topics = []
 
@@ -202,7 +206,7 @@ class SandboxWorkerApp(SamAppBase):
                 get_sam_remote_tool_invoke_topic(namespace, tool_name)
             )
             # Add init topic for class-based tools (DynamicTool)
-            entry = manifest.get_tool(tool_name)
+            entry = self._manifest.get_tool(tool_name)
             if entry and entry.class_name:
                 required_topics.append(
                     get_sam_remote_tool_init_topic(namespace, tool_name)
@@ -258,7 +262,42 @@ class SandboxWorkerApp(SamAppBase):
         )
 
         super().__init__(app_info, **kwargs)
+
+        from .health_server import start_health_server
+
+        health_port = app_config.get("health_port", 8081)
+        self._health_server = start_health_server(
+            checks={
+                "/healthz": self._check_liveness,
+                "/readyz": self._check_readiness,
+                "/startup": self._check_startup,
+            },
+            port=health_port,
+        )
+
         log.info("SandboxWorkerApp '%s' initialization complete", worker_id)
+
+    def _check_liveness(self) -> dict:
+        broker_ok = self._is_broker_connected()
+        return {"ok": broker_ok, "broker": "connected" if broker_ok else "disconnected"}
+
+    def _check_readiness(self) -> dict:
+        broker_ok = self._is_broker_connected()
+        tool_names = self._manifest.get_tool_names() if self._manifest else set()
+        tools_ok = len(tool_names) > 0
+        ok = broker_ok and tools_ok
+        return {"ok": ok, "broker": "connected" if broker_ok else "disconnected", "tools": len(tool_names)}
+
+    def _check_startup(self) -> dict:
+        startup_ok = self.is_startup_complete()
+        sync_ok = True
+        if self._tool_sync_service:
+            sync_ok = (
+                self._tool_sync_service._first_sync_done.is_set()
+                and self._tool_sync_service._first_sync_error is None
+            )
+        ok = startup_ok and sync_ok
+        return {"ok": ok, "startup_complete": startup_ok, "tool_sync": "ok" if sync_ok else "failed"}
 
     def _start_tool_sync(self, cfg, namespace: str, worker_id: str):
         from .storage import create_sync_client
@@ -297,6 +336,8 @@ class SandboxWorkerApp(SamAppBase):
         return service
 
     def stop(self):
+        if hasattr(self, "_health_server") and self._health_server:
+            self._health_server.shutdown()
         if self._tool_sync_service:
             log.info("Stopping tool sync service")
             self._tool_sync_service.stop()
