@@ -19,7 +19,6 @@ const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "it
     defaultVariants: { active: false },
 });
 
-/** Session name text styles */
 const sessionTextStyles = cva(["block", "truncate", "text-sm", "transition-opacity", "duration-300"], {
     variants: {
         active: {
