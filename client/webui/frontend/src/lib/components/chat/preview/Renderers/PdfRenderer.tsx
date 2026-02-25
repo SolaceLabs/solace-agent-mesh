@@ -216,7 +216,9 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
             }
 
             // Scroll to first highlight
-            if (matchedSpans.length > 0 && !initialPage) {
+            // Note: This works even when initialPage is set because the page scroll completes
+            // before this 300ms delayed highlight scroll executes
+            if (matchedSpans.length > 0) {
                 matchedSpans[0].scrollIntoView({ behavior: "smooth", block: "center" });
             }
         }, 300);
