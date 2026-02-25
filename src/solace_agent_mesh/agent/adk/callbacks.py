@@ -202,7 +202,7 @@ async def process_artifact_blocks_callback(
     parser: FencedBlockStreamParser = session.state.get(parser_state_key)
     if parser is None:
         log.debug("%s New turn. Creating new FencedBlockStreamParser.", log_identifier)
-        parser = FencedBlockStreamParser(progress_update_interval_bytes=50)
+        parser = FencedBlockStreamParser(progress_update_interval_bytes=250)
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
