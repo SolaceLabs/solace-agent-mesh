@@ -96,7 +96,7 @@ jobs:
           # Install uv and hatch to get version
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.cargo/bin:$PATH"
-          uv tool install hatch
+          uv tool install --with virtualenv==20.26.6 hatch
           CURRENT_VERSION=$(hatch version)
           echo "Current version: $CURRENT_VERSION"
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
