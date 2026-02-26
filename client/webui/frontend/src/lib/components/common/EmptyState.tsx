@@ -15,7 +15,7 @@ export interface ButtonWithCallback {
 interface EmptyStateProps {
     title: string;
     subtitle?: string | React.ReactNode;
-    variant?: "error" | "notFound" | "loading" | "noImage" | "placeholder";
+    variant?: "error" | "notFound" | "loading" | "noImage";
     image?: ReactElement;
     buttons?: ButtonWithCallback[];
     className?: string;
@@ -27,13 +27,10 @@ function EmptyState({ title, subtitle, image, variant = "error", buttons, classN
         notFound: <NotFoundIllustration width={150} height={150} />,
         loading: <Spinner size="large" />,
         noImage: null,
-        placeholder: null,
     };
 
-    const variantStyles = variant === "placeholder" ? "rounded-md bg-[var(--color-background-w20)]" : "";
-
     return (
-        <div className={cn("flex h-full w-full flex-col items-center justify-center gap-3", variantStyles, className)}>
+        <div className={cn("flex h-full w-full flex-col items-center justify-center gap-3", className)}>
             {image || illustrations[variant] || null}
 
             <p className="mt-4 text-lg">{title}</p>
