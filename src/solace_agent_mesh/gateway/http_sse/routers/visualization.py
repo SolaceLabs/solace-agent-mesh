@@ -84,7 +84,6 @@ class VisualizationSubscribeResponse(BaseModel):
     """Response body for a successful visualization subscription."""
 
     stream_id: str = Field(..., description="Unique ID for the visualization stream.")
-    sse_endpoint_url: str = Field(..., description="URL for the SSE event stream.")
     actual_subscribed_targets: List[ActualSubscribedTarget] = Field(
         default_factory=list,
         description="List of abstract targets processed, with their subscription status.",
@@ -134,44 +133,6 @@ class VisualizationSubscriptionError(BaseModel):
 
 from sse_starlette.sse import EventSourceResponse
 
-
-def _generate_sse_url(
-    fastapi_request: FastAPIRequest,
-    stream_id: str,
-    component: "WebUIBackendComponent",
-) -> str:
-    """
-    Generate SSE endpoint URL for a visualization stream.
-
-    When frontend_server_url is configured on the component, it is used as the
-    base to construct the SSE endpoint URL. This is required for reverse proxy
-    or port-forwarded environments (e.g. GitHub Codespaces, nginx, cloud load
-    balancers) where the internal server address differs from the public URL.
-
-    When frontend_server_url is not configured, the URL is constructed from the
-    component's configured host/port and the request's scheme.
-
-    Client-supplied headers (Host, X-Forwarded-Host, X-Forwarded-Proto) are
-    intentionally NOT trusted to prevent host header poisoning attacks.
-
-    Args:
-        fastapi_request: The FastAPI request object
-        stream_id: The stream ID for the SSE endpoint
-        component: The WebUI backend component instance.
-
-    Returns:
-        Complete SSE URL string.
-    """
-    path = fastapi_request.url_for(
-        "get_visualization_stream_events", stream_id=stream_id
-    ).path
-
-    if component.frontend_server_url:
-        base = component.frontend_server_url.rstrip("/")
-        return f"{base}{path}"
-
-    scheme = fastapi_request.url.scheme
-    return f"{scheme}://{component.fastapi_host}:{component.fastapi_port}{path}"
 
 
 def _translate_target_to_solace_topics(
@@ -367,7 +328,7 @@ async def subscribe_to_visualization_stream(
                 log_id_prefix,
                 stream_id,
             )
-            sse_url = _generate_sse_url(fastapi_request, stream_id, component)
+            sse_url = _generate_sse_url(fastapi_request, stream_id)
             return VisualizationSubscribeResponse(
                 stream_id=stream_id,
                 sse_endpoint_url=sse_url,
@@ -751,7 +712,7 @@ async def subscribe_to_visualization_stream(
             len(failed_targets),
         )
 
-    sse_url = _generate_sse_url(fastapi_request, stream_id, component)
+    sse_url = _generate_sse_url(fastapi_request, stream_id)
     log.info(
         "%s Visualization stream %s initiated for user %s. SSE URL: %s. Processed Targets: %s",
         log_id_prefix,
