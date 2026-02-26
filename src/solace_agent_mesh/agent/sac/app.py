@@ -517,7 +517,7 @@ class SamAgentApp(SamAppBase):
         broker_request_response = app_info.get("broker_request_response")
 
         # The agent name must be alphanumeric and underscore only
-        if not agent_name.replace("_", "").isalnum(): 
+        if not all(c.isalnum() or c == "_" for c in agent_name):
             # Converting to a valid format by replacing invalid characters with underscores
             valid_agent_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in agent_name)
             log.warning(
