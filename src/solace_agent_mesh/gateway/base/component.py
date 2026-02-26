@@ -2073,6 +2073,7 @@ class BaseGatewayComponent(SamComponentBase):
                 code=-32000, message="Invalid event structure received from agent."
             )
             await self._send_error_to_external(external_request_context, generic_error)
+            await self._close_external_connections(external_request_context)
             self.task_context_manager.remove_context(task_id_from_topic)
             self.task_context_manager.remove_context(
                 f"{task_id_from_topic}_stream_buffer"
@@ -2098,6 +2099,7 @@ class BaseGatewayComponent(SamComponentBase):
                 code=-32000, message=f"Gateway processing error: {e}"
             )
             await self._send_error_to_external(external_request_context, error_obj)
+            await self._close_external_connections(external_request_context)
             self.task_context_manager.remove_context(task_id_from_topic)
             self.task_context_manager.remove_context(
                 f"{task_id_from_topic}_stream_buffer"
