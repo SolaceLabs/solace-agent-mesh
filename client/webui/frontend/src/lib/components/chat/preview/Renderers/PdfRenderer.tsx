@@ -5,7 +5,12 @@ import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 // Use ?url import so Vite emits the worker as a tracked static asset with a
-// content-hashed filename.
+// content-hashed filename when building the app.
+// When building as a library (SAM Enterprise consumer), this import resolves
+// to "./pdf.worker.min.mjs" via pdfWorkerLibPlugin, or may be undefined if
+// the library was built without the plugin. The fallback ensures PDF.js always
+// has a valid workerSrc pointing to the file copied into static/ by
+// copyPdfWorkerPlugin in the SAM Enterprise vite.config.ts.
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 // Custom event for snip-to-chat functionality
@@ -16,8 +21,10 @@ export interface SnipToChatEventDetail {
     filename: string;
 }
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+// Configure PDF.js worker.
+// Fall back to the stable filename when the ?url import resolves to undefined
+// (happens when the library bundle was built without pdfWorkerLibPlugin).
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl || "./pdf.worker.min.mjs";
 
 interface PdfRendererProps {
     url: string;
