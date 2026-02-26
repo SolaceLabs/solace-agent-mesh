@@ -4,6 +4,9 @@ import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+// Use ?url import so Vite emits the worker as a tracked static asset with a
+// content-hashed filename.
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 // Custom event for snip-to-chat functionality
 export const SNIP_TO_CHAT_EVENT = "snip-to-chat";
@@ -13,8 +16,8 @@ export interface SnipToChatEventDetail {
     filename: string;
 }
 
-// Configure PDF.js worker from local npm package (pdfjs-dist)
-pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+// Configure PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface PdfRendererProps {
     url: string;
