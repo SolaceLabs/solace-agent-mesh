@@ -36,10 +36,8 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                     disabled={disabled}
                     className={cn(
                         "relative mx-auto flex w-full cursor-pointer flex-col items-center px-3 py-5 text-xs transition-colors",
-                        "bg-(--color-primary-w100) hover:bg-(--color-primary-w90)",
-                        "text-(--color-primary-text-w10) hover:bg-(--color-primary-w90) hover:text-(--color-background-w10)",
-                        "border-l-4 border-(--color-primary-w100)",
-                        isActive ? "border-l-4 border-(--color-brand-wMain) bg-(--color-primary-w90)" : ""
+                        "border-l-4 text-white hover:text-(--color-brand-wMain)",
+                        isActive ? "border-(--color-brand-wMain)" : "border-[#010f1e]"
                     )}
                     aria-label={label}
                     aria-current={isActive ? "page" : undefined}

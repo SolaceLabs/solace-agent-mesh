@@ -4,7 +4,7 @@ import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
@@ -32,7 +32,6 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const { activeProject } = useProjectContext();
-    const { currentTheme } = useThemeContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
     const {
         agents,
@@ -267,14 +266,8 @@ export function ChatPage() {
             <div className="flex min-h-0 flex-1">
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
-                        <ResizablePanel
-                            defaultSize={chatPanelSizes.default}
-                            minSize={chatPanelSizes.min}
-                            maxSize={chatPanelSizes.max}
-                            id="chat-panel"
-                            style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}
-                        >
-                            <div className="flex h-full w-full flex-col">
+                        <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
+                            <div className="bg-card-background flex h-full w-full flex-col">
                                 <div className="flex min-h-0 flex-1 flex-col py-6">
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">

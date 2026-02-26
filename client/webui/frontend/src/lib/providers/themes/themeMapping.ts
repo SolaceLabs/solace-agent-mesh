@@ -4,15 +4,54 @@ export interface ThemeMapping {
     [key: string]: string;
 }
 
-export interface ThemeMappings {
-    light: ThemeMapping;
-    dark: ThemeMapping;
-}
+/**
+ * Maps semantic CSS custom property names to palette paths.
+ * A single unified mapping — the active palette (light or dark) provides the correct values.
+ */
+export const customThemeMapping: ThemeMapping = {
+    background: "background.w10",
+    "card-background": "background.w20",
+    foreground: "primary.text.wMain",
+    card: "background.w10",
+    "card-foreground": "primary.text.wMain",
+    popover: "background.w10",
+    "popover-foreground": "primary.text.wMain",
+    primary: "primary.wMain",
+    "primary-foreground": "primary.text.w10",
+    secondary: "secondary.w10",
+    "secondary-foreground": "secondary.text.wMain",
+    muted: "secondary.w10",
+    "muted-foreground": "secondary.text.wMain",
+    placeholder: "secondary.wMain",
+    accent: "secondary.w40",
+    "accent-foreground": "secondary.text.wMain",
+    destructive: "error.wMain",
+    border: "secondary.w40",
+    input: "secondary.w40",
+    ring: "brand.wMain",
+    "ring-offset": "brand.wMain",
+    "accent-background": "background.w20",
+    "message-background": "secondary.w20",
+    "edge-hover-color": "secondary.w70",
+    "shadow-color": "primary.w90",
+    "scrollbar-thumb": "primary.w20",
+
+    // Sidebar colors
+    sidebar: "background.w20",
+    "sidebar-foreground": "primary.text.wMain",
+    "sidebar-primary": "primary.wMain",
+    "sidebar-primary-foreground": "primary.text.w10",
+    "sidebar-accent": "secondary.w10",
+    "sidebar-accent-foreground": "secondary.text.wMain",
+    "sidebar-border": "secondary.w40",
+    "sidebar-ring": "brand.wMain",
+};
 
 /**
- * Maps Solace UX palette paths to CSS custom properties
+ * Legacy dual mapping — used when the feature flag is off.
+ * Selects different palette paths for light vs dark themes from a single palette.
  */
-export const customThemeMapping: ThemeMappings = {
+export const legacyThemeMapping: { light: ThemeMapping; dark: ThemeMapping } = {
     light: {
         background: "background.w10",
         "card-background": "background.w20",
@@ -37,8 +76,8 @@ export const customThemeMapping: ThemeMappings = {
         "ring-offset": "brand.wMain",
         "accent-background": "background.w20",
         "message-background": "secondary.w20",
-
-        // Sidebar colors
+        "edge-hover-color": "secondary.w70",
+        "scrollbar-thumb": "primary.w20",
         sidebar: "background.w20",
         "sidebar-foreground": "primary.text.wMain",
         "sidebar-primary": "primary.wMain",
@@ -48,9 +87,7 @@ export const customThemeMapping: ThemeMappings = {
         "sidebar-border": "secondary.w40",
         "sidebar-ring": "brand.wMain",
     },
-
     dark: {
-        // Core theme colors (dark variants)
         background: "background.w100",
         "card-background": "background.w100",
         foreground: "primary.text.w10",
@@ -74,15 +111,9 @@ export const customThemeMapping: ThemeMappings = {
         "ring-offset": "brand.w60",
         "accent-background": "primary.w90",
         "message-background": "secondary.w70",
-
-        // Chart colors (darker variants)
-        "chart-1": "brand.w100",
-        "chart-2": "primary.wMain",
-        "chart-3": "accent.n3.w100",
-        "chart-4": "accent.n6.w30",
-        "chart-5": "accent.n5.w60",
-
-        // Sidebar colors (dark variants)
+        "edge-hover-color": "secondary.w20",
+        "shadow-color": "primary.w90",
+        "scrollbar-thumb": "primary.wMain",
         sidebar: "background.wMain",
         "sidebar-foreground": "primary.text.w10",
         "sidebar-primary": "primary.w60",
@@ -133,20 +164,16 @@ export function resolveColorPath(themePalette: ThemePalette, path: string): stri
     return typeof current === "string" ? current : "#000000";
 }
 
-export function generateThemeVariables(themePalette: ThemePalette, theme: "light" | "dark"): Record<string, string> {
+export function generateThemeVariables(themePalette: ThemePalette, theme?: "light" | "dark"): Record<string, string> {
     const variables: Record<string, string> = {};
-    const mapping = customThemeMapping[theme];
+    const mapping = theme ? legacyThemeMapping[theme] : customThemeMapping;
 
-    // Process main theme mappings
     for (const [cssVar, customPath] of Object.entries(mapping)) {
-        const colorValue = resolveColorPath(themePalette, customPath);
-        variables[`--${cssVar}`] = colorValue;
+        variables[`--${cssVar}`] = resolveColorPath(themePalette, customPath);
     }
 
-    // Add fallback colors (same for both themes)
     for (const [cssVar, customPath] of Object.entries(fallbackColors)) {
-        const colorValue = resolveColorPath(themePalette, customPath);
-        variables[`--color-${cssVar}`] = colorValue;
+        variables[`--color-${cssVar}`] = resolveColorPath(themePalette, customPath);
     }
 
     return variables;

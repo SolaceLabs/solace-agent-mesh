@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ThemeContext, type ThemeContextValue } from "@/lib/contexts";
-import { solace, type ThemePalette } from "./themes/palettes";
+import { solace, solaceDark, type ThemePalette } from "./themes/palettes";
 import { generateThemeVariables } from "./themes/themeMapping";
 
 const LOCAL_STORAGE_KEY = "sam-theme";
+
+// Feature flag: true = new dual-palette system (solace + solaceDark), false = legacy single-palette with dual mapping
+const USE_DUAL_PALETTE = false;
 
 function paletteToCSSVariables(themePalette: ThemePalette): Record<string, string> {
     const variables: Record<string, string> = {};
@@ -143,7 +146,7 @@ function paletteToCSSVariables(themePalette: ThemePalette): Record<string, strin
     return variables;
 }
 
-function generateCustomTheme(themePalette: ThemePalette, theme: "light" | "dark" = "light"): Record<string, string> {
+function generateCustomTheme(themePalette: ThemePalette, theme?: "light" | "dark"): Record<string, string> {
     const variables: Record<string, string> = {};
 
     if (themePalette) {
@@ -174,7 +177,7 @@ function getInitialTheme(): "light" | "dark" {
 }
 
 function applyThemeToDOM(themePalette: ThemePalette, theme: "light" | "dark"): void {
-    const variables = generateCustomTheme(themePalette, theme);
+    const variables = USE_DUAL_PALETTE ? generateCustomTheme(themePalette) : generateCustomTheme(themePalette, theme);
     const root = document.documentElement;
 
     // Apply all CSS variables to :root
@@ -199,11 +202,11 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-    const themePalette: ThemePalette = useMemo(() => solace, []);
-
     const [currentTheme, setCurrentTheme] = useState<"light" | "dark">(() => {
         return getInitialTheme();
     });
+
+    const themePalette: ThemePalette = useMemo(() => (USE_DUAL_PALETTE && currentTheme === "dark" ? solaceDark : solace), [currentTheme]);
 
     const contextValue: ThemeContextValue = useMemo(
         () => ({
