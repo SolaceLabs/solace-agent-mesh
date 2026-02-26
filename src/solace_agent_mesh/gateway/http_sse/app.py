@@ -186,15 +186,12 @@ class WebUIBackendApp(BaseGatewayApp):
             "type": "string",
             "default": "",
             "description": (
-                "The WebUI Gateway's public URL for frontend API requests and SSE stream URLs. "
-                "If empty (default), the frontend uses relative URLs for same-origin requests, "
-                "and SSE URLs are derived from the request's Host header. "
-                "Set this when the gateway is behind a reverse proxy or port-forwarded "
-                "(e.g. GitHub Codespaces, nginx, cloud load balancer) so that generated "
-                "SSE URLs use the correct public address. "
+                "The WebUI Gateway's public URL for frontend API requests. "
+                "If empty (default), the frontend uses relative URLs for same-origin requests. "
+                "Only set this if the frontend is served from a different origin than the WebUI Gateway. "
                 "Examples: "
                 "  - Same-origin (default): '' (empty, uses relative URLs like /api/v1/...) "
-                "  - Reverse proxy / port-forwarded: https://webui-gateway.example.com"
+                "  - Cross-origin: https://webui-gateway.example.com"
             ),
         },
         {
