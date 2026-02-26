@@ -135,34 +135,43 @@ class VisualizationSubscriptionError(BaseModel):
 from sse_starlette.sse import EventSourceResponse
 
 
-def _generate_sse_url(fastapi_request: FastAPIRequest, stream_id: str) -> str:
+def _generate_sse_url(
+    fastapi_request: FastAPIRequest,
+    stream_id: str,
+    component: "WebUIBackendComponent",
+) -> str:
     """
-    Generate SSE endpoint URL with proper scheme and host detection for reverse proxy scenarios.
+    Generate SSE endpoint URL for a visualization stream.
+
+    When frontend_server_url is configured on the component, it is used as the
+    base to construct the SSE endpoint URL. This is required for reverse proxy
+    or port-forwarded environments (e.g. GitHub Codespaces, nginx, cloud load
+    balancers) where the internal server address differs from the public URL.
+
+    When frontend_server_url is not configured, the URL is constructed from the
+    component's configured host/port and the request's scheme.
+
+    Client-supplied headers (Host, X-Forwarded-Host, X-Forwarded-Proto) are
+    intentionally NOT trusted to prevent host header poisoning attacks.
 
     Args:
         fastapi_request: The FastAPI request object
         stream_id: The stream ID for the SSE endpoint
+        component: The WebUI backend component instance.
 
     Returns:
-        Complete SSE URL with correct scheme (http/https) and host.
+        Complete SSE URL string.
     """
-    base_url = fastapi_request.url_for(
+    path = fastapi_request.url_for(
         "get_visualization_stream_events", stream_id=stream_id
-    )
+    ).path
 
-    forwarded_proto = fastapi_request.headers.get("x-forwarded-proto")
-    forwarded_host = fastapi_request.headers.get("x-forwarded-host")
+    if component.frontend_server_url:
+        base = component.frontend_server_url.rstrip("/")
+        return f"{base}{path}"
 
-    if forwarded_proto and forwarded_host:
-        # In a reverse proxy environment like GitHub Codespaces, reconstruct the URL
-        # using the forwarded headers to ensure it's publicly accessible.
-        return str(base_url.replace(scheme=forwarded_proto, netloc=forwarded_host))
-    elif forwarded_proto:
-        # Handle cases with only a forwarded protocol (standard reverse proxy)
-        return str(base_url.replace(scheme=forwarded_proto))
-    else:
-        # Default behavior when not behind a reverse proxy
-        return str(base_url)
+    scheme = fastapi_request.url.scheme
+    return f"{scheme}://{component.fastapi_host}:{component.fastapi_port}{path}"
 
 
 def _translate_target_to_solace_topics(
@@ -358,7 +367,7 @@ async def subscribe_to_visualization_stream(
                 log_id_prefix,
                 stream_id,
             )
-            sse_url = _generate_sse_url(fastapi_request, stream_id)
+            sse_url = _generate_sse_url(fastapi_request, stream_id, component)
             return VisualizationSubscribeResponse(
                 stream_id=stream_id,
                 sse_endpoint_url=sse_url,
@@ -742,7 +751,7 @@ async def subscribe_to_visualization_stream(
             len(failed_targets),
         )
 
-    sse_url = _generate_sse_url(fastapi_request, stream_id)
+    sse_url = _generate_sse_url(fastapi_request, stream_id, component)
     log.info(
         "%s Visualization stream %s initiated for user %s. SSE URL: %s. Processed Targets: %s",
         log_id_prefix,
