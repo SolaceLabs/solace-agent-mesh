@@ -72,7 +72,7 @@ jobs:
       - name: Get Version from hatch
         id: get_version
         run: |
-          uv tool install hatch
+          uv tool install --with virtualenv==20.26.6 hatch
           echo "version=$(hatch version)" >> $GITHUB_OUTPUT
           echo "Found version: $(hatch version)"
 
