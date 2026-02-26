@@ -516,6 +516,18 @@ class SamAgentApp(SamAppBase):
         agent_name = app_config.get("agent_name")
         broker_request_response = app_info.get("broker_request_response")
 
+        # The agent name must be alphanumeric and underscore only
+        if not agent_name.replace("_", "").isalnum(): 
+            # Converting to a valid format by replacing invalid characters with underscores
+            valid_agent_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in agent_name)
+            log.warning(
+                "Agent name '%s' contains invalid characters. Converted to '%s'",
+                agent_name,
+                valid_agent_name,
+            )
+            agent_name = valid_agent_name
+            app_config.agent_name = agent_name
+
         log.info(
             "Configuring A2A_ADK_App for Agent: '%s' in Namespace: '%s'",
             agent_name,
