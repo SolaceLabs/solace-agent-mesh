@@ -367,6 +367,23 @@ class TaskLoggerService:
                 return False
         return True
 
+    @staticmethod
+    def _sanitize_non_finite_floats(value: Any) -> Any:
+        """
+        Recursively sanitize a value, replacing non-finite floats (NaN, Infinity, -Infinity)
+        with None since PostgreSQL JSON type doesn't support these values.
+        """
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return None
+            return value
+        elif isinstance(value, dict):
+            return {k: TaskLoggerService._sanitize_non_finite_floats(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [TaskLoggerService._sanitize_non_finite_floats(item) for item in value]
+        else:
+            return value
+
     def _sanitize_payload(self, payload: Dict) -> Dict:
         """
         Sanitizes payload for database storage:
@@ -376,32 +393,15 @@ class TaskLoggerService:
         """
         new_payload = copy.deepcopy(payload)
 
-        def sanitize_value(value: Any) -> Any:
-            """Recursively sanitize a value, replacing non-finite floats with None."""
-            if isinstance(value, float):
-                # Replace NaN, Infinity, -Infinity with None (JSON null)
-                if math.isnan(value) or math.isinf(value):
-                    return None
-                return value
-            elif isinstance(value, dict):
-                return {k: sanitize_value(v) for k, v in value.items()}
-            elif isinstance(value, list):
-                return [sanitize_value(item) for item in value]
-            else:
-                return value
-
         def walk_and_sanitize(node):
             if isinstance(node, dict):
                 for key, value in list(node.items()):
-                    # Handle non-finite floats anywhere in the payload
-                    if isinstance(value, float):
-                        if math.isnan(value) or math.isinf(value):
-                            node[key] = None
-                            continue
+                    # Sanitize non-finite floats using the helper
+                    node[key] = self._sanitize_non_finite_floats(value)
                     
-                    if key == "parts" and isinstance(value, list):
+                    if key == "parts" and isinstance(node[key], list):
                         new_parts = []
-                        for part in value:
+                        for part in node[key]:
                             if isinstance(part, dict) and "file" in part:
                                 if not self.config.get("log_file_parts", True):
                                     continue  # Skip this part entirely
@@ -417,23 +417,21 @@ class TaskLoggerService:
                                             file_dict["bytes"] = (
                                                 f"[Content stripped, size > {max_bytes} bytes]"
                                             )
-                                new_parts.append(sanitize_value(part))
+                                new_parts.append(part)
                             else:
                                 walk_and_sanitize(part)
                                 new_parts.append(part)
                         node["parts"] = new_parts
-                    else:
-                        walk_and_sanitize(value)
+                    elif isinstance(node[key], (dict, list)):
+                        walk_and_sanitize(node[key])
             elif isinstance(node, list):
                 for i, item in enumerate(node):
-                    if isinstance(item, float) and (math.isnan(item) or math.isinf(item)):
-                        node[i] = None
-                    else:
-                        walk_and_sanitize(item)
+                    node[i] = self._sanitize_non_finite_floats(item)
+                    if isinstance(node[i], (dict, list)):
+                        walk_and_sanitize(node[i])
 
         walk_and_sanitize(new_payload)
-        # Final pass to ensure all values are sanitized (handles nested structures)
-        return sanitize_value(new_payload)
+        return new_payload
 
     def _save_chat_messages_for_background_task(
         self, db: DBSession, task_id: str, task: Task, repo: TaskRepository
