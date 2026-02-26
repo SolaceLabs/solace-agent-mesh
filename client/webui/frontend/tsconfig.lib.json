@@ -15,7 +15,7 @@
         "lib": ["ES2023", "DOM", "DOM.Iterable"],
         "downlevelIteration": true,
         "skipLibCheck": true,
-        "types": ["node"],
+        "types": ["node", "vite/client"],
         "moduleResolution": "bundler",
         "allowSyntheticDefaultImports": true,
         "baseUrl": ".",
