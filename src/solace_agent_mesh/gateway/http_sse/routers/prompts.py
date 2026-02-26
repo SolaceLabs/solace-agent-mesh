@@ -632,7 +632,7 @@ async def update_prompt_group(
             db.flush()
         
         # Update group-level fields for consistency (these are now just for reference)
-        update_data = group_data.dict(exclude_unset=True, exclude={'initial_prompt'})
+        update_data = group_data.model_dump(exclude_unset=True, exclude={'initial_prompt'})
         for field, value in update_data.items():
             setattr(group, field, value)
         
@@ -1079,7 +1079,7 @@ async def prompt_builder_chat(
         # Process the message using real LLM with conflict checking
         response = await assistant.process_message(
             user_message=request.message,
-            conversation_history=[msg.dict() for msg in request.conversation_history],
+            conversation_history=[msg.model_dump() for msg in request.conversation_history],
             current_template=request.current_template or {},
             user_id=user_id
         )
