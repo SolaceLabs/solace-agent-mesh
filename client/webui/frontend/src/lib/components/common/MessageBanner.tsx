@@ -25,6 +25,10 @@ const iconColorMap: Record<string, string> = {
     warning: "text-[var(--color-warning-wMain)]",
 };
 
+const textColorOverrides: Record<string, string> = {
+    warning: "text-foreground dark:text-[var(--color-white)]",
+};
+
 export interface MessageBannerBaseProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof messageBannerVariants> {
     message: string | React.ReactNode;
     icon?: React.ReactNode;
@@ -38,7 +42,7 @@ function MessageBanner({ className, variant = "error", message, icon, dismissibl
     const IconComponent = iconMap[variant || "error"];
 
     return (
-        <div data-testid="messageBanner" className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
+        <div data-testid="messageBanner" className={cn(messageBannerVariants({ variant, className }), "items-start", textColorOverrides[variant || "error"])} role="alert" aria-live="polite" {...props}>
             {icon || <IconComponent className={cn("size-5 shrink-0", iconColorMap[variant || "error"])} />}
             {typeof message === "string" ? <span>{message}</span> : message}
 
