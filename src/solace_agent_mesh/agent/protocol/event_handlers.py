@@ -1073,17 +1073,17 @@ async def handle_a2a_request(component, message: SolaceMessage):
         log.error(
             "%s Bad Request error handling A2A request: %s", component.log_identifier, e
         )
-        
+
         # Use centralized error handler
         error_message, is_context_limit = get_error_message(e)
-        
+
         if is_context_limit:
             log.error(
                 "%s Context limit exceeded for task %s",
                 component.log_identifier,
                 logical_task_id,
             )
-        
+
         error_response = a2a.create_invalid_request_error_response(
             message=error_message,
             request_id=jsonrpc_request_id,
@@ -1219,16 +1219,6 @@ def handle_agent_card_message(component, message: SolaceMessage):
             message.call_acknowledgements()
             return
 
-        # Filter out gateway cards
-        if is_gateway_card(agent_card):
-            log.debug(
-                "%s Ignoring gateway card '%s'",
-                component.log_identifier,
-                agent_name,
-            )
-            message.call_acknowledgements()
-            return
-
         agent_discovery = component.get_config("agent_discovery", {})
         if agent_discovery.get("enabled", False) is False:
             message.call_acknowledgements()
@@ -1250,7 +1240,6 @@ def handle_agent_card_message(component, message: SolaceMessage):
                     break
 
         if is_allowed:
-
             # Also store in peer_agents for backward compatibility
             component.peer_agents[agent_name] = agent_card
 
@@ -1382,7 +1371,6 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 status_event
                             )
                             if data_parts:
-
                                 peer_agent_name = (
                                     status_event.metadata.get(
                                         "agent_name", "UnknownPeer"
@@ -1540,15 +1528,23 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                                 sub_task_id,
                                             )
                                     filtered_data_parts.append(data_part)
-                                
+
                                 # Store the deep research report flag in correlation data for later use
                                 if has_deep_research_report:
-                                    main_logical_task_id_for_flag = original_task_context.get("logical_task_id")
+                                    main_logical_task_id_for_flag = (
+                                        original_task_context.get("logical_task_id")
+                                    )
                                     with component.active_tasks_lock:
-                                        task_context_for_flag = component.active_tasks.get(main_logical_task_id_for_flag)
+                                        task_context_for_flag = (
+                                            component.active_tasks.get(
+                                                main_logical_task_id_for_flag
+                                            )
+                                        )
                                         if task_context_for_flag:
                                             # Store flag in task context to suppress text in final response
-                                            task_context_for_flag.set_flag("peer_sent_deep_research_report", True)
+                                            task_context_for_flag.set_flag(
+                                                "peer_sent_deep_research_report", True
+                                            )
                                             log.info(
                                                 "%s Set peer_sent_deep_research_report flag for task %s",
                                                 component.log_identifier,
@@ -1564,9 +1560,11 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             sub_task_id,
                                         )
 
-                                        forwarded_message = a2a.create_agent_parts_message(
-                                            parts=[data_part],
-                                            metadata=event_metadata,
+                                        forwarded_message = (
+                                            a2a.create_agent_parts_message(
+                                                parts=[data_part],
+                                                metadata=event_metadata,
+                                            )
                                         )
 
                                         forwarded_event = a2a.create_status_update(
@@ -1912,7 +1910,9 @@ async def handle_a2a_response(component, message: SolaceMessage):
 
             # Check if a deep research report was sent by the peer agent
             # If so, suppress the verbose text but keep artifact info to use
-            peer_sent_deep_research = task_context.get_flag("peer_sent_deep_research_report", False)
+            peer_sent_deep_research = task_context.get_flag(
+                "peer_sent_deep_research_report", False
+            )
             if peer_sent_deep_research:
                 # Clear the flag after using it
                 task_context.set_flag("peer_sent_deep_research_report", False)
