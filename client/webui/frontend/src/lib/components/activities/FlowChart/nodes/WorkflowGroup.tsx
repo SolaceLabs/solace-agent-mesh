@@ -364,14 +364,14 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
             {/* Dotted Children Container - grows with content, extends 16px beyond header on each side */}
             <div
                 ref={containerRef}
-                className="relative rounded border-2 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-primary-w100)"
+                className="relative rounded border-2 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]"
                 style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
             >
                 {/* SVG overlay for bezier connectors */}
                 {bezierPaths.length > 0 && (
                     <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
                         {bezierPaths.map(path => (
-                            <path key={path.id} d={path.d} strokeWidth={2} fill="none" className="stroke-(--color-stateLayer-w20) dark:stroke-(--color-secondary-w80)" />
+                            <path key={path.id} d={path.d} strokeWidth={2} fill="none" className="stroke-(--color-stateLayer-w20) dark:stroke-[#FFFFFF2a]" />
                         ))}
                     </svg>
                 )}

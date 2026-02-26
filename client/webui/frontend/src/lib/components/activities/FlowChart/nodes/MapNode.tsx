@@ -75,7 +75,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
 
                 {/* Dotted Children Container - grows with content */}
                 <div
-                    className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
+                    className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]"
                     style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
                 >
                     <div className="px-3 pb-4">

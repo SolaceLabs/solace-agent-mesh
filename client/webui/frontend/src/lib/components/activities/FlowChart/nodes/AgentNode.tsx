@@ -25,7 +25,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
     const AgentHeader = () => (
         <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10) dark:bg-(--color-accent-n2-w100)">
-                <Bot className="h-4 w-4 text-(--color-brand-w100)" />
+                <Bot className="h-4 w-4 text-(--color-brand-wMain)" />
             </div>
             <div className="truncate text-sm font-semibold">{node.data.label}</div>
         </div>
@@ -278,7 +278,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 <div className="border-t border-(--color-secondary-w40) dark:border-(--color-secondary-w70)" />
 
                 {/* Children content */}
-                <div className="bg-(--color-secondary-w10) px-4 py-4 dark:bg-(--color-secondary-w100)">
+                <div className="bg-(--color-secondary-w10) px-4 py-4 dark:bg-(--color-background-w100)">
                     <div className="flex flex-col items-center gap-2">
                         {/* Sequential children */}
                         {hasChildren &&
