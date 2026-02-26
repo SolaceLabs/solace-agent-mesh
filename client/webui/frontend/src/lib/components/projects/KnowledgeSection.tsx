@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
-import { useConfigContext, useDownload, useIsProjectOwner, useIndexingSSE } from "@/lib/hooks";
+import { useConfigContext, useDownload, useIsProjectOwner, useIndexingSSE, useChatContext } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
@@ -25,6 +25,7 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
     const isOwner = useIsProjectOwner(project.userId);
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
+    const { addNotification } = useChatContext();
     const { onDownload } = useDownload(project.id);
     const { startIndexing } = useIndexingSSE({ resourceId: project.id });
     const { validationLimits } = useConfigContext();
@@ -95,6 +96,7 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
             }
 
             await refetch();
+            addNotification("Upload completed", "success");
         } catch (e) {
             console.error("Failed to add files:", e);
             const errorMessage = e instanceof Error ? e.message : "Failed to upload files. Please try again.";
@@ -130,6 +132,7 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
             }
 
             await refetch();
+            addNotification("File deleted", "success");
         } catch (e) {
             console.error(`Failed to delete file ${fileToDelete.filename}:`, e);
         }
@@ -183,7 +186,7 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
     };
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-80 flex-1 flex-col">
             <div className="mb-3 flex items-center justify-between px-4">
                 <div className="flex items-center gap-2">
                     <h3 className="text-foreground text-sm font-semibold">Knowledge</h3>

@@ -144,7 +144,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
     }, [config, validateConfig, addNotification]);
 
     const updateTemplate = useCallback(
-        async (groupId: string, createNewVersion: boolean): Promise<boolean> => {
+        async (groupId: string, createNewVersion: boolean = false): Promise<boolean> => {
             setIsLoading(true);
             setSaveStatus("saving");
 
@@ -157,56 +157,21 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     return false;
                 }
 
-                const promptTextChanged = config.promptText !== editingGroup?.productionPrompt?.promptText;
-                const isEditingActiveVersion = editingGroup?._isEditingActiveVersion ?? true;
-                const editingPromptId = editingGroup?._editingPromptId || editingGroup?.productionPromptId;
+                // Build update data with all fields
+                const updateData: Record<string, unknown> = {};
+                if (config.name !== editingGroup?.name) updateData.name = config.name;
+                if (config.description !== editingGroup?.description) updateData.description = config.description;
+                if (config.category !== editingGroup?.category) updateData.category = config.category;
+                if (config.command !== editingGroup?.command) updateData.command = config.command;
+                updateData.initial_prompt = config.promptText;
+                updateData.create_new_version = createNewVersion;
 
-                if (createNewVersion) {
-                    // Create new version by updating group with initial_prompt
-                    // This automatically makes the new version active
-                    // Always include initial_prompt when creating new version, even if only metadata changed
-                    const updateData: Record<string, unknown> = {};
-                    if (config.name !== editingGroup?.name) updateData.name = config.name;
-                    if (config.description !== editingGroup?.description) updateData.description = config.description;
-                    if (config.category !== editingGroup?.category) updateData.category = config.category;
-                    if (config.command !== editingGroup?.command) updateData.command = config.command;
-                    updateData.initial_prompt = config.promptText;
+                await api.webui.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
 
-                    await api.webui.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
-
-                    setSaveStatus("success");
-                    const message = promptTextChanged ? "New version created and activated" : "Changes saved";
-                    addNotification(message, "success");
-                    setIsLoading(false);
-                    return true;
-                } else {
-                    // Overwrite existing version
-                    // First update group metadata if needed
-                    const metadataChanged = config.name !== editingGroup?.name || config.description !== editingGroup?.description || config.category !== editingGroup?.category || config.command !== editingGroup?.command;
-
-                    if (metadataChanged) {
-                        const updateData: Record<string, unknown> = {};
-                        if (config.name !== editingGroup?.name) updateData.name = config.name;
-                        if (config.description !== editingGroup?.description) updateData.description = config.description;
-                        if (config.category !== editingGroup?.category) updateData.category = config.category;
-                        if (config.command !== editingGroup?.command) updateData.command = config.command;
-
-                        await api.webui.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
-                    }
-
-                    // Then update prompt text if it changed
-                    if (promptTextChanged && editingPromptId) {
-                        await api.webui.patch(`/api/v1/prompts/${editingPromptId}`, {
-                            promptText: config.promptText,
-                        });
-                    }
-
-                    setSaveStatus("success");
-                    const message = isEditingActiveVersion ? "Active version updated" : "Version updated";
-                    addNotification(message, "success");
-                    setIsLoading(false);
-                    return true;
-                }
+                setSaveStatus("success");
+                addNotification(createNewVersion ? "New version created" : "Changes saved", "success");
+                setIsLoading(false);
+                return true;
             } catch (error) {
                 console.error("Error updating template:", error);
                 setSaveStatus("error");

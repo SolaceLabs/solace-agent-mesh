@@ -75,10 +75,31 @@ class VisualizationForwarderComponent(ComponentBase):
         """
         log_id_prefix = f"{self.log_identifier}[Invoke]"
         try:
+            topic = data.get("topic", "")
+            payload = data.get("payload", {})
+
+            # Filter out discovery, trust messages, in-progress updates for files and LLM stream
+            # early to prevent queue buildup and reduce noise in visualization streams
+            is_working_state = payload.get("result", {}).get("status", {}).get('state') == "working"
+            parts = payload.get("result", {}).get("status", {}).get("message", {}).get("parts", [])
+            is_in_progress_data = bool(parts) and all(
+                part.get("data", {}).get("status") == "in-progress" for part in parts
+            )
+            is_text_update = bool(parts) and all(part.get("kind") == "text" for part in parts)
+            if ("/a2a/v1/discovery/" in topic) or ("/a2a/v1/trust/" in topic) or (
+                is_working_state and (is_in_progress_data or is_text_update)
+            ):
+                message.call_acknowledgements()
+                log.debug(
+                    "%s Skipping discovery/trust message: %s",
+                    log_id_prefix,
+                    topic,
+                )
+                return None
 
             forward_data = {
-                "topic": data.get("topic"),
-                "payload": data.get("payload"),
+                "topic": topic,
+                "payload": payload,
                 "user_properties": data.get("user_properties") or {},
                 "_original_broker_message": message,
             }

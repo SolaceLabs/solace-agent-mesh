@@ -1,7 +1,7 @@
 """Add document conversion cache table for PDF caching
 
 Revision ID: 20260222_doc_conv_cache
-Revises: 20260207_sse_event_buffer
+Revises: 20260213_prompt_version_fix
 Create Date: 2026-02-22 00:00:00.000000
 
 This migration adds a table to cache PDF conversions from Office documents
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20260222_doc_conv_cache'
-down_revision = '20260207_sse_event_buffer'
+down_revision = '20260213_prompt_version_fix'
 branch_labels = None
 depends_on = None
 

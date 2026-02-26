@@ -112,6 +112,7 @@ apps:
       frontend_feature_enablement:
         background_tasks: ${BACKGROUND_TASKS_ENABLED, true} # NOTE: task_logging must also be enabled for background tasks to work
         auto_title_generation: ${AUTO_TITLE_GENERATION_ENABLED, true}  # Enable automatic chat title generation
+        projectIndexing: ${PROJECT_FILE_INDEXING, false} # Enable citations
 
       # --- Project File Indexing Configuration ---
       project_indexing:
@@ -239,12 +240,18 @@ apps:
       #       playbackRate: 1.0
       #       cacheTTS: true
 
-
-      # --- Data Retention Configuration ---
-      # Automatically cleans up old tasks, task events, and feedback to prevent unbounded database growth
+      # # --- Data Retention Configuration ---
+      # # Automatic cleanup of old data (tasks, task events, feedback, and buffered SSE events to prevent unbounded database growth)
       # data_retention:
-      #   enabled: true                    # Enable/disable automatic cleanup (default: true)
-      #   task_retention_days: 90          # Days to retain task records (default: 90, minimum: 7)
-      #   feedback_retention_days: 90      # Days to retain feedback records (default: 90, minimum: 7)
-      #   cleanup_interval_hours: 24       # How often cleanup runs (default: 24, minimum: 1)
-      #   batch_size: 1000                 # Records deleted per transaction (default: 1000, range: 1-10000)
+      #   enabled: true
+      #   # Granular cleanup control - enable/disable specific cleanup types
+      #   cleanup_tasks: ${DATA_RETENTION_CLEANUP_TASKS, true}
+      #   cleanup_feedback: ${DATA_RETENTION_CLEANUP_FEEDBACK, true}
+      #   cleanup_sse_events: ${DATA_RETENTION_CLEANUP_SSE_EVENTS, true}
+      #   # Retention periods
+      #   task_retention_days: ${DATA_RETENTION_TASK_DAYS, 90} # Days to retain task records (default: 90, minimum: 7)
+      #   feedback_retention_days: ${DATA_RETENTION_FEEDBACK_DAYS, 90} # Days to retain feedback records (default: 90, minimum: 7)
+      #   sse_event_retention_days: ${DATA_RETENTION_SSE_EVENT_DAYS, 30}  # SSE event buffer retention
+      #   # Cleanup scheduling
+      #   cleanup_interval_hours: ${DATA_RETENTION_CLEANUP_INTERVAL_HOURS, 24} # How often cleanup runs (default: 24, minimum: 1)
+      #   batch_size: ${DATA_RETENTION_BATCH_SIZE, 1000}  # Records deleted per transaction (default: 1000, range: 1-10000)

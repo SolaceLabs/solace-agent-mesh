@@ -380,3 +380,253 @@ class TestPromptsVersioning:
         group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
         assert group_response.status_code == 200
         assert group_response.json()["productionPrompt"]["promptText"] == "Original text"
+
+    def test_update_in_place_without_new_version(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test that updating with create_new_version=false updates in-place without creating a new version"""
+        # Create initial prompt
+        group_id = "in-place-update-prompt"
+        gateway_adapter.seed_prompt_group(
+            group_id=group_id,
+            name="Original Name",
+            user_id="sam_dev_user",
+            description="Original description",
+            initial_prompt="Original prompt text",
+        )
+
+        # Get initial version count
+        versions_response = api_client.get(f"/api/v1/prompts/groups/{group_id}/prompts")
+        assert versions_response.status_code == 200
+        initial_version_count = len(versions_response.json())
+        assert initial_version_count == 1
+
+        # Update without creating new version (default behavior)
+        update_response = api_client.patch(
+            f"/api/v1/prompts/groups/{group_id}",
+            json={
+                "name": "Updated Name",
+                "description": "Updated description",
+                "initial_prompt": "Updated prompt text",
+                "create_new_version": False,
+            },
+        )
+        assert update_response.status_code == 200
+
+        # Verify version count unchanged
+        versions_response = api_client.get(f"/api/v1/prompts/groups/{group_id}/prompts")
+        assert versions_response.status_code == 200
+        assert len(versions_response.json()) == initial_version_count
+
+        # Verify content was updated in-place
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        group_data = group_response.json()
+        assert group_data["name"] == "Updated Name"
+        assert group_data["description"] == "Updated description"
+        assert group_data["productionPrompt"]["promptText"] == "Updated prompt text"
+        assert group_data["productionPrompt"]["version"] == 1  # Still version 1
+
+    def test_update_with_new_version_flag(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test that updating with create_new_version=true creates a new version"""
+        # Create initial prompt
+        group_id = "new-version-update-prompt"
+        gateway_adapter.seed_prompt_group(
+            group_id=group_id,
+            name="Original Name",
+            user_id="sam_dev_user",
+            description="Original description",
+            initial_prompt="Original prompt text",
+        )
+
+        # Get initial version count
+        versions_response = api_client.get(f"/api/v1/prompts/groups/{group_id}/prompts")
+        assert versions_response.status_code == 200
+        initial_version_count = len(versions_response.json())
+        assert initial_version_count == 1
+
+        # Update with create_new_version=true
+        update_response = api_client.patch(
+            f"/api/v1/prompts/groups/{group_id}",
+            json={
+                "name": "Updated Name",
+                "description": "Updated description",
+                "initial_prompt": "Updated prompt text",
+                "create_new_version": True,
+            },
+        )
+        assert update_response.status_code == 200
+
+        # Verify new version was created
+        versions_response = api_client.get(f"/api/v1/prompts/groups/{group_id}/prompts")
+        assert versions_response.status_code == 200
+        versions = versions_response.json()
+        assert len(versions) == initial_version_count + 1
+
+        # Verify the new version is now active (latest)
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        group_data = group_response.json()
+        assert group_data["name"] == "Updated Name"
+        assert group_data["description"] == "Updated description"
+        assert group_data["productionPrompt"]["promptText"] == "Updated prompt text"
+        assert group_data["productionPrompt"]["version"] == 2  # New version 2
+
+        # Verify old version still exists with original data
+        version_1 = next(v for v in versions if v["version"] == 1)
+        assert version_1["promptText"] == "Original prompt text"
+
+    def test_restore_version_creates_new_version(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test that restoring an old version creates a new version (not overwriting current)"""
+        # Create initial prompt
+        group_id = "restore-version-prompt"
+        gateway_adapter.seed_prompt_group(
+            group_id=group_id,
+            name="Version 1 Name",
+            user_id="sam_dev_user",
+            description="Version 1 description",
+            initial_prompt="Version 1 text",
+        )
+
+        # Create version 2
+        api_client.patch(
+            f"/api/v1/prompts/groups/{group_id}",
+            json={
+                "name": "Version 2 Name",
+                "description": "Version 2 description",
+                "initial_prompt": "Version 2 text",
+                "create_new_version": True,
+            },
+        )
+
+        # Create version 3
+        api_client.patch(
+            f"/api/v1/prompts/groups/{group_id}",
+            json={
+                "name": "Version 3 Name",
+                "description": "Version 3 description",
+                "initial_prompt": "Version 3 text",
+                "create_new_version": True,
+            },
+        )
+
+        # Verify we have 3 versions
+        versions_response = api_client.get(f"/api/v1/prompts/groups/{group_id}/prompts")
+        assert versions_response.status_code == 200
+        assert len(versions_response.json()) == 3
+
+        # "Restore" version 1 by creating a new version with its content
+        restore_response = api_client.patch(
+            f"/api/v1/prompts/groups/{group_id}",
+            json={
+                "name": "Version 1 Name",
+                "description": "Version 1 description",
+                "initial_prompt": "Version 1 text",
+                "create_new_version": True,  # Always create new version when restoring
+            },
+        )
+        assert restore_response.status_code == 200
+
+        # Verify we now have 4 versions (not 3)
+        versions_response = api_client.get(f"/api/v1/prompts/groups/{group_id}/prompts")
+        assert versions_response.status_code == 200
+        versions = versions_response.json()
+        assert len(versions) == 4
+
+        # Verify the new version 4 has version 1's content
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        group_data = group_response.json()
+        assert group_data["productionPrompt"]["version"] == 4
+        assert group_data["productionPrompt"]["promptText"] == "Version 1 text"
+        assert group_data["name"] == "Version 1 Name"
+
+        # Verify version 3 still exists unchanged
+        version_3 = next(v for v in versions if v["version"] == 3)
+        assert version_3["promptText"] == "Version 3 text"
+
+    def test_latest_version_is_always_active(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test that the latest version (highest version number) is always the active version"""
+        # Create initial prompt
+        group_id = "latest-active-prompt"
+        gateway_adapter.seed_prompt_group(
+            group_id=group_id,
+            name="Test Prompt",
+            user_id="sam_dev_user",
+            initial_prompt="Version 1 text",
+        )
+
+        # Create multiple versions
+        for i in range(2, 5):
+            api_client.patch(
+                f"/api/v1/prompts/groups/{group_id}",
+                json={
+                    "initial_prompt": f"Version {i} text",
+                    "create_new_version": True,
+                },
+            )
+
+        # Verify the active version is always the latest (version 4)
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        group_data = group_response.json()
+        assert group_data["productionPrompt"]["version"] == 4
+        assert group_data["productionPrompt"]["promptText"] == "Version 4 text"
+
+    def test_metadata_is_version_specific(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test that metadata (name, description, category) is stored per-version"""
+        # Create initial prompt
+        group_id = "metadata-version-prompt"
+        gateway_adapter.seed_prompt_group(
+            group_id=group_id,
+            name="Version 1 Name",
+            user_id="sam_dev_user",
+            description="Version 1 description",
+            category="testing",
+            initial_prompt="Version 1 text",
+        )
+
+        # Create version 2 with different metadata
+        api_client.patch(
+            f"/api/v1/prompts/groups/{group_id}",
+            json={
+                "name": "Version 2 Name",
+                "description": "Version 2 description",
+                "category": "development",
+                "initial_prompt": "Version 2 text",
+                "create_new_version": True,
+            },
+        )
+
+        # Get all versions
+        versions_response = api_client.get(f"/api/v1/prompts/groups/{group_id}/prompts")
+        assert versions_response.status_code == 200
+        versions = versions_response.json()
+
+        # Verify version 1 has its original metadata
+        version_1 = next(v for v in versions if v["version"] == 1)
+        assert version_1["name"] == "Version 1 Name"
+        assert version_1["description"] == "Version 1 description"
+        assert version_1["category"] == "testing"
+
+        # Verify version 2 has its own metadata
+        version_2 = next(v for v in versions if v["version"] == 2)
+        assert version_2["name"] == "Version 2 Name"
+        assert version_2["description"] == "Version 2 description"
+        assert version_2["category"] == "development"
+
+        # Verify the group shows the latest version's metadata
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        group_data = group_response.json()
+        assert group_data["name"] == "Version 2 Name"
+        assert group_data["description"] == "Version 2 description"
+        assert group_data["category"] == "development"
