@@ -59,13 +59,20 @@ async def _validate_token(
     Returns:
         True if token is valid, False otherwise
     """
-    async with httpx.AsyncClient() as client:
-        validation_response = await client.post(
-            f"{auth_service_url}/is_token_valid",
-            json={"provider": auth_provider},
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-    return validation_response.status_code == 200
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            validation_response = await client.post(
+                f"{auth_service_url}/is_token_valid",
+                json={"provider": auth_provider},
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        return validation_response.status_code == 200
+    except httpx.TimeoutException as e:
+        log.warning(f"AuthMiddleware: Token validation timed out: {e}")
+        return False
+    except httpx.RequestError as e:
+        log.warning(f"AuthMiddleware: Token validation request failed: {e}")
+        return False
 
 
 async def _get_user_info(
@@ -82,11 +89,18 @@ async def _get_user_info(
     Returns:
         User info dictionary if successful, None otherwise
     """
-    async with httpx.AsyncClient() as client:
-        userinfo_response = await client.get(
-            f"{auth_service_url}/user_info?provider={auth_provider}",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            userinfo_response = await client.get(
+                f"{auth_service_url}/user_info?provider={auth_provider}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+    except httpx.TimeoutException as e:
+        log.warning(f"AuthMiddleware: User info request timed out: {e}")
+        return None
+    except httpx.RequestError as e:
+        log.warning(f"AuthMiddleware: User info request failed: {e}")
+        return None
 
     if userinfo_response.status_code != 200:
         return None

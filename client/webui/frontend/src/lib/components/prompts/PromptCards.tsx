@@ -55,7 +55,9 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
 
     const filteredPrompts = useMemo(() => {
         const filtered = prompts.filter(prompt => {
-            const matchesSearch = prompt.name?.toLowerCase().includes(searchQuery.toLowerCase()) || prompt.description?.toLowerCase().includes(searchQuery.toLowerCase()) || prompt.command?.toLowerCase().includes(searchQuery.toLowerCase());
+            const description = prompt.productionPrompt?.description || prompt.description;
+            const command = prompt.productionPrompt?.command || prompt.command;
+            const matchesSearch = prompt.name?.toLowerCase().includes(searchQuery.toLowerCase()) || description?.toLowerCase().includes(searchQuery.toLowerCase()) || command?.toLowerCase().includes(searchQuery.toLowerCase());
 
             const matchesCategory = selectedCategories.length === 0 || (prompt.category && selectedCategories.includes(prompt.category));
 

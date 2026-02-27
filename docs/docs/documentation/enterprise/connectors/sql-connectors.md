@@ -116,11 +116,13 @@ The password is encrypted at rest and transmitted securely to the database serve
 
 The Oracle service name that identifies the target database on the Oracle listener. The service name is not the same as the Database Name field used by other connector types; Oracle identifies databases by service name rather than a simple database name.
 
+Oracle connections use thin mode, which connects directly to the database without requiring Oracle Client libraries to be installed on the host.
+
 **ODBC Driver** *(MSSQL only)*
 
-The ODBC driver used to connect to SQL Server. Agent Mesh Enterprise includes the FreeTDS driver out of the box, which works for standard SQL operations and requires no additional installation.
+The ODBC driver used to connect to SQL Server. Agent Mesh Enterprise includes Microsoft ODBC Driver 18 for SQL Server out of the box, which works for standard SQL operations and requires no additional installation.
 
-If your use case requires a different driver, you must install that driver on the host system first. See [Using an Alternative MSSQL ODBC Driver](#using-an-alternative-mssql-odbc-driver) in the Troubleshooting section for instructions on how to extend the base image. If the driver is installed correctly, it appears in the ODBC Driver dropdown for selection.
+If your use case requires a different driver, you must install that driver on the host system first. If the driver is installed correctly, it appears in the ODBC Driver dropdown for selection.
 
 ### Connection Pooling
 
@@ -229,50 +231,14 @@ If agents experience slow query responses:
 2. Optimize database views if you use them for access control
 3. Review query patterns in database logs to identify inefficient queries that agents generate
 
-### Using an Alternative MSSQL ODBC Driver
+### MSSQL ODBC Driver Not Found
 
-Agent Mesh Enterprise includes the FreeTDS ODBC driver in the base image. FreeTDS handles standard SQL Server connectivity without any additional setup.
+If you are running Agent Mesh Enterprise from a wheel file and the MSSQL connector fails to connect with an error about a missing or unrecognised ODBC driver, Microsoft ODBC Driver 18 for SQL Server may not be installed on your host system.
 
-If you require a different ODBC driver, extend the base image to install it before deploying. The following example Dockerfile installs Microsoft ODBC Driver 18 for SQL Server on top of the SAM Enterprise base image:
+To install it, follow the [official Microsoft installation instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) for your operating system.
 
-```dockerfile
-# Extend the Solace Agent Mesh Enterprise base image with Microsoft ODBC Driver 18
-# This Dockerfile demonstrates how to add MS SQL Server connectivity to SAM Enterprise
-FROM solace-agent-mesh-enterprise:<tag>
+After installation, restart Agent Mesh Enterprise. The driver should then appear in the ODBC Driver dropdown when you create or edit an MSSQL connector.
 
-# Switch to root user to install system packages
-# The base image runs as non-root user 'solaceai' by default
-USER root
-
-# Install Microsoft ODBC Driver 18 for SQL Server
-# Steps:
-# 1. Ensure apt directories exist with proper permissions (fixes potential permission issues)
-# 2. Update package lists
-# 3. Install curl and gnupg (without recommended extras) for downloading and verifying Microsoft packages
-# 4. Download and install Microsoft's GPG signing key to verify package authenticity
-# 5. Add Microsoft's Debian 12 (bookworm) package repository
-#    Note: Using Debian 12 repos because the base image uses Debian 13 (trixie),
-#    which is not yet officially supported by Microsoft. Debian 12 packages are
-#    forward-compatible with Debian 13.
-# 6. Refresh package lists to include Microsoft repository
-# 7. Install msodbcsql18 (without recommended extras) with automatic EULA acceptance
-# 8. Purge curl and gnupg along with any dependencies pulled in solely for them
-# 9. Clean up package cache and temp files to minimize image size
-RUN mkdir -p /var/lib/apt/lists/partial \
-    && chmod -R 755 /var/lib/apt/lists \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends curl gnupg \
-    && curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft-prod.gpg \
-    && curl https://packages.microsoft.com/config/debian/12/prod.list > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 \
-    && apt-get purge -y --auto-remove curl gnupg \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Verify the ODBC driver was installed correctly
-# This will fail the build if the driver is not properly registered
-RUN odbcinst -q -d -n "ODBC Driver 18 for SQL Server"
-```
-
-Replace `<tag>` with the version of Agent Mesh Enterprise you are running. After building and deploying this image, `ODBC Driver 18 for SQL Server` appears in the ODBC Driver dropdown when you create an MSSQL connector.
+:::note
+When running Agent Mesh Enterprise from the Docker image, Microsoft ODBC Driver 18 is already included and no additional installation is required.
+:::

@@ -5,6 +5,7 @@ Service for logging A2A tasks and events to the database.
 import copy
 import json
 import logging
+import math
 import uuid
 from typing import Any, Callable, Dict, Union
 
@@ -60,8 +61,12 @@ class TaskLoggerService:
             )
             return
 
-        if "discovery" in topic:
+        if "/a2a/v1/discovery/" in topic:
             # Ignore discovery messages
+            return
+
+        if "/a2a/v1/trust/" in topic:
+            # Ignore trust messages early to avoid queue buildup
             return
 
         # Parse the event into a Pydantic model first.
@@ -362,16 +367,41 @@ class TaskLoggerService:
                 return False
         return True
 
+    @staticmethod
+    def _sanitize_non_finite_floats(value: Any) -> Any:
+        """
+        Recursively sanitize a value, replacing non-finite floats (NaN, Infinity, -Infinity)
+        with None since PostgreSQL JSON type doesn't support these values.
+        """
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return None
+            return value
+        elif isinstance(value, dict):
+            return {k: TaskLoggerService._sanitize_non_finite_floats(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [TaskLoggerService._sanitize_non_finite_floats(item) for item in value]
+        else:
+            return value
+
     def _sanitize_payload(self, payload: Dict) -> Dict:
-        """Strips or truncates file content from payload based on configuration."""
+        """
+        Sanitizes payload for database storage:
+        1. Strips or truncates file content based on configuration
+        2. Replaces non-finite floats (NaN, Infinity, -Infinity) with None
+           since PostgreSQL JSON type doesn't support these values
+        """
         new_payload = copy.deepcopy(payload)
 
         def walk_and_sanitize(node):
             if isinstance(node, dict):
                 for key, value in list(node.items()):
-                    if key == "parts" and isinstance(value, list):
+                    # Sanitize non-finite floats using the helper
+                    node[key] = self._sanitize_non_finite_floats(value)
+                    
+                    if key == "parts" and isinstance(node[key], list):
                         new_parts = []
-                        for part in value:
+                        for part in node[key]:
                             if isinstance(part, dict) and "file" in part:
                                 if not self.config.get("log_file_parts", True):
                                     continue  # Skip this part entirely
@@ -392,11 +422,13 @@ class TaskLoggerService:
                                 walk_and_sanitize(part)
                                 new_parts.append(part)
                         node["parts"] = new_parts
-                    else:
-                        walk_and_sanitize(value)
+                    elif isinstance(node[key], (dict, list)):
+                        walk_and_sanitize(node[key])
             elif isinstance(node, list):
-                for item in node:
-                    walk_and_sanitize(item)
+                for i, item in enumerate(node):
+                    node[i] = self._sanitize_non_finite_floats(item)
+                    if isinstance(node[i], (dict, list)):
+                        walk_and_sanitize(node[i])
 
         walk_and_sanitize(new_payload)
         return new_payload
