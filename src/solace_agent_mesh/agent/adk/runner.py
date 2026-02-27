@@ -24,46 +24,11 @@ from google.adk.events.event_actions import EventActions
 from google.adk.sessions import Session as ADKSession
 from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.genai import types as adk_types
-from cachetools import TTLCache
 
 from ...common import a2a
-from .models.lite_llm import _content_to_message_param, _calculate_content_tokens
+from .models.lite_llm import _calculate_content_tokens
 
 log = logging.getLogger(__name__)
-
-# Per-session locks for compaction to prevent parallel tasks from duplicate summarization
-# When multiple tasks hit context limit simultaneously, only one compacts per session
-_compaction_locks: TTLCache = TTLCache(maxsize=10000, ttl=3600)
-_compaction_locks_mutex = asyncio.Lock()
-
-# Per-session summaries for deferred notification (after successful response)
-# When compaction occurs during retries, we store the summary here instead of sending immediately
-# This ensures users see the actual response first, then a clean notification about summarization
-# TTLCache prevents memory leak if pop() doesn't run for some reason (maxsize=10000, ttl=3600)
-_compaction_session_summaries: TTLCache = TTLCache(maxsize=10000, ttl=3600)
-
-
-async def _get_compaction_lock(session_id: str) -> asyncio.Lock:
-    """
-    Get or create an asyncio.Lock for the given session_id.
-
-    Ensures only one task per session can perform compaction at a time.
-    When multiple parallel tasks hit context limits, they coordinate via this lock.
-
-    Args:
-        session_id: The ADK session ID
-
-    Returns:
-        asyncio.Lock instance for this session
-    """
-    async with _compaction_locks_mutex:
-        if session_id not in _compaction_locks:
-            _compaction_locks[session_id] = asyncio.Lock()
-        else:
-            # Re-insert to reset TTL on access (idle timeout behavior)
-            lock = _compaction_locks.pop(session_id)
-            _compaction_locks[session_id] = lock
-        return _compaction_locks[session_id]
 
 
 if TYPE_CHECKING:
@@ -753,7 +718,7 @@ async def _handle_max_retries_exceeded(
         log_identifier: Logging prefix
     """
     # Clean up any pending summary
-    _compaction_session_summaries.pop(session_id, None)
+    component.session_compaction_state.pop_summary(session_id)
 
     log.error(
         "%s Context limit exceeded after %d summarization attempts for task %s.",
@@ -928,13 +893,13 @@ async def _perform_session_compaction(
 
     # Store summary for deferred notification
     # Overwrite any previous summary (we only want the latest)
-    if session.id in _compaction_session_summaries:
+    if component.session_compaction_state.get_summary(session.id):
         log.info(
             "%s Overriding previous compaction summary for session %s",
             log_identifier,
             session.id
         )
-    _compaction_session_summaries[session.id] = summary
+    component.session_compaction_state.store_summary(session.id, summary)
 
     log.info(
         "%s Summarization complete. Retrying task %s with reduced context...",
@@ -1122,7 +1087,7 @@ async def run_adk_async_task_thread_wrapper(
                     return  # Exit cleanly - user already got the graceful message
 
                 # Get per-session compaction lock to coordinate parallel tasks
-                compaction_lock = await _get_compaction_lock(adk_session.id)
+                compaction_lock = await component.session_compaction_state.get_lock(adk_session.id)
 
                 # Check if another task is already compacting this session
                 if compaction_lock.locked():
@@ -1154,7 +1119,7 @@ async def run_adk_async_task_thread_wrapper(
                         # Check if this is the "Insufficient conversation history" error
                         if "Insufficient conversation history" in str(rt_err):
                             # Clean up any pending summary
-                            _compaction_session_summaries.pop(adk_session.id, None)
+                            component.session_compaction_state.pop_summary(adk_session.id)
 
                             # Send graceful user-facing message
                             await _send_insufficient_history_message(
@@ -1193,7 +1158,7 @@ async def run_adk_async_task_thread_wrapper(
 
         if parent_task_id:
             # Subtask - peek but don't consume
-            summary = _compaction_session_summaries.get(adk_session.id)
+            summary = component.session_compaction_state.get_summary(adk_session.id)
             if summary:
                 log.info(
                     "%s Subtask compacted (parent: %s) - leaving summary for root task to notify",
@@ -1202,7 +1167,7 @@ async def run_adk_async_task_thread_wrapper(
                 )
         else:
             # Root task - consume and send notification
-            summary = _compaction_session_summaries.pop(adk_session.id, None)
+            summary = component.session_compaction_state.pop_summary(adk_session.id)
             if summary:
                 log.info(
                     "%s Sending deferred compaction notification for session %s after successful response",
