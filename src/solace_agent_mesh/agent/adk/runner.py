@@ -232,18 +232,31 @@ async def run_adk_async_task_thread_wrapper(
 
     if not skip_finalization:
         # Check if this is a retrigger for a structured invocation task.
-        # If so, signal completion to the waiting handler instead of running
-        # normal finalization (the handler does its own custom finalization).
+        # If so, run deferred SI finalization instead of normal finalization.
         if task_context and task_context.get_flag("structured_invocation"):
             if not is_paused or exception_to_finalize_with:
                 log.info(
-                    "%s Structured invocation task %s completed (paused=%s, exception=%s). Signaling handler.",
+                    "%s Structured invocation task %s completed (paused=%s, exception=%s). "
+                    "Scheduling deferred SI finalization.",
                     component.log_identifier,
                     logical_task_id,
                     is_paused,
                     type(exception_to_finalize_with).__name__ if exception_to_finalize_with else "None",
                 )
-                task_context.signal_completion(exception_to_finalize_with)
+                loop = component.get_async_loop()
+                if loop and loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        component.structured_invocation_handler.finalize_deferred_structured_invocation(
+                            task_context, a2a_context, exception_to_finalize_with
+                        ),
+                        loop,
+                    )
+                else:
+                    log.error(
+                        "%s Async loop not available. Cannot schedule SI finalization for task %s.",
+                        component.log_identifier,
+                        logical_task_id,
+                    )
             else:
                 log.info(
                     "%s Structured invocation task %s still paused after retrigger. Waiting for more peer responses.",

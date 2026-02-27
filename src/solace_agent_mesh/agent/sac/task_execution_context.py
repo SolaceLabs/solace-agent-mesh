@@ -28,8 +28,6 @@ class TaskExecutionContext:
         self.task_id: str = task_id
         self.a2a_context: Dict[str, Any] = a2a_context
         self.cancellation_event: asyncio.Event = asyncio.Event()
-        self.completion_event: asyncio.Event = asyncio.Event()
-        self.completion_exception: Optional[Exception] = None
         self.streaming_buffer: str = ""
         self.run_based_response_buffer: str = ""
         self.active_peer_sub_tasks: Dict[str, Dict[str, Any]] = {}
@@ -89,30 +87,6 @@ class TaskExecutionContext:
         """
         with self.lock:
             return self.is_paused
-
-    def signal_completion(self, exception: Optional[Exception] = None) -> None:
-        """
-        Signals that the task has completed (or failed).
-        Used by the runner to notify a waiting structured invocation handler.
-
-        Args:
-            exception: The exception that occurred, if any.
-        """
-        with self.lock:
-            self.completion_exception = exception
-        self.completion_event.set()
-
-    async def wait_for_completion(self) -> Optional[Exception]:
-        """
-        Waits for the task to complete. Used by the structured invocation handler
-        to wait while the task is paused for peer-agent responses.
-
-        Returns:
-            The exception that occurred during execution, or None if successful.
-        """
-        await self.completion_event.wait()
-        with self.lock:
-            return self.completion_exception
 
     def append_to_streaming_buffer(self, text: str) -> None:
         """Appends a chunk of text to the main streaming buffer."""
