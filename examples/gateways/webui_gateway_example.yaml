@@ -112,11 +112,11 @@ apps:
       frontend_feature_enablement:
         background_tasks: ${BACKGROUND_TASKS_ENABLED, true} # NOTE: task_logging must also be enabled for background tasks to work
         auto_title_generation: ${AUTO_TITLE_GENERATION_ENABLED, true}  # Enable automatic chat title generation
-        projectIndexing: ${PROJECT_FILE_INDEXING, false} # Enable citations
+        projectIndexing: ${PROJECT_FILE_INDEXING, true} # Enable citations
 
       # --- Project File Indexing Configuration ---
       project_indexing:
-        enabled: ${PROJECT_FILE_INDEXING, false}
+        enabled: ${PROJECT_FILE_INDEXING, true}
 
       # --- Background Tasks Configuration ---
       background_tasks:

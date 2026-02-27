@@ -540,7 +540,7 @@ class ProjectService:
         user_id: str,
         files: List[UploadFile],
         file_metadata: Optional[dict] = None,
-        indexing_enabled: bool = False
+        indexing_enabled: bool = True
     ) -> List[dict]:
         """
         Add one or more artifacts to a project with optional conversion and indexing.
@@ -788,7 +788,7 @@ class ProjectService:
 
     async def delete_artifact_from_project(
         self, db, project_id: str, user_id: str, filename: str,
-        indexing_enabled: bool = False
+        indexing_enabled: bool = True
     ) -> bool:
         """
         Deletes an artifact from a project with optional cleanup and index rebuild.
@@ -1121,7 +1121,7 @@ class ProjectService:
     async def import_project_from_zip(
         self, db, zip_file: UploadFile, user_id: str,
         preserve_name: bool = False, custom_name: Optional[str] = None,
-        indexing_enabled: bool = False
+        indexing_enabled: bool = True
     ) -> tuple[Project, int, List[str]]:
         """
         Import project from ZIP file with optional conversion and indexing.
