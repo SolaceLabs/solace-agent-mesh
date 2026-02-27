@@ -47,6 +47,7 @@ from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.common.utils import import_module
 
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
+from ...agent.adk.session_compaction import SessionCompactionState
 from ...agent.adk.services import (
     initialize_artifact_service,
     initialize_credential_service,
@@ -275,6 +276,10 @@ class SamAgentComponent(SamComponentBase):
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
         self._active_background_tasks = set()
+
+        # Initialize session compaction state for parallel task coordination
+        # Agent-scoped to ensure isolation when multiple agents run in the same process
+        self.session_compaction_state = SessionCompactionState()
 
         # Initialize structured invocation support
         self.structured_invocation_handler = StructuredInvocationHandler(self)
