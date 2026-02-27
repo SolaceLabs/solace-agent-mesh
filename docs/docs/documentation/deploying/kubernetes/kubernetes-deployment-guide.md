@@ -167,7 +167,7 @@ For production environments, you **must** provide your own managed external pers
 
 ### B. Dev / POC Deployments (Optional Starter Layer)
 
-For convenience, the [SAM Helm Quickstart](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deploying/kubernetes-deployment#using-the-helm-quickstart) chart includes an optional "Starter Persistence Layer" (Containerized PostgreSQL + SeaweedFS).
+For convenience, the [SAM Helm Quickstart](kubernetes.md#using-the-helm-quickstart) chart includes an optional "Starter Persistence Layer" (Containerized PostgreSQL + SeaweedFS).
 
 * **Use Case:** Strictly for **Evaluation, Development, and Proof of Concept (POC)**.
 * **Support Policy:** **Unsupported.** Solace provides these components "as-is" for quick startup. We do not provide patches, backups, or data recovery support for embedded persistence pods.
