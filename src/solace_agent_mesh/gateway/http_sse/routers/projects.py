@@ -106,14 +106,14 @@ def check_project_indexing_enabled(
     # Check explicit project_indexing config
     project_indexing_config = component.get_config("project_indexing", {})
     if isinstance(project_indexing_config, dict):
-        indexing_explicitly_enabled = project_indexing_config.get("enabled", False)
+        indexing_explicitly_enabled = project_indexing_config.get("enabled", True)
         if not indexing_explicitly_enabled:
             log.info("Project indexing is explicitly disabled in config")
             return False
         else:
             log.info("Project indexing is explicitly enabled in config")
             return True
-    return False
+    return True
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(

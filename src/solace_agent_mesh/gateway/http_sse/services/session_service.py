@@ -364,9 +364,9 @@ class SessionService:
                     # Get feature flag value
                     project_indexing_config = self.component.get_config("project_indexing", {})
                     indexing_enabled = (
-                        project_indexing_config.get("enabled", False)
+                        project_indexing_config.get("enabled", True)
                         if isinstance(project_indexing_config, dict)
-                        else False
+                        else True
                     )
 
                     artifacts_copied, _ = await copy_project_artifacts_to_session(

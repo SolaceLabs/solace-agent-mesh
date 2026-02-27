@@ -91,7 +91,7 @@ async def copy_project_artifacts_to_session(
     component: "WebUIBackendComponent",
     db: "DbSession",
     log_prefix: str = "",
-    indexing_enabled: bool = False,
+    indexing_enabled: bool = True,
     overwrite_existing: bool = False,
 ) -> tuple[int, list[str]]:
     """

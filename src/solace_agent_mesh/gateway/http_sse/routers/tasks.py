@@ -259,9 +259,9 @@ async def _inject_project_context(
                 # Get feature flag value
                 project_indexing_config = component.get_config("project_indexing", {})
                 indexing_enabled = (
-                    project_indexing_config.get("enabled", False)
+                    project_indexing_config.get("enabled", True)
                     if isinstance(project_indexing_config, dict)
-                    else False
+                    else True
                 )
 
                 artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
@@ -690,9 +690,9 @@ async def _submit_task(
         if project_id:
             project_indexing_config = component.get_config("project_indexing", {})
             indexing_enabled = (
-                project_indexing_config.get("enabled", False)
+                project_indexing_config.get("enabled", True)
                 if isinstance(project_indexing_config, dict)
-                else False
+                else True
             )
             if indexing_enabled and project:
                 has_index = await _check_project_has_bm25_index(
