@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useContext, useRef } from "rea
 import PdfRenderer from "./PdfRenderer";
 import { LoadingState, NoPreviewState } from "./index";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
+import { api } from "@/lib/api";
 
 interface OfficeDocumentRendererProps {
     content: string;
@@ -105,33 +106,6 @@ const hashContent = (content: string, filename: string): string => {
 };
 
 /**
- * Fetch with timeout using AbortController
- * @param url The URL to fetch
- * @param options Fetch options
- * @param timeoutMs Timeout in milliseconds
- * @param signal Optional external AbortSignal to chain with
- * @returns The fetch response
- */
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
-    // Create a timeout abort controller
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
-
-    // Create a combined abort handler if external signal is provided
-    const combinedSignal = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal;
-
-    try {
-        const response = await fetch(url, {
-            ...options,
-            signal: combinedSignal,
-        });
-        return response;
-    } finally {
-        clearTimeout(timeoutId);
-    }
-}
-
-/**
  * OfficeDocumentRenderer - Renders Office documents (DOCX, PPTX) using PDF conversion.
  *
  * This component converts documents to PDF using the server-side LibreOffice conversion service.
@@ -161,21 +135,31 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
     const checkConversionService = useCallback(
         async (signal: AbortSignal): Promise<boolean> => {
             try {
-                const response = await fetchWithTimeout("/api/v1/document-conversion/status", { credentials: "include" }, REQUEST_TIMEOUT_MS, signal);
+                // Use api client for Bearer token auth (falls back to cookie auth in community mode)
+                // Wrap with timeout using AbortSignal.any
+                const timeoutController = new AbortController();
+                const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
+                const combinedSignal = AbortSignal.any([signal, timeoutController.signal]);
 
-                if (!response.ok) {
-                    console.warn("Document conversion service status check failed:", response.status);
-                    return false;
+                try {
+                    const response = await api.webui.get("/api/v1/document-conversion/status", { fullResponse: true, signal: combinedSignal });
+
+                    if (!response.ok) {
+                        console.warn("Document conversion service status check failed:", response.status);
+                        return false;
+                    }
+
+                    const data: ConversionStatusResponse = await response.json();
+
+                    // Check if the service is available and supports our document type
+                    const extension = documentType;
+                    const isSupported = data.available && data.supportedFormats.includes(extension);
+
+                    console.log(`Document conversion service: available=${data.available}, supports ${extension}=${isSupported}`);
+                    return isSupported;
+                } finally {
+                    clearTimeout(timeoutId);
                 }
-
-                const data: ConversionStatusResponse = await response.json();
-
-                // Check if the service is available and supports our document type
-                const extension = documentType;
-                const isSupported = data.available && data.supportedFormats.includes(extension);
-
-                console.log(`Document conversion service: available=${data.available}, supports ${extension}=${isSupported}`);
-                return isSupported;
             } catch (err) {
                 // Don't log abort errors - they're expected on unmount
                 if (err instanceof Error && err.name === "AbortError") {
@@ -192,37 +176,32 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
     const convertToPdf = useCallback(
         async (signal: AbortSignal): Promise<string | null> => {
             try {
-                const response = await fetchWithTimeout(
-                    "/api/v1/document-conversion/to-pdf",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        credentials: "include",
-                        body: JSON.stringify({
-                            content: content,
-                            filename: filename,
-                        }),
-                    },
-                    REQUEST_TIMEOUT_MS,
-                    signal
-                );
+                // Use api client for Bearer token auth (falls back to cookie auth in community mode)
+                // Wrap with timeout using AbortSignal.any
+                const timeoutController = new AbortController();
+                const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
+                const combinedSignal = AbortSignal.any([signal, timeoutController.signal]);
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error("Document conversion failed:", response.status, errorText);
-                    throw new Error(`Conversion failed: ${response.status}`);
+                try {
+                    const response = await api.webui.post("/api/v1/document-conversion/to-pdf", { content: content, filename: filename }, { fullResponse: true, signal: combinedSignal });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error("Document conversion failed:", response.status, errorText);
+                        throw new Error(`Conversion failed: ${response.status}`);
+                    }
+
+                    const data: ConversionResponse = await response.json();
+
+                    if (!data.success || !data.pdfContent) {
+                        throw new Error(data.error || "Conversion returned no content");
+                    }
+
+                    // Create a data URL for the PDF content
+                    return `data:application/pdf;base64,${data.pdfContent}`;
+                } finally {
+                    clearTimeout(timeoutId);
                 }
-
-                const data: ConversionResponse = await response.json();
-
-                if (!data.success || !data.pdfContent) {
-                    throw new Error(data.error || "Conversion returned no content");
-                }
-
-                // Create a data URL for the PDF content
-                return `data:application/pdf;base64,${data.pdfContent}`;
             } catch (err) {
                 // Don't log abort errors
                 if (err instanceof Error && err.name === "AbortError") {

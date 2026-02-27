@@ -147,15 +147,19 @@ COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
 COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
 COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
 
-# Install minimal runtime dependencies
-# Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
+# Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
 # LibreOffice is optionally installed for document conversion (DOCX/PPTX to PDF for preview)
+# Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     ffmpeg=7:7.1.3-0+deb13u1 \
-    git && \
+    git \
+    libatomic1 \
+    libtasn1-6/unstable \
+    libssl3t64=3.5.4-1~deb13u2 \
+    openssl=3.5.4-1~deb13u2 && \
     if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
         echo "============================================================" && \
         echo "NOTICE: Installing LibreOffice - a separate open-source application" && \

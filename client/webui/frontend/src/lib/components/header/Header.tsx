@@ -1,4 +1,4 @@
-import { Button, ExperimentalBadge } from "@/lib/components/ui";
+import { Button, NavItem, type NavItemProps } from "@/lib/components/ui";
 import { ChevronRight } from "lucide-react";
 import React from "react";
 
@@ -7,18 +7,10 @@ export interface BreadcrumbItem {
     onClick?: () => void;
 }
 
-export interface Tab {
-    id: string;
-    label: string;
-    isActive: boolean;
-    onClick: () => void;
-    badge?: string;
-}
-
 export interface HeaderProps {
     title: string | React.ReactNode;
     breadcrumbs?: BreadcrumbItem[];
-    tabs?: Tab[];
+    tabs?: NavItemProps[];
     buttons?: React.ReactNode[];
     leadingAction?: React.ReactNode;
 }
@@ -54,27 +46,11 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
             {/* Title */}
             <div className="max-w-lg truncate pt-[35px] text-xl">{title}</div>
 
-            {/* Tabs */}
+            {/* Nav Items */}
             {tabs && tabs.length > 0 && (
-                <div className="ml-8 flex items-center pt-[35px]" role="tablist">
-                    {tabs.map((tab, index) => (
-                        <button
-                            key={tab.id}
-                            role="tab"
-                            aria-selected={tab.isActive}
-                            onClick={tab.onClick}
-                            className={`relative cursor-pointer px-4 py-3 font-medium transition-colors duration-200 ${tab.isActive ? "border-b-2 border-[var(--color-brand-wMain)] font-semibold" : ""} ${index > 0 ? "ml-6" : ""}`}
-                        >
-                            <span className="flex items-center gap-2">
-                                {tab.label}
-                                {tab.badge && (
-                                    <ExperimentalBadge variant="transparent" className="px-1 py-0 text-[8px]">
-                                        {tab.badge}
-                                    </ExperimentalBadge>
-                                )}
-                            </span>
-                            {tab.isActive && <div className="absolute right-0 bottom-0 left-0 h-0.5" />}
-                        </button>
+                <div className="ml-8 flex items-center gap-6 pt-[35px]" role="tablist">
+                    {tabs.map(item => (
+                        <NavItem key={item.id} {...item} />
                     ))}
                 </div>
             )}

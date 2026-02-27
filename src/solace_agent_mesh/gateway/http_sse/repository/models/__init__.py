@@ -4,6 +4,7 @@ SQLAlchemy models and Pydantic models for database persistence.
 
 from .base import Base
 from .chat_task_model import ChatTaskModel
+from .document_conversion_cache_model import DocumentConversionCacheModel
 from .feedback_model import FeedbackModel
 from .project_model import ProjectModel, CreateProjectModel, UpdateProjectModel
 from .project_user_model import ProjectUserModel, CreateProjectUserModel, UpdateProjectUserModel
@@ -16,6 +17,7 @@ from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
 __all__ = [
     "Base",
     "ChatTaskModel",
+    "DocumentConversionCacheModel",
     "FeedbackModel",
     "ProjectModel",
     "ProjectUserModel",

@@ -202,7 +202,7 @@ async def process_artifact_blocks_callback(
     parser: FencedBlockStreamParser = session.state.get(parser_state_key)
     if parser is None:
         log.debug("%s New turn. Creating new FencedBlockStreamParser.", log_identifier)
-        parser = FencedBlockStreamParser(progress_update_interval_bytes=50)
+        parser = FencedBlockStreamParser(progress_update_interval_bytes=250)
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
@@ -1724,6 +1724,16 @@ If a plan is created:
         injected_instructions.append(peer_instructions)
         log.debug(
             "%s Injected peer discovery instructions from callback state.",
+            log_identifier,
+        )
+
+    project_tool_instructions = callback_context.state.get(
+        "project_tool_instructions"
+    )
+    if project_tool_instructions and isinstance(project_tool_instructions, str):
+        injected_instructions.append(project_tool_instructions)
+        log.debug(
+            "%s Injected project tool instructions from callback state.",
             log_identifier,
         )
 

@@ -416,6 +416,7 @@ class TestFlushTaskBuffer:
             'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
         ) as MockRepo:
             mock_repo_instance = Mock()
+            mock_repo_instance.buffer_events_batch.return_value = 3
             MockRepo.return_value = mock_repo_instance
 
             # Add 3 events (threshold)
@@ -428,8 +429,11 @@ class TestFlushTaskBuffer:
                     user_id="user-xyz",
                 )
 
-            # Should have flushed (called buffer_event 3 times on repo)
-            assert mock_repo_instance.buffer_event.call_count == 3
+            # Should have flushed using batch insert (called once with 3 events)
+            assert mock_repo_instance.buffer_events_batch.call_count == 1
+            # Verify the batch contained 3 events
+            call_args = mock_repo_instance.buffer_events_batch.call_args
+            assert len(call_args[1]['events']) == 3
 
     def test_flush_failure_readds_to_buffer(self):
         """Failed flush should re-add events to buffer for retry."""
@@ -505,18 +509,21 @@ class TestFlushAllBuffers:
             ("message", {"text": "Event 3"}, 3000, "session-abc", "user-xyz"),
         ]
 
-        # Mock repository
+        # Mock repository - return the count of events for each batch
         with patch(
             'solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository'
         ) as MockRepo:
             mock_repo_instance = Mock()
+            # Return the number of events in each batch
+            mock_repo_instance.buffer_events_batch.side_effect = lambda db, task_id, events: len(events)
             MockRepo.return_value = mock_repo_instance
 
             result = buffer.flush_all_buffers()
 
             # Should have flushed 3 total events (1 + 2)
             assert result == 3
-            assert mock_repo_instance.buffer_event.call_count == 3
+            # Should have called batch insert twice (once per task)
+            assert mock_repo_instance.buffer_events_batch.call_count == 2
 
 
 class TestGetBufferedEvents:

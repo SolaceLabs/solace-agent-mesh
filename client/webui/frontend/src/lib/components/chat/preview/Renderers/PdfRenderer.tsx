@@ -1,9 +1,18 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+import { api } from "@/lib/api";
+// Use ?url import so Vite emits the worker as a tracked static asset with a
+// content-hashed filename when building the app.
+// When building as a library (SAM Enterprise consumer), this import resolves
+// to "./pdf.worker.min.mjs" via pdfWorkerLibPlugin, or may be undefined if
+// the library was built without the plugin. The fallback ensures PDF.js always
+// has a valid workerSrc pointing to the file copied into static/ by
+// copyPdfWorkerPlugin in the SAM Enterprise vite.config.ts.
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 // Custom event for snip-to-chat functionality
 export const SNIP_TO_CHAT_EVENT = "snip-to-chat";
@@ -13,8 +22,10 @@ export interface SnipToChatEventDetail {
     filename: string;
 }
 
-// Configure PDF.js worker from local npm package (pdfjs-dist)
-pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+// Configure PDF.js worker.
+// Fall back to the stable filename when the ?url import resolves to undefined
+// (happens when the library bundle was built without pdfWorkerLibPlugin).
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl || "./pdf.worker.min.mjs";
 
 export interface CitationMapEntry {
     location: string; // e.g., "physical_page_5"
@@ -39,9 +50,20 @@ interface SelectionRect {
 
 type InteractionMode = "text" | "pan" | "snip";
 
-const pdfOptions = { withCredentials: true };
+// Module-level LRU cache for blob URLs keyed by artifact URL.
+// Avoids re-fetching the same PDF on re-renders or tab switches.
+const PDF_BLOB_CACHE_MAX = 10;
+const pdfBlobCache = new Map<string, string>();
 
 const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, highlightTexts = [], citationMaps = [] }) => {
+    // pdfOptions for react-pdf — no auth headers needed since we fetch via
+    // the api client and pass a blob URL instead of the raw API URL.
+    const pdfOptions = useMemo(() => ({ withCredentials: false }), []);
+
+    // Resolved URL: either a blob URL (fetched via api client) or the original URL.
+    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -58,6 +80,56 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
     const viewerRef = useRef<HTMLDivElement>(null);
     const documentContainerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+    // Fetch PDF via api client with Bearer token auth and cache the blob URL
+    useEffect(() => {
+        if (!url) return;
+
+        // Check module-level cache first
+        const cached = pdfBlobCache.get(url);
+        if (cached) {
+            setResolvedUrl(cached);
+            return;
+        }
+
+        let cancelled = false;
+
+        const fetchPdf = async () => {
+            try {
+                // Use the api client which handles Bearer token auth + token refresh.
+                // Falls back to cookie auth when no token is present (community mode).
+                const response = await api.webui.get(url, { fullResponse: true });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+                }
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                if (!cancelled) {
+                    // Evict oldest entry if cache is full (LRU)
+                    if (pdfBlobCache.size >= PDF_BLOB_CACHE_MAX) {
+                        const firstKey = pdfBlobCache.keys().next().value;
+                        if (firstKey) {
+                            URL.revokeObjectURL(pdfBlobCache.get(firstKey)!);
+                            pdfBlobCache.delete(firstKey);
+                        }
+                    }
+                    pdfBlobCache.set(url, blobUrl);
+                    setResolvedUrl(blobUrl);
+                }
+            } catch {
+                if (!cancelled) {
+                    setFetchError("Failed to load PDF.");
+                }
+            }
+        };
+
+        fetchPdf();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [url]);
 
     useEffect(() => {
         if (pageWidth && viewerRef.current) {
@@ -85,10 +157,10 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
 
     // Build document-wide character boundaries for each page
     useEffect(() => {
-        if (!citationMaps.length || !numPages || !url) return;
+        if (!citationMaps.length || !numPages || !resolvedUrl) return;
 
         let cancelled = false;
-        const loadingTask = pdfjs.getDocument({ url, withCredentials: true });
+        const loadingTask = pdfjs.getDocument({ url: resolvedUrl });
 
         const buildPageBoundaries = async () => {
             try {
@@ -547,40 +619,46 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
                 {/* Selection overlay */}
                 {selection && getSelectionStyle() && <div style={getSelectionStyle()!} />}
 
-                <Document
-                    options={pdfOptions}
-                    file={url}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={onDocumentLoadError}
-                    loading={<div className="p-4 text-center">Loading PDF...</div>}
-                    error={<div className="p-4 text-center text-red-500">Failed to load PDF.</div>}
-                >
-                    <div ref={documentContainerRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
-                        {numPages &&
-                            Array.from(new Array(numPages), (_, index) => (
-                                <div
-                                    key={`page_${index + 1}`}
-                                    ref={el => {
-                                        if (el) pageRefs.current.set(index + 1, el);
-                                    }}
-                                    className="flex justify-center p-2"
-                                >
-                                    <Page
-                                        pageNumber={index + 1}
-                                        scale={zoomLevel}
-                                        onLoadSuccess={(page: { width: number }) => {
-                                            if (index === 0 && !pageWidth) {
-                                                setPageWidth(page.width);
-                                            }
+                {fetchError ? (
+                    <div className="p-4 text-center text-red-500">{fetchError}</div>
+                ) : !resolvedUrl ? (
+                    <div className="p-4 text-center">Loading PDF...</div>
+                ) : (
+                    <Document
+                        options={pdfOptions}
+                        file={resolvedUrl}
+                        onLoadSuccess={onDocumentLoadSuccess}
+                        onLoadError={onDocumentLoadError}
+                        loading={<div className="p-4 text-center">Loading PDF...</div>}
+                        error={<div className="p-4 text-center text-red-500">Failed to load PDF.</div>}
+                    >
+                        <div ref={documentContainerRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
+                            {numPages &&
+                                Array.from(new Array(numPages), (_, index) => (
+                                    <div
+                                        key={`page_${index + 1}`}
+                                        ref={el => {
+                                            if (el) pageRefs.current.set(index + 1, el);
                                         }}
-                                        renderTextLayer={interactionMode === "text"}
-                                        renderAnnotationLayer={true}
-                                        className="shadow-lg"
-                                    />
-                                </div>
-                            ))}
-                    </div>
-                </Document>
+                                        className="flex justify-center p-2"
+                                    >
+                                        <Page
+                                            pageNumber={index + 1}
+                                            scale={zoomLevel}
+                                            onLoadSuccess={(page: { width: number }) => {
+                                                if (index === 0 && !pageWidth) {
+                                                    setPageWidth(page.width);
+                                                }
+                                            }}
+                                            renderTextLayer={interactionMode === "text"}
+                                            renderAnnotationLayer={true}
+                                            className="shadow-lg"
+                                        />
+                                    </div>
+                                ))}
+                        </div>
+                    </Document>
+                )}
             </div>
         </div>
     );
