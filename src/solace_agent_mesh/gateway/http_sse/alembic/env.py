@@ -17,6 +17,9 @@ from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model impor
 from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import (
     FeedbackModel,
 )
+from solace_agent_mesh.gateway.http_sse.repository.models.document_conversion_cache_model import (
+    DocumentConversionCacheModel,
+)
 
 target_metadata = Base.metadata
 

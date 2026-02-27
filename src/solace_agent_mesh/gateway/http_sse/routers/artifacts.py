@@ -3,6 +3,7 @@ FastAPI router for managing session-specific artifacts via REST endpoints.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional
@@ -957,11 +958,20 @@ async def get_specific_artifact_version(
             )
 
         filename_encoded = quote(filename)
+        # Artifact versions are immutable (version number is fixed), so we can
+        # cache aggressively. Use private cache (user-specific content) with a
+        # 1-hour max-age. The ETag is derived from the filename + resolved version
+        # (both immutable) — no need to hash the content bytes.
+        # This allows the browser to validate with If-None-Match and get a 304
+        # instead of re-downloading the full content on subsequent visits.
+        etag = f'"{hashlib.md5(f"{filename}-v{resolved_version_from_helper}".encode()).hexdigest()}"'
         return StreamingResponse(
             io.BytesIO(data_bytes),
             media_type=mime_type,
             headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}",
+                "Cache-Control": "private, max-age=3600",
+                "ETag": etag,
             },
         )
 

@@ -29,6 +29,7 @@ from .routers import (
     artifacts,
     auth,
     config,
+    document_conversion,
     feedback,
     people,
     sse,
@@ -313,6 +314,11 @@ def _setup_routers() -> None:
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
+    app.include_router(
+        document_conversion.router,
+        prefix=f"{api_prefix}/document-conversion",
+        tags=["Document Conversion"],
+    )
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers
