@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request as FastAPIRequest, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
 from ....gateway.http_sse.sse_manager import SSEManager
-from ....gateway.http_sse.dependencies import get_sse_manager, SessionLocal, short_lived_session
+from ....gateway.http_sse.dependencies import get_sse_manager, SessionLocal, short_lived_session, _is_connection_error
 from ....gateway.http_sse.repository.task_repository import TaskRepository
 
 log = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ def _get_task_info(task_id: str, log_prefix: str) -> Optional[bool]:
         True if task is a background task, False if not, None if task not found or db not configured.
         
     Raises:
-        HTTPException: 503 if database is unreachable during the query.
+        HTTPException: 503 if database connection is unavailable during the query.
     """
     if SessionLocal is None:
         log.debug("%sDatabase not configured", log_prefix)
@@ -136,12 +136,15 @@ def _get_task_info(task_id: str, log_prefix: str) -> Optional[bool]:
             return is_background_task
     except Exception as e:
         log.error("%sError getting task info: %s", log_prefix, e, exc_info=True)
-        # Re-raise as 503 to indicate database unavailability
-        # This prevents silent fallback that could cause missed events for background tasks
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database temporarily unavailable. Please retry.",
-        ) from e
+        # Only raise 503 for actual connection errors
+        # For other errors (e.g., task not found), return None to allow graceful fallback
+        if _is_connection_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database temporarily unavailable. Please retry.",
+            ) from e
+        # For non-connection errors, return None (task may not exist yet)
+        return None
 
 
 @router.get("/subscribe/{task_id}")
