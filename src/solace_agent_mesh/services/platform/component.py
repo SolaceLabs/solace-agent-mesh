@@ -193,7 +193,14 @@ class PlatformServiceComponent(SamComponentBase):
         """Run database migrations synchronously during __init__."""
         try:
             from .api.main import _setup_database
-            _setup_database(self.database_url)
+
+            config_models = None
+
+            # Extract models from connector's config if available
+            if(self.connector and self.connector.config):
+                config_models = self._extract_models_config(self.connector.config)
+
+            _setup_database(self.database_url, config_models)
         except Exception as e:
             log.error(
                 "%s Failed to run database migrations: %s",
@@ -202,6 +209,26 @@ class PlatformServiceComponent(SamComponentBase):
                 exc_info=True
             )
             raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
+
+    def _extract_models_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract the models object from shared_config.yaml structure.
+
+        The shared_config is a list of named objects. This finds the 'models' object
+        (identified by having a 'models' key) and returns it entirely, which contains
+        the 'models' label and all model definitions (planning, general, image_gen, etc.).
+
+        Args:
+            config: The full configuration dict containing 'shared_config'
+
+        Returns:
+            The models object dict, or None if not found
+        """
+        shared_config = config.get("shared_config", [])
+        for item in shared_config:
+            if isinstance(item, dict) and "models" in item:
+                return item
+        return None
 
     def _late_init(self):
         """
