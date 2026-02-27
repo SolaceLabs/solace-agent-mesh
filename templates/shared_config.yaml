@@ -10,32 +10,10 @@ shared_config:
 
   - models:
     planning: &planning_model
-      # This dictionary structure tells ADK to use the LiteLlm wrapper.
-      # 'model' uses the specific model identifier your endpoint expects.
-      model: ${LLM_SERVICE_PLANNING_MODEL_NAME} # Use env var for model name
-      # 'api_base' tells LiteLLM where to send the request.
-      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
-      # 'api_key' provides authentication.
-      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
-      # Enable parallel tool calls for planning model
-      parallel_tool_calls: true 
-      # Prompt Caching Strategy
-      cache_strategy: "5m" # none, 5m, 1h
-
-      # max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
-      # temperature: 0.1 # Lower temperature for more deterministic planning
-      
+      # __PLANNING_MODEL_CONFIG__
 
     general: &general_model
-      # This dictionary structure tells ADK to use the LiteLlm wrapper.
-      # 'model' uses the specific model identifier your endpoint expects.
-      model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
-      # 'api_base' tells LiteLLM where to send the request.
-      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
-      # 'api_key' provides authentication.
-      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
-      # Prompt Caching Strategy
-      cache_strategy: "5m" # none, 5m, 1h
+      # __GENERAL_MODEL_CONFIG__
 
     image_gen: &image_generation_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper.
