@@ -39,8 +39,8 @@ _compaction_locks_mutex = asyncio.Lock()
 # Per-session summaries for deferred notification (after successful response)
 # When compaction occurs during retries, we store the summary here instead of sending immediately
 # This ensures users see the actual response first, then a clean notification about summarization
-# Dict operations are atomic in asyncio (single event loop), so no mutex needed
-_session_summaries: dict[str, str] = {}  # session_id → latest summary text
+# TTLCache prevents memory leak if pop() doesn't run for some reason (maxsize=10000, ttl=3600)
+_compaction_session_summaries: TTLCache = TTLCache(maxsize=10000, ttl=3600)
 
 
 async def _get_compaction_lock(session_id: str) -> asyncio.Lock:
@@ -59,6 +59,10 @@ async def _get_compaction_lock(session_id: str) -> asyncio.Lock:
     async with _compaction_locks_mutex:
         if session_id not in _compaction_locks:
             _compaction_locks[session_id] = asyncio.Lock()
+        else:
+            # Re-insert to reset TTL on access (idle timeout behavior)
+            lock = _compaction_locks.pop(session_id)
+            _compaction_locks[session_id] = lock
         return _compaction_locks[session_id]
 
 
@@ -228,21 +232,21 @@ def _find_compaction_cutoff(
         )
         return 0, 0
 
-    # OPTIMIZATION: Pre-calculate tokens for all events once (O(N) with N token_counter calls)
+    # OPTIMIZATION: Pre-calculate tokens and build cumulative sum in single pass (O(N))
     import time
 
     start_time = time.time()
-    event_tokens = []
+    cumulative_tokens = [0]
     for event in events:
         if event.content:
             try:
                 tokens = _calculate_content_tokens(event.content, model=model)
-                event_tokens.append(tokens)
             except Exception as e:
                 log.warning("Failed to count event tokens: %s", e)
-                event_tokens.append(0)
+                tokens = 0
         else:
-            event_tokens.append(0)
+            tokens = 0
+        cumulative_tokens.append(cumulative_tokens[-1] + tokens)
 
     elapsed = time.time() - start_time
     log.info(
@@ -251,11 +255,6 @@ def _find_compaction_cutoff(
         len(events),
         elapsed
     )
-
-    # Build cumulative sum array: cumulative_tokens[i] = sum of tokens from 0 to i
-    cumulative_tokens = [0]
-    for tokens in event_tokens:
-        cumulative_tokens.append(cumulative_tokens[-1] + tokens)
 
     # Find best cutoff using cumulative array (O(M) where M = number of user turns << N)
     best_cutoff_idx = 0
@@ -338,7 +337,7 @@ async def _create_compaction_event(
     # 2. Calculate total token count and target compaction size
     # Use non_compaction_events (includes system + conversation) for consistency
     # with proactive trigger logic
-    total_tokens = _calculate_session_context_tokens(non_compaction_events)
+    total_tokens = _calculate_session_context_tokens(non_compaction_events, model=str(component.adk_agent.model))
     target_tokens = int(total_tokens * compaction_threshold)
 
     log.info(
@@ -537,16 +536,6 @@ Create a progressive summary that emphasizes recent activity while compressing h
             exc_info=True
         )
         raise  # Fail retry if we can't persist
-
-    # Log compression stats
-    log.info(
-        "%s Compacted %d events into summary (%d tokens → ~%d tokens, ~%dx compression)",
-        log_identifier,
-        len(events_to_compact),
-        sum(len(str(e.content)) for e in events_to_compact if e.content) // 4,
-        len(summary_text) // 4,
-        max(1, sum(len(str(e.content)) for e in events_to_compact if e.content) // max(1, len(summary_text)))
-    )
 
     return len(events_to_compact), summary_text
 
@@ -764,7 +753,7 @@ async def _handle_max_retries_exceeded(
         log_identifier: Logging prefix
     """
     # Clean up any pending summary
-    _session_summaries.pop(session_id, None)
+    _compaction_session_summaries.pop(session_id, None)
 
     log.error(
         "%s Context limit exceeded after %d summarization attempts for task %s.",
@@ -939,13 +928,13 @@ async def _perform_session_compaction(
 
     # Store summary for deferred notification
     # Overwrite any previous summary (we only want the latest)
-    if session.id in _session_summaries:
+    if session.id in _compaction_session_summaries:
         log.info(
             "%s Overriding previous compaction summary for session %s",
             log_identifier,
             session.id
         )
-    _session_summaries[session.id] = summary
+    _compaction_session_summaries[session.id] = summary
 
     log.info(
         "%s Summarization complete. Retrying task %s with reduced context...",
@@ -1070,7 +1059,7 @@ async def run_adk_async_task_thread_wrapper(
             try:
                 # Proactively trigger compaction when token count exceeds threshold
                 if compaction_enabled and token_threshold > 0 and adk_session.events and adk_content.role == 'user':
-                    total_tokens = _calculate_session_context_tokens(adk_session.events)
+                    total_tokens = _calculate_session_context_tokens(adk_session.events, model=str(component.adk_agent.model))
                     log.info(
                         "%s Proactive compaction check: total_tokens=%d, threshold=%d, exceeds=%s",
                         component.log_identifier,
@@ -1085,10 +1074,13 @@ async def run_adk_async_task_thread_wrapper(
                             total_tokens,
                             token_threshold
                         )
+                        # Extract provider from model string (format: "provider/model-name")
+                        model_str = str(component.adk_agent.model)
+                        provider = model_str.split('/')[0] if '/' in model_str else model_str
                         raise BadRequestError(
                             message=f"Too many tokens: {total_tokens} tokens exceed token limit {token_threshold} (proactive compaction triggered)",
-                            model="test-model",
-                            llm_provider="test-provider"
+                            model=model_str,
+                            llm_provider=provider
                         )
 
                 is_paused = await run_adk_async_task(
@@ -1162,7 +1154,7 @@ async def run_adk_async_task_thread_wrapper(
                         # Check if this is the "Insufficient conversation history" error
                         if "Insufficient conversation history" in str(rt_err):
                             # Clean up any pending summary
-                            _session_summaries.pop(adk_session.id, None)
+                            _compaction_session_summaries.pop(adk_session.id, None)
 
                             # Send graceful user-facing message
                             await _send_insufficient_history_message(
@@ -1201,7 +1193,7 @@ async def run_adk_async_task_thread_wrapper(
 
         if parent_task_id:
             # Subtask - peek but don't consume
-            summary = _session_summaries.get(adk_session.id)
+            summary = _compaction_session_summaries.get(adk_session.id)
             if summary:
                 log.info(
                     "%s Subtask compacted (parent: %s) - leaving summary for root task to notify",
@@ -1210,7 +1202,7 @@ async def run_adk_async_task_thread_wrapper(
                 )
         else:
             # Root task - consume and send notification
-            summary = _session_summaries.pop(adk_session.id, None)
+            summary = _compaction_session_summaries.pop(adk_session.id, None)
             if summary:
                 log.info(
                     "%s Sending deferred compaction notification for session %s after successful response",
