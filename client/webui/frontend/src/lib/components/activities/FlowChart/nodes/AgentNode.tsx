@@ -62,7 +62,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                     }
                     // Render parallel block - children displayed side-by-side with bounding box
                     return (
-                        <div key={child.id} className="flex flex-row items-start gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 p-4 dark:border-gray-600 dark:bg-gray-800/50">
+                        <div key={child.id} className="flex flex-row items-start gap-4 rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) p-4 dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]">
                             {child.children.map(parallelChild => renderChild(parallelChild))}
                         </div>
                     );
@@ -211,6 +211,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
         return (
             <div
                 className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${opacityClass} ${borderStyleClass} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
+                style={{ minWidth: "225px", minHeight: "50px" }}
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
@@ -244,6 +245,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 className={`rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:!shadow-none ${
                     isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
                 }`}
+                style={{ minWidth: "225px" }}
             >
                 {/* Header */}
                 <div
@@ -278,7 +280,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 <div className="border-t border-(--color-secondary-w40) dark:border-(--color-secondary-w70)" />
 
                 {/* Children content */}
-                <div className="bg-(--color-secondary-w10) px-4 py-4 dark:bg-(--color-background-w100)">
+                <div className="bg-(--color-secondary-w20) px-4 py-4 dark:bg-(--color-background-w100)">
                     <div className="flex flex-col items-center gap-2">
                         {/* Sequential children */}
                         {hasChildren &&

@@ -362,6 +362,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
             </div>
 
             {/* Dotted Children Container - grows with content, extends 16px beyond header on each side */}
+            {/* Dark mode background colour should be removed once the stateLayer-w10 is mapped to its correct dark mode value. */}
             <div
                 ref={containerRef}
                 className="relative rounded border-2 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]"
