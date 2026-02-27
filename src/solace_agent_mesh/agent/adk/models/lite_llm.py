@@ -298,7 +298,7 @@ def _get_content(
 
 def _calculate_content_tokens(
     content: types.Content,
-    model: str = "gpt-4-vision"
+    model: str = "gpt-4o"
 ) -> int:
     """
     Calculate tokens for exact format LLM receives.
