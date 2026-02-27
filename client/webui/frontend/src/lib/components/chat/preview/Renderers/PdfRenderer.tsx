@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+import { getApiBearerToken } from "@/lib/utils/api";
 // Use ?url import so Vite emits the worker as a tracked static asset with a
 // content-hashed filename when building the app.
 // When building as a library (SAM Enterprise consumer), this import resolves
@@ -40,9 +41,21 @@ interface SelectionRect {
 
 type InteractionMode = "text" | "pan" | "snip";
 
-const pdfOptions = { withCredentials: true };
-
 const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
+    // Build pdfOptions with auth header if a token is available.
+    // react-pdf fetches the PDF URL internally; on enterprise deployments the
+    // artifact endpoint requires Bearer auth in addition to (or instead of) cookies.
+    const pdfOptions = useMemo(() => {
+        const token = getApiBearerToken();
+        if (token) {
+            return {
+                withCredentials: true,
+                httpHeaders: { Authorization: `Bearer ${token}` },
+            };
+        }
+        return { withCredentials: true };
+    }, []);
+
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
