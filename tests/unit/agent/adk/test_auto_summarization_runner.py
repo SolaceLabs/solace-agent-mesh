@@ -12,6 +12,7 @@ from google.genai import types as adk_types
 from litellm.exceptions import BadRequestError
 from solace_agent_mesh.agent.adk.runner import (
     _calculate_session_context_tokens,
+    _create_compaction_event,
     _find_compaction_cutoff,
     _is_context_limit_error,
     _is_background_task,
@@ -994,3 +995,346 @@ class TestSendTruncationNotification:
 
             # Verify publish was called
             assert component._publish_a2a_event.called
+
+class TestCreateCompactionEvent:
+    """Tests for _create_compaction_event function - progressive summarization."""
+
+    @pytest.mark.asyncio
+    async def test_first_compaction_no_fake_event(self):
+        """First compaction (no previous summary) should not create fake event."""
+        # Setup mock component with session service
+        component = Mock()
+        component.adk_agent = Mock()
+        component.adk_agent.model = Mock()
+        component.get_config = Mock(return_value="test-namespace")
+
+        # Mock session service
+        mock_session_service = AsyncMock()
+        mock_session_service.append_event = AsyncMock(return_value=None)
+        component.session_service = mock_session_service
+        
+        # Create session with events (no previous compaction)
+        # Need at least 2 user turns for compaction
+        events = [
+            ADKEvent(
+                invocation_id="evt1",
+                author="user",
+                timestamp=1.0,
+                content=adk_types.Content(role="user", parts=[adk_types.Part(text="Message 1")])
+            ),
+            ADKEvent(
+                invocation_id="evt2",
+                author="model",
+                timestamp=2.0,
+                content=adk_types.Content(role="model", parts=[adk_types.Part(text="Response 1")])
+            ),
+            ADKEvent(
+                invocation_id="evt3",
+                author="user",
+                timestamp=3.0,
+                content=adk_types.Content(role="user", parts=[adk_types.Part(text="Message 2")])
+            ),
+            ADKEvent(
+                invocation_id="evt4",
+                author="model",
+                timestamp=4.0,
+                content=adk_types.Content(role="model", parts=[adk_types.Part(text="Response 2")])
+            ),
+        ]
+        session = ADKSession(
+            id="test_session",
+            user_id="test_user",
+            app_name="test_app",
+            events=events
+        )
+        
+        # Mock LlmEventSummarizer
+        with patch('solace_agent_mesh.agent.adk.runner.LlmEventSummarizer') as mock_summarizer_class:
+            mock_summarizer = AsyncMock()
+            mock_summarizer_class.return_value = mock_summarizer
+            
+            # Return a mock compaction event
+            compaction_event = ADKEvent(
+                invocation_id="compaction1",
+                author="system",
+                timestamp=2.0,
+                actions=EventActions(
+                    compaction=EventCompaction(
+                        start_timestamp=0.0,
+                        end_timestamp=2.0,
+                        compacted_content=adk_types.Content(
+                            role="model",
+                            parts=[adk_types.Part(text="First summary")]
+                        )
+                    )
+                )
+            )
+            mock_summarizer.maybe_summarize_events.return_value = compaction_event
+            
+            # Call function
+            count, summary = await _create_compaction_event(
+                component=component,
+                session=session,
+                compaction_threshold=0.5,
+                log_identifier="[Test]"
+            )
+            
+            # Verify summarizer was called
+            assert mock_summarizer.maybe_summarize_events.called
+            
+            # Verify events passed to summarizer
+            call_args = mock_summarizer.maybe_summarize_events.call_args
+            events_passed = call_args[1]['events']  # keyword argument
+            
+            # Should NOT have fake event (first compaction)
+            # First event should be actual user event, not fake summary
+            assert len(events_passed) > 0
+            first_event = events_passed[0]
+            assert first_event.author == "user", "First compaction should start with user event, not fake summary"
+            assert first_event.invocation_id == "evt1", "Should be the actual first event"
+
+    @pytest.mark.asyncio
+    async def test_second_compaction_creates_fake_event(self):
+        """Second compaction should prepend fake event with first summary."""
+        # Setup mock component with session service
+        component = Mock()
+        component.adk_agent = Mock()
+        component.adk_agent.model = Mock()
+        component.get_config = Mock(return_value="test-namespace")
+
+        # Mock session service
+        mock_session_service = AsyncMock()
+        mock_session_service.append_event = AsyncMock(return_value=None)
+        component.session_service = mock_session_service
+        
+        # Create session with previous compaction event + new events
+        previous_compaction = ADKEvent(
+            invocation_id="compaction1",
+            author="system",
+            timestamp=2.0,
+            content=adk_types.Content(
+                role="model",
+                parts=[adk_types.Part(text="Summary from first compaction: user asked about features")]
+            ),
+            actions=EventActions(
+                compaction=EventCompaction(
+                    start_timestamp=0.0,
+                    end_timestamp=2.0,
+                    compacted_content=adk_types.Content(
+                        role="model",
+                        parts=[adk_types.Part(text="Summary from first compaction: user asked about features")]
+                    )
+                )
+            )
+        )
+        
+        new_events = [
+            ADKEvent(
+                invocation_id="evt3",
+                author="user",
+                timestamp=3.0,
+                content=adk_types.Content(role="user", parts=[adk_types.Part(text="New question about pricing")])
+            ),
+            ADKEvent(
+                invocation_id="evt4",
+                author="model",
+                timestamp=4.0,
+                content=adk_types.Content(role="model", parts=[adk_types.Part(text="Pricing info response")])
+            ),
+            ADKEvent(
+                invocation_id="evt5",
+                author="user",
+                timestamp=5.0,
+                content=adk_types.Content(role="user", parts=[adk_types.Part(text="Follow-up question")])
+            ),
+            ADKEvent(
+                invocation_id="evt6",
+                author="model",
+                timestamp=6.0,
+                content=adk_types.Content(role="model", parts=[adk_types.Part(text="Follow-up response")])
+            ),
+        ]
+        
+        session = ADKSession(
+            id="test_session",
+            user_id="test_user",
+            app_name="test_app",
+            events=[previous_compaction] + new_events
+        )
+        
+        # Mock LlmEventSummarizer
+        with patch('solace_agent_mesh.agent.adk.runner.LlmEventSummarizer') as mock_summarizer_class:
+            mock_summarizer = AsyncMock()
+            mock_summarizer_class.return_value = mock_summarizer
+            
+            # Return second compaction event
+            compaction_event = ADKEvent(
+                invocation_id="compaction2",
+                author="system",
+                timestamp=4.0,
+                actions=EventActions(
+                    compaction=EventCompaction(
+                        start_timestamp=0.0,
+                        end_timestamp=4.0,
+                        compacted_content=adk_types.Content(
+                            role="model",
+                            parts=[adk_types.Part(text="Second summary: features and pricing discussed")]
+                        )
+                    )
+                )
+            )
+            mock_summarizer.maybe_summarize_events.return_value = compaction_event
+            
+            # Call function
+            count, summary = await _create_compaction_event(
+                component=component,
+                session=session,
+                compaction_threshold=0.5,
+                log_identifier="[Test]"
+            )
+            
+            # Verify summarizer was called
+            assert mock_summarizer.maybe_summarize_events.called
+            
+            # CRITICAL VERIFICATION: Inspect events passed to summarizer
+            call_args = mock_summarizer.maybe_summarize_events.call_args
+            events_passed = call_args[1]['events']
+            
+            # Should have fake event prepended
+            # With 50% compaction threshold and 2 new user turns, it compacts 1 turn (evt3+evt4)
+            assert len(events_passed) >= 3, "Should have [FakeSummary, evt3, evt4] at minimum"
+            
+            # 1. First event should be FAKE summary event
+            fake_event = events_passed[0]
+            
+            # 2. Verify it contains summary text from first compaction
+            assert fake_event.content is not None
+            assert fake_event.content.parts
+            fake_text = fake_event.content.parts[0].text
+            assert "Summary from first compaction" in fake_text, \
+                f"Fake event should contain first summary text, got: {fake_text}"
+            
+            # 3. Verify it has NO .actions.compaction (this tricks LlmEventSummarizer!)
+            assert fake_event.actions is None or not hasattr(fake_event.actions, 'compaction') or fake_event.actions.compaction is None, \
+                "Fake event MUST NOT have .actions.compaction (this is the trick!)"
+            
+            # 4. Verify it's from "model" (summaries are from AI perspective)
+            assert fake_event.author == "model", f"Fake event author should be 'model', got {fake_event.author}"
+            assert fake_event.content.role == "model", f"Fake event role should be 'model', got {fake_event.content.role}"
+            
+            # 5. Verify invocation_id indicates it's fake
+            assert "progressive_summary_fake_event" in fake_event.invocation_id, \
+                f"Fake event should have identifiable invocation_id, got {fake_event.invocation_id}"
+            
+            # 6. Verify timestamp is from end of first compaction
+            assert fake_event.timestamp == 2.0, f"Fake event timestamp should match end of first compaction, got {fake_event.timestamp}"
+            
+            # 7. Verify subsequent events are the actual new events (not all, just verify they're present)
+            event_ids = [e.invocation_id for e in events_passed[1:]]
+            assert "evt3" in event_ids, "Should contain evt3"
+            assert "evt4" in event_ids, "Should contain evt4"
+
+    @pytest.mark.asyncio
+    async def test_fake_event_with_no_summary_text(self):
+        """If previous compaction has no text, should skip fake event."""
+        # Setup mock component with session service
+        component = Mock()
+        component.adk_agent = Mock()
+        component.adk_agent.model = Mock()
+        component.get_config = Mock(return_value="test-namespace")
+
+        # Mock session service
+        mock_session_service = AsyncMock()
+        mock_session_service.append_event = AsyncMock(return_value=None)
+        component.session_service = mock_session_service
+        
+        # Create session with compaction event that has NO text content
+        previous_compaction = ADKEvent(
+            invocation_id="compaction1",
+            author="system",
+            timestamp=2.0,
+            content=adk_types.Content(role="model", parts=[]),  # NO TEXT PARTS!
+            actions=EventActions(
+                compaction=EventCompaction(
+                    start_timestamp=0.0,
+                    end_timestamp=2.0,
+                    compacted_content=adk_types.Content(role="model", parts=[])  # Empty content
+                )
+            )
+        )
+        
+        new_events = [
+            ADKEvent(
+                invocation_id="evt3",
+                author="user",
+                timestamp=3.0,
+                content=adk_types.Content(role="user", parts=[adk_types.Part(text="New message")])
+            ),
+            ADKEvent(
+                invocation_id="evt4",
+                author="model",
+                timestamp=4.0,
+                content=adk_types.Content(role="model", parts=[adk_types.Part(text="Response")])
+            ),
+            ADKEvent(
+                invocation_id="evt5",
+                author="user",
+                timestamp=5.0,
+                content=adk_types.Content(role="user", parts=[adk_types.Part(text="Another message")])
+            ),
+            ADKEvent(
+                invocation_id="evt6",
+                author="model",
+                timestamp=6.0,
+                content=adk_types.Content(role="model", parts=[adk_types.Part(text="Another response")])
+            ),
+        ]
+        
+        session = ADKSession(
+            id="test_session",
+            user_id="test_user",
+            app_name="test_app",
+            events=[previous_compaction] + new_events
+        )
+        
+        # Mock LlmEventSummarizer
+        with patch('solace_agent_mesh.agent.adk.runner.LlmEventSummarizer') as mock_summarizer_class:
+            mock_summarizer = AsyncMock()
+            mock_summarizer_class.return_value = mock_summarizer
+            mock_summarizer.maybe_summarize_events.return_value = ADKEvent(
+                invocation_id="compaction2",
+                author="system",
+                timestamp=3.0,
+                actions=EventActions(
+                    compaction=EventCompaction(
+                        start_timestamp=0.0,
+                        end_timestamp=3.0,
+                        compacted_content=adk_types.Content(
+                            role="model",
+                            parts=[adk_types.Part(text="Summary")]
+                        )
+                    )
+                )
+            )
+            
+            # Call function
+            await _create_compaction_event(
+                component=component,
+                session=session,
+                compaction_threshold=0.5,
+                log_identifier="[Test]"
+            )
+            
+            # Verify compaction was called
+            assert mock_summarizer.maybe_summarize_events.called, "Compaction should be called"
+
+            # Verify NO fake event was created (should start with evt3)
+            call_args = mock_summarizer.maybe_summarize_events.call_args
+            events_passed = call_args[1]['events']
+
+            # Should start with actual event, not fake summary
+            # (since previous compaction had no text content)
+            first_event = events_passed[0]
+            assert first_event.author == "user", "Should start with user event when no previous summary text"
+            assert first_event.invocation_id == "evt3", \
+                "Without summary text, should NOT create fake event"

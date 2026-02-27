@@ -353,8 +353,14 @@ def _calculate_content_tokens(
                 messages=messages,
                 use_default_image_token_count=True
             )
+            logger.debug(
+                "Token count: role=%s, num_parts=%d, text_image_tokens=%d",
+                content.role,
+                len(filtered_parts),
+                text_image_tokens
+            )
         except Exception as e:
-            logger.warning("Failed to count text/image tokens: %s. Continuing with video estimate only.", e)
+            logger.warning("Failed to count text/image tokens: %s. Continuing with video estimate only.", e, exc_info=True)
             # Don't return 0 - we still have video_tokens to contribute
             text_image_tokens = 0
 
@@ -367,7 +373,14 @@ def _calculate_content_tokens(
             video_tokens
         )
 
-    return text_image_tokens + video_tokens
+    total = text_image_tokens + video_tokens
+    logger.debug(
+        "Total tokens for content: %d (text/image=%d + video=%d)",
+        total,
+        text_image_tokens,
+        video_tokens
+    )
+    return total
 
 
 def _to_litellm_role(role: Optional[str]) -> Literal["user", "assistant"]:
