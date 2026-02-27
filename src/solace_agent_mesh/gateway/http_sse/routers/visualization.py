@@ -328,10 +328,8 @@ async def subscribe_to_visualization_stream(
                 log_id_prefix,
                 stream_id,
             )
-            sse_url = _generate_sse_url(fastapi_request, stream_id)
             return VisualizationSubscribeResponse(
                 stream_id=stream_id,
-                sse_endpoint_url=sse_url,
                 actual_subscribed_targets=existing_stream_data.get(
                     "abstract_targets", []
                 ),
@@ -712,19 +710,16 @@ async def subscribe_to_visualization_stream(
             len(failed_targets),
         )
 
-    sse_url = _generate_sse_url(fastapi_request, stream_id)
     log.info(
-        "%s Visualization stream %s initiated for user %s. SSE URL: %s. Processed Targets: %s",
+        "%s Visualization stream %s initiated for user %s. Processed Targets: %s",
         log_id_prefix,
         stream_id,
         user_id,
-        sse_url,
         processed_targets_for_response,
     )
 
     return VisualizationSubscribeResponse(
         stream_id=stream_id,
-        sse_endpoint_url=sse_url,
         actual_subscribed_targets=processed_targets_for_response,
         message=response_message,
     )
