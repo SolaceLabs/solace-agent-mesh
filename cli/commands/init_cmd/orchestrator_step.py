@@ -287,13 +287,58 @@ def create_orchestrator_config(
     shared_config_dest_path = project_root / "configs" / "shared_config.yaml"
 
     try:
+        # Load the single shared_config.yaml template
+        shared_template_content = load_template("shared_config.yaml")
+
         # Check if AWS Bedrock provider is being used
         llm_provider = options.get("llm_provider", "")
+        
+        # Configure model sections based on provider
         if llm_provider == "aws_bedrock":
-            shared_template_content = load_template("shared_config_bedrock.yaml")
+            planning_model_config = """# Note: If you want a different model for planning, change it here
+      model: ${BEDROCK_MODEL_NAME}
+      model_id: ${BEDROCK_MODEL_ID}
+      aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+      aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+      aws_session_token: ${AWS_SESSION_TOKEN}
+      temperature: 0.1  # Lower temperature for more focused responses
+      # max_tokens: 2048  # Limit response length"""
+            
+            general_model_config = """# Note: If you want a different model for general, change it here
+      model: ${BEDROCK_MODEL_NAME}
+      model_id: ${BEDROCK_MODEL_ID}
+      aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+      aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+      aws_session_token: ${AWS_SESSION_TOKEN}
+      temperature: 0.1  # Lower temperature for more focused responses
+      # max_tokens: 1536  # Limit response length for general queries"""
         else:
-            shared_template_content = load_template("shared_config.yaml")
+            planning_model_config = """# This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_SERVICE_PLANNING_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+      # Enable parallel tool calls for planning model
+      parallel_tool_calls: true
+      # Prompt Caching Strategy
+      cache_strategy: "5m" # none, 5m, 1h
 
+      # max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
+      # temperature: 0.1 # Lower temperature for more deterministic planning"""
+            
+            general_model_config = """# This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+      # Prompt Caching Strategy
+      cache_strategy: "5m" # none, 5m, 1h"""
+
+        # Configure artifact service section based on provider
         artifact_base_path_line = ""
         if artifact_type == "filesystem":
             artifact_base_path_line = f'base_path: "{artifact_base_path}"'
@@ -303,6 +348,7 @@ def create_orchestrator_config(
             s3_config_lines.append("region: ${S3_REGION}")
             artifact_base_path_line = "\n      ".join(s3_config_lines)
 
+        # Replace all placeholders
         shared_replacements = {
             "__DEFAULT_ARTIFACT_SERVICE_TYPE__": artifact_type,
             "__DEFAULT_ARTIFACT_SERVICE_SCOPE__": artifact_scope,
@@ -314,6 +360,17 @@ def create_orchestrator_config(
                 placeholder, str(value)
             )
 
+        # Replace model configuration placeholders
+        modified_shared_content = modified_shared_content.replace(
+            "      # __PLANNING_MODEL_CONFIG__",
+            planning_model_config,
+        )
+        modified_shared_content = modified_shared_content.replace(
+            "      # __GENERAL_MODEL_CONFIG__",
+            general_model_config,
+        )
+
+        # Replace artifact base path line
         if not artifact_base_path_line:
             modified_shared_content = re.sub(
                 r"\s*# __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__.*",
