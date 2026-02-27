@@ -28,6 +28,7 @@ export interface BackgroundTaskStatusResponse {
     is_running: boolean;
     is_background: boolean;
     can_reconnect: boolean;
+    error_message: string | null;
 }
 
 export interface BackgroundTaskEvent {

@@ -33,6 +33,7 @@ apps:
       enable_embed_resolution: __ENABLE_EMBED_RESOLUTION__
       enable_artifact_content_instruction: __ENABLE_ARTIFACT_CONTENT_INSTRUCTION__
       data_tools_config: *default_data_tools_config
+      auto_summarization: *default_auto_summarization
 
       # Agent Card Definition
       agent_card:

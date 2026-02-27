@@ -348,6 +348,14 @@ class SamAgentAppConfig(SamConfigBase):
         default={"type": "memory"},
         description="Configuration for ADK Memory Service (defaults to memory).",
     )
+    auto_summarization: Dict[str, Any] = Field(
+        default={
+            "enabled": False,
+            "compaction_trigger_token_limit_threshold": -1,
+            "compaction_percentage": 0.25
+        },
+        description="Configuration for automatic conversation history summarization to prevent token limit errors.",
+    )
     credential_service: Optional[CredentialServiceConfig] = Field(
         default=None,
         description="Configuration for ADK Credential Service (optional).",

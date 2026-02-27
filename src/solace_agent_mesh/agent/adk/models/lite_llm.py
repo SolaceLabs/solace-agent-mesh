@@ -53,6 +53,7 @@ from litellm import (
     OpenAIMessageContent,
     acompletion,
     completion,
+    token_counter,
 )
 from pydantic import BaseModel, Field
 from typing_extensions import override
@@ -293,6 +294,93 @@ def _get_content(
                 raise ValueError("LiteLlm(BaseLlm) does not support this content part.")
 
     return content_objects
+
+
+def _calculate_content_tokens(
+    content: types.Content,
+    model: str = "gpt-4o"
+) -> int:
+    """
+    Calculate tokens for exact format LLM receives.
+
+    Separates handling:
+    - Text: included in token count via token_counter
+    - Images: included in token count via token_counter
+    - Video: estimated from file size (token_counter fails on video_url)
+    - Audio: skipped (not supported)
+
+    Follows _get_content() filtering logic to match actual LLM message format.
+
+    Args:
+        content: The ADK Content to count tokens for
+        model: LLM model for token counting (default: gpt-4-vision)
+
+    Returns:
+        Total tokens for this content
+    """
+    video_size_bytes = 0
+    filtered_parts = []
+
+    # Walk parts and separate video from everything else
+    for part in content.parts:
+        if part.inline_data and part.inline_data.mime_type:
+            if part.inline_data.mime_type.startswith("video"):
+                # VIDEO: Extract size, don't include in message
+                video_size_bytes += len(part.inline_data.data) if part.inline_data.data else 0
+            elif part.inline_data.mime_type.startswith("image"):
+                # IMAGE: Include for token counting
+                filtered_parts.append(part)
+            elif part.inline_data.mime_type.startswith("audio"):
+                # AUDIO: Skip (not supported by token_counter)
+                pass
+            else:
+                # Other binary: Include
+                filtered_parts.append(part)
+        elif part.text:
+            # TEXT: Include for token counting
+            filtered_parts.append(part)
+
+    # Count text + images as ONE message (exact format LLM receives)
+    text_image_tokens = 0
+    if filtered_parts:
+        try:
+            filtered_content = types.Content(role=content.role, parts=filtered_parts)
+            msg = _content_to_message_param(filtered_content)
+            messages = msg if isinstance(msg, list) else [msg]
+
+            text_image_tokens = token_counter(
+                model=model,
+                messages=messages,
+                use_default_image_token_count=True
+            )
+            logger.debug(
+                "Token count: role=%s, num_parts=%d, text_image_tokens=%d",
+                content.role,
+                len(filtered_parts),
+                text_image_tokens
+            )
+        except Exception as e:
+            logger.warning("Failed to count text/image tokens: %s. Continuing with video estimate only.", e, exc_info=True)
+            # Don't return 0 - we still have video_tokens to contribute
+            text_image_tokens = 0
+
+    # Estimate video separately: 1 token per 250 bytes (conservative)
+    video_tokens = video_size_bytes // 250
+    if video_size_bytes > 0:
+        logger.debug(
+            "Video content: %d bytes → ~%d tokens (estimated)",
+            video_size_bytes,
+            video_tokens
+        )
+
+    total = text_image_tokens + video_tokens
+    logger.debug(
+        "Total tokens for content: %d (text/image=%d + video=%d)",
+        total,
+        text_image_tokens,
+        video_tokens
+    )
+    return total
 
 
 def _to_litellm_role(role: Optional[str]) -> Literal["user", "assistant"]:
