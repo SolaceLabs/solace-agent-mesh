@@ -260,7 +260,7 @@ def get_identity_service(
     return component.identity_service
 
 
-def _is_connection_error(exc: Exception) -> bool:
+def _is_connection_error(exc: Exception, _depth: int = 0) -> bool:
     """
     Check if an exception is a transient database connection error.
     
@@ -272,7 +272,15 @@ def _is_connection_error(exc: Exception) -> bool:
     
     This multi-layered approach ensures robustness across different
     database backends and SQLAlchemy versions.
+    
+    Args:
+        exc: The exception to check
+        _depth: Internal recursion depth counter (max 10 to prevent infinite loops)
     """
+    # Prevent infinite recursion from circular cause chains
+    if _depth > 10:
+        return False
+    
     # Method 1: Check SQLAlchemy's connection_invalidated flag (most reliable)
     # SQLAlchemy sets this flag on exceptions that indicate a disconnection
     if hasattr(exc, 'connection_invalidated') and exc.connection_invalidated:
@@ -280,7 +288,6 @@ def _is_connection_error(exc: Exception) -> bool:
     
     # Method 2: Check exception class hierarchy
     exc_type_name = type(exc).__name__
-    exc_module = getattr(type(exc), '__module__', '')
     
     # Check for SQLAlchemy's DisconnectionError (explicit disconnect indicator)
     if exc_type_name == 'DisconnectionError':
@@ -302,8 +309,7 @@ def _is_connection_error(exc: Exception) -> bool:
         "network is unreachable",
         "terminating connection due to administrator command",
         "the connection is closed",
-        # SQLite patterns
-        "database is locked",
+        # SQLite patterns (note: "database is locked" is a contention error, not connection)
         "disk i/o error",
         "unable to open database file",
         # MySQL patterns
@@ -324,9 +330,45 @@ def _is_connection_error(exc: Exception) -> bool:
     
     # Recursively check the cause chain for wrapped exceptions
     if exc.__cause__ is not None:
-        return _is_connection_error(exc.__cause__)
+        return _is_connection_error(exc.__cause__, _depth + 1)
     
     return False
+
+
+@contextmanager
+def short_lived_session():
+    """
+    Context manager for short-lived database sessions.
+    
+    Use this for database operations that should not hold a connection
+    for extended periods, such as fetching data before a long-lived SSE stream.
+    
+    The session is automatically closed after the context exits, even if an
+    exception occurs. Rollback is attempted on exceptions before re-raising.
+    
+    Yields:
+        Session: A SQLAlchemy database session
+        
+    Raises:
+        The original exception if one occurs during database operations
+    """
+    if SessionLocal is None:
+        raise RuntimeError("Database not configured")
+    
+    db = SessionLocal()
+    try:
+        yield db
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -675,6 +717,7 @@ def get_db_optional() -> Generator[Session | None, None, None]:
             except Exception as close_error:
                 log.warning("Failed to close database session: %s", close_error)
 
+
 def get_project_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> ProjectService:
@@ -690,6 +733,7 @@ def get_project_service_optional(
         log.debug("Database not configured, projects unavailable")
         return None
     return ProjectService(component=component)
+
 
 def get_session_business_service_optional(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
