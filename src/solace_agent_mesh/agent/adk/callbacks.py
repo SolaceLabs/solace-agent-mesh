@@ -968,7 +968,7 @@ async def manage_large_mcp_tool_responses_callback(
         save_threshold = host_component.get_config(
             "mcp_tool_response_save_threshold_bytes", 2048
         )
-        llm_max_bytes = host_component.get_config("mcp_tool_llm_return_max_bytes", 4096)
+        llm_max_bytes = host_component.get_config("mcp_tool_llm_return_max_bytes", 32768)
         log.debug(
             "%s Config: save_threshold=%d bytes, llm_max_bytes=%d bytes.",
             log_identifier,
@@ -980,7 +980,7 @@ async def manage_large_mcp_tool_responses_callback(
             "%s Error retrieving configuration: %s. Using defaults.", log_identifier, e
         )
         save_threshold = 2048
-        llm_max_bytes = 4096
+        llm_max_bytes = 32768
 
     contains_non_text_content = _mcp_response_contains_non_text(mcp_response_dict)
     if not contains_non_text_content:

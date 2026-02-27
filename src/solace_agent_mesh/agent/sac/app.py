@@ -148,7 +148,7 @@ class DataToolsConfig(SamConfigBase):
         default=50, description="Max rows to return in preview for SQL/JQ results."
     )
     max_result_preview_bytes: int = Field(
-        default=4096,
+        default=32768,
         description="Max bytes to return in preview for SQL/JQ results (if row limit not hit first).",
     )
 
@@ -361,7 +361,7 @@ class SamAgentAppConfig(SamConfigBase):
         description="If any tool's processed output exceeds this size (bytes), its full content is saved as a new ADK artifact.",
     )
     tool_output_llm_return_max_bytes: int = Field(
-        default=4096,
+        default=32768,
         description="Maximum size (bytes) of any tool's output content returned directly to the LLM.",
     )
     mcp_tool_response_save_threshold_bytes: int = Field(
@@ -369,7 +369,7 @@ class SamAgentAppConfig(SamConfigBase):
         description="Threshold in bytes above which MCP tool responses are saved as artifacts.",
     )
     mcp_tool_llm_return_max_bytes: int = Field(
-        default=4096,
+        default=32768,
         description="Maximum size in bytes of MCP tool response content returned directly to the LLM.",
     )
     artifact_handling_mode: Literal["ignore", "embed", "reference"] = Field(
