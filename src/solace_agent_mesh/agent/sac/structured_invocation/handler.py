@@ -526,13 +526,21 @@ class StructuredInvocationHandler:
                 session_id=session_id,
             )
 
+            # Update effective_session_id to the run-based session so that
+            # retriggering after peer-agent responses can find the correct session.
+            a2a_context["effective_session_id"] = session_id
+
             run_config = RunConfig(
                 streaming_mode=StreamingMode.SSE,
                 max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20),
             )
 
+            # Mark this task as a structured invocation so the runner knows
+            # to signal completion instead of running normal finalization on retrigger.
+            task_context.set_flag("structured_invocation", True)
+
             # Execute
-            await run_adk_async_task_thread_wrapper(
+            is_paused = await run_adk_async_task_thread_wrapper(
                 self.host,
                 adk_session,
                 adk_content,
@@ -540,6 +548,23 @@ class StructuredInvocationHandler:
                 a2a_context,
                 skip_finalization=True,  # Structured invocations do custom finalization
             )
+
+            # If the agent is paused (waiting for peer-agent responses),
+            # wait for it to complete before finalizing.
+            if is_paused:
+                log.info(
+                    f"{log_id} Agent is paused waiting for peer-agent responses. "
+                    "Waiting for task completion before finalizing."
+                )
+                retrigger_exception = await task_context.wait_for_completion()
+                if retrigger_exception:
+                    log.error(
+                        f"{log_id} Task completed with error after retrigger: {retrigger_exception}"
+                    )
+                    raise retrigger_exception
+                # Reset for potential use in validation retries
+                task_context.completion_event.clear()
+                log.info(f"{log_id} Agent resumed and completed after peer responses.")
 
             # After execution, we need to validate the result.
             # The result is in the session history.
@@ -1010,7 +1035,7 @@ Remember to end your response with the result embed:
 
             # Run the agent again with the feedback content
             # The runner will handle appending the event to the session
-            await run_adk_async_task_thread_wrapper(
+            is_paused = await run_adk_async_task_thread_wrapper(
                 self.host,
                 session,
                 feedback_content,
@@ -1019,6 +1044,27 @@ Remember to end your response with the result embed:
                 skip_finalization=True,
                 append_context_event=False # Context already set
             )
+
+            # If the agent is paused (waiting for peer-agent responses),
+            # wait for it to complete before validating the retry result.
+            if is_paused:
+                log.info(
+                    f"{log_id} Agent paused during retry, waiting for peer responses."
+                )
+                retrigger_exception = await task_context.wait_for_completion()
+                if retrigger_exception:
+                    log.error(
+                        f"{log_id} Retry completed with error after retrigger: {retrigger_exception}"
+                    )
+                    return StructuredInvocationResult(
+                        type="structured_invocation_result",
+                        status="error",
+                        error_message=f"Error during retry after peer response: {retrigger_exception}",
+                        retry_count=retry_count,
+                    )
+                # Reset the completion event for potential further retries
+                task_context.completion_event.clear()
+                log.info(f"{log_id} Agent resumed after peer responses during retry.")
 
             # 3. Fetch updated session and validate new result
             updated_session = await self.host.session_service.get_session(

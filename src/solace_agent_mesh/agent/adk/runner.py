@@ -231,25 +231,45 @@ async def run_adk_async_task_thread_wrapper(
         )
 
     if not skip_finalization:
-        loop = component.get_async_loop()
-        if loop and loop.is_running():
-            log.debug(
-                "%s Scheduling finalize_task_with_cleanup for task %s.",
-                component.log_identifier,
-                logical_task_id,
-            )
-            asyncio.run_coroutine_threadsafe(
-                component.finalize_task_with_cleanup(
-                    a2a_context, is_paused, exception_to_finalize_with
-                ),
-                loop,
-            )
+        # Check if this is a retrigger for a structured invocation task.
+        # If so, signal completion to the waiting handler instead of running
+        # normal finalization (the handler does its own custom finalization).
+        if task_context and task_context.get_flag("structured_invocation"):
+            if not is_paused or exception_to_finalize_with:
+                log.info(
+                    "%s Structured invocation task %s completed (paused=%s, exception=%s). Signaling handler.",
+                    component.log_identifier,
+                    logical_task_id,
+                    is_paused,
+                    type(exception_to_finalize_with).__name__ if exception_to_finalize_with else "None",
+                )
+                task_context.signal_completion(exception_to_finalize_with)
+            else:
+                log.info(
+                    "%s Structured invocation task %s still paused after retrigger. Waiting for more peer responses.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
         else:
-            log.error(
-                "%s Async loop not available. Cannot schedule finalization for task %s.",
-                component.log_identifier,
-                logical_task_id,
-            )
+            loop = component.get_async_loop()
+            if loop and loop.is_running():
+                log.debug(
+                    "%s Scheduling finalize_task_with_cleanup for task %s.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
+                asyncio.run_coroutine_threadsafe(
+                    component.finalize_task_with_cleanup(
+                        a2a_context, is_paused, exception_to_finalize_with
+                    ),
+                    loop,
+                )
+            else:
+                log.error(
+                    "%s Async loop not available. Cannot schedule finalization for task %s.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
     else:
         log.debug(
             "%s Skipping automatic finalization for task %s (skip_finalization=True).",
@@ -257,11 +277,13 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
         )
 
-        log.debug(
-            "%s ADK runner for task %s finished.",
-            component.log_identifier,
-            logical_task_id,
-        )
+    log.debug(
+        "%s ADK runner for task %s finished (paused=%s).",
+        component.log_identifier,
+        logical_task_id,
+        is_paused,
+    )
+    return is_paused
 
 
 async def run_adk_async_task(
