@@ -95,26 +95,6 @@ def check_projects_enabled(
                 detail="Projects feature is disabled via feature flag."
             )
 
-def check_project_indexing_enabled(
-    component: "WebUIBackendComponent" = Depends(get_sac_component)
-) -> bool:
-    """
-    Dependency to check if project indexing feature is enabled.
-    Raises HTTPException if project indexing is disabled.
-    """
-
-    # Check explicit project_indexing config
-    project_indexing_config = component.get_config("project_indexing", {})
-    if isinstance(project_indexing_config, dict):
-        indexing_explicitly_enabled = project_indexing_config.get("enabled", False)
-        if not indexing_explicitly_enabled:
-            log.info("Project indexing is explicitly disabled in config")
-            return False
-        else:
-            log.info("Project indexing is explicitly enabled in config")
-            return True
-    return False
-
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     name: str = Form(...),
@@ -389,12 +369,11 @@ async def add_project_artifacts(
     indexing_task_service = Depends(get_indexing_task_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
-    indexing_enabled: bool = Depends(check_project_indexing_enabled)
 ):
     """
     Add one or more artifacts to a project.
 
-    With indexing enabled, converts PDF/DOCX/PPTX to text and builds BM25 index.
+    Converts PDF/DOCX/PPTX to text and builds BM25 index.
 
     Query Parameters:
         async: If true, process asynchronously with SSE progress (default: false for now)
@@ -405,7 +384,7 @@ async def add_project_artifacts(
         202 Accepted: Files uploaded, processing in background (check SSE-Location header)
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} adding artifacts to project {project_id} (indexing={indexing_enabled}, async={async_mode})")
+    log.info(f"User {user_id} adding artifacts to project {project_id} (async={async_mode})")
 
     try:
         parsed_file_metadata = {}
@@ -423,17 +402,9 @@ async def add_project_artifacts(
             user_id=user_id,
             files=files,
             file_metadata=parsed_file_metadata,
-            indexing_enabled=False  # Don't process yet - we'll handle async/sync separately
         )
 
-        # Step 2: Check if background processing is needed
-        # Feature flag check (highest priority)
-        if not indexing_enabled:
-            # Feature disabled - return immediately
-            response.status_code = status.HTTP_201_CREATED
-            return {"uploaded": results}
-
-        # Step 3: Classify files to determine if work is needed
+        # Step 2: Classify files to determine if work is needed
         project = project_service.get_project(db, project_id, user_id)
         needs_conversion = []
         is_text_based = []
@@ -450,7 +421,7 @@ async def add_project_artifacts(
                 if file_result:
                     is_text_based.append((file.filename, file_result['data_version']))
 
-        # Step 4: Check if any processing is needed
+        # Step 3: Check if any processing is needed
         needs_processing = (len(needs_conversion) > 0 or len(is_text_based) > 0)
 
         if not needs_processing:
@@ -458,7 +429,7 @@ async def add_project_artifacts(
             response.status_code = status.HTTP_201_CREATED
             return {"uploaded": results}
 
-        # Step 5: Processing is needed - check async mode
+        # Step 4: Processing is needed - check async mode
         if async_mode:
             # Async SSE mode - return 202 immediately, process in background
             task_id = indexing_task_service.create_task_id("upload", project_id)
@@ -491,15 +462,13 @@ async def add_project_artifacts(
             conversion_results = []
             if needs_conversion:
                 conversion_results = await project_service._convert_project_artifacts(
-                    project, needs_conversion, indexing_enabled=True
+                    project, needs_conversion
                 )
 
             # Rebuild index
             index_result = None
             if is_text_based or conversion_results:
-                index_result = await project_service._rebuild_project_index(
-                    project, indexing_enabled=True
-                )
+                index_result = await project_service._rebuild_project_index(project)
 
             response.status_code = status.HTTP_201_CREATED
             return {
@@ -599,12 +568,11 @@ async def delete_project_artifact(
     indexing_task_service = Depends(get_indexing_task_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
-    indexing_enabled: bool = Depends(check_project_indexing_enabled)
 ):
     """
     Delete an artifact from a project.
 
-    With indexing enabled, may trigger async index rebuild.
+    May trigger async index rebuild after deletion.
 
     Query Parameters:
         async: If true, rebuild index asynchronously with SSE (default: false for now)
@@ -614,53 +582,42 @@ async def delete_project_artifact(
         202 Accepted: File deleted, index rebuild in background (check SSE-Location header)
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} deleting artifact '{filename}' from project {project_id} (indexing={indexing_enabled}, async={async_mode})")
+    log.info(f"User {user_id} deleting artifact '{filename}' from project {project_id} (async={async_mode})")
 
     try:
-        # Step 1: Get file type before deletion (if indexing enabled)
-        project = None
+        # Step 1: Get file type before deletion
+        project = project_service.get_project(db, project_id, user_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found or access denied."
+            )
+
         mime_type = ""
         was_text_file = False
         was_convertible = False
 
-        if indexing_enabled:
-            project = project_service.get_project(db, project_id, user_id)
-            if not project:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found or access denied."
-                )
-
-            # Load metadata to determine file type
-            try:
-                from ....agent.utils.artifact_helpers import load_artifact_content_or_metadata
-                metadata_result = await load_artifact_content_or_metadata(
-                    artifact_service=project_service.artifact_service,
-                    app_name=project_service.app_name,
-                    user_id=project.user_id,
-                    session_id=f"project-{project.id}",
-                    filename=filename,
-                    version="latest",
-                    load_metadata_only=True
-                )
-                mime_type = metadata_result.get("metadata", {}).get("mime_type", "")
-                was_text_file = project_service._is_text_file(mime_type, filename)
-                was_convertible = project_service._should_convert_file(mime_type, filename)
-            except Exception as e:
-                log.warning(f"Could not load metadata for {filename}: {e}")
-
-        # Step 2: Delete original file
-        if not project:
-            project = project_service.get_project(db, project_id, user_id)
-            if not project:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found or access denied."
-                )
+        # Load metadata to determine file type
+        try:
+            from ....agent.utils.artifact_helpers import load_artifact_content_or_metadata
+            metadata_result = await load_artifact_content_or_metadata(
+                artifact_service=project_service.artifact_service,
+                app_name=project_service.app_name,
+                user_id=project.user_id,
+                session_id=f"project-{project.id}",
+                filename=filename,
+                version="latest",
+                load_metadata_only=True
+            )
+            mime_type = metadata_result.get("metadata", {}).get("mime_type", "")
+            was_text_file = project_service._is_text_file(mime_type, filename)
+            was_convertible = project_service._should_convert_file(mime_type, filename)
+        except Exception as e:
+            log.warning(f"Could not load metadata for {filename}: {e}")
 
         storage_session_id = f"project-{project.id}"
 
-        # Delete original file (all versions)
+        # Step 2: Delete original file (all versions)
         await project_service.artifact_service.delete_artifact(
             app_name=project_service.app_name,
             user_id=project.user_id,
@@ -670,7 +627,7 @@ async def delete_project_artifact(
         log.info(f"Deleted all versions of {filename}")
 
         # Step 3: Delete converted file if this was convertible (PDF/DOCX/PPTX)
-        if indexing_enabled and was_convertible:
+        if was_convertible:
             converted_filename = f"{filename}.converted.txt"
             try:
                 await project_service.artifact_service.delete_artifact(
@@ -684,7 +641,7 @@ async def delete_project_artifact(
                 log.debug(f"No converted file to delete: {e}")
 
         # Step 4: Check if index rebuild is needed
-        needs_index_rebuild = indexing_enabled and (was_text_file or was_convertible)
+        needs_index_rebuild = was_text_file or was_convertible
 
         if not needs_index_rebuild:
             # No index rebuild needed - return 204 immediately
@@ -692,9 +649,6 @@ async def delete_project_artifact(
             return
 
         # Step 5: Index rebuild is needed - check async mode
-        if not project:
-            project = project_service.get_project(db, project_id, user_id)
-
         if async_mode:
             # Async SSE mode - return 202, rebuild in background
             task_id = indexing_task_service.create_task_id("delete", project_id)
@@ -722,9 +676,7 @@ async def delete_project_artifact(
             # Synchronous blocking mode - rebuild now
             log.info(f"Rebuilding index synchronously after deleting {filename}")
 
-            await project_service._rebuild_project_index(
-                project, indexing_enabled=True
-            )
+            await project_service._rebuild_project_index(project)
 
             response.status_code = status.HTTP_204_NO_CONTENT
             return
@@ -966,7 +918,6 @@ async def import_project(
     indexing_task_service = Depends(get_indexing_task_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
-    indexing_enabled: bool = Depends(check_project_indexing_enabled)
 ):
     """
     Import project from ZIP file.
@@ -979,7 +930,7 @@ async def import_project(
         ProjectImportResponse (with task info if async mode)
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} importing project from {file.filename} (indexing={indexing_enabled}, async={async_mode})")
+    log.info(f"User {user_id} importing project from {file.filename} (async={async_mode})")
     
     try:
         # Validate file type
@@ -1005,7 +956,6 @@ async def import_project(
             user_id=user_id,
             preserve_name=import_options.preserve_name,
             custom_name=import_options.custom_name,
-            indexing_enabled=False  # Don't process yet - we'll handle async/sync separately
         )
 
         log.info(
@@ -1017,18 +967,7 @@ async def import_project(
         db.commit()
         log.debug("Database transaction committed - project and artifacts saved")
 
-        # Step 2: Check if background processing is needed
-        # Feature flag check (highest priority)
-        if not indexing_enabled:
-            # Feature disabled - return immediately
-            return ProjectImportResponse(
-                project_id=project.id,
-                name=project.name,
-                artifacts_imported=artifacts_count,
-                warnings=warnings,
-            )
-
-        # Step 3: Get list of imported artifacts to classify
+        # Step 2: Get list of imported artifacts to classify
         # CRITICAL: Wrap in try/except to prevent exceptions from affecting the import
         # Import is already committed, so we just skip indexing if this fails
         try:
@@ -1052,7 +991,7 @@ async def import_project(
             elif project_service._is_text_file(artifact.mime_type, artifact.filename):
                 is_text_based.append((artifact.filename, artifact.version))
 
-        # Step 4: Check if any processing is needed
+        # Step 3: Check if any processing is needed
         needs_processing = (len(needs_conversion) > 0 or len(is_text_based) > 0)
 
         if not needs_processing:
@@ -1064,7 +1003,7 @@ async def import_project(
                 warnings=warnings,
             )
 
-        # Step 5: Processing is needed - check async mode
+        # Step 4: Processing is needed - check async mode
         if async_mode:
             # Async SSE mode - return 202 immediately, process in background
             task_id = indexing_task_service.create_task_id("import", project.id)
@@ -1101,14 +1040,12 @@ async def import_project(
             conversion_results = []
             if needs_conversion:
                 conversion_results = await project_service._convert_project_artifacts(
-                    project, needs_conversion, indexing_enabled=True
+                    project, needs_conversion
                 )
 
             # Rebuild index
             if is_text_based or conversion_results:
-                await project_service._rebuild_project_index(
-                    project, indexing_enabled=True
-                )
+                await project_service._rebuild_project_index(project)
 
             return ProjectImportResponse(
                 project_id=project.id,

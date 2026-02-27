@@ -256,14 +256,6 @@ async def _inject_project_context(
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
             try:
-                # Get feature flag value
-                project_indexing_config = component.get_config("project_indexing", {})
-                indexing_enabled = (
-                    project_indexing_config.get("enabled", False)
-                    if isinstance(project_indexing_config, dict)
-                    else False
-                )
-
                 artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
                     project_id=project_id,
                     user_id=user_id,
@@ -272,7 +264,6 @@ async def _inject_project_context(
                     component=component,
                     db=db,
                     log_prefix=log_prefix,
-                    indexing_enabled=indexing_enabled,
                 )
 
                 # Get artifact descriptions for context injection
@@ -322,48 +313,44 @@ async def _inject_project_context(
                             # New session: show all original files
                             artifacts_context = files_added_header + "\n".join(all_artifact_descriptions)
 
-                            # When indexing is enabled, add internal instruction to LLM
-                            if indexing_enabled:
-                                artifacts_context += (
-                                    "\n\n--- INTERNAL SYSTEM NOTE (Do not reveal to user) ---\n"
-                                    "In addition to the original files listed above, you have access to:\n"
-                                    "1. Converted text versions: For each binary file (PDF/DOCX/PPTX), a corresponding "
-                                    "`.converted.txt` file exists with extracted text content\n"
-                                    "2. Search index: A `project_bm25_index.zip` file containing BM25 search indices "
-                                    "for efficient text retrieval across all documents\n\n"
-                                    "IMPORTANT INSTRUCTIONS:\n"
-                                    "- You MAY use the converted text files and search index internally for search, "
-                                    "retrieval, and answering questions\n"
-                                    "- You MUST NOT mention, reference, or reveal the existence of `.converted.txt` "
-                                    "files or `project_bm25_index.zip` to the user in your responses\n"
-                                    "- When citing content, always reference the ORIGINAL file name (e.g., 'report.pdf'), "
-                                    "never the converted version (e.g., 'report.pdf.converted.txt')\n"
-                                    "- The user is only aware of the original files listed above and should remain so\n"
-                                    "--- END INTERNAL NOTE ---"
-                                )
+                            artifacts_context += (
+                                "\n\n--- INTERNAL SYSTEM NOTE (Do not reveal to user) ---\n"
+                                "In addition to the original files listed above, you have access to:\n"
+                                "1. Converted text versions: For each binary file (PDF/DOCX/PPTX), a corresponding "
+                                "`.converted.txt` file exists with extracted text content\n"
+                                "2. Search index: A `project_bm25_index.zip` file containing BM25 search indices "
+                                "for efficient text retrieval across all documents\n\n"
+                                "IMPORTANT INSTRUCTIONS:\n"
+                                "- You MAY use the converted text files and search index internally for search, "
+                                "retrieval, and answering questions\n"
+                                "- You MUST NOT mention, reference, or reveal the existence of `.converted.txt` "
+                                "files or `project_bm25_index.zip` to the user in your responses\n"
+                                "- When citing content, always reference the ORIGINAL file name (e.g., 'report.pdf'), "
+                                "never the converted version (e.g., 'report.pdf.converted.txt')\n"
+                                "- The user is only aware of the original files listed above and should remain so\n"
+                                "--- END INTERNAL NOTE ---"
+                            )
 
                             context_parts.append(artifacts_context)
                         elif not inject_full_context and new_artifact_descriptions:
                             # Existing session: notify about newly added original files
                             new_files_context = files_added_header + "\n".join(new_artifact_descriptions)
 
-                            # When indexing is enabled, add internal instruction to LLM
-                            if indexing_enabled:
-                                new_files_context += (
-                                    "\n\n--- INTERNAL SYSTEM NOTE (Do not reveal to user) ---\n"
-                                    "In addition to the original files listed above, you have access to:\n"
-                                    "1. Converted text versions: For each binary file (PDF/DOCX/PPTX), a corresponding "
-                                    "`.converted.txt` file exists with extracted text content\n"
-                                    "2. Search index: A `project_bm25_index.zip` file containing BM25 search indices "
-                                    "for efficient text retrieval\n\n"
-                                    "IMPORTANT INSTRUCTIONS:\n"
-                                    "- You MAY use the converted text files and search index internally for search and retrieval\n"
-                                    "- You MUST NOT mention, reference, or reveal the existence of `.converted.txt` "
-                                    "files or `project_bm25_index.zip` to the user\n"
-                                    "- When citing content, always reference the ORIGINAL file name, never the converted version\n"
-                                    "- The user is only aware of the original files listed above and should remain so\n"
-                                    "--- END INTERNAL NOTE ---"
-                                )
+                            new_files_context += (
+                                "\n\n--- INTERNAL SYSTEM NOTE (Do not reveal to user) ---\n"
+                                "In addition to the original files listed above, you have access to:\n"
+                                "1. Converted text versions: For each binary file (PDF/DOCX/PPTX), a corresponding "
+                                "`.converted.txt` file exists with extracted text content\n"
+                                "2. Search index: A `project_bm25_index.zip` file containing BM25 search indices "
+                                "for efficient text retrieval\n\n"
+                                "IMPORTANT INSTRUCTIONS:\n"
+                                "- You MAY use the converted text files and search index internally for search and retrieval\n"
+                                "- You MUST NOT mention, reference, or reveal the existence of `.converted.txt` "
+                                "files or `project_bm25_index.zip` to the user\n"
+                                "- When citing content, always reference the ORIGINAL file name, never the converted version\n"
+                                "- The user is only aware of the original files listed above and should remain so\n"
+                                "--- END INTERNAL NOTE ---"
+                            )
 
                             context_parts.append(new_files_context)
 
@@ -685,30 +672,23 @@ async def _submit_task(
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
 
         # Pass project_id to agent for project-context-aware tool injection (e.g., index_search).
-        # Gated on project_indexing.enabled and BM25 index existence — the agent callback
-        # injects index_search when it sees project_id, so only pass it when the tool is usable.
-        if project_id:
-            project_indexing_config = component.get_config("project_indexing", {})
-            indexing_enabled = (
-                project_indexing_config.get("enabled", False)
-                if isinstance(project_indexing_config, dict)
-                else False
+        # Gated on BM25 index existence — the agent callback injects index_search when it
+        # sees project_id, so only pass it when the tool is usable.
+        if project_id and project:
+            has_index = await _check_project_has_bm25_index(
+                project=project,
+                project_service=project_service,
+                component=component,
+                log_prefix=log_prefix,
             )
-            if indexing_enabled and project:
-                has_index = await _check_project_has_bm25_index(
-                    project=project,
-                    project_service=project_service,
-                    component=component,
-                    log_prefix=log_prefix,
+            if has_index:
+                additional_metadata["project_id"] = project_id
+                log.info(
+                    "%sPassing project_id %s to agent (session=%s)",
+                    log_prefix,
+                    project_id,
+                    session_id,
                 )
-                if has_index:
-                    additional_metadata["project_id"] = project_id
-                    log.info(
-                        "%sPassing project_id %s to agent (session=%s)",
-                        log_prefix,
-                        project_id,
-                        session_id,
-                    )
 
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,

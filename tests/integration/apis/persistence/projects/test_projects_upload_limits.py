@@ -18,6 +18,9 @@ from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
 KB = 1024
 MB = 1024 * KB
 
+# Use synchronous mode for limit tests so endpoints return final status code
+SYNC_PARAMS = {"async": "false"}
+
 
 def make_file(name: str, size: int):
     return ("files", (name, io.BytesIO(b"x" * size), "text/plain"))
@@ -77,6 +80,7 @@ class TestPerFileSizeLimit:
         seed(gateway_adapter, "per-file-artifact")
         response = both_enabled_client.post(
             "/api/v1/projects/per-file-artifact/artifacts",
+            params=SYNC_PARAMS,
             files=[make_file("big.txt", MB + 1)],
         )
         assert response.status_code == 413
@@ -107,12 +111,14 @@ class TestBatchUploadSizeLimit:
         seed(gateway_adapter, "batch-before-project")
         both_enabled_client.post(
             "/api/v1/projects/batch-before-project/artifacts",
+            params=SYNC_PARAMS,
             files=[make_file("seed.txt", MB)],
         )
         # 2.4MB batch exceeds 2MB batch limit; also would exceed 3MB project total,
         # but batch validation fires first
         response = both_enabled_client.post(
             "/api/v1/projects/batch-before-project/artifacts",
+            params=SYNC_PARAMS,
             files=make_files(3, 800 * KB),
         )
         assert response.status_code == 400
@@ -128,12 +134,14 @@ class TestProjectTotalSizeLimit:
         for i in range(3):
             r = both_enabled_client.post(
                 "/api/v1/projects/project-total/artifacts",
+                params=SYNC_PARAMS,
                 files=[make_file(f"f{i}.txt", 900 * KB)],
             )
             assert r.status_code == 201
 
         response = both_enabled_client.post(
             "/api/v1/projects/project-total/artifacts",
+            params=SYNC_PARAMS,
             files=[make_file("f3.txt", 900 * KB)],
         )
         assert response.status_code == 400
@@ -145,6 +153,7 @@ class TestProjectTotalSizeLimit:
         seed(gateway_adapter, "batch-vs-project")
         r = both_enabled_client.post(
             "/api/v1/projects/batch-vs-project/artifacts",
+            params=SYNC_PARAMS,
             files=[
                 make_file("f1.txt", 900 * KB),
                 make_file("f2.txt", 900 * KB),
@@ -155,6 +164,7 @@ class TestProjectTotalSizeLimit:
         # 1.8MB batch (under 2MB batch limit), but 3.6MB total (over 3MB project limit)
         response = both_enabled_client.post(
             "/api/v1/projects/batch-vs-project/artifacts",
+            params=SYNC_PARAMS,
             files=[
                 make_file("f3.txt", 900 * KB),
                 make_file("f4.txt", 900 * KB),
@@ -204,6 +214,7 @@ class TestZipImportLimits:
     ):
         response = both_enabled_client.post(
             "/api/v1/projects/import",
+            params=SYNC_PARAMS,
             files={
                 "file": (
                     "large.zip",
@@ -217,6 +228,7 @@ class TestZipImportLimits:
     def test_zip_within_limits_succeeds(self, both_enabled_client: TestClient):
         response = both_enabled_client.post(
             "/api/v1/projects/import",
+            params=SYNC_PARAMS,
             files={
                 "file": (
                     "valid.zip",
@@ -275,6 +287,7 @@ class TestZipImportLimits:
         buf.seek(0)
         response = both_enabled_client.post(
             "/api/v1/projects/import",
+            params=SYNC_PARAMS,
             files={"file": ("mixed.zip", buf, "application/zip")},
         )
         assert response.status_code == 200
@@ -290,14 +303,17 @@ class TestFileDeletionAndReupload:
         for i in range(3):
             both_enabled_client.post(
                 "/api/v1/projects/delete-reupload/artifacts",
+                params=SYNC_PARAMS,
                 files=[make_file(f"f{i}.txt", 900 * KB)],
             )
 
         both_enabled_client.delete(
-            "/api/v1/projects/delete-reupload/artifacts/f0.txt"
+            "/api/v1/projects/delete-reupload/artifacts/f0.txt",
+            params=SYNC_PARAMS,
         )
         response = both_enabled_client.post(
             "/api/v1/projects/delete-reupload/artifacts",
+            params=SYNC_PARAMS,
             files=[make_file("f3.txt", 900 * KB)],
         )
         assert response.status_code == 201
@@ -309,15 +325,18 @@ class TestFileDeletionAndReupload:
         for i in range(3):
             both_enabled_client.post(
                 "/api/v1/projects/replace-larger/artifacts",
+                params=SYNC_PARAMS,
                 files=[make_file(f"f{i}.txt", 900 * KB)],
             )
         both_enabled_client.post(
             "/api/v1/projects/replace-larger/artifacts",
+            params=SYNC_PARAMS,
             files=[make_file("small.txt", 100 * KB)],
         )
 
         response = both_enabled_client.post(
             "/api/v1/projects/replace-larger/artifacts",
+            params=SYNC_PARAMS,
             files=[make_file("small.txt", 900 * KB)],
         )
         assert response.status_code == 400
