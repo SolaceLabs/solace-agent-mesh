@@ -72,9 +72,36 @@ class TestVersionOption:
         runner = CliRunner()
         result = runner.invoke(cli, ['--version'])
         assert result.exit_code == 0
-        # Click formats version as "cli, version X.Y.Z"
-        assert 'version' in result.output.lower()
+        # Custom format: "solace-agent-mesh: X.Y.Z"
+        assert 'solace-agent-mesh:' in result.output
         assert __version__ in result.output
+
+    def test_version_with_enterprise_package(self, mocker):
+        """Test that version shows enterprise package when installed"""
+        # Mock importlib.metadata module and its version function
+        from importlib.metadata import PackageNotFoundError
+        mock_version = mocker.MagicMock(return_value='2.0.0')
+        mocker.patch('cli.main.version', mock_version)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ['--version'])
+        assert result.exit_code == 0
+        assert 'solace-agent-mesh:' in result.output
+        assert 'solace-agent-mesh-enterprise: 2.0.0' in result.output
+
+    def test_version_without_enterprise_package(self, mocker):
+        """Test that version works when enterprise package is not installed"""
+        # Mock importlib.metadata.version to raise PackageNotFoundError
+        from importlib.metadata import PackageNotFoundError
+        mock_version = mocker.MagicMock(side_effect=PackageNotFoundError('solace-agent-mesh-enterprise'))
+        mocker.patch('cli.main.version', mock_version)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ['--version'])
+        assert result.exit_code == 0
+        assert 'solace-agent-mesh:' in result.output
+        # Should not mention enterprise if not installed
+        assert 'solace-agent-mesh-enterprise' not in result.output
 
 
 class TestCommandRegistration:
