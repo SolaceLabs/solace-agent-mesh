@@ -4,7 +4,7 @@ import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 
 import type { LayoutNode } from "../utils/types";
-import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES } from "../utils/nodeStyles";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS } from "../utils/nodeStyles";
 import AgentNode from "./AgentNode";
 import SwitchNode from "./SwitchNode";
 import LoopNode from "./LoopNode";
@@ -390,7 +390,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
                             <Fragment key={child.id}>
                                 {renderChild(child, precedingNodeId, followingNodeId)}
                                 {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
-                                {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
+                                {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className="my-0 h-4 w-0.5 bg-(--color-stateLayer-w20) dark:bg-[#FFFFFF2a]" />}
                             </Fragment>
                         );
                     })}
