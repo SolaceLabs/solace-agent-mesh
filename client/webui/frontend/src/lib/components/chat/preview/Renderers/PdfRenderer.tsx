@@ -5,6 +5,7 @@ import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { getApiBearerToken } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 // Use ?url import so Vite emits the worker as a tracked static asset with a
 // content-hashed filename when building the app.
 // When building as a library (SAM Enterprise consumer), this import resolves
@@ -41,20 +42,91 @@ interface SelectionRect {
 
 type InteractionMode = "text" | "pan" | "snip";
 
+// Module-level LRU cache for blob URLs keyed by artifact URL.
+// Avoids re-fetching the same PDF on re-renders or tab switches.
+const PDF_BLOB_CACHE_MAX = 10;
+const pdfBlobCache = new Map<string, string>();
+
 const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
-    // Build pdfOptions with auth header if a token is available.
-    // react-pdf fetches the PDF URL internally; on enterprise deployments the
-    // artifact endpoint requires Bearer auth in addition to (or instead of) cookies.
-    const pdfOptions = useMemo(() => {
-        const token = getApiBearerToken();
-        if (token) {
-            return {
-                withCredentials: true,
-                httpHeaders: { Authorization: `Bearer ${token}` },
-            };
+    // pdfOptions for react-pdf — no auth headers needed since we fetch via
+    // the api client and pass a blob URL instead of the raw API URL.
+    const pdfOptions = useMemo(() => ({ withCredentials: false }), []);
+
+    // Resolved URL: either a blob URL (fetched via api client) or the original URL.
+    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!url) return;
+
+        // Check module-level cache first
+        const cached = pdfBlobCache.get(url);
+        if (cached) {
+            setResolvedUrl(cached);
+            return;
         }
-        return { withCredentials: true };
-    }, []);
+
+        let cancelled = false;
+        const token = getApiBearerToken();
+
+        const fetchPdf = async () => {
+            try {
+                // Use the api client (handles auth) to fetch the PDF as a blob,
+                // then create a blob URL. This avoids browser caching issues with
+                // Authorization headers and keeps the PDF in memory.
+                const response = await api.webui.get(url, { fullResponse: true });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+                }
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                if (!cancelled) {
+                    // Evict oldest entry if cache is full
+                    if (pdfBlobCache.size >= PDF_BLOB_CACHE_MAX) {
+                        const firstKey = pdfBlobCache.keys().next().value;
+                        if (firstKey) {
+                            URL.revokeObjectURL(pdfBlobCache.get(firstKey)!);
+                            pdfBlobCache.delete(firstKey);
+                        }
+                    }
+                    pdfBlobCache.set(url, blobUrl);
+                    setResolvedUrl(blobUrl);
+                }
+            } catch {
+                if (!cancelled) {
+                    // If api client fetch fails (e.g. community mode with no token),
+                    // fall back to passing the URL directly with auth headers.
+                    if (token) {
+                        // Enterprise: try direct fetch with Authorization header
+                        try {
+                            const resp = await fetch(url, {
+                                headers: { Authorization: `Bearer ${token}` },
+                                credentials: "include",
+                            });
+                            if (!resp.ok) throw new Error(`${resp.status}`);
+                            const blob = await resp.blob();
+                            const blobUrl = URL.createObjectURL(blob);
+                            if (!cancelled) {
+                                pdfBlobCache.set(url, blobUrl);
+                                setResolvedUrl(blobUrl);
+                            }
+                        } catch {
+                            if (!cancelled) setFetchError("Failed to load PDF.");
+                        }
+                    } else {
+                        // Community: pass URL directly (cookie auth)
+                        if (!cancelled) setResolvedUrl(url);
+                    }
+                }
+            }
+        };
+
+        fetchPdf();
+        return () => {
+            cancelled = true;
+        };
+    }, [url]);
 
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -332,6 +404,19 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
         return "auto";
     };
 
+    if (fetchError) {
+        return (
+            <div className="flex h-full flex-col overflow-auto p-4">
+                <div className="flex flex-grow flex-col items-center justify-center text-center">
+                    <div className="mb-4 p-4 text-red-500">{fetchError}</div>
+                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
+                        Download PDF
+                    </a>
+                </div>
+            </div>
+        );
+    }
+
     if (error) {
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
@@ -340,6 +425,16 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                     <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
                         Download PDF
                     </a>
+                </div>
+            </div>
+        );
+    }
+
+    if (!resolvedUrl) {
+        return (
+            <div className="flex h-full flex-col overflow-auto p-4">
+                <div className="flex flex-grow flex-col items-center justify-center text-center">
+                    <div className="p-4 text-gray-500">Loading PDF...</div>
                 </div>
             </div>
         );
@@ -427,7 +522,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
 
                 <Document
                     options={pdfOptions}
-                    file={url}
+                    file={resolvedUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
                     onLoadError={onDocumentLoadError}
                     loading={<div className="p-4 text-center">Loading PDF...</div>}
