@@ -4,7 +4,8 @@ import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
-import { api } from "@/lib/api";
+import { scrollToElement } from "@/lib/hooks/useScrollToHighlight";
+import { usePdfBlob } from "@/lib/api/artifacts/hooks";
 // Use ?url import so Vite emits the worker as a tracked static asset with a
 // content-hashed filename when building the app.
 // When building as a library (SAM Enterprise consumer), this import resolves
@@ -27,9 +28,17 @@ export interface SnipToChatEventDetail {
 // (happens when the library bundle was built without pdfWorkerLibPlugin).
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl || "./pdf.worker.min.mjs";
 
+export interface CitationMapEntry {
+    location: string; // e.g., "physical_page_5"
+    char_start: number;
+    char_end: number;
+}
+
 interface PdfRendererProps {
     url: string;
     filename: string;
+    initialPage?: number;
+    citationMaps?: CitationMapEntry[];
 }
 
 interface SelectionRect {
@@ -41,68 +50,19 @@ interface SelectionRect {
 
 type InteractionMode = "text" | "pan" | "snip";
 
-// Module-level LRU cache for blob URLs keyed by artifact URL.
-// Avoids re-fetching the same PDF on re-renders or tab switches.
-const PDF_BLOB_CACHE_MAX = 10;
-const pdfBlobCache = new Map<string, string>();
+/**
+ * PDF renderer with citation highlighting and snip-to-chat functionality.
+ *
+ * Performance: Renders all pages upfront (no virtualization) to support character-position
+ * highlighting. Tested performant up to ~50 pages; may be sluggish for larger documents.
+ */
+const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, citationMaps = [] }) => {
+    // Fetch PDF as blob URL using React Query
+    const { data: resolvedUrl, error: fetchError } = usePdfBlob(url);
 
-const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     // pdfOptions for react-pdf — no auth headers needed since we fetch via
     // the api client and pass a blob URL instead of the raw API URL.
     const pdfOptions = useMemo(() => ({ withCredentials: false }), []);
-
-    // Resolved URL: either a blob URL (fetched via api client) or the original URL.
-    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
-    const [fetchError, setFetchError] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!url) return;
-
-        // Check module-level cache first
-        const cached = pdfBlobCache.get(url);
-        if (cached) {
-            setResolvedUrl(cached);
-            return;
-        }
-
-        let cancelled = false;
-
-        const fetchPdf = async () => {
-            try {
-                // Use the api client which handles Bearer token auth + token refresh.
-                // Falls back to cookie auth when no token is present (community mode).
-                const response = await api.webui.get(url, { fullResponse: true });
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch PDF: ${response.statusText}`);
-                }
-                const blob = await response.blob();
-                const blobUrl = URL.createObjectURL(blob);
-
-                if (!cancelled) {
-                    // Evict oldest entry if cache is full (LRU)
-                    if (pdfBlobCache.size >= PDF_BLOB_CACHE_MAX) {
-                        const firstKey = pdfBlobCache.keys().next().value;
-                        if (firstKey) {
-                            URL.revokeObjectURL(pdfBlobCache.get(firstKey)!);
-                            pdfBlobCache.delete(firstKey);
-                        }
-                    }
-                    pdfBlobCache.set(url, blobUrl);
-                    setResolvedUrl(blobUrl);
-                }
-            } catch {
-                if (!cancelled) {
-                    setFetchError("Failed to load PDF.");
-                }
-            }
-        };
-
-        fetchPdf();
-        return () => {
-            cancelled = true;
-        };
-    }, [url]);
-
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -114,17 +74,145 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     const [selection, setSelection] = useState<SelectionRect | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
     const [snipStatus, setSnipStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
+    // Document-wide page character boundaries: pageCharBoundaries[i] = char position where page i+1 starts
+    const [pageCharBoundaries, setPageCharBoundaries] = useState<number[]>([]);
+    // Track if we're waiting for highlighting to complete before showing the PDF
+    const [isWaitingForHighlight, setIsWaitingForHighlight] = useState(citationMaps.length > 0);
     const viewerRef = useRef<HTMLDivElement>(null);
     const documentContainerRef = useRef<HTMLDivElement>(null);
+    const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     useEffect(() => {
         if (pageWidth && viewerRef.current) {
             const containerWidth = viewerRef.current.clientWidth;
-            const scale = (containerWidth - 40) / pageWidth;
+            // Start at 50% of fit-to-width for a more zoomed out initial view
+            const scale = ((containerWidth - 40) / pageWidth) * 0.5;
             setZoomLevel(scale);
             setPan({ x: 0, y: 0 });
         }
     }, [pageWidth]);
+
+    // Scroll to initial page when document loads
+    // Skip this if we have highlighting - let the highlight scroll handle positioning instead
+    useEffect(() => {
+        const hasHighlighting = citationMaps.length > 0;
+        if (initialPage && initialPage > 0 && numPages && initialPage <= numPages && !hasHighlighting) {
+            requestAnimationFrame(() => {
+                const pageElement = pageRefs.current.get(initialPage);
+                if (pageElement && viewerRef.current) {
+                    pageElement.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+            });
+        }
+    }, [initialPage, numPages, citationMaps.length]);
+
+    // Build document-wide character boundaries for each page
+    // Performance trade-off: Rendering all pages upfront for citation highlighting accuracy.
+    useEffect(() => {
+        if (!citationMaps.length || !numPages || !resolvedUrl) return;
+
+        let cancelled = false;
+        const loadingTask = pdfjs.getDocument(resolvedUrl);
+
+        const buildPageBoundaries = async () => {
+            try {
+                const pdf = await loadingTask.promise;
+                if (cancelled) return;
+
+                // Build character boundaries for each page
+                let charCount = 0;
+                const boundaries: number[] = [0]; // Page 1 starts at char 0
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    if (cancelled) return;
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+
+                    for (const item of content.items) {
+                        if ("str" in item) {
+                            charCount += item.str.length;
+                        }
+                    }
+                    boundaries.push(charCount);
+                }
+
+                if (!cancelled) {
+                    setPageCharBoundaries(boundaries);
+                }
+            } catch (err) {
+                if (!cancelled && !(err instanceof Error && err.name === "AbortException")) {
+                    console.error("[PdfRenderer] Failed to build page boundaries (char-position highlighting disabled):", err);
+                }
+            }
+        };
+
+        buildPageBoundaries();
+
+        return () => {
+            cancelled = true;
+            loadingTask.destroy();
+        };
+    }, [citationMaps, numPages, resolvedUrl]);
+
+    // Highlight citation text using character positions from citation_map
+    useEffect(() => {
+        if (!numPages || !viewerRef.current) return;
+
+        // Only highlight if we have citation_maps with boundaries
+        const hasCitationMaps = citationMaps.length > 0 && pageCharBoundaries.length > 0;
+
+        if (!hasCitationMaps) return;
+
+        const timer = setTimeout(() => {
+            const matchedSpans: HTMLElement[] = [];
+
+            // CHARACTER-POSITION BASED HIGHLIGHTING
+            // For each page, highlight spans that fall within any citation_map range
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                const pageElement = pageRefs.current.get(pageNum);
+                if (!pageElement) continue;
+
+                const pageStart = pageCharBoundaries[pageNum - 1] || 0;
+                const pageEnd = pageCharBoundaries[pageNum] || pageStart;
+
+                // Find citation_maps that overlap with this page
+                const relevantMaps = citationMaps.filter(m => m.char_start < pageEnd && m.char_end > pageStart);
+
+                if (relevantMaps.length === 0) continue;
+
+                const textSpans = pageElement.querySelectorAll(".react-pdf__Page__textContent span");
+                let charPos = pageStart; // Start at page's document-wide position
+
+                textSpans.forEach(span => {
+                    const spanText = span.textContent || "";
+                    const spanStart = charPos;
+                    const spanEnd = charPos + spanText.length;
+
+                    // Check if this span overlaps with ANY citation range
+                    const overlaps = relevantMaps.some(m => spanStart < m.char_end && spanEnd > m.char_start);
+
+                    if (overlaps && spanText.trim().length > 0) {
+                        span.classList.add("citation-highlight");
+                        matchedSpans.push(span as HTMLElement);
+                    }
+
+                    charPos = spanEnd;
+                });
+            }
+
+            // Scroll to first highlight after browser paints the highlights
+            if (matchedSpans.length > 0) {
+                scrollToElement(matchedSpans[0], () => {
+                    setIsWaitingForHighlight(false);
+                });
+            } else {
+                // No matches found, still hide loading state
+                setIsWaitingForHighlight(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [citationMaps, pageCharBoundaries, numPages]);
 
     function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }): void {
         setNumPages(nextNumPages);
@@ -302,18 +390,11 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
 
     // Send the snip to chat input
     const sendToChat = (blob: Blob) => {
-        console.info("[PdfRenderer] sendToChat called, snipBlob:", blob ? "exists" : "null");
-
-        if (!blob) {
-            console.info("[PdfRenderer] No snipBlob available");
-            return;
-        }
+        if (!blob) return;
 
         // Create a File object from the blob
         const snipFilename = `${filename.replace(/\.[^/.]+$/, "")}-snip.png`;
         const file = new File([blob], snipFilename, { type: "image/png" });
-
-        console.info("[PdfRenderer] Dispatching snip-to-chat event with file:", snipFilename, "size:", file.size);
 
         // Dispatch custom event to send the file to chat input
         const event = new CustomEvent<SnipToChatEventDetail>(SNIP_TO_CHAT_EVENT, {
@@ -383,7 +464,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
                 <div className="flex flex-grow flex-col items-center justify-center text-center">
-                    <div className="mb-4 p-4 text-red-500">{fetchError}</div>
+                    <div className="mb-4 p-4 text-red-500">{fetchError instanceof Error ? fetchError.message : "Failed to load PDF."}</div>
                     <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
                         Download PDF
                     </a>
@@ -416,7 +497,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     }
 
     return (
-        <div className="flex h-full flex-col overflow-auto bg-gray-100 p-4 dark:bg-gray-800">
+        <div className="flex h-full flex-col bg-gray-100 p-4 dark:bg-gray-800">
             <div className="mb-2 flex items-center justify-center">
                 <div className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:bg-gray-700/80">
                     <Tooltip>
@@ -492,6 +573,13 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                 onWheel={handleWheel}
                 style={{ cursor: getCursor() }}
             >
+                {/* Loading overlay while waiting for highlighting to complete */}
+                {isWaitingForHighlight && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Loading PDF...</div>
+                    </div>
+                )}
+
                 {/* Selection overlay */}
                 {selection && getSelectionStyle() && <div style={getSelectionStyle()!} />}
 
@@ -506,7 +594,17 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                     <div ref={documentContainerRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
                         {numPages &&
                             Array.from(new Array(numPages), (_, index) => (
-                                <div key={`page_${index + 1}`} className="flex justify-center p-2">
+                                <div
+                                    key={`page_${index + 1}`}
+                                    ref={el => {
+                                        if (el) {
+                                            pageRefs.current.set(index + 1, el);
+                                        } else {
+                                            pageRefs.current.delete(index + 1);
+                                        }
+                                    }}
+                                    className="flex justify-center p-2"
+                                >
                                     <Page
                                         pageNumber={index + 1}
                                         scale={zoomLevel}

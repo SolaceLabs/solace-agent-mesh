@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
-import { FileType, Loader2, Download } from "lucide-react";
 import PdfRenderer from "./PdfRenderer";
+import { NoPreviewState } from "./index";
+import { EmptyState } from "@/lib/components/common/EmptyState";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { api } from "@/lib/api";
 
@@ -22,7 +23,6 @@ interface ConversionResponse {
     error: string | null;
 }
 
-// Request timeout in milliseconds (30 seconds)
 const REQUEST_TIMEOUT_MS = 30000;
 
 // LRU Cache for converted PDFs to avoid re-converting on tab switches
@@ -165,7 +165,6 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
     // This prevents re-conversion if the effect runs multiple times
     const conversionStartedRef = useRef<string | null>(null);
 
-    // Check if binary artifact preview is enabled via feature flag
     const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
 
     // Check if document conversion service is available
@@ -251,17 +250,13 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
         const signal = abortController.signal;
 
         const initializeRenderer = async () => {
-            // Generate cache key for this content
             const cacheKey = hashContent(content, filename);
 
-            // Skip if we've already started conversion for this exact content
-            // This prevents duplicate conversions on re-renders
             if (conversionStartedRef.current === cacheKey) {
                 console.log("[OfficeDocumentRenderer] Skipping duplicate conversion for:", filename);
                 return;
             }
 
-            // Check if feature is enabled first
             if (!binaryArtifactPreviewEnabled) {
                 console.log("Binary artifact preview is disabled via feature flag");
                 setConversionState("error");
@@ -269,9 +264,7 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                 return;
             }
 
-            // Check cache first
             const cachedPdf = pdfConversionCache.get(cacheKey);
-
             if (cachedPdf) {
                 console.log("Using cached PDF conversion for:", filename);
                 setPdfDataUrl(cachedPdf);
@@ -279,18 +272,13 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                 return;
             }
 
-            // Mark that we're starting conversion for this content
             conversionStartedRef.current = cacheKey;
-
             setConversionState("checking");
             setError(null);
             setPdfDataUrl(null);
 
             try {
-                // Check if conversion service is available
                 const isAvailable = await checkConversionService(signal);
-
-                // Check if aborted
                 if (signal.aborted) return;
 
                 if (!isAvailable) {
@@ -299,17 +287,13 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                     return;
                 }
 
-                // Try to convert to PDF
                 setConversionState("converting");
 
                 try {
                     const pdfUrl = await convertToPdf(signal);
-
-                    // Check if aborted
                     if (signal.aborted) return;
 
                     if (pdfUrl) {
-                        // Cache the result
                         pdfConversionCache.set(cacheKey, pdfUrl);
                         console.log("Cached PDF conversion for:", filename);
                         setPdfDataUrl(pdfUrl);
@@ -319,14 +303,12 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                         setError("Conversion returned no content.");
                     }
                 } catch (convError) {
-                    // Check if aborted (component unmounted)
                     if (signal.aborted) return;
                     if (convError instanceof Error && convError.name === "AbortError") return;
 
                     console.error("PDF conversion failed:", convError);
                     setConversionState("error");
 
-                    // Check for timeout error
                     if (convError instanceof Error && convError.message.includes("timeout")) {
                         setError("Conversion timed out. The document may be too large or complex.");
                     } else {
@@ -334,7 +316,6 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                     }
                 }
             } catch (err) {
-                // Check if aborted (component unmounted)
                 if (signal.aborted) return;
                 if (err instanceof Error && err.name === "AbortError") return;
 
@@ -348,10 +329,10 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
             initializeRenderer();
         }
 
-        // Cleanup: abort any in-flight requests when component unmounts
-        // or when dependencies change
         return () => {
             abortController.abort();
+            // Reset the ref so remount can retry (important for React Strict Mode)
+            conversionStartedRef.current = null;
         };
     }, [content, filename, checkConversionService, convertToPdf, binaryArtifactPreviewEnabled]);
 
@@ -362,38 +343,16 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
         }
     }, [error, setRenderError]);
 
-    // Loading state while checking service or converting
     if (conversionState === "checking" || conversionState === "converting") {
-        return (
-            <div className="flex h-64 flex-col items-center justify-center space-y-4 text-center">
-                <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
-                <div>
-                    <p className="text-muted-foreground">{conversionState === "checking" ? "Checking service availability..." : "Converting document to PDF..."}</p>
-                </div>
-            </div>
-        );
+        const message = conversionState === "checking" ? "Checking service availability..." : "Converting document to PDF...";
+        return <EmptyState variant="loading" title={message} />;
     }
 
-    // If we have a PDF URL, render using PdfRenderer
     if (pdfDataUrl) {
         return <PdfRenderer url={pdfDataUrl} filename={filename} />;
     }
 
-    // Error state - show message to download the file
-    return (
-        <div className="flex h-64 flex-col items-center justify-center space-y-4 p-6 text-center">
-            <FileType className="text-muted-foreground h-16 w-16" />
-            <div>
-                <h3 className="text-lg font-semibold">Preview Unavailable</h3>
-                <p className="text-muted-foreground mt-2">Unable to preview this {documentType.toUpperCase()} file.</p>
-                {error && <p className="text-muted-foreground mt-1 text-sm">{error}</p>}
-                <p className="text-muted-foreground mt-4 flex items-center justify-center gap-2 text-sm">
-                    <Download className="h-4 w-4" />
-                    Download the file to open it in the appropriate application.
-                </p>
-            </div>
-        </div>
-    );
+    return <NoPreviewState documentType={documentType} error={error ?? undefined} />;
 };
 
 export default OfficeDocumentRenderer;

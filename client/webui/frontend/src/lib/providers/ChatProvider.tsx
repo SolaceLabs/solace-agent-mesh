@@ -60,6 +60,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
     const ragDataRef = useRef<RAGSearchResult[]>([]);
     const [ragEnabled] = useState<boolean>(true);
+    const [expandedDocumentFilename, setExpandedDocumentFilename] = useState<string | null>(null);
 
     // Wrapper to keep ref in sync with state
     const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
@@ -2827,6 +2828,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const contextValue: ChatContextValue = {
         ragData,
         ragEnabled,
+        expandedDocumentFilename,
+        setExpandedDocumentFilename,
         configCollectFeedback,
         submittedFeedback,
         handleFeedbackSubmit,

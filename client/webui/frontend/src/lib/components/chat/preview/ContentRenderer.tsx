@@ -2,6 +2,7 @@ import React from "react";
 
 import { AudioRenderer, CsvRenderer, HtmlRenderer, ImageRenderer, MarkdownRenderer, MermaidRenderer, OfficeDocumentRenderer, PdfRenderer, StructuredDataRenderer, TextRenderer } from "./Renderers";
 import type { RAGSearchResult } from "@/lib/types";
+import type { CitationMapEntry } from "./Renderers/PdfRenderer";
 
 interface ContentRendererProps {
     content: string;
@@ -12,9 +13,11 @@ interface ContentRendererProps {
     setRenderError: (error: string | null) => void;
     isStreaming?: boolean;
     ragData?: RAGSearchResult;
+    initialPage?: number;
+    citationMaps?: CitationMapEntry[];
 }
 
-export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData }) => {
+export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData, initialPage, citationMaps }) => {
     switch (rendererType) {
         case "csv":
             return <CsvRenderer content={content} setRenderError={setRenderError} />;
@@ -38,7 +41,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rende
         case "pdf":
         case "application/pdf":
             if (url && filename) {
-                return <PdfRenderer url={url} filename={filename} />;
+                return <PdfRenderer url={url} filename={filename} initialPage={initialPage} citationMaps={citationMaps} />;
             }
             setRenderError("URL and filename are required for PDF preview.");
             return null;

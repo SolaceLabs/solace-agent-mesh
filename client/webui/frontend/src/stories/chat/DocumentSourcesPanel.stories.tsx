@@ -40,9 +40,9 @@ export const Default: Story = {
         expect(header).toHaveTextContent("6 Citations");
 
         // Check accordion items are present
-        expect(await canvas.findByText("Source 1")).toBeInTheDocument();
-        expect(await canvas.findByText("Source 2")).toBeInTheDocument();
-        expect(await canvas.findByText("Source 3")).toBeInTheDocument();
+        expect(await canvas.findByText("annual_summary_2024.pdf")).toBeInTheDocument();
+        expect(await canvas.findByText("market_analysis_report.txt")).toBeInTheDocument();
+        expect(await canvas.findByText("quarterly_report_q4_2024.pdf")).toBeInTheDocument();
     },
 };
 
@@ -58,7 +58,7 @@ export const SingleDocument: Story = {
         expect(header).toBeInTheDocument();
         expect(header).toHaveTextContent("1 Citation");
 
-        expect(await canvas.findByText("Source 1")).toBeInTheDocument();
+        expect(await canvas.findByText("product_specs.pdf")).toBeInTheDocument();
     },
 };
 
@@ -99,7 +99,7 @@ export const ExpandedAccordion: Story = {
         const canvas = within(canvasElement);
 
         // Find and click the first accordion trigger
-        const firstSource = await canvas.findByText("Source 1");
+        const firstSource = await canvas.findByText("annual_summary_2024.pdf");
         await userEvent.click(firstSource);
 
         // Check that page citations are visible

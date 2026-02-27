@@ -15,7 +15,18 @@ const getFileExtension = (filename: string): string => {
     return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
 };
 
-const getFileStyles = (type: string) => {
+/**
+ * Returns hardcoded color classes for file type badges.
+ *
+ * Why hardcoded instead of theme colors:
+ * - File type colors are semantic identifiers (HTML orange #e34c26, PDF red #d32f2f)
+ *   with industry-wide recognition that aids user recognition across applications
+ * - Theme colors represent UI chrome, not content - mixing them would conflate
+ *   interface state with content type, reducing scanability
+ * - Consistency requirement: file types must maintain color identity across
+ *   light/dark themes to prevent user confusion when switching modes
+ */
+export const getFileStyles = (type: string) => {
     switch (type) {
         case "html":
             return "bg-[#e34c26]";
@@ -27,6 +38,12 @@ const getFileStyles = (type: string) => {
             return "bg-[#6c757d]";
         case "text":
             return "bg-[#5c6bc0]";
+        case "pdf":
+            return "bg-[#d32f2f]";
+        case "word":
+            return "bg-[#2b579a]";
+        case "powerpoint":
+            return "bg-[#d24726]";
         default:
             return "bg-gray-500";
     }
@@ -143,7 +160,7 @@ export const getFileTypeIcon = (mimeType?: string, filename?: string, iconProps:
     }
 };
 
-const getFileTypeColor = (mimeType?: string, filename?: string): string => {
+export const getFileTypeColor = (mimeType?: string, filename?: string): string => {
     if (mimeType) {
         if (mimeType.startsWith("text/html") || mimeType === "application/xhtml+xml") {
             return getFileStyles("html");
@@ -154,11 +171,12 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
         if (mimeType === "application/yaml" || mimeType === "text/yaml" || mimeType === "application/x-yaml" || mimeType === "text/x-yaml") {
             return getFileStyles("yaml");
         }
-        if (mimeType.startsWith("text/")) {
-            return getFileStyles("text");
-        }
+        // Check markdown before generic text/* to avoid unreachable code
         if (mimeType.startsWith("text/markdown") || mimeType === "application/markdown") {
             return getFileStyles("markdown");
+        }
+        if (mimeType.startsWith("text/")) {
+            return getFileStyles("text");
         }
     }
 
@@ -178,6 +196,14 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
             return getFileStyles("markdown");
         case "txt":
             return getFileStyles("text");
+        case "pdf":
+            return getFileStyles("pdf");
+        case "doc":
+        case "docx":
+            return getFileStyles("word");
+        case "ppt":
+        case "pptx":
+            return getFileStyles("powerpoint");
         default:
             return getFileStyles("default");
     }

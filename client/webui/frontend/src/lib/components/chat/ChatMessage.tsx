@@ -6,7 +6,7 @@ import { AlertCircle, Quote, ThumbsDown, ThumbsUp } from "lucide-react";
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useCitationClick } from "@/lib/hooks";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
@@ -128,7 +128,8 @@ const getUserFriendlyErrorMessage = (technicalMessage: string): string => {
 
 const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; highlightedText?: string | null }>(({ message, isStreaming, highlightedText }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    const { sessionId, ragData, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const { sessionId, ragData } = useChatContext();
+    const handleCitationClick = useCitationClick(message.taskId);
     const contentRef = React.useRef<HTMLDivElement>(null);
 
     // Effect to highlight specific text when highlightedText changes
@@ -475,14 +476,6 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
         if (message.isUser) return [];
         return parseCitations(modifiedText, taskRagData);
     }, [modifiedText, taskRagData, message.isUser]);
-
-    const handleCitationClick = () => {
-        // Open RAG panel when citation is clicked
-        if (message.taskId) {
-            setTaskIdInSidePanel(message.taskId);
-            openSidePanelTab("rag");
-        }
-    };
 
     // If user message has displayHtml (with mention chips), render that instead
     if (message.isUser && message.displayHtml) {

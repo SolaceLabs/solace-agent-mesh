@@ -1,8 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { Link2, Search } from "lucide-react";
 
 import { Accordion } from "@/lib/components/ui/accordion";
 import { EmptyState } from "@/lib/components/common/EmptyState";
+import { useChatContext } from "@/lib/hooks";
 import type { RAGSearchResult } from "@/lib/types";
 import { groupDocumentSources } from "@/lib/utils/documentSourceUtils";
 
@@ -18,11 +19,34 @@ export interface DocumentSourcesPanelProps {
  * Groups documents by filename and shows pages with citation counts
  */
 export const DocumentSourcesPanel: React.FC<DocumentSourcesPanelProps> = ({ ragData, enabled }) => {
+    const { expandedDocumentFilename, setExpandedDocumentFilename } = useChatContext();
+    const [expandedValues, setExpandedValues] = useState<string[]>([]);
+
     // Group document sources by filename and page
     const groupedDocuments = useMemo(() => {
         if (!ragData || ragData.length === 0) return [];
         return groupDocumentSources(ragData);
     }, [ragData]);
+
+    // Auto-expand document when expandedDocumentFilename is set from citation click
+    useEffect(() => {
+        if (!expandedDocumentFilename) return;
+
+        // Find the index of the document to expand
+        const idx = groupedDocuments.findIndex(doc => doc.filename === expandedDocumentFilename);
+        if (idx >= 0) {
+            // Add to expanded values without closing others
+            setExpandedValues(prev => {
+                const value = `document-${idx}`;
+                if (prev.includes(value)) return prev;
+                return [...prev, value];
+            });
+        }
+
+        requestAnimationFrame(() => {
+            setExpandedDocumentFilename(null);
+        });
+    }, [expandedDocumentFilename, groupedDocuments, setExpandedDocumentFilename]);
 
     // Disabled state
     if (!enabled) {
@@ -62,7 +86,7 @@ export const DocumentSourcesPanel: React.FC<DocumentSourcesPanelProps> = ({ ragD
                 </div>
 
                 {/* Document cards */}
-                <Accordion type="multiple" className="space-y-2">
+                <Accordion type="multiple" value={expandedValues} onValueChange={setExpandedValues} className="space-y-2">
                     {groupedDocuments.map((document, idx) => (
                         <DocumentSourceCard key={document.filename} document={document} sourceIndex={idx} />
                     ))}

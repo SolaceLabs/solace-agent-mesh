@@ -7,24 +7,16 @@ import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
 import type { RAGSearchResult } from "@/lib/types";
 import { parseCitations } from "@/lib/utils/citations";
 import { TextWithCitations } from "@/lib/components/chat/Citation";
+import { useCitationClick } from "@/lib/hooks";
 
 interface MarkdownRendererProps extends BaseRendererProps {
     ragData?: RAGSearchResult;
 }
 
-/**
- * MarkdownRenderer - Renders markdown content with citation support
- *
- * Uses MarkdownWrapper for streaming content (smooth text animation)
- * Uses TextWithCitations for non-streaming content (citation support)
- */
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, ragData, isStreaming }) => {
     const { ref, handleKeyDown } = useCopy<HTMLDivElement>();
-
-    // Parse citations from content using ragData
-    const citations = useMemo(() => {
-        return parseCitations(content, ragData);
-    }, [content, ragData]);
+    const citations = useMemo(() => parseCitations(content, ragData), [content, ragData]);
+    const handleCitationClick = useCitationClick(ragData?.taskId);
 
     return (
         <div className="w-full p-4">
@@ -33,7 +25,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, rag
                     <MarkdownWrapper content={content} isStreaming={isStreaming} className="max-w-full break-words" />
                 ) : (
                     <div className={getThemeHtmlStyles("max-w-full break-words")}>
-                        <TextWithCitations text={content} citations={citations} />
+                        <TextWithCitations text={content} citations={citations} onCitationClick={handleCitationClick} />
                     </div>
                 )}
             </div>
