@@ -683,7 +683,12 @@ class StructuredInvocationHandler:
                 await self._return_structured_result(invocation_data, result_data, a2a_context)
                 return
 
-            await self._run_si_finalization(task_context, a2a_context, log_id)
+            # Restore the retry count that was saved when the task paused.
+            # This prevents the count from resetting to 0 on deferred finalization.
+            retry_count = task_context.get_flag("si_retry_count", 0)
+            await self._run_si_finalization(
+                task_context, a2a_context, log_id, retry_count=retry_count
+            )
 
         except Exception as e:
             log.exception(
@@ -1152,6 +1157,9 @@ Remember to end your response with the result embed:
                     f"{log_id} Agent paused during retry for peer-agent responses. "
                     "Deferring SI finalization until retrigger completes."
                 )
+                # Preserve the retry count so deferred finalization continues
+                # from the correct retry position instead of resetting to 0.
+                task_context.set_flag("si_retry_count", retry_count)
                 return None
 
             # 3. Fetch updated session and validate new result
