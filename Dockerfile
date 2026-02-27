@@ -67,6 +67,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     curl \
     ffmpeg=7:7.1.3-0+deb13u1  \
     git \
+    libnss3=2:3.110-1+deb13u1 \
     libtasn1-6/unstable \
     libpng16-16t64=1.6.48-1+deb13u3 \
     libssl3t64=3.5.4-1~deb13u2 \
@@ -146,6 +147,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     ffmpeg=7:7.1.3-0+deb13u1 \
     git \
     libatomic1 \
+    libnss3=2:3.110-1+deb13u1 \
     libtasn1-6/unstable \
     libpng16-16t64=1.6.48-1+deb13u3 \
     libssl3t64=3.5.4-1~deb13u2 \
