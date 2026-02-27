@@ -10,6 +10,7 @@ import type { TextPart } from "@/lib/types";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
+import { useLocation } from "react-router-dom";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -34,6 +35,7 @@ export function ChatPage() {
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
+    const location = useLocation();
     const {
         agents,
         sessionId,
@@ -211,6 +213,14 @@ export function ChatPage() {
             openSidePanelTab("activity");
         };
     }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
+
+    // Handle opening sessions panel from navigation state
+    useEffect(() => {
+        const state = location.state as { openSessionsPanel?: boolean } | null;
+        if (state?.openSessionsPanel) {
+            setIsSessionSidePanelCollapsed(false);
+        }
+    }, [location.state]);
 
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {

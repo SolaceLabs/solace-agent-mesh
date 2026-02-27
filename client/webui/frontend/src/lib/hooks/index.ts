@@ -35,3 +35,4 @@ export * from "./useIsProjectSharingEnabled";
 export * from "./useIsProjectIndexingEnabled";
 export * from "./useSSEContext";
 export * from "./useIndexingSSE";
+export * from "./useNavigationItems";
