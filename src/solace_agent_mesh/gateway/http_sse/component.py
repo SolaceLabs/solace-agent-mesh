@@ -2349,14 +2349,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 a2a_task_id,
                 e,
             )
-        finally:
-            await self.sse_manager.close_all_for_task(sse_task_id)
-            log.info(
-                "%s Closed SSE connections for SSE Task ID %s.",
-                log_id_prefix,
-                sse_task_id,
-            )
-            
 
     async def _send_error_to_external(
         self, external_request_context: dict[str, Any], error_data: JSONRPCError
@@ -2403,10 +2395,19 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 sse_task_id,
                 e,
             )
-        finally:
+
+    async def _close_external_connections(self, external_request_context: dict) -> None:
+        """Close SSE connections during context cleanup.
+
+        Called by the base gateway after the final event is processed,
+        ensuring any pending status updates in the queue are sent before
+        the SSE connection is closed.
+        """
+        sse_task_id = external_request_context.get("a2a_task_id_for_event")
+        if sse_task_id:
             await self.sse_manager.close_all_for_task(sse_task_id)
             log.info(
-                "%s Closed SSE connections for SSE Task ID %s after error.",
-                log_id_prefix,
+                "%s Closed SSE connections for SSE Task ID %s during context cleanup.",
+                self.log_identifier,
                 sse_task_id,
             )

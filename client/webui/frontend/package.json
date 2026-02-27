@@ -1,6 +1,6 @@
 {
     "name": "@SolaceLabs/solace-agent-mesh-ui",
-    "version": "1.54.4",
+    "version": "1.54.6",
     "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
     "author": "SolaceLabs <solacelabs@solace.com>",
     "license": "Apache-2.0",
@@ -169,9 +169,7 @@
     },
     "overrides": {
         "cross-spawn": "^7.0.6",
-        "minimatch": {
-            "@isaacs/brace-expansion": "5.0.1"
-        }
+        "minimatch": "^10.2.1"
     },
     "msw": {
         "workerDirectory": [

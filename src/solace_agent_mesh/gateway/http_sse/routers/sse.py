@@ -5,13 +5,13 @@ API Router for Server-Sent Events (SSE) subscriptions.
 import logging
 import asyncio
 import json
+from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, Request as FastAPIRequest, HTTPException, status, Query
-from sqlalchemy.orm import Session as DBSession
 
 from sse_starlette.sse import EventSourceResponse
 
 from ....gateway.http_sse.sse_manager import SSEManager
-from ....gateway.http_sse.dependencies import get_sse_manager, get_db
+from ....gateway.http_sse.dependencies import get_sse_manager, SessionLocal, short_lived_session, _is_connection_error
 from ....gateway.http_sse.repository.task_repository import TaskRepository
 
 log = logging.getLogger(__name__)
@@ -21,6 +21,132 @@ trace_logger = logging.getLogger("sam_trace")
 router = APIRouter()
 
 
+def _prepare_replay_events(
+    task_id: str,
+    is_background_task: bool,
+    last_event_timestamp: int,
+    log_prefix: str
+) -> list[dict[str, Any]]:
+    """
+    Prepare events to replay for SSE reconnection using a short-lived database session.
+    
+    This function uses its own database session that is closed before returning,
+    preventing the long-lived SSE connection from holding a database connection.
+    
+    Returns:
+        List of event dictionaries with 'event' type and 'data' payload ready for SSE.
+    """
+    replay_events = []
+    
+    if SessionLocal is None:
+        log.warning("%sDatabase not configured, cannot replay events", log_prefix)
+        return replay_events
+    
+    replay_from_timestamp = last_event_timestamp if last_event_timestamp > 0 else 0
+    
+    # For background tasks, always replay from the beginning
+    if is_background_task:
+        replay_from_timestamp = 0
+        log.info("%sBackground task reconnection - replaying ALL events from beginning", log_prefix)
+    else:
+        log.info("%sReplaying events since timestamp %d", log_prefix, replay_from_timestamp)
+    
+    try:
+        with short_lived_session() as db:
+            repo = TaskRepository()
+            task_with_events = repo.find_by_id_with_events(db, task_id)
+            
+            if task_with_events:
+                _, events = task_with_events
+                # Use >= for timestamp 0 to include all events
+                missed_events = [e for e in events if e.created_time > replay_from_timestamp]
+                log.info("%sReplaying %d missed events", log_prefix, len(missed_events))
+                
+                # For background tasks, filter out intermediate artifact update events
+                if is_background_task:
+                    has_final_response = any(
+                        e.direction == "response" and
+                        "result" in e.payload and
+                        e.payload.get("result", {}).get("kind") == "task"
+                        for e in missed_events
+                    )
+                    
+                    if has_final_response:
+                        filtered_events = []
+                        for e in missed_events:
+                            if e.direction == "response" and "result" in e.payload:
+                                result = e.payload.get("result", {})
+                                if result.get("kind") == "artifact-update":
+                                    log.debug(
+                                        "%sFiltering out intermediate artifact-update event during replay",
+                                        log_prefix
+                                    )
+                                    continue
+                            filtered_events.append(e)
+                        missed_events = filtered_events
+                        log.info(
+                            "%sFiltered to %d events (removed intermediate artifact updates)",
+                            log_prefix,
+                            len(missed_events)
+                        )
+                
+                # Convert events to SSE format
+                for event in missed_events:
+                    event_type = "status_update"  # Default
+                    
+                    if event.direction == "response":
+                        if "result" in event.payload:
+                            result = event.payload.get("result", {})
+                            if result.get("kind") == "task":
+                                event_type = "final_response"
+                            elif result.get("kind") == "status-update":
+                                event_type = "status_update"
+                            elif result.get("kind") == "artifact-update":
+                                event_type = "artifact_update"
+                    
+                    replay_events.append({
+                        "event": event_type,
+                        "data": json.dumps(event.payload)
+                    })
+    except Exception as e:
+        log.error("%sError preparing replay events: %s", log_prefix, e, exc_info=True)
+    
+    return replay_events
+
+
+def _get_task_info(task_id: str, log_prefix: str) -> Optional[bool]:
+    """
+    Get task information using a short-lived database session.
+    
+    Returns:
+        True if task is a background task, False if not, None if task not found or db not configured.
+        
+    Raises:
+        HTTPException: 503 if database connection is unavailable during the query.
+    """
+    if SessionLocal is None:
+        log.debug("%sDatabase not configured", log_prefix)
+        return None
+    
+    try:
+        with short_lived_session() as db:
+            repo = TaskRepository()
+            task = repo.find_by_id(db, task_id)
+            is_background_task = task and task.background_execution_enabled if task else False
+            return is_background_task
+    except Exception as e:
+        log.error("%sError getting task info: %s", log_prefix, e, exc_info=True)
+        # Only raise 503 for actual connection errors
+        # For other errors (e.g., task not found), return None to allow graceful fallback
+        if _is_connection_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database temporarily unavailable. Please retry.",
+            ) from e
+        # For non-connection errors, return None (task may not exist yet)
+        return None
+
+
 @router.get("/subscribe/{task_id}")
 async def subscribe_to_task_events(
     task_id: str,
@@ -28,10 +154,12 @@ async def subscribe_to_task_events(
     reconnect: bool = Query(False, description="Whether this is a reconnection attempt"),
     last_event_timestamp: int = Query(0, description="Timestamp of last received event for replay"),
     sse_manager: SSEManager = Depends(get_sse_manager),
-    db: DBSession = Depends(get_db),
 ):
     """
     Establishes an SSE connection to receive real-time updates for a specific task.
+    
+    Note: This endpoint uses short-lived database sessions to avoid holding connections
+    during the long-lived SSE stream, which could cause SSL connection timeouts.
     
     Args:
         task_id: The task to monitor
@@ -43,16 +171,29 @@ async def subscribe_to_task_events(
 
     connection_queue: asyncio.Queue = None
     try:
-        # Check if this is a background task
-        repo = TaskRepository()
-        task = repo.find_by_id(db, task_id)
-        is_background_task = task and task.background_execution_enabled
+        # Get task info using a short-lived database session
+        # This closes the DB connection BEFORE the long-lived SSE stream starts
+        is_background_task = _get_task_info(task_id, log_prefix)
+        if is_background_task is None:
+            is_background_task = False  # Default if task not found
         
         if is_background_task:
             log.info("%sTask %s is a background task.", log_prefix, task_id)
         
+        # IMPORTANT: Create SSE connection BEFORE fetching replay events to prevent
+        # race condition where events arriving between replay fetch and connection
+        # registration could be lost. This ordering ensures no events are missed.
         connection_queue = await sse_manager.create_sse_connection(task_id)
         log.debug("%sSSE connection queue created.", log_prefix)
+        
+        # Prepare replay events using a short-lived database session
+        # This closes its DB connection before the SSE stream starts
+        # Note: Connection queue is already registered, so any new events will be queued
+        replay_events: list[dict[str, Any]] = []
+        if reconnect:
+            replay_events = _prepare_replay_events(
+                task_id, is_background_task, last_event_timestamp, log_prefix
+            )
 
         async def event_generator():
             nonlocal connection_queue
@@ -61,86 +202,11 @@ async def subscribe_to_task_events(
                 yield {"comment": "SSE connection established"}
                 log.debug("%sSent initial SSE comment.", log_prefix)
                 
-                # If reconnecting, replay missed events from database
-                # For background tasks, always replay ALL events from the beginning
-                # to ensure the frontend can reconstruct the full message content
-                # after a browser refresh
-                if reconnect:
-                    replay_from_timestamp = last_event_timestamp if last_event_timestamp > 0 else 0
-                    
-                    # For background tasks, always replay from the beginning
-                    # This handles the case where the browser was refreshed and
-                    # the accumulated message content was lost
-                    if is_background_task:
-                        replay_from_timestamp = 0
-                        log.info("%sBackground task reconnection - replaying ALL events from beginning", log_prefix)
-                    else:
-                        log.info("%sReplaying events since timestamp %d", log_prefix, replay_from_timestamp)
-                    
-                    task_with_events = repo.find_by_id_with_events(db, task_id)
-                    if task_with_events:
-                        _, events = task_with_events
-                        # Use >= for timestamp 0 to include all events
-                        missed_events = [e for e in events if e.created_time > replay_from_timestamp]
-                        log.info("%sReplaying %d missed events", log_prefix, len(missed_events))
-                        
-                        # For background tasks, filter out intermediate artifact update events
-                        # to prevent duplicate artifacts in chat. Only keep the final task response
-                        # which contains the complete artifact list.
-                        if is_background_task:
-                            # Find if there's a final task response
-                            has_final_response = any(
-                                e.direction == "response" and
-                                "result" in e.payload and
-                                e.payload.get("result", {}).get("kind") == "task"
-                                for e in missed_events
-                            )
-                            
-                            if has_final_response:
-                                # Filter out artifact-update events since the final response contains all artifacts
-                                filtered_events = []
-                                for e in missed_events:
-                                    if e.direction == "response" and "result" in e.payload:
-                                        result = e.payload.get("result", {})
-                                        if result.get("kind") == "artifact-update":
-                                            log.debug(
-                                                "%sFiltering out intermediate artifact-update event during replay",
-                                                log_prefix
-                                            )
-                                            continue
-                                    filtered_events.append(e)
-                                missed_events = filtered_events
-                                log.info(
-                                    "%sFiltered to %d events (removed intermediate artifact updates)",
-                                    log_prefix,
-                                    len(missed_events)
-                                )
-                        
-                        for event in missed_events:
-                            # The payload is already a JSON-RPC response, just need to determine event type
-                            # and yield it in the same format as live events
-                            event_type = "status_update"  # Default
-                            
-                            # Determine event type from the payload structure
-                            if event.direction == "response":
-                                # Check if it's a final response (Task object) or status update
-                                if "result" in event.payload:
-                                    result = event.payload.get("result", {})
-                                    if result.get("kind") == "task":
-                                        event_type = "final_response"
-                                    elif result.get("kind") == "status-update":
-                                        event_type = "status_update"
-                                    elif result.get("kind") == "artifact-update":
-                                        event_type = "artifact_update"
-                            
-                            # Yield the event in SSE format
-                            # The payload is already the complete JSON-RPC response
-                            yield {
-                                "event": event_type,
-                                "data": json.dumps(event.payload)
-                            }
-                        
-                        log.info("%sFinished replaying missed events", log_prefix)
+                # Replay pre-fetched events (database session already closed)
+                if replay_events:
+                    for event in replay_events:
+                        yield event
+                    log.info("%sFinished replaying %d missed events", log_prefix, len(replay_events))
 
                 loop_count = 0
                 while True:

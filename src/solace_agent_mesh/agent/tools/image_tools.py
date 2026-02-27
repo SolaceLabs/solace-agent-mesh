@@ -580,7 +580,7 @@ async def edit_image_with_gemini(
         gemini_api_key = current_tool_config.get("gemini_api_key")
         # Standard model - optimized for speed, efficiency, and lower cost
         default_model = current_tool_config.get(
-            "model", "gemini-2.5-flash-image"
+            "model", "gemini-3.1-flash-image-preview"
         )
         # Pro model - for professional asset production with advanced reasoning,
         # high-fidelity text rendering, and up to 4K resolution. More expensive.
@@ -840,7 +840,7 @@ async def generate_image_with_gemini(
         gemini_api_key = current_tool_config.get("gemini_api_key")
         # Standard model - optimized for speed, efficiency, and lower cost
         default_model = current_tool_config.get(
-            "model", "gemini-2.5-flash-image"
+            "model", "gemini-3.1-flash-image-preview"
         )
         # Pro model - for professional asset production with advanced reasoning,
         # high-fidelity text rendering, and up to 4K resolution. More expensive.
