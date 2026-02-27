@@ -526,13 +526,28 @@ class StructuredInvocationHandler:
                 session_id=session_id,
             )
 
+            # Update effective_session_id to the run-based session so that
+            # retriggering after peer-agent responses can find the correct session.
+            a2a_context["effective_session_id"] = session_id
+
             run_config = RunConfig(
                 streaming_mode=StreamingMode.SSE,
                 max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20),
             )
 
+            # Mark this task as a structured invocation so the runner knows
+            # to run deferred SI finalization instead of normal finalization on retrigger.
+            task_context.set_flag("structured_invocation", True)
+
+            # Store state needed for deferred finalization if the agent pauses
+            # for peer-agent calls. These are retrieved by
+            # finalize_deferred_structured_invocation() when the retrigger completes.
+            task_context.set_flag("si_invocation_data", invocation_data)
+            task_context.set_flag("si_output_schema", output_schema)
+            task_context.set_flag("si_original_callback", original_callback)
+
             # Execute
-            await run_adk_async_task_thread_wrapper(
+            is_paused = await run_adk_async_task_thread_wrapper(
                 self.host,
                 adk_session,
                 adk_content,
@@ -541,51 +556,156 @@ class StructuredInvocationHandler:
                 skip_finalization=True,  # Structured invocations do custom finalization
             )
 
-            # After execution, we need to validate the result.
-            # The result is in the session history.
-            # We need to fetch the updated session.
-            adk_session = await self.host.session_service.get_session(
-                app_name=self.host.agent_name,
-                user_id=user_id,
-                session_id=session_id,
+            # If the agent is paused (waiting for peer-agent responses),
+            # return immediately. The runner will call
+            # finalize_deferred_structured_invocation() when the retrigger
+            # completes with is_paused=False.
+            if is_paused:
+                log.info(
+                    f"{log_id} Agent is paused waiting for peer-agent responses. "
+                    "Deferring SI finalization until retrigger completes."
+                )
+                return
+
+            # Agent completed immediately — run validation and finalization inline.
+            await self._run_si_finalization(
+                task_context, a2a_context, log_id
             )
-
-            # Find the last model response event
-            # The session might end with a tool response (e.g. _notify_artifact_save) if the model
-            # outputs nothing in the final turn. We scan backwards for the text output.
-            last_model_event = None
-            if adk_session.events:
-                for i, event in enumerate(reversed(adk_session.events)):
-                    if event.content and event.content.role == "model":
-                        last_model_event = event
-                        log.debug(f"{log_id} Found last model event at index -{i+1}: {event.id}")
-                        break
-
-            if not last_model_event:
-                log.warning(f"{log_id} No model event found in session history.")
-
-            result_data = await self._finalize_structured_invocation(
-                adk_session, last_model_event, invocation_data, output_schema, retry_count=0
-            )
-
-            log.debug(
-                f"{log_id} Final result data: {result_data.model_dump_json()}"
-            )
-
-            # Send result back to workflow
-            await self._return_structured_result(invocation_data, result_data, a2a_context)
 
         finally:
-            # Clean up task context
-            with self.host.active_tasks_lock:
-                if logical_task_id in self.host.active_tasks:
-                    del self.host.active_tasks[logical_task_id]
-                    log.debug(
-                        f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] Removed TaskExecutionContext for task {logical_task_id}"
-                    )
+            # Only clean up if the task is NOT paused waiting for peer responses.
+            # If paused, finalize_deferred_structured_invocation() handles cleanup.
+            if not task_context.get_is_paused():
+                self._cleanup_structured_invocation(task_context, logical_task_id, original_callback)
 
-            # Restore original callback
-            self.host.set_agent_system_instruction_callback(original_callback)
+    async def _run_si_finalization(
+        self,
+        task_context,
+        a2a_context: Dict[str, Any],
+        log_id: str,
+        retry_count: int = 0,
+    ):
+        """
+        Run structured invocation finalization: fetch session, validate result,
+        and return the structured result to the workflow.
+
+        This is used both inline (when the agent completes immediately) and
+        deferred (when the agent was paused for peer-agent calls and later
+        completed via retrigger).
+        """
+        invocation_data = task_context.get_flag("si_invocation_data")
+        output_schema = task_context.get_flag("si_output_schema")
+        user_id = a2a_context.get("user_id")
+        session_id = a2a_context.get("effective_session_id")
+
+        # Fetch the updated session with the agent's final response
+        adk_session = await self.host.session_service.get_session(
+            app_name=self.host.agent_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        # Find the last model response event
+        # The session might end with a tool response (e.g. _notify_artifact_save) if the model
+        # outputs nothing in the final turn. We scan backwards for the text output.
+        last_model_event = None
+        if adk_session.events:
+            for i, event in enumerate(reversed(adk_session.events)):
+                if event.content and event.content.role == "model":
+                    last_model_event = event
+                    log.debug(f"{log_id} Found last model event at index -{i+1}: {event.id}")
+                    break
+
+        if not last_model_event:
+            log.warning(f"{log_id} No model event found in session history.")
+
+        result_data = await self._finalize_structured_invocation(
+            adk_session, last_model_event, invocation_data, output_schema, retry_count
+        )
+
+        if result_data is None:
+            # A retry paused for peer-agent calls — finalization is deferred again.
+            # The runner will call finalize_deferred_structured_invocation() when
+            # the retrigger completes.
+            return
+
+        log.debug(
+            f"{log_id} Final result data: {result_data.model_dump_json()}"
+        )
+
+        # Send result back to workflow
+        await self._return_structured_result(invocation_data, result_data, a2a_context)
+
+    def _cleanup_structured_invocation(
+        self,
+        task_context,
+        logical_task_id: str,
+        original_callback,
+    ):
+        """Clean up task context and restore original callback after SI completion."""
+        with self.host.active_tasks_lock:
+            if logical_task_id in self.host.active_tasks:
+                del self.host.active_tasks[logical_task_id]
+                log.debug(
+                    "%s Removed TaskExecutionContext for task %s",
+                    self.host.log_identifier,
+                    logical_task_id,
+                )
+
+        self.host.set_agent_system_instruction_callback(original_callback)
+
+    async def finalize_deferred_structured_invocation(
+        self,
+        task_context,
+        a2a_context: Dict[str, Any],
+        exception: Optional[Exception] = None,
+    ):
+        """
+        Called by the runner when a structured invocation task completes after
+        being paused for peer-agent responses. Runs SI validation/finalization
+        and cleanup.
+        """
+        invocation_data = task_context.get_flag("si_invocation_data")
+        original_callback = task_context.get_flag("si_original_callback")
+        logical_task_id = a2a_context.get("logical_task_id")
+        log_id = f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}]"
+
+        try:
+            if exception:
+                log.error(
+                    f"{log_id} Deferred SI finalization received error: {exception}"
+                )
+                result_data = StructuredInvocationResult(
+                    type="structured_invocation_result",
+                    status="error",
+                    error_message=f"Error during execution: {exception}",
+                )
+                await self._return_structured_result(invocation_data, result_data, a2a_context)
+                return
+
+            # Restore the retry count that was saved when the task paused.
+            # This prevents the count from resetting to 0 on deferred finalization.
+            retry_count = task_context.get_flag("si_retry_count", 0)
+            await self._run_si_finalization(
+                task_context, a2a_context, log_id, retry_count=retry_count
+            )
+
+        except Exception as e:
+            log.exception(
+                f"{log_id} Error in deferred SI finalization: {e}"
+            )
+            try:
+                result_data = StructuredInvocationResult(
+                    type="structured_invocation_result",
+                    status="error",
+                    error_message=f"Internal error during finalization: {e}",
+                )
+                await self._return_structured_result(invocation_data, result_data, a2a_context)
+            except Exception as e2:
+                log.exception(f"{log_id} Failed to send error result: {e2}")
+
+        finally:
+            self._cleanup_structured_invocation(task_context, logical_task_id, original_callback)
 
     def _create_workflow_callback(
         self,
@@ -678,10 +798,14 @@ If you cannot complete the task, use:
         invocation_data: StructuredInvocationRequest,
         output_schema: Optional[Dict[str, Any]],
         retry_count: int = 0,
-    ) -> StructuredInvocationResult:
+    ) -> Optional[StructuredInvocationResult]:
         """
         Finalize structured invocation with output validation.
         Handles retry on validation failure or missing result embed.
+
+        Returns:
+            StructuredInvocationResult if finalization completed, or None if a retry
+            paused for peer-agent calls (finalization will be deferred).
         """
         log_id = f"{self.host.log_identifier}[Node:{invocation_data.node_id}]"
 
@@ -955,9 +1079,13 @@ Remember to end your response with the result embed:
         output_schema: Optional[Dict[str, Any]],
         feedback_text: str,
         retry_count: int,
-    ) -> StructuredInvocationResult:
+    ) -> Optional[StructuredInvocationResult]:
         """
         Execute a retry loop: append feedback, run agent, and validate result.
+
+        Returns:
+            StructuredInvocationResult if completed, or None if the agent paused
+            for peer-agent calls (finalization will be deferred).
         """
         log_id = f"{self.host.log_identifier}[Node:{invocation_data.node_id}]"
         log.info(f"{log_id} Executing retry loop {retry_count}/{self.max_validation_retries}")
@@ -1010,7 +1138,7 @@ Remember to end your response with the result embed:
 
             # Run the agent again with the feedback content
             # The runner will handle appending the event to the session
-            await run_adk_async_task_thread_wrapper(
+            is_paused = await run_adk_async_task_thread_wrapper(
                 self.host,
                 session,
                 feedback_content,
@@ -1019,6 +1147,20 @@ Remember to end your response with the result embed:
                 skip_finalization=True,
                 append_context_event=False # Context already set
             )
+
+            # If the agent is paused (waiting for peer-agent responses),
+            # return None to signal that finalization is deferred.
+            # The runner will call finalize_deferred_structured_invocation()
+            # when the retrigger completes.
+            if is_paused:
+                log.info(
+                    f"{log_id} Agent paused during retry for peer-agent responses. "
+                    "Deferring SI finalization until retrigger completes."
+                )
+                # Preserve the retry count so deferred finalization continues
+                # from the correct retry position instead of resetting to 0.
+                task_context.set_flag("si_retry_count", retry_count)
+                return None
 
             # 3. Fetch updated session and validate new result
             updated_session = await self.host.session_service.get_session(
@@ -1034,17 +1176,17 @@ Remember to end your response with the result embed:
                     if event.content and event.content.role == "model":
                         last_model_event = event
                         break
-            
+
             if not last_model_event:
                 log.warning(f"{log_id} No model response in retry turn.")
                 # This will trigger another retry if count allows, via _finalize...
 
             # Recursively call finalize to validate the new output
             return await self._finalize_structured_invocation(
-                updated_session, 
-                last_model_event, 
-                invocation_data, 
-                output_schema, 
+                updated_session,
+                last_model_event,
+                invocation_data,
+                output_schema,
                 retry_count
             )
 

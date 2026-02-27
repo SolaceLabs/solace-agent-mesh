@@ -840,9 +840,20 @@ class SamAgentComponent(SamComponentBase):
             if original_task_context:
                 loop = self.get_async_loop()
                 if loop and loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        self.finalize_task_error(e, original_task_context), loop
-                    )
+                    # For structured invocation tasks, route the error through
+                    # the SI handler so it can send a proper structured error
+                    # result and clean up.
+                    if task_context.get_flag("structured_invocation"):
+                        asyncio.run_coroutine_threadsafe(
+                            self.structured_invocation_handler.finalize_deferred_structured_invocation(
+                                task_context, original_task_context, e
+                            ),
+                            loop,
+                        )
+                    else:
+                        asyncio.run_coroutine_threadsafe(
+                            self.finalize_task_error(e, original_task_context), loop
+                        )
                 else:
                     log.error(
                         "%s Async loop not available. Cannot schedule error finalization for task %s.",
