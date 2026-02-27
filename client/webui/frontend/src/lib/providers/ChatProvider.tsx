@@ -1510,6 +1510,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isComplete: true,
                             metadata: { ...newMessages[taskMessageIndex].metadata, lastProcessedEventSequence: currentEventSequence },
                         };
+                    } else if (result.kind === "task" && result.status?.state !== "failed" && result.status?.message?.parts) {
+                        // Fallback: the final response arrived before any status updates
+                        // (race condition between response and status broker topics).
+                        // Create a bubble from the final response's content.
+                        const fallbackParts = (result.status.message.parts as PartFE[]).filter(
+                            (p: PartFE) => p.kind === "text" || p.kind === "file"
+                        );
+                        if (fallbackParts.length > 0) {
+                            newMessages.push({
+                                role: "agent",
+                                parts: fallbackParts,
+                                taskId: currentTaskIdFromResult,
+                                isUser: false,
+                                isComplete: true,
+                                metadata: {
+                                    messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                                    sessionId: (result as unknown as { contextId?: string }).contextId || sessionId,
+                                    lastProcessedEventSequence: currentEventSequence,
+                                },
+                            });
+                        }
                     }
                 }
 
