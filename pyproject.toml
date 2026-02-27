@@ -83,7 +83,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-vertex = ["google-cloud-aiplatform==1.126.1"]
+vertex = ["google-cloud-aiplatform==1.133.0"]
 employee_tools = ["holidays==0.81.0"]
 test = [
     "pytest-asyncio",
