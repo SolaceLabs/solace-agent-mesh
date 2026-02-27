@@ -4,8 +4,8 @@ Manages the asynchronous execution of the ADK Runner.
 
 import logging
 import asyncio
+import os
 
-import litellm
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from litellm.exceptions import BadRequestError
 
@@ -95,6 +95,29 @@ def _is_background_task(a2a_context: dict) -> bool:
     return False
 
 
+def _get_test_token_threshold() -> int:
+    """
+    Get the TEST_TOKEN_TRIGGER_THRESHOLD from environment variable.
+
+    This must be called at runtime (not module import time) to ensure pytest_configure
+    has already set the env var in test mode.
+
+    Returns:
+        Token threshold value, or -1 if not set (test mode disabled)
+    """
+    return int(os.getenv("TEST_TOKEN_TRIGGER_THRESHOLD", "-1"))
+
+
+def _is_test_mode_trigger_enabled() -> bool:
+    """
+    Check if test mode compaction is enabled via TEST_TOKEN_TRIGGER_THRESHOLD env var.
+
+    Returns:
+        True if TEST_TOKEN_TRIGGER_THRESHOLD > 0 (test mode enabled), False otherwise
+    """
+    return _get_test_token_threshold() > 0
+
+
 def _calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-4-vision") -> int:
     """
     Calculate total tokens the LLM will receive for this session.
@@ -146,6 +169,51 @@ def _calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-
         sum(1 for e in events if e.content)
     )
     return total_tokens
+
+
+def _test_and_trigger_compaction(
+    test_token_threshold: int,
+    adk_session: ADKSession,
+    component: Any
+) -> None:
+    """
+    Test token count against TEST_TOKEN_TRIGGER_THRESHOLD and trigger compaction error if exceeded.
+    This is used only for unit/integration and manual testing to force proactive compaction trigger.
+    Raises BadRequestError if token count exceeds threshold, which triggers the retry loop
+    with automatic summarization.
+
+    Args:
+        TEST_TOKEN_TRIGGER_THRESHOLD: Token threshold from TEST_TOKEN_TRIGGER_THRESHOLD env var
+        adk_session: The ADK session with events
+        component: The SamAgentComponent for logging and model info
+
+    Raises:
+        BadRequestError: If token count exceeds threshold (triggers compaction retry loop)
+    """
+    total_tokens = _calculate_session_context_tokens(adk_session.events, model=str(component.adk_agent.model))
+    log.info(
+        "%s Proactive compaction check: total_tokens=%d, threshold=%d, exceeds=%s",
+        component.log_identifier,
+        total_tokens,
+        test_token_threshold,
+        total_tokens > test_token_threshold
+    )
+
+    if total_tokens > test_token_threshold:
+        log.warning(
+            "%s Proactive compaction triggered: total_tokens=%d exceeds threshold=%d",
+            component.log_identifier,
+            total_tokens,
+            test_token_threshold
+        )
+        # Extract provider from model string (format: "provider/model-name")
+        model_str = str(component.adk_agent.model)
+        provider = model_str.split('/')[0] if '/' in model_str else model_str
+        raise BadRequestError(
+            message=f"Too many tokens: {total_tokens} tokens exceed token limit {test_token_threshold} (proactive compaction triggered)",
+            model=model_str,
+            llm_provider=provider
+        )
 
 
 def _find_compaction_cutoff(
@@ -935,7 +1003,6 @@ async def run_adk_async_task_thread_wrapper(
     # Read auto-summarization config from component (per-agent configuration)
     auto_sum_config = component.auto_summarization_config
     compaction_enabled = auto_sum_config.get("enabled", False)
-    token_threshold = auto_sum_config.get("compaction_trigger_token_limit_threshold", -1)
     compaction_percentage = auto_sum_config.get("compaction_percentage", 0.25)
 
     logical_task_id = a2a_context.get("logical_task_id", "unknown_task")
@@ -1022,31 +1089,9 @@ async def run_adk_async_task_thread_wrapper(
 
         while retry_count <= max_retries:
             try:
-                # Proactively trigger compaction when token count exceeds threshold
-                if compaction_enabled and token_threshold > 0 and adk_session.events and adk_content.role == 'user':
-                    total_tokens = _calculate_session_context_tokens(adk_session.events, model=str(component.adk_agent.model))
-                    log.info(
-                        "%s Proactive compaction check: total_tokens=%d, threshold=%d, exceeds=%s",
-                        component.log_identifier,
-                        total_tokens,
-                        token_threshold,
-                        total_tokens > token_threshold
-                    )
-                    if total_tokens > token_threshold:
-                        log.warning(
-                            "%s Proactive compaction triggered: total_tokens=%d exceeds threshold=%d",
-                            component.log_identifier,
-                            total_tokens,
-                            token_threshold
-                        )
-                        # Extract provider from model string (format: "provider/model-name")
-                        model_str = str(component.adk_agent.model)
-                        provider = model_str.split('/')[0] if '/' in model_str else model_str
-                        raise BadRequestError(
-                            message=f"Too many tokens: {total_tokens} tokens exceed token limit {token_threshold} (proactive compaction triggered)",
-                            model=model_str,
-                            llm_provider=provider
-                        )
+                # Check if test mode compaction is enabled and should trigger, will always be false for prod.
+                if _is_test_mode_trigger_enabled() and compaction_enabled and adk_session.events and adk_content.role == 'user':
+                    _test_and_trigger_compaction(_get_test_token_threshold(), adk_session, component)
 
                 is_paused = await run_adk_async_task(
                     component,
