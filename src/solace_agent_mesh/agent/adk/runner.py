@@ -152,18 +152,30 @@ def _calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-
     total_tokens = 0
 
     # Count tokens for each event individually
-    for event in events:
+    for idx, event in enumerate(events):
         if event.content:
             try:
                 tokens = _calculate_content_tokens(event.content, model=model)
+                log.debug(
+                    "Event[%d] role=%s tokens=%d",
+                    idx,
+                    event.content.role if hasattr(event.content, 'role') else 'unknown',
+                    tokens
+                )
                 total_tokens += tokens
             except Exception as e:
                 log.warning(
-                    "Failed to count event tokens: %s",
+                    "Failed to count event tokens for event[%d]: %s",
+                    idx,
                     e
                 )
                 continue
 
+    log.info(
+        "Session total tokens: %d (from %d events with content)",
+        total_tokens,
+        sum(1 for e in events if e.content)
+    )
     return total_tokens
 
 
@@ -198,7 +210,7 @@ def _find_compaction_cutoff(
     if not events:
         return 0, 0
 
-    # Find all user turn indices (same logic as genuine user messages)
+    # Find all user turn indices
     user_indices = [
         i for i, e in enumerate(events)
         if e.content
@@ -1059,6 +1071,13 @@ async def run_adk_async_task_thread_wrapper(
                 # Proactively trigger compaction when token count exceeds threshold
                 if compaction_enabled and token_threshold > 0 and adk_session.events and adk_content.role == 'user':
                     total_tokens = _calculate_session_context_tokens(adk_session.events)
+                    log.info(
+                        "%s Proactive compaction check: total_tokens=%d, threshold=%d, exceeds=%s",
+                        component.log_identifier,
+                        total_tokens,
+                        token_threshold,
+                        total_tokens > token_threshold
+                    )
                     if total_tokens > token_threshold:
                         log.warning(
                             "%s Proactive compaction triggered: total_tokens=%d exceeds threshold=%d",
@@ -1067,7 +1086,7 @@ async def run_adk_async_task_thread_wrapper(
                             token_threshold
                         )
                         raise BadRequestError(
-                            message=f"Proactive compaction: {total_tokens} tokens exceed limit {token_threshold}",
+                            message=f"Too many tokens: {total_tokens} tokens exceed token limit {token_threshold} (proactive compaction triggered)",
                             model="test-model",
                             llm_provider="test-provider"
                         )
