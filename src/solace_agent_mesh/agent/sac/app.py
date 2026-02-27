@@ -498,6 +498,18 @@ class SamAgentApp(SamAppBase):
 
         app_config_dict = app_info.get("app_config", {})
 
+        agent_name = app_config_dict.get("agent_name", "")
+        # The agent name must be alphanumeric and underscore only
+        if not all(c.isalnum() or c == "_" for c in agent_name):
+            # Converting to a valid format by replacing invalid characters with underscores
+            valid_agent_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in agent_name)
+            log.warning(
+                "Agent name '%s' contains invalid characters. Converted to '%s'",
+                agent_name,
+                valid_agent_name,
+            )
+            app_config_dict["agent_name"] = valid_agent_name
+
         try:
             # Validate the raw dict, cleaning None values to allow defaults to apply
             app_config = SamAgentAppConfig.model_validate_and_clean(app_config_dict)
