@@ -6,6 +6,7 @@ import time
 import subprocess
 import sys
 import tempfile
+import os
 from pathlib import Path
 
 import httpx
@@ -46,6 +47,15 @@ from tests.integration.test_support.a2a_agent.executor import (
 
 if TYPE_CHECKING:
     from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+
+
+def pytest_configure(config):
+    """Configure pytest and set environment variables before test session starts.
+
+    This runs BEFORE all fixtures, ensuring env vars are available during fixture initialization.
+    """
+    # Enable TEST_TOKEN_TRIGGER_THRESHOLD for proactive compaction tests (300 token threshold)
+    os.environ["TEST_TOKEN_TRIGGER_THRESHOLD"] = "300"
 
 
 @pytest.fixture(scope="session")
@@ -915,7 +925,6 @@ def shared_solace_connector(
     # Enable auto-summarization with low thresholds for testing
     compaction_agent_config["auto_summarization"] = {
         "enabled": True,
-        "compaction_trigger_token_limit_threshold": 300,  # Low threshold for testing
         "compaction_percentage": 0.30,  # Compact 30% of conversation
     }
 
@@ -1254,7 +1263,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1364,7 +1373,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1449,7 +1458,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1507,7 +1516,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1607,7 +1616,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1662,7 +1671,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1710,7 +1719,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1775,7 +1784,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1810,7 +1819,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
-                "auto_summarization": {"enabled": False, "compaction_trigger_token_limit_threshold": -1, "compaction_percentage": 0.25},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
