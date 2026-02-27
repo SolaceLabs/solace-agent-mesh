@@ -61,6 +61,9 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                         return null;
                     }
                     // Render parallel block - children displayed side-by-side with bounding box
+                    {
+                        /* Dark mode background colour should be removed once the stateLayer-w10 is mapped to its correct dark mode value. */
+                    }
                     return (
                         <div key={child.id} className="flex flex-row items-start gap-4 rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) p-4 dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]">
                             {child.children.map(parallelChild => renderChild(parallelChild))}

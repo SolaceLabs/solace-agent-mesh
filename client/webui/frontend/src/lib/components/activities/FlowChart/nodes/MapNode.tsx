@@ -74,6 +74,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                 </div>
 
                 {/* Dotted Children Container - grows with content */}
+                {/* Dark mode background colour should be removed once the stateLayer-w10 is mapped to its correct dark mode value. */}
                 <div
                     className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]"
                     style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
