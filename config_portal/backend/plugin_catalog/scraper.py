@@ -54,6 +54,35 @@ class PluginScraper:
                 specific_repo_dir,
             )
 
+    def clear_git_cache(self, registry_id: Optional[str] = None):
+        """
+        Clear git repository cache for a specific registry or all registries.
+        
+        This is useful when re-adding a registry to ensure fresh data is fetched.
+        
+        Args:
+            registry_id: If provided, clear only this registry's cache.
+                        If None, clear all caches.
+        """
+        if registry_id:
+            cleared = False
+            for item in self.temp_base_dir.iterdir():
+                if item.is_dir() and not item.name.startswith("."):
+                    self._clear_temp_dir(item)
+                    cleared = True
+            if cleared:
+                logger.info("Cleared git cache for registry: %s", registry_id)
+            else:
+                logger.info("No git cache found for registry: %s", registry_id)
+        else:
+            # Clear all caches
+            cleared_count = 0
+            for item in self.temp_base_dir.iterdir():
+                if item.is_dir() and not item.name.startswith("."):
+                    self._clear_temp_dir(item)
+                    cleared_count += 1
+            logger.info("Cleared all git repository caches (%d directories)", cleared_count)
+
     def _parse_pyproject(self, plugin_dir: Path) -> Optional[PyProjectDetails]:
         pyproject_path = plugin_dir / "pyproject.toml"
         if not pyproject_path.exists():
@@ -223,7 +252,18 @@ class PluginScraper:
         logger.debug("README.md not found in %s", plugin_dir)
         return None
 
-    def _scrape_git_registry(self, registry: Registry) -> List[PluginScrapedInfo]:
+    def _scrape_git_registry(self, registry: Registry, force_fresh_clone: bool = False) -> List[PluginScrapedInfo]:
+        """
+        Scrape plugins from a git registry.
+        
+        Args:
+            registry: Registry to scrape
+            force_fresh_clone: If True, remove existing clone and do fresh clone.
+                              This is useful when re-adding a registry to ensure fresh data.
+        
+        Returns:
+            List of scraped plugin information
+        """
         repo_identifier = (
             registry.name
             if registry.name
@@ -234,14 +274,32 @@ class PluginScraper:
 
         try:
             if repo_local_path.exists():
-                logger.info(
-                    "Git registry %s already cloned. Pulling latest changes from %s.",
-                    repo_identifier,
-                    registry.path_or_url,
-                )
-                cloned_repo = git.Repo(repo_local_path)
-                cloned_repo.remotes.origin.pull()
-            else:
+                if force_fresh_clone:
+                    logger.info(
+                        "Force fresh clone requested for %s. Removing existing clone at %s",
+                        repo_identifier,
+                        repo_local_path
+                    )
+                    self._clear_temp_dir(repo_local_path)
+                else:
+                    logger.info(
+                        "Git registry %s already cloned. Pulling latest changes from %s.",
+                        repo_identifier,
+                        registry.path_or_url,
+                    )
+                    try:
+                        cloned_repo = git.Repo(repo_local_path)
+                        cloned_repo.remotes.origin.pull()
+                    except Exception as pull_error:
+                        logger.warning(
+                            "Git pull failed for %s: %s. Attempting fresh clone...",
+                            repo_identifier,
+                            pull_error
+                        )
+                        self._clear_temp_dir(repo_local_path)
+                        force_fresh_clone = True
+            
+            if not repo_local_path.exists() or force_fresh_clone:
                 logger.info(
                     "Cloning git registry: %s to %s",
                     registry.path_or_url,
@@ -381,17 +439,37 @@ class PluginScraper:
         return plugins_found
 
     def get_all_plugins(
-        self, registries: List[Registry], force_refresh: bool = False
+        self, registries: List[Registry], force_refresh: bool = False, force_fresh_clone: bool = False
     ) -> List[PluginScrapedInfo]:
+        """
+        Get all plugins from all registries.
+        
+        Args:
+            registries: List of registries to scrape
+            force_refresh: If True, ignore cache and re-scrape
+            force_fresh_clone: If True, force fresh git clone for all git registries (implies force_refresh)
+        
+        Returns:
+            List of all scraped plugins
+        """
+        if force_fresh_clone:
+            force_refresh = True
+        
         if not force_refresh and self.is_cache_populated:
             logger.info("Returning cached plugins.")
             return self.plugin_cache
 
-        logger.info("Refreshing plugin cache. Force refresh: %s", force_refresh)
+        logger.info(
+            "Refreshing plugin cache. Force refresh: %s, Force fresh clone: %s",
+            force_refresh,
+            force_fresh_clone
+        )
         self.plugin_cache.clear()
         for reg_model in registries:
             if reg_model.type == "git":
-                self.plugin_cache.extend(self._scrape_git_registry(reg_model))
+                self.plugin_cache.extend(
+                    self._scrape_git_registry(reg_model, force_fresh_clone=force_fresh_clone)
+                )
             elif reg_model.type == "local":
                 self.plugin_cache.extend(self._scrape_local_registry(reg_model))
             else:
