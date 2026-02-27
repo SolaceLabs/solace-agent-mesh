@@ -1,10 +1,19 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { scrollToElement } from "@/lib/hooks/useScrollToHighlight";
+import { api } from "@/lib/api";
+// Use ?url import so Vite emits the worker as a tracked static asset with a
+// content-hashed filename when building the app.
+// When building as a library (SAM Enterprise consumer), this import resolves
+// to "./pdf.worker.min.mjs" via pdfWorkerLibPlugin, or may be undefined if
+// the library was built without the plugin. The fallback ensures PDF.js always
+// has a valid workerSrc pointing to the file copied into static/ by
+// copyPdfWorkerPlugin in the SAM Enterprise vite.config.ts.
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 // Custom event for snip-to-chat functionality
 export const SNIP_TO_CHAT_EVENT = "snip-to-chat";
@@ -14,8 +23,10 @@ export interface SnipToChatEventDetail {
     filename: string;
 }
 
-// Configure PDF.js worker from local npm package (pdfjs-dist)
-pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+// Configure PDF.js worker.
+// Fall back to the stable filename when the ?url import resolves to undefined
+// (happens when the library bundle was built without pdfWorkerLibPlugin).
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl || "./pdf.worker.min.mjs";
 
 export interface CitationMapEntry {
     location: string; // e.g., "physical_page_5"
@@ -39,7 +50,10 @@ interface SelectionRect {
 
 type InteractionMode = "text" | "pan" | "snip";
 
-const pdfOptions = { withCredentials: true };
+// Module-level LRU cache for blob URLs keyed by artifact URL.
+// Avoids re-fetching the same PDF on re-renders or tab switches.
+const PDF_BLOB_CACHE_MAX = 10;
+const pdfBlobCache = new Map<string, string>();
 
 /**
  * PDF renderer with citation highlighting and snip-to-chat functionality.
@@ -48,6 +62,61 @@ const pdfOptions = { withCredentials: true };
  * highlighting. Tested performant up to ~50 pages; may be sluggish for larger documents.
  */
 const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, citationMaps = [] }) => {
+    // pdfOptions for react-pdf — no auth headers needed since we fetch via
+    // the api client and pass a blob URL instead of the raw API URL.
+    const pdfOptions = useMemo(() => ({ withCredentials: false }), []);
+
+    // Resolved URL: either a blob URL (fetched via api client) or the original URL.
+    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!url) return;
+
+        // Check module-level cache first
+        const cached = pdfBlobCache.get(url);
+        if (cached) {
+            setResolvedUrl(cached);
+            return;
+        }
+
+        let cancelled = false;
+
+        const fetchPdf = async () => {
+            try {
+                // Use the api client which handles Bearer token auth + token refresh.
+                // Falls back to cookie auth when no token is present (community mode).
+                const response = await api.webui.get(url, { fullResponse: true });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+                }
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                if (!cancelled) {
+                    // Evict oldest entry if cache is full (LRU)
+                    if (pdfBlobCache.size >= PDF_BLOB_CACHE_MAX) {
+                        const firstKey = pdfBlobCache.keys().next().value;
+                        if (firstKey) {
+                            URL.revokeObjectURL(pdfBlobCache.get(firstKey)!);
+                            pdfBlobCache.delete(firstKey);
+                        }
+                    }
+                    pdfBlobCache.set(url, blobUrl);
+                    setResolvedUrl(blobUrl);
+                }
+            } catch {
+                if (!cancelled) {
+                    setFetchError("Failed to load PDF.");
+                }
+            }
+        };
+
+        fetchPdf();
+        return () => {
+            cancelled = true;
+        };
+    }, [url]);
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -94,10 +163,10 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
     // Build document-wide character boundaries for each page
     // Performance trade-off: Rendering all pages upfront for citation highlighting accuracy.
     useEffect(() => {
-        if (!citationMaps.length || !numPages || !url) return;
+        if (!citationMaps.length || !numPages || !resolvedUrl) return;
 
         let cancelled = false;
-        const loadingTask = pdfjs.getDocument({ url, withCredentials: true });
+        const loadingTask = pdfjs.getDocument(resolvedUrl);
 
         const buildPageBoundaries = async () => {
             try {
@@ -137,7 +206,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
             cancelled = true;
             loadingTask.destroy();
         };
-    }, [citationMaps, numPages, url]);
+    }, [citationMaps, numPages, resolvedUrl]);
 
     // Highlight citation text using character positions from citation_map
     useEffect(() => {
@@ -445,6 +514,19 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
         return "auto";
     };
 
+    if (fetchError) {
+        return (
+            <div className="flex h-full flex-col overflow-auto p-4">
+                <div className="flex flex-grow flex-col items-center justify-center text-center">
+                    <div className="mb-4 p-4 text-red-500">{fetchError}</div>
+                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
+                        Download PDF
+                    </a>
+                </div>
+            </div>
+        );
+    }
+
     if (error) {
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
@@ -453,6 +535,16 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                     <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
                         Download PDF
                     </a>
+                </div>
+            </div>
+        );
+    }
+
+    if (!resolvedUrl) {
+        return (
+            <div className="flex h-full flex-col overflow-auto p-4">
+                <div className="flex flex-grow flex-col items-center justify-center text-center">
+                    <div className="p-4 text-gray-500">Loading PDF...</div>
                 </div>
             </div>
         );
@@ -547,7 +639,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
 
                 <Document
                     options={pdfOptions}
-                    file={url}
+                    file={resolvedUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
                     onLoadError={onDocumentLoadError}
                     loading={<div className="p-4 text-center">Loading PDF...</div>}
