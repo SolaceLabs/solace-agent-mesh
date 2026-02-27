@@ -1,3 +1,4 @@
+import { api } from "@/lib/api";
 import { getArtifactContent as getArtifactContentUtil } from "@/lib/utils/file";
 
 /**
@@ -16,4 +17,22 @@ export async function getArtifactContent(projectId: string, filename: string): P
         projectId,
         version: "latest", // Fetch latest version
     });
+}
+
+/**
+ * Fetches a PDF artifact as a blob and returns a blob URL.
+ * Uses the api client which handles Bearer token auth + token refresh.
+ * Falls back to cookie auth when no token is present (community mode).
+ *
+ * @param url - The artifact URL to fetch
+ * @returns Promise with blob URL string
+ * @throws Error if fetch fails or response is not ok
+ */
+export async function fetchPdfBlob(url: string): Promise<string> {
+    const response = await api.webui.get(url, { fullResponse: true });
+    if (!response.ok) {
+        throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+    }
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
 }

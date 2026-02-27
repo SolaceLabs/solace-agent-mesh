@@ -5,7 +5,7 @@ import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { scrollToElement } from "@/lib/hooks/useScrollToHighlight";
-import { api } from "@/lib/api";
+import { usePdfBlob } from "@/lib/api/artifacts/hooks";
 // Use ?url import so Vite emits the worker as a tracked static asset with a
 // content-hashed filename when building the app.
 // When building as a library (SAM Enterprise consumer), this import resolves
@@ -50,11 +50,6 @@ interface SelectionRect {
 
 type InteractionMode = "text" | "pan" | "snip";
 
-// Module-level LRU cache for blob URLs keyed by artifact URL.
-// Avoids re-fetching the same PDF on re-renders or tab switches.
-const PDF_BLOB_CACHE_MAX = 10;
-const pdfBlobCache = new Map<string, string>();
-
 /**
  * PDF renderer with citation highlighting and snip-to-chat functionality.
  *
@@ -62,61 +57,12 @@ const pdfBlobCache = new Map<string, string>();
  * highlighting. Tested performant up to ~50 pages; may be sluggish for larger documents.
  */
 const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, citationMaps = [] }) => {
+    // Fetch PDF as blob URL using React Query
+    const { data: resolvedUrl, error: fetchError } = usePdfBlob(url);
+
     // pdfOptions for react-pdf — no auth headers needed since we fetch via
     // the api client and pass a blob URL instead of the raw API URL.
     const pdfOptions = useMemo(() => ({ withCredentials: false }), []);
-
-    // Resolved URL: either a blob URL (fetched via api client) or the original URL.
-    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
-    const [fetchError, setFetchError] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!url) return;
-
-        // Check module-level cache first
-        const cached = pdfBlobCache.get(url);
-        if (cached) {
-            setResolvedUrl(cached);
-            return;
-        }
-
-        let cancelled = false;
-
-        const fetchPdf = async () => {
-            try {
-                // Use the api client which handles Bearer token auth + token refresh.
-                // Falls back to cookie auth when no token is present (community mode).
-                const response = await api.webui.get(url, { fullResponse: true });
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch PDF: ${response.statusText}`);
-                }
-                const blob = await response.blob();
-                const blobUrl = URL.createObjectURL(blob);
-
-                if (!cancelled) {
-                    // Evict oldest entry if cache is full (LRU)
-                    if (pdfBlobCache.size >= PDF_BLOB_CACHE_MAX) {
-                        const firstKey = pdfBlobCache.keys().next().value;
-                        if (firstKey) {
-                            URL.revokeObjectURL(pdfBlobCache.get(firstKey)!);
-                            pdfBlobCache.delete(firstKey);
-                        }
-                    }
-                    pdfBlobCache.set(url, blobUrl);
-                    setResolvedUrl(blobUrl);
-                }
-            } catch {
-                if (!cancelled) {
-                    setFetchError("Failed to load PDF.");
-                }
-            }
-        };
-
-        fetchPdf();
-        return () => {
-            cancelled = true;
-        };
-    }, [url]);
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -518,7 +464,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
                 <div className="flex flex-grow flex-col items-center justify-center text-center">
-                    <div className="mb-4 p-4 text-red-500">{fetchError}</div>
+                    <div className="mb-4 p-4 text-red-500">{fetchError instanceof Error ? fetchError.message : "Failed to load PDF."}</div>
                     <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
                         Download PDF
                     </a>

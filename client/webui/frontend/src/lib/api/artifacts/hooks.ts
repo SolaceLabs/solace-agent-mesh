@@ -19,3 +19,21 @@ export function useArtifactContent(projectId: string | null, filename: string | 
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     });
 }
+
+/**
+ * Hook to fetch PDF artifact as a blob URL for rendering.
+ * Uses React Query for caching and the api client for authenticated fetching.
+ *
+ * @param url - The artifact URL to fetch (null disables the query)
+ * @returns React Query result with blob URL and error state
+ */
+export function usePdfBlob(url: string | null) {
+    return useQuery({
+        queryKey: url ? artifactKeys.pdfBlob(url) : ["artifacts", "pdf-blob", "empty"],
+        queryFn: url ? () => artifactService.fetchPdfBlob(url) : skipToken,
+        enabled: !!url,
+        staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+        gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes after last use
+        retry: 1, // Only retry once on failure
+    });
+}
