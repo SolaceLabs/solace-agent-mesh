@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useContext, useRef } from "rea
 import { FileType, Loader2, Download } from "lucide-react";
 import PdfRenderer from "./PdfRenderer";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
-import { getApiBearerToken } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 interface OfficeDocumentRendererProps {
     content: string;
@@ -107,30 +107,34 @@ const hashContent = (content: string, filename: string): string => {
 
 /**
  * Fetch with timeout using AbortController.
- * Adds Authorization: Bearer header when a token is available (SAM Enterprise).
+ * Uses the api client (authenticatedFetch) which handles Bearer token auth and token refresh.
+ * Falls back to cookie auth when no token is present (community mode).
  */
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
     // Create a timeout abort controller
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
 
-    // Create a combined abort handler if external signal is provided
+    // Combine external abort signal with timeout signal
     const combinedSignal = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal;
 
-    // Add Bearer token if available (SAM Enterprise uses JWT auth)
-    const token = getApiBearerToken();
-    const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    const method = (options.method || "GET").toUpperCase();
 
     try {
-        const response = await fetch(url, {
-            ...options,
-            headers: {
-                ...options.headers,
-                ...authHeaders,
-            },
-            credentials: "include",
-            signal: combinedSignal,
-        });
+        let response: Response;
+        if (method === "POST") {
+            // Parse body back to object so api client can re-serialize with Content-Type header
+            const body = options.body ? JSON.parse(options.body as string) : undefined;
+            response = await api.webui.post(url, body, {
+                signal: combinedSignal,
+                fullResponse: true,
+            });
+        } else {
+            response = await api.webui.get(url, {
+                signal: combinedSignal,
+                fullResponse: true,
+            });
+        }
         return response;
     } finally {
         clearTimeout(timeoutId);
@@ -168,7 +172,7 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
     const checkConversionService = useCallback(
         async (signal: AbortSignal): Promise<boolean> => {
             try {
-                const response = await fetchWithTimeout("/api/v1/document-conversion/status", { credentials: "include" }, REQUEST_TIMEOUT_MS, signal);
+                const response = await fetchWithTimeout("/api/v1/document-conversion/status", {}, REQUEST_TIMEOUT_MS, signal);
 
                 if (!response.ok) {
                     console.warn("Document conversion service status check failed:", response.status);

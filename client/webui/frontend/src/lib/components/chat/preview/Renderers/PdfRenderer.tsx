@@ -4,7 +4,6 @@ import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
-import { getApiBearerToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 // Use ?url import so Vite emits the worker as a tracked static asset with a
 // content-hashed filename when building the app.
@@ -67,13 +66,11 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
         }
 
         let cancelled = false;
-        const token = getApiBearerToken();
 
         const fetchPdf = async () => {
             try {
-                // Use the api client (handles auth) to fetch the PDF as a blob,
-                // then create a blob URL. This avoids browser caching issues with
-                // Authorization headers and keeps the PDF in memory.
+                // Use the api client which handles Bearer token auth + token refresh.
+                // Falls back to cookie auth when no token is present (community mode).
                 const response = await api.webui.get(url, { fullResponse: true });
                 if (!response.ok) {
                     throw new Error(`Failed to fetch PDF: ${response.statusText}`);
@@ -82,7 +79,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                 const blobUrl = URL.createObjectURL(blob);
 
                 if (!cancelled) {
-                    // Evict oldest entry if cache is full
+                    // Evict oldest entry if cache is full (LRU)
                     if (pdfBlobCache.size >= PDF_BLOB_CACHE_MAX) {
                         const firstKey = pdfBlobCache.keys().next().value;
                         if (firstKey) {
@@ -95,29 +92,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                 }
             } catch {
                 if (!cancelled) {
-                    // If api client fetch fails (e.g. community mode with no token),
-                    // fall back to passing the URL directly with auth headers.
-                    if (token) {
-                        // Enterprise: try direct fetch with Authorization header
-                        try {
-                            const resp = await fetch(url, {
-                                headers: { Authorization: `Bearer ${token}` },
-                                credentials: "include",
-                            });
-                            if (!resp.ok) throw new Error(`${resp.status}`);
-                            const blob = await resp.blob();
-                            const blobUrl = URL.createObjectURL(blob);
-                            if (!cancelled) {
-                                pdfBlobCache.set(url, blobUrl);
-                                setResolvedUrl(blobUrl);
-                            }
-                        } catch {
-                            if (!cancelled) setFetchError("Failed to load PDF.");
-                        }
-                    } else {
-                        // Community: pass URL directly (cookie auth)
-                        if (!cancelled) setResolvedUrl(url);
-                    }
+                    setFetchError("Failed to load PDF.");
                 }
             }
         };
