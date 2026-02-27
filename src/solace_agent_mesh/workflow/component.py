@@ -92,7 +92,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         self.auto_summarization_config = self.get_config(
             "auto_summarization", {
                 "enabled": False,
-                "compaction_trigger_char_limit_threshold": -1,
+                "compaction_trigger_token_limit_threshold": -1,
                 "compaction_percentage": 0.25
             }
         )

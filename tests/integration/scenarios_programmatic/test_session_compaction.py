@@ -6,6 +6,7 @@ events are properly filtered, and the agent continues working correctly.
 """
 
 import pytest
+import base64
 from unittest.mock import patch
 from google.adk.events import Event as ADKEvent
 from google.adk.events.event_actions import EventActions, EventCompaction
@@ -274,3 +275,136 @@ async def test_compaction_percentage_30_verification(
         assert m.called
         # Should compact ~250 chars (1 interaction)
         assert 200 < char_counts[0] < 300, f"Should compact ~250 chars (30% of total), got {char_counts[0]}"
+
+
+async def test_session_compaction_with_binary_content(
+    test_llm_server: TestLLMServer,
+    test_gateway_app_instance: TestGatewayComponent,
+    compaction_agent_app_under_test: SamAgentApp,
+):
+    """
+    Test that compaction correctly accounts for binary content (images).
+
+    Verifies:
+    1. Token counter includes images in context size calculation
+    2. Compaction triggers based on total tokens (text + images)
+    3. Images are properly handled in compacted sessions
+    4. Agent can continue after compaction with binary content
+
+    Setup:
+    - Message 1: Text + small image (~85 tokens for image)
+    - Message 2: Text + medium image (~170 tokens for image, high-res)
+    - Message 3: Small text (triggers compaction due to accumulated tokens)
+    """
+    compaction_events = []
+
+    def create_image_part(width: int = 1920, height: int = 1080, size_kb: int = 100) -> adk_types.Part:
+        """Create a fake image part with base64 encoded data."""
+        # Create fake JPEG data (actual format doesn't matter for tests)
+        fake_image_data = b'\xFF\xD8\xFF\xE0' + b'\x00' * (size_kb * 1024 - 4)  # Fake JPEG header + padding
+        encoded = base64.b64encode(fake_image_data).decode('utf-8')
+        return adk_types.Part(
+            inline_data=adk_types.Blob(
+                data=encoded.encode('utf-8'),
+                mime_type="image/jpeg"
+            )
+        )
+
+    with patch('google.adk.apps.llm_event_summarizer.LlmEventSummarizer.maybe_summarize_events') as mock_summarizer:
+        def mock(events):
+            compaction_events.append({
+                'count': len(events),
+                'has_images': any(
+                    e.content and any(
+                        p.inline_data and p.inline_data.mime_type.startswith('image')
+                        for p in (e.content.parts or [])
+                    )
+                    for e in events
+                )
+            })
+            start_ts = events[0].timestamp if events and hasattr(events[0], 'timestamp') else 0
+            end_ts = events[-1].timestamp if events and hasattr(events[-1], 'timestamp') else 1
+            return create_compaction_event_mock(start_ts, end_ts, "Summary with images handled correctly.")
+
+        mock_summarizer.side_effect = mock
+
+        sid = None
+
+        # Message 1: Text + small image
+        llm_response_1 = {
+            "id": "chatcmpl-img1",
+            "object": "chat.completion",
+            "model": "gpt-4-vision",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "Image received and understood."}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 150, "completion_tokens": 10, "total_tokens": 160},  # 85 for image + text
+        }
+        prime_llm_server(test_llm_server, [llm_response_1])
+
+        input_data_1 = create_gateway_input_data(
+            target_agent="TestAgentCompaction",
+            user_identity="image_test@example.com",
+            text_parts_content=["Here is an image: "],
+            scenario_id="img_1",
+            external_context_override={
+                "test_case": "img_1",
+                "a2a_session_id": sid or f"test_session_binary_{pytest.timestamp if hasattr(pytest, 'timestamp') else 'abc'}",
+            },
+        )
+        # Add image part to message
+        if hasattr(input_data_1, 'message') and hasattr(input_data_1.message, 'parts'):
+            input_data_1.message.parts.append(adk_types.Part(
+                inline_data=adk_types.Blob(
+                    data=base64.b64encode(b'\xFF\xD8\xFF\xE0' + b'\x00' * 50000).decode('utf-8').encode('utf-8'),
+                    mime_type="image/jpeg"
+                )
+            ))
+
+        task_id_1 = await submit_test_input(test_gateway_app_instance, input_data_1, "img_1")
+        _, sid, _ = await get_all_task_events(test_gateway_app_instance, task_id_1, overall_timeout=10.0), \
+                    input_data_1.message_context.get("a2a_session_id") if hasattr(input_data_1, 'message_context') else None, \
+                    None
+        if not sid:
+            sid = f"test_session_binary_msg1"
+
+        # Message 2: Text + larger image
+        llm_response_2 = {
+            "id": "chatcmpl-img2",
+            "object": "chat.completion",
+            "model": "gpt-4-vision",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "Second image acknowledged."}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 250, "completion_tokens": 10, "total_tokens": 260},  # 170 for high-res image + text
+        }
+        prime_llm_server(test_llm_server, [llm_response_2])
+
+        _, sid, _ = await send_message_to_session(
+            test_gateway_app_instance, "TestAgentCompaction", "image_test@example.com",
+            "Another image for context", "img_2", test_llm_server, sid, "Second image acknowledged."
+        )
+
+        # Message 3: Small text message - should trigger compaction due to accumulated tokens
+        llm_response_3 = {
+            "id": "chatcmpl-img3",
+            "object": "chat.completion",
+            "model": "gpt-4-vision",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "Continuing after compaction."}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 50, "completion_tokens": 8, "total_tokens": 58},
+        }
+        prime_llm_server(test_llm_server, [llm_response_3])
+
+        _, sid, all_events = await send_message_to_session(
+            test_gateway_app_instance, "TestAgentCompaction", "image_test@example.com",
+            "Continue", "img_3", test_llm_server, sid, "Continuing after compaction."
+        )
+
+        # Verify compaction was triggered
+        assert mock_summarizer.called, "Compaction should have been triggered due to image tokens"
+        assert len(compaction_events) > 0, "At least one compaction event should be recorded"
+
+        # Verify agent responded successfully
+        terminal_event, aggregated_text, terminal_text = extract_outputs_from_event_list(all_events, "img_3")
+        response_text = aggregated_text or terminal_text
+        assert response_text is not None, "Agent should respond after compaction with binary content"
+
+        # Verify summary notification includes context about continuation
+        assert "Continuing" in response_text or "summarized" in response_text.lower(), \
+            f"Response should indicate continuation after compaction, got: {response_text}"

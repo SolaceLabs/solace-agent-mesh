@@ -148,10 +148,11 @@ shared_config:
       # Set to true to enable, false to disable (default: false)
       enabled: ${SAM_ENABLE_AUTO_SUMMARIZATION, false}
 
-      # Trigger compaction when total character count exceeds this threshold
-      # -1 = not enabled (default), positive value = character threshold
-      # 200k tokens ~ 900000 characters
-      compaction_trigger_char_limit_threshold: ${SAM_COMPACTION_TRIGGER_CHAR_LIMIT_THRESHOLD, -1}
+      # Trigger compaction when total token count exceeds this threshold
+      # -1 = not enabled (default), positive value = token threshold
+      # Token to character ratio: ~3.5-4.5 chars per token
+      # Examples: 100k tokens ~ 350k-450k chars, 200k tokens ~ 700k-900k chars, 1M tokens ~ 3.5M-4.5M chars
+      compaction_trigger_token_limit_threshold: ${SAM_COMPACTION_TRIGGER_TOKEN_LIMIT_THRESHOLD, -1}
 
       # Percentage of conversation to compact when summarisation is triggered
       # Conservative default: 0.25 = 25%

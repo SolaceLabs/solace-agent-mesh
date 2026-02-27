@@ -5,6 +5,7 @@ Manages the asynchronous execution of the ADK Runner.
 import logging
 import asyncio
 
+import litellm
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from litellm.exceptions import BadRequestError
 
@@ -26,6 +27,7 @@ from google.genai import types as adk_types
 from cachetools import TTLCache
 
 from ...common import a2a
+from .models.lite_llm import _content_to_message_param, _calculate_content_tokens
 
 log = logging.getLogger(__name__)
 
@@ -124,49 +126,74 @@ def _is_background_task(a2a_context: dict) -> bool:
     return False
 
 
-def _calculate_total_char_count(events: list[ADKEvent]) -> int:
+def _calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-4-vision") -> int:
     """
-    Calculate total character count across all event content.
-    Sums the length of all text in event.content.parts[].text across all events.
-    Only counts events with actual content (skips empty events).
+    Calculate total tokens the LLM will receive for this session.
+
+    Counts ALL events that will be sent to the LLM:
+    - User messages
+    - Model responses
+    - System events
+    - Compaction events with summaries
+    - Everything with content that contributes to context window
+
+    This includes text, images, videos, and all binary content types.
+
     Args:
-        events: List of ADK events
+        events: Session events
+        model: LLM model for token counting (default: gpt-4-vision)
+
     Returns:
-        Total character count from all event content
+        Total tokens that will be used in LLM context window
     """
     if not events:
         return 0
 
-    total_chars = 0
-    for event in events:
-        if event.content and event.content.parts:
-            for part in event.content.parts:
-                if part.text:
-                    total_chars += len(part.text)
+    total_tokens = 0
 
-    return total_chars
+    # Count tokens for each event individually
+    for event in events:
+        if event.content:
+            try:
+                tokens = _calculate_content_tokens(event.content, model=model)
+                total_tokens += tokens
+            except Exception as e:
+                log.warning(
+                    "Failed to count event tokens: %s",
+                    e
+                )
+                continue
+
+    return total_tokens
 
 
 def _find_compaction_cutoff(
     events: list[ADKEvent],
-    target_chars: int,
-    log_identifier: str = ""
+    target_tokens: int,
+    log_identifier: str = "",
+    model: str = "gpt-4-vision"
 ) -> tuple[int, int]:
     """
-    Find the cutoff index that gets closest to target character count.
+    Find the cutoff index that gets closest to target token count.
+
+    O(N) efficient algorithm:
+    1. Pre-calculates tokens for all events once (N token_counter calls)
+    2. Builds cumulative sum array (N math operations)
+    3. Finds best cutoff using array lookups (M binary searches, M << N)
 
     Always cuts at user turn boundaries (complete interactions).
     Ensures at least 1 user turn remains uncompacted.
 
     Args:
         events: All conversation events (non-compaction, non-system)
-        target_chars: Target number of characters to compact
+        target_tokens: Target number of tokens to compact
         log_identifier: Logging prefix
+        model: LLM model for token counting (default: gpt-4-vision)
 
     Returns:
-        Tuple of (cutoff_index, actual_chars_to_compact)
+        Tuple of (cutoff_index, actual_tokens_to_compact)
         - cutoff_index: Index where to cut (events[:cutoff_index] get compacted)
-        - actual_chars_to_compact: Actual character count up to cutoff
+        - actual_tokens_to_compact: Actual token count up to cutoff
     """
     if not events:
         return 0, 0
@@ -189,42 +216,64 @@ def _find_compaction_cutoff(
         )
         return 0, 0
 
-    # Iterate through potential cutoff points (each user turn except the last)
-    # For each cutoff, we'll calculate the char count up to that point
+    # OPTIMIZATION: Pre-calculate tokens for all events once (O(N) with N token_counter calls)
+    import time
+
+    start_time = time.time()
+    event_tokens = []
+    for event in events:
+        if event.content:
+            try:
+                tokens = _calculate_content_tokens(event.content, model=model)
+                event_tokens.append(tokens)
+            except Exception as e:
+                log.warning("Failed to count event tokens: %s", e)
+                event_tokens.append(0)
+        else:
+            event_tokens.append(0)
+
+    elapsed = time.time() - start_time
+    log.info(
+        "%s Pre-calculated tokens for %d events in %.2f seconds",
+        log_identifier,
+        len(events),
+        elapsed
+    )
+
+    # Build cumulative sum array: cumulative_tokens[i] = sum of tokens from 0 to i
+    cumulative_tokens = [0]
+    for tokens in event_tokens:
+        cumulative_tokens.append(cumulative_tokens[-1] + tokens)
+
+    # Find best cutoff using cumulative array (O(M) where M = number of user turns << N)
     best_cutoff_idx = 0
-    best_char_count = 0
+    best_token_count = 0
     best_distance = float('inf')
 
-    # Try each user turn (except the last) as a potential cutoff point
     for turn_idx in range(len(user_indices) - 1):
         # The cutoff will be at the NEXT user turn (to include complete interactions)
         cutoff_idx = user_indices[turn_idx + 1]
 
-        # Calculate total chars from events[0:cutoff_idx]
-        char_count = 0
-        for event in events[:cutoff_idx]:
-            if event.content and event.content.parts:
-                for part in event.content.parts:
-                    if part.text:
-                        char_count += len(part.text)
+        # O(1) lookup: get cumulative tokens up to this cutoff
+        token_count = cumulative_tokens[cutoff_idx]
 
         # Check if this is closest to target
-        distance = abs(char_count - target_chars)
+        distance = abs(token_count - target_tokens)
         if distance < best_distance:
             best_distance = distance
             best_cutoff_idx = cutoff_idx
-            best_char_count = char_count
+            best_token_count = token_count
 
     log.info(
-        "%s Found cutoff at turn boundary (index=%d): %d chars (target: %d, diff: %d)",
+        "%s Found cutoff at turn boundary (index=%d): %d tokens (target: %d, diff: %d)",
         log_identifier,
         best_cutoff_idx,
-        best_char_count,
-        target_chars,
-        abs(best_char_count - target_chars)
+        best_token_count,
+        target_tokens,
+        abs(best_token_count - target_tokens)
     )
 
-    return best_cutoff_idx, best_char_count
+    return best_cutoff_idx, best_token_count
 
 async def _create_compaction_event(
     component: "SamAgentComponent",
@@ -235,8 +284,8 @@ async def _create_compaction_event(
     """
     Create a compaction event using percentage-based progressive summarization.
     Strategy:
-    1. Calculate total character count across all conversation events
-    2. Determine target compaction size (total_chars * compaction_threshold)
+    1. Calculate total token count across all conversation events
+    2. Determine target compaction size (total_tokens * compaction_threshold)
     3. Find user turn boundary closest to target percentage
     4. Extract previous summary (if exists) and create fake event to trick LlmEventSummarizer
     5. Pass [FakeSummaryEvent, NewEvents] to LLM for progressive re-compression
@@ -274,26 +323,26 @@ async def _create_compaction_event(
         else:
             non_compaction_events.append(event)
 
-    # 2. Calculate total character count and target compaction size
+    # 2. Calculate total token count and target compaction size
     # Use non_compaction_events (includes system + conversation) for consistency
     # with proactive trigger logic
-    total_chars = _calculate_total_char_count(non_compaction_events)
-    target_chars = int(total_chars * compaction_threshold)
+    total_tokens = _calculate_session_context_tokens(non_compaction_events)
+    target_tokens = int(total_tokens * compaction_threshold)
 
     log.info(
-        "%s Compaction target: %d total chars * %.1f%% = %d target chars",
+        "%s Compaction target: %d total tokens * %.1f%% = %d target tokens",
         log_identifier,
-        total_chars,
+        total_tokens,
         compaction_threshold * 100,
-        target_chars
+        target_tokens
     )
 
-    # 3. Find cutoff point using target character count
+    # 3. Find cutoff point using target token count
     # This finds the user turn boundary closest to our target percentage
-    # Pass ALL non_compaction_events to match our total_chars calculation
-    cutoff_idx, actual_chars = _find_compaction_cutoff(
+    # Pass ALL non_compaction_events to match our total_tokens calculation
+    cutoff_idx, actual_tokens = _find_compaction_cutoff(
         events=non_compaction_events,
-        target_chars=target_chars,
+        target_tokens=target_tokens,
         log_identifier=log_identifier
     )
 
@@ -354,18 +403,18 @@ async def _create_compaction_event(
 
     if latest_compaction:
         log.info(
-            "%s Compacting %d events: [PREVIOUS_SUMMARY + %d new events (%d chars)]",
+            "%s Compacting %d events: [PREVIOUS_SUMMARY + %d new events (%d tokens)]",
             log_identifier,
             len(events_to_compact),
             len(events_to_compact) - 1,  # -1 for fake summary event
-            actual_chars
+            actual_tokens
         )
     else:
         log.info(
-            "%s Compacting %d events (%d chars) - no previous summary",
+            "%s Compacting %d events (%d tokens) - no previous summary",
             log_identifier,
             len(events_to_compact),
-            actual_chars
+            actual_tokens
         )
 
     # 6. Use ADK's LlmEventSummarizer to create compaction event
@@ -920,7 +969,7 @@ async def run_adk_async_task_thread_wrapper(
     # Read auto-summarization config from component (per-agent configuration)
     auto_sum_config = component.auto_summarization_config
     compaction_enabled = auto_sum_config.get("enabled", False)
-    char_threshold = auto_sum_config.get("compaction_trigger_char_limit_threshold", -1)
+    token_threshold = auto_sum_config.get("compaction_trigger_token_limit_threshold", -1)
     compaction_percentage = auto_sum_config.get("compaction_percentage", 0.25)
 
     logical_task_id = a2a_context.get("logical_task_id", "unknown_task")
@@ -1007,18 +1056,18 @@ async def run_adk_async_task_thread_wrapper(
 
         while retry_count <= max_retries:
             try:
-                # Proactively trigger compaction when character count exceeds threshold
-                if compaction_enabled and char_threshold > 0 and adk_session.events and adk_content.role == 'user':
-                    total_chars = _calculate_total_char_count(adk_session.events)
-                    if total_chars > char_threshold:
+                # Proactively trigger compaction when token count exceeds threshold
+                if compaction_enabled and token_threshold > 0 and adk_session.events and adk_content.role == 'user':
+                    total_tokens = _calculate_session_context_tokens(adk_session.events)
+                    if total_tokens > token_threshold:
                         log.warning(
-                            "%s Proactive compaction triggered: total_chars=%d exceeds threshold=%d",
+                            "%s Proactive compaction triggered: total_tokens=%d exceeds threshold=%d",
                             component.log_identifier,
-                            total_chars,
-                            char_threshold
+                            total_tokens,
+                            token_threshold
                         )
                         raise BadRequestError(
-                            message=f"Proactive compaction: {total_chars} maximum context length exceeded {char_threshold}",
+                            message=f"Proactive compaction: {total_tokens} tokens exceed limit {token_threshold}",
                             model="test-model",
                             llm_provider="test-provider"
                         )
