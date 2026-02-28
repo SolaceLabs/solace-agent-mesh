@@ -15,7 +15,7 @@ gateway_input:
     - type: "text"
       text: "Get text data from the test server via Streamable HTTP."
   external_context:
-    a2a_session_id: "session_streamable_http_transport_001"
+    a2a_session_id: "session_mcp_streamable_http_transport_001"
 
 llm_interactions:
   - static_response:
