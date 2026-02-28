@@ -38,7 +38,7 @@ export const ACTIVITY_NODE_PROCESSING_CLASS = "processing-halo";
  * Connector line styling for vertical lines between nodes
  * Matches workflow visualization connector colors
  */
-export const CONNECTOR_LINE_CLASSES = "bg-(--color-secondary-w40) dark:bg-(--color-secondary-w80)";
+export const CONNECTOR_LINE_CLASSES = "bg-(--color-stateLayer-w20) dark:bg-[#FFFFFF2a]";
 
 /**
  * Standard connector sizes
@@ -46,4 +46,17 @@ export const CONNECTOR_LINE_CLASSES = "bg-(--color-secondary-w40) dark:bg-(--col
 export const CONNECTOR_SIZES = {
     MAIN: "h-4 w-0.5",
     BRANCH: "h-3 w-0.5",
+} as const;
+
+/**
+ * Layout dimensions and sizing constants for activity nodes
+ * Contains only shared values used across multiple node types
+ */
+export const ACTIVITY_NODE_LAYOUT = {
+    /** Standard header height for container nodes (Loop, Map, Workflow) */
+    HEADER_HEIGHT: 44,
+    /** Standard width for container nodes (Loop, Workflow) */
+    CONTAINER_WIDTH: 280,
+    /** Minimum height for leaf nodes (Agent, Tool) */
+    LEAF_NODE_MIN_HEIGHT: 50,
 } as const;

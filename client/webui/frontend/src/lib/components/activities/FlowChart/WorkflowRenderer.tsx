@@ -5,7 +5,6 @@ import type { LayoutNode, Edge } from "./utils/types";
 import AgentNode from "./nodes/AgentNode";
 import UserNode from "./nodes/UserNode";
 import WorkflowGroup from "./nodes/WorkflowGroup";
-// import EdgeLayer from "./EdgeLayer";
 
 /**
  * Check if a node or any of its descendants has status 'in-progress'

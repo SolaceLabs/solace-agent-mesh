@@ -11,7 +11,7 @@ interface UserNodeProps {
 }
 
 const UserNode: FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
-    const USER_WIDTH = 100; // Match agent width for consistency
+    const USER_WIDTH = 100;
 
     return (
         <div

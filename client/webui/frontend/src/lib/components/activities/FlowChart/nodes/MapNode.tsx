@@ -2,7 +2,7 @@ import { Fragment, useMemo, type FC } from "react";
 import { Repeat2 } from "lucide-react";
 
 import type { LayoutNode } from "../utils/types";
-import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES } from "../utils/nodeStyles";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT } from "../utils/nodeStyles";
 import AgentNode from "./AgentNode";
 
 interface MapNodeProps {
@@ -16,7 +16,7 @@ interface MapNodeProps {
 
 const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     // Layout constants
-    const HEADER_HEIGHT = 44;
+    const HEADER_HEIGHT = ACTIVITY_NODE_LAYOUT.HEADER_HEIGHT;
 
     // Group children by iterationIndex to create branches
     const branches = useMemo(() => {

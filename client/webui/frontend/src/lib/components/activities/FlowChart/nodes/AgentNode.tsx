@@ -182,7 +182,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                                     <Fragment key={child.id}>
                                         {renderChild(child)}
                                         {/* Connector line to next child in branch */}
-                                        {index < branch.length - 1 && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
+                                        {index < branch.length - 1 && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
                                     </Fragment>
                                 ))}
                             </div>

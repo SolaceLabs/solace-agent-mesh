@@ -4,7 +4,7 @@ import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 
 import type { LayoutNode } from "../utils/types";
-import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS } from "../utils/nodeStyles";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, ACTIVITY_NODE_LAYOUT, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES } from "../utils/nodeStyles";
 import AgentNode from "./AgentNode";
 import SwitchNode from "./SwitchNode";
 import LoopNode from "./LoopNode";
@@ -73,8 +73,8 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
     const haloClass = isProcessing ? ACTIVITY_NODE_PROCESSING_CLASS : "";
 
     // Layout constants - match AgentNode for consistency
-    const WORKFLOW_WIDTH = 280; // Match agent width
-    const HEADER_HEIGHT = 44;
+    const WORKFLOW_WIDTH = ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH;
+    const HEADER_HEIGHT = ACTIVITY_NODE_LAYOUT.HEADER_HEIGHT;
 
     // Function to calculate bezier paths
     const calculateBezierPaths = useCallback(() => {
@@ -272,7 +272,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
                                                 {renderChild(branchChild)}
                                             </div>
                                             {/* Connector line to next node in branch */}
-                                            {nodeIdx < branchChildren.length - 1 && <div className="h-3 w-0.5 bg-gray-400 dark:bg-gray-600" />}
+                                            {nodeIdx < branchChildren.length - 1 && <div className={`${CONNECTOR_SIZES.BRANCH} ${CONNECTOR_LINE_CLASSES}`} />}
                                         </Fragment>
                                     ))}
                                 </div>

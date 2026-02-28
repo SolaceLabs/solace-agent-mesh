@@ -2,7 +2,7 @@ import { Fragment, type FC } from "react";
 import { RefreshCw } from "lucide-react";
 
 import type { LayoutNode } from "../utils/types";
-import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES } from "../utils/nodeStyles";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT } from "../utils/nodeStyles";
 import AgentNode from "./AgentNode";
 
 interface LoopNodeProps {
@@ -20,9 +20,9 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     const hasChildren = node.children && node.children.length > 0;
 
     // Layout constants
-    const LOOP_WIDTH = 280; // Static width for loop nodes
-    const HEADER_HEIGHT = 44;
-    const MAX_CONDITION_LENGTH = 30;
+    const LOOP_WIDTH = ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH;
+    const HEADER_HEIGHT = ACTIVITY_NODE_LAYOUT.HEADER_HEIGHT;
+    const MAX_CONDITION_LENGTH = 30; // Maximum characters to display for loop condition before truncating
 
     // Render a child node (loop iterations are agent nodes)
     const renderChild = (child: LayoutNode) => {
