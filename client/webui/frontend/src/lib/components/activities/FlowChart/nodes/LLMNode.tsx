@@ -1,6 +1,8 @@
 import type { FC } from "react";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
+import { Sparkles } from "lucide-react";
+
 import type { LayoutNode } from "../utils/types";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS } from "../utils/nodeStyles";
 
 interface LLMNodeProps {
     node: LayoutNode;
@@ -10,28 +12,21 @@ interface LLMNodeProps {
 
 const LLMNode: FC<LLMNodeProps> = ({ node, isSelected, onClick }) => {
     const isProcessing = node.data.status === "in-progress";
-    const haloClass = isProcessing ? "processing-halo" : "";
+    const haloClass = isProcessing ? ACTIVITY_NODE_PROCESSING_CLASS : "";
 
     return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <div
-                    className={`relative cursor-pointer overflow-hidden rounded-full border-2 border-teal-600 bg-white px-3 py-1 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-teal-400 dark:bg-gray-800 dark:text-gray-200 ${
-                        isSelected ? "ring-2 ring-blue-500" : ""
-                    } ${haloClass}`}
-                    style={{
-                        textAlign: "center",
-                    }}
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                >
-                    <div className="text-sm">{node.data.label}</div>
-                </div>
-            </TooltipTrigger>
-            {node.data.description && <TooltipContent>{node.data.description}</TooltipContent>}
-        </Tooltip>
+        <div
+            className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
+            onClick={e => {
+                e.stopPropagation();
+                onClick?.(node);
+            }}
+        >
+            <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 flex-shrink-0 text-teal-600 dark:text-teal-400" />
+                <div className="truncate text-sm font-semibold">{node.data.label}</div>
+            </div>
+        </div>
     );
 };
 

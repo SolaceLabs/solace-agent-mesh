@@ -26,36 +26,34 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, selectedEdgeId, onEdgeClic
         return `M ${sourceX} ${sourceY} C ${control1X} ${control1Y}, ${control2X} ${control2Y}, ${targetX} ${targetY}`;
     };
 
-    // Get edge style
-    const getEdgeStyle = (edge: Edge, isHovered: boolean) => {
+    // Get edge class name based on state
+    const getEdgeClassName = (edge: Edge, isHovered: boolean) => {
         const isSelected = edge.id === selectedEdgeId;
 
         // Priority: Error > Selected > Hover > Default
         if (edge.isError) {
-            return {
-                stroke: isHovered ? "#dc2626" : "#ef4444",
-                strokeWidth: isHovered ? 3 : 2,
-            };
+            return "stroke-(--color-error-wMain)";
         }
 
         if (isSelected) {
-            return {
-                stroke: "#3b82f6",
-                strokeWidth: 3,
-            };
+            return "stroke-(--color-accent-n2-wMain)";
         }
 
         if (isHovered) {
-            return {
-                stroke: "#6b7280",
-                strokeWidth: 3,
-            };
+            return "stroke-(--color-secondary-w70)";
         }
 
-        return {
-            stroke: "#9ca3af",
-            strokeWidth: 2,
-        };
+        return "stroke-(--color-secondary-w40)";
+    };
+
+    // Get edge stroke width
+    const getEdgeStrokeWidth = (edge: Edge, isHovered: boolean) => {
+        const isSelected = edge.id === selectedEdgeId;
+
+        if (edge.isError && isHovered) return 3;
+        if (edge.isError) return 2;
+        if (isSelected || isHovered) return 3;
+        return 2;
     };
 
     return (
@@ -86,7 +84,8 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, selectedEdgeId, onEdgeClic
                 const isHovered = edge.id === hoveredEdgeId;
                 const isSelected = edge.id === selectedEdgeId;
                 const path = getBezierPath(edge);
-                const style = getEdgeStyle(edge, isHovered);
+                const className = getEdgeClassName(edge, isHovered);
+                const strokeWidth = getEdgeStrokeWidth(edge, isHovered);
 
                 // Determine marker
                 let markerEnd = "url(#arrowhead)";
@@ -117,7 +116,8 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, selectedEdgeId, onEdgeClic
                         <path
                             d={path}
                             fill="none"
-                            {...style}
+                            className={className}
+                            strokeWidth={strokeWidth}
                             markerEnd={markerEnd}
                             style={{
                                 pointerEvents: "none",

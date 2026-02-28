@@ -1,6 +1,10 @@
 import { type ReactNode, Fragment, useRef, useState, useLayoutEffect, useEffect, useCallback } from "react";
 import { Workflow, Maximize2, Minimize2 } from "lucide-react";
+
+import { Button } from "@/lib/components/ui";
+
 import type { LayoutNode } from "../utils/types";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, ACTIVITY_NODE_LAYOUT, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, CONTAINER_CHILDREN_CLASSES, CONNECTOR_STROKE_CLASSES } from "../utils/nodeStyles";
 import AgentNode from "./AgentNode";
 import SwitchNode from "./SwitchNode";
 import LoopNode from "./LoopNode";
@@ -66,7 +70,11 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
     const isCollapsed = node.data.isCollapsed;
     const isExpanded = node.data.isExpanded;
     const isProcessing = node.data.hasProcessingChildren;
-    const haloClass = isProcessing ? "processing-halo" : "";
+    const haloClass = isProcessing ? ACTIVITY_NODE_PROCESSING_CLASS : "";
+
+    // Layout constants - match AgentNode for consistency
+    const WORKFLOW_WIDTH = ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH;
+    const HEADER_HEIGHT = ACTIVITY_NODE_LAYOUT.HEADER_HEIGHT;
 
     // Function to calculate bezier paths
     const calculateBezierPaths = useCallback(() => {
@@ -264,7 +272,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
                                                 {renderChild(branchChild)}
                                             </div>
                                             {/* Connector line to next node in branch */}
-                                            {nodeIdx < branchChildren.length - 1 && <div className="h-3 w-0.5 bg-gray-400 dark:bg-gray-600" />}
+                                            {nodeIdx < branchChildren.length - 1 && <div className={`${CONNECTOR_SIZES.BRANCH} ${CONNECTOR_LINE_CLASSES}`} />}
                                         </Fragment>
                                     ))}
                                 </div>
@@ -279,110 +287,109 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
         [onChildClick, onExpand, onCollapse]
     );
 
-    // Collapsed view - similar to collapsed agent but with workflow styling
+    // Collapsed view
     if (isCollapsed) {
         return (
             <div
-                className={`group relative rounded-md border-2 border-dashed border-purple-500 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 ${
-                    isSelected ? "ring-2 ring-blue-500" : ""
-                } ${haloClass}`}
+                className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
                 style={{
-                    minWidth: "180px",
+                    width: `${WORKFLOW_WIDTH}px`,
+                }}
+                onClick={e => {
+                    e.stopPropagation();
+                    onClick?.(node);
                 }}
             >
-                {/* Expand icon - top right, only show on hover */}
-                {onExpand && (
-                    <span title="Expand workflow" className="absolute top-2 right-2 z-10">
-                        <Maximize2
-                            className="h-3.5 w-3.5 cursor-pointer text-purple-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-purple-600 dark:text-purple-500 dark:hover:text-purple-300"
-                            onClick={e => {
-                                e.stopPropagation();
-                                onExpand(node.id);
-                            }}
-                        />
-                    </span>
-                )}
-                {/* Header */}
-                <div
-                    className="cursor-pointer rounded-md bg-purple-50 px-4 py-3 dark:bg-gray-700"
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                    title={node.data.description || "Click to view workflow details"}
-                >
-                    <div className="flex items-center justify-center gap-2">
-                        <Workflow className="h-4 w-4 flex-shrink-0 text-purple-600 dark:text-purple-400" />
-                        <div className="truncate text-sm font-semibold text-gray-800 dark:text-gray-200">{node.data.label}</div>
-                    </div>
+                <div className="flex min-w-0 items-center gap-2">
+                    <Workflow className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                    <div className="truncate text-sm font-semibold">{node.data.label}</div>
                 </div>
+                {/* Expand control */}
+                {onExpand && (
+                    <Button
+                        onClick={e => {
+                            e.stopPropagation();
+                            onExpand(node.id);
+                        }}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Expand"
+                    >
+                        <Maximize2 className="h-4 w-4" />
+                    </Button>
+                )}
             </div>
         );
     }
 
-    // Full expanded view
+    // Full expanded view with straddling header
     return (
-        <div
-            ref={containerRef}
-            className={`group rounded-lg border-2 border-dashed border-gray-400 bg-gray-50/50 dark:border-gray-600 dark:bg-gray-900/50 ${isSelected ? "ring-2 ring-blue-500" : ""}`}
-            style={{
-                minWidth: "200px",
-                position: "relative",
-            }}
-        >
-            {/* SVG overlay for bezier connectors */}
-            {bezierPaths.length > 0 && (
-                <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
-                    {bezierPaths.map(path => (
-                        <path key={path.id} d={path.d} stroke="#9CA3AF" strokeWidth={2} fill="none" className="dark:stroke-gray-500" />
-                    ))}
-                </svg>
-            )}
+        <div className={`flex flex-col px-4 ${haloClass}`} style={{ minWidth: `${WORKFLOW_WIDTH + 72}px` }}>
+            {/* Solid Header Box - positioned at top, centered with fixed width */}
+            <div
+                className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} z-20`}
+                style={{ width: `${WORKFLOW_WIDTH}px` }}
+                onClick={e => {
+                    e.stopPropagation();
+                    onClick?.(node);
+                }}
+            >
+                <div className="flex items-center justify-between gap-4 px-4 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <Workflow className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                        <div className="truncate text-sm font-semibold">{node.data.label}</div>
+                    </div>
 
-            {/* Collapse icon - top right, only show on hover when expanded */}
-            {isExpanded && onCollapse && (
-                <span title="Collapse workflow" className="absolute top-2 right-2 z-10">
-                    <Minimize2
-                        className="h-3.5 w-3.5 cursor-pointer text-purple-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-purple-600 dark:text-purple-500 dark:hover:text-purple-300"
-                        onClick={e => {
-                            e.stopPropagation();
-                            onCollapse(node.id);
-                        }}
-                    />
-                </span>
-            )}
-            {/* Label - clickable */}
-            {node.data.label && (
-                <div
-                    className="absolute -top-3 left-4 flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 text-xs font-bold text-gray-500 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                    title="Click to view workflow details"
-                >
-                    <Workflow className="h-3 w-3 flex-shrink-0" />
-                    {node.data.label}
+                    {/* Collapse control */}
+                    {isExpanded && onCollapse && (
+                        <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                            <Button
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    onCollapse(node.id);
+                                }}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                tooltip="Collapse"
+                            >
+                                <Minimize2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
 
-            {/* Children with inline connectors */}
-            <div className="flex flex-col items-center p-6">
-                {node.children.map((child, index) => {
-                    // Track the preceding and following nodes for parallel blocks
-                    const precedingNode = index > 0 ? node.children[index - 1] : null;
-                    const precedingNodeId = precedingNode?.id;
-                    const followingNode = index < node.children.length - 1 ? node.children[index + 1] : null;
-                    const followingNodeId = followingNode?.id;
+            {/* Dotted Children Container - grows with content, extends 16px beyond header on each side */}
+            <div ref={containerRef} className={`relative border-2 ${CONTAINER_CHILDREN_CLASSES}`} style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}>
+                {/* SVG overlay for bezier connectors */}
+                {bezierPaths.length > 0 && (
+                    <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                        {bezierPaths.map(path => (
+                            <path key={path.id} d={path.d} strokeWidth={2} fill="none" className={CONNECTOR_STROKE_CLASSES} />
+                        ))}
+                    </svg>
+                )}
 
-                    return (
-                        <Fragment key={child.id}>
-                            {renderChild(child, precedingNodeId, followingNodeId)}
-                            {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
-                            {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
-                        </Fragment>
-                    );
-                })}
+                {/* Children with inline connectors */}
+                <div className="flex flex-col items-center px-3 pb-4">
+                    {node.children.map((child, index) => {
+                        // Track the preceding and following nodes for parallel blocks
+                        const precedingNode = index > 0 ? node.children[index - 1] : null;
+                        const precedingNodeId = precedingNode?.id;
+                        const followingNode = index < node.children.length - 1 ? node.children[index + 1] : null;
+                        const followingNodeId = followingNode?.id;
+
+                        return (
+                            <Fragment key={child.id}>
+                                {renderChild(child, precedingNodeId, followingNodeId)}
+                                {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
+                                {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
+                            </Fragment>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
