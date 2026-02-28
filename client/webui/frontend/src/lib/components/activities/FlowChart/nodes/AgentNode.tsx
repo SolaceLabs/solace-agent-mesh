@@ -10,6 +10,7 @@ import ToolNode from "./ToolNode";
 import SwitchNode from "./SwitchNode";
 import LoopNode from "./LoopNode";
 import WorkflowGroup from "./WorkflowGroup";
+import { cn } from "@/lib";
 
 interface AgentNodeProps {
     node: LayoutNode;
@@ -92,7 +93,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
         if (!hasParallelBranches && !hasChildren) {
             return (
                 <div
-                    className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${pillColorClasses} ${opacityClass} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+                    className={cn(ACTIVITY_NODE_BASE_STYLES.PILL, pillColorClasses, isSelected && ACTIVITY_NODE_SELECTED_CLASS)}
                     style={{
                         width: `${node.width}px`,
                         minWidth: "80px",

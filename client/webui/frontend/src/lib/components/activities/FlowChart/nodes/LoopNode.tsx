@@ -22,6 +22,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     // Layout constants
     const LOOP_WIDTH = 280; // Static width for loop nodes
     const HEADER_HEIGHT = 44;
+    const MAX_CONDITION_LENGTH = 30;
 
     // Render a child node (loop iterations are agent nodes)
     const renderChild = (child: LayoutNode) => {
@@ -45,8 +46,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     // Format condition for display (truncate if too long)
     const formatCondition = (condition?: string) => {
         if (!condition) return null;
-        const maxLen = 30;
-        return condition.length > maxLen ? `${condition.slice(0, maxLen)}...` : condition;
+        return condition.length > MAX_CONDITION_LENGTH ? `${condition.slice(0, MAX_CONDITION_LENGTH)}...` : condition;
     };
 
     // If the node has children (iterations), render as expanded container with dotted border

@@ -1,10 +1,4 @@
 /**
- * Shared styling constants for Activity Flow Chart nodes
- * Aligned with workflow visualization design patterns
- * Based on Figma Card component design (resting state)
- */
-
-/**
  * Common base styles for different node types
  * Provides consistent styling for container, shape, shadow, and transitions
  */
