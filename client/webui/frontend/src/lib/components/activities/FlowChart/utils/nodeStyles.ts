@@ -37,6 +37,7 @@ export const ACTIVITY_NODE_PROCESSING_CLASS = "processing-halo";
 /**
  * Connector line styling for vertical lines between nodes
  * Matches workflow visualization connector colors
+ * Dark mode hex value should be swapped out once the stateLayer dark mode is defined correctly in the palette
  */
 export const CONNECTOR_LINE_CLASSES = "bg-(--color-stateLayer-w20) dark:bg-[#FFFFFF2a]";
 
@@ -47,6 +48,13 @@ export const CONNECTOR_SIZES = {
     MAIN: "h-4 w-0.5",
     BRANCH: "h-3 w-0.5",
 } as const;
+
+/**
+ * Container children styling for dotted border containers
+ * Used by Loop, Map, Workflow, and Agent nodes for their child content areas
+ * Dark mode hex value should be swapped out once the stateLayer dark mode is defined correctly in the palette
+ */
+export const CONTAINER_CHILDREN_CLASSES = "rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]";
 
 /**
  * Layout dimensions and sizing constants for activity nodes

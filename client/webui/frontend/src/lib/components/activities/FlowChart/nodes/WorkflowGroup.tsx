@@ -4,7 +4,7 @@ import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 
 import type { LayoutNode } from "../utils/types";
-import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, ACTIVITY_NODE_LAYOUT, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES } from "../utils/nodeStyles";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, ACTIVITY_NODE_LAYOUT, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, CONTAINER_CHILDREN_CLASSES } from "../utils/nodeStyles";
 import AgentNode from "./AgentNode";
 import SwitchNode from "./SwitchNode";
 import LoopNode from "./LoopNode";
@@ -362,12 +362,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
             </div>
 
             {/* Dotted Children Container - grows with content, extends 16px beyond header on each side */}
-            {/* Dark mode background colour should be removed once the stateLayer-w10 is mapped to its correct dark mode value. */}
-            <div
-                ref={containerRef}
-                className="relative rounded border-2 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]"
-                style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}
-            >
+            <div ref={containerRef} className={`relative border-2 ${CONTAINER_CHILDREN_CLASSES}`} style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + 16}px` }}>
                 {/* SVG overlay for bezier connectors */}
                 {bezierPaths.length > 0 && (
                     <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>

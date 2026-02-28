@@ -2,7 +2,7 @@ import { Fragment, type FC } from "react";
 import { RefreshCw } from "lucide-react";
 
 import type { LayoutNode } from "../utils/types";
-import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT } from "../utils/nodeStyles";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT, CONTAINER_CHILDREN_CLASSES } from "../utils/nodeStyles";
 import AgentNode from "./AgentNode";
 
 interface LoopNodeProps {
@@ -84,11 +84,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
                 </div>
 
                 {/* Dotted Children Container - grows with content */}
-                {/* Dark mode background colour should be removed once the stateLayer-w10 is mapped to its correct dark mode value. */}
-                <div
-                    className="rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-stateLayer-w10) dark:border-(--color-secondary-w70) dark:bg-[#FFFFFF1a]"
-                    style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + (hasConditionRow ? 32 : 16)}px`, minWidth: `${LOOP_WIDTH + 72}px` }}
-                >
+                <div className={CONTAINER_CHILDREN_CLASSES} style={{ marginTop: `-${HEADER_HEIGHT / 2}px`, paddingTop: `${HEADER_HEIGHT / 2 + (hasConditionRow ? 32 : 16)}px`, minWidth: `${LOOP_WIDTH + 72}px` }}>
                     <div className="px-3 pb-4">
                         <div className="flex flex-col items-center gap-2">
                             {node.children.map((child, index) => (
