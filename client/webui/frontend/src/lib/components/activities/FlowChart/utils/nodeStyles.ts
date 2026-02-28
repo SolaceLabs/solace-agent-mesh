@@ -42,6 +42,12 @@ export const ACTIVITY_NODE_PROCESSING_CLASS = "processing-halo";
 export const CONNECTOR_LINE_CLASSES = "bg-(--color-stateLayer-w20) dark:bg-[#FFFFFF2a]";
 
 /**
+ * Connector stroke styling for SVG paths (used in WorkflowGroup bezier curves)
+ * Dark mode hex value should be swapped out once the stateLayer dark mode is defined correctly in the palette
+ */
+export const CONNECTOR_STROKE_CLASSES = "stroke-(--color-stateLayer-w20) dark:stroke-[#FFFFFF2a]";
+
+/**
  * Standard connector sizes
  */
 export const CONNECTOR_SIZES = {

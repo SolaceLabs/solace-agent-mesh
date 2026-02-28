@@ -4,7 +4,7 @@ import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 
 import type { LayoutNode } from "../utils/types";
-import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, ACTIVITY_NODE_LAYOUT, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, CONTAINER_CHILDREN_CLASSES } from "../utils/nodeStyles";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, ACTIVITY_NODE_LAYOUT, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, CONTAINER_CHILDREN_CLASSES, CONNECTOR_STROKE_CLASSES } from "../utils/nodeStyles";
 import AgentNode from "./AgentNode";
 import SwitchNode from "./SwitchNode";
 import LoopNode from "./LoopNode";
@@ -367,7 +367,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
                 {bezierPaths.length > 0 && (
                     <svg className="pointer-events-none absolute inset-0 z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
                         {bezierPaths.map(path => (
-                            <path key={path.id} d={path.d} strokeWidth={2} fill="none" className="stroke-(--color-stateLayer-w20) dark:stroke-[#FFFFFF2a]" />
+                            <path key={path.id} d={path.d} strokeWidth={2} fill="none" className={CONNECTOR_STROKE_CLASSES} />
                         ))}
                     </svg>
                 )}
@@ -385,7 +385,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
                             <Fragment key={child.id}>
                                 {renderChild(child, precedingNodeId, followingNodeId)}
                                 {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
-                                {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className="my-0 h-4 w-0.5 bg-(--color-stateLayer-w20) dark:bg-[#FFFFFF2a]" />}
+                                {index < node.children.length - 1 && child.type !== "parallelBlock" && node.children[index + 1].type !== "parallelBlock" && <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />}
                             </Fragment>
                         );
                     })}
