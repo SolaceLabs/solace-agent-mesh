@@ -4,7 +4,7 @@ import { Bot, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 
 import type { LayoutNode } from "../utils/types";
-import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES } from "../utils/nodeStyles";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT } from "../utils/nodeStyles";
 import LLMNode from "./LLMNode";
 import ToolNode from "./ToolNode";
 import SwitchNode from "./SwitchNode";
@@ -215,7 +215,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
         return (
             <div
                 className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${opacityClass} ${borderStyleClass} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
-                style={{ minWidth: "225px", minHeight: "50px" }}
+                style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px`, minHeight: `${ACTIVITY_NODE_LAYOUT.LEAF_NODE_MIN_HEIGHT}px` }}
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
@@ -249,7 +249,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 className={`rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:!shadow-none ${
                     isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
                 }`}
-                style={{ minWidth: "225px" }}
+                style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px` }}
             >
                 {/* Header */}
                 <div
