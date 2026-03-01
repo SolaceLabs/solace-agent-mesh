@@ -151,6 +151,11 @@ class SamAgentComponent(SamComponentBase):
 
         # Initialize the agent registry for health tracking
         self.agent_registry = AgentRegistry()
+
+        # Registry for sandbox executors (populated during tool loading)
+        self._sandbox_executors = []
+        # Targeted routing: correlation_id → executor for direct dispatch
+        self._sandbox_correlation_map: Dict[str, Any] = {}
         try:
             self.namespace = self.get_config("namespace")
             if not self.namespace:
@@ -500,6 +505,47 @@ class SamAgentComponent(SamComponentBase):
         # Create event and process asynchronously
         event = Event(EventType.MESSAGE, message)
         await process_event(self, event)
+
+    def register_sandbox_executor(self, executor) -> None:
+        """Register a sandbox executor for response routing."""
+        self._sandbox_executors.append(executor)
+
+    def register_sandbox_correlation(self, correlation_id: str, executor) -> None:
+        """Register a correlation_id → executor mapping for targeted response routing."""
+        self._sandbox_correlation_map[correlation_id] = executor
+
+    def unregister_sandbox_correlation(self, correlation_id: str) -> None:
+        """Remove a correlation_id mapping after the request is complete."""
+        self._sandbox_correlation_map.pop(correlation_id, None)
+
+    def handle_sandbox_response(self, correlation_id: str, payload: Dict) -> None:
+        """Route a sandbox response to the executor that made the request."""
+        executor = self._sandbox_correlation_map.get(correlation_id)
+        if executor:
+            log.debug(
+                "%s Routing sandbox response directly: correlation_id=%s",
+                self.log_identifier,
+                correlation_id,
+            )
+            executor.handle_response(correlation_id, payload)
+        else:
+            log.warning(
+                "%s Received sandbox response for unknown correlation_id=%s",
+                self.log_identifier,
+                correlation_id,
+            )
+
+    def handle_sandbox_status(self, correlation_id: str, status_text: str) -> None:
+        """Route a sandbox status update to the executor that made the request."""
+        executor = self._sandbox_correlation_map.get(correlation_id)
+        if executor:
+            executor.handle_status(correlation_id, status_text)
+        else:
+            log.debug(
+                "%s Received sandbox status for unknown correlation_id=%s",
+                self.log_identifier,
+                correlation_id,
+            )
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
         """Handles timer events for agent card publishing and health checks."""
@@ -3345,7 +3391,7 @@ class SamAgentComponent(SamComponentBase):
 
         user_properties = {
             "replyTo": reply_to_topic,
-            "a2aStatusTopic": status_topic,
+            "statusTo": status_topic,
             "userId": user_id,
             "delegating_agent_name": delegating_agent_name,
         }
