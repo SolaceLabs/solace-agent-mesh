@@ -36,6 +36,7 @@ import type {
     Project,
     StoredTaskData,
     RAGSearchResult,
+    A2UISurface,
 } from "@/lib/types";
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
@@ -1171,6 +1172,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             metadata: { messageId: `auth-${v4()}` },
                                         };
                                         setMessages(prev => [...prev, authMessage]);
+                                    }
+                                    break;
+                                }
+                                case "user_input_request": {
+                                    const requestId = data?.request_id;
+                                    const surface = data?.surface;
+                                    if (requestId && surface) {
+                                        const hilMessage: MessageFE = {
+                                            role: "agent",
+                                            parts: [{ kind: "text", text: "" }],
+                                            userInputRequest: {
+                                                requestId: String(requestId),
+                                                expiresAt: typeof data?.expires_at === "string" ? data.expires_at : "",
+                                                source: data?.source === "tool_approval" ? "tool_approval" : "ask_user_question",
+                                                surface: surface as A2UISurface,
+                                                taskId: currentTaskIdFromResult ?? "",
+                                                agentName: selectedAgentName ?? "",
+                                            },
+                                            isUser: false,
+                                            isComplete: false,
+                                            metadata: { messageId: `hil-${requestId}` },
+                                        };
+                                        setMessages(prev => [...prev, hilMessage]);
                                     }
                                     break;
                                 }
