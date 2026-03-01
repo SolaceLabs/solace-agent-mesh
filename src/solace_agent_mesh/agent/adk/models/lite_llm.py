@@ -321,7 +321,11 @@ TYPE_LABELS = {
 
 
 def _normalize_schema_dict(schema_dict: dict) -> dict:
-    """Normalizes a schema dictionary to handle MCP server quirks like integer enums.
+    """Normalizes a schema dictionary to handle MCP server quirks.
+
+    Handles issues like:
+    - Integer enums (converts to strings)
+    - Array types missing 'items' (adds default string items, required by OpenAI)
 
     Args:
         schema_dict: The schema dictionary to normalize.
@@ -332,6 +336,11 @@ def _normalize_schema_dict(schema_dict: dict) -> dict:
     # Convert enum values to strings if present
     if "enum" in schema_dict and isinstance(schema_dict["enum"], list):
         schema_dict["enum"] = [str(v) for v in schema_dict["enum"]]
+
+    # Add default items schema for array types missing it (required by OpenAI).
+    # Use case-insensitive comparison since type may be an enum value or uppercase string.
+    if str(schema_dict.get("type", "")).lower() == "array" and "items" not in schema_dict:
+        schema_dict["items"] = {"type": "string"}
 
     # Recursively normalize nested items
     if "items" in schema_dict and isinstance(schema_dict["items"], dict):
@@ -393,6 +402,11 @@ def _schema_to_dict(schema: types.Schema) -> dict:
                 # For other types, just copy as-is
                 properties[key] = value
         schema_dict["properties"] = properties
+
+    # Ensure array types have items defined (required by OpenAI)
+    if schema_dict.get("type") == "array" and "items" not in schema_dict:
+        schema_dict["items"] = {"type": "string"}
+
     return schema_dict
 
 
@@ -877,6 +891,7 @@ class LiteLlm(BaseLlm):
         messages, tools, response_format, generation_params = _get_completion_inputs(
             llm_request, self._cache_strategy
         )
+
         completion_args = {
             "model": self.model,
             "messages": messages,
