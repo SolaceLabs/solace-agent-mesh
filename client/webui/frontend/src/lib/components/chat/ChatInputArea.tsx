@@ -8,7 +8,7 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled, useUIMode } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
@@ -62,6 +62,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { data: modelConfigStatus } = useModelConfigStatus();
     const modelNotConfigured = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
+    const { isOnboardMode } = useUIMode();
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
@@ -1087,27 +1088,31 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     <Paperclip className="size-4" />
                 </Button>
 
-                <div>Agent: </div>
-                <Select
-                    value={selectedAgentName}
-                    onValueChange={agentName => {
-                        handleAgentSelection(agentName);
-                    }}
-                    disabled={isResponding || agents.length === 0}
-                >
-                    <SelectTrigger className="w-[250px]">
-                        <SelectValue placeholder="Select an agent..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {agents
-                            .filter(agent => !agent.isWorkflow)
-                            .map(agent => (
-                                <SelectItem key={agent.name} value={agent.name}>
-                                    {agent.displayName || agent.name}
-                                </SelectItem>
-                            ))}
-                    </SelectContent>
-                </Select>
+                {!isOnboardMode && (
+                    <>
+                        <div>Agent: </div>
+                        <Select
+                            value={selectedAgentName}
+                            onValueChange={agentName => {
+                                handleAgentSelection(agentName);
+                            }}
+                            disabled={isResponding || agents.length === 0}
+                        >
+                            <SelectTrigger className="w-[250px]">
+                                <SelectValue placeholder="Select an agent..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {agents
+                                    .filter(agent => !agent.isWorkflow)
+                                    .map(agent => (
+                                        <SelectItem key={agent.name} value={agent.name}>
+                                            {agent.displayName || agent.name}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    </>
+                )}
 
                 {/* Spacer to push buttons to the right */}
                 <div className="flex-1" />

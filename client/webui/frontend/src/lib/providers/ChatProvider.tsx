@@ -46,9 +46,15 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // ============ Hooks ============
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
+    const { configWelcomeMessage: rawWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
+
+    // In onboard mode, override the welcome message with a friendlier intro.
+    const isOnboardMode = window.location.hash?.includes("mode=onboard");
+    const configWelcomeMessage = isOnboardMode
+        ? "Hey there! I'm SAM — the **S**olace **A**gent **M**esh.\n\nI'm an AI-powered platform that lets you build, connect, and orchestrate intelligent agents. Ask me anything — what I can do, how I work, how to set up agents, or what use cases I'm built for. I'm here to help you get started!"
+        : rawWelcomeMessage;
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
