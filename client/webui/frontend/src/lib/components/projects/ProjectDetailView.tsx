@@ -6,7 +6,7 @@ import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext } from "@/lib/hooks";
+import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext, useSessionStorage } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
@@ -53,12 +53,12 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
     const { addNotification } = useChatContext();
     const isProjectSharingEnabled = useIsProjectSharingEnabled();
 
-    const [indexingError, setIndexingError] = useState<string | null>(null);
+    const [indexingError, setIndexingError] = useSessionStorage<string | null>(`sam_indexing_error_${project.id}`, null);
     const { isIndexing } = useIndexingSSE({
         resourceId: project.id,
         onComplete: errors => {
             if (errors.length > 0) {
-                setIndexingError(`Unable to process: ${errors.join(", ")}. Please ensure all files are valid.`);
+                setIndexingError(`Unable to process and index: ${errors.join(", ")}. Please ensure files are valid and try again.`);
             } else {
                 setIndexingError(null);
                 addNotification("Project file processing complete", "success");
@@ -147,6 +147,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
         setIsEditing(false);
         setNameError(null);
     };
+
     const handleDeleteClick = () => {
         setIsDeleteDialogOpen(true);
     };
@@ -221,7 +222,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
                 <div className="flex min-h-0 w-[40%] flex-col overflow-y-auto">
                     <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} isDisabled={isIndexing} error={error} />
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isDisabled={isIndexing} />
-                    <KnowledgeSection project={project} isDisabled={isIndexing} />
+                    <KnowledgeSection project={project} isDisabled={isIndexing} onFileChange={() => setIndexingError(null)} />
                 </div>
             </div>
 
