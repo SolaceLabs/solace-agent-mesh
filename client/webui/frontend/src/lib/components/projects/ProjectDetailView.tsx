@@ -16,6 +16,28 @@ import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 
+// Helper function to return applicable indexing banner
+const getIndexingBanner = (isIndexing: boolean, indexingError: string | null, onDismiss: () => void) => {
+    if (indexingError) {
+        return <MessageBanner variant="error" dismissible onDismiss={onDismiss} message={indexingError} className="m-6" />;
+    }
+    if (isIndexing) {
+        return (
+            <MessageBanner
+                variant="info"
+                message={
+                    <div className="flex gap-2">
+                        <div>Processing project files for faster access...</div>
+                        <Spinner size="small" />
+                    </div>
+                }
+                className="m-6"
+            />
+        );
+    }
+    return null;
+};
+
 interface ProjectDetailViewProps {
     project: Project;
     onBack: () => void;
@@ -37,7 +59,6 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
         onComplete: errors => {
             if (errors.length > 0) {
                 setIndexingError(`Unable to process: ${errors.join(", ")}. Please ensure all files are valid.`);
-                addNotification("Processing complete with errors", "warning");
             } else {
                 setIndexingError(null);
                 addNotification("Project file processing complete", "success");
@@ -187,19 +208,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
             <div className="flex min-h-0 flex-1">
                 {/* Left Panel - Description and Project Chats */}
                 <div className="w-[60%] overflow-y-auto border-r">
-                    {indexingError && <MessageBanner variant="error" dismissible message={indexingError} className="m-6" />}
-                    {isIndexing && (
-                        <MessageBanner
-                            variant="info"
-                            message={
-                                <div className="flex gap-2">
-                                    <div>Processing project files for faster access...</div>
-                                    <Spinner size="small" />
-                                </div>
-                            }
-                            className="m-6"
-                        />
-                    )}
+                    {getIndexingBanner(isIndexing, indexingError, () => setIndexingError(null))}
                     {project.description && (
                         <div className="px-8 py-4">
                             <p className="text-muted-foreground text-sm">{project.description}</p>
