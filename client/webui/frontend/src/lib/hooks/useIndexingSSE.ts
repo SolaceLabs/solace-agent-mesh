@@ -161,6 +161,7 @@ export function useIndexingSSE(options: UseIndexingSSEOptions): UseIndexingSSERe
                     const filename = typeof data.file === "string" ? data.file : "Unknown";
                     failedFilesRef.current = [...failedFilesRef.current, filename];
                 } else if (data.type === "indexing_failed") {
+                    // Non-terminal error: accumulate error messages only
                     const errorMsg = typeof data.error === "string" ? data.error : "Indexing failed";
                     errorsRef.current = [...errorsRef.current, errorMsg];
                 }

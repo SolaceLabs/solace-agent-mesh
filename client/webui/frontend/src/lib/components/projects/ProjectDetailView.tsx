@@ -59,10 +59,10 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
         onComplete: (failedFiles, errors) => {
             const messages: string[] = [];
             if (failedFiles.length > 0) {
-                messages.push(`Unable to process: ${failedFiles.join(", ")}`);
+                messages.push(`Unable to process: ${failedFiles.join(", ")}.`);
             }
             if (errors.length > 0) {
-                messages.push(errors.join(". "));
+                messages.push(errors.join(" "));
             }
             if (messages.length > 0) {
                 setIndexingError(`${messages.join(". ")}. Please ensure all files are valid and try again.`);
