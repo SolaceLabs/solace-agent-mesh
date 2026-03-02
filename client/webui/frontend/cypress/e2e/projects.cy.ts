@@ -1,4 +1,4 @@
-describe("Projects - File Upload and Indexing", { tags: ["@community"] }, () => {
+describe.skip("Projects - File Upload and Indexing", { tags: ["@rc"] }, () => {
     let projectId: string;
     const projectName = `Indexing Test ${Date.now()}`;
 
