@@ -102,7 +102,17 @@ function TestStartIndexing({ metadataKey }: { metadataKey?: string }) {
     );
 }
 
-function TestIndexingSSE({ resourceId, metadataKey, onComplete, onEvent }: { resourceId: string; metadataKey?: string; onComplete?: (errors: string[]) => void; onEvent?: (event: { type: string; [key: string]: unknown }) => void }) {
+function TestIndexingSSE({
+    resourceId,
+    metadataKey,
+    onComplete,
+    onEvent,
+}: {
+    resourceId: string;
+    metadataKey?: string;
+    onComplete?: (failedFiles: string[], errors: string[]) => void;
+    onEvent?: (event: { type: string; [key: string]: unknown }) => void;
+}) {
     const { isIndexing, connectionState, latestEvent, startIndexing } = useIndexingSSE({
         resourceId,
         metadataKey,
@@ -195,7 +205,7 @@ describe("useIndexingSSE", () => {
 
         act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "task_completed" })));
 
-        expect(onComplete).toHaveBeenCalledWith([]);
+        expect(onComplete).toHaveBeenCalledWith([], []);
         await waitFor(() => {
             expect(screen.getByTestId("is-indexing")).toHaveTextContent("false");
             expect(screen.getByTestId("latest-event")).toHaveTextContent("none");
@@ -225,7 +235,7 @@ describe("useIndexingSSE", () => {
 
         // task_completed finalizes with accumulated filenames
         act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "task_completed" })));
-        expect(onComplete).toHaveBeenCalledWith(["doc.pdf"]);
+        expect(onComplete).toHaveBeenCalledWith(["doc.pdf"], []);
         await waitFor(() => expect(screen.getByTestId("is-indexing")).toHaveTextContent("false"));
     });
 
@@ -250,7 +260,7 @@ describe("useIndexingSSE", () => {
         expect(screen.getByTestId("is-indexing")).toHaveTextContent("true");
 
         act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "task_completed" })));
-        expect(onComplete).toHaveBeenCalledWith(["Indexing failed"]);
+        expect(onComplete).toHaveBeenCalledWith([], ["Indexing failed"]);
         await waitFor(() => expect(screen.getByTestId("is-indexing")).toHaveTextContent("false"));
     });
 
@@ -273,7 +283,7 @@ describe("useIndexingSSE", () => {
 
         // task_error is truly terminal — no task_completed follows
         act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "task_error", error: "Background task crashed" })));
-        expect(onComplete).toHaveBeenCalledWith(["Background task crashed"]);
+        expect(onComplete).toHaveBeenCalledWith([], ["Background task crashed"]);
         await waitFor(() => expect(screen.getByTestId("is-indexing")).toHaveTextContent("false"));
 
         consoleSpy.mockRestore();
