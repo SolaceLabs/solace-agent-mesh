@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
+import { ArrowRightIcon, PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useThemeContext, useTitleAnimation, useIsChatSharingEnabled, useUIMode } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -40,6 +40,7 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const queryClient = useQueryClient();
+    const { isOnboardMode } = useUIMode();
     const { activeProject } = useProjectContext();
     const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
     const { configFeatureEnablement } = useConfigContext();
@@ -488,28 +489,33 @@ export function ChatPage() {
 
     return (
         <div className="relative flex h-screen w-full flex-col overflow-hidden">
-            {!useNewNav && (
+            {!useNewNav && !isOnboardMode && (
                 <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
                     <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
                 </div>
             )}
-            <div className={`transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
+            <div className={`transition-all duration-300 ${!useNewNav && !isOnboardMode && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                 <Header
                     title={
-                        <div className="flex items-center gap-3">
-                            <Tooltip delayDuration={300}>
-                                <TooltipTrigger className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${titleAnimationClass}`}>
-                                    {pageTitle}
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                    <p>{pageTitle}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[360px]" />}
-                        </div>
+                        isOnboardMode ? (
+                            <span className="text-inherit">Getting to know SAM</span>
+                        ) : (
+                            <div className="flex items-center gap-3">
+                                <Tooltip delayDuration={300}>
+                                    <TooltipTrigger className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${titleAnimationClass}`}>
+                                        {pageTitle}
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">
+                                        <p>{pageTitle}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                                {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[360px]" />}
+                            </div>
+                        )
                     }
-                    breadcrumbs={breadcrumbs}
+                    breadcrumbs={isOnboardMode ? undefined : breadcrumbs}
                     leadingAction={
+                        isOnboardMode ? null :
                         useNewNav ? (
                             <ChatSessionDialog />
                         ) : isSessionSidePanelCollapsed ? (
@@ -524,7 +530,20 @@ export function ChatPage() {
                         ) : null
                     }
                     buttons={
-                        sessionId && chatSharingEnabled
+                        isOnboardMode ? [
+                            <Button
+                                key="continue"
+                                variant="default"
+                                size="sm"
+                                onClick={() => {
+                                    window.location.hash = "#/chat";
+                                    window.location.reload();
+                                }}
+                            >
+                                Continue to full experience
+                                <ArrowRightIcon className="ml-1 size-4" />
+                            </Button>
+                        ] : sessionId && chatSharingEnabled
                             ? [
                                   // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
                                   ...(isCollaborativeSession && collaborativeUsers.length > 0
@@ -547,7 +566,7 @@ export function ChatPage() {
                 />
             </div>
             <div className="flex min-h-0 flex-1">
-                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
+                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isOnboardMode && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col">

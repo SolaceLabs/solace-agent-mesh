@@ -7,7 +7,7 @@ import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
-import { useChatContext, useCitationClick } from "@/lib/hooks";
+import { useChatContext, useCitationClick, useUIMode } from "@/lib/hooks";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
@@ -74,6 +74,7 @@ const MessageActions: React.FC<{
     textContentOverride?: string;
 }> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick, sourcesElement, textContentOverride }) => {
     const { configCollectFeedback, submittedFeedback, handleFeedbackSubmit, addNotification } = useChatContext();
+    const { isOnboardMode } = useUIMode();
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
 
@@ -98,6 +99,10 @@ const MessageActions: React.FC<{
     };
 
     const shouldShowFeedback = showFeedbackActions && configCollectFeedback;
+
+    if (isOnboardMode) {
+        return sourcesElement ? <div className="mt-3"><div className="flex items-center justify-start">{sourcesElement}</div></div> : null;
+    }
 
     if (!showWorkflowButton && !shouldShowFeedback && !sourcesElement) {
         return null;

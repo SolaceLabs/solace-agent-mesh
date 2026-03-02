@@ -9,7 +9,7 @@ import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession, useUIMode } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
 
 function AppLayoutContent() {
@@ -21,6 +21,7 @@ function AppLayoutContent() {
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
     const { hasModelConfigWrite } = useChatContext();
     const { isMoveDialogOpen, sessionToMove, handleMoveConfirm, closeMoveDialog } = useMoveSession();
+    const { isOnboardMode } = useUIMode();
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isModelSetupDialogOpen, setIsModelSetupDialogOpen] = useState(false);
@@ -134,11 +135,11 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            {useNewNav ? (
+            {!isOnboardMode && (useNewNav ? (
                 <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
             ) : (
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
-            )}
+            ))}
             <main className="h-full w-full flex-1 overflow-auto">
                 <ModelWarningBanner showWarning={!!showModelWarning} hasModelConfigWrite={hasModelConfigWrite} />
                 <Outlet />
