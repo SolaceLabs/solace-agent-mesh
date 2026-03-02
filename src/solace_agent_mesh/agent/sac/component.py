@@ -5,17 +5,12 @@ Custom Solace AI Connector Component to Host Google ADK Agents via A2A Protocol.
 import asyncio
 import concurrent.futures
 import fnmatch
-import functools
 import inspect
 import json
 import logging
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
-
-from litellm.exceptions import BadRequestError
-
-from ...common.error_handlers import get_error_message
 
 from a2a.types import (
     AgentCard,
@@ -46,12 +41,14 @@ from google.adk.tools import FunctionTool
 from google.adk.tools.mcp_tool import MCPToolset
 from google.adk.tools.openapi_tool import OpenAPIToolset
 from google.genai import types as adk_types
+from litellm.exceptions import BadRequestError
 from pydantic import BaseModel, ValidationError
 from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.common.utils import import_module
 
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
+from ...agent.adk.session_compaction import SessionCompactionState
 from ...agent.adk.services import (
     initialize_artifact_service,
     initialize_credential_service,
@@ -76,6 +73,7 @@ from ...agent.tools.registry import tool_registry
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...common import a2a
 from ...common.a2a.translation import format_and_route_adk_event
+from ...common.a2a.types import ArtifactInfo
 from ...common.agent_registry import AgentRegistry
 from ...common.constants import (
     DEFAULT_COMMUNICATION_TIMEOUT,
@@ -84,8 +82,8 @@ from ...common.constants import (
     EXTENSION_URI_AGENT_TYPE,
     EXTENSION_URI_SCHEMAS,
 )
-from ...common.a2a.types import ArtifactInfo
 from ...common.data_parts import AgentProgressUpdateData, ArtifactSavedData
+from ...common.error_handlers import get_error_message
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
@@ -198,6 +196,12 @@ class SamAgentComponent(SamComponentBase):
             self.memory_service_config = self.get_config(
                 "memory_service", {"type": "memory"}
             )
+            self.auto_summarization_config = self.get_config(
+                "auto_summarization", {
+                    "enabled": False,
+                    "compaction_percentage": 0.25
+                }
+            )
             self.artifact_handling_mode = self.get_config(
                 "artifact_handling_mode", "ignore"
             ).lower()
@@ -274,6 +278,10 @@ class SamAgentComponent(SamComponentBase):
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
         self._active_background_tasks = set()
+
+        # Initialize session compaction state for parallel task coordination
+        # Agent-scoped to ensure isolation when multiple agents run in the same process
+        self.session_compaction_state = SessionCompactionState()
 
         # Initialize structured invocation support
         self.structured_invocation_handler = StructuredInvocationHandler(self)

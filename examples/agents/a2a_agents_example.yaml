@@ -215,6 +215,7 @@ apps:
       artifact_handling_mode: "reference"
       enable_embed_resolution: true
       enable_artifact_content_instruction: true
+      auto_summarization: *default_auto_summarization
 
       agent_card:
         description: "An agent that fetches content from web URLs."

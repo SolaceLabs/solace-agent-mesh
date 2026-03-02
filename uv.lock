@@ -535,6 +535,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cachetools"
+version = "7.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/07/56595285564e90777d758ebd383d6b0b971b87729bbe2184a849932a3736/cachetools-7.0.1.tar.gz", hash = "sha256:e31e579d2c5b6e2944177a0397150d312888ddf4e16e12f1016068f0c03b8341", size = 36126, upload-time = "2026-02-10T22:24:05.03Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/9e/5faefbf9db1db466d633735faceda1f94aa99ce506ac450d232536266b32/cachetools-7.0.1-py3-none-any.whl", hash = "sha256:8f086515c254d5664ae2146d14fc7f65c9a4bce75152eb247e5a9c5e6d7b2ecf", size = 13484, upload-time = "2026-02-10T22:24:03.741Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2025.7.14"
 source = { registry = "https://pypi.org/simple" }
@@ -4836,6 +4845,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "bm25s" },
     { name = "boto3" },
+    { name = "cachetools" },
     { name = "click" },
     { name = "cryptography" },
     { name = "fastapi" },
@@ -4925,6 +4935,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = "==4.13.5" },
     { name = "bm25s", specifier = "==0.2.14" },
     { name = "boto3", specifier = "==1.40.37" },
+    { name = "cachetools", specifier = "==7.0.1" },
     { name = "click", specifier = "==8.1.8" },
     { name = "cryptography", specifier = "==46.0.5" },
     { name = "fastapi", specifier = "==0.120.1" },
