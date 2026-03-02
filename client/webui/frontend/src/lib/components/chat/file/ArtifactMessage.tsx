@@ -491,6 +491,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             isDeleted={isDeleted}
             version={version}
             source={artifact?.source}
+            sourceProjectName={artifact?.source_project_name}
+            sourceProjectDeleted={artifact?.source_project_deleted}
         />
     );
 };
