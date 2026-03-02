@@ -1514,9 +1514,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         // Fallback: the final response arrived before any status updates
                         // (race condition between response and status broker topics).
                         // Create a bubble from the final response's content.
-                        const fallbackParts = (result.status.message.parts as PartFE[]).filter(
-                            (p: PartFE) => p.kind === "text" || p.kind === "file"
-                        );
+                        const fallbackParts = (result.status.message.parts as PartFE[]).filter((p: PartFE) => p.kind === "text" || p.kind === "file");
                         if (fallbackParts.length > 0) {
                             newMessages.push({
                                 role: "agent",
