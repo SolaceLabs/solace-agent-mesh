@@ -88,7 +88,7 @@ def _run_community_migrations(database_url: str) -> None:
             ) from migration_error
 
 
-def _run_enterprise_migrations(database_url: str, config_models: dict) -> None:
+def _run_enterprise_migrations(database_url: str, app_config: dict) -> None:
     """
     Run migrations for enterprise platform features.
     This is optional and only runs if the enterprise package is available.
@@ -101,10 +101,7 @@ def _run_enterprise_migrations(database_url: str, config_models: dict) -> None:
         from solace_agent_mesh_enterprise.platform_service.migration_runner import run_migrations
 
         log.info("[Platform Service] Starting enterprise migrations...")
-        log.info(f"[Platform Service] Passing config_models: {config_models is not None}")
-        if config_models:
-            log.info(f"[Platform Service] config_models has {len(config_models)} aliases: {list(config_models.keys())}")
-        run_migrations(database_url, config_models)
+        run_migrations(database_url, app_config)
         log.info("[Platform Service] Enterprise migrations completed successfully")
     except ImportError:
         log.debug("[Platform Service] Enterprise module not found - skipping enterprise migrations")
@@ -114,10 +111,10 @@ def _run_enterprise_migrations(database_url: str, config_models: dict) -> None:
         raise RuntimeError(f"Enterprise platform database migration failed: {e}") from e
 
 
-def _setup_database(database_url: str, config_models: dict) -> None:
+def _setup_database(database_url: str, app_config: dict) -> None:
     """Initialize database and run migrations."""
     log.info("[Platform Service] Initializing database and running migrations...")
-    _run_enterprise_migrations(database_url, config_models)
+    _run_enterprise_migrations(database_url, app_config)
     log.info("[Platform Service] Database initialization complete")
 
 
