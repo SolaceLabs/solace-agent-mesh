@@ -12,7 +12,7 @@ interface AddProjectFilesDialogProps {
     isOpen: boolean;
     files: FileList | null;
     onClose: () => void;
-    onConfirm: (formData: FormData) => void;
+    onConfirm: (formData: FormData) => Promise<void>;
     isSubmitting?: boolean;
     error?: string | null;
     onClearError?: () => void;
@@ -42,7 +42,7 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ is
         onClose();
     }, [onClose, onClearError]);
 
-    const handleConfirmClick = useCallback(() => {
+    const handleConfirmClick = useCallback(async () => {
         if (!files) return;
 
         const formData = new FormData();
@@ -61,7 +61,7 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ is
             formData.append("fileMetadata", JSON.stringify(metadataPayload));
         }
 
-        onConfirm(formData);
+        await onConfirm(formData);
     }, [files, form, onConfirm]);
 
     const fileList = files ? Array.from(files) : [];

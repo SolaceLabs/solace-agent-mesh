@@ -34,10 +34,14 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
     const [indexingError, setIndexingError] = useState<string | null>(null);
     const { isIndexing } = useIndexingSSE({
         resourceId: project.id,
-        onError: error => setIndexingError(error),
-        onComplete: () => {
-            setIndexingError(null);
-            addNotification("Project file processing complete", "success");
+        onComplete: errors => {
+            if (errors.length > 0) {
+                setIndexingError(`Unable to process: ${errors.join(", ")}. Please ensure all files are valid.`);
+                addNotification("Processing complete with errors", "warning");
+            } else {
+                setIndexingError(null);
+                addNotification("Project file processing complete", "success");
+            }
         },
     });
 
@@ -183,7 +187,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
             <div className="flex min-h-0 flex-1">
                 {/* Left Panel - Description and Project Chats */}
                 <div className="w-[60%] overflow-y-auto border-r">
-                    {indexingError && <MessageBanner variant="error" message={`Processing project files failed: ${indexingError}`} className="m-6" />}
+                    {indexingError && <MessageBanner variant="error" dismissible message={indexingError} className="m-6" />}
                     {isIndexing && (
                         <MessageBanner
                             variant="info"

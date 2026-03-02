@@ -91,14 +91,17 @@ const handlers = [
         });
     }),
 
-    // Mock SSE endpoint for failed indexing - sends error then closes
+    // Mock SSE endpoint for failed indexing - sends conversion error then task_completed
     http.get("/api/v1/sse/subscribe/mock-failed-indexing-task", () => {
         const stream = new ReadableStream({
             async start(controller) {
                 // Small delay to allow EventSource to fully connect and register handlers
                 await new Promise(resolve => setTimeout(resolve, 100));
-                // Send error event
-                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"conversion_failed","error":"Failed to convert \'document.pdf\'"}\n\n'));
+                // Per-file conversion failure (non-terminal)
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"conversion_failed","file":"document.pdf","error":"Failed to convert \'document.pdf\'"}\n\n'));
+                await new Promise(resolve => setTimeout(resolve, 50));
+                // Task always completes
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"task_completed","files":[]}\n\n'));
                 controller.close();
             },
         });
@@ -280,8 +283,8 @@ export const Indexing: Story = {
 };
 
 /**
- * Indexing Error state - Shows the UI when indexing fails with an error.
- * The error message should be displayed and buttons should be re-enabled.
+ * Indexing Error state - Shows the UI after indexing completes with conversion errors.
+ * The error message should be displayed and buttons should be re-enabled after task_completed.
  */
 export const IndexingError: Story = {
     args: {
