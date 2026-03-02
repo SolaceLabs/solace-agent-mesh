@@ -18,6 +18,7 @@ const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
         <Tooltip>
             <TooltipTrigger asChild>
                 <div
+                    data-testid={`tool-node-${node.data.label}`}
                     className={`cursor-pointer rounded-lg border-2 border-cyan-600 bg-white px-3 py-2 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-cyan-400 dark:bg-gray-800 dark:text-gray-200 ${
                         isSelected ? "ring-2 ring-blue-500" : ""
                     } ${haloClass}`}
