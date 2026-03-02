@@ -5,7 +5,6 @@ import type { LayoutNode, Edge } from "./utils/types";
 import AgentNode from "./nodes/AgentNode";
 import UserNode from "./nodes/UserNode";
 import WorkflowGroup from "./nodes/WorkflowGroup";
-// import EdgeLayer from "./EdgeLayer";
 
 /**
  * Check if a node or any of its descendants has status 'in-progress'
@@ -112,6 +111,54 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
                 isCollapsed: true,
                 // If children were processing, mark the collapsed node as processing
                 hasProcessingChildren: childrenProcessing,
+            },
+        };
+    }
+
+    // For Map nodes, mark as expanded if in expandedNodeIds and process children
+    if (node.type === "map") {
+        if (node.children.length > 0) {
+            const collapsedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
+
+            return {
+                ...node,
+                children: collapsedChildren,
+                data: {
+                    ...node.data,
+                    isExpanded: isManuallyExpanded,
+                },
+            };
+        }
+
+        return {
+            ...node,
+            data: {
+                ...node.data,
+                isExpanded: isManuallyExpanded,
+            },
+        };
+    }
+
+    // For Loop nodes, mark as expanded if in expandedNodeIds and process children
+    if (node.type === "loop") {
+        if (node.children.length > 0) {
+            const collapsedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
+
+            return {
+                ...node,
+                children: collapsedChildren,
+                data: {
+                    ...node.data,
+                    isExpanded: isManuallyExpanded,
+                },
+            };
+        }
+
+        return {
+            ...node,
+            data: {
+                ...node.data,
+                isExpanded: isManuallyExpanded,
             },
         };
     }

@@ -1,6 +1,8 @@
 import type { FC } from "react";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
+import { GitBranch } from "lucide-react";
+
 import type { LayoutNode } from "../utils/types";
+import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS } from "../utils/nodeStyles";
 
 interface SwitchNodeProps {
     node: LayoutNode;
@@ -9,57 +11,38 @@ interface SwitchNodeProps {
 }
 
 const SwitchNode: FC<SwitchNodeProps> = ({ node, isSelected, onClick }) => {
-    const getStatusColor = () => {
-        switch (node.data.status) {
-            case "completed":
-                return "bg-purple-100 border-purple-500 dark:bg-purple-900/30 dark:border-purple-500";
-            case "in-progress":
-                return "bg-blue-100 border-blue-500 dark:bg-blue-900/30 dark:border-blue-500";
-            case "error":
-                return "bg-red-100 border-red-500 dark:bg-red-900/30 dark:border-red-500";
-            default:
-                return "bg-gray-100 border-gray-400 dark:bg-gray-800 dark:border-gray-600";
-        }
-    };
-
     const casesCount = node.data.cases?.length || 0;
     const hasDefault = !!node.data.defaultBranch;
-
-    // Build tooltip with selected branch info
-    const baseTooltip = node.data.description || `Switch with ${casesCount} case${casesCount !== 1 ? "s" : ""}${hasDefault ? " + default" : ""}`;
-    const tooltip = node.data.selectedBranch ? `${baseTooltip}\nSelected: ${node.data.selectedBranch}` : baseTooltip;
+    const totalCases = casesCount + (hasDefault ? 1 : 0);
+    const selectedBranch = node.data.selectedBranch;
 
     return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <div
-                    className="group/switch relative flex cursor-pointer items-center justify-center"
-                    style={{ width: `${node.width}px`, height: `${node.height}px` }}
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                >
-                    {/* Diamond Shape using rotation - same as conditional */}
-                    <div className={`absolute h-12 w-12 rotate-45 border-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${getStatusColor()} ${isSelected ? "ring-2 ring-blue-500" : ""}`} />
-
-                    {/* Content (unrotated) */}
-                    <div className="pointer-events-none z-10 flex flex-col items-center justify-center px-1 text-center">
-                        <div className="max-w-[100px] truncate text-[10px] font-bold text-gray-800 dark:text-gray-200">
-                            {/* Show selected branch when completed, otherwise show label */}
-                            {node.data.selectedBranch || node.data.label}
-                        </div>
-                        {/* Show case count only when not yet completed */}
-                        {!node.data.selectedBranch && (
-                            <div className="text-[8px] text-gray-500 dark:text-gray-400">
-                                {casesCount} case{casesCount !== 1 ? "s" : ""}
-                            </div>
-                        )}
-                    </div>
+        <div
+            className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
+            style={{ width: 'fit-content', minWidth: '280px' }}
+            onClick={e => {
+                e.stopPropagation();
+                onClick?.(node);
+            }}
+        >
+            {/* Header row */}
+            <div className="flex items-center gap-4 px-4 py-2">
+                <div className="flex items-center gap-2">
+                    <GitBranch className="h-4 w-4 text-(--color-accent-n0-wMain)" />
+                    <span className="text-sm font-semibold">Switch</span>
                 </div>
-            </TooltipTrigger>
-            <TooltipContent>{tooltip}</TooltipContent>
-        </Tooltip>
+                {totalCases > 0 && <span className="text-sm text-gray-500 dark:text-gray-400">{totalCases} cases</span>}
+            </div>
+
+            {/* Selected case display - only show if a branch was selected */}
+            {selectedBranch && (
+                <div className="px-4 pt-0 pb-3">
+                    <span className="text-secondary-foreground block truncate rounded bg-(--color-secondary-w10) px-2 py-1 text-sm dark:bg-(--color-secondary-w80)" title={selectedBranch}>
+                        {selectedBranch === "default" ? "default" : selectedBranch}
+                    </span>
+                </div>
+            )}
+        </div>
     );
 };
 

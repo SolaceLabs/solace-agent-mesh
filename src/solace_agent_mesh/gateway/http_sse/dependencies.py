@@ -260,6 +260,117 @@ def get_identity_service(
     return component.identity_service
 
 
+def _is_connection_error(exc: Exception, _depth: int = 0) -> bool:
+    """
+    Check if an exception is a transient database connection error.
+    
+    Compatible with PostgreSQL (psycopg2), SQLite (sqlite3), and MySQL.
+    Uses a combination of:
+    1. SQLAlchemy's connection_invalidated flag (most reliable)
+    2. Exception type checking
+    3. Error message pattern matching (fallback)
+    
+    This multi-layered approach ensures robustness across different
+    database backends and SQLAlchemy versions.
+    
+    Args:
+        exc: The exception to check
+        _depth: Internal recursion depth counter (max 10 to prevent infinite loops)
+    """
+    # Prevent infinite recursion from circular cause chains
+    if _depth > 10:
+        return False
+    
+    # Method 1: Check SQLAlchemy's connection_invalidated flag (most reliable)
+    # SQLAlchemy sets this flag on exceptions that indicate a disconnection
+    if hasattr(exc, 'connection_invalidated') and exc.connection_invalidated:
+        return True
+    
+    # Method 2: Check exception class hierarchy
+    exc_type_name = type(exc).__name__
+    
+    # Check for SQLAlchemy's DisconnectionError (explicit disconnect indicator)
+    if exc_type_name == 'DisconnectionError':
+        return True
+    
+    # Check for OperationalError or InterfaceError (can indicate connection issues)
+    is_operational_or_interface = exc_type_name in ('OperationalError', 'InterfaceError')
+    
+    # Method 3: Error message pattern matching
+    error_str = str(exc).lower()
+    connection_error_patterns = [
+        # PostgreSQL / psycopg2 patterns
+        "ssl connection has been closed unexpectedly",
+        "connection reset by peer",
+        "connection timed out",
+        "server closed the connection unexpectedly",
+        "could not connect to server",
+        "connection refused",
+        "network is unreachable",
+        "terminating connection due to administrator command",
+        "the connection is closed",
+        # SQLite patterns (note: "database is locked" is a contention error, not connection)
+        "disk i/o error",
+        "unable to open database file",
+        # MySQL patterns
+        "lost connection to mysql server",
+        "mysql server has gone away",
+        # Generic patterns
+        "connection was closed",
+        "broken pipe",
+        "connection unexpectedly closed",
+        "connection already closed",
+    ]
+    
+    has_connection_error_message = any(pattern in error_str for pattern in connection_error_patterns)
+    
+    # Return True if it's an OperationalError/InterfaceError with a connection-related message
+    if is_operational_or_interface and has_connection_error_message:
+        return True
+    
+    # Recursively check the cause chain for wrapped exceptions
+    if exc.__cause__ is not None:
+        return _is_connection_error(exc.__cause__, _depth + 1)
+    
+    return False
+
+
+@contextmanager
+def short_lived_session():
+    """
+    Context manager for short-lived database sessions.
+    
+    Use this for database operations that should not hold a connection
+    for extended periods, such as fetching data before a long-lived SSE stream.
+    
+    The session is automatically closed after the context exits, even if an
+    exception occurs. Rollback is attempted on exceptions before re-raising.
+    
+    Yields:
+        Session: A SQLAlchemy database session
+        
+    Raises:
+        The original exception if one occurs during database operations
+    """
+    if SessionLocal is None:
+        raise RuntimeError("Database not configured")
+    
+    db = SessionLocal()
+    try:
+        yield db
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def get_db() -> Generator[Session, None, None]:
     if SessionLocal is None:
         raise HTTPException(
@@ -270,11 +381,30 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
         db.commit()
-    except Exception:
-        db.rollback()
+    except Exception as e:
+        # Always attempt rollback first
+        try:
+            db.rollback()
+        except Exception as rollback_error:
+            log.warning("Failed to rollback after error: %s", rollback_error)
+        
+        # Check if this is a transient connection error
+        if _is_connection_error(e):
+            log.warning(
+                "Database connection error during commit (connection may have been closed by server): %s",
+                str(e)
+            )
+            # Re-raise as a service unavailable error for transient connection issues
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database connection temporarily unavailable. Please retry.",
+            ) from e
         raise
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception as close_error:
+            log.warning("Failed to close database session: %s", close_error)
 
 
 def get_people_service(
@@ -562,11 +692,31 @@ def get_db_optional() -> Generator[Session | None, None, None]:
         try:
             yield db
             db.commit()
-        except Exception:
-            db.rollback()
+        except Exception as e:
+            # Always attempt rollback first
+            try:
+                db.rollback()
+            except Exception as rollback_error:
+                log.warning("Failed to rollback after error: %s", rollback_error)
+            
+            # Check if this is a transient connection error
+            if _is_connection_error(e):
+                log.warning(
+                    "Database connection error during commit (connection may have been closed by server): %s",
+                    str(e)
+                )
+                # Re-raise as a service unavailable error for transient connection issues
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database connection temporarily unavailable. Please retry.",
+                ) from e
             raise
         finally:
-            db.close()
+            try:
+                db.close()
+            except Exception as close_error:
+                log.warning("Failed to close database session: %s", close_error)
+
 
 def get_project_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
@@ -583,6 +733,7 @@ def get_project_service_optional(
         log.debug("Database not configured, projects unavailable")
         return None
     return ProjectService(component=component)
+
 
 def get_session_business_service_optional(
     component: "WebUIBackendComponent" = Depends(get_sac_component),

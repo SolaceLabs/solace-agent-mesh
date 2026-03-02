@@ -2,6 +2,8 @@ import logging
 import sys
 import os
 
+from ...common.a2a.protocol import get_agent_discovery_topic
+
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 )
@@ -348,6 +350,13 @@ class SamAgentAppConfig(SamConfigBase):
         default={"type": "memory"},
         description="Configuration for ADK Memory Service (defaults to memory).",
     )
+    auto_summarization: Dict[str, Any] = Field(
+        default={
+            "enabled": False,
+            "compaction_percentage": 0.25
+        },
+        description="Configuration for automatic conversation history summarization to prevent token limit errors.",
+    )
     credential_service: Optional[CredentialServiceConfig] = Field(
         default=None,
         description="Configuration for ADK Credential Service (optional).",
@@ -524,7 +533,7 @@ class SamAgentApp(SamAppBase):
 
         required_topics = [
             get_agent_request_topic(namespace, agent_name),
-            get_discovery_subscription_topic(namespace),
+            get_agent_discovery_topic(namespace),
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
