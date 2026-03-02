@@ -360,7 +360,11 @@ class ProjectService:
             )
             project_session_id = f"project-{project_domain.id}"
             for file, content_bytes in validated_files:
-                metadata = {"source": "project"}
+                metadata = {
+                    "source": "project",
+                    "source_project_id": project_domain.id,
+                    "source_project_name": project_domain.name,
+                }
                 desc = file_metadata.get(file.filename) if file_metadata else None
                 if desc:
                     metadata["description"] = desc
@@ -609,7 +613,11 @@ class ProjectService:
         results = []
 
         for file, content_bytes in validated_files:
-            metadata = {"source": "project"}
+            metadata = {
+                "source": "project",
+                "source_project_id": project.id,
+                "source_project_name": project.name,
+            }
             desc = file_metadata.get(file.filename) if file_metadata else None
             if desc:
                 metadata["description"] = desc
@@ -761,7 +769,11 @@ class ProjectService:
                 return False
 
             # Prepare updated metadata
-            metadata = {"source": "project"}
+            metadata = {
+                "source": "project",
+                "source_project_id": project.id,
+                "source_project_name": project.name,
+            }
             if description is not None:
                 self._validate_file_descriptions({filename: description})
                 metadata["description"] = description
