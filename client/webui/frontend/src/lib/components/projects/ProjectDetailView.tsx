@@ -56,16 +56,13 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
     const [indexingError, setIndexingError] = useSessionStorage<string | null>(`sam_indexing_error_${project.id}`, null);
     const { isIndexing } = useIndexingSSE({
         resourceId: project.id,
-        onComplete: (failedFiles, errors) => {
-            const messages: string[] = [];
+        onComplete: (failedFiles = [], errors = []) => {
+            const messages: string[] = [...errors];
             if (failedFiles.length > 0) {
-                messages.push(`Unable to process: ${failedFiles.join(", ")}.`);
-            }
-            if (errors.length > 0) {
-                messages.push(errors.join(" "));
+                messages.push(`Unable to process: ${failedFiles.join(", ")}`);
             }
             if (messages.length > 0) {
-                setIndexingError(`${messages.join(". ")}. Please ensure all files are valid and try again.`);
+                setIndexingError(`${messages.join(" ")}. Please ensure all files are valid and try again.`);
             } else {
                 setIndexingError(null);
                 addNotification("Project files processed", "success");

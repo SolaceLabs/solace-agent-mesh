@@ -61,7 +61,11 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ is
             formData.append("fileMetadata", JSON.stringify(metadataPayload));
         }
 
-        await onConfirm(formData);
+        try {
+            await onConfirm(formData);
+        } catch {
+            // ignore - error handled by parent
+        }
     }, [files, form, onConfirm]);
 
     const fileList = files ? Array.from(files) : [];

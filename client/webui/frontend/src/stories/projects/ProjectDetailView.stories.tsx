@@ -97,8 +97,13 @@ const handlers = [
             async start(controller) {
                 // Small delay to allow EventSource to fully connect and register handlers
                 await new Promise(resolve => setTimeout(resolve, 100));
-                // Per-file conversion failure (non-terminal)
-                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"conversion_failed","file":"document.pdf","error":"Failed to convert \'document.pdf\'"}\n\n'));
+                // Per-file conversion failures (non-terminal)
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"conversion_failed","file":"document.pdf","error":"Some reason."}\n\n'));
+                await new Promise(resolve => setTimeout(resolve, 50));
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"conversion_failed","file":"report.docx","error":"Another reason."}\n\n'));
+                await new Promise(resolve => setTimeout(resolve, 50));
+                // Indexing failure (non-terminal)
+                controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"indexing_failed","error":"Indexing failed for some reason."}\n\n'));
                 await new Promise(resolve => setTimeout(resolve, 50));
                 // Task always completes
                 controller.enqueue(new TextEncoder().encode('event: index_message\ndata: {"type":"task_completed","files":[]}\n\n'));
@@ -303,8 +308,10 @@ export const IndexingError: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Verify info banner is shown
-        expect(await canvas.findByTestId("messageBanner")).toBeVisible();
+        // Verify error banner is shown with accumulated error message
+        const banner = await canvas.findByTestId("messageBanner");
+        expect(banner).toBeVisible();
+        await waitFor(() => expect(banner).toHaveTextContent("Indexing failed for some reason. Unable to process: document.pdf, report.docx. Please ensure all files are valid and try again."));
 
         // Verify buttons enabled - wait for first to ensure page is updated
         await waitFor(async () => expect(await canvas.findByTestId("editDetailsButton", {}, { timeout: 2000 })).toBeEnabled());
