@@ -6,7 +6,7 @@ Hosts the FastAPI REST API server for platform configuration management.
 import logging
 import threading
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import uvicorn
 from solace_ai_connector.common.message import Message as SolaceMessage
@@ -193,7 +193,9 @@ class PlatformServiceComponent(SamComponentBase):
         """Run database migrations synchronously during __init__."""
         try:
             from .api.main import _setup_database
-            _setup_database(self.database_url, self.connector.config)
+            # Pass connector config if available, None otherwise (enterprise migrations will handle gracefully)
+            config = self.connector.config if self.connector else None
+            _setup_database(self.database_url, config)
         except Exception as e:
             log.error(
                 "%s Failed to run database migrations: %s",
