@@ -107,6 +107,7 @@ def build_app_info() -> Dict[str, Any]:
 
     # Sandbox (bubblewrap) configuration
     sandbox_config = {
+        "mode": get_env("SANDBOX_MODE", "bwrap"),
         "bwrap_bin": get_env("SANDBOX_BWRAP_BIN", "/usr/bin/bwrap"),
         "python_bin": get_env("SANDBOX_PYTHON_BIN", "/usr/bin/python3"),
         "work_base_dir": get_env("SANDBOX_WORK_DIR", "/sandbox/work"),
