@@ -105,7 +105,9 @@ def _get_test_token_threshold() -> int:
     Returns:
         Token threshold value, or -1 if not set (test mode disabled)
     """
-    return int(os.getenv("TEST_TOKEN_TRIGGER_THRESHOLD", "-1"))
+    toke_trigger = int(os.getenv("TEST_TOKEN_TRIGGER_THRESHOLD", "-1"))
+    log.info(f"Proactive compaction enabled? {toke_trigger > 0} and value is: {toke_trigger} ")
+    return toke_trigger
 
 
 def _is_test_mode_trigger_enabled() -> bool:
