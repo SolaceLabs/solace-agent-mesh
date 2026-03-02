@@ -4,7 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { NavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useUIMode } from "@/lib/hooks";
 
 function AppLayoutContent() {
     const location = useLocation();
@@ -12,6 +12,7 @@ function AppLayoutContent() {
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
+    const { isOnboardMode } = useUIMode();
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -86,7 +87,7 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+            {!isOnboardMode && <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />}
             <main className="h-full w-full flex-1 overflow-auto">
                 <Outlet />
             </main>
