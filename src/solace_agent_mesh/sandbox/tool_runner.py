@@ -126,6 +126,21 @@ def _is_artifact_annotation(annotation) -> bool:
     return getattr(annotation, "__name__", "") == "Artifact"
 
 
+def _detect_config_param(func, args: Dict[str, Any]) -> Optional[str]:
+    """Detect a tool_config parameter for config injection.
+
+    Core-plugins convention: function-based tools declare
+    ``tool_config: Optional[Dict[str, Any]] = None`` to receive config.
+    Returns the parameter name if found and not in the LLM-provided args.
+    """
+    sig = inspect.signature(func)
+    for name, param in sig.parameters.items():
+        if name == "tool_config" and name not in args:
+            log.debug("Detected tool_config param for config injection")
+            return name
+    return None
+
+
 def _detect_special_params(func) -> Tuple[Optional[str], Dict[str, Any]]:
     """Detect ToolContextFacade and Artifact parameters from type annotations.
 
@@ -459,6 +474,7 @@ async def run_tool_async(
     context: SandboxToolContextFacade,
     artifact_metadata: Dict[str, Dict[str, Any]],
     output_dir: str,
+    tool_config: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """
     Run a tool function (sync or async) with annotation-aware injection.
@@ -478,6 +494,7 @@ async def run_tool_async(
         context: The sandbox context facade
         artifact_metadata: Rich metadata per artifact param
         output_dir: Path for output artifacts
+        tool_config: Tool configuration dict (injected into tool_config params)
 
     Returns:
         Serialized result dictionary
@@ -486,6 +503,9 @@ async def run_tool_async(
 
     # Detect special parameters from type annotations
     ctx_param_name, artifact_params = _detect_special_params(func)
+
+    # Detect tool_config parameter for config injection
+    config_param_name = _detect_config_param(func, args)
 
     if ctx_param_name or artifact_params:
         # New-style: inject by parameter name (portable tools)
@@ -504,6 +524,9 @@ async def run_tool_async(
         # Inject context facade by detected parameter name
         if ctx_param_name:
             kwargs[ctx_param_name] = context
+
+        if config_param_name:
+            kwargs[config_param_name] = tool_config or {}
 
         if asyncio.iscoroutinefunction(func):
             result = await func(**kwargs)
@@ -527,19 +550,23 @@ async def run_tool_async(
             and first_param.annotation is inspect.Parameter.empty
         )
 
+        kwargs = dict(args)
+        if config_param_name:
+            kwargs[config_param_name] = tool_config or {}
+
         if needs_legacy_ctx:
             log.info("Using legacy injection: context as first positional arg")
             legacy_ctx = _LegacyContextWrapper(context)
             if asyncio.iscoroutinefunction(func):
-                result = await func(legacy_ctx, **args)
+                result = await func(legacy_ctx, **kwargs)
             else:
-                result = func(legacy_ctx, **args)
+                result = func(legacy_ctx, **kwargs)
         else:
             log.info("Using simple invocation: no context injection needed")
             if asyncio.iscoroutinefunction(func):
-                result = await func(**args)
+                result = await func(**kwargs)
             else:
-                result = func(**args)
+                result = func(**kwargs)
 
     # Extract artifact DataObjects to output dir before serializing
     result = _extract_output_artifacts(result, output_dir)
@@ -787,7 +814,7 @@ def run_tool(runner_args: Dict[str, Any]) -> Dict[str, Any]:
             result = asyncio.run(
                 run_tool_async(
                     module_path, function_name, args, context,
-                    artifact_metadata, output_dir,
+                    artifact_metadata, output_dir, tool_config,
                 )
             )
         return {"result": result}
