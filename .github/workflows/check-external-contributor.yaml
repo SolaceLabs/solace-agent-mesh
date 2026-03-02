@@ -6,9 +6,21 @@ on:
 
 jobs:
   check-external-contributor:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/check-external-contributor.yml@feat/check-external-contributor
-    with:
-      github_team_slug: solace-ai
-      label_name: external contributor
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    name: Check External Contributor
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          repository: SolaceDev/solace-public-workflows
+          path: workflows-repo
+          ref: feat/check-external-contributor
+
+      - name: Check External Contributor
+        uses: ./workflows-repo/.github/actions/check-external-contributor
+        with:
+          github_team_slug: solace-ai
+          label_name: external contributor
+          github-token: ${{ secrets.GITHUB_TOKEN }}
