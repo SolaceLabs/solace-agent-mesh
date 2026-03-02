@@ -820,7 +820,7 @@ def repair_history_callback(
     while i < len(llm_request.contents):
         content = llm_request.contents[i]
         function_calls = []
-        if content.role == "model" and content.parts:
+        if content and content.role == "model" and content.parts:
             function_calls = [p.function_call for p in content.parts if p.function_call]
 
         if function_calls:

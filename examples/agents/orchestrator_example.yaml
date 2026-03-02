@@ -53,6 +53,7 @@ apps:
       artifact_handling_mode: "reference" # Embed artifacts created by *this* agent
       enable_embed_resolution: true # Enable embed feature and instruction injection
       enable_artifact_content_instruction: true # Enable instruction for late-stage embed
+      auto_summarization: *default_auto_summarization
 
       tools:
         - tool_type: builtin-group

@@ -71,7 +71,6 @@ dependencies = [
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
     "azure-cognitiveservices-speech==1.41.1",
-    "authlib==1.6.5",  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
     "cryptography==46.0.5",  # [CVE-2026-26007] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
     "pillow==12.1.1",  # [CVE-2026-25990] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
     "bm25s==0.2.14",
@@ -79,7 +78,9 @@ dependencies = [
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "google-cloud-storage==3.9.0",
-    "azure-storage-blob==12.28.0"
+    "azure-storage-blob==12.28.0",
+    "authlib==1.6.5",
+    "cachetools==7.0.1"
 ]
 
 [project.optional-dependencies]
