@@ -56,7 +56,6 @@ from ..dependencies import (
     get_db_optional,
 )
 from ..services.project_service import ProjectService
-from ..repository.models import ProjectModel
 
 
 from ..session_manager import SessionManager
@@ -560,7 +559,6 @@ async def list_artifacts(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
-    db: Session | None = Depends(get_db_optional),
 ):
     """
     Lists detailed information (filename, size, type, modified date, uri)
@@ -607,24 +605,6 @@ async def list_artifacts(
             if not artifact.filename.endswith('.converted.txt')
             and artifact.filename != 'project_bm25_index.zip'
         ]
-
-        # Check which source projects have been deleted
-        if db is not None:
-            source_project_ids = {
-                a.source_project_id for a in original_artifacts_only
-                if a.source_project_id
-            }
-            if source_project_ids:
-                existing_ids = {
-                    row.id for row in
-                    db.query(ProjectModel.id).filter(
-                        ProjectModel.id.in_(source_project_ids),
-                        ProjectModel.deleted_at.is_(None),
-                    ).all()
-                }
-                for artifact in original_artifacts_only:
-                    if artifact.source_project_id and artifact.source_project_id not in existing_ids:
-                        artifact.source_project_deleted = True
 
         log.info(
             "%s Returning %d artifact details (filtered from %d total, excluded %d generated files).",

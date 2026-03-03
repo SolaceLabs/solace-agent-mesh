@@ -3,22 +3,23 @@ import { Badge, Tooltip, TooltipContent, TooltipTrigger } from "@/lib";
 interface ProjectBadgeProps {
     text?: string;
     className?: string;
-    projectName?: string;
-    isDeleted?: boolean;
+    minWidth?: string;
+    maxWidth?: string;
 }
 
-export const ProjectBadge = ({ text = "Project", className = "", projectName, isDeleted = false }: ProjectBadgeProps) => {
-    const displayText = projectName || text;
-    const tooltipText = isDeleted ? `Project "${projectName}" has been deleted` : displayText;
-
+export const ProjectBadge = ({ text = "Unknown Project", className = "", minWidth = "24px", maxWidth = "120px" }: ProjectBadgeProps) => {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <Badge variant="default" className={`max-w-[120px] ${isDeleted ? "line-through opacity-50" : ""} ${className}`}>
-                    <span className="block truncate font-semibold">{displayText}</span>
+                <Badge variant="default" className={`shrink ${className}`} style={{ minWidth, maxWidth }}>
+                    <span className="block truncate font-semibold">{text}</span>
                 </Badge>
             </TooltipTrigger>
-            <TooltipContent>{tooltipText}</TooltipContent>
+            <TooltipContent className="max-w-[480px]">
+                <span className="block truncate">
+                    Indexed from project <span className="font-semibold">{text}</span>
+                </span>
+            </TooltipContent>
         </Tooltip>
     );
 };

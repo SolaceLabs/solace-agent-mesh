@@ -39,7 +39,6 @@ export interface ArtifactBarProps {
     version?: number; // Version number to display (e.g., 1, 2, 3)
     source?: string; // Source of the artifact (e.g., "project")
     sourceProjectName?: string; // Name of the source project
-    sourceProjectDeleted?: boolean; // True if the source project has been deleted
 }
 
 export const ArtifactBar: React.FC<ArtifactBarProps> = ({
@@ -60,7 +59,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     version,
     source,
     sourceProjectName,
-    sourceProjectDeleted,
 }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
     const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
@@ -217,7 +215,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
                         </div>
                         {/* Project badge */}
-                        {source === "project" && <ProjectBadge projectName={sourceProjectName} isDeleted={sourceProjectDeleted} />}
+                        {source === "project" && sourceProjectName && <ProjectBadge text={sourceProjectName} maxWidth="360px" />}
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}

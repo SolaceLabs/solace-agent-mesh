@@ -82,7 +82,6 @@ export interface ArtifactInfo {
     source?: string; // Optional: Source of the artifact (e.g., "project")
     source_project_id?: string; // Optional: ID of the project this artifact came from
     source_project_name?: string; // Optional: Name of the project this artifact came from
-    source_project_deleted?: boolean; // Optional: True if the source project has been deleted
 }
 
 /**
