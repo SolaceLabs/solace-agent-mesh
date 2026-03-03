@@ -78,10 +78,10 @@ def build_app_info() -> Dict[str, Any]:
         }
     else:
         # Use real Solace broker
-        solace_host = get_env("SOLACE_HOST", required=True)
-        solace_vpn = get_env("SOLACE_VPN", "default")
-        solace_username = get_env("SOLACE_USERNAME", "admin")
-        solace_password = get_env("SOLACE_PASSWORD", "admin")
+        solace_host = get_env("SOLACE_BROKER_URL", required=True)
+        solace_vpn = get_env("SOLACE_BROKER_VPN", "default")
+        solace_username = get_env("SOLACE_BROKER_USERNAME", "admin")
+        solace_password = get_env("SOLACE_BROKER_PASSWORD", "admin")
 
         # Optional broker settings
         trust_store_path = get_env("SOLACE_TRUST_STORE_PATH")
