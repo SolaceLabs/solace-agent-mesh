@@ -519,6 +519,11 @@ async def _perform_search(
     result_index = 0
 
     for i, (corpus_idx, score) in enumerate(zip(corpus_indices, bm25_scores)):
+        # Filter out results with zero or negative BM25 score (if min_score is 0)
+        if score <= 0:
+            log.debug(f"{log_prefix} Filtered out BM25 result {i} (score {score:.2f} <= 0)")
+            continue
+
         # Filter by min_score (using raw BM25 score)
         if score < min_score:
             log.debug(f"{log_prefix} Filtered out BM25 result {i} (score {score:.2f} < {min_score})")
@@ -569,6 +574,7 @@ async def _perform_search(
             for result in search_results:
                 result["relevance_score"] = result["score"] / max_score
         else:
+            # Defensive: should be unreachable since zero-score results are filtered above
             for result in search_results:
                 result["relevance_score"] = 0.0
 

@@ -408,7 +408,7 @@ class TestPerformSearchEdgeCases:
 
     @pytest.mark.asyncio
     async def test_search_score_normalization_zero_max_score(self):
-        """Test score normalization when max score is zero."""
+        """Test that results with zero BM25 score are filtered out."""
         import numpy as np
 
         mock_retriever = MagicMock()
@@ -437,8 +437,60 @@ class TestPerformSearchEdgeCases:
                 search_turn=0
             )
 
-            # Should handle zero max score
-            assert results[0]["relevance_score"] == 0.0
+            # Zero-score results should be filtered out entirely
+            assert len(results) == 0
+
+    @pytest.mark.asyncio
+    async def test_search_filters_zero_score_results_with_sequential_citation_ids(self):
+        """Test that zero-score results are filtered and citation IDs remain sequential."""
+        import numpy as np
+
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve = MagicMock(
+            return_value=(
+                np.array([[0, 1, 2]]),
+                np.array([[10.0, 0.0, 5.0]])  # Middle result has zero score
+            )
+        )
+
+        manifest = {
+            "chunks": [
+                {"chunk_text": "First", "filename": "a.txt", "source_file": "a.txt",
+                 "chunk_id": 0, "doc_id": 0, "chunk_start": 0, "chunk_end": 10,
+                 "citation_type": "text_file", "citation_map": [], "version": 1},
+                {"chunk_text": "Zero score", "filename": "b.txt", "source_file": "b.txt",
+                 "chunk_id": 1, "doc_id": 0, "chunk_start": 0, "chunk_end": 10,
+                 "citation_type": "text_file", "citation_map": [], "version": 1},
+                {"chunk_text": "Third", "filename": "c.txt", "source_file": "c.txt",
+                 "chunk_id": 2, "doc_id": 0, "chunk_start": 0, "chunk_end": 10,
+                 "citation_type": "text_file", "citation_map": [], "version": 1},
+            ]
+        }
+
+        with patch('solace_agent_mesh.agent.tools.index_search_tools.bm25s') as mock_bm25s:
+            mock_bm25s.tokenize = MagicMock(return_value=["tokens"])
+
+            results = await _perform_search(
+                mock_retriever,
+                manifest,
+                "query",
+                top_k=5,
+                min_score=0.0,
+                search_turn=0
+            )
+
+            # Only 2 results should remain (zero-score filtered)
+            assert len(results) == 2
+            assert results[0]["chunk_text"] == "First"
+            assert results[1]["chunk_text"] == "Third"
+
+            # Citation IDs should be sequential (no gaps)
+            assert results[0]["citation_id"] == "idx0r0"
+            assert results[1]["citation_id"] == "idx0r1"
+
+            # Normalization should work correctly on remaining results
+            assert results[0]["relevance_score"] == 1.0   # 10/10
+            assert results[1]["relevance_score"] == 0.5    # 5/10
 
 
 class TestIndexSearchComprehensive:
