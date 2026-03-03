@@ -214,8 +214,7 @@ class WebUIBackendFactory:
         _features_yaml = str(
             pkg_files("solace_agent_mesh.common.features").joinpath("features.yaml")
         )
-        if Path(_features_yaml).exists():
-            _registry.load_from_yaml(_features_yaml)
+        _registry.load_from_yaml(_features_yaml)
         feature_checker = FeatureChecker(registry=_registry)
         mock_component.feature_checker = feature_checker
         openfeature_api.set_provider(SamFeatureProvider(feature_checker))
