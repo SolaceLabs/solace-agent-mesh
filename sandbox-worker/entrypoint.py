@@ -144,7 +144,7 @@ def build_app_info() -> Dict[str, Any]:
         "enabled": get_env_bool("TOOL_SYNC_ENABLED", False),
         "interval": get_env_int("TOOL_SYNC_INTERVAL", 10),
         "storage_type": get_env("OBJECT_STORAGE_TYPE"),
-        "bucket_name": get_env("OBJECT_STORAGE_BUCKET_NAME") or get_env("S3_BUCKET_NAME"),
+        "bucket_name": get_env("STR_S3_BUCKET") or get_env("S3_BUCKET_NAME"),
     }
 
     # Build app info
