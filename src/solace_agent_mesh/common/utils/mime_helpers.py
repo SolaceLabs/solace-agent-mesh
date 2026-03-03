@@ -2,6 +2,7 @@
 Utility functions for handling MIME types.
 """
 
+import os
 from typing import Optional, Set
 
 TEXT_CONTAINER_MIME_TYPES: Set[str] = {
@@ -113,6 +114,85 @@ def is_text_based_file(
     return False
 
 
+# Canonical MIME-type ↔ extension mapping.  Both get_extension_for_mime_type()
+# and resolve_mime_type() are derived from this single source of truth.
+#
+# NOTE: When a MIME type maps to more than one extension (e.g. text/yaml → .yaml
+# and .yml), only the *primary* extension appears here.  Additional aliases are
+# added to _EXTENSION_TO_MIME below.
+_MIME_TO_EXTENSION = {
+    # Text / code formats
+    "text/plain": ".txt",
+    "text/html": ".html",
+    "text/css": ".css",
+    "text/javascript": ".js",
+    "text/csv": ".csv",
+    "text/markdown": ".md",
+    "text/xml": ".xml",
+    "text/yaml": ".yaml",
+    "text/x-typescript": ".ts",
+    "text/jsx": ".jsx",
+    "text/x-toml": ".toml",
+    "text/x-rust": ".rs",
+    "text/x-go": ".go",
+    "text/x-kotlin": ".kt",
+    "text/x-swift": ".swift",
+    "text/x-ruby": ".rb",
+    "text/x-php": ".php",
+    "text/x-c": ".c",
+    "text/x-c++": ".cpp",
+    "text/x-python": ".py",
+    "text/x-java-source": ".java",
+    # Application formats
+    "application/json": ".json",
+    "application/x-yaml": ".yaml",
+    "application/yaml": ".yaml",
+    "application/x-sh": ".sh",
+    "application/pdf": ".pdf",
+    "application/zip": ".zip",
+    # Image formats
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/gif": ".gif",
+    "image/bmp": ".bmp",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+    # Audio formats
+    "audio/wav": ".wav",
+    "audio/mp3": ".mp3",
+    "audio/mpeg": ".mp3",
+    "audio/ogg": ".ogg",
+    "audio/flac": ".flac",
+    "audio/aac": ".aac",
+    "audio/m4a": ".m4a",
+    # Video formats
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/x-msvideo": ".avi",
+    "video/quicktime": ".mov",
+}
+
+# Reverse map: extension → MIME type (auto-generated from the canonical map).
+_EXTENSION_TO_MIME = {ext: mime for mime, ext in _MIME_TO_EXTENSION.items()}
+
+# Extra extension aliases that can't be derived by inverting _MIME_TO_EXTENSION
+# (many-to-one cases where multiple extensions share a single MIME type).
+_EXTENSION_TO_MIME.update({
+    ".yaml": "text/yaml",
+    ".yml": "text/yaml",
+    ".jpg": "image/jpeg",
+    ".tsx": "text/x-typescript",
+    ".bash": "application/x-sh",
+    ".env": "text/plain",
+    ".ini": "text/plain",
+    ".cfg": "text/plain",
+    ".hpp": "text/x-c++",
+    ".h": "text/x-c",
+    ".mmd": "text/plain",
+})
+
+
 def get_extension_for_mime_type(
     mime_type: Optional[str], default_extension: str = ".dat"
 ) -> str:
@@ -129,44 +209,45 @@ def get_extension_for_mime_type(
     if not mime_type:
         return default_extension
 
-    # Comprehensive mapping of common MIME types to file extensions
-    extension_mapping = {
-        # Text formats
-        "text/plain": ".txt",
-        "text/html": ".html",
-        "text/css": ".css",
-        "text/javascript": ".js",
-        "text/csv": ".csv",
-        "text/markdown": ".md",
-        "text/xml": ".xml",
-        # Application formats
-        "application/json": ".json",
-        "application/x-yaml": ".yaml",
-        "application/yaml": ".yaml",
-        "application/pdf": ".pdf",
-        "application/zip": ".zip",
-        "application/octet-stream": ".bin",
-        # Image formats
-        "image/png": ".png",
-        "image/jpeg": ".jpg",
-        "image/jpg": ".jpg",
-        "image/gif": ".gif",
-        "image/bmp": ".bmp",
-        "image/webp": ".webp",
-        "image/svg+xml": ".svg",
-        # Audio formats
-        "audio/wav": ".wav",
-        "audio/mp3": ".mp3",
-        "audio/mpeg": ".mp3",
-        "audio/ogg": ".ogg",
-        "audio/flac": ".flac",
-        "audio/aac": ".aac",
-        "audio/m4a": ".m4a",
-        # Video formats
-        "video/mp4": ".mp4",
-        "video/webm": ".webm",
-        "video/x-msvideo": ".avi",
-        "video/quicktime": ".mov",
-    }
+    normalized = mime_type.lower()
+    if normalized == "application/octet-stream":
+        return ".bin"
 
-    return extension_mapping.get(mime_type.lower(), default_extension)
+    return _MIME_TO_EXTENSION.get(normalized, default_extension)
+
+
+def resolve_mime_type(
+    filename: Optional[str], provided_mime_type: Optional[str] = None
+) -> str:
+    """
+    Resolves a MIME type from a filename when the provided type is missing or
+    ``application/octet-stream`` (the browser default for unrecognised extensions).
+
+    Resolution order:
+      1. If *provided_mime_type* is present and not ``application/octet-stream``,
+         return it unchanged.
+      2. Check the file extension against the canonical extension map.
+      3. Return ``application/octet-stream`` if nothing matched.
+
+    Args:
+        filename: The original filename (used for extension lookup).
+        provided_mime_type: The MIME type reported by the client / browser.
+
+    Returns:
+        The best-effort MIME type string.
+    """
+    fallback = "application/octet-stream"
+
+    if provided_mime_type and provided_mime_type != fallback:
+        return provided_mime_type
+
+    if not filename:
+        return provided_mime_type or fallback
+
+    ext = os.path.splitext(filename)[1].lower()
+
+    mapped = _EXTENSION_TO_MIME.get(ext)
+    if mapped:
+        return mapped
+
+    return provided_mime_type or fallback
