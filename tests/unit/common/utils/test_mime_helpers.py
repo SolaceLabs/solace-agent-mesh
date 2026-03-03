@@ -58,7 +58,6 @@ class TestResolveMimeType:
         """Ensure stdlib mimetypes.guess_type is NOT used (e.g. .mmd should not resolve to karaoke type)."""
         result = resolve_mime_type("file.mmd", "application/octet-stream")
         assert result == "text/plain"
-        assert "karaoke" not in result
 
     def test_case_insensitive_extension(self):
         assert resolve_mime_type("README.MD", "application/octet-stream") == "text/markdown"
@@ -130,3 +129,6 @@ class TestExtensionToMimeAliases:
 
     def test_mmd_maps_to_text_plain(self):
         assert _EXTENSION_TO_MIME[".mmd"] == "text/plain"
+
+    def test_bin_not_in_reverse_map(self):
+        assert ".bin" not in _EXTENSION_TO_MIME

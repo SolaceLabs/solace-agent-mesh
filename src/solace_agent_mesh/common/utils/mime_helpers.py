@@ -5,6 +5,8 @@ Utility functions for handling MIME types.
 import os
 from typing import Optional, Set
 
+_OCTET_STREAM = "application/octet-stream"
+
 TEXT_CONTAINER_MIME_TYPES: Set[str] = {
     "text/plain",
     "text/markdown",
@@ -102,7 +104,7 @@ def is_text_based_file(
         if specific_format in _TEXT_BASED_SUBTYPE_SUFFIXES_AFTER_PLUS:
             return True
     elif (
-        normalized_mime_type == "application/octet-stream" and content_bytes is not None
+        normalized_mime_type == _OCTET_STREAM and content_bytes is not None
     ):
         try:
             sample_size = min(1024, len(content_bytes))
@@ -114,13 +116,10 @@ def is_text_based_file(
     return False
 
 
-# Canonical MIME-type ↔ extension mapping.  Both get_extension_for_mime_type()
-# and resolve_mime_type() are derived from this single source of truth.
-#
-# NOTE: When a MIME type maps to more than one extension (e.g. text/yaml → .yaml
-# and .yml), only the *primary* extension appears here.  Additional aliases are
-# added to _EXTENSION_TO_MIME below.
+# Canonical MIME-type ↔ extension mapping, used bi-directionally
 _MIME_TO_EXTENSION = {
+    # Default
+    _OCTET_STREAM: ".bin",
     # Text / code formats
     "text/plain": ".txt",
     "text/html": ".html",
@@ -173,11 +172,10 @@ _MIME_TO_EXTENSION = {
     "video/quicktime": ".mov",
 }
 
-# Reverse map: extension → MIME type (auto-generated from the canonical map).
 _EXTENSION_TO_MIME = {ext: mime for mime, ext in _MIME_TO_EXTENSION.items()}
-
-# Extra extension aliases that can't be derived by inverting _MIME_TO_EXTENSION
-# (many-to-one cases where multiple extensions share a single MIME type).
+# Remove default _OCTET_STREAM mapping
+_EXTENSION_TO_MIME.pop(".bin", None)
+# Add aliases for MIME types with more than one extension
 _EXTENSION_TO_MIME.update({
     ".yaml": "text/yaml",
     ".yml": "text/yaml",
@@ -210,9 +208,6 @@ def get_extension_for_mime_type(
         return default_extension
 
     normalized = mime_type.lower().split(";")[0].strip()
-    if normalized == "application/octet-stream":
-        return ".bin"
-
     return _MIME_TO_EXTENSION.get(normalized, default_extension)
 
 
@@ -238,16 +233,13 @@ def resolve_mime_type(
     Returns:
         The best-effort MIME type string.
     """
-    fallback = "application/octet-stream"
-
-    # Normalize: lowercase and strip parameters (e.g. "; charset=binary").
     normalized = provided_mime_type.lower().split(";")[0].strip() if provided_mime_type else None
 
-    if normalized and normalized != fallback:
+    if normalized and normalized != _OCTET_STREAM:
         return normalized
 
     if not filename:
-        return normalized or fallback
+        return normalized or _OCTET_STREAM
 
     ext = os.path.splitext(filename)[1].lower()
 
@@ -255,4 +247,4 @@ def resolve_mime_type(
     if mapped:
         return mapped
 
-    return normalized or fallback
+    return normalized or _OCTET_STREAM
