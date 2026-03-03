@@ -1,5 +1,5 @@
 """
-Unit tests for the feature_flags admin router.
+Unit tests for the feature_flags config router.
 
 Tests cover the helper logic in the endpoint: correct DTO field mapping,
 env-var override detection, and error handling. The FastAPI request
@@ -17,11 +17,6 @@ from solace_agent_mesh.common.features.registry import (
 from solace_agent_mesh.gateway.http_sse.routers.dto.responses.feature_flag_responses import (
     FeatureFlagResponse,
 )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _defn(
@@ -46,11 +41,6 @@ def _checker(*flags: FeatureDefinition) -> FeatureChecker:
     for f in flags:
         reg.register(f)
     return FeatureChecker(registry=reg)
-
-
-# ---------------------------------------------------------------------------
-# FeatureChecker — methods added for admin API
-# ---------------------------------------------------------------------------
 
 
 class TestHasEnvOverride:
@@ -109,11 +99,6 @@ class TestRegistryProperty:
         assert result[0] is defn
 
 
-# ---------------------------------------------------------------------------
-# FeatureFlagResponse DTO — field validation
-# ---------------------------------------------------------------------------
-
-
 class TestFeatureFlagResponseDto:
     """Tests for the FeatureFlagResponse Pydantic model."""
 
@@ -146,13 +131,8 @@ class TestFeatureFlagResponseDto:
         assert dto.description == ""
 
 
-# ---------------------------------------------------------------------------
-# Endpoint logic — verifying DTO assembly
-# ---------------------------------------------------------------------------
-
-
 class TestGetFeatureFlagsLogic:
-    """Tests for the DTO-building logic used inside the admin endpoint."""
+    """Tests for the DTO-building logic used inside the config/features endpoint."""
 
     def _build_mock_component(self, *flags: FeatureDefinition):
         """Build a mock component backed by real checker objects."""
