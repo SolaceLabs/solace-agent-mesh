@@ -256,9 +256,15 @@ class SandboxWorkerApp(SamAppBase):
         broker_config["queue_name"] = generated_queue_name
         log.debug("Generated broker queue name: %s", generated_queue_name)
 
-        # Use temporary queue by default (can be overridden in config)
+        # Use durable queue for reliable message delivery across restarts
         broker_config["temporary_queue"] = app_info.get("broker", {}).get(
-            "temporary_queue", True
+            "temporary_queue", False
+        )
+
+        # Queue access type: exclusive (default) for HA failover with standby consumers,
+        # or non-exclusive for horizontal scaling with round-robin across STR pods
+        broker_config["queue_non_exclusive"] = app_info.get("broker", {}).get(
+            "queue_non_exclusive", False
         )
 
         super().__init__(app_info, **kwargs)
@@ -283,10 +289,7 @@ class SandboxWorkerApp(SamAppBase):
 
     def _check_readiness(self) -> dict:
         broker_ok = self._is_broker_connected()
-        tool_names = self._manifest.get_tool_names() if self._manifest else set()
-        tools_ok = len(tool_names) > 0
-        ok = broker_ok and tools_ok
-        return {"ok": ok, "broker": "connected" if broker_ok else "disconnected", "tools": len(tool_names)}
+        return {"ok": broker_ok, "broker": "connected" if broker_ok else "disconnected"}
 
     def _check_startup(self) -> dict:
         startup_ok = self.is_startup_complete()
