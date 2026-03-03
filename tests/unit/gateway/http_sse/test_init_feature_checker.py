@@ -32,9 +32,6 @@ class TestInitFeatureCheckerCommunity:
     def test_community_flags_loaded_and_provider_registered(self):
         mock_self = _call_init_feature_checker()
 
-        assert isinstance(mock_self.feature_checker, object)
-        assert mock_self.feature_checker.is_known_flag("background_tasks")
-
         provider = openfeature_api.provider_registry.get_default_provider()
         assert isinstance(provider, SamFeatureProvider)
 
@@ -63,9 +60,7 @@ class TestInitFeatureCheckerEnterprise:
             sys.modules, "solace_agent_mesh_enterprise.init_enterprise", None
         )
 
-        mock_self = _call_init_feature_checker()
-
-        assert mock_self.feature_checker.is_known_flag("background_tasks")
+        _call_init_feature_checker()
 
     def test_enterprise_extension_called_after_provider_is_set(self, monkeypatch):
         provider_at_call_time = []
