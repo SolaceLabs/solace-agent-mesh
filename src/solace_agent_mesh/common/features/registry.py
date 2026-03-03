@@ -157,7 +157,7 @@ class FeatureRegistry:
                     f"'jira_epic' must be a non-empty string; got: {jira_epic!r}"
                 )
 
-            description = raw.get("description", "")
+            description = raw["description"] if "description" in raw else ""
             if not isinstance(description, str):
                 raise ValueError(
                     f"'description' must be a string; got: {description!r}"
