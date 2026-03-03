@@ -57,8 +57,9 @@ class TestGetFeatureFlagsEndpoint:
         assert flag["release_phase"] == "ga"
         assert flag["registry_default"] is False
 
-    def test_no_env_override_by_default(self, api_client: TestClient):
+    def test_no_env_override_by_default(self, api_client: TestClient, monkeypatch):
         """Without env vars set, has_env_override is False for every flag."""
+        monkeypatch.delenv("SAM_FEATURE_BACKGROUND_TASKS", raising=False)
         response = api_client.get("/api/v1/config/features")
         for flag in response.json():
             assert flag["has_env_override"] is False
