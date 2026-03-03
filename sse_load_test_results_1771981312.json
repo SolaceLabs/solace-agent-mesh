@@ -1,0 +1,513 @@
+{
+  "num_streams": 50,
+  "duration_seconds": 30.0,
+  "actual_duration": 0.7200310230255127,
+  "subscribed_streams": 0,
+  "connected_streams": 0,
+  "total_events_received": 0,
+  "total_errors": 50,
+  "events_per_second": 0.0,
+  "error_rate": 1.0,
+  "stream_stats": [
+    {
+      "stream_id": "load-test-5d3f70ae",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-1d1c10d18b0c4f7291dc32bfb9f7322e\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-1d1c10d18b0c4f7291dc32bfb9f7322e/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-62aefc88",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-9f56145a29b9455aa450d9ea232db2e5\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-9f56145a29b9455aa450d9ea232db2e5/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-6e939e65",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-b79433bdfb6644b0bb33f49bcf019d90\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-b79433bdfb6644b0bb33f49bcf019d90/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-fef68b80",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-9b82e71d7b294b0fa4afd2a4291d7fd6\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-9b82e71d7b294b0fa4afd2a4291d7fd6/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-705aff45",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-76fb539922ae4c1eb6ca19bf40c52815\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-76fb539922ae4c1eb6ca19bf40c52815/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-21f7f565",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-d405384cd0774a5fa4278caf26c5811c\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-d405384cd0774a5fa4278caf26c5811c/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-969a4e3a",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-34e251ca7f584fe9b71d4501048af52d\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-34e251ca7f584fe9b71d4501048af52d/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-66fcc816",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-df09000580b4492a83d278dfcb00deda\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-df09000580b4492a83d278dfcb00deda/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-e00108c0",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-d1c86d85b2f54119a88a43b863e1cafc\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-d1c86d85b2f54119a88a43b863e1cafc/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-1e032dae",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-96b06500d37c4f099098559a889e4e55\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-96b06500d37c4f099098559a889e4e55/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-aa4d1aef",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-ce07646895af401ba0e09d75e30fa127\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-ce07646895af401ba0e09d75e30fa127/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-13a09eab",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-6a276699087242f5848b2ab8f39635de\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-6a276699087242f5848b2ab8f39635de/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-8a62e3c6",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-e59ae708c02a4ad4935c4c0daff0e2d7\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-e59ae708c02a4ad4935c4c0daff0e2d7/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-4edc966f",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-e8da66ba39074d33ac7fd75f48f6db06\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-e8da66ba39074d33ac7fd75f48f6db06/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-9820e24b",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-bb72a6ab8419468eba37a3a52ffd2631\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-bb72a6ab8419468eba37a3a52ffd2631/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-b154fe1b",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-e488bc117f85421d82b12f53d46eeba7\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-e488bc117f85421d82b12f53d46eeba7/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-ad84cc5b",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-71539af206bd4b8190ec2fc93561de4a\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-71539af206bd4b8190ec2fc93561de4a/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-690fd00e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-4fbc5dbd3f884d63b403725697f7cfc9\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-4fbc5dbd3f884d63b403725697f7cfc9/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-0c983929",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-05f42deafd274a4a91fa5899f3a8aaf0\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-05f42deafd274a4a91fa5899f3a8aaf0/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-979f0465",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-16e121534abd4a8f9af7bfeb2998cf48\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-16e121534abd4a8f9af7bfeb2998cf48/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-168f4709",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-ad74aabe860d49f08fccfda5737736f9\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-ad74aabe860d49f08fccfda5737736f9/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-bfd111ea",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-1c7d4b2fe46a4d24b114279a7000875d\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-1c7d4b2fe46a4d24b114279a7000875d/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-92c8e3c7",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-61a7f0d820ac49b8b4bd736149f4b455\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-61a7f0d820ac49b8b4bd736149f4b455/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-8b05823e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-829e23acef2940f784ece3f39a4599a9\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-829e23acef2940f784ece3f39a4599a9/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-84e1bb1d",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-0a1a1e7571674a1f8df7be95419f9566\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-0a1a1e7571674a1f8df7be95419f9566/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-dad148a0",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-afa0c51b63e64bff834453a684e8c7f9\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-afa0c51b63e64bff834453a684e8c7f9/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-4abe3717",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-a2698ab2becb4926b61db196277f782f\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-a2698ab2becb4926b61db196277f782f/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-7fa7f93f",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-17ff7d6954df4350bcb399b5190e93b6\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-17ff7d6954df4350bcb399b5190e93b6/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-94ed7c45",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-cd9c5dcdde24440581491249c302549f\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-cd9c5dcdde24440581491249c302549f/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-ac728804",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-faa87d29b5e442b8a7c8f8fba583e335\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-faa87d29b5e442b8a7c8f8fba583e335/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-2e2e5f34",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-12ae09ec0aed4f8680e8e505b0116f87\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-12ae09ec0aed4f8680e8e505b0116f87/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-f11d3f77",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-1307f91c6b9f4c5fbcad64e788a36082\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-1307f91c6b9f4c5fbcad64e788a36082/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-4255176a",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-6ff3d3058870474a9f547cb27dc57ebb\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-6ff3d3058870474a9f547cb27dc57ebb/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-b000d927",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-aad25076072144b69ace94df0ed273a2\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-aad25076072144b69ace94df0ed273a2/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-ee60727c",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-94a8873516f5451cbe455e903ce4de94\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-94a8873516f5451cbe455e903ce4de94/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-913b305e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-1234759315d54a83a5e7458b808a9e46\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-1234759315d54a83a5e7458b808a9e46/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-efcf0ccc",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-f2206d3a02644ed5bbe05e9d79e49bb6\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-f2206d3a02644ed5bbe05e9d79e49bb6/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d3bf26b3",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-08bba43450af42fc8f2aff08dc6c0bc0\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-08bba43450af42fc8f2aff08dc6c0bc0/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-e32fa2d3",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-a147515f9d044bc89fc317eafd45fd1f\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-a147515f9d044bc89fc317eafd45fd1f/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-20b18faf",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-ddf3c0c0d13d413dac946250e010d9a2\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-ddf3c0c0d13d413dac946250e010d9a2/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5a29a21e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-c8c5302fed274c45924d9a5552f92b7c\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-c8c5302fed274c45924d9a5552f92b7c/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d4d7efd9",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-b5b3ce962b694a69926011701ce397d6\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-b5b3ce962b694a69926011701ce397d6/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d594d2c1",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-deb3d8e05226476eab17e3550618f172\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-deb3d8e05226476eab17e3550618f172/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-71471711",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-b2e18c0c5bed45e4afde6725beddb47c\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-b2e18c0c5bed45e4afde6725beddb47c/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-051d4217",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-30a8c41d0ec84d608365eba72ed80f70\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-30a8c41d0ec84d608365eba72ed80f70/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-a9af30c4",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-c3fd661a470b47679c20cb17dc057301\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-c3fd661a470b47679c20cb17dc057301/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-68767481",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-4b2a2f38c91e4399a98e5073499ac5c0\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-4b2a2f38c91e4399a98e5073499ac5c0/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-27d5cb5c",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-7f687570ac55470eb02342d7c4805b71\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-7f687570ac55470eb02342d7c4805b71/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-32c4eb0c",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-89abbc99b2db4e62b00ef08cb51fabc7\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-89abbc99b2db4e62b00ef08cb51fabc7/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-e7aa5fb6",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 201 - {\"stream_id\":\"viz-stream-2317640f195d45c1bce76e77544c0b6a\",\"sse_endpoint_url\":\"https://solacechatstaging.mymaas.net/api/v1/visualization/viz-stream-2317640f195d45c1bce76e77544c0b6a/events\",\"actual_subscribed_targets\":[{\"type\":\"current_namespace_a2a_messages\",\"identifier\":\"staging\",\"status\":\"subscribed\"}],\"message\":\"Visualization stream initiated. Connect to the SSE endpoint.\"}",
+      "duration": 0
+    }
+  ]
+}

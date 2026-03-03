@@ -1,0 +1,23 @@
+# Development roles with permissive access for testing
+# This configuration provides full access for development and testing environments
+# DO NOT use this configuration in production environments
+
+roles:
+  base-role:
+    description: "Base role with scopes for all users."
+    scopes:
+      - "monitor/*"            # All monitoring capabilities
+      - "admin/*"              # All administrative functions
+      - "session:*"            # All session management
+      - "gateway:*"            # All gateway operations
+
+      - "tool:data:*"               # Data manipulation tools
+      - "tool:artifact:*"           # Artifact management tools
+      - "tool:audio:*"             # Audio processing tools
+      - "tool:image:*"             # Image processing tools
+      - "tool:general:*"           # General tools
+      - "tool:test:*"              # Test tools
+      - "tool:web:*"               # Web tools
+      
+      # All agents and workflows - wildcard for development/testing
+      - "agent:*:delegate"         # Allow delegation to any agent/workflow

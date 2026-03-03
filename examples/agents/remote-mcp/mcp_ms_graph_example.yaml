@@ -1,0 +1,263 @@
+# Agent Configuration File: Microsoft Graph MCP Agent Example
+#
+# This example demonstrates how to set up an agent using Microsoft MCP Server for Enterprise
+# to interact with Microsoft 365 services via Microsoft Graph API.
+#
+# Prerequisites:
+# 1. Provision the MCP Server in your Azure AD tenant (one-time setup)
+#    - Install-Module Microsoft.Entra.Beta -Force -AllowClobber
+#    - Connect-Entra -Scopes 'Application.ReadWrite.All', 'Directory.Read.All', 'DelegatedPermissionGrant.ReadWrite.All'
+#    - Grant-EntraBetaMCPServerPermission -ApplicationName VisualStudioCode
+#
+# 2. Configure environment variables:
+#    - MS_GRAPH_MCP_CLIENT_ID: Your OAuth2 client ID
+#    - MS_GRAPH_MCP_CLIENT_SECRET: Your OAuth2 client secret (from Vault)
+#    - MS_GRAPH_MCP_TENANT_ID: Your Azure AD tenant ID
+#
+# Supported MCP Scopes (prefix with MCP.):
+#   - MCP.User.Read.All - Read all users' full profiles
+#   - MCP.GroupMember.Read.All - Read group memberships
+#   - MCP.Organization.Read.All - Read organization info
+#   - MCP.AuditLog.Read.All - Read audit log data
+#   - MCP.Policy.Read.ConditionalAccess - Read conditional access policies
+#   - MCP.RoleManagement.Read.Directory - Read directory roles
+#   - MCP.Application.Read.All - Read applications
+#   - MCP.Device.Read.All - Read devices
+#   - MCP.IdentityRiskyUser.Read.All - Read risky users
+#   - MCP.HealthMonitoringAlert.Read.All - Read health alerts
+#
+# Note: Only delegated permissions are supported (user-interactive scenarios)
+# App-only permissions are NOT supported by Microsoft MCP Server.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: ms_graph_mcp_agent.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+# --- Microsoft Graph MCP Agent ---
+  - name: ms_graph_mcp_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "MSGraphAgent"
+      model: *general_model
+
+      instruction: |
+        You are a Microsoft 365 agent that provides access to Microsoft Graph APIs.
+        Help users find information about users, groups, organization data, and more.
+        
+        All API calls use the authenticated user's permissions through delegated access.
+        The MCP Server handles authentication and API calls automatically.
+        
+        When users ask about:
+        - People/employees → use user-related tools
+        - Teams/groups → use group-related tools  
+        - Organization details → use organization tools
+        - Security/risk → use identity risk and audit tools
+        - Apps → use application tools
+
+      tools:
+        - tool_type: mcp
+          connection_params:
+            # Microsoft MCP Server uses streamable-http transport
+            type: streamable-http
+            # The MCP endpoint is provided by Microsoft after provisioning
+            # For VS Code integration, this is handled automatically
+            url: "https://mcp.microsoft.com/v1"  # Placeholder - actual endpoint TBD
+          auth:
+            type: oauth2
+            scheme:
+              grant_type: authorization_code
+              authorization_url: "https://login.microsoftonline.com/${MS_GRAPH_MCP_TENANT_ID}/oauth2/v2.0/authorize"
+              token_url: "https://login.microsoftonline.com/${MS_GRAPH_MCP_TENANT_ID}/oauth2/v2.0/token"
+              scopes:
+                - "openid"
+                - "profile"  
+                - "email"
+                - "offline_access"
+                # Request MCP-prefixed scopes for Microsoft Graph access
+                - "MCP.User.Read.All"
+                - "MCP.GroupMember.Read.All"
+                - "MCP.Organization.Read.All"
+            credential:
+              auth_type: oauth2
+              client_id: ${MS_GRAPH_MCP_CLIENT_ID}
+              client_secret: ${MS_GRAPH_MCP_CLIENT_SECRET}
+          
+          # Tool manifest - these tools are exposed by Microsoft MCP Server
+          # The actual available tools depend on the scopes granted to your app
+          manifest:
+          - id: getCurrentUser
+            description: Get information about the current authenticated user
+            name: getCurrentUser
+            inputSchema:
+              type: object
+              properties: {}
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+
+          - id: listUsers
+            description: List users in the organization. Requires MCP.User.Read.All scope.
+            name: listUsers
+            inputSchema:
+              type: object
+              properties:
+                filter:
+                  type: string
+                  description: OData filter expression (e.g., "department eq 'Sales'")
+                select:
+                  type: string
+                  description: Comma-separated properties to return
+                top:
+                  type: number
+                  description: Maximum number of results (default 100, max 999)
+                search:
+                  type: string
+                  description: Search by displayName or mail
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+
+          - id: getUser
+            description: Get a specific user by ID or userPrincipalName
+            name: getUser
+            inputSchema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  description: User ID (GUID) or userPrincipalName (email)
+              required:
+              - userId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+
+          - id: listGroups
+            description: List groups in the organization. Requires MCP.GroupMember.Read.All scope.
+            name: listGroups
+            inputSchema:
+              type: object
+              properties:
+                filter:
+                  type: string
+                  description: OData filter expression
+                search:
+                  type: string
+                  description: Search by displayName
+                top:
+                  type: number
+                  description: Maximum number of results
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+
+          - id: getGroupMembers
+            description: List members of a specific group
+            name: getGroupMembers
+            inputSchema:
+              type: object
+              properties:
+                groupId:
+                  type: string
+                  description: The group's ID (GUID)
+              required:
+              - groupId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+
+          - id: getOrganization
+            description: Get organization details. Requires MCP.Organization.Read.All scope.
+            name: getOrganization
+            inputSchema:
+              type: object
+              properties: {}
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+
+          - id: queryGraph
+            description: Execute a custom Microsoft Graph query. The MCP server translates
+              natural language queries into Graph API calls automatically.
+            name: queryGraph
+            inputSchema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: Natural language query or Graph API path (e.g., "/users" or "How many users are in my tenant?")
+              required:
+              - query
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+      
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2_ms_graph"
+        artifact_scope: namespace
+      
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+  
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that interacts with Microsoft 365 via Microsoft Graph MCP Server. Query users, groups, organization data, and more."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: "ms_graph_user_query"
+            name: "Microsoft 365 User Query"
+            description: "Query user information, managers, direct reports, and group memberships from Azure AD."
+          - id: "ms_graph_group_query"
+            name: "Microsoft 365 Group Query"
+            description: "List and query groups, view members and owners."
+          - id: "ms_graph_org_query"
+            name: "Organization Information"
+            description: "Access organization details and tenant information."
+  
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60
+
+# =============================================================================
+# USAGE NOTES
+# =============================================================================
+#
+# 1. First-time Tenant Setup (Administrator Required):
+#    Run these PowerShell commands as an admin:
+#    
+#    Install-Module Microsoft.Entra.Beta -Force -AllowClobber
+#    Connect-Entra -Scopes 'Application.ReadWrite.All', 'Directory.Read.All', 'DelegatedPermissionGrant.ReadWrite.All'
+#    Grant-EntraBetaMCPServerPermission -ApplicationName VisualStudioCode
+#
+# 2. Verify Setup:
+#    Check that these apps exist in your tenant:
+#    - Microsoft MCP Server for Enterprise (appId: e8c77dc2-69b3-43f4-bc51-3213c9d915b4)
+#    - Your MCP client application
+#
+# 3. Run the Agent:
+#    sam run examples/agents/remote-mcp/mcp_ms_graph_example.yaml
+#
+# 4. Example Queries:
+#    - "How many users are in my tenant?"
+#    - "Find all users in the Engineering department"
+#    - "Who is the manager of john.doe@company.com?"
+#    - "List all groups starting with 'IT'"
+#    - "Show me the organization details"
+# =============================================================================

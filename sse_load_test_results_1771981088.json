@@ -1,0 +1,513 @@
+{
+  "num_streams": 50,
+  "duration_seconds": 30.0,
+  "actual_duration": 0.15497994422912598,
+  "subscribed_streams": 0,
+  "connected_streams": 0,
+  "total_events_received": 0,
+  "total_errors": 50,
+  "events_per_second": 0.0,
+  "error_rate": 1.0,
+  "stream_stats": [
+    {
+      "stream_id": "load-test-806ac301",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-633ba2cd",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-79f0a958",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-b3030be7",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-4d4e6c1a",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-24d115a9",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-a9912dc6",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-c4ee507e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-773aaa3b",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-516b5ebf",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-9075b0e8",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-af4739f6",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-49d8a9ba",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-2bbf2586",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-fc13c57e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-a50ac50e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5cf3b994",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-387f487d",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-afdcb054",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-9e3ec3ff",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5f77edd6",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-79f3d9f8",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-f3d97654",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-23151517",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-f4ee488c",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-a0fe52fa",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5786365f",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-3571b451",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-58a90782",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5db657ea",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-0fe87ec8",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-1527d76c",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5cda7bca",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-91109042",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-7cd63f77",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-109c9dd2",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-080d854a",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-4be31870",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-ea3d48c1",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-845386d4",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-fd839961",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-feeba601",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-73ecd3fe",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-4c00fbfb",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-bda2da04",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-2451eb5b",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d32e774e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d7119ecf",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-ffad7760",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-cd886c2e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Bearer token not provided.\"}",
+      "duration": 0
+    }
+  ]
+}

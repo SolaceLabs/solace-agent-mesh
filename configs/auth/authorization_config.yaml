@@ -1,0 +1,13 @@
+# Authorization Service Configuration
+# This file configures the RBAC authorization service for all gateways
+# Set SAM_AUTHORIZATION_CONFIG=configs/auth/authorization_config.yaml in your .env
+
+authorization_service:
+  type: "default_rbac"
+  # Path to role-to-scope definitions
+  role_to_scope_definitions_path: "configs/auth/role-to-scope-definitions.yaml"
+  # Default roles assigned to all users (no custom provider needed)
+  default_roles:
+    - "base-role"  # Grant base-role to all users by default for development
+  # Enable the authorization service
+  enabled: true

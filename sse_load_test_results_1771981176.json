@@ -1,0 +1,513 @@
+{
+  "num_streams": 50,
+  "duration_seconds": 30.0,
+  "actual_duration": 5.197434902191162,
+  "subscribed_streams": 0,
+  "connected_streams": 0,
+  "total_events_received": 0,
+  "total_errors": 50,
+  "events_per_second": 0.0,
+  "error_rate": 1.0,
+  "stream_stats": [
+    {
+      "stream_id": "load-test-a319aaf0",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5b5e8cc7",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-2c65dac9",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-06ff8a94",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-c5872d0f",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-8fc2bd31",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-3ba9b827",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-54ad2b5c",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-21d3a18d",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-8adb7d8e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-564ca713",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-6122e1d2",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-3339ae8b",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d9b2679f",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-092b0de9",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-2af04050",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-f9fb5bdc",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-3d12f34b",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-c4c10626",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-dc0e9b89",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-7fd92cc5",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-a0fb9a65",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-e2725f41",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d8cf3343",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d3b6f788",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-183191be",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-9b0603d2",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-0c507166",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-8830e62c",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-fce91f76",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-6961d8e6",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-6eac3a72",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-9e6db6d2",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-599a7daf",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-ec5b6000",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-dea8b18d",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-e745b85c",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-1210ac97",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-6282539e",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-682aed43",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-d6006290",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-24fca5e2",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5f8d3c33",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-0bcbac64",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-b0ac39e1",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-615dfa54",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-5f2279fa",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-b9c8e208",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-10789767",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-b7b31399",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe failed: HTTP 401 - {\"detail\":\"Invalid or expired token.\"}",
+      "duration": 0
+    }
+  ]
+}

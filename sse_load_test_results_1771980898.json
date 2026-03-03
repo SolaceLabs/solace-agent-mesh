@@ -1,0 +1,63 @@
+{
+  "num_streams": 5,
+  "duration_seconds": 10.0,
+  "actual_duration": 0.014055967330932617,
+  "subscribed_streams": 0,
+  "connected_streams": 0,
+  "total_events_received": 0,
+  "total_errors": 5,
+  "events_per_second": 0.0,
+  "error_rate": 1.0,
+  "stream_stats": [
+    {
+      "stream_id": "load-test-631669ba",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe error: All connection attempts failed",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-77b60f43",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe error: All connection attempts failed",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-380871ea",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe error: All connection attempts failed",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-aca70748",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe error: All connection attempts failed",
+      "duration": 0
+    },
+    {
+      "stream_id": "load-test-609d8fab",
+      "topic": "",
+      "events_received": 0,
+      "errors": 1,
+      "subscribed": false,
+      "connected": false,
+      "error_message": "Subscribe error: All connection attempts failed",
+      "duration": 0
+    }
+  ]
+}
