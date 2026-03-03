@@ -54,7 +54,7 @@ async def get_feature_flags(
         log.debug("%sReturning %d flag(s).", log_prefix, len(result))
         return result
     except Exception as e:
-        log.exception("%sError retrieving feature flags: %s", log_prefix, e)
+        log.exception("%sError retrieving feature flags.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve feature flags",

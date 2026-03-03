@@ -2,13 +2,11 @@
 Feature flag response DTOs.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class FeatureFlagResponse(BaseModel):
     """Evaluated state of a single feature flag."""
-
-    model_config = ConfigDict(populate_by_name=True)
 
     key: str = Field(..., description="Unique snake_case flag identifier")
     name: str = Field(..., description="Human-readable label for the flag")
