@@ -80,7 +80,8 @@ dependencies = [
     "google-cloud-storage==3.9.0",
     "azure-storage-blob==12.28.0",
     "authlib==1.6.5",
-    "cachetools==7.0.1"
+    "cachetools==7.0.1",
+    "openfeature-sdk==0.8.4",
 ]
 
 [project.optional-dependencies]

@@ -1,4 +1,5 @@
 import logging
+import solace_agent_mesh
 import tempfile
 import uuid
 from pathlib import Path
@@ -6,10 +7,14 @@ from unittest.mock import AsyncMock, Mock
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
+from openfeature import api as openfeature_api
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from solace_agent_mesh.common.features.checker import FeatureChecker
+from solace_agent_mesh.common.features.provider import SamFeatureProvider
+from solace_agent_mesh.common.features.registry import FeatureRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from solace_agent_mesh.gateway.http_sse.dependencies import get_session_business_service
@@ -203,6 +208,17 @@ class WebUIBackendFactory:
 
         # Create a real SessionService and attach it to the mock component
         mock_component.session_service = SessionService(component=mock_component)
+
+        # Initialise the OpenFeature provider so feature-flag evaluations work in tests
+        _registry = FeatureRegistry()
+        _features_yaml = (
+            Path(solace_agent_mesh.__file__).parent / "common" / "features" / "features.yaml"
+        )
+        if _features_yaml.exists():
+            _registry.load_from_yaml(_features_yaml)
+        feature_checker = FeatureChecker(registry=_registry)
+        mock_component.feature_checker = feature_checker
+        openfeature_api.set_provider(SamFeatureProvider(feature_checker))
 
         # Create a completely independent FastAPI app instance instead of using the global singleton
         self.app = FastAPI(
