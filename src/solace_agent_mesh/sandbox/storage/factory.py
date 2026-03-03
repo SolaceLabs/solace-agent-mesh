@@ -46,7 +46,7 @@ def _create_s3_client(bucket_name: str | None) -> ToolSyncStorageClient:
 
     return S3SyncClient(
         bucket_name=resolved_bucket,
-        region=os.getenv("S3_REGION", "us-east-1"),
+        region=os.getenv("AWS_REGION", "us-east-1"),
         endpoint_url=os.getenv("S3_ENDPOINT_URL"),
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
