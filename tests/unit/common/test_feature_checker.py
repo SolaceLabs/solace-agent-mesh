@@ -16,11 +16,6 @@ from solace_agent_mesh.common.features.registry import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _flag(key: str, default: bool) -> FeatureDefinition:
     return FeatureDefinition(
         key=key,
@@ -38,11 +33,6 @@ def _registry(*flags: FeatureDefinition) -> FeatureRegistry:
     return reg
 
 
-# ---------------------------------------------------------------------------
-# is_known_flag
-# ---------------------------------------------------------------------------
-
-
 class TestIsKnownFlag:
     def test_returns_true_for_registered_flag(self):
         checker = FeatureChecker(registry=_registry(_flag("f", True)))
@@ -51,11 +41,6 @@ class TestIsKnownFlag:
     def test_returns_false_for_unknown_flag(self):
         checker = FeatureChecker(registry=_registry(_flag("f", True)))
         assert checker.is_known_flag("nope") is False
-
-
-# ---------------------------------------------------------------------------
-# is_enabled — registry default (tier 2)
-# ---------------------------------------------------------------------------
 
 
 class TestIsEnabledRegistryDefault:
@@ -75,19 +60,14 @@ class TestIsEnabledRegistryDefault:
         assert checker.is_enabled("unknown") is False
 
 
-# ---------------------------------------------------------------------------
-# is_enabled — env var override (tier 1)
-# ---------------------------------------------------------------------------
-
-
 class TestIsEnabledEnvVar:
-    @pytest.mark.parametrize("raw", ["1", "true", "True", "TRUE", "yes", "on"])
+    @pytest.mark.parametrize("raw", ["1", "true", "True", "TRUE"])
     def test_truthy_env_var_enables_flag(self, monkeypatch, raw):
         monkeypatch.setenv("SAM_FEATURE_F", raw)
         checker = FeatureChecker(registry=_registry(_flag("f", False)))
         assert checker.is_enabled("f") is True
 
-    @pytest.mark.parametrize("raw", ["0", "false", "False", "no", "off", "whatever"])
+    @pytest.mark.parametrize("raw", ["0", "false", "False", "no", "off", "yes", "on", "whatever"])
     def test_falsy_env_var_disables_flag(self, monkeypatch, raw):
         monkeypatch.setenv("SAM_FEATURE_F", raw)
         checker = FeatureChecker(registry=_registry(_flag("f", True)))
@@ -112,11 +92,6 @@ class TestIsEnabledEnvVar:
         monkeypatch.delenv("SAM_FEATURE_F", raising=False)
         checker = FeatureChecker(registry=_registry(_flag("f", True)))
         assert checker.is_enabled("f") is True
-
-
-# ---------------------------------------------------------------------------
-# all_flags
-# ---------------------------------------------------------------------------
 
 
 class TestAllFlags:

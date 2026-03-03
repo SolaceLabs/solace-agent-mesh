@@ -21,11 +21,6 @@ from solace_agent_mesh.common.features.registry import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _write_yaml(tmp_path: Path, content: str) -> Path:
     p = tmp_path / "features.yaml"
     p.write_text(textwrap.dedent(content))
@@ -49,11 +44,6 @@ def _minimal_yaml(tmp_path: Path, flags: list[dict]) -> Path:
     p = tmp_path / "features.yaml"
     p.write_text(yaml.dump(data))
     return p
-
-
-# ---------------------------------------------------------------------------
-# FeatureRegistry — programmatic registration
-# ---------------------------------------------------------------------------
 
 
 class TestFeatureRegistryRegister:
@@ -103,11 +93,6 @@ class TestFeatureRegistryRegister:
         )
         assert reg.get("f").default_enabled is True
         assert reg.get("f").name == "F v2"
-
-
-# ---------------------------------------------------------------------------
-# FeatureRegistry — YAML loading
-# ---------------------------------------------------------------------------
 
 
 class TestFeatureRegistryYamlLoad:

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Prefix for environment variable overrides (e.g., SAM_FEATURE_MY_FLAG=true)
 _FLAG_PREFIX = "SAM_FEATURE_"
 
 
@@ -74,11 +75,11 @@ class FeatureChecker:
         Look up SAM_FEATURE_<UPPER_KEY> in the environment.
 
         Returns None when the variable is absent so callers can fall through.
-        Recognised truthy values: 1, true, yes, on (case-insensitive).
+        Recognised truthy values: 1, true (case-insensitive).
         Everything else is treated as false.
         """
         env_key = _FLAG_PREFIX + key.upper().replace("-", "_")
         raw = os.environ.get(env_key)
         if raw is None:
             return None
-        return raw.strip().lower() in {"1", "true", "yes", "on"}
+        return raw.strip().lower() in {"1", "true"}

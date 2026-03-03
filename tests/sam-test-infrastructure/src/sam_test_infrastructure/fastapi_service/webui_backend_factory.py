@@ -1,7 +1,7 @@
 import logging
-import solace_agent_mesh
 import tempfile
 import uuid
+from importlib.resources import files as pkg_files
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
@@ -211,10 +211,10 @@ class WebUIBackendFactory:
 
         # Initialise the OpenFeature provider so feature-flag evaluations work in tests
         _registry = FeatureRegistry()
-        _features_yaml = (
-            Path(solace_agent_mesh.__file__).parent / "common" / "features" / "features.yaml"
+        _features_yaml = str(
+            pkg_files("solace_agent_mesh.common.features").joinpath("features.yaml")
         )
-        if _features_yaml.exists():
+        if Path(_features_yaml).exists():
             _registry.load_from_yaml(_features_yaml)
         feature_checker = FeatureChecker(registry=_registry)
         mock_component.feature_checker = feature_checker

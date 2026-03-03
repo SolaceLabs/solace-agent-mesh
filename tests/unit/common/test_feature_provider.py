@@ -29,11 +29,6 @@ from solace_agent_mesh.common.features.registry import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _make_checker(*flags: tuple[str, bool]) -> FeatureChecker:
     reg = FeatureRegistry()
     for key, default in flags:
@@ -59,11 +54,6 @@ def _minimal_flag_yaml(**overrides) -> dict:
     }
     base.update(overrides)
     return base
-
-
-# ---------------------------------------------------------------------------
-# resolve_boolean_details
-# ---------------------------------------------------------------------------
 
 
 class TestResolveBooleanDetails:
@@ -112,11 +102,6 @@ class TestResolveBooleanDetails:
         assert result.reason == Reason.ERROR
 
 
-# ---------------------------------------------------------------------------
-# Other type resolution methods — always return default
-# ---------------------------------------------------------------------------
-
-
 class TestOtherTypeResolution:
     def _provider(self):
         return SamFeatureProvider(_make_checker(("f", True)))
@@ -142,22 +127,12 @@ class TestOtherTypeResolution:
         assert result.reason == Reason.DEFAULT
 
 
-# ---------------------------------------------------------------------------
-# all_flags
-# ---------------------------------------------------------------------------
-
-
 class TestAllFlags:
     def test_delegates_to_checker(self, monkeypatch):
         monkeypatch.delenv("SAM_FEATURE_A", raising=False)
         monkeypatch.delenv("SAM_FEATURE_B", raising=False)
         provider = SamFeatureProvider(_make_checker(("a", True), ("b", False)))
         assert provider.all_flags() == {"a": True, "b": False}
-
-
-# ---------------------------------------------------------------------------
-# load_flags_from_yaml
-# ---------------------------------------------------------------------------
 
 
 class TestLoadFlagsFromYaml:
@@ -176,11 +151,6 @@ class TestLoadFlagsFromYaml:
         p.write_text(yaml.dump({"features": [_minimal_flag_yaml(name="F Override", default_enabled=True)]}))
         provider.load_flags_from_yaml(p)
         assert provider._checker.is_enabled("f") is True
-
-
-# ---------------------------------------------------------------------------
-# OpenFeature API integration
-# ---------------------------------------------------------------------------
 
 
 class TestOpenFeatureIntegration:
