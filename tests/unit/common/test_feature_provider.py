@@ -29,6 +29,12 @@ from solace_agent_mesh.common.features.registry import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _reset_openfeature():
+    yield
+    openfeature_api.clear_providers()
+
+
 def _make_checker(*flags: tuple[str, bool]) -> FeatureChecker:
     reg = FeatureRegistry()
     for key, default in flags:

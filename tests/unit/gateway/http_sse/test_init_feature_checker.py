@@ -12,10 +12,17 @@ import sys
 import types
 from unittest.mock import MagicMock
 
+import pytest
 from openfeature import api as openfeature_api
 
 from solace_agent_mesh.common.features.provider import SamFeatureProvider
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+
+
+@pytest.fixture(autouse=True)
+def _reset_openfeature():
+    yield
+    openfeature_api.clear_providers()
 
 
 def _call_init_feature_checker():

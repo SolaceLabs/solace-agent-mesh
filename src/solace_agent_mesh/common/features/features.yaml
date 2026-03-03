@@ -5,8 +5,10 @@
 # Each entry under `features` must include the following fields:
 #
 #   key             (string, required)
-#                   Unique snake_case identifier used in code. Must be stable
-#                   across releases — renaming a key is a breaking change.
+#                   Unique identifier used in code. Must be stable across
+#                   releases — renaming a key is a breaking change. Convention
+#                   is snake_case; hyphens are normalised to underscores when
+#                   forming SAM_FEATURE_<KEY> environment variable names.
 #                   Example: background_tasks
 #
 #   name            (string, required)

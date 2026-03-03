@@ -12,7 +12,7 @@ YAML schema (see features.yaml for annotated examples):
       - key:             <str>   # Required. Unique snake_case identifier used in code.
         name:            <str>   # Required. Human-readable label for admin UI.
         release_phase:   <str>   # Required. One of:
-                                 #   experimental | development | ga | enterprise_only
+                                 #   early_access | beta | experimental | ga
         default_enabled: <bool>  # Required. Baseline on/off; env-var overrides this.
         jira_epic:       <str>   # Required. Jira epic key (e.g. DATAGO-118673).
         description:     <str>   # Optional. Brief explanation shown in admin UI.
