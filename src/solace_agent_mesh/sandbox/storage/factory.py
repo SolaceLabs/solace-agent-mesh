@@ -40,9 +40,9 @@ def create_sync_client(
 def _create_s3_client(bucket_name: str | None) -> ToolSyncStorageClient:
     from .s3_sync_client import S3SyncClient
 
-    resolved_bucket = bucket_name or os.getenv("STR_S3_BUCKET") or os.getenv("S3_BUCKET_NAME")
+    resolved_bucket = bucket_name or os.getenv("STR_S3_BUCKET_NAME")
     if not resolved_bucket:
-        raise ValueError("Bucket name required: set STR_S3_BUCKET, S3_BUCKET_NAME, or pass bucket_name")
+        raise ValueError("Bucket name required: set STR_S3_BUCKET_NAME or pass bucket_name")
 
     return S3SyncClient(
         bucket_name=resolved_bucket,
