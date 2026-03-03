@@ -65,6 +65,15 @@ class FeatureChecker:
         """Return {key: is_enabled(key)} for every registered feature."""
         return {defn.key: self.is_enabled(defn.key) for defn in self._registry.all()}
 
+    @property
+    def registry(self) -> "FeatureRegistry":
+        """Return the underlying FeatureRegistry."""
+        return self._registry
+
+    def has_env_override(self, key: str) -> bool:
+        """Return True if a SAM_FEATURE_<KEY> env var is set for key."""
+        return self._check_env_var(key) is not None
+
     def load_from_yaml(self, yaml_path) -> None:
         """Load additional flag definitions from a YAML file into the registry."""
         self._registry.load_from_yaml(yaml_path)
