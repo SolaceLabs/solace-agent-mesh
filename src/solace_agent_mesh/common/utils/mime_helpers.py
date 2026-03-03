@@ -209,7 +209,7 @@ def get_extension_for_mime_type(
     if not mime_type:
         return default_extension
 
-    normalized = mime_type.lower()
+    normalized = mime_type.lower().split(";")[0].strip()
     if normalized == "application/octet-stream":
         return ".bin"
 
@@ -224,10 +224,12 @@ def resolve_mime_type(
     ``application/octet-stream`` (the browser default for unrecognised extensions).
 
     Resolution order:
-      1. If *provided_mime_type* is present and not ``application/octet-stream``,
-         return it unchanged.
-      2. Check the file extension against the canonical extension map.
-      3. Return ``application/octet-stream`` if nothing matched.
+      1. Normalize *provided_mime_type* (lowercase, strip parameters like
+         ``; charset=binary``).
+      2. If the normalized type is present and not ``application/octet-stream``,
+         return it.
+      3. Check the file extension against the canonical extension map.
+      4. Return ``application/octet-stream`` if nothing matched.
 
     Args:
         filename: The original filename (used for extension lookup).
@@ -238,11 +240,14 @@ def resolve_mime_type(
     """
     fallback = "application/octet-stream"
 
-    if provided_mime_type and provided_mime_type != fallback:
-        return provided_mime_type
+    # Normalize: lowercase and strip parameters (e.g. "; charset=binary").
+    normalized = provided_mime_type.lower().split(";")[0].strip() if provided_mime_type else None
+
+    if normalized and normalized != fallback:
+        return normalized
 
     if not filename:
-        return provided_mime_type or fallback
+        return normalized or fallback
 
     ext = os.path.splitext(filename)[1].lower()
 
@@ -250,4 +255,4 @@ def resolve_mime_type(
     if mapped:
         return mapped
 
-    return provided_mime_type or fallback
+    return normalized or fallback

@@ -2,8 +2,6 @@
 Unit tests for common/utils/mime_helpers.py
 """
 
-import pytest
-
 from solace_agent_mesh.common.utils.mime_helpers import (
     resolve_mime_type,
     get_extension_for_mime_type,
@@ -68,6 +66,18 @@ class TestResolveMimeType:
     def test_octet_stream_with_no_filename_returns_octet_stream(self):
         assert resolve_mime_type(None, "application/octet-stream") == "application/octet-stream"
 
+    def test_mixed_case_mime_type_is_normalized(self):
+        assert resolve_mime_type("photo.png", "Image/PNG") == "image/png"
+
+    def test_mime_type_with_parameters_stripped(self):
+        assert resolve_mime_type("photo.png", "image/png; charset=binary") == "image/png"
+
+    def test_octet_stream_with_parameters_triggers_resolution(self):
+        assert resolve_mime_type("readme.md", "application/octet-stream; charset=binary") == "text/markdown"
+
+    def test_mixed_case_octet_stream_triggers_resolution(self):
+        assert resolve_mime_type("readme.md", "Application/Octet-Stream") == "text/markdown"
+
 
 # --- get_extension_for_mime_type ---
 
@@ -95,6 +105,9 @@ class TestGetExtensionForMimeType:
 
     def test_custom_default_extension(self):
         assert get_extension_for_mime_type("application/x-unknown", ".bin") == ".bin"
+
+    def test_mime_type_with_parameters_stripped(self):
+        assert get_extension_for_mime_type("text/html; charset=utf-8") == ".html"
 
 
 # --- _EXTENSION_TO_MIME aliases ---
