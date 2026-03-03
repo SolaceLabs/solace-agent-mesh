@@ -1,9 +1,9 @@
 """
-Unit tests for the feature_flags config router.
+Unit tests for the feature_flags config router helper logic.
 
-Tests cover the helper logic in the endpoint: correct DTO field mapping,
-env-var override detection, and error handling. The FastAPI request
-machinery is exercised separately in integration tests.
+Tests cover correct DTO field mapping, env-var override detection, and
+registry behaviour. The FastAPI request machinery is exercised separately
+in integration tests.
 """
 
 from unittest.mock import MagicMock
