@@ -366,6 +366,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self.feature_checker = FeatureChecker(registry=registry)
 
         openfeature_api.set_provider(SamFeatureProvider(self.feature_checker))
+
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise import (
+                _register_enterprise_feature_flags,
+            )
+            _register_enterprise_feature_flags()
+        except ImportError:
+            pass
+
         log.info(
             "%s Feature checker initialised (%d flags).",
             self.log_identifier,
