@@ -3,10 +3,8 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { cn } from "@/lib/utils";
-import type { NavItemConfig } from "@/lib/types/fe";
 import { navButtonStyles, iconWrapperStyles, iconStyles, navTextStyles } from "./navigationStyles";
-
-type NavItem = NavItemConfig & { hasSubmenu?: boolean };
+import type { NavItem } from "./types";
 
 export interface NavItemButtonProps {
     item: NavItem;

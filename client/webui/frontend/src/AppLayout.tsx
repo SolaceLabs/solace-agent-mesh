@@ -61,9 +61,9 @@ function AppLayoutContent() {
     const handleMoveConfirm = async (targetProjectId: string | null) => {
         if (!sessionToMove) return;
 
-        await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
+        try {
+            await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
 
-        if (typeof window !== "undefined") {
             window.dispatchEvent(
                 new CustomEvent("session-moved", {
                     detail: {
@@ -74,9 +74,12 @@ function AppLayoutContent() {
             );
             // RecentChatsList listens for this event to refresh its data
             window.dispatchEvent(new CustomEvent("session-updated", { detail: { sessionId: sessionToMove.id } }));
-        }
 
-        addNotification?.("Session moved successfully", "success");
+            addNotification?.("Session moved successfully", "success");
+        } catch (error) {
+            console.error("Failed to move session:", error);
+            addNotification?.("Failed to move session", "warning");
+        }
     };
 
     const topNavItems = getTopNavigationItems(configFeatureEnablement);
@@ -84,12 +87,16 @@ function AppLayoutContent() {
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
     const logoutEnabled = configFeatureEnablement?.logout ?? false;
 
+    const handleUserAccountClick = useCallback(() => {
+        setIsSettingsDialogOpen(true);
+    }, []);
+
     const { items, activeItemId } = useNavigationItems({
         projectsEnabled,
         promptLibraryEnabled: configFeatureEnablement?.promptLibrary ?? false,
         logoutEnabled,
         isAuthenticated,
-        onUserAccountClick: () => setIsSettingsDialogOpen(true),
+        onUserAccountClick: handleUserAccountClick,
         onLogoutClick: logout,
     });
 

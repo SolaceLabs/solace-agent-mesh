@@ -53,7 +53,7 @@ export const iconStyles = cva(["size-6"], {
 export const navTextStyles = cva([], {
     variants: {
         active: {
-            true: "font-bold text-white",
+            true: "font-bold text-[var(--color-primary-text-w10)]",
             false: "text-[var(--color-secondary-text-w50)]",
         },
     },
