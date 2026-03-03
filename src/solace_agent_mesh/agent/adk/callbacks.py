@@ -820,7 +820,7 @@ def repair_history_callback(
     while i < len(llm_request.contents):
         content = llm_request.contents[i]
         function_calls = []
-        if content.role == "model" and content.parts:
+        if content and content.role == "model" and content.parts:
             function_calls = [p.function_call for p in content.parts if p.function_call]
 
         if function_calls:
@@ -1724,6 +1724,16 @@ If a plan is created:
         injected_instructions.append(peer_instructions)
         log.debug(
             "%s Injected peer discovery instructions from callback state.",
+            log_identifier,
+        )
+
+    project_tool_instructions = callback_context.state.get(
+        "project_tool_instructions"
+    )
+    if project_tool_instructions and isinstance(project_tool_instructions, str):
+        injected_instructions.append(project_tool_instructions)
+        log.debug(
+            "%s Injected project tool instructions from callback state.",
             log_identifier,
         )
 
