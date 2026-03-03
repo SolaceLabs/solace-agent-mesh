@@ -18,7 +18,8 @@ interface ConversionStatusResponse {
 }
 
 interface ConversionResponse {
-    pdfContent: string;
+    pdfContent?: string;
+    pdf_content?: string; // Backend may return snake_case (Pydantic default) or camelCase
     success: boolean;
     error: string | null;
 }
@@ -224,12 +225,16 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
 
                 const data: ConversionResponse = await response.json();
 
-                if (!data.success || !data.pdfContent) {
+                // Accept both camelCase (pdfContent) and snake_case (pdf_content) from backend
+                // Pydantic may return either depending on serialize_by_alias config
+                const pdfBase64 = data.pdfContent || data.pdf_content;
+
+                if (!data.success || !pdfBase64) {
                     throw new Error(data.error || "Conversion returned no content");
                 }
 
                 // Create a data URL for the PDF content
-                return `data:application/pdf;base64,${data.pdfContent}`;
+                return `data:application/pdf;base64,${pdfBase64}`;
             } catch (err) {
                 // Don't log abort errors
                 if (err instanceof Error && err.name === "AbortError") {
