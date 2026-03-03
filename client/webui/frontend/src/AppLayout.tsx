@@ -1,17 +1,26 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { NavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
+import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
+import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
+import { api } from "@/lib/api";
+import type { Session } from "@/lib/types";
 
 function AppLayoutContent() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { isAuthenticated, login, useAuthorization } = useAuthContext();
+    const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
+    const { addNotification } = useChatContext();
+
+    const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+    const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+    const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -25,7 +34,6 @@ function AppLayoutContent() {
             }
         });
 
-        // Observe changes to body styles and DOM changes for overlays
         observer.observe(document.body, {
             attributes: true,
             attributeFilter: ["style"],
@@ -38,10 +46,53 @@ function AppLayoutContent() {
         };
     }, []);
 
-    // Get navigation items based on feature flags
-    const topNavItems = getTopNavigationItems(configFeatureEnablement);
+    const handleOpenMoveDialog = useCallback((event: CustomEvent<{ session: Session }>) => {
+        setSessionToMove(event.detail.session);
+        setIsMoveDialogOpen(true);
+    }, []);
 
-    // Enable beforeunload warning when chat data is present
+    useEffect(() => {
+        window.addEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
+        return () => {
+            window.removeEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
+        };
+    }, [handleOpenMoveDialog]);
+
+    const handleMoveConfirm = async (targetProjectId: string | null) => {
+        if (!sessionToMove) return;
+
+        await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
+
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(
+                new CustomEvent("session-moved", {
+                    detail: {
+                        sessionId: sessionToMove.id,
+                        projectId: targetProjectId,
+                    },
+                })
+            );
+            // RecentChatsList listens for this event to refresh its data
+            window.dispatchEvent(new CustomEvent("session-updated", { detail: { sessionId: sessionToMove.id } }));
+        }
+
+        addNotification?.("Session moved successfully", "success");
+    };
+
+    const topNavItems = getTopNavigationItems(configFeatureEnablement);
+    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
+    const projectsEnabled = configFeatureEnablement?.projects ?? false;
+    const logoutEnabled = configFeatureEnablement?.logout ?? false;
+
+    const { items, activeItemId } = useNavigationItems({
+        projectsEnabled,
+        promptLibraryEnabled: configFeatureEnablement?.promptLibrary ?? false,
+        logoutEnabled,
+        isAuthenticated,
+        onUserAccountClick: () => setIsSettingsDialogOpen(true),
+        onLogoutClick: logout,
+    });
+
     useBeforeUnload();
 
     const getActiveItem = () => {
@@ -86,12 +137,28 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+            {useNewNav ? (
+                <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
+            ) : (
+                <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+            )}
             <main className="h-full w-full flex-1 overflow-auto">
                 <Outlet />
             </main>
             <ToastContainer />
             <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} sourceTaskId={sourceTaskId} onClose={clearSelection} />
+
+            <MoveSessionDialog
+                isOpen={isMoveDialogOpen}
+                onClose={() => {
+                    setIsMoveDialogOpen(false);
+                    setSessionToMove(null);
+                }}
+                onConfirm={handleMoveConfirm}
+                session={sessionToMove}
+                currentProjectId={sessionToMove?.projectId}
+            />
+            <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
         </div>
     );
 }
