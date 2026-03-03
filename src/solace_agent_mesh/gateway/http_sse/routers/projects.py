@@ -100,20 +100,15 @@ def check_project_indexing_enabled(
 ) -> bool:
     """
     Dependency to check if project indexing feature is enabled.
-    Raises HTTPException if project indexing is disabled.
+    Reads from frontend_feature_enablement.projectIndexing.
     """
-
-    # Check explicit project_indexing config
-    project_indexing_config = component.get_config("project_indexing", {})
-    if isinstance(project_indexing_config, dict):
-        indexing_explicitly_enabled = project_indexing_config.get("enabled", False)
-        if not indexing_explicitly_enabled:
-            log.info("Project indexing is explicitly disabled in config")
-            return False
-        else:
-            log.info("Project indexing is explicitly enabled in config")
-            return True
-    return False
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    indexing_enabled = feature_flags.get("projectIndexing", False)
+    if not indexing_enabled:
+        log.info("Project indexing is disabled in frontend_feature_enablement")
+        return False
+    log.info("Project indexing is enabled in frontend_feature_enablement")
+    return True
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
