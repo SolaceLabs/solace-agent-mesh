@@ -317,10 +317,27 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 loadedTasks[tid] = taskFE;
             }
 
-            setMonitoredTasks(prevTasks => ({
-                ...prevTasks,
-                ...loadedTasks,
-            }));
+            setMonitoredTasks(prevTasks => {
+                const merged = { ...prevTasks };
+                for (const [tid, loadedTask] of Object.entries(loadedTasks)) {
+                    const existing = prevTasks[tid];
+                    if (existing && existing.events.length > 0) {
+                        // Merge: keep SSE events that the backend hasn't persisted yet
+                        const backendKeys = new Set(loadedTask.events.map(e => `${e.timestamp}|${e.direction}|${e.task_id}`));
+                        const sseOnlyEvents = existing.events.filter(e => !e.solace_topic?.startsWith("synthetic/") && !backendKeys.has(`${e.timestamp}|${e.direction}|${e.task_id}`));
+                        const mergedEvents = [...loadedTask.events, ...sseOnlyEvents].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+                        merged[tid] = {
+                            ...existing,
+                            ...loadedTask,
+                            events: mergedEvents,
+                            initialRequestText: loadedTask.initialRequestText || existing.initialRequestText,
+                        };
+                    } else {
+                        merged[tid] = existing ? { ...existing, ...loadedTask } : loadedTask;
+                    }
+                }
+                return merged;
+            });
 
             setMonitoredTaskOrder(prevOrder => {
                 if (prevOrder.includes(taskId)) {
