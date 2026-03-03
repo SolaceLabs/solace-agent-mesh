@@ -23,7 +23,6 @@ export interface CitationPreviewModalProps {
     filename: string;
     locationLabel: string;
     initialLocation: number;
-    sourceIndex: number;
     citations: RAGSource[];
     fileExtension?: string;
 }
@@ -33,7 +32,7 @@ export interface CitationPreviewModalProps {
  * Displays the document content with highlighted citations (for text files)
  * or scrolls to the relevant location (for PDFs: page, for text: line).
  */
-export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOpen, onClose, filename, locationLabel, initialLocation, sourceIndex, citations }) => {
+export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOpen, onClose, filename, locationLabel, initialLocation, citations }) => {
     const { activeProject } = useProjectContext();
     const projectId = activeProject?.id ?? null;
 
@@ -99,7 +98,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                         <div className="flex items-center gap-3">
                             <FileIcon filename={filename} variant="compact" />
                             <div className="flex flex-col gap-0.5">
-                                <DialogTitle className="text-base font-semibold">Source {sourceIndex + 1}</DialogTitle>
+                                <DialogTitle className="text-base font-semibold">{filename}</DialogTitle>
                                 <DialogDescription className="text-muted-foreground flex items-center gap-1.5 text-sm">{locationLabel}</DialogDescription>
                             </div>
                         </div>

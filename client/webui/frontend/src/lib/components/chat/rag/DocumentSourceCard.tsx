@@ -54,7 +54,6 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
                 filename={filename}
                 locationLabel={selectedLocation?.locationLabel ?? ""}
                 initialLocation={selectedLocation?.sortKey ?? 1}
-                sourceIndex={sourceIndex}
                 fileExtension={fileExtension}
                 citations={selectedLocation?.citations ?? []}
             />

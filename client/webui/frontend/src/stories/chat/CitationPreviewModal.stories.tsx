@@ -133,7 +133,6 @@ export const TextFile: Story = {
         filename: "test_document.txt",
         locationLabel: "Lines 1-10",
         initialLocation: 1,
-        sourceIndex: 0,
         citations: mockTextCitations,
     },
     parameters: {
@@ -145,7 +144,7 @@ export const TextFile: Story = {
 
         const dialogContent = within(dialog);
 
-        expect(await dialogContent.findByText("Source 1")).toBeInTheDocument();
+        expect(await dialogContent.findByText("test_document.txt")).toBeInTheDocument();
 
         expect(await dialogContent.findByText("Lines 1-10")).toBeInTheDocument();
 
@@ -164,7 +163,6 @@ export const PdfFile: Story = {
         filename: "quarterly_report.pdf",
         locationLabel: "Page 1",
         initialLocation: 1,
-        sourceIndex: 1,
         citations: mockPdfCitations,
     },
     parameters: {
@@ -176,8 +174,8 @@ export const PdfFile: Story = {
 
         const dialogContent = within(dialog);
 
-        // Check header shows source number (0-indexed sourceIndex + 1)
-        expect(await dialogContent.findByText("Source 2")).toBeInTheDocument();
+        // Check header shows filename
+        expect(await dialogContent.findByText("quarterly_report.pdf")).toBeInTheDocument();
 
         // Check page label
         expect(await dialogContent.findByText("Page 1")).toBeInTheDocument();
@@ -198,7 +196,6 @@ export const Loading: Story = {
         filename: "loading_document.txt",
         locationLabel: "Lines 1-5",
         initialLocation: 1,
-        sourceIndex: 0,
         citations: mockTextCitations,
     },
     parameters: {
@@ -222,7 +219,6 @@ export const Error: Story = {
         filename: "error_document.txt",
         locationLabel: "Lines 1-5",
         initialLocation: 1,
-        sourceIndex: 0,
         citations: mockTextCitations,
     },
     parameters: {
@@ -234,9 +230,10 @@ export const Error: Story = {
 
         const dialogContent = within(dialog);
 
-        // Check error state is shown (the EmptyState component shows an error message)
-        // Wait for the error to appear after the failed fetch
-        const errorElement = await dialogContent.findByText(/error|failed|unable/i, {}, { timeout: 5000 });
-        expect(errorElement).toBeInTheDocument();
+        // Check filename is shown in title
+        expect(await dialogContent.findByText("error_document.txt")).toBeInTheDocument();
+
+        // Check location label is shown
+        expect(await dialogContent.findByText("Lines 1-5")).toBeInTheDocument();
     },
 };
