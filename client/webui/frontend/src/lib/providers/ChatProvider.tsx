@@ -630,7 +630,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
     const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
 
-    const openSidePanelTab = useCallback((tab: "files" | "activity" | "rag") => {
+    const openSidePanelTab = useCallback((tab: string) => {
         setIsSidePanelCollapsed(false);
         setActiveSidePanelTab(tab);
 
