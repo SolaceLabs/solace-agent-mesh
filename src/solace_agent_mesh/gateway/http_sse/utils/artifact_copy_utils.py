@@ -91,21 +91,16 @@ async def copy_project_artifacts_to_session(
     component: "WebUIBackendComponent",
     db: "DbSession",
     log_prefix: str = "",
-    indexing_enabled: bool = False,
     overwrite_existing: bool = False,
 ) -> tuple[int, list[str]]:
     """
     Copy artifacts from a project to a session.
 
-    Behavior depends on the indexing_enabled feature flag:
-    - When indexing_enabled=False (default): Copies only original user files
-      (backward compatible behavior)
-    - When indexing_enabled=True: Copies all artifacts including converted text
-      files and BM25 index (complete context for search)
+    Copies all artifacts including original user files, converted text files,
+    and BM25 index for complete search context.
 
     This function handles:
     - Loading artifacts from the project storage
-    - Filtering based on indexing feature flag
     - Copying new artifacts to the session
     - Optionally overwriting artifacts that already exist in the session
     - Preserving all metadata (conversion info, citations, etc.)
@@ -119,9 +114,6 @@ async def copy_project_artifacts_to_session(
         component: WebUIBackendComponent for accessing artifact service
         db: Database session to use for queries
         log_prefix: Optional prefix for log messages
-        indexing_enabled: Whether BM25 indexing is enabled. When False, only
-            original files are copied. When True, converted text files and
-            BM25 index are also copied. Defaults to False for backward compatibility.
         overwrite_existing: When True, overwrite artifacts that already exist
             in the session with the latest version from the project. When False,
             skip artifacts that already exist. Defaults to False.
@@ -180,25 +172,17 @@ async def copy_project_artifacts_to_session(
             project.id,
         )
 
-        # Find original files
-        original_artifacts = [
-            artifact for artifact in project_artifacts
+        # Count original vs internal files for logging
+        original_artifact_count = sum(
+            1 for artifact in project_artifacts
             if not is_internal_artifact(artifact.filename)
-        ]
-        original_artifact_count = len(original_artifacts)
+        )
         internal_artifact_count = len(project_artifacts) - original_artifact_count
 
-        # Filter artifacts based on indexing feature flag
-        if not indexing_enabled:
-            # When indexing is disabled, only copy original user files and skip internal files
-            log.info("%sIndexing disabled: filtering to %d original artifacts", log_prefix, original_artifact_count)
-            project_artifacts = original_artifacts
-
         log.info(
-            "%sProject %s artifacts (indexing_enabled=%s): %d original, %d internal",
+            "%sProject %s artifacts: %d original, %d internal",
             log_prefix,
             project.id,
-            indexing_enabled,
             original_artifact_count,
             internal_artifact_count,
         )

@@ -10,7 +10,7 @@ import { documentSearchRagData } from "../mocks/citations";
 
 expect.extend(matchers);
 
-describe("projectIndexing feature flag", () => {
+describe("ChatSidePanel document sources", () => {
     const chatContextWithRagData = {
         activeSidePanelTab: "rag" as const,
         ragData: documentSearchRagData,
@@ -25,35 +25,10 @@ describe("projectIndexing feature flag", () => {
         loadTaskFromBackend: vi.fn().mockResolvedValue(null),
     };
 
-    test("shows RAGInfoPanel when projectIndexing flag is disabled", async () => {
+    test("shows DocumentSourcesPanel when document search results are present", async () => {
         render(
             <MemoryRouter>
-                <StoryProvider
-                    chatContextValues={chatContextWithRagData}
-                    taskContextValues={taskContext}
-                    configContextValues={{
-                        configFeatureEnablement: { projectIndexing: false },
-                    }}
-                >
-                    <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={false} setIsSidePanelCollapsed={vi.fn()} isSidePanelTransitioning={false} />
-                </StoryProvider>
-            </MemoryRouter>
-        );
-
-        expect(await screen.findByText(/6 Sources/)).toBeInTheDocument();
-        expect(screen.queryByText(/3 Documents/)).not.toBeInTheDocument();
-    });
-
-    test("shows DocumentSourcesPanel when projectIndexing flag is enabled", async () => {
-        render(
-            <MemoryRouter>
-                <StoryProvider
-                    chatContextValues={chatContextWithRagData}
-                    taskContextValues={taskContext}
-                    configContextValues={{
-                        configFeatureEnablement: { projectIndexing: true },
-                    }}
-                >
+                <StoryProvider chatContextValues={chatContextWithRagData} taskContextValues={taskContext}>
                     <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={false} setIsSidePanelCollapsed={vi.fn()} isSidePanelTransitioning={false} />
                 </StoryProvider>
             </MemoryRouter>

@@ -540,24 +540,23 @@ class ProjectService:
         user_id: str,
         files: List[UploadFile],
         file_metadata: Optional[dict] = None,
-        indexing_enabled: bool = False
     ) -> List[dict]:
         """
-        Add one or more artifacts to a project with optional conversion and indexing.
+        Add one or more artifacts to a project (upload only).
 
-        Args:
-            indexing_enabled: If True, convert PDF/DOCX/PPTX to text and build BM25 index
-        
+        Post-processing (conversion and indexing) is handled by the router
+        to support async/sync branching with SSE progress.
+
         Args:
             db: The database session
             project_id: The project ID
             user_id: The requesting user ID
             files: List of files to add
             file_metadata: Optional dictionary of metadata (e.g., descriptions)
-            
+
         Returns:
             List[dict]: A list of results from the save operations
-            
+
         Raises:
             ValueError: If project not found, access denied, or file size exceeds limit
         """
@@ -616,7 +615,6 @@ class ProjectService:
 
             # Add line-range citations for text-based files
             # This provides granular location info similar to page numbers for PDFs
-            # Generate citations regardless of indexing_enabled (they're just metadata)
             if self._is_text_file(file.content_type, file.filename):
                 try:
                     # Decode text content
@@ -650,49 +648,6 @@ class ProjectService:
             results.append(result)
 
         self.logger.info(f"Finished adding {len(validated_files)} artifacts to project {project_id}")
-
-        # Post-processing: conversion and indexing (only if feature enabled)
-        if not indexing_enabled:
-            self.logger.debug("Indexing disabled for this project, skipping post-processing")
-            return results
-
-        self.logger.info(f"Indexing enabled - post-processing {len(validated_files)} files")
-
-        # Classify uploaded files by type
-        needs_conversion = []  # PDF, DOCX, PPTX
-        is_text_based = []     # .txt, .md, .json, .py, etc.
-
-        for idx, (file, content_bytes) in enumerate(validated_files):
-            filename = file.filename
-            mime_type = file.content_type
-            file_version = results[idx]["data_version"]
-
-            if self._should_convert_file(mime_type, filename):
-                needs_conversion.append((filename, file_version, mime_type))
-                self.logger.debug(f"File {filename} v{file_version} marked for conversion")
-            elif self._is_text_file(mime_type, filename):
-                is_text_based.append((filename, file_version))
-                self.logger.debug(f"File {filename} v{file_version} is text-based")
-
-        # Convert binary files to text
-        conversion_happened = False
-        if needs_conversion:
-            try:
-                conversion_results = await self._convert_project_artifacts(
-                    project, needs_conversion, indexing_enabled
-                )
-                conversion_happened = len(conversion_results) > 0
-                self.logger.info(f"Converted {len(conversion_results)}/{len(needs_conversion)} files")
-            except Exception as e:
-                self.logger.error(f"Conversion failed (non-critical): {e}")
-
-        # Rebuild index if text files were added or conversions happened
-        if is_text_based or conversion_happened:
-            try:
-                await self._rebuild_project_index(project, indexing_enabled)
-                self.logger.info("Rebuilt index for project")
-            except Exception as e:
-                self.logger.error(f"Index rebuild failed (non-critical): {e}")
 
         return results
 
@@ -788,17 +743,15 @@ class ProjectService:
 
     async def delete_artifact_from_project(
         self, db, project_id: str, user_id: str, filename: str,
-        indexing_enabled: bool = False
     ) -> bool:
         """
-        Deletes an artifact from a project with optional cleanup and index rebuild.
+        Deletes an artifact from a project with cleanup and index rebuild.
 
         Args:
             db: The database session
             project_id: The project ID
             user_id: The requesting user ID
             filename: The filename of the artifact to delete
-            indexing_enabled: If True, delete converted files and rebuild index
 
         Returns:
             bool: True if deletion was attempted, False if project not found
@@ -820,24 +773,23 @@ class ProjectService:
 
         storage_session_id = f"project-{project.id}"
 
-        # Determine file type before deletion (only if indexing enabled - optimization)
+        # Determine file type before deletion
         mime_type = ""
-        if indexing_enabled:
-            try:
-                from ....agent.utils.artifact_helpers import load_artifact_content_or_metadata
-                metadata_result = await load_artifact_content_or_metadata(
-                    artifact_service=self.artifact_service,
-                    app_name=self.app_name,
-                    user_id=project.user_id,
-                    session_id=storage_session_id,
-                    filename=filename,
-                    version="latest",
-                    load_metadata_only=True
-                )
-                mime_type = metadata_result.get("metadata", {}).get("mime_type", "")
-            except Exception as e:
-                self.logger.warning(f"Could not load metadata for {filename}: {e}")
-                mime_type = ""
+        try:
+            from ....agent.utils.artifact_helpers import load_artifact_content_or_metadata
+            metadata_result = await load_artifact_content_or_metadata(
+                artifact_service=self.artifact_service,
+                app_name=self.app_name,
+                user_id=project.user_id,
+                session_id=storage_session_id,
+                filename=filename,
+                version="latest",
+                load_metadata_only=True
+            )
+            mime_type = metadata_result.get("metadata", {}).get("mime_type", "")
+        except Exception as e:
+            self.logger.warning(f"Could not load metadata for {filename}: {e}")
+            mime_type = ""
 
         self.logger.info(f"Deleting artifact '{filename}' from project {project_id} for user {user_id}")
 
@@ -849,11 +801,6 @@ class ProjectService:
             filename=filename,
         )
         self.logger.info(f"Deleted all versions of {filename}")
-
-        # Post-deletion cleanup and indexing (only if feature enabled)
-        if not indexing_enabled:
-            self.logger.debug(f"Indexing disabled for project {project_id}")
-            return True
 
         # Delete converted file if this was a convertible binary
         deleted_converted = False
@@ -874,7 +821,7 @@ class ProjectService:
         # Rebuild index if text file or converted file was deleted
         if self._is_text_file(mime_type, filename) or deleted_converted:
             try:
-                await self._rebuild_project_index(project, indexing_enabled)
+                await self._rebuild_project_index(project)
                 self.logger.info(f"Rebuilt index after deleting {filename}")
             except Exception as e:
                 self.logger.error(f"Index rebuild failed (non-critical): {e}")
@@ -1121,10 +1068,12 @@ class ProjectService:
     async def import_project_from_zip(
         self, db, zip_file: UploadFile, user_id: str,
         preserve_name: bool = False, custom_name: Optional[str] = None,
-        indexing_enabled: bool = False
     ) -> tuple[Project, int, List[str]]:
         """
-        Import project from ZIP file with optional conversion and indexing.
+        Import project from ZIP file (import only).
+
+        Post-processing (conversion and indexing) is handled by the router
+        to support async/sync branching with SSE progress.
 
         Args:
             db: Database session
@@ -1132,11 +1081,10 @@ class ProjectService:
             user_id: The importing user ID
             preserve_name: Whether to preserve original name
             custom_name: Custom name to use (overrides preserve_name)
-            indexing_enabled: If True, convert binaries and build index
 
         Returns:
             tuple: (created_project, artifacts_count, warnings)
-            
+
         Raises:
             ValueError: If ZIP is invalid, import fails, or file size exceeds limit
         """
@@ -1303,55 +1251,6 @@ class ProjectService:
                             )
                             warnings.append(f"Failed to import artifact: {filename}")
 
-                # Post-processing: conversion and indexing (only if feature enabled)
-                if not indexing_enabled:
-                    self.logger.debug("Indexing disabled for import, skipping post-processing")
-                else:
-                    self.logger.info(f"Indexing enabled - post-processing imported files")
-
-                    # Classify imported files by type
-                    needs_conversion = []  # PDF, DOCX, PPTX
-                    is_text_based = []     # .txt, .md, .json, .py, etc.
-
-                    for artifact_path in artifact_files:
-                        try:
-                            filename = artifact_path.replace('artifacts/', '')
-                            artifact_meta = next(
-                                (a for a in project_data.get('artifacts', [])
-                                 if a['filename'] == filename),
-                                None
-                            )
-                            mime_type = artifact_meta.get('mimeType', '') if artifact_meta else ''
-
-                            if self._should_convert_file(mime_type, filename):
-                                needs_conversion.append((filename, 0, mime_type))  # v0 on import
-                                self.logger.debug(f"File {filename} marked for conversion")
-                            elif self._is_text_file(mime_type, filename):
-                                is_text_based.append((filename, 0))
-                                self.logger.debug(f"File {filename} is text-based")
-                        except Exception as e:
-                            self.logger.warning(f"Error classifying {filename}: {e}")
-
-                    # Convert binary files
-                    conversion_happened = False
-                    if needs_conversion:
-                        try:
-                            conversion_results = await self._convert_project_artifacts(
-                                project, needs_conversion, indexing_enabled
-                            )
-                            conversion_happened = len(conversion_results) > 0
-                            self.logger.info(f"Converted {len(conversion_results)}/{len(needs_conversion)} files")
-                        except Exception as e:
-                            self.logger.error(f"Conversion failed (non-critical): {e}")
-
-                    # Build index if text files or conversions happened
-                    if is_text_based or conversion_happened:
-                        try:
-                            await self._rebuild_project_index(project, indexing_enabled)
-                            self.logger.info(f"Built index for imported project {project.id}")
-                        except Exception as e:
-                            self.logger.error(f"Index build failed (non-critical): {e}")
-
                 self.logger.info(
                     f"Successfully imported project {project.id} with {artifacts_imported} artifacts"
                 )
@@ -1497,7 +1396,6 @@ class ProjectService:
         self,
         project: Project,
         files_to_convert: List[Tuple[str, int, str]],
-        indexing_enabled: bool
     ) -> List[dict]:
         """
         Convert list of binary artifacts to text.
@@ -1505,16 +1403,10 @@ class ProjectService:
         Args:
             project: The project
             files_to_convert: List of (filename, version, mime_type)
-            indexing_enabled: Safety parameter (should always be True when called)
 
         Returns:
             List of conversion results (one per successful conversion)
         """
-        # Safety check (defense in depth)
-        if not indexing_enabled:
-            self.logger.warning("_convert_project_artifacts called with indexing disabled")
-            return []
-
         from .file_converter_service import convert_and_save_artifact
 
         results = []
@@ -1546,7 +1438,6 @@ class ProjectService:
     async def _rebuild_project_index(
         self,
         project: Project,
-        indexing_enabled: bool
     ) -> Optional[dict]:
         """
         Rebuild BM25 search index for project.
@@ -1554,16 +1445,10 @@ class ProjectService:
 
         Args:
             project: The project
-            indexing_enabled: Safety parameter (should always be True when called)
 
         Returns:
             Index save result with version info, or None if skipped
         """
-        # Safety check (defense in depth)
-        if not indexing_enabled:
-            self.logger.warning("_rebuild_project_index called with indexing disabled")
-            return None
-
         from .bm25_indexer_service import (
             collect_project_text_files_stream,
             build_bm25_index,
