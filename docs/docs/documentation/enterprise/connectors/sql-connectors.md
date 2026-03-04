@@ -108,7 +108,7 @@ Create a dedicated user account in your database for agent access rather than us
 
 **Password**
 
-The password for the database username. Agent Mesh Enterprise stores this credential in its configuration and uses it to establish database connections. You should still follow password security best practices, such as using strong passwords and rotating them periodically.
+The password for the database username. Agent Mesh Enterprise stores this credential in its configuration and uses it to establish database connections. You should follow password security best practices, such as using strong passwords and rotating them periodically.
 
 **Encryption (TLS)** *(MSSQL Only)*
 
