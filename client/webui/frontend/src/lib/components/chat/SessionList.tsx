@@ -3,6 +3,7 @@ import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
+import { useBooleanFlagValue } from "@openfeature/react-sdk";
 
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
@@ -14,7 +15,8 @@ interface SessionNameProps {
 }
 
 const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId }) => {
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const { persistenceEnabled } = useConfigContext();
+    const autoTitleGenerationEnabled = useBooleanFlagValue("auto_title_generation", false) && persistenceEnabled;
 
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {

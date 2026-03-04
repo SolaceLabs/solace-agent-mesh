@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
+import { useBooleanFlagValue } from "@openfeature/react-sdk";
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useTaskContext, useThemeContext, useTitleAnimation } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
@@ -33,7 +34,8 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const { persistenceEnabled } = useConfigContext();
+    const autoTitleGenerationEnabled = useBooleanFlagValue("auto_title_generation", false) && persistenceEnabled;
     const {
         agents,
         sessionId,

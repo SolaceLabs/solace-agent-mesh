@@ -115,37 +115,25 @@ def _determine_auto_title_generation_enabled(
 ) -> bool:
     """
     Determines if automatic title generation feature should be enabled.
-    
+
     Logic:
     1. Check if persistence is enabled (required for title generation)
-    2. Check explicit auto_title_generation config (must be explicitly enabled)
-    3. Check frontend_feature_enablement.auto_title_generation override
-    
+    2. Check OpenFeature flag 'auto_title_generation'
+
     Returns:
         bool: True if auto title generation should be enabled
     """
-    # Auto title generation requires persistence
     persistence_enabled = api_config.get("persistence_enabled", False)
     if not persistence_enabled:
         log.debug("%s Auto title generation disabled: persistence is not enabled", log_prefix)
         return False
-    
-    # Check explicit auto_title_generation config - disabled by default
-    auto_title_config = component.get_config("auto_title_generation", {})
-    explicitly_enabled = False
-    if isinstance(auto_title_config, dict):
-        explicitly_enabled = auto_title_config.get("enabled", False)
-    
-    # Check frontend_feature_enablement override
-    feature_flags = component.get_config("frontend_feature_enablement", {})
-    if "auto_title_generation" in feature_flags:
-        explicitly_enabled = feature_flags.get("auto_title_generation", False)
-    
-    if not explicitly_enabled:
-        log.debug("%s Auto title generation disabled: not explicitly enabled in config", log_prefix)
+
+    enabled = component.feature_checker.is_enabled("auto_title_generation")
+    if not enabled:
+        log.debug("%s Auto title generation disabled: feature flag is off", log_prefix)
         return False
-    
-    log.debug("%s Auto title generation enabled: explicitly enabled in config", log_prefix)
+
+    log.debug("%s Auto title generation enabled", log_prefix)
     return True
 
 

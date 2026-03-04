@@ -142,7 +142,6 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
                 const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
                 const platformConfigured = Boolean(data.frontend_platform_server_url);
-                const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
 
                 const mappedConfig: ConfigContextValue = {
                     webuiServerUrl: data.frontend_server_url,
@@ -162,7 +161,6 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
                     platformConfigured,
-                    autoTitleGenerationEnabled,
                     identityServiceType: data.identity_service_type,
                 };
                 if (isMounted) {
