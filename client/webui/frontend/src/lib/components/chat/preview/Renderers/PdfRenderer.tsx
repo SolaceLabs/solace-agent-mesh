@@ -163,7 +163,57 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
 
         if (!hasCitationMaps) return;
 
-        const timer = setTimeout(() => {
+        let cancelled = false;
+        let attempts = 0;
+        const maxAttempts = 50; // Try for up to 5 seconds (50 * 100ms)
+
+        // Why wait for text layer: react-pdf renders text layers asynchronously after the
+        // Page component mounts. For large PDFs (500+ pages), this can take several seconds.
+        // If we try to highlight immediately, querySelectorAll finds zero spans because the
+        // text content hasn't been injected into the DOM yet. Polling ensures we only attempt
+        // highlighting once the text spans actually exist, preventing silent failures on large PDFs.
+        const waitForTextLayerAndHighlight = () => {
+            if (cancelled) return;
+
+            attempts++;
+
+            // Find pages that should have citations
+            const pagesWithCitations: number[] = [];
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                const pageStart = pageCharBoundaries[pageNum - 1] || 0;
+                const pageEnd = pageCharBoundaries[pageNum] || pageStart;
+                const relevantMaps = citationMaps.filter(m => m.char_start < pageEnd && m.char_end > pageStart);
+                if (relevantMaps.length > 0) {
+                    pagesWithCitations.push(pageNum);
+                }
+            }
+
+            if (pagesWithCitations.length === 0) {
+                setIsWaitingForHighlight(false);
+                return;
+            }
+
+            // Check if text spans exist for pages with citations
+            let totalSpansFound = 0;
+            for (const pageNum of pagesWithCitations) {
+                const pageElement = pageRefs.current.get(pageNum);
+                if (pageElement) {
+                    const textSpans = pageElement.querySelectorAll(".react-pdf__Page__textContent span");
+                    totalSpansFound += textSpans.length;
+                }
+            }
+
+            if (totalSpansFound === 0) {
+                if (attempts < maxAttempts) {
+                    setTimeout(waitForTextLayerAndHighlight, 100);
+                    return;
+                } else {
+                    setIsWaitingForHighlight(false);
+                    return;
+                }
+            }
+
+            // Text spans are ready, perform highlighting
             const matchedSpans: HTMLElement[] = [];
 
             // CHARACTER-POSITION BASED HIGHLIGHTING
@@ -209,10 +259,15 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                 // No matches found, still hide loading state
                 setIsWaitingForHighlight(false);
             }
-        }, 300);
+        };
 
-        return () => clearTimeout(timer);
-    }, [citationMaps, pageCharBoundaries, numPages]);
+        // Start the polling process
+        waitForTextLayerAndHighlight();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [citationMaps, pageCharBoundaries, numPages, interactionMode]);
 
     function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }): void {
         setNumPages(nextNumPages);
@@ -613,7 +668,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                                                 setPageWidth(page.width);
                                             }
                                         }}
-                                        renderTextLayer={interactionMode === "text"}
+                                        renderTextLayer={interactionMode === "text" || citationMaps.length > 0}
                                         renderAnnotationLayer={true}
                                         className="shadow-lg"
                                     />
