@@ -47,12 +47,37 @@
 
 features:
 
-  # Example flag — additional flags are registered in DATAGO-126647 (flag migration story).
-  - key: background_tasks
-    name: Background Tasks
-    release_phase: ga
+  - key: mentions
+    name: Mentions
+    release_phase: beta
     default_enabled: false
-    jira_epic: DATAGO-126647
+    jira_epic: DATAGO-121076
     description: >
-      Run long-running agent tasks in the background and receive results
-      when they complete.
+      Allow users to @mention other users in chat messages.
+
+  - key: auto_title_generation
+    name: Auto Title Generation
+    release_phase: beta
+    default_enabled: false
+    jira_epic: DATAGO-118394
+    description: >
+      Automatically generate a descriptive title for new chat sessions
+      using LLM analysis of the first message exchange.
+
+  - key: project_sharing
+    name: Project Sharing
+    release_phase: early_access
+    default_enabled: false
+    jira_epic: DATAGO-115145
+    description: >
+      Allow users to share projects with other members of their
+      organisation.
+
+  - key: project_indexing
+    name: Project Indexing
+    release_phase: beta
+    default_enabled: false
+    jira_epic: DATAGO-123919
+    description: >
+      Enable document indexing and BM25 search within projects for
+      citation-backed responses.
