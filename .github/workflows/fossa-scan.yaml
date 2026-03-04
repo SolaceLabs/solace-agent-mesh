@@ -13,10 +13,11 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  actions: read
+  pull-requests: write  # sca-scan-and-guard requires write to comment on PRs
+  actions: read         # required by sca-scan-and-guard reusable workflow
+  issues: write         # required by sca-scan-and-guard for PR/issue comments
   checks: write
-  statuses: write
+  statuses: write       # required by sca-scan-and-guard to update commit status
 
 jobs:
   fossa_scan:

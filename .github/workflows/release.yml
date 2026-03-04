@@ -50,7 +50,10 @@ permissions:
   checks: write
   contents: write
   packages: write
-  pull-requests: read
+  pull-requests: write  # sca-scan-and-guard requires write to comment on PRs
+  actions: read         # required by sca-scan-and-guard reusable workflow
+  issues: write         # required by sca-scan-and-guard for PR/issue comments
+  statuses: write       # required by sca-scan-and-guard to update commit status
 
 jobs:
   # Prepare release metadata (commit SHA, version, image tags)
