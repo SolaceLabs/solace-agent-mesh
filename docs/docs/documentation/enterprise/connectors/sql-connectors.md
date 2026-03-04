@@ -15,13 +15,14 @@ The connector supports common relational database systems and handles the specif
 
 ## Supported Databases
 
-Agent Mesh Enterprise supports three database types for SQL connectors:
+Agent Mesh Enterprise supports the following database types for SQL connectors:
 
+- Microsoft SQL Server (MSSQL)
 - MySQL
 - PostgreSQL
 - MariaDB
 
-Each database type uses the same configuration interface but requires connection parameters appropriate for that database system.
+Each database type uses the same configuration interface but requires connection parameters appropriate for that database system. Microsoft SQL Server has additional configuration options for ODBC drivers and TLS certificate handling.
 
 ## Prerequisites
 
@@ -37,7 +38,12 @@ You need a database username and password with appropriate permissions for the o
 
 ### Network Connectivity
 
-Verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your database server on the appropriate port. Default ports are 3306 for MySQL and MariaDB, and 5432 for PostgreSQL.
+Verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your database server on the appropriate port. Default ports are:
+
+- Microsoft SQL Server: 1433
+- MySQL: 3306
+- PostgreSQL: 5432
+- MariaDB: 3306
 
 ### Database Name
 
@@ -59,7 +65,7 @@ The connector name must be unique across all connectors in your deployment, rega
 
 **Database Type**
 
-Select the database system you are connecting to from the dropdown menu. The available options are MySQL, PostgreSQL, and MariaDB. This selection determines the appropriate driver and connection string format that Agent Mesh Enterprise uses.
+Select the database system you are connecting to from the dropdown menu. The available options are Microsoft SQL Server, MySQL, PostgreSQL, and MariaDB. This selection determines the appropriate driver and connection string format that Agent Mesh Enterprise uses.
 
 If you select the wrong database type, connection tests will fail with errors about incompatible protocols or unsupported features.
 
@@ -72,6 +78,8 @@ For cloud-hosted databases, use the hostname provided by your cloud provider. Fo
 **Port**
 
 The port number where your database accepts connections. Default ports are:
+
+- Microsoft SQL Server: `1433`
 - MySQL: `3306`
 - PostgreSQL: `5432`
 - MariaDB: `3306`
@@ -80,21 +88,42 @@ If your database administrator configured a custom port for security reasons or 
 
 **Database Name**
 
-The specific database within the database server that agents should access. This is the database name, not the server hostname. In PostgreSQL, this is the database name, not the schema name within a database. Agents will access the default schema (typically `public`) within the specified database.
+The specific database within the database server that agents should access. This is the database name, not the server hostname. In PostgreSQL, this is the database name, not the schema name within a database. Agents access the default schema (typically `public` for PostgreSQL or `dbo` for SQL Server) within the specified database.
 
-For example, if your PostgreSQL server contains databases named `production`, `staging`, and `development`, you would enter the specific one agents should use, such as `production`.
+For example, if your database server contains databases named `production`, `staging`, and `development`, enter the specific one agents should use, such as `production`.
 
 **Username**
 
 The database username that agents use to authenticate. This account determines what data agents can access and what operations they can perform through the database permission system.
 
-You should create a dedicated database user for agent access rather than using administrative accounts or accounts shared with other applications. This allows you to control permissions precisely and audit agent database activity.
+Create a dedicated user account in your database for agent access rather than using administrative accounts or accounts shared with other applications. This approach allows you to control permissions precisely and audit agent database activity.
 
 **Password**
 
-The password for the database username. Agent Mesh Enterprise stores this credential securely in its configuration and uses it to establish database connections.
+The password for the database username. Agent Mesh Enterprise stores this credential in its configuration and uses it to establish database connections. Follow password security best practices, such as using strong passwords and rotating them periodically.
 
-The password is encrypted at rest and transmitted securely to the database server. However, you should still follow password security best practices, such as using strong passwords and rotating them periodically.
+### Microsoft SQL Server Configuration
+
+Microsoft SQL Server connectors have additional configuration fields that other database types do not require.
+
+**Encryption (TLS)**
+
+Controls TLS encryption for data in transit between the connector and SQL Server. The default is **Enabled**.
+
+| Setting | Behavior |
+|---------|----------|
+| **Enabled** (default) | Encrypts data in transit using TLS. |
+| **Disabled** | No TLS encryption. |
+| **Strict** | Enforces TLS encryption and always validates the server certificate. The `Trust Server Certificate` setting is ignored when strict mode is active. |
+
+**Trust Server Certificate**
+
+Controls whether the connector validates the SQL Server's TLS certificate (expiry, trust chain, and server name match). This field appears only when **Encryption (TLS)** is set to **Enabled**.
+
+| Setting | Behavior |
+|---------|----------|
+| **Disabled** (default) | Validates the server certificate. The connection fails if the certificate is expired, self-signed, or signed by an untrusted CA. |
+| **Enabled** | Skips certificate validation. Use for dev/test environments or when using self-signed certificates. |
 
 ### Connection Pooling
 
@@ -111,6 +140,15 @@ The database user you configure for the connector determines what agents can acc
 ### Read-Only Access
 
 For most agent use cases, read-only database access provides sufficient capability while preventing accidental or malicious data modification.
+
+**Microsoft SQL Server:**
+
+```sql
+CREATE LOGIN agent_readonly WITH PASSWORD = 'secure_password';
+USE your_database;
+CREATE USER agent_readonly FOR LOGIN agent_readonly;
+GRANT SELECT ON SCHEMA::dbo TO agent_readonly;
+```
 
 **MySQL and MariaDB:**
 
@@ -172,10 +210,34 @@ This occurs because Supabase's direct connection endpoint uses IPv6 addressing, 
 
 In your Supabase project settings, navigate to Database then Connection Pooling to find the Session Pooler connection string. Use the host and port from this connection string when configuring your SQL connector. The database name, username, and password remain the same as your direct connection credentials.
 
+### Microsoft SQL Server Certificate Errors
+
+When connecting to SQL Server with `Trust Server Certificate` set to **Disabled**, you may see certificate validation errors:
+
+```
+SSL Provider: certificate verify failed: unable to get local issuer certificate
+```
+
+This error occurs because the SQL Server's certificate is not trusted by the Agent Mesh container. To resolve this issue:
+
+1. **Enable Trust Server Certificate**: Set `Trust Server Certificate` to **Enabled** in the connector configuration. This bypasses certificate validation and allows connections to servers with self-signed certificates.
+
+2. **Install the CA certificate**: If you require certificate validation, install the CA certificate that signed your SQL Server's certificate into the Agent Mesh container's trust store.
+
+**Verifying encryption status:**
+
+To confirm that your SQL Server connection uses TLS encryption, run this query from the SQL Server management console:
+
+```sql
+SELECT encrypt_option FROM sys.dm_exec_connections WHERE session_id = @@SPID;
+```
+
+A result of `TRUE` indicates the connection is encrypted.
+
 ### Query Performance Issues
 
 If agents experience slow query responses:
 
-1. Ensure frequently queried columns have appropriate indexes
-2. Optimize database views if you use them for access control
-3. Review query patterns in database logs to identify inefficient queries that agents generate
+1. Ensure frequently queried columns have appropriate indexes.
+2. Optimize database views if you use them for access control.
+3. Review query patterns in database logs to identify inefficient queries that agents generate.
