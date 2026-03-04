@@ -82,8 +82,47 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
     const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     // Fetch PDF via api client with Bearer token auth and cache the blob URL
+    // Convert data URLs to blob URLs for better PDF.js compatibility
     useEffect(() => {
         if (!url) return;
+
+        // Blob URLs can be used directly
+        if (url.startsWith("blob:")) {
+            setResolvedUrl(url);
+            return;
+        }
+
+        // Convert data URLs to blob URLs for better PDF.js compatibility
+        // PDF.js can have issues with very large data URLs
+        if (url.startsWith("data:")) {
+            try {
+                // Parse the data URL
+                const [header, base64Data] = url.split(",");
+                const mimeMatch = header.match(/data:([^;]+)/);
+                const mimeType = mimeMatch ? mimeMatch[1] : "application/pdf";
+
+                // Decode base64 to binary
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                // Create blob and blob URL
+                const blob = new Blob([bytes], { type: mimeType });
+                const blobUrl = URL.createObjectURL(blob);
+                setResolvedUrl(blobUrl);
+
+                // Clean up blob URL on unmount
+                return () => {
+                    URL.revokeObjectURL(blobUrl);
+                };
+            } catch (err) {
+                console.error("[PdfRenderer] Failed to convert data URL to blob:", err);
+                setFetchError("Failed to process PDF data.");
+            }
+            return;
+        }
 
         // Check module-level cache first
         const cached = pdfBlobCache.get(url);
