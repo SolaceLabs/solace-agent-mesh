@@ -8,7 +8,6 @@ export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-cen
         variant: {
             expanded: "justify-start pr-4 pl-6 text-sm font-normal",
             collapsed: "justify-center p-0",
-            bottom: "justify-center p-2 text-[var(--color-primary-text-w10)]",
         },
         active: {
             true: ACTIVE_BG,

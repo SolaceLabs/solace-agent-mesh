@@ -202,7 +202,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-[var(--color-background-wMain)]", isCollapsed ? "w-16" : "w-64")}>
             {isCollapsed ? (
                 <>
-                    <div className="relative flex w-full items-center justify-center overflow-visible border-b border-[var(--color-secondary-w70)] py-3">
+                    <div className="relative flex min-h-[80px] w-full items-center justify-center overflow-visible border-b border-[var(--color-secondary-w70)] py-3">
                         {renderHeader()}
                         {/* Positioned outside panel bounds to create floating expand button effect */}
                         {!hideCollapseButton && (
@@ -265,22 +265,27 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         })}
                     </div>
 
-                    <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] p-2">
-                        {bottomItems.map(item => (
-                            <Tooltip key={item.id}>
-                                <TooltipTrigger asChild>
-                                    <button onClick={() => handleBottomItemClick(item)} className={navButtonStyles({ variant: "bottom" })} disabled={item.disabled}>
-                                        <item.icon className="size-6" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">{item.label}</TooltipContent>
-                            </Tooltip>
-                        ))}
+                    <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] py-3">
+                        {bottomItems.map(item => {
+                            const isActive = activeItem === item.id;
+                            return (
+                                <Tooltip key={item.id}>
+                                    <TooltipTrigger asChild>
+                                        <button onClick={() => handleBottomItemClick(item)} className={navButtonStyles({ variant: "collapsed" })} disabled={item.disabled}>
+                                            <div className={iconWrapperStyles({ active: isActive })}>
+                                                <item.icon className={iconStyles({ active: isActive })} />
+                                            </div>
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">{item.label}</TooltipContent>
+                                </Tooltip>
+                            );
+                        })}
                     </div>
                 </>
             ) : (
                 <>
-                    <div className="flex items-center justify-between border-b border-[var(--color-secondary-w70)] py-3 pr-4 pl-6">
+                    <div className="flex min-h-[80px] items-center justify-between border-b border-[var(--color-secondary-w70)] py-3 pr-4 pl-6">
                         <div className="flex items-center gap-2">{renderHeader()}</div>
                         {!hideCollapseButton && (
                             <Tooltip>
