@@ -1,9 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { ChevronRight } from "lucide-react";
 
 import { AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui/accordion";
 import { FileIcon } from "@/lib/components/chat/file/FileIcon";
+import { useArtifactContent } from "@/lib/api/artifacts";
+import { useProjectContext } from "@/lib/providers/ProjectProvider";
+import { canPreviewArtifact } from "@/lib/components/chat/preview/previewUtils";
+import { ArtifactPreviewDownload } from "@/lib/components/chat/artifact/ArtifactPreviewDownload";
 import type { GroupedDocument, LocationCitation } from "@/lib/utils/documentSourceUtils";
+import type { ArtifactInfo } from "@/lib/types";
 
 import { CitationPreviewModal } from "./CitationPreviewModal";
 import { LocationCitationItem } from "./PageCitationItem";
@@ -20,6 +25,32 @@ export interface DocumentSourceCardProps {
 export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document, sourceIndex }) => {
     const { totalCitations, locations, fileExtension, filename } = document;
     const [selectedLocation, setSelectedLocation] = useState<LocationCitation | null>(null);
+
+    const { activeProject } = useProjectContext();
+    const projectId = activeProject?.id ?? null;
+
+    // Fetch artifact content to check if it can be previewed (React Query will cache this)
+    const { data: artifactData } = useArtifactContent(projectId, filename);
+
+    // Check if artifact can be previewed (based on size and file type support)
+    const previewCheck = useMemo(() => {
+        if (!artifactData) {
+            return { canPreview: true }; // Assume can preview until we have data
+        }
+
+        // Create a minimal ArtifactInfo object for the preview check
+        // Calculate size from base64 content if available (rough estimate: base64 length * 0.75)
+        const estimatedSize = artifactData.content ? Math.floor(artifactData.content.length * 0.75) : 0;
+
+        const mockArtifact: ArtifactInfo = {
+            filename,
+            mime_type: artifactData.mimeType,
+            size: estimatedSize,
+            last_modified: "",
+        };
+
+        return canPreviewArtifact(mockArtifact);
+    }, [artifactData, filename]);
 
     return (
         <>
@@ -39,11 +70,27 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="border-border border-t px-4 pb-3">
-                        <div className="pt-4">
-                            {locations.map(location => (
-                                <LocationCitationItem key={location.sortKey} locationLabel={location.locationLabel} citationCount={location.citationCount} onView={() => setSelectedLocation(location)} />
-                            ))}
-                        </div>
+                        {!previewCheck.canPreview ? (
+                            <div className="py-4">
+                                <ArtifactPreviewDownload
+                                    artifact={
+                                        {
+                                            filename,
+                                            mime_type: artifactData?.mimeType || "",
+                                            size: artifactData?.content ? Math.floor(artifactData.content.length * 0.75) : 0,
+                                            last_modified: "",
+                                        } as ArtifactInfo
+                                    }
+                                    message={previewCheck.reason || "Preview not available"}
+                                />
+                            </div>
+                        ) : (
+                            <div className="pt-4">
+                                {locations.map(location => (
+                                    <LocationCitationItem key={location.sortKey} locationLabel={location.locationLabel} citationCount={location.citationCount} onView={() => setSelectedLocation(location)} />
+                                ))}
+                            </div>
+                        )}
                     </AccordionContent>
                 </AccordionItem>
             </div>
