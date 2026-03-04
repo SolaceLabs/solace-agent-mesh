@@ -499,8 +499,14 @@ async def _perform_search(
     query_tokens = bm25s.tokenize([query])
 
     # 2. Retrieve top results from BM25
-    log.debug(f"{log_prefix} Retrieving top {top_k} results")
-    results, scores = retriever.retrieve(query_tokens, k=top_k)
+    # Clamp top_k to corpus size to avoid error when index has fewer chunks than requested
+    corpus_size = int(retriever.scores.get("num_docs", top_k))
+    effective_k = min(top_k, corpus_size)
+    if effective_k == 0:
+        log.warning(f"{log_prefix} Corpus is empty (num_docs=0), returning no results")
+        return []
+    log.debug(f"{log_prefix} Retrieving top {effective_k} results")
+    results, scores = retriever.retrieve(query_tokens, k=effective_k)
 
     # results is a 2D array: [[corpus_idx1, corpus_idx2, ...]]
     # scores is a 2D array: [[score1, score2, ...]]
