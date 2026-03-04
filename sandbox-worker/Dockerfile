@@ -4,7 +4,7 @@
 #
 # Quick start (using helper scripts):
 #   ./build.sh
-#   SAM_NAMESPACE=myorg/dev SOLACE_HOST=host.containers.internal:55554 ./run.sh
+#   SAM_NAMESPACE=myorg/dev SOLACE_BROKER_URL=tcps://broker:55443 ./run.sh
 #
 # Manual build (podman or docker):
 #   podman build -t sam-sandbox-worker .
@@ -13,10 +13,10 @@
 # Manual run:
 #   podman run -d --name sandbox-worker \
 #     -e SAM_NAMESPACE=myorg/dev \
-#     -e SOLACE_HOST=host.containers.internal:55554 \
-#     -e SOLACE_VPN=default \
-#     -e SOLACE_USERNAME=admin \
-#     -e SOLACE_PASSWORD=admin \
+#     -e SOLACE_BROKER_URL=tcps://broker:55443 \
+#     -e SOLACE_BROKER_VPN=default \
+#     -e SOLACE_BROKER_USERNAME=admin \
+#     -e SOLACE_BROKER_PASSWORD=admin \
 #     sam-sandbox-worker
 #
 # Note: With Kubernetes 1.33+ user namespaces (hostUsers: false, procMount: Unmasked),
@@ -63,9 +63,9 @@ RUN mkdir -p /app/sam-src/config_portal/frontend/static \
 ENV SAM_SKIP_UI_BUILD=true
 RUN pip install --no-cache-dir /app/sam-src/
 
-# Install additional sandbox worker dependencies
+# Install additional sandbox worker dependencies (if any)
 COPY sandbox-worker/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt || true
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Remove curl (only needed during build) to reduce attack surface
 RUN apt-get update && apt-get purge -y curl && apt-get autoremove -y \
@@ -81,10 +81,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # Default configuration via environment
 ENV SAM_NAMESPACE=""
 ENV SAM_WORKER_ID="sandbox-worker-001"
-ENV SOLACE_HOST=""
-ENV SOLACE_VPN=""
-ENV SOLACE_USERNAME=""
-ENV SOLACE_PASSWORD=""
+ENV SOLACE_BROKER_URL=""
+ENV SOLACE_BROKER_VPN=""
+ENV SOLACE_BROKER_USERNAME=""
+ENV SOLACE_BROKER_PASSWORD=""
 
 # Health check — uses the built-in HTTP health server
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

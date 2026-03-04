@@ -4,19 +4,19 @@
 #
 # Usage:
 #   ./run.sh                      # Run with environment variables
-#   SAM_NAMESPACE=myorg/dev SOLACE_HOST=broker:55554 ./run.sh
+#   SAM_NAMESPACE=myorg/dev SOLACE_BROKER_URL=tcps://broker:55443 ./run.sh
 #
 # Required environment variables:
-#   SAM_NAMESPACE   - SAM namespace (e.g., myorg/dev)
-#   SOLACE_HOST     - Solace broker host:port
+#   SAM_NAMESPACE       - SAM namespace (e.g., myorg/dev)
+#   SOLACE_BROKER_URL   - Solace broker URL (e.g., tcps://broker:55443)
 #
 # Optional environment variables:
-#   SOLACE_VPN        - Solace VPN name (default: default)
-#   SOLACE_USERNAME   - Solace username (default: admin)
-#   SOLACE_PASSWORD   - Solace password (default: admin)
-#   SAM_WORKER_ID     - Worker ID (default: sandbox-worker-001)
-#   CONTAINER_NAME    - Container name (default: sandbox-worker)
-#   IMAGE_NAME        - Image name (default: sam-sandbox-worker)
+#   SOLACE_BROKER_VPN      - Solace VPN name (default: default)
+#   SOLACE_BROKER_USERNAME - Solace username (default: admin)
+#   SOLACE_BROKER_PASSWORD - Solace password (default: admin)
+#   SAM_WORKER_ID          - Worker ID (default: sandbox-worker-001)
+#   CONTAINER_NAME         - Container name (default: sandbox-worker)
+#   IMAGE_NAME             - Image name (default: sam-sandbox-worker)
 
 set -e
 
@@ -30,16 +30,16 @@ if [ -z "$SAM_NAMESPACE" ]; then
     exit 1
 fi
 
-if [ -z "$SOLACE_HOST" ]; then
-    echo "Error: SOLACE_HOST environment variable is required"
-    echo "Example: SOLACE_HOST=broker:55554 ./run.sh"
+if [ -z "$SOLACE_BROKER_URL" ]; then
+    echo "Error: SOLACE_BROKER_URL environment variable is required"
+    echo "Example: SOLACE_BROKER_URL=tcps://broker:55443 ./run.sh"
     exit 1
 fi
 
 # Defaults
-SOLACE_VPN="${SOLACE_VPN:-default}"
-SOLACE_USERNAME="${SOLACE_USERNAME:-admin}"
-SOLACE_PASSWORD="${SOLACE_PASSWORD:-admin}"
+SOLACE_BROKER_VPN="${SOLACE_BROKER_VPN:-default}"
+SOLACE_BROKER_USERNAME="${SOLACE_BROKER_USERNAME:-admin}"
+SOLACE_BROKER_PASSWORD="${SOLACE_BROKER_PASSWORD:-admin}"
 SAM_WORKER_ID="${SAM_WORKER_ID:-sandbox-worker-001}"
 CONTAINER_NAME="${CONTAINER_NAME:-sandbox-worker}"
 IMAGE_NAME="${IMAGE_NAME:-sam-sandbox-worker}"
@@ -47,7 +47,7 @@ IMAGE_NAME="${IMAGE_NAME:-sam-sandbox-worker}"
 echo "Starting SAM Sandbox Worker..."
 echo "Container runtime: $CONTAINER_CMD"
 echo "Namespace: $SAM_NAMESPACE"
-echo "Broker: $SOLACE_HOST"
+echo "Broker: $SOLACE_BROKER_URL"
 echo "Worker ID: $SAM_WORKER_ID"
 echo ""
 
@@ -61,10 +61,10 @@ fi
 # Build environment arguments
 ENV_ARGS=(
     -e "SAM_NAMESPACE=$SAM_NAMESPACE"
-    -e "SOLACE_HOST=$SOLACE_HOST"
-    -e "SOLACE_VPN=$SOLACE_VPN"
-    -e "SOLACE_USERNAME=$SOLACE_USERNAME"
-    -e "SOLACE_PASSWORD=$SOLACE_PASSWORD"
+    -e "SOLACE_BROKER_URL=$SOLACE_BROKER_URL"
+    -e "SOLACE_BROKER_VPN=$SOLACE_BROKER_VPN"
+    -e "SOLACE_BROKER_USERNAME=$SOLACE_BROKER_USERNAME"
+    -e "SOLACE_BROKER_PASSWORD=$SOLACE_BROKER_PASSWORD"
     -e "SAM_WORKER_ID=$SAM_WORKER_ID"
 )
 

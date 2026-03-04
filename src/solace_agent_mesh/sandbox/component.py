@@ -790,7 +790,7 @@ class SandboxWorkerComponent(SamComponentBase):
             topic,
         )
 
-    def stop_component(self):
+    def stop_component(self) -> None:
         """Clean up resources when component is stopped."""
         log.info("%s Stopping SandboxWorkerComponent...", self.log_identifier)
 

@@ -10,7 +10,7 @@ from solace_agent_mesh.sandbox.storage.base import ToolSyncStorageClient
 
 
 class TestDefaultCreatesS3:
-    @patch.dict(os.environ, {"S3_BUCKET_NAME": "test-bucket"}, clear=False)
+    @patch.dict(os.environ, {"STR_S3_BUCKET_NAME": "test-bucket"}, clear=False)
     @patch("solace_agent_mesh.sandbox.storage.s3_sync_client.boto3")
     def test_default_backend_is_s3(self, mock_boto3):
         mock_boto3.client.return_value = MagicMock()

@@ -401,7 +401,7 @@ class _LegacyContextWrapper:
 # Tool loading and result serialization
 # ---------------------------------------------------------------------------
 
-def load_tool_function(module_path: str, function_name: str):
+def load_tool_function(module_path: str, function_name: str) -> callable:
     """
     Dynamically import and return a tool function.
 
@@ -837,26 +837,26 @@ def run_tool(runner_args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": f"Execution error: {e}\n{tb}"}
 
 
-def main():
+def main() -> None:
     """
     Main entry point for the tool runner.
 
     Reads runner arguments from a JSON file and writes result to another JSON file.
     """
     if len(sys.argv) < 2:
-        print("Usage: python -m solace_agent_mesh.sandbox.tool_runner <args_file>", file=sys.stderr)
+        log.error("Usage: python -m solace_agent_mesh.sandbox.tool_runner <args_file>")
         sys.exit(1)
 
     args_file = Path(sys.argv[1])
 
     if not args_file.exists():
-        print(f"Error: Arguments file not found: {args_file}", file=sys.stderr)
+        log.error("Arguments file not found: %s", args_file)
         sys.exit(1)
 
     try:
         runner_args = json.loads(args_file.read_text())
     except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in arguments file: {e}", file=sys.stderr)
+        log.error("Invalid JSON in arguments file: %s", e)
         sys.exit(1)
 
     # Dispatch: init mode or normal tool execution

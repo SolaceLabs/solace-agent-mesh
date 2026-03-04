@@ -39,7 +39,7 @@ The helper scripts automatically detect whether you have `podman` or `docker` in
 
 # Run the container
 SAM_NAMESPACE=myorg/dev \
-SOLACE_HOST=host.containers.internal:55554 \
+SOLACE_BROKER_URL=tcps://broker:55443 \
 ./run.sh
 ```
 
@@ -58,10 +58,10 @@ $CONTAINER_CMD build -t sam-sandbox-worker .
 $CONTAINER_CMD run -d \
   --name sandbox-worker \
   -e SAM_NAMESPACE=myorg/dev \
-  -e SOLACE_HOST=host.containers.internal:55554 \
-  -e SOLACE_VPN=default \
-  -e SOLACE_USERNAME=admin \
-  -e SOLACE_PASSWORD=admin \
+  -e SOLACE_BROKER_URL=tcps://broker:55443 \
+  -e SOLACE_BROKER_VPN=default \
+  -e SOLACE_BROKER_USERNAME=admin \
+  -e SOLACE_BROKER_PASSWORD=admin \
   sam-sandbox-worker
 ```
 
@@ -90,27 +90,27 @@ The container uses bubblewrap (bwrap) for namespace-based isolation. With Kubern
 ```bash
 # Using helper script
 SAM_NAMESPACE=myorg/dev \
-SOLACE_HOST=host.containers.internal:55554 \
+SOLACE_BROKER_URL=tcps://broker:55443 \
 ./run.sh
 
 # Manual - Podman
 podman run -d \
   --name sandbox-worker \
   -e SAM_NAMESPACE=myorg/dev \
-  -e SOLACE_HOST=host.containers.internal:55554 \
-  -e SOLACE_VPN=default \
-  -e SOLACE_USERNAME=admin \
-  -e SOLACE_PASSWORD=admin \
+  -e SOLACE_BROKER_URL=tcps://broker:55443 \
+  -e SOLACE_BROKER_VPN=default \
+  -e SOLACE_BROKER_USERNAME=admin \
+  -e SOLACE_BROKER_PASSWORD=admin \
   sam-sandbox-worker
 
 # Manual - Docker
 docker run -d \
   --name sandbox-worker \
   -e SAM_NAMESPACE=myorg/dev \
-  -e SOLACE_HOST=host.containers.internal:55554 \
-  -e SOLACE_VPN=default \
-  -e SOLACE_USERNAME=admin \
-  -e SOLACE_PASSWORD=admin \
+  -e SOLACE_BROKER_URL=tcps://broker:55443 \
+  -e SOLACE_BROKER_VPN=default \
+  -e SOLACE_BROKER_USERNAME=admin \
+  -e SOLACE_BROKER_PASSWORD=admin \
   sam-sandbox-worker
 ```
 
@@ -119,7 +119,7 @@ docker run -d \
 ```bash
 # Using helper script
 SAM_NAMESPACE=myorg/dev \
-SOLACE_HOST=host.containers.internal:55554 \
+SOLACE_BROKER_URL=tcps://broker:55443 \
 ARTIFACT_SERVICE_TYPE=filesystem \
 ARTIFACT_BASE_PATH=/sam/artifacts \
 ARTIFACT_MOUNT=/path/to/artifacts:/sam/artifacts:rw \
@@ -130,10 +130,10 @@ podman run -d \
   --name sandbox-worker \
   -v /path/to/artifacts:/sam/artifacts:rw \
   -e SAM_NAMESPACE=myorg/dev \
-  -e SOLACE_HOST=host.containers.internal:55554 \
-  -e SOLACE_VPN=default \
-  -e SOLACE_USERNAME=admin \
-  -e SOLACE_PASSWORD=admin \
+  -e SOLACE_BROKER_URL=tcps://broker:55443 \
+  -e SOLACE_BROKER_VPN=default \
+  -e SOLACE_BROKER_USERNAME=admin \
+  -e SOLACE_BROKER_PASSWORD=admin \
   -e ARTIFACT_SERVICE_TYPE=filesystem \
   -e ARTIFACT_BASE_PATH=/sam/artifacts \
   sam-sandbox-worker
@@ -145,10 +145,10 @@ podman run -d \
 podman run -d \
   --name sandbox-worker \
   -e SAM_NAMESPACE=myorg/dev \
-  -e SOLACE_HOST=broker.example.com:55554 \
-  -e SOLACE_VPN=default \
-  -e SOLACE_USERNAME=admin \
-  -e SOLACE_PASSWORD=admin \
+  -e SOLACE_BROKER_URL=tcps://broker.example.com:55443 \
+  -e SOLACE_BROKER_VPN=default \
+  -e SOLACE_BROKER_USERNAME=admin \
+  -e SOLACE_BROKER_PASSWORD=admin \
   -e ARTIFACT_SERVICE_TYPE=s3 \
   -e ARTIFACT_S3_BUCKET=my-artifacts \
   -e ARTIFACT_S3_REGION=us-east-1 \
@@ -166,15 +166,15 @@ All configuration is via environment variables:
 | Variable | Description |
 |----------|-------------|
 | `SAM_NAMESPACE` | SAM namespace (e.g., `myorg/dev`) |
-| `SOLACE_HOST` | Solace broker host:port |
+| `SOLACE_BROKER_URL` | Solace broker URL (e.g., `tcps://broker:55443`) |
 
 ### Optional - Broker
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SOLACE_VPN` | `default` | Solace VPN name |
-| `SOLACE_USERNAME` | `admin` | Solace username |
-| `SOLACE_PASSWORD` | `admin` | Solace password |
+| `SOLACE_BROKER_VPN` | `default` | Solace VPN name |
+| `SOLACE_BROKER_USERNAME` | `admin` | Solace username |
+| `SOLACE_BROKER_PASSWORD` | `admin` | Solace password |
 | `SOLACE_TRUST_STORE_PATH` | - | Path to TLS trust store |
 | `SOLACE_CLIENT_CERT_PATH` | - | Path to client certificate |
 | `SOLACE_CLIENT_KEY_PATH` | - | Path to client key |
