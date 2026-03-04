@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 
 import { AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui/accordion";
 import { FileIcon } from "@/lib/components/chat/file/FileIcon";
@@ -29,13 +29,19 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
     const { activeProject } = useProjectContext();
     const projectId = activeProject?.id ?? null;
 
-    // Fetch artifact content to check if it can be previewed (React Query will cache this)
-    const { data: artifactData } = useArtifactContent(projectId, filename);
+    const needsPreviewCheck = fileExtension.toLowerCase() === "pptx" || fileExtension.toLowerCase() === "docx";
+
+    // Fetch artifact content to check if it can be previewed
+    const { data: artifactData, isLoading: isLoadingArtifact } = useArtifactContent(needsPreviewCheck ? projectId : null, needsPreviewCheck ? filename : null);
 
     // Check if artifact can be previewed (based on size and file type support)
     const previewCheck = useMemo(() => {
+        if (!needsPreviewCheck) {
+            return { canPreview: true };
+        }
+
         if (!artifactData) {
-            return { canPreview: true }; // Assume can preview until we have data
+            return null;
         }
 
         // Create a minimal ArtifactInfo object for the preview check
@@ -50,7 +56,7 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
         };
 
         return canPreviewArtifact(mockArtifact);
-    }, [artifactData, filename]);
+    }, [artifactData, filename, needsPreviewCheck]);
 
     return (
         <>
@@ -70,7 +76,11 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="border-border border-t px-4 pb-3">
-                        {!previewCheck.canPreview ? (
+                        {isLoadingArtifact || !previewCheck ? (
+                            <div className="text-muted-foreground flex items-center justify-center py-8">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                        ) : !previewCheck.canPreview ? (
                             <div className="py-4">
                                 <ArtifactPreviewDownload
                                     artifact={
