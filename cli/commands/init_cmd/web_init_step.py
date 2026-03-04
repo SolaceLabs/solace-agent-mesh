@@ -6,24 +6,24 @@ import click
 
 from ...utils import wait_for_server
 
-try:
-    from config_portal.backend.server import run_flask
-except ImportError as e:
-    click.echo(
-        click.style(
-            f"Critical Error: Could not import run_flask from config_portal.backend.server. Error: {e}\n",
-            fg="red",
-        ),
-        err=True,
-    )
-    click.echo(click.style("Aborting web-based initialization.", fg="red"), err=True)
-    sys.exit(1)
-
 
 def perform_web_init(current_cli_params: dict) -> dict:
     """
     Launches the web-based configuration portal and updates params.
     """
+    # Lazy import to avoid loading Flask at CLI startup
+    try:
+        from config_portal.backend.server import run_flask
+    except ImportError as e:
+        click.echo(
+            click.style(
+                f"Critical Error: Could not import run_flask from config_portal.backend.server. Error: {e}\n",
+                fg="red",
+            ),
+            err=True,
+        )
+        click.echo(click.style("Aborting web-based initialization.", fg="red"), err=True)
+        sys.exit(1)
 
     click.echo(
         click.style("Attempting to start web-based configuration portal...", fg="blue")
