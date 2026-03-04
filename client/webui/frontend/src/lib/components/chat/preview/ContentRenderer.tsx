@@ -15,9 +15,10 @@ interface ContentRendererProps {
     ragData?: RAGSearchResult;
     initialPage?: number;
     citationMaps?: CitationMapEntry[];
+    disableInteractionModes?: boolean;
 }
 
-export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData, initialPage, citationMaps }) => {
+export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData, initialPage, citationMaps, disableInteractionModes }) => {
     switch (rendererType) {
         case "csv":
             return <CsvRenderer content={content} setRenderError={setRenderError} />;
@@ -41,7 +42,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rende
         case "pdf":
         case "application/pdf":
             if (url && filename) {
-                return <PdfRenderer url={url} filename={filename} initialPage={initialPage} citationMaps={citationMaps} />;
+                return <PdfRenderer url={url} filename={filename} initialPage={initialPage} citationMaps={citationMaps} disableInteractionModes={disableInteractionModes} />;
             }
             setRenderError("URL and filename are required for PDF preview.");
             return null;

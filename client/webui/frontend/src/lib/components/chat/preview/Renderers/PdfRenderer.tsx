@@ -39,6 +39,7 @@ interface PdfRendererProps {
     filename: string;
     initialPage?: number;
     citationMaps?: CitationMapEntry[];
+    disableInteractionModes?: boolean;
 }
 
 interface SelectionRect {
@@ -56,7 +57,7 @@ type InteractionMode = "text" | "pan" | "snip";
  * Performance: Renders all pages upfront (no virtualization) to support character-position
  * highlighting. Tested performant up to ~50 pages; may be sluggish for larger documents.
  */
-const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, citationMaps = [] }) => {
+const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, citationMaps = [], disableInteractionModes = false }) => {
     // Fetch PDF as blob URL using React Query
     const { data: resolvedUrl, error: fetchError } = usePdfBlob(url);
 
@@ -579,42 +580,46 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                         </TooltipTrigger>
                         <TooltipContent>Fit to Width</TooltipContent>
                     </Tooltip>
-                    <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
-                                className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                            >
-                                <Hand className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
-                                className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                            >
-                                <Scissors className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}</TooltipContent>
-                    </Tooltip>
-                    {/* Show status indicator */}
-                    {interactionMode === "snip" && snipStatus !== "idle" && (
-                        <div
-                            className={`ml-2 rounded px-2 py-0.5 text-xs ${
-                                snipStatus === "processing"
-                                    ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
-                                    : snipStatus === "success"
-                                      ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
-                                      : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
-                            }`}
-                        >
-                            {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
-                        </div>
+                    {!disableInteractionModes && (
+                        <>
+                            <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
+                                        className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
+                                    >
+                                        <Hand className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
+                                        className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
+                                    >
+                                        <Scissors className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}</TooltipContent>
+                            </Tooltip>
+                            {/* Show status indicator */}
+                            {interactionMode === "snip" && snipStatus !== "idle" && (
+                                <div
+                                    className={`ml-2 rounded px-2 py-0.5 text-xs ${
+                                        snipStatus === "processing"
+                                            ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
+                                            : snipStatus === "success"
+                                              ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
+                                              : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
+                                    }`}
+                                >
+                                    {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
