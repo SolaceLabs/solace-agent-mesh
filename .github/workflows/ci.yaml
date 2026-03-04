@@ -21,6 +21,7 @@ permissions:
 jobs:
   fossa_scan:
     name: FOSSA Scan
+    if: ${{ !github.event.repository.fork }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
     with:
       use_vault: false
