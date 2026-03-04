@@ -282,12 +282,8 @@ class TestPerformSearchEdgeCases:
     @pytest.mark.asyncio
     async def test_search_with_empty_corpus(self):
         """Test search when BM25 returns empty results."""
-        import numpy as np
-
         mock_retriever = MagicMock()
-        mock_retriever.retrieve = MagicMock(
-            return_value=(np.array([[]]), np.array([[]]))  # Empty results
-        )
+        mock_retriever.scores = {"num_docs": 0}
 
         manifest = {"chunks": []}
 
@@ -304,6 +300,8 @@ class TestPerformSearchEdgeCases:
             )
 
             assert results == []
+            # Empty corpus should return early without calling retrieve
+            mock_retriever.retrieve.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_search_corpus_index_out_of_bounds(self):
@@ -311,8 +309,9 @@ class TestPerformSearchEdgeCases:
         import numpy as np
 
         mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 1000}
         mock_retriever.retrieve = MagicMock(
-            return_value=(np.array([[999]]), np.array([[10.0]]))  # Index 999 doesn't exist
+            return_value=(np.array([[999]]), np.array([[10.0]]))  # Index 999 doesn't exist in manifest
         )
 
         manifest = {
@@ -345,6 +344,7 @@ class TestPerformSearchEdgeCases:
         import numpy as np
 
         mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 1}
         mock_retriever.retrieve = MagicMock(
             return_value=(np.array([[0]]), np.array([[1.0]]))  # Score 1.0
         )
@@ -378,6 +378,7 @@ class TestPerformSearchEdgeCases:
         import numpy as np
 
         mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 1}
         mock_retriever.retrieve = MagicMock(
             return_value=(np.array([[0]]), np.array([[5.0]]))
         )
@@ -412,6 +413,7 @@ class TestPerformSearchEdgeCases:
         import numpy as np
 
         mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 1}
         mock_retriever.retrieve = MagicMock(
             return_value=(np.array([[0]]), np.array([[0.0]]))  # Zero score
         )
@@ -446,6 +448,7 @@ class TestPerformSearchEdgeCases:
         import numpy as np
 
         mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 3}
         mock_retriever.retrieve = MagicMock(
             return_value=(
                 np.array([[0, 1, 2]]),
