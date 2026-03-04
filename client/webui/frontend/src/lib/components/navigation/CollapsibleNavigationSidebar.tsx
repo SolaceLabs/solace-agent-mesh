@@ -11,9 +11,7 @@ import { cn } from "@/lib/utils";
 import type { NavItemConfig, HeaderConfig, NewChatConfig } from "@/lib/types/fe";
 import { NavItemButton } from "./NavItemButton";
 import { navButtonStyles, iconWrapperStyles, iconStyles, navTextStyles } from "./navigationStyles";
-
-// Internal type extension for navigation items with submenu tracking
-type NavItem = NavItemConfig & { hasSubmenu?: boolean };
+import type { NavItem } from "./types";
 
 export interface CollapsibleNavigationSidebarProps {
     /**
