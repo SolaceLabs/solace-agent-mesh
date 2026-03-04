@@ -125,6 +125,9 @@ class PlatformServiceComponent(SamComponentBase):
             self.external_auth_service_url = self.get_config("external_auth_service_url", "")
             self.external_auth_provider = self.get_config("external_auth_provider", "generic")
 
+            # Authorization gateway ID (enterprise feature - for RBAC authorization context)
+            self.gateway_id = self.get_config("gateway_id", None)
+
             # Background task configuration
             self.deployment_timeout_minutes = self.get_config("deployment_timeout_minutes", 5)
             self.heartbeat_timeout_seconds = self.get_config("heartbeat_timeout_seconds", 90)

@@ -1,6 +1,6 @@
 import { api, getErrorFromResponse } from "@/lib/api";
 import { getApiBearerToken } from "@/lib/utils/api";
-import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData, ProjectSharesResponse, BatchShareRequest, BatchShareResponse, BatchDeleteRequest, BatchDeleteResponse, UpdateShareRequest, ShareResponse } from "@/lib";
+import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData, ProjectSharesResponse, BatchShareRequest, BatchShareResponse, BatchDeleteRequest, BatchDeleteResponse } from "@/lib";
 import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionList";
 
 export const getProjects = async () => {
@@ -18,7 +18,7 @@ export const createProject = async (data: CreateProjectRequest) => {
     return api.webui.post<Project>("/api/v1/projects", formData);
 };
 
-export const addFilesToProject = async (projectId: string, files: File[], fileMetadata?: Record<string, string>) => {
+export const addFilesToProject = async (projectId: string, files: File[], fileMetadata?: Record<string, string>): Promise<{ sseLocation: string | null }> => {
     const formData = new FormData();
 
     files.forEach(file => {
@@ -29,11 +29,24 @@ export const addFilesToProject = async (projectId: string, files: File[], fileMe
         formData.append("fileMetadata", JSON.stringify(fileMetadata));
     }
 
-    return api.webui.post(`/api/v1/projects/${projectId}/artifacts`, formData);
+    const response = await api.webui.post(`/api/v1/projects/${projectId}/artifacts`, formData, { fullResponse: true });
+
+    if (!response.ok) {
+        throw new Error(await getErrorFromResponse(response));
+    }
+
+    const result = await response.json();
+    return { ...result, sseLocation: response.headers.get("sse-location") };
 };
 
-export const removeFileFromProject = async (projectId: string, filename: string) => {
-    return api.webui.delete(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`);
+export const removeFileFromProject = async (projectId: string, filename: string): Promise<{ sseLocation: string | null }> => {
+    const response = await api.webui.delete(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, { fullResponse: true });
+
+    if (!response.ok) {
+        throw new Error(await getErrorFromResponse(response));
+    }
+
+    return { sseLocation: response.headers.get("sse-location") };
 };
 
 export const updateFileMetadata = async (projectId: string, filename: string, description: string) => {
@@ -69,8 +82,14 @@ export const importProject = async (file: File, options: { preserveName: boolean
     formData.append("file", file);
     formData.append("options", JSON.stringify(options));
 
-    const result = await api.webui.post("/api/v1/projects/import", formData);
-    return result;
+    const response = await api.webui.post("/api/v1/projects/import", formData, { fullResponse: true });
+
+    if (!response.ok) {
+        throw new Error(await getErrorFromResponse(response));
+    }
+
+    const result = await response.json();
+    return { ...result, sseLocation: response.headers.get("sse-location") };
 };
 
 // Project Sharing APIs
@@ -99,8 +118,4 @@ export const deleteProjectShares = async (projectId: string, data: BatchDeleteRe
     }
 
     return (await response.json()) as BatchDeleteResponse;
-};
-
-export const updateProjectShare = async (projectId: string, shareId: string, data: UpdateShareRequest) => {
-    return api.webui.put<ShareResponse>(`/api/v1/projects/${projectId}/shares/${shareId}`, data);
 };

@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ban, Paperclip, Send, MessageSquarePlus, X } from "lucide-react";
+import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
@@ -73,6 +73,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [showArtifactForm, setShowArtifactForm] = useState(false);
 
     const [contextText, setContextText] = useState<string | null>(null);
+    const [contextSourceId, setContextSourceId] = useState<string | null>(null);
     const [showContextBadge, setShowContextBadge] = useState(false);
 
     const chatInputRef = useRef<HTMLDivElement>(null);
@@ -198,11 +199,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     useEffect(() => {
         const handleFollowUp = async (event: Event) => {
             const customEvent = event as CustomEvent;
-            const { text, prompt, autoSubmit } = customEvent.detail;
+            const { text, prompt, autoSubmit, sourceMessageId } = customEvent.detail;
 
             // If a prompt is provided, use the old behavior
             if (prompt) {
                 setContextText(text);
+                setContextSourceId(sourceMessageId || null);
                 setInputValue(prompt + " ");
 
                 if (autoSubmit) {
@@ -212,6 +214,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
+                        setContextSourceId(null);
                         setShowContextBadge(false);
                         setInputValue("");
                         scrollToBottom?.();
@@ -221,6 +224,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             } else {
                 // No prompt provided - show the selected text as a badge above the input
                 setContextText(text);
+                setContextSourceId(sourceMessageId || null);
                 setShowContextBadge(true);
             }
 
@@ -342,6 +346,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Capture the display HTML for showing in user's message bubble
             const displayHtml = chatInputRef.current?.innerHTML || null;
 
+            // If there's context text from "Ask Followup", include it in the message sent to the agent
+            // The contextQuote will be passed separately for UI display
             if (contextText && showContextBadge) {
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
@@ -441,12 +447,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
             // as the uploaded artifacts (avoids React state timing issues)
-            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml);
+            // Also pass contextQuote and contextQuoteSourceId separately for persistent display above the message bubble
+            const contextQuoteToPass = contextText && showContextBadge ? contextText : null;
+            const contextQuoteSourceIdToPass = contextSourceId && showContextBadge ? contextSourceId : null;
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
             setSelectedFiles([]);
             setPendingPastedTextItems([]);
             setInputValue("");
             setMentionMap(new Map()); // Clear mention map after submit
             setContextText(null);
+            setContextSourceId(null);
             setShowContextBadge(false);
             scrollToBottom?.();
         }
@@ -702,7 +712,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {showContextBadge && contextText && (
                 <div className="mb-2 overflow-hidden">
                     <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
-                        <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
                         <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
@@ -947,7 +957,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 mentionMap={mentionMap}
                 disambiguatedIds={disambiguatedIds}
                 placeholder={isRecording ? "Recording..." : mentionsEnabled ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)" : "How can I help you today? (Type '/' to insert a prompt)"}
-                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
+                className="max-h-50 resize-none overflow-y-auto rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
                 onPaste={handlePaste}
                 disabled={isRecording}
                 onKeyDown={event => {

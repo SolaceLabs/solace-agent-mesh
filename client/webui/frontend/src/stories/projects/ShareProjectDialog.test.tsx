@@ -7,6 +7,7 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import meta from "./ShareProjectDialog.stories";
 import * as matchers from "@testing-library/jest-dom/matchers";
+import { withoutIdentityService } from "../data/parameters";
 
 expect.extend(matchers);
 
@@ -53,11 +54,7 @@ const WithoutIdentityService = composeStory(
             onClose: () => {},
             project: mockProject,
         },
-        parameters: {
-            configContext: {
-                identityServiceType: null,
-            },
-        },
+        parameters: withoutIdentityService,
     },
     meta
 );

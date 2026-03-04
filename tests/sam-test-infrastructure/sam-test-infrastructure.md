@@ -17,7 +17,7 @@ The SAM Test Infrastructure is a comprehensive testing framework designed for in
 
 ## Architecture
 
-The test infrastructure operates in "dev mode" where all components communicate through an in-memory message broker instead of requiring a real Solace PubSub+ broker.
+The test infrastructure operates in "dev mode" where all components communicate through an in-memory message broker instead of requiring a real Solace broker.
 
 ## Core Components
 

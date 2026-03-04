@@ -47,7 +47,7 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({ isOp
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={() => {}}>
+        <Dialog open={isOpen} onOpenChange={open => !open && handleClose()}>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle className="text-xl">Create Prompt</DialogTitle>

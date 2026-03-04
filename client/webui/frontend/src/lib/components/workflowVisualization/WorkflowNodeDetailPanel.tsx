@@ -23,6 +23,12 @@ interface WorkflowNodeDetailPanelProps {
     onNavigateToNode?: (nodeId: string) => void;
 }
 
+const LOGIC_NODE_DESCRIPTIONS: Record<string, string> = {
+    map: "Executes a node for each item in a collection. Items are processed in parallel by default.",
+    switch: "Routes execution based on conditions. Cases are evaluated in order; the first match wins.",
+    loop: "Repeats a node until a condition becomes false. The first iteration always runs; the condition is checked before subsequent iterations.",
+};
+
 /**
  * WorkflowNodeDetailPanel - Shows details for the selected workflow node
  * Includes input/output schemas, code view toggle, and agent information
@@ -227,10 +233,17 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     const agentDescription = agentInfo?.description;
 
     // Get the title (always show node name, regardless of view mode)
-    const title = node.type === "agent" ? agentDisplayName || node.data.agentName || node.id : node.data.workflowName || node.id;
+    let title: string;
+    if (node.type === "agent") {
+        title = agentDisplayName || node.data.agentName || node.id;
+    } else if (node.type === "map" || node.type === "switch" || node.type === "loop") {
+        title = getTypeLabel();
+    } else {
+        title = node.data.workflowName || node.id;
+    }
 
     return (
-        <div className="bg-background flex h-full flex-col">
+        <div className="bg-background flex h-full flex-col" role="complementary" aria-label="Node details panel">
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4">
                 <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -295,6 +308,14 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                             <div className="mb-4">
                                 <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Node Type</label>
                                 <div className="text-sm">{getTypeLabel()}</div>
+                            </div>
+                        )}
+
+                        {/* Description (for logic nodes) */}
+                        {(node.type === "map" || node.type === "switch" || node.type === "loop") && (
+                            <div className="mb-4">
+                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Description</label>
+                                <div className="text-sm">{LOGIC_NODE_DESCRIPTIONS[node.type]}</div>
                             </div>
                         )}
 

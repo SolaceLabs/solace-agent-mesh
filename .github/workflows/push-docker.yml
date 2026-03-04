@@ -57,7 +57,7 @@ jobs:
       - name: Get Version from hatch
         id: get_version
         run: |
-          python3 -m pip install hatch
+          python3 -m pip install hatch virtualenv==20.26.6
           echo "version=$(hatch version)" >> $GITHUB_OUTPUT
           echo "Found version: $(hatch version)"
 

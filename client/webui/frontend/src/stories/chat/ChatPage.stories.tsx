@@ -83,6 +83,35 @@ export const WithLoadingMessage: Story = {
     },
 };
 
+export const WithLongInput: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-session-id",
+            messages: mockMessages,
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const chatInput = await canvas.findByTestId("chat-input");
+
+        const longContent = Array(25).fill("This is a line of text to test the input area scrolling behavior.").join("\n");
+
+        chatInput.textContent = longContent;
+        chatInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+        // Verify the input has overflow-y-auto and max-h-50 working
+        expect(chatInput.scrollHeight).toBeGreaterThan(chatInput.clientHeight);
+    },
+};
+
 export const WithSidePanelOpen: Story = {
     parameters: {
         chatContext: {

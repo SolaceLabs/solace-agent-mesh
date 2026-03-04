@@ -42,7 +42,7 @@ from ....common.utils.embeds import (
     resolve_embeds_recursively_in_string,
 )
 from ....common.utils.embeds.types import ResolutionMode
-from ....common.utils.mime_helpers import is_text_based_mime_type
+from ....common.utils.mime_helpers import is_text_based_mime_type, resolve_mime_type
 from ....common.utils.templates import resolve_template_blocks_in_string
 from ..dependencies import (
     get_project_service_optional,
@@ -369,7 +369,7 @@ async def upload_artifact_with_session(
                 detail="Failed to read uploaded file"
             )
 
-        mime_type = upload_file.content_type or "application/octet-stream"
+        mime_type = resolve_mime_type(filename, upload_file.content_type)
         filename_clean = filename.strip()
 
         log.debug(
@@ -598,8 +598,22 @@ async def list_artifacts(
             session_id=storage_session_id,
         )
 
-        log.info("%s Returning %d artifact details.", log_prefix, len(artifact_info_list))
-        return artifact_info_list
+        # Filter out generated files (converted text files and BM25 index)
+        # Users should only see original files in the UI, not internal conversion artifacts
+        original_artifacts_only = [
+            artifact for artifact in artifact_info_list
+            if not artifact.filename.endswith('.converted.txt')
+            and artifact.filename != 'project_bm25_index.zip'
+        ]
+
+        log.info(
+            "%s Returning %d artifact details (filtered from %d total, excluded %d generated files).",
+            log_prefix,
+            len(original_artifacts_only),
+            len(artifact_info_list),
+            len(artifact_info_list) - len(original_artifacts_only),
+        )
+        return original_artifacts_only
 
     except Exception as e:
         log.exception("%s Error retrieving artifact details: %s", log_prefix, e)

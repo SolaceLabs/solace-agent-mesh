@@ -3,10 +3,6 @@ title: Knowledge Base Connectors
 sidebar_position: 1
 ---
 
-:::info Coming Soon
-Knowledge Base connectors will be available in an upcoming release.
-:::
-
 Knowledge Base connectors allow agents to retrieve context from enterprise documentation stored in cloud-based knowledge repositories.
 
 ## Overview

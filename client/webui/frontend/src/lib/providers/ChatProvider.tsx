@@ -349,6 +349,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             })),
             isError: message.isError,
             displayHtml: message.displayHtml,
+            contextQuote: message.contextQuote,
+            contextQuoteSourceId: message.contextQuoteSourceId,
         };
     }, []);
 
@@ -503,6 +505,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     artifactNotification: bubble.artifactNotification,
                     isError: bubble.isError,
                     displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
+                    contextQuote: bubble.contextQuote, // Restore context quote for user messages
+                    contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -1212,7 +1216,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 metadata: {
                                                     favicon: source.favicon || `https://www.google.com/s2/favicons?domain=${source.url}&sz=32`,
                                                     type: "web_search",
-                                                    source_type: source.source_type || "web",
+                                                    sourceType: source.source_type || "web",
                                                 },
                                             }));
 
@@ -1506,36 +1510,43 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isComplete: true,
                             metadata: { ...newMessages[taskMessageIndex].metadata, lastProcessedEventSequence: currentEventSequence },
                         };
+                    } else if (result.kind === "task" && result.status?.state !== "failed" && result.status?.message?.parts) {
+                        // Fallback: the final response arrived before any status updates
+                        // (race condition between response and status broker topics).
+                        // Create a bubble from the final response's content.
+                        const fallbackParts = (result.status.message.parts as PartFE[]).filter((p: PartFE) => p.kind === "text" || p.kind === "file");
+                        if (fallbackParts.length > 0) {
+                            newMessages.push({
+                                role: "agent",
+                                parts: fallbackParts,
+                                taskId: currentTaskIdFromResult,
+                                isUser: false,
+                                isComplete: true,
+                                metadata: {
+                                    messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                                    sessionId: (result as unknown as { contextId?: string }).contextId || sessionId,
+                                    lastProcessedEventSequence: currentEventSequence,
+                                },
+                            });
+                        }
                     }
                 }
 
-                return newMessages;
-            });
+                // Synchronously update messagesRef so other code reads correct state
+                messagesRef.current = newMessages;
 
-            // Finalization logic
-            if (isFinalEvent) {
-                if (isCancellingRef.current) {
-                    addNotification("Task cancelled.", "success");
-                    if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
-                    setIsCancelling(false);
-                }
+                // Save task on final event directly from inside this callback.
+                if (isFinalEvent && currentTaskIdFromResult && !isReplayingEventsRef.current) {
+                    const taskMessagesToSave = newMessages.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
+                    if (taskMessagesToSave.length > 0) {
+                        const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
+                        const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
 
-                // Save on final event - the save is idempotent (upsert) and will trigger buffer cleanup
-                // SKIP save during buffer replay because messagesRef won't have the updated messages yet
-                // (React state updates are async). The save will happen in loadSessionTasks after replay.
-                if (currentTaskIdFromResult && !isReplayingEventsRef.current) {
-                    const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
-                    const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
-
-                    // Use messagesRef to get the latest messages
-                    const taskMessages = messagesRef.current.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
-
-                    if (taskMessages.length > 0) {
                         // Serialize all message bubbles
-                        const messageBubbles = taskMessages.map(serializeMessageBubble);
+                        const messageBubbles = taskMessagesToSave.map(serializeMessageBubble);
 
                         // Extract user message text
-                        const userMessage = taskMessages.find(m => m.isUser);
+                        const userMessage = taskMessagesToSave.find(m => m.isUser);
                         const userMessageText =
                             userMessage?.parts
                                 ?.filter(p => p.kind === "text")
@@ -1543,12 +1554,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 .join("") || "";
 
                         // Determine task status
-                        const hasError = taskMessages.some(m => m.isError);
+                        const hasError = taskMessagesToSave.some(m => m.isError);
                         const taskStatus = hasError ? "error" : "completed";
 
                         const taskRagData = ragDataRef.current.filter(r => r.taskId === currentTaskIdFromResult);
 
-                        // Save complete task
+                        // Save complete task (async - fires fetch, returns Promise immediately)
                         saveTaskToBackend(
                             {
                                 task_id: currentTaskIdFromResult,
@@ -1558,7 +1569,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     schema_version: CURRENT_SCHEMA_VERSION,
                                     status: taskStatus,
                                     agent_name: selectedAgentName,
-                                    rag_data: taskRagData.length > 0 ? taskRagData : undefined, // Persist RAG data
+                                    rag_data: taskRagData.length > 0 ? taskRagData : undefined,
                                 },
                             },
                             taskSessionId
@@ -1578,21 +1589,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 // Handle session title based on feature flag
                                 if (taskSessionId && !sessionsWithAutoGeneratedTitles.current.has(taskSessionId)) {
                                     if (autoTitleGenerationEnabled) {
-                                        // Trigger automatic title generation for new sessions (if feature is enabled)
-                                        // Only trigger once per session (tracked by sessionsWithAutoGeneratedTitles ref)
-                                        // The generateTitle function will check the actual session name from the API
-                                        // and skip generation if the session already has a meaningful title
-                                        // Extract agent response text for title generation
-                                        const agentMessage = taskMessages.find(m => !m.isUser);
+                                        const agentMessage = taskMessagesToSave.find(m => !m.isUser);
                                         const agentResponseText =
                                             agentMessage?.parts
                                                 ?.filter(p => p.kind === "text")
                                                 .map(p => (p as TextPart).text)
                                                 .join("") || "";
 
-                                        // Pass messages directly - no database dependency, no delays needed
                                         if (userMessageText && agentResponseText) {
-                                            // Mark this session as having had AUTOMATIC title generation attempted
                                             sessionsWithAutoGeneratedTitles.current.add(taskSessionId);
                                             generateTitle(taskSessionId, userMessageText, agentResponseText).catch(error => {
                                                 console.error("[ChatProvider] Title generation failed:", error);
@@ -1603,18 +1607,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             })
                             .catch(error => {
                                 console.error(`[ChatProvider] Error saving task ${currentTaskIdFromResult}:`, error);
-                                // Still unregister background task even on save error
                                 if (isBackgroundTask) {
                                     unregisterBackgroundTask(currentTaskIdFromResult);
                                 }
                             });
-                    } else if (isBackgroundTask) {
+                    } else if (isTaskRunningInBackground(currentTaskIdFromResult)) {
                         // No messages but task was background - still unregister
                         unregisterBackgroundTask(currentTaskIdFromResult);
                         if (typeof window !== "undefined") {
                             window.dispatchEvent(new CustomEvent("new-chat-session"));
                         }
                     }
+                }
+
+                return newMessages;
+            });
+
+            // Finalization logic (non-save operations only — save is inside setMessages above)
+            if (isFinalEvent) {
+                if (isCancellingRef.current) {
+                    addNotification("Task cancelled.", "success");
+                    if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+                    setIsCancelling(false);
                 }
 
                 // Mark all in-progress artifacts as completed when task finishes
@@ -1669,6 +1683,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [
             addNotification,
             closeCurrentEventSource,
@@ -2238,7 +2253,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null, contextQuoteSourceId?: string | null) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
@@ -2258,6 +2273,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 displayHtml: displayHtml || undefined,
+                contextQuote: contextQuote || undefined,
+                contextQuoteSourceId: contextQuoteSourceId || undefined,
                 metadata: {
                     messageId: `msg-${v4()}`,
                     sessionId: overrideSessionId || sessionId,

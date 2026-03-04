@@ -12,22 +12,21 @@ import { useProjectContext } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
 import { Button, Header } from "@/lib/components";
 import { downloadBlob, getErrorMessage } from "@/lib/utils";
-import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { useExportProject, useImportProject } from "@/lib/api/projects/hooks";
+import { useChatContext, useIsProjectSharingEnabled, useStartIndexing } from "@/lib/hooks";
+import { useExportProject, useImportProject, useFetchProjectsOnMount } from "@/lib/api/projects/hooks";
 
 export const ProjectsPage: React.FC = () => {
+    useFetchProjectsOnMount();
     const navigate = useNavigate();
     const loaderData = useLoaderData<{ projectId?: string }>();
 
     // hooks
     const { projects, isLoading, createProject, activeProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
-    const { configFeatureEnablement } = useConfigContext();
+    const isSharingEnabled = useIsProjectSharingEnabled();
+    const startIndexing = useStartIndexing();
     const exportProjectMutation = useExportProject();
     const importProjectMutation = useImportProject();
-
-    // Project sharing is a enterprise feature, it is not available in community edition.
-    const isSharingEnabled = configFeatureEnablement?.projectSharingEnabled ?? false;
 
     // state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -147,6 +146,10 @@ export const ProjectsPage: React.FC = () => {
                 addNotification(warningMessage, "info");
             }
 
+            if (result.sseLocation) {
+                startIndexing(result.sseLocation, result.projectId, "import");
+            }
+
             // Navigate to the newly imported project
             navigate(`/projects/${result.projectId}`);
             addNotification(`Project imported with ${result.artifactsImported} artifacts`, "success");
@@ -217,6 +220,7 @@ export const ProjectsPage: React.FC = () => {
                 onConfirm={handleDeleteConfirm}
                 project={projectToDelete}
                 isDeleting={isDeleting}
+                isProjectSharingEnabled={isSharingEnabled}
             />
 
             {/* Import Project Dialog */}

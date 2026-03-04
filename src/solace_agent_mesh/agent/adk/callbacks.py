@@ -202,7 +202,7 @@ async def process_artifact_blocks_callback(
     parser: FencedBlockStreamParser = session.state.get(parser_state_key)
     if parser is None:
         log.debug("%s New turn. Creating new FencedBlockStreamParser.", log_identifier)
-        parser = FencedBlockStreamParser(progress_update_interval_bytes=50)
+        parser = FencedBlockStreamParser(progress_update_interval_bytes=250)
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
@@ -404,9 +404,9 @@ async def process_artifact_blocks_callback(
                         )
                         save_result = await wrapped_creator(**kwargs_for_call)
 
-                        if save_result.get("status") in ["success", "partial_success"]:
+                        if save_result.status in ["success", "partial"]:
                             status_for_tool = "success"
-                            version_for_tool = save_result.get("data_version", 1)
+                            version_for_tool = save_result.data.get("data_version", 1) if save_result.data else 1
                             try:
                                 logical_task_id = a2a_context.get("logical_task_id")
                                 if logical_task_id:
@@ -820,7 +820,7 @@ def repair_history_callback(
     while i < len(llm_request.contents):
         content = llm_request.contents[i]
         function_calls = []
-        if content.role == "model" and content.parts:
+        if content and content.role == "model" and content.parts:
             function_calls = [p.function_call for p in content.parts if p.function_call]
 
         if function_calls:
@@ -1724,6 +1724,16 @@ If a plan is created:
         injected_instructions.append(peer_instructions)
         log.debug(
             "%s Injected peer discovery instructions from callback state.",
+            log_identifier,
+        )
+
+    project_tool_instructions = callback_context.state.get(
+        "project_tool_instructions"
+    )
+    if project_tool_instructions and isinstance(project_tool_instructions, str):
+        injected_instructions.append(project_tool_instructions)
+        log.debug(
+            "%s Injected project tool instructions from callback state.",
             log_identifier,
         )
 

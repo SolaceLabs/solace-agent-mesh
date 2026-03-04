@@ -1,0 +1,110 @@
+[INFO] Starting UI build process
+[INFO] Processing solace-agent-mesh-ui at /Users/jackclarke/Repos/solace-agent-mesh/client/webui/frontend
+[INFO] Installing dependencies for solace-agent-mesh-ui...
+
+up to date, audited 834 packages in 1s
+
+196 packages are looking for funding
+  run `npm fund` for details
+
+4 vulnerabilities (1 moderate, 3 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+[INFO] Building solace-agent-mesh-ui...
+
+> @SolaceLabs/solace-agent-mesh-ui@1.29.1 build
+> tsc -b && vite build
+
+vite v6.4.1 building for production...
+transforming...
+✓ 2395 modules transformed.
+rendering chunks...
+computing gzip size...
+static/auth-callback.html                   0.60 kB │ gzip:   0.34 kB
+static/index.html                           0.67 kB │ gzip:   0.36 kB
+static/assets/favicon-BLgzUch9.ico         15.09 kB
+static/assets/main-CT2gPbKe.css           142.44 kB │ gzip:  22.76 kB
+static/assets/authCallback-KnKMP_vb.js      0.53 kB │ gzip:   0.36 kB
+static/assets/client-DpBL2stg.js          173.42 kB │ gzip:  55.07 kB
+static/assets/vendor-CGk8Suyh.js          353.48 kB │ gzip: 110.24 kB
+static/assets/main-CNoPmvxG.js          1,058.40 kB │ gzip: 320.25 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.70s
+Generated ui-version.json: 1.29.1
+[INFO] Successfully built solace-agent-mesh-ui
+[INFO] Processing config-portal-frontend at /Users/jackclarke/Repos/solace-agent-mesh/config_portal/frontend
+[INFO] Installing dependencies for config-portal-frontend...
+
+up to date, audited 903 packages in 903ms
+
+313 packages are looking for funding
+  run `npm fund` for details
+
+22 vulnerabilities (2 low, 7 moderate, 11 high, 2 critical)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+[INFO] Building config-portal-frontend...
+
+> build
+> remix vite:build
+
+[warn] Fetcher persistence behavior is changing in React Router v7
+┃ You can use the `v3_fetcherPersist` future flag to opt-in early.
+┃ -> https://remix.run/docs/en/2.13.1/start/future-flags#v3_fetcherPersist
+┗
+[warn] Route discovery/manifest behavior is changing in React Router v7
+┃ You can use the `v3_lazyRouteDiscovery` future flag to opt-in early.
+┃ -> https://remix.run/docs/en/2.13.1/start/future-flags#v3_lazyRouteDiscovery
+┗
+[warn] Relative routing behavior for splat routes is changing in React Router v7
+┃ You can use the `v3_relativeSplatPath` future flag to opt-in early.
+┃ -> https://remix.run/docs/en/2.13.1/start/future-flags#v3_relativeSplatPath
+┗
+[warn] Data fetching is changing to a single fetch in React Router v7
+┃ You can use the `v3_singleFetch` future flag to opt-in early.
+┃ -> https://remix.run/docs/en/2.13.1/start/future-flags#v3_singleFetch
+┗
+[warn] The format of errors thrown on aborted requests is changing in React Router v7
+┃ You can use the `v3_throwAbortReason` future flag to opt-in early.
+┃ -> https://remix.run/docs/en/2.13.1/start/future-flags#v3_throwAbortReason
+┗
+vite v6.2.2 building for production...
+transforming...
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+✓ 1932 modules transformed.
+rendering chunks...
+computing gzip size...
+static/client/.vite/manifest.json                1.08 kB │ gzip:  0.30 kB
+static/client/assets/root-BIMqslJB.css          33.96 kB │ gzip:  6.26 kB
+static/client/assets/root-CGXmGmxX.js            1.80 kB │ gzip:  1.01 kB
+static/client/assets/entry.client-mvZjNKiz.js    3.86 kB │ gzip:  1.45 kB
+static/client/assets/components-Rk0n-9cK.js     40.04 kB │ gzip: 13.27 kB
+static/client/assets/index-DzNKzXrc.js         217.93 kB │ gzip: 70.86 kB
+static/client/assets/_index-DxYD-SrI.js        288.40 kB │ gzip: 82.86 kB
+✓ built in 1.45s
+vite v6.2.2 building SSR bundle for production...
+transforming...
+✓ 47 modules transformed.
+rendering chunks...
+static/server/.vite/manifest.json                 0.22 kB
+static/server/assets/server-build-BIMqslJB.css   33.96 kB
+static/server/index.js                          296.45 kB
+SPA Mode: index.html has been written to your static/client directory
+✓ built in 212ms
+[INFO] Successfully built config-portal-frontend
+[INFO] All UI libraries built successfully

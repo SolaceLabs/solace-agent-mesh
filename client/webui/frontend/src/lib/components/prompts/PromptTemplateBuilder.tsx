@@ -99,6 +99,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
 
     const handleSave = async () => {
         if (isEditing && editingGroup) {
+            // Update current version in-place
             const success = await updateTemplate(editingGroup.id, false);
             if (success) {
                 allowNavigation(() => {
@@ -122,18 +123,17 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
     };
 
     const handleSaveNewVersion = async () => {
-        if (!isEditing || !editingGroup) return;
-
-        // Create new version and make it active
-        const success = await updateTemplate(editingGroup.id, true);
-        if (success) {
-            // Clear unsaved state and close without check
-            allowNavigation(() => {
-                handleClose(true);
-                if (onSuccess) {
-                    onSuccess(editingGroup.id);
-                }
-            });
+        if (isEditing && editingGroup) {
+            // Create a new version
+            const success = await updateTemplate(editingGroup.id, true);
+            if (success) {
+                allowNavigation(() => {
+                    handleClose(true);
+                    if (onSuccess) {
+                        onSuccess(editingGroup.id);
+                    }
+                });
+            }
         }
     };
 

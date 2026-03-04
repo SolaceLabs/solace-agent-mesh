@@ -6,6 +6,7 @@ import { describe, test, expect, vi } from "vitest";
 import meta from "./ProjectCard.stories";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import type { Project } from "@/lib/types/projects";
+import { ownerWithProjectSharingEnabled, viewerWithProjectSharingEnabled, ownerWithAuthorization } from "@/stories/data/parameters";
 
 expect.extend(matchers);
 
@@ -29,14 +30,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: ownerWithProjectSharingEnabled("owner-user"),
                 },
                 meta
             );
@@ -45,7 +39,7 @@ describe("ProjectCard", () => {
 
             expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
 
-            const ownerIcon = document.querySelector(".lucide-user-cog");
+            const ownerIcon = document.querySelector(".lucide-user");
             expect(ownerIcon).toBeInTheDocument();
 
             const viewerIcon = document.querySelector(".lucide-user-search");
@@ -60,14 +54,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "different-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: viewerWithProjectSharingEnabled(),
                 },
                 meta
             );
@@ -90,14 +77,7 @@ describe("ProjectCard", () => {
                         project: mockProject,
                         onDelete: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: ownerWithProjectSharingEnabled("owner-user"),
                 },
                 meta
             );
@@ -107,7 +87,7 @@ describe("ProjectCard", () => {
             expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
 
             expect(screen.queryByText("You are the owner of this project")).toBeNull();
-            expect(screen.queryByText("You can view this project")).toBeNull();
+            expect(screen.queryByText("You are a viewer of this project")).toBeNull();
         });
     });
 
@@ -119,14 +99,7 @@ describe("ProjectCard", () => {
                         project: mockProject,
                         onDelete: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "different-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: viewerWithProjectSharingEnabled(),
                 },
                 meta
             );
@@ -151,14 +124,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: mockOnShare,
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: ownerWithAuthorization("owner-user"),
                 },
                 meta
             );
@@ -179,14 +145,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "different-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: viewerWithProjectSharingEnabled(),
                 },
                 meta
             );
@@ -208,14 +167,7 @@ describe("ProjectCard", () => {
                         project: mockProject,
                         onDelete: () => {},
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: ownerWithAuthorization("owner-user"),
                 },
                 meta
             );
@@ -243,14 +195,7 @@ describe("ProjectCard", () => {
                         onDelete: () => {},
                         onShare: mockOnShare,
                     },
-                    parameters: {
-                        authContext: {
-                            userInfo: { username: "owner-user" },
-                        },
-                        configContext: {
-                            configUseAuthorization: true,
-                        },
-                    },
+                    parameters: ownerWithAuthorization("owner-user"),
                 },
                 meta
             );

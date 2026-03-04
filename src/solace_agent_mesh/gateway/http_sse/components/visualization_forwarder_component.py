@@ -3,6 +3,7 @@ SAC Component to forward messages from an internal BrokerInput
 to the WebUIBackendComponent's internal queue for visualization.
 """
 
+import asyncio
 import logging
 import queue
 from typing import Any, Dict
@@ -46,16 +47,16 @@ info = {
 class VisualizationForwarderComponent(ComponentBase):
     """
     A simple SAC component that takes messages from its input (typically
-    from a BrokerInput) and puts them onto a target Python queue.Queue
+    from a BrokerInput) and puts them onto a target Python queue.Queue or asyncio.Queue instance
     instance provided in its configuration.
     """
 
     def __init__(self, **kwargs: Any):
         super().__init__(info, **kwargs)
-        self.target_queue: queue.Queue = self.get_config("target_queue_ref")
-        if not isinstance(self.target_queue, queue.Queue):
+        self.target_queue = self.get_config("target_queue_ref")
+        if not isinstance(self.target_queue, (queue.Queue, asyncio.Queue)):
             log.error(
-                "%s Configuration 'target_queue_ref' is not a valid queue.Queue instance. Type: %s",
+                "%s Configuration 'target_queue_ref' is not a valid Queue instance. Type: %s",
                 self.log_identifier,
                 type(self.target_queue),
             )
@@ -74,10 +75,31 @@ class VisualizationForwarderComponent(ComponentBase):
         """
         log_id_prefix = f"{self.log_identifier}[Invoke]"
         try:
+            topic = data.get("topic", "")
+            payload = data.get("payload", {})
+
+            # Filter out discovery, trust messages, in-progress updates for files and LLM stream
+            # early to prevent queue buildup and reduce noise in visualization streams
+            is_working_state = payload.get("result", {}).get("status", {}).get('state') == "working"
+            parts = payload.get("result", {}).get("status", {}).get("message", {}).get("parts", [])
+            is_in_progress_data = bool(parts) and all(
+                part.get("data", {}).get("status") == "in-progress" for part in parts
+            )
+            is_text_update = bool(parts) and all(part.get("kind") == "text" for part in parts)
+            if ("/a2a/v1/discovery/" in topic) or ("/a2a/v1/trust/" in topic) or (
+                is_working_state and (is_in_progress_data or is_text_update)
+            ):
+                message.call_acknowledgements()
+                log.debug(
+                    "%s Skipping discovery/trust message: %s",
+                    log_id_prefix,
+                    topic,
+                )
+                return None
 
             forward_data = {
-                "topic": data.get("topic"),
-                "payload": data.get("payload"),
+                "topic": topic,
+                "payload": payload,
                 "user_properties": data.get("user_properties") or {},
                 "_original_broker_message": message,
             }
@@ -88,7 +110,7 @@ class VisualizationForwarderComponent(ComponentBase):
             )
             try:
                 self.target_queue.put_nowait(forward_data)
-            except queue.Full:
+            except (queue.Full, asyncio.QueueFull):
                 log.warning(
                     "%s Visualization queue is full. Message dropped. Current size: %d",
                     log_id_prefix,

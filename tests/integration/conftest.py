@@ -6,6 +6,7 @@ import time
 import subprocess
 import sys
 import tempfile
+import os
 from pathlib import Path
 
 import httpx
@@ -46,6 +47,15 @@ from tests.integration.test_support.a2a_agent.executor import (
 
 if TYPE_CHECKING:
     from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+
+
+def pytest_configure(config):
+    """Configure pytest and set environment variables before test session starts.
+
+    This runs BEFORE all fixtures, ensuring env vars are available during fixture initialization.
+    """
+    # Enable TEST_TOKEN_TRIGGER_THRESHOLD for proactive compaction tests (300 token threshold)
+    os.environ["TEST_TOKEN_TRIGGER_THRESHOLD"] = "300"
 
 
 @pytest.fixture(scope="session")
@@ -112,11 +122,11 @@ def clean_db_fixture(test_db_engine):
                 "chat_messages",
                 "tasks",
                 "sessions",
-                "prompt_group_users",  
-                "prompts",             
-                "prompt_groups",      
-                "project_users",      
-                "projects",            
+                "prompt_group_users",
+                "prompts",
+                "prompt_groups",
+                "project_users",
+                "projects",
                 "users",
             ]
             for table_name in tables_to_clean:
@@ -901,6 +911,23 @@ def shared_solace_connector(
         model_suffix="peerD",
     )
 
+    # Compaction test agent with auto-summarization enabled
+    compaction_agent_config = create_agent_config(
+        agent_name="TestAgentCompaction",
+        description="Test agent for session compaction with auto-summarization",
+        allow_list=[],
+        tools=[
+            {"tool_type": "builtin-group", "group_name": "artifact_management"},
+        ],
+        model_suffix="compaction",
+        session_behavior="PERSISTENT",  # CRITICAL: Must persist events across runs for compaction testing
+    )
+    # Enable auto-summarization with low thresholds for testing
+    compaction_agent_config["auto_summarization"] = {
+        "enabled": True,
+        "compaction_percentage": 0.30,  # Compact 30% of conversation
+    }
+
     combined_dynamic_agent_config = create_agent_config(
         agent_name="CombinedDynamicAgent",
         description="Agent for testing all dynamic tool features.",
@@ -985,6 +1012,20 @@ def shared_solace_connector(
             }
         ],
         model_suffix="config-context",
+    )
+
+    artifact_content_agent_config = create_agent_config(
+        agent_name="ArtifactContentAgent",
+        description="Agent for testing ArtifactContent type hint artifact pre-loading.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.artifact_content_tools",
+            },
+            {"tool_type": "builtin-group", "group_name": "artifact_management"},
+        ],
+        model_suffix="artifact-content",
     )
 
     # Generic Gateway test apps
@@ -1111,6 +1152,12 @@ def shared_solace_connector(
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
+            "name": "TestAgentCompaction_App",
+            "app_config": compaction_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
             "name": "TestHarnessGatewayApp",
             "app_config": {
                 "namespace": "test_namespace",
@@ -1157,6 +1204,12 @@ def shared_solace_connector(
         {
             "name": "ConfigContextAgent_App",
             "app_config": config_context_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "ArtifactContentAgent_App",
+            "app_config": artifact_content_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
@@ -1210,6 +1263,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1319,6 +1373,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1403,6 +1458,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1460,6 +1516,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1559,6 +1616,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1613,6 +1671,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1660,6 +1719,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1724,6 +1784,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1758,6 +1819,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1973,6 +2035,30 @@ def config_context_agent_app_under_test(
     yield app_instance
 
 
+@pytest.fixture(scope="session")
+def artifact_content_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the ArtifactContentAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("ArtifactContentAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve ArtifactContentAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def compaction_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the TestAgentCompaction_App instance with auto-summarization enabled."""
+    app_instance = shared_solace_connector.get_app("TestAgentCompaction_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve TestAgentCompaction_App."
+    yield app_instance
+
+
 def get_component_from_app(app: SamAgentApp) -> SamAgentComponent:
     """Helper to get the component from an app."""
     if app.flows and app.flows[0].component_groups:
@@ -2090,12 +2176,21 @@ def config_context_agent_component(
     return get_component_from_app(config_context_agent_app_under_test)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
+def artifact_content_agent_component(
+    artifact_content_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the ArtifactContentAgent component instance."""
+    return get_component_from_app(artifact_content_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
 def webui_api_client(
     shared_solace_connector: SolaceAiConnector,
 ) -> Generator[TestClient, None, None]:
     """
     Provides a FastAPI TestClient for the running WebUIBackendApp.
+    Session-scoped to avoid ~800ms TestClient teardown overhead per test.
     """
     app_instance = shared_solace_connector.get_app("WebUIBackendApp")
     assert isinstance(
@@ -2112,8 +2207,9 @@ def webui_api_client(
         pytest.fail("WebUIBackendComponent's FastAPI app is not initialized.")
 
     with TestClient(fastapi_app_instance) as client:
-        print("[Fixture] TestClient for WebUIBackendApp created.")
+        print("[SessionFixture] TestClient for WebUIBackendApp created.")
         yield client
+    print("[SessionFixture] TestClient for WebUIBackendApp closed.")
 
 
 @pytest.fixture(scope="session")
@@ -2193,16 +2289,20 @@ def test_gateway_app_instance(
 
 @pytest.fixture(autouse=True, scope="function")
 def clear_test_gateway_state_between_tests(
-    test_gateway_app_instance: TestGatewayComponent,
+    request,
 ):
     """
     Clears state from the session-scoped TestGatewayComponent after each test.
+    Only runs if the test uses shared_solace_connector (directly or indirectly).
     """
     yield
-    test_gateway_app_instance.clear_captured_outputs()
-    test_gateway_app_instance.clear_all_captured_cancel_calls()
-    if test_gateway_app_instance.task_context_manager:
-        test_gateway_app_instance.task_context_manager.clear_all_contexts_for_testing()
+    # Only clear state if the shared connector was actually used by this test
+    if "shared_solace_connector" in request.fixturenames:
+        test_gateway_app_instance = request.getfixturevalue("test_gateway_app_instance")
+        test_gateway_app_instance.clear_captured_outputs()
+        test_gateway_app_instance.clear_all_captured_cancel_calls()
+        if test_gateway_app_instance.task_context_manager:
+            test_gateway_app_instance.task_context_manager.clear_all_contexts_for_testing()
 
 
 def _clear_agent_component_state(agent_app: SamAgentApp):
@@ -2225,45 +2325,51 @@ def _clear_agent_component_state(agent_app: SamAgentApp):
 
 @pytest.fixture(autouse=True, scope="function")
 def clear_all_agent_states_between_tests(
-    sam_app_under_test: SamAgentApp,
-    peer_agent_a_app_under_test: SamAgentApp,
-    peer_agent_b_app_under_test: SamAgentApp,
-    peer_agent_c_app_under_test: SamAgentApp,
-    peer_agent_d_app_under_test: SamAgentApp,
-    combined_dynamic_agent_app_under_test: SamAgentApp,
-    empty_provider_agent_app_under_test: SamAgentApp,
-    docstringless_agent_app_under_test: SamAgentApp,
-    mixed_discovery_agent_app_under_test: SamAgentApp,
-    complex_signatures_agent_app_under_test: SamAgentApp,
-    config_context_agent_app_under_test: SamAgentApp,
-    a2a_proxy_component: "BaseProxyComponent",
-    test_a2a_agent_server_harness: TestA2AAgentServer,
+    request,
 ):
-    """Clears state from all agent components after each test."""
+    """
+    Clears state from all agent components after each test.
+    Only cleans up fixtures that the test actually used to avoid
+    creating session-scoped fixtures during teardown.
+    """
     yield
-    _clear_agent_component_state(sam_app_under_test)
-    _clear_agent_component_state(peer_agent_a_app_under_test)
-    _clear_agent_component_state(peer_agent_b_app_under_test)
-    _clear_agent_component_state(peer_agent_c_app_under_test)
-    _clear_agent_component_state(peer_agent_d_app_under_test)
-    _clear_agent_component_state(combined_dynamic_agent_app_under_test)
-    _clear_agent_component_state(empty_provider_agent_app_under_test)
-    _clear_agent_component_state(docstringless_agent_app_under_test)
-    _clear_agent_component_state(mixed_discovery_agent_app_under_test)
-    _clear_agent_component_state(complex_signatures_agent_app_under_test)
-    _clear_agent_component_state(config_context_agent_app_under_test)
+    # Only clear state if the shared connector was actually used by this test
+    if "shared_solace_connector" not in request.fixturenames:
+        return
 
-    # Clear proxy client cache to ensure fresh clients with updated auth config
-    a2a_proxy_component.clear_client_cache()
+    # Only get and clear fixtures that were actually used by this test
+    # to avoid creating session-scoped fixtures during teardown
+    agent_app_fixtures = [
+        "sam_app_under_test",
+        "peer_agent_a_app_under_test",
+        "peer_agent_b_app_under_test",
+        "peer_agent_c_app_under_test",
+        "peer_agent_d_app_under_test",
+        "combined_dynamic_agent_app_under_test",
+        "empty_provider_agent_app_under_test",
+        "docstringless_agent_app_under_test",
+        "mixed_discovery_agent_app_under_test",
+        "complex_signatures_agent_app_under_test",
+        "config_context_agent_app_under_test",
+        "compaction_agent_app_under_test"
+    ]
 
-    # Clear captured auth headers from downstream agent server
-    test_a2a_agent_server_harness.clear_captured_auth_headers()
+    for fixture_name in agent_app_fixtures:
+        if fixture_name in request.fixturenames:
+            app = request.getfixturevalue(fixture_name)
+            _clear_agent_component_state(app)
 
-    # Clear captured A2A requests from downstream agent server
-    test_a2a_agent_server_harness.clear_captured_requests()
+    # Clear proxy client cache only if it was used
+    if "a2a_proxy_component" in request.fixturenames:
+        a2a_proxy_component = request.getfixturevalue("a2a_proxy_component")
+        a2a_proxy_component.clear_client_cache()
 
-    # Clear auth validation state from downstream agent server
-    test_a2a_agent_server_harness.clear_auth_state()
+    # Clear A2A server state only if it was used
+    if "test_a2a_agent_server_harness" in request.fixturenames:
+        test_a2a_agent_server_harness = request.getfixturevalue("test_a2a_agent_server_harness")
+        test_a2a_agent_server_harness.clear_captured_auth_headers()
+        test_a2a_agent_server_harness.clear_captured_requests()
+        test_a2a_agent_server_harness.clear_auth_state()
 
 
 @pytest.fixture(scope="function")

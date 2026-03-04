@@ -13,16 +13,19 @@ SQL connectors establish persistent connection pools to your database servers. A
 
 The connector supports common relational database systems and handles the specifics of each database type automatically, including appropriate SQL dialect, connection protocols, and driver configurations.
 
+The SQL connector functionality is powered by the [sam-sql-database-tool](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-sql-database-tool) plugin, which contains additional technical details about the underlying implementation.
+
 ## Supported Databases
 
 Agent Mesh Enterprise supports the following database types for SQL connectors:
 
-- Microsoft SQL Server (MSSQL)
 - MySQL
 - PostgreSQL
 - MariaDB
+- Microsoft SQL Server (MSSQL)
+- Oracle
 
-Each database type uses the same configuration interface but requires connection parameters appropriate for that database system. Microsoft SQL Server has additional configuration options for ODBC drivers and TLS certificate handling.
+Each database type uses the same configuration interface but requires connection parameters appropriate for that database system.
 
 ## Prerequisites
 
@@ -40,10 +43,11 @@ You need a database username and password with appropriate permissions for the o
 
 Verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your database server on the appropriate port. Default ports are:
 
-- Microsoft SQL Server: 1433
-- MySQL: 3306
-- PostgreSQL: 5432
-- MariaDB: 3306
+- MySQL: `3306`
+- MariaDB: `3306`
+- PostgreSQL: `5432`
+- MSSQL: `1433`
+- Oracle: `1521`
 
 ### Database Name
 
@@ -65,7 +69,7 @@ The connector name must be unique across all connectors in your deployment, rega
 
 **Database Type**
 
-Select the database system you are connecting to from the dropdown menu. The available options are Microsoft SQL Server, MySQL, PostgreSQL, and MariaDB. This selection determines the appropriate driver and connection string format that Agent Mesh Enterprise uses.
+Select the database system you are connecting to from the dropdown menu. The available options are MySQL, PostgreSQL, MariaDB, Microsoft SQL Server, and Oracle. This selection determines the appropriate driver and connection string format that Agent Mesh Enterprise uses.
 
 If you select the wrong database type, connection tests will fail with errors about incompatible protocols or unsupported features.
 
@@ -78,11 +82,11 @@ For cloud-hosted databases, use the hostname provided by your cloud provider. Fo
 **Port**
 
 The port number where your database accepts connections. Default ports are:
-
-- Microsoft SQL Server: `1433`
 - MySQL: `3306`
 - PostgreSQL: `5432`
 - MariaDB: `3306`
+- MSSQL: `1433`
+- Oracle: `1521`
 
 If your database administrator configured a custom port for security reasons or to avoid conflicts, enter that value instead of the default.
 
@@ -102,11 +106,7 @@ Create a dedicated user account in your database for agent access rather than us
 
 The password for the database username. Agent Mesh Enterprise stores this credential in its configuration and uses it to establish database connections.
 
-### Microsoft SQL Server Configuration
-
-Microsoft SQL Server connectors have additional configuration fields that other database types do not require.
-
-**Encryption (TLS)**
+**Encryption (TLS)** *(MSSQL Only)*
 
 Controls TLS encryption for data in transit between the connector and SQL Server. The default is **Enabled**.
 
@@ -116,7 +116,7 @@ Controls TLS encryption for data in transit between the connector and SQL Server
 | **Disabled** | No TLS encryption. |
 | **Strict** | Enforces TLS encryption and always validates the server certificate. The `Trust Server Certificate` setting is ignored when strict mode is active. |
 
-**Trust Server Certificate**
+**Trust Server Certificate** *(MSSQL only)
 
 Controls whether the connector validates the SQL Server's TLS certificate (expiry, trust chain, and server name match). This field appears only when **Encryption (TLS)** is set to **Enabled**.
 
@@ -124,6 +124,12 @@ Controls whether the connector validates the SQL Server's TLS certificate (expir
 |---------|----------|
 | **Disabled** (default) | Validates the server certificate. The connection fails if the certificate is expired, self-signed, or signed by an untrusted CA. |
 | **Enabled** | Skips certificate validation. Use for dev/test environments or when using self-signed certificates. |
+
+**Service Name** *(Oracle only)*
+
+The Oracle service name that identifies the target database on the Oracle listener. The service name is not the same as the Database Name field used by other connector types; Oracle identifies databases by service name rather than a simple database name.
+
+Oracle connections use thin mode, which connects directly to the database without requiring Oracle Client libraries to be installed on the host.
 
 ### Connection Pooling
 
@@ -141,15 +147,6 @@ The database user you configure for the connector determines what agents can acc
 
 For most agent use cases, read-only database access provides sufficient capability while preventing accidental or malicious data modification.
 
-**Microsoft SQL Server:**
-
-```sql
-CREATE LOGIN agent_readonly WITH PASSWORD = 'secure_password';
-USE your_database;
-CREATE USER agent_readonly FOR LOGIN agent_readonly;
-GRANT SELECT ON SCHEMA::dbo TO agent_readonly;
-```
-
 **MySQL and MariaDB:**
 
 ```sql
@@ -166,6 +163,29 @@ GRANT CONNECT ON DATABASE your_database TO agent_readonly;
 GRANT USAGE ON SCHEMA public TO agent_readonly;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO agent_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO agent_readonly;
+```
+
+**Microsoft SQL Server:**
+
+```sql
+CREATE LOGIN agent_readonly WITH PASSWORD = 'secure_password';
+USE your_database;
+CREATE USER agent_readonly FOR LOGIN agent_readonly;
+GRANT SELECT ON SCHEMA::dbo TO agent_readonly;
+```
+
+**Oracle:**
+
+```sql
+CREATE USER agent_readonly IDENTIFIED BY secure_password;
+GRANT CREATE SESSION TO agent_readonly;
+GRANT SELECT ANY TABLE TO agent_readonly;
+```
+
+For tighter access control, grant `SELECT` on individual tables rather than `SELECT ANY TABLE`:
+
+```sql
+GRANT SELECT ON your_schema.your_table TO agent_readonly;
 ```
 
 ## After Creating the Connector
@@ -238,6 +258,18 @@ A result of `TRUE` indicates the connection is encrypted.
 
 If agents experience slow query responses:
 
-1. Ensure frequently queried columns have appropriate indexes.
-2. Optimize database views if you use them for access control.
-3. Review query patterns in database logs to identify inefficient queries that agents generate.
+1. Ensure frequently queried columns have appropriate indexes
+2. Optimize database views if you use them for access control
+3. Review query patterns in database logs to identify inefficient queries that agents generate
+
+### MSSQL ODBC Driver Not Found
+
+If you are running Agent Mesh Enterprise from a wheel file and the MSSQL connector fails to connect with an error about a missing or unrecognised ODBC driver, Microsoft ODBC Driver 18 for SQL Server may not be installed on your host system.
+
+To install it, follow the [official Microsoft installation instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) for your operating system.
+
+After installation, restart Agent Mesh Enterprise. The driver should then appear in the ODBC Driver dropdown when you create or edit an MSSQL connector.
+
+:::note
+When running Agent Mesh Enterprise from the Docker image, Microsoft ODBC Driver 18 is already included and no additional installation is required.
+:::

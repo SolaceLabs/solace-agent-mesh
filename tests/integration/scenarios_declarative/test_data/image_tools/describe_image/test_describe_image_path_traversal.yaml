@@ -23,11 +23,12 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_image"
-                  arguments: '{"image_filename": "../../etc/passwd.png"}'
+                  arguments: '{"input_image": "../../etc/passwd.png"}'
     expected_request:
       tools_present: ["describe_image"]
 
-  # Second LLM call: Agent processes the tool's "file not found" error
+  # Second LLM call: Agent processes the artifact pre-load error
+  # (Artifact loading now happens in wrapper before tool execution)
   - static_response:
       choices:
         - message:
@@ -36,9 +37,8 @@ llm_interactions:
     expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_call_id_matches_prior_request_index: 0
-          response_json_matches:
+          response_json_contains:
             status: "error"
-            message: "Image artifact '../../etc/passwd.png' not found."
 
 expected_gateway_output:
   - type: "status_update"
@@ -54,7 +54,7 @@ expected_gateway_output:
     event_purpose: "tool_invocation_start"
     expected_tool_name: "describe_image"
     expected_tool_args_contain:
-      image_filename: "../../etc/passwd.png"
+      input_image: "../../etc/passwd.png"
 
   - type: "final_response"
     kind: task

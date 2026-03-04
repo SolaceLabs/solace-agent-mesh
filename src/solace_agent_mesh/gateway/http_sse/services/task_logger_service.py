@@ -5,6 +5,7 @@ Service for logging A2A tasks and events to the database.
 import copy
 import json
 import logging
+import math
 import uuid
 from typing import Any, Callable, Dict, Union
 
@@ -60,8 +61,12 @@ class TaskLoggerService:
             )
             return
 
-        if "discovery" in topic:
+        if "/a2a/v1/discovery/" in topic:
             # Ignore discovery messages
+            return
+
+        if "/a2a/v1/trust/" in topic:
+            # Ignore trust messages early to avoid queue buildup
             return
 
         # Parse the event into a Pydantic model first.
@@ -362,16 +367,41 @@ class TaskLoggerService:
                 return False
         return True
 
+    @staticmethod
+    def _sanitize_non_finite_floats(value: Any) -> Any:
+        """
+        Recursively sanitize a value, replacing non-finite floats (NaN, Infinity, -Infinity)
+        with None since PostgreSQL JSON type doesn't support these values.
+        """
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return None
+            return value
+        elif isinstance(value, dict):
+            return {k: TaskLoggerService._sanitize_non_finite_floats(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [TaskLoggerService._sanitize_non_finite_floats(item) for item in value]
+        else:
+            return value
+
     def _sanitize_payload(self, payload: Dict) -> Dict:
-        """Strips or truncates file content from payload based on configuration."""
+        """
+        Sanitizes payload for database storage:
+        1. Strips or truncates file content based on configuration
+        2. Replaces non-finite floats (NaN, Infinity, -Infinity) with None
+           since PostgreSQL JSON type doesn't support these values
+        """
         new_payload = copy.deepcopy(payload)
 
         def walk_and_sanitize(node):
             if isinstance(node, dict):
                 for key, value in list(node.items()):
-                    if key == "parts" and isinstance(value, list):
+                    # Sanitize non-finite floats using the helper
+                    node[key] = self._sanitize_non_finite_floats(value)
+                    
+                    if key == "parts" and isinstance(node[key], list):
                         new_parts = []
-                        for part in value:
+                        for part in node[key]:
                             if isinstance(part, dict) and "file" in part:
                                 if not self.config.get("log_file_parts", True):
                                     continue  # Skip this part entirely
@@ -392,11 +422,13 @@ class TaskLoggerService:
                                 walk_and_sanitize(part)
                                 new_parts.append(part)
                         node["parts"] = new_parts
-                    else:
-                        walk_and_sanitize(value)
+                    elif isinstance(node[key], (dict, list)):
+                        walk_and_sanitize(node[key])
             elif isinstance(node, list):
-                for item in node:
-                    walk_and_sanitize(item)
+                for i, item in enumerate(node):
+                    node[i] = self._sanitize_non_finite_floats(item)
+                    if isinstance(node[i], (dict, list)):
+                        walk_and_sanitize(node[i])
 
         walk_and_sanitize(new_payload)
         return new_payload
@@ -671,6 +703,42 @@ class TaskLoggerService:
                 )
                 return
             
+            # Check if a chat task already exists (frontend may have saved it first with frontend-only fields)
+            # If so, preserve frontend-only fields like contextQuote and displayHtml from the user message
+            chat_task_repo = ChatTaskRepository()
+            existing_chat_task = chat_task_repo.find_by_id(db, task_id)
+            if existing_chat_task:
+                try:
+                    existing_bubbles = json.loads(existing_chat_task.message_bubbles) if isinstance(existing_chat_task.message_bubbles, str) else existing_chat_task.message_bubbles
+                    # Find the existing user message bubble
+                    existing_user_bubble = next((b for b in existing_bubbles if b.get("type") == "user"), None)
+                    if existing_user_bubble:
+                        # Extract frontend-only fields
+                        frontend_only_fields = {}
+                        if existing_user_bubble.get("contextQuote"):
+                            frontend_only_fields["contextQuote"] = existing_user_bubble["contextQuote"]
+                        if existing_user_bubble.get("contextQuoteSourceId"):
+                            frontend_only_fields["contextQuoteSourceId"] = existing_user_bubble["contextQuoteSourceId"]
+                        if existing_user_bubble.get("displayHtml"):
+                            frontend_only_fields["displayHtml"] = existing_user_bubble["displayHtml"]
+                        
+                        if frontend_only_fields:
+                            # Find the reconstructed user message bubble and merge frontend-only fields
+                            for bubble in message_bubbles:
+                                if bubble.get("type") == "user":
+                                    bubble.update(frontend_only_fields)
+                                    log.info(
+                                        f"{self.log_identifier} Preserved frontend-only fields for task {task_id}: "
+                                        f"contextQuote={bool(frontend_only_fields.get('contextQuote'))}, "
+                                        f"contextQuoteSourceId={bool(frontend_only_fields.get('contextQuoteSourceId'))}, "
+                                        f"displayHtml={bool(frontend_only_fields.get('displayHtml'))}"
+                                    )
+                                    break
+                except Exception as e:
+                    log.warning(
+                        f"{self.log_identifier} Failed to extract frontend-only fields from existing chat task {task_id}: {e}"
+                    )
+            
             # Build task metadata including RAG data if present
             task_metadata_dict = {
                 "schema_version": 1,
@@ -697,7 +765,7 @@ class TaskLoggerService:
                 updated_time=task.end_time,
             )
             
-            chat_task_repo = ChatTaskRepository()
+            # chat_task_repo was already created above when checking for existing task
             chat_task_repo.save(db, chat_task)
             
             log.info(

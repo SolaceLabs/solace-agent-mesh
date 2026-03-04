@@ -26,7 +26,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "edit_image_with_gemini"
-                  arguments: '{"image_filename": "test_image_for_auto_filename.jpg", "edit_prompt": "make it green"}'
+                  arguments: '{"input_image": "test_image_for_auto_filename.jpg", "edit_prompt": "make it green"}'
   - expected_request:
       messages:
         - role: "tool"
