@@ -3,6 +3,10 @@ title: SQL Connectors
 sidebar_position: 4
 ---
 
+:::info Coming Soon
+Microsoft SQL Server and Oracle connector support will be available in an upcoming release.
+:::
+
 SQL connectors allow agents to query and analyze database information using natural language.
 
 ## Overview
@@ -104,7 +108,7 @@ Create a dedicated user account in your database for agent access rather than us
 
 **Password**
 
-The password for the database username. Agent Mesh Enterprise stores this credential in its configuration and uses it to establish database connections.
+The password for the database username. Agent Mesh Enterprise stores this credential in its configuration and uses it to establish database connections. You should still follow password security best practices, such as using strong passwords and rotating them periodically.
 
 **Encryption (TLS)** *(MSSQL Only)*
 
@@ -242,7 +246,7 @@ This error occurs because the SQL Server's certificate is not trusted by the Age
 
 1. **Enable Trust Server Certificate**: Set `Trust Server Certificate` to **Enabled** in the connector configuration. This bypasses certificate validation and allows connections to servers with self-signed certificates.
 
-2. **Install the CA certificate**: If you require certificate validation, install the CA certificate that signed your SQL Server's certificate into the Agent Mesh container's trust store.
+2. **Install the CA certificate**: If you require certificate validation, install the CA certificate that signed your SQL Server's certificate into the Agent Mesh container's trust store. See [Add CA certificates to a container](https://docs.docker.com/engine/network/ca-certs/) for instructions.
 
 **Verifying encryption status:**
 
