@@ -156,36 +156,24 @@ def _determine_mentions_enabled(
 ) -> bool:
     """
     Determines if mentions (@user) feature should be enabled.
-    
+
     Logic:
     1. Check if identity_service is configured (required for user search)
-    2. Check explicit mentions.enabled config (must be explicitly enabled, defaults to False)
-    3. Check frontend_feature_enablement.mentions override
-    
+    2. Check OpenFeature flag 'mentions'
+
     Returns:
         bool: True if mentions should be enabled
     """
-    # Mentions require identity_service to be configured for user search
     if component.identity_service is None:
         log.debug("%s Mentions disabled: no identity_service configured", log_prefix)
         return False
-    
-    # Check explicit mentions config - disabled by default
-    mentions_config = component.get_config("mentions", {})
-    explicitly_enabled = False
-    if isinstance(mentions_config, dict):
-        explicitly_enabled = mentions_config.get("enabled", False)
-    
-    # Check frontend_feature_enablement override
-    feature_flags = component.get_config("frontend_feature_enablement", {})
-    if "mentions" in feature_flags:
-        explicitly_enabled = feature_flags.get("mentions", False)
-    
-    if not explicitly_enabled:
-        log.debug("%s Mentions disabled: not explicitly enabled in config", log_prefix)
+
+    enabled = component.feature_checker.is_enabled("mentions")
+    if not enabled:
+        log.debug("%s Mentions disabled: feature flag is off", log_prefix)
         return False
-    
-    log.debug("%s Mentions enabled: identity_service configured and explicitly enabled", log_prefix)
+
+    log.debug("%s Mentions enabled", log_prefix)
     return True
 
 
