@@ -220,7 +220,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         )}
                     </div>
 
-                    <div className="flex flex-col items-center gap-2 py-3">
+                    <div className="flex flex-col items-center py-3">
                         {showNewChatButton && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
