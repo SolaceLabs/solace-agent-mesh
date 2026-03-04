@@ -42,7 +42,7 @@ from ....common.utils.embeds import (
     resolve_embeds_recursively_in_string,
 )
 from ....common.utils.embeds.types import ResolutionMode
-from ....common.utils.mime_helpers import is_text_based_mime_type
+from ....common.utils.mime_helpers import is_text_based_mime_type, resolve_mime_type
 from ....common.utils.templates import resolve_template_blocks_in_string
 from ..dependencies import (
     get_project_service_optional,
@@ -369,7 +369,7 @@ async def upload_artifact_with_session(
                 detail="Failed to read uploaded file"
             )
 
-        mime_type = upload_file.content_type or "application/octet-stream"
+        mime_type = resolve_mime_type(filename, upload_file.content_type)
         filename_clean = filename.strip()
 
         log.debug(
