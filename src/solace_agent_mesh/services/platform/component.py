@@ -153,7 +153,6 @@ class PlatformServiceComponent(SamComponentBase):
         self.fastapi_app = None
         self.uvicorn_server = None
         self.fastapi_thread = None
-        self.service_id = "platform_service"
 
         self.config_resolver = MiddlewareRegistry.get_config_resolver()
 

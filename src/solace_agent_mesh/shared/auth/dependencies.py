@@ -129,13 +129,13 @@ async def get_user_config(
     if hasattr(component, "component_config"):
         app_config = getattr(component, "component_config", {}).get("app_config", {})
 
-    component_id = getattr(component, "gateway_id", None) or getattr(component, "service_id", None)
-
-    gateway_context = {
-        "gateway_id": component_id,
-        "gateway_app_config": app_config,
-        "request": request,
-    }
+    gateway_context = {}
+    if hasattr(component, "gateway_id"):
+        gateway_context = {
+            "gateway_id": component.gateway_id,
+            "gateway_app_config": app_config,
+            "request": request,
+        }
 
     return await config_resolver.resolve_user_config(user, gateway_context, app_config)
 
