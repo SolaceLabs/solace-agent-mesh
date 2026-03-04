@@ -15,11 +15,7 @@ export const ProjectBadge = ({ text = "Unknown Project", className = "", minWidt
                     <span className="block truncate font-semibold">{text}</span>
                 </Badge>
             </TooltipTrigger>
-            <TooltipContent className="max-w-[480px]">
-                <span className="block truncate">
-                    Indexed from project <span className="font-semibold">{text}</span>
-                </span>
-            </TooltipContent>
+            <TooltipContent className="max-w-[480px]">{text}</TooltipContent>
         </Tooltip>
     );
 };
