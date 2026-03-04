@@ -131,6 +131,18 @@ FROM python:3.13.11-slim-trixie AS runtime
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Build argument to control LibreOffice installation for binary artifact preview
+# LibreOffice is NOT installed by default to keep image size smaller
+# To enable binary artifact preview (DOCX/PPTX), set:
+#   docker build --build-arg INSTALL_LIBREOFFICE=true -t sam .
+# Or via environment variable:
+#   INSTALL_LIBREOFFICE=true docker build --build-arg INSTALL_LIBREOFFICE -t sam .
+#
+# IMPORTANT: LibreOffice is a separate open-source application licensed under MPL-2.0.
+# See THIRD_PARTY_LICENSES/LIBREOFFICE.md for full license and attribution details.
+# Source code: https://www.libreoffice.org/download/source-code/
+ARG INSTALL_LIBREOFFICE
+
 # Copy Node.js 25 from the official node image
 COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
@@ -138,6 +150,7 @@ COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
 COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 # Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
+# LibreOffice is optionally installed for document conversion (DOCX/PPTX to PDF for preview)
 # Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
@@ -151,6 +164,21 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libssl3t64=3.5.4-1~deb13u2 \
     libvpx9=1.15.0-2.1+deb13u1 \
     openssl=3.5.4-1~deb13u2 && \
+    if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
+        echo "============================================================" && \
+        echo "NOTICE: Installing LibreOffice - a separate open-source application" && \
+        echo "LibreOffice is licensed under Mozilla Public License 2.0 (MPL-2.0)" && \
+        echo "License: https://www.mozilla.org/en-US/MPL/2.0/" && \
+        echo "Source:  https://www.libreoffice.org/download/source-code/" && \
+        echo "See THIRD_PARTY_LICENSES/LIBREOFFICE.md for full attribution" && \
+        echo "============================================================" && \
+        apt-get install -y --no-install-recommends \
+        libreoffice-writer-nogui \
+        libreoffice-impress-nogui \
+        libreoffice-calc-nogui; \
+    else \
+        echo "Skipping LibreOffice installation (set INSTALL_LIBREOFFICE=true to enable binary artifact preview)"; \
+    fi && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1
 
