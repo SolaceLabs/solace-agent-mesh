@@ -137,7 +137,7 @@ jobs:
   verify-rc:
     name: Verify RC Status
     needs: prepare-release-metadata
-    if: ${{ !fromJSON(github.event.inputs.skip_rc_check) }}
+    if: false # DRY RUN: skipped to exercise FOSSA scan only
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -270,7 +270,7 @@ jobs:
   # Run security checks via reusable workflow (conditionally)
   security-checks:
     needs: prepare-release-metadata
-    if: ${{ !fromJSON(github.event.inputs.skip_security_checks) }}
+    if: false # DRY RUN: skipped to exercise FOSSA scan only
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
       whitesource_project_name: "solace-agent-mesh"
@@ -293,7 +293,7 @@ jobs:
 
   # Release to PyPI using Trusted Publishing
   release:
-    name: Release to PyPI
+    name: Release to PyPI [DRY RUN - NO PUBLISH]
     # We need always() here because when security-checks, fossa_scan, or verify-rc is skipped,
     # GitHub Actions would by default skip ALL dependent jobs. The always() forces evaluation of our
     # condition, allowing the release to proceed when checks were either successful OR skipped.
@@ -305,52 +305,21 @@ jobs:
       (needs.fossa_scan.result == 'success' || needs.fossa_scan.result == 'skipped') &&
       (needs.security-checks.result == 'success' || needs.security-checks.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: pypi
+    # DRY RUN: removed 'environment: pypi' to avoid blocking on environment approval
     outputs:
-      new_version: ${{ steps.prep.outputs.new_version }}
-      commit_hash: ${{ steps.prep.outputs.commit_hash }}
+      new_version: ${{ steps.mock.outputs.new_version }}
+      commit_hash: ${{ steps.mock.outputs.commit_hash }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          fetch-depth: 0
-          ssh-key: ${{ secrets.COMMIT_KEY }}
-          ref: ${{ github.event.inputs.ref }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "25.5.0"
-          cache: "npm"
-          cache-dependency-path: client/webui/frontend/package-lock.json
-
-      - name: Install and Build Frontend
+      # DRY RUN: All actual release steps (frontend build, hatch-release-prep, PyPI publish,
+      # hatch-release-post) are replaced with this mock step. The commit SHA is used as
+      # new_version so fossa_scan_version_upload can run against a real git ref without
+      # creating a real version tag.
+      - name: Mock Release [DRY RUN]
+        id: mock
         run: |
-          cd client/webui/frontend
-          npm ci
-          npm run build
-
-      - name: Prepare Release
-        id: prep
-        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@main
-        with:
-          version: ${{ github.event.inputs.version || github.event.inputs.version_bump_type }}
-
-      # Publish using Trusted Publishing - must be directly in workflow, not in composite action
-      # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
-        with:
-          verbose: true
-
-      - name: Finalize Release
-        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-post@main
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          new_version: ${{ steps.prep.outputs.new_version }}
-          current_version: ${{ steps.prep.outputs.current_version }}
-          skip_bump: ${{ steps.prep.outputs.skip_bump }}
+          echo "DRY RUN: Skipping PyPI publish, version bump, and git tag creation."
+          echo "new_version=${{ needs.prepare-release-metadata.outputs.commit_sha }}" >> $GITHUB_OUTPUT
+          echo "commit_hash=${{ needs.prepare-release-metadata.outputs.commit_sha }}" >> $GITHUB_OUTPUT
 
   # Upload FOSSA results tagged with the released semantic version.
   # Runs after hatch-release-post has pushed the git tag, so git_ref resolves correctly.
@@ -371,7 +340,7 @@ jobs:
   build_and_push_docker:
     name: Build and Push to DockerHub
     needs: release
-    if: always() && (needs.release.result == 'success') && !fromJSON(github.event.inputs.skip_docker_push)
+    if: false # DRY RUN: skipped to exercise FOSSA scan only
     uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
     with:
       version: ${{ needs.release.outputs.new_version }}
