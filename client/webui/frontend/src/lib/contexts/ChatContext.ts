@@ -1,6 +1,16 @@
 import React, { createContext, type FormEvent } from "react";
+import type { ReactNode } from "react";
 
 import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
+
+/** Custom side panel tab injected by extensions (e.g., enterprise builder) */
+export interface CustomSidePanelTab {
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    content: ReactNode;
+    badge?: string;
+}
 
 /** Pending prompt data for starting a new chat with a prompt template */
 export interface PendingPromptData {
@@ -38,7 +48,9 @@ export interface ChatState {
     ragEnabled: boolean;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "activity" | "rag";
+    activeSidePanelTab: string;
+    /** Custom tabs injected by extensions (e.g., enterprise builder tab) */
+    customSidePanelTabs?: CustomSidePanelTab[];
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -78,8 +90,8 @@ export interface ChatActions {
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "activity" | "rag">>;
-    openSidePanelTab: (tab: "files" | "activity" | "rag") => void;
+    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<string>>;
+    openSidePanelTab: (tab: string) => void;
 
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;
