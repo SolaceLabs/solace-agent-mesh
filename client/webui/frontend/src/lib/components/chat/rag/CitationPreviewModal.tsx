@@ -123,6 +123,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                         setRenderError={setRenderError}
                                         initialPage={initialLocation}
                                         citationMaps={citationMaps}
+                                        disableInteractionModes={true}
                                     />
                                 ) : (
                                     <MessageBanner variant="warning" message="Unable to preview PDF: No active project context" />

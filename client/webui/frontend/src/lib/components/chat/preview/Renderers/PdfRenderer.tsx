@@ -39,6 +39,7 @@ interface PdfRendererProps {
     filename: string;
     initialPage?: number;
     citationMaps?: CitationMapEntry[];
+    disableInteractionModes?: boolean;
 }
 
 interface SelectionRect {
@@ -56,7 +57,7 @@ type InteractionMode = "text" | "pan" | "snip";
  * Performance: Renders all pages upfront (no virtualization) to support character-position
  * highlighting. Tested performant up to ~50 pages; may be sluggish for larger documents.
  */
-const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, citationMaps = [] }) => {
+const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, citationMaps = [], disableInteractionModes = false }) => {
     // Fetch PDF as blob URL using React Query
     const { data: resolvedUrl, error: fetchError } = usePdfBlob(url);
 
@@ -163,7 +164,57 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
 
         if (!hasCitationMaps) return;
 
-        const timer = setTimeout(() => {
+        let cancelled = false;
+        let attempts = 0;
+        const maxAttempts = 50; // Try for up to 5 seconds (50 * 100ms)
+
+        // Why wait for text layer: react-pdf renders text layers asynchronously after the
+        // Page component mounts. For large PDFs (500+ pages), this can take several seconds.
+        // If we try to highlight immediately, querySelectorAll finds zero spans because the
+        // text content hasn't been injected into the DOM yet. Polling ensures we only attempt
+        // highlighting once the text spans actually exist, preventing silent failures on large PDFs.
+        const waitForTextLayerAndHighlight = () => {
+            if (cancelled) return;
+
+            attempts++;
+
+            // Find pages that should have citations
+            const pagesWithCitations: number[] = [];
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                const pageStart = pageCharBoundaries[pageNum - 1] || 0;
+                const pageEnd = pageCharBoundaries[pageNum] || pageStart;
+                const relevantMaps = citationMaps.filter(m => m.char_start < pageEnd && m.char_end > pageStart);
+                if (relevantMaps.length > 0) {
+                    pagesWithCitations.push(pageNum);
+                }
+            }
+
+            if (pagesWithCitations.length === 0) {
+                setIsWaitingForHighlight(false);
+                return;
+            }
+
+            // Check if text spans exist for pages with citations
+            let totalSpansFound = 0;
+            for (const pageNum of pagesWithCitations) {
+                const pageElement = pageRefs.current.get(pageNum);
+                if (pageElement) {
+                    const textSpans = pageElement.querySelectorAll(".react-pdf__Page__textContent span");
+                    totalSpansFound += textSpans.length;
+                }
+            }
+
+            if (totalSpansFound === 0) {
+                if (attempts < maxAttempts) {
+                    setTimeout(waitForTextLayerAndHighlight, 100);
+                    return;
+                } else {
+                    setIsWaitingForHighlight(false);
+                    return;
+                }
+            }
+
+            // Text spans are ready, perform highlighting
             const matchedSpans: HTMLElement[] = [];
 
             // CHARACTER-POSITION BASED HIGHLIGHTING
@@ -209,10 +260,15 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                 // No matches found, still hide loading state
                 setIsWaitingForHighlight(false);
             }
-        }, 300);
+        };
 
-        return () => clearTimeout(timer);
-    }, [citationMaps, pageCharBoundaries, numPages]);
+        // Start the polling process
+        waitForTextLayerAndHighlight();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [citationMaps, pageCharBoundaries, numPages, interactionMode]);
 
     function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }): void {
         setNumPages(nextNumPages);
@@ -524,42 +580,46 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                         </TooltipTrigger>
                         <TooltipContent>Fit to Width</TooltipContent>
                     </Tooltip>
-                    <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
-                                className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                            >
-                                <Hand className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
-                                className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                            >
-                                <Scissors className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}</TooltipContent>
-                    </Tooltip>
-                    {/* Show status indicator */}
-                    {interactionMode === "snip" && snipStatus !== "idle" && (
-                        <div
-                            className={`ml-2 rounded px-2 py-0.5 text-xs ${
-                                snipStatus === "processing"
-                                    ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
-                                    : snipStatus === "success"
-                                      ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
-                                      : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
-                            }`}
-                        >
-                            {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
-                        </div>
+                    {!disableInteractionModes && (
+                        <>
+                            <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
+                                        className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
+                                    >
+                                        <Hand className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
+                                        className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
+                                    >
+                                        <Scissors className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}</TooltipContent>
+                            </Tooltip>
+                            {/* Show status indicator */}
+                            {interactionMode === "snip" && snipStatus !== "idle" && (
+                                <div
+                                    className={`ml-2 rounded px-2 py-0.5 text-xs ${
+                                        snipStatus === "processing"
+                                            ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
+                                            : snipStatus === "success"
+                                              ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
+                                              : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
+                                    }`}
+                                >
+                                    {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -613,7 +673,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                                                 setPageWidth(page.width);
                                             }
                                         }}
-                                        renderTextLayer={interactionMode === "text"}
+                                        renderTextLayer={interactionMode === "text" || citationMaps.length > 0}
                                         renderAnnotationLayer={true}
                                         className="shadow-lg"
                                     />
