@@ -105,9 +105,9 @@ def check_project_indexing_enabled(
     feature_flags = component.get_config("frontend_feature_enablement", {})
     indexing_enabled = feature_flags.get("projectIndexing", False)
     if not indexing_enabled:
-        log.info("Project indexing is disabled in frontend_feature_enablement")
+        log.debug("Project indexing is disabled in frontend_feature_enablement")
         return False
-    log.info("Project indexing is enabled in frontend_feature_enablement")
+    log.debug("Project indexing is enabled in frontend_feature_enablement")
     return True
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
