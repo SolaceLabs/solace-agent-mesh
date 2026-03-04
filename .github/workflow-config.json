@@ -7,7 +7,7 @@
         "block_on": ["policy_conflict", "unlicensed_dependency"]
       },
       "vulnerability": {
-        "mode": "REPORT",
+        "mode": "BLOCK",
         "block_on": ["critical", "high"]
       },
       "project_id": "SolaceLabs_solace-agent-mesh",
