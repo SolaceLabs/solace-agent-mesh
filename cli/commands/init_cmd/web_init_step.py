@@ -81,12 +81,10 @@ def perform_web_init(current_cli_params: dict) -> dict:
 
             # Check if AWS Bedrock provider is being used
             llm_provider = config_from_portal.get("llm_provider", "")
-            
-            if llm_provider == "aws_bedrock":
-                # For AWS Bedrock, we don't need planning and general model names
-                # The model info is already in llm_model_name and aws_model_id
-                pass
-            else:
+
+            # For AWS Bedrock, we don't need planning and general model names
+            # The model info is already in llm_model_name and aws_model_id
+            if llm_provider != "aws_bedrock":
                 # Handle planning and general model names with fallback to single model name
                 config_from_portal["llm_service_planning_model_name"] = (
                     config_from_portal.get("llm_service_planning_model_name")
