@@ -39,6 +39,7 @@ ENV_DEFAULTS = {
     "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE",
     "PLATFORM_API_HOST": "127.0.0.1",
     "PLATFORM_API_PORT": "8001",
+    "SAM_AUTHORIZATION_CONFIG": '{"authorization_service": {"type": "none"}}',
 }
 
 
@@ -250,8 +251,15 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
         platform_url += ":" + str(env_vars_to_write.get("PLATFORM_API_PORT") or 8001)
         env_vars_to_write["PLATFORM_SERVICE_URL"] = platform_url
 
+    env_vars_to_write["SAM_AUTHORIZATION_CONFIG"] = ENV_DEFAULTS["SAM_AUTHORIZATION_CONFIG"]
+
     final_env_vars = {k: v for k, v in env_vars_to_write.items() if v is not None}
-    env_content_lines = [f'{key}="{value}"' for key, value in final_env_vars.items()]
+    env_content_lines = []
+    for key, value in final_env_vars.items():
+        if '"' in str(value):
+            env_content_lines.append(f"{key}='{value}'")
+        else:
+            env_content_lines.append(f'{key}="{value}"')
 
     try:
         with open(env_path, "w", encoding="utf-8") as f:
