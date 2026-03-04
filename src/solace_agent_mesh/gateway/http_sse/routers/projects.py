@@ -27,6 +27,7 @@ from ..dependencies import (
     get_api_config,
     get_db,
     get_indexing_task_service,
+    get_feature_value,
 )
 from ..services.project_service import ProjectService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
@@ -96,25 +97,7 @@ def check_projects_enabled(
                 detail="Projects feature is disabled via feature flag."
             )
 
-def check_project_indexing_enabled(
-    component: "WebUIBackendComponent" = Depends(get_sac_component)
-) -> bool:
-    """
-    Dependency to check if project indexing feature is enabled.
-    Raises HTTPException if project indexing is disabled.
-    """
-
-    # Check explicit project_indexing config
-    project_indexing_config = component.get_config("project_indexing", {})
-    if isinstance(project_indexing_config, dict):
-        indexing_explicitly_enabled = project_indexing_config.get("enabled", False)
-        if not indexing_explicitly_enabled:
-            log.info("Project indexing is explicitly disabled in config")
-            return False
-        else:
-            log.info("Project indexing is explicitly enabled in config")
-            return True
-    return False
+check_project_indexing_enabled = get_feature_value("project_indexing")
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(

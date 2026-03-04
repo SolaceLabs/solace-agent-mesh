@@ -815,6 +815,46 @@ def get_authorization_service(
         return None
 
 
+def require_feature(key: str) -> Callable:
+    """
+    FastAPI dependency factory that hard-gates an endpoint on a feature flag.
+
+    Use as ``_: None = Depends(require_feature("my_flag"))`` when the entire
+    endpoint should be unavailable while the flag is off. Raises HTTP 404 so
+    that disabled endpoints appear non-existent to callers.
+
+    For endpoints that stay accessible but change behaviour based on the flag,
+    use :func:`get_feature_value` instead.
+    """
+    def _check(
+        component: "WebUIBackendComponent" = Depends(get_sac_component),
+    ) -> None:
+        if not component.feature_checker.is_enabled(key):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Feature '{key}' is not enabled.",
+            )
+
+    return _check
+
+
+def get_feature_value(key: str) -> Callable:
+    """
+    FastAPI dependency factory that injects the current boolean value of a
+    feature flag into an endpoint without raising on disabled.
+
+    Use as ``flag: bool = Depends(get_feature_value("my_flag"))`` when the
+    endpoint should still run but needs to vary its behaviour based on whether
+    the flag is on or off (e.g. skipping an optional processing step).
+    """
+    def _resolve(
+        component: "WebUIBackendComponent" = Depends(get_sac_component),
+    ) -> bool:
+        return component.feature_checker.is_enabled(key)
+
+    return _resolve
+
+
 def get_indexing_task_service(
     sse_manager: SSEManager = Depends(get_sse_manager),
     project_service: ProjectService = Depends(get_project_service),

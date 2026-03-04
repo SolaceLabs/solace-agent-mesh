@@ -361,13 +361,7 @@ class SessionService:
                     project_service = ProjectService(component=self.component)
                     log_prefix = f"[move_session_to_project session_id={session_id}] "
 
-                    # Get feature flag value
-                    project_indexing_config = self.component.get_config("project_indexing", {})
-                    indexing_enabled = (
-                        project_indexing_config.get("enabled", False)
-                        if isinstance(project_indexing_config, dict)
-                        else False
-                    )
+                    indexing_enabled = self.component.feature_checker.is_enabled("project_indexing")
 
                     artifacts_copied, _ = await copy_project_artifacts_to_session(
                         project_id=new_project_id,

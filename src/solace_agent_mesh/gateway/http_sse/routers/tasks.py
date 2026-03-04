@@ -287,13 +287,7 @@ async def _inject_project_context(
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
             try:
-                # Get feature flag value
-                project_indexing_config = component.get_config("project_indexing", {})
-                indexing_enabled = (
-                    project_indexing_config.get("enabled", False)
-                    if isinstance(project_indexing_config, dict)
-                    else False
-                )
+                indexing_enabled = component.feature_checker.is_enabled("project_indexing")
 
                 artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
                     project_id=project_id,
@@ -716,15 +710,10 @@ async def _submit_task(
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
 
         # Pass project_id to agent for project-context-aware tool injection (e.g., index_search).
-        # Gated on project_indexing.enabled and BM25 index existence — the agent callback
+        # Gated on project_indexing feature flag and BM25 index existence — the agent callback
         # injects index_search when it sees project_id, so only pass it when the tool is usable.
         if project_id:
-            project_indexing_config = component.get_config("project_indexing", {})
-            indexing_enabled = (
-                project_indexing_config.get("enabled", False)
-                if isinstance(project_indexing_config, dict)
-                else False
-            )
+            indexing_enabled = component.feature_checker.is_enabled("project_indexing")
             if indexing_enabled and project:
                 has_index = await _check_project_has_bm25_index(
                     project=project,
