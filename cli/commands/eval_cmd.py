@@ -1,10 +1,7 @@
 import os
 from pathlib import Path
-
 import click
-
 from cli.utils import error_exit
-from evaluation.run import main as run_evaluation_main
 
 
 @click.command(name="eval")
@@ -26,6 +23,8 @@ def eval_cmd(test_suite_config_path, verbose):
 
     <PATH>: The path to the evaluation test suite config file.
     """
+    from evaluation.run import main as run_evaluation_main
+
     click.echo(
         click.style(
             f"Starting evaluation with test_suite_config: {test_suite_config_path}",
