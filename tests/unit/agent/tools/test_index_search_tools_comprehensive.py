@@ -335,6 +335,10 @@ class TestPerformSearchEdgeCases:
                 search_turn=0
             )
 
+            # Should use top_k as effective_k when corpus is large enough
+            call_args = mock_retriever.retrieve.call_args
+            assert call_args[1]["k"] == 5 or call_args[0][1] == 5
+
             # Should skip out-of-bounds indices
             assert len(results) == 0
 
