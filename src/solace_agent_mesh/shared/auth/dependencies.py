@@ -177,6 +177,19 @@ class ValidatedUserConfig:
             f"ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}"
         )
 
+        if not config_resolver.is_feature_enabled(
+            user_config,
+            {"tool_metadata": {"required_scopes": self.required_scopes}},
+            {},
+        ):
+            log.warning(
+                f"Authorization denied for user '{user_id}'. Required scopes: {self.required_scopes}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Not authorized. Required scopes: {self.required_scopes}",
+            )
+
         return user_config
 
 
