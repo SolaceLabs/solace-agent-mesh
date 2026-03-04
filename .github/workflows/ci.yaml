@@ -189,6 +189,8 @@ jobs:
           cache-to: ${{ steps.image_name.outputs.cache_to }}
           provenance: false
           sbom: false
+          build-args: |
+            INSTALL_LIBREOFFICE=${{ secrets.INSTALL_LIBREOFFICE || 'false' }}
 
   # ----------------------------------------------------
   # PHASE 3: Merge Multi-Platform Manifest (Always)
