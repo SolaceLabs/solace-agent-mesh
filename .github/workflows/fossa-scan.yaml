@@ -26,8 +26,7 @@ jobs:
       git_ref: ${{ inputs.git_ref }}
       use_vault: false
       config_file: '.github/workflow-config.json'
-      setup_actions: '[setup-uv]'
-      custom_setup_scripts: |
-        uv export --format requirements-txt --no-dev --output-file requirements.txt
+      setup_actions: '["setup-uv"]'
+      custom_setup_script: 'uv export --format requirements-txt --no-dev --output-file requirements.txt'
     secrets:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}

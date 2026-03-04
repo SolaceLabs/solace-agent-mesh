@@ -83,7 +83,7 @@ Solace Agent Mesh follows a multi-stage release process:
 **Jobs**:
 
 ```
-prepare-release-metadata
+prepare-release-metadata (validates actor if skip_security_checks=true)
   ↓
 verify-rc (checks RC testing passed)
   ↓
@@ -92,9 +92,13 @@ verify-rc (checks RC testing passed)
 │ (license/vuln scan) │ (Prisma, SonarQube)│
 └─────────────────────┴────────────────────┘
   ↓
-release (PyPI publish)
+release (PyPI publish + git tag created)
   ↓
-build_and_push_docker (DockerHub)
+┌──────────────────────────┬───────────────────────────┐
+│ fossa_scan_version_upload│ build_and_push_docker      │  (run in parallel)
+│ (uploads tagged results  │ (DockerHub)                │
+│  to FOSSA dashboard)     │                            │
+└──────────────────────────┴───────────────────────────┘
 ```
 
 #### 1. Prepare Release Metadata
@@ -108,7 +112,8 @@ build_and_push_docker (DockerHub)
 - Can be skipped with `skip_rc_check: true` input
 
 #### 3. FOSSA Scan ⚠️ **RELEASE GATE**
-- Scans **tagged version** (e.g., `v1.18.0`) for license compliance
+- Scans the **commit SHA** resolved in `prepare-release-metadata` for license compliance
+  - Note: the version tag does not exist yet at this point — it is created by `hatch-release-post` inside the `release` job downstream. The commit SHA is used to ensure FOSSA scans the exact code being released.
 - Uses `sca-scan-and-guard` shareable workflow
 - Configuration: `.github/workflow-config.json`
 - **BLOCKS release if**:
@@ -116,7 +121,7 @@ build_and_push_docker (DockerHub)
   - Unlicensed dependencies detected
 - **REPORTS but doesn't block**:
   - Security vulnerabilities (critical, high severity)
-- Can be skipped with `skip_security_checks: true` input
+- Can be skipped with `skip_security_checks: true` input (**admin only** — see [Emergency Releases](#emergency-releases))
 
 #### 4. Security Checks
 - **Prisma Cloud**: Docker image vulnerability scanning
@@ -133,11 +138,19 @@ build_and_push_docker (DockerHub)
 - Creates git tag (e.g., `v1.18.0`)
 - Creates GitHub release with changelog
 
-#### 6. Build and Push to DockerHub
+#### 6. FOSSA Version Upload
+- **Depends on**: Release to PyPI succeeds (git tag now exists)
+- Re-runs FOSSA scan using the released **version tag** (e.g., `1.18.0`)
+- Not a gate — runs unconditionally after a successful release
+- Associates scan results with the semantic version in the FOSSA dashboard for long-term traceability
+- Runs in parallel with Docker push
+
+#### 7. Build and Push to DockerHub
 - **Depends on**: Release to PyPI succeeds
 - Builds Docker images for linux/amd64 and linux/arm64
 - Pushes to DockerHub
 - Optionally tags as `latest`
+- Runs in parallel with FOSSA version upload
 
 ## Security & Compliance Scanning
 
@@ -179,7 +192,9 @@ FOSSA scans all dependencies for:
 | Workflow | When | What It Scans | Blocks? |
 |----------|------|---------------|---------|
 | CI (PR/Push) | All PRs and main pushes | PR diff / latest commit | License violations only |
-| Release | Manual release trigger | Tagged version (e.g., `v1.18.0`) | License violations only |
+| Release (gate) | Manual release trigger | Commit SHA being released | License violations only |
+| Release (upload) | After successful release | Version tag (e.g., `1.18.0`) | Never — traceability only |
+| Manual (`fossa-scan.yaml`) | On demand via Actions UI | Any branch, tag, or SHA | License violations only |
 
 **FOSSA Project Configuration**: `.fossa.yml`
 
@@ -274,11 +289,13 @@ In rare cases where immediate release is needed and security checks are failing:
 - Security checks have false positives blocking release
 - Pre-approval from security team obtained
 
+> **Admin only**: `skip_security_checks: true` can only be set by repository admins. If a non-admin triggers the release with this flag, the workflow fails immediately in `prepare-release-metadata` with a permission error.
+
 **To perform an emergency release**:
 
 1. Go to [Actions → Release (PyPI & Docker)](https://github.com/SolaceLabs/solace-agent-mesh/actions/workflows/release.yml)
 2. Click "Run workflow"
-3. Set emergency flags:
+3. Set emergency flags (**requires admin permissions**):
    - ✅ `skip_security_checks: true` (skips FOSSA + security checks)
    - ✅ `skip_rc_check: true` (skips RC verification)
 4. Document the emergency release:
@@ -289,17 +306,23 @@ In rare cases where immediate release is needed and security checks are failing:
 **Emergency release workflow**:
 
 ```
-prepare-release-metadata
+prepare-release-metadata (admin permission verified here)
   ↓
 verify-rc (SKIPPED)
   ↓
 fossa_scan (SKIPPED)
 security-checks (SKIPPED)
   ↓
-release (PyPI publish)
+release (PyPI publish + git tag created)
   ↓
-build_and_push_docker (DockerHub)
+┌──────────────────────────┬───────────────────────────┐
+│ fossa_scan_version_upload│ build_and_push_docker      │
+│ (always runs — records   │ (DockerHub)                │
+│  version in FOSSA)       │                            │
+└──────────────────────────┴───────────────────────────┘
 ```
+
+> Note: `fossa_scan_version_upload` always runs after a successful release, even for emergency releases — ensuring every published version is recorded in the FOSSA dashboard.
 
 **Post-emergency actions**:
 - [ ] Create follow-up PR to address security issues

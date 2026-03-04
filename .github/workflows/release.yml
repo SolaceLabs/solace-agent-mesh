@@ -63,6 +63,24 @@ jobs:
       current_version: ${{ steps.get-version.outputs.current_version }}
       prisma_image_tag: ${{ steps.construct-image-tag.outputs.prisma_image_tag }}
     steps:
+      - name: Validate actor for security check bypass
+        if: ${{ fromJSON(github.event.inputs.skip_security_checks) }}
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            if (data.permission !== 'admin') {
+              core.setFailed(
+                `@${context.actor} does not have admin permissions. ` +
+                `Only repository admins may set skip_security_checks=true.`
+              );
+            }
+            core.info(`✅ @${context.actor} is a repository admin — security check bypass approved.`);
+
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:

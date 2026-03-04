@@ -17,6 +17,7 @@ permissions:
   pull-requests: write
   issues: write         # For PR comments from FOSSA
   statuses: write       # For FOSSA commit status
+  actions: read         # Required by sca-scan-and-guard reusable workflow
 
 jobs:
   fossa_scan:
@@ -26,9 +27,8 @@ jobs:
     with:
       use_vault: false
       config_file: '.github/workflow-config.json'
-      setup_actions: '[setup-uv]'
-      custom_setup_scripts: |
-        uv export --format requirements-txt --no-dev --output-file requirements.txt
+      setup_actions: '["setup-uv"]'
+      custom_setup_script: 'uv export --format requirements-txt --no-dev --output-file requirements.txt'
     secrets:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
     
