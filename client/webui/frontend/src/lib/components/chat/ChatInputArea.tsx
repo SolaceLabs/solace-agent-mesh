@@ -7,6 +7,7 @@ import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
+import { useBooleanFlagValue } from "@openfeature/react-sdk";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
@@ -56,11 +57,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
-    const { configFeatureEnablement } = useConfigContext();
+    const { configFeatureEnablement, identityServiceType } = useConfigContext();
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
-    const mentionsEnabled = configFeatureEnablement?.mentions ?? false;
+    const mentionsEnabled = useBooleanFlagValue("mentions", false) && identityServiceType !== null;
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);

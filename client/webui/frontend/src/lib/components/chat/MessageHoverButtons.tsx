@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { cn } from "@/lib/utils";
-import { useChatContext, useConfigContext } from "@/lib/hooks";
+import { useChatContext } from "@/lib/hooks";
 import type { MessageFE, TextPart } from "@/lib/types";
+import { useBooleanFlagValue } from "@openfeature/react-sdk";
 import { TTSButton } from "./TTSButton";
 import { extractDisplayTextFromHTML } from "@/lib/utils/mentionUtils";
 
@@ -16,8 +17,7 @@ interface MessageHoverButtonsProps {
 
 export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ message, className, textContentOverride }) => {
     const { addNotification } = useChatContext();
-    const { configFeatureEnablement } = useConfigContext();
-    const mentionsEnabled = configFeatureEnablement?.mentions ?? false;
+    const mentionsEnabled = useBooleanFlagValue("mentions", false);
     const [isCopied, setIsCopied] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
