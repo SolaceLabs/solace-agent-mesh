@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { MessageCircle } from "lucide-react";
@@ -9,10 +9,10 @@ import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
 
-const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-[var(--color-background-w100)]"], {
+const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-[--color-background-w100]"], {
     variants: {
         active: {
-            true: "bg-[var(--color-background-w100)]",
+            true: "bg-[--color-background-w100]",
             false: "",
         },
     },
@@ -22,8 +22,8 @@ const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "it
 const sessionTextStyles = cva(["block", "truncate", "text-sm", "transition-opacity", "duration-300"], {
     variants: {
         active: {
-            true: "text-[var(--color-primary-text-w10)]",
-            false: "text-[var(--color-secondary-text-w50)]",
+            true: "text-[--color-primary-text-w10]",
+            false: "text-[--color-secondary-text-w50]",
         },
         animation: {
             pulseGenerate: "animate-pulse-slow",
@@ -41,7 +41,7 @@ interface SessionNameProps {
     hasRunningBackgroundTask?: boolean;
 }
 
-const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId, isActive, hasRunningBackgroundTask }) => {
+function SessionName({ session, respondingSessionId, isActive, hasRunningBackgroundTask }: SessionNameProps) {
     const { autoTitleGenerationEnabled } = useConfigContext();
 
     const displayName = useMemo(() => {
@@ -80,13 +80,13 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
     }, [isWaitingForTitle, isAnimating, isGenerating, hasRunningBackgroundTask]);
 
     return <span className={sessionTextStyles({ active: isActive, animation: animationVariant })}>{animatedName}</span>;
-};
+}
 
 interface RecentChatsListProps {
     maxItems?: number;
 }
 
-export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX_RECENT_CHATS }) => {
+export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsListProps) {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
@@ -124,7 +124,7 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
             <div className="flex flex-col py-2">
                 {[...Array(3)].map((_, i) => (
                     <div key={i} className="flex h-10 items-center pl-6">
-                        <span className="animate-pulse-slow text-sm text-[var(--color-secondary-text-w50)]">Loading...</span>
+                        <span className="animate-pulse-slow text-sm text-[--color-secondary-text-w50]">Loading...</span>
                     </div>
                 ))}
             </div>
@@ -159,4 +159,4 @@ export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX
             })}
         </div>
     );
-};
+}
