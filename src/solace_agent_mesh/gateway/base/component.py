@@ -92,6 +92,7 @@ class BaseGatewayComponent(SamComponentBase):
     Initializes shared services and manages the core lifecycle for processing
     A2A messages and interacting with an external communication platform.
     """
+    requires_llm: bool = False
 
     _RESOLVE_EMBEDS_IN_FINAL_RESPONSE = False
 
@@ -2268,6 +2269,9 @@ class BaseGatewayComponent(SamComponentBase):
                     self.internal_event_queue.task_done()
 
         log.info("%s Message processor loop finished.", self.log_identifier)
+
+    def _on_model_status_change(self, old_status: str, new_status: str):
+        pass
 
     @abstractmethod
     async def _extract_initial_claims(

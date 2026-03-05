@@ -299,8 +299,9 @@ class SamAgentAppConfig(SamConfigBase):
         default=None,
         description="Deployment tracking information for rolling updates and version control.",
     )
-    model: Union[str, Dict[str, Any]] = Field(
-        ..., description="ADK model name (string) or BaseLlm config dict."
+    model: Optional[Union[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="ADK model name (string) or BaseLlm config dict. "
     )
     agent_identity: Optional[AgentIdentityConfig] = Field(
         default_factory=lambda: AgentIdentityConfig(key_mode="auto"),
@@ -486,6 +487,14 @@ class SamAgentAppConfig(SamConfigBase):
         default_factory=McpProcessingConfig,
         description="Configuration for intelligent processing of MCP tool responses.",
     )
+
+    @model_validator(mode="after")
+    def _validate_model_requirement(self) -> "SamAgentAppConfig":
+        if self.model is None and not (os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"):
+            raise ValueError(
+                "Missing required field: 'model'. Provide a model config"
+            )
+        return self
 
 
 class SamAgentApp(SamAppBase):
