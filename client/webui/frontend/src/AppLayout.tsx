@@ -65,15 +65,13 @@ function AppLayoutContent() {
             await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
 
             window.dispatchEvent(
-                new CustomEvent("session-moved", {
+                new CustomEvent("session-updated", {
                     detail: {
                         sessionId: sessionToMove.id,
                         projectId: targetProjectId,
                     },
                 })
             );
-            // RecentChatsList listens for this event to refresh its data
-            window.dispatchEvent(new CustomEvent("session-updated", { detail: { sessionId: sessionToMove.id } }));
 
             addNotification?.("Session moved successfully", "success");
         } catch (error) {

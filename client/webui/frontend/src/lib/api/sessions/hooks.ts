@@ -20,13 +20,11 @@ export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
 
         window.addEventListener("new-chat-session", handleSessionEvent);
         window.addEventListener("session-updated", handleSessionEvent);
-        window.addEventListener("session-moved", handleSessionEvent);
         window.addEventListener("session-title-updated", handleSessionEvent);
 
         return () => {
             window.removeEventListener("new-chat-session", handleSessionEvent);
             window.removeEventListener("session-updated", handleSessionEvent);
-            window.removeEventListener("session-moved", handleSessionEvent);
             window.removeEventListener("session-title-updated", handleSessionEvent);
         };
     }, [maxItems, queryClient]);
