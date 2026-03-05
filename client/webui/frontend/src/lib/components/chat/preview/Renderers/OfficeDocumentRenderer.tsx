@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
+import { useState, useEffect, useCallback, useContext, useRef } from "react";
+import { FileType, Loader2, Download } from "lucide-react";
 import PdfRenderer from "./PdfRenderer";
-import { NoPreviewState } from "./index";
-import { EmptyState } from "@/lib/components/common/EmptyState";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { api } from "@/lib/api";
 
@@ -18,12 +17,19 @@ interface ConversionStatusResponse {
 }
 
 interface ConversionResponse {
-    pdfContent: string;
+    pdfContent?: string;
+    pdf_content?: string; // Backend may return snake_case (Pydantic default) or camelCase
     success: boolean;
     error: string | null;
 }
 
+// Request timeout in milliseconds (30 seconds)
 const REQUEST_TIMEOUT_MS = 30000;
+
+// Retry configuration for rate-limited responses
+const RETRY_MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 2000; // 2s base, doubles each attempt for 503
+const RETRY_USER_LOCK_DELAY_MS = 3000; // fixed 3s for 429 (user's own lock)
 
 // LRU Cache for converted PDFs to avoid re-converting on tab switches
 // Key: hash of content + filename, Value: PDF data URL
@@ -153,11 +159,21 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
  * - Caches converted PDFs to avoid re-conversion on tab switches
  * - Adds request timeout to prevent hung requests
  */
-export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ content, filename, documentType, setRenderError }) => {
+/** Error subclass that carries the HTTP status code for retry decisions. */
+class ConversionHttpError extends Error {
+    readonly status: number;
+    constructor(status: number, message: string) {
+        super(message);
+        this.name = "ConversionHttpError";
+        this.status = status;
+    }
+}
+
+export function OfficeDocumentRenderer({ content, filename, documentType, setRenderError }: OfficeDocumentRendererProps) {
     const config = useContext(ConfigContext);
 
-    // Conversion state machine: 'idle' | 'checking' | 'converting' | 'success' | 'error'
-    const [conversionState, setConversionState] = useState<"idle" | "checking" | "converting" | "success" | "error">("idle");
+    // Conversion state machine: 'idle' | 'checking' | 'converting' | 'waiting' | 'success' | 'error'
+    const [conversionState, setConversionState] = useState<"idle" | "checking" | "converting" | "waiting" | "success" | "error">("idle");
     const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -165,6 +181,7 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
     // This prevents re-conversion if the effect runs multiple times
     const conversionStartedRef = useRef<string | null>(null);
 
+    // Check if binary artifact preview is enabled via feature flag
     const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
 
     // Check if document conversion service is available
@@ -198,48 +215,106 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
         [documentType]
     );
 
-    // Convert document to PDF
-    const convertToPdf = useCallback(
-        async (signal: AbortSignal): Promise<string | null> => {
-            try {
-                const response = await fetchWithTimeout(
-                    "/api/v1/document-conversion/to-pdf",
-                    {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            content: content,
-                            filename: filename,
-                        }),
-                    },
-                    REQUEST_TIMEOUT_MS,
-                    signal
-                );
+    /**
+     * Attempt a single conversion request.
+     * Throws ConversionHttpError (with .status) for HTTP errors so the caller
+     * can decide whether to retry.
+     */
+    const attemptConversion = useCallback(
+        async (signal: AbortSignal): Promise<string> => {
+            const response = await fetchWithTimeout(
+                "/api/v1/document-conversion/to-pdf",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ content, filename }),
+                },
+                REQUEST_TIMEOUT_MS,
+                signal
+            );
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error("Document conversion failed:", response.status, errorText);
-                    throw new Error(`Conversion failed: ${response.status}`);
+            if (!response.ok) {
+                let userMessage: string;
+                try {
+                    const errorBody = await response.json();
+                    const detail = errorBody?.detail as string | undefined;
+                    if (response.status === 503) {
+                        userMessage = detail || "Server is busy. Please try again in a moment.";
+                    } else if (response.status === 429) {
+                        userMessage = detail || "A conversion is already in progress. Please wait and try again.";
+                    } else if (response.status === 413) {
+                        userMessage = detail || "Document is too large to convert.";
+                    } else {
+                        userMessage = detail || `Conversion failed (${response.status}).`;
+                    }
+                } catch {
+                    userMessage = `Conversion failed (${response.status}).`;
                 }
-
-                const data: ConversionResponse = await response.json();
-
-                if (!data.success || !data.pdfContent) {
-                    throw new Error(data.error || "Conversion returned no content");
-                }
-
-                // Create a data URL for the PDF content
-                return `data:application/pdf;base64,${data.pdfContent}`;
-            } catch (err) {
-                // Don't log abort errors
-                if (err instanceof Error && err.name === "AbortError") {
-                    throw err;
-                }
-                console.error("Failed to convert document to PDF:", err);
-                throw err;
+                console.error("Document conversion failed:", response.status, userMessage);
+                throw new ConversionHttpError(response.status, userMessage);
             }
+
+            const data: ConversionResponse = await response.json();
+            const pdfBase64 = data.pdfContent || data.pdf_content;
+
+            if (!data.success || !pdfBase64) {
+                throw new Error(data.error || "Conversion returned no content");
+            }
+
+            return `data:application/pdf;base64,${pdfBase64}`;
         },
         [content, filename]
+    );
+
+    /**
+     * Convert document to PDF with automatic retry on rate-limit responses.
+     * - 503 (global capacity full): exponential backoff, up to RETRY_MAX_ATTEMPTS
+     * - 429 (user already converting): fixed delay, up to RETRY_MAX_ATTEMPTS
+     * - Other errors: fail immediately
+     */
+    const convertToPdf = useCallback(
+        async (signal: AbortSignal, onWaiting: () => void): Promise<string | null> => {
+            let lastError: Error | null = null;
+
+            for (let attempt = 0; attempt <= RETRY_MAX_ATTEMPTS; attempt++) {
+                if (signal.aborted) return null;
+
+                try {
+                    return await attemptConversion(signal);
+                } catch (err) {
+                    if (err instanceof Error && err.name === "AbortError") throw err;
+                    if (signal.aborted) return null;
+
+                    if (err instanceof ConversionHttpError && (err.status === 503 || err.status === 429)) {
+                        lastError = err;
+
+                        if (attempt < RETRY_MAX_ATTEMPTS) {
+                            const delayMs = err.status === 429 ? RETRY_USER_LOCK_DELAY_MS : RETRY_BASE_DELAY_MS * Math.pow(2, attempt); // 2s, 4s, 8s
+
+                            console.log(`[OfficeDocumentRenderer] Rate limited (${err.status}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${RETRY_MAX_ATTEMPTS})`);
+                            onWaiting();
+
+                            await new Promise<void>((resolve, reject) => {
+                                const timer = setTimeout(resolve, delayMs);
+                                signal.addEventListener("abort", () => {
+                                    clearTimeout(timer);
+                                    reject(new DOMException("Aborted", "AbortError"));
+                                });
+                            });
+                            continue;
+                        }
+                        // Exhausted retries — fall through to throw
+                    }
+
+                    // Non-retryable error or retries exhausted
+                    throw err;
+                }
+            }
+
+            // Should not reach here, but satisfy TypeScript
+            throw lastError ?? new Error("Conversion failed after retries.");
+        },
+        [attemptConversion]
     );
 
     // Main effect to check service and convert
@@ -250,13 +325,17 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
         const signal = abortController.signal;
 
         const initializeRenderer = async () => {
+            // Generate cache key for this content
             const cacheKey = hashContent(content, filename);
 
+            // Skip if we've already started conversion for this exact content
+            // This prevents duplicate conversions on re-renders
             if (conversionStartedRef.current === cacheKey) {
                 console.log("[OfficeDocumentRenderer] Skipping duplicate conversion for:", filename);
                 return;
             }
 
+            // Check if feature is enabled first
             if (!binaryArtifactPreviewEnabled) {
                 console.log("Binary artifact preview is disabled via feature flag");
                 setConversionState("error");
@@ -264,7 +343,9 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                 return;
             }
 
+            // Check cache first
             const cachedPdf = pdfConversionCache.get(cacheKey);
+
             if (cachedPdf) {
                 console.log("Using cached PDF conversion for:", filename);
                 setPdfDataUrl(cachedPdf);
@@ -272,13 +353,18 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                 return;
             }
 
+            // Mark that we're starting conversion for this content
             conversionStartedRef.current = cacheKey;
+
             setConversionState("checking");
             setError(null);
             setPdfDataUrl(null);
 
             try {
+                // Check if conversion service is available
                 const isAvailable = await checkConversionService(signal);
+
+                // Check if aborted
                 if (signal.aborted) return;
 
                 if (!isAvailable) {
@@ -287,13 +373,19 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                     return;
                 }
 
+                // Try to convert to PDF (with automatic retry on rate limits)
                 setConversionState("converting");
 
                 try {
-                    const pdfUrl = await convertToPdf(signal);
+                    const pdfUrl = await convertToPdf(signal, () => {
+                        if (!signal.aborted) setConversionState("waiting");
+                    });
+
+                    // Check if aborted
                     if (signal.aborted) return;
 
                     if (pdfUrl) {
+                        // Cache the result
                         pdfConversionCache.set(cacheKey, pdfUrl);
                         console.log("Cached PDF conversion for:", filename);
                         setPdfDataUrl(pdfUrl);
@@ -303,12 +395,14 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                         setError("Conversion returned no content.");
                     }
                 } catch (convError) {
+                    // Check if aborted (component unmounted)
                     if (signal.aborted) return;
                     if (convError instanceof Error && convError.name === "AbortError") return;
 
                     console.error("PDF conversion failed:", convError);
                     setConversionState("error");
 
+                    // Check for timeout error
                     if (convError instanceof Error && convError.message.includes("timeout")) {
                         setError("Conversion timed out. The document may be too large or complex.");
                     } else {
@@ -316,6 +410,7 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
                     }
                 }
             } catch (err) {
+                // Check if aborted (component unmounted)
                 if (signal.aborted) return;
                 if (err instanceof Error && err.name === "AbortError") return;
 
@@ -329,10 +424,10 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
             initializeRenderer();
         }
 
+        // Cleanup: abort any in-flight requests when component unmounts
+        // or when dependencies change
         return () => {
             abortController.abort();
-            // Reset the ref so remount can retry (important for React Strict Mode)
-            conversionStartedRef.current = null;
         };
     }, [content, filename, checkConversionService, convertToPdf, binaryArtifactPreviewEnabled]);
 
@@ -343,16 +438,39 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
         }
     }, [error, setRenderError]);
 
-    if (conversionState === "checking" || conversionState === "converting") {
-        const message = conversionState === "checking" ? "Checking service availability..." : "Converting document to PDF...";
-        return <EmptyState variant="loading" title={message} />;
+    // Loading state while checking service, converting, or waiting to retry
+    if (conversionState === "checking" || conversionState === "converting" || conversionState === "waiting") {
+        const loadingMessage = conversionState === "waiting" ? "Processing preview, please wait..." : "Processing...";
+        return (
+            <div className="flex h-64 flex-col items-center justify-center space-y-4 text-center">
+                <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                <div>
+                    <p className="text-muted-foreground">{loadingMessage}</p>
+                </div>
+            </div>
+        );
     }
 
+    // If we have a PDF URL, render using PdfRenderer
     if (pdfDataUrl) {
         return <PdfRenderer url={pdfDataUrl} filename={filename} />;
     }
 
-    return <NoPreviewState documentType={documentType} error={error ?? undefined} />;
-};
+    // Error state - show message to download the file
+    return (
+        <div className="flex h-64 flex-col items-center justify-center space-y-4 p-6 text-center">
+            <FileType className="text-muted-foreground h-16 w-16" />
+            <div>
+                <h3 className="text-lg font-semibold">Preview Unavailable</h3>
+                <p className="text-muted-foreground mt-2">Unable to preview this {documentType.toUpperCase()} file.</p>
+                {error && <p className="text-muted-foreground mt-1 text-sm">{error}</p>}
+                <p className="text-muted-foreground mt-4 flex items-center justify-center gap-2 text-sm">
+                    <Download className="h-4 w-4" />
+                    Download the file to open it in the appropriate application.
+                </p>
+            </div>
+        </div>
+    );
+}
 
 export default OfficeDocumentRenderer;

@@ -10,16 +10,21 @@ import re
 import threading
 import uuid
 from datetime import datetime, timezone
+from importlib.resources import files as pkg_files
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, UploadFile
 from fastapi import Request as FastAPIRequest
+from openfeature import api as openfeature_api
 from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
 
 from ...common.agent_registry import AgentRegistry
+from ...common.features.checker import FeatureChecker
+from ...common.features.provider import SamFeatureProvider
+from ...common.features.registry import FeatureRegistry
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
@@ -120,6 +125,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.fastapi_https_port = self.get_config("fastapi_https_port", 8443)
             self.session_secret_key = self.get_config("session_secret_key")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
+            self.cors_allowed_origin_regex = self.get_config("cors_allowed_origin_regex", "")
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
@@ -348,6 +354,34 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 exc_info=True
             )
             raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
+
+    def _init_feature_checker(self) -> None:
+        """Initialise the FeatureChecker and register the OpenFeature provider."""
+        registry = FeatureRegistry()
+
+        features_yaml = str(
+            pkg_files("solace_agent_mesh.common.features").joinpath("features.yaml")
+        )
+        registry.load_from_yaml(features_yaml)
+
+        self.feature_checker = FeatureChecker(registry=registry)
+
+        openfeature_api.set_provider(SamFeatureProvider(self.feature_checker))
+
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise import (
+                _register_enterprise_feature_flags,
+            )
+            _register_enterprise_feature_flags()
+            log.debug("%s Enterprise feature flags registered.", self.log_identifier)
+        except ImportError:
+            log.debug("%s Enterprise feature flags not available.", self.log_identifier)
+
+        log.info(
+            "%s Feature checker initialised (%d flags).",
+            self.log_identifier,
+            len(registry.keys()),
+        )
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
@@ -1332,6 +1366,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             setup_dependencies(self)
 
+            self._init_feature_checker()
+
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
             session_factory = dependencies.SessionLocal if self.database_url else None
@@ -2091,6 +2127,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     def get_cors_origins(self) -> list[str]:
         return self.cors_allowed_origins
+
+    def get_cors_origin_regex(self) -> str:
+        return self.cors_allowed_origin_regex
 
     def get_shared_artifact_service(self) -> BaseArtifactService | None:
         return self.shared_artifact_service

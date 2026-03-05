@@ -8,8 +8,7 @@ import asyncio
 import base64
 import hashlib
 import logging
-from collections import defaultdict
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -18,9 +17,6 @@ from sqlalchemy.orm import Session
 from ..dependencies import get_user_id, ValidatedUserConfig, get_db_optional
 from ..repository.document_conversion_cache_repository import DocumentConversionCacheRepository
 from ..services.document_conversion_service import get_document_conversion_service
-
-if TYPE_CHECKING:
-    pass
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +27,26 @@ router = APIRouter()
 MAX_GLOBAL_CONCURRENT_CONVERSIONS = 5
 # Each user can only have one conversion at a time
 _global_conversion_semaphore = asyncio.Semaphore(MAX_GLOBAL_CONCURRENT_CONVERSIONS)
-_user_conversion_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+# Bounded LRU dict for per-user locks to prevent unbounded memory growth.
+# Oldest entry is evicted when the cap is reached.
+_USER_LOCK_MAX = 1000
+_user_conversion_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_user_lock(user_id: str) -> asyncio.Lock:
+    """Return the asyncio.Lock for *user_id*, creating one if needed.
+
+    Evicts the oldest entry when the dict reaches ``_USER_LOCK_MAX`` entries so
+    the dict never grows without bound in long-running servers with many users.
+    """
+    if user_id not in _user_conversion_locks:
+        if len(_user_conversion_locks) >= _USER_LOCK_MAX:
+            # Evict the first (oldest) key
+            oldest = next(iter(_user_conversion_locks))
+            del _user_conversion_locks[oldest]
+        _user_conversion_locks[user_id] = asyncio.Lock()
+    return _user_conversion_locks[user_id]
 
 # Maximum document size for conversion (5MB)
 MAX_CONVERSION_SIZE_BYTES = 5 * 1024 * 1024
@@ -106,7 +121,7 @@ async def get_conversion_status():
 async def convert_to_pdf(
     request: ConversionRequest,
     user_id: str = Depends(get_user_id),
-    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
+    _: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
     db: Optional[Session] = Depends(get_db_optional),
 ):
     """
@@ -219,7 +234,7 @@ async def convert_to_pdf(
         )
 
     # Check if user already has a conversion in progress
-    user_lock = _user_conversion_locks[user_id]
+    user_lock = _get_user_lock(user_id)
     if user_lock.locked():
         log.warning("%s User already has conversion in progress", log_prefix)
         raise HTTPException(

@@ -5,7 +5,6 @@ Uses LibreOffice (soffice) for high-fidelity conversion.
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import os
 import shutil
@@ -347,68 +346,6 @@ class DocumentConversionService:
             total_wait_time,
         )
         return None
-
-    async def convert_to_pdf(
-        self,
-        input_data: bytes,
-        input_filename: str,
-    ) -> tuple[bytes, str]:
-        """
-        Convert a document to PDF.
-
-        Args:
-            input_data: The document content as bytes
-            input_filename: Original filename (used to determine format)
-
-        Returns:
-            Tuple of (pdf_bytes, error_message). If successful, error_message is empty.
-
-        Raises:
-            ValueError: If format is not supported or LibreOffice is not available
-            RuntimeError: If conversion fails
-        """
-        pdf_bytes, error = await self.convert_binary_to_pdf(input_data, input_filename)
-        
-        if error:
-            if "not available" in error or "not installed" in error:
-                raise ValueError(error)
-            raise RuntimeError(error)
-        
-        return pdf_bytes, ""
-
-    async def convert_base64_to_pdf_base64(
-        self,
-        input_base64: str,
-        input_filename: str,
-    ) -> tuple[str, str]:
-        """
-        Convert a base64-encoded document to base64-encoded PDF.
-
-        Args:
-            input_base64: The document content as base64 string
-            input_filename: Original filename (used to determine format)
-
-        Returns:
-            Tuple of (pdf_base64, error_message). If successful, error_message is empty.
-        """
-        try:
-            # Decode input
-            input_data = base64.b64decode(input_base64)
-
-            # Convert
-            pdf_bytes, error = await self.convert_binary_to_pdf(input_data, input_filename)
-
-            if error:
-                return "", error
-
-            # Encode output
-            pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
-            return pdf_base64, ""
-
-        except Exception as e:
-            log.exception("Error in base64 conversion: %s", e)
-            return "", str(e)
-
 
 # Singleton instance
 _conversion_service: Optional[DocumentConversionService] = None
