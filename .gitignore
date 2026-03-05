@@ -67,6 +67,8 @@ cover/
 *.mo
 *.pot
 *.db
+*.db-wal
+*.db-shm
 
 # Django stuff:
 *.log

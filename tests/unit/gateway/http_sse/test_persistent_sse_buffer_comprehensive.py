@@ -366,12 +366,14 @@ class TestPersistentSSEEventBufferComprehensive:
 
         with patch('solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository') as mock_repo_class:
             mock_repo = MagicMock()
+            mock_repo.buffer_events_batch.return_value = 2  # Return count of events inserted
             mock_repo_class.return_value = mock_repo
 
             flushed = buffer.flush_task_buffer("task-123")
 
             assert flushed == 2
-            assert mock_repo.buffer_event.call_count == 2
+            # Should use batch insert (called once with 2 events)
+            assert mock_repo.buffer_events_batch.call_count == 1
             mock_db.commit.assert_called_once()
 
     def test_flush_task_buffer_db_exception_readds_events(self):
@@ -420,6 +422,8 @@ class TestPersistentSSEEventBufferComprehensive:
 
         with patch('solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository') as mock_repo_class:
             mock_repo = MagicMock()
+            # Return the count of events for each batch
+            mock_repo.buffer_events_batch.side_effect = lambda db, task_id, events: len(events)
             mock_repo_class.return_value = mock_repo
 
             total_flushed = buffer.flush_all_buffers()

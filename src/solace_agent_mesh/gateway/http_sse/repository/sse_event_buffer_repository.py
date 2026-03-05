@@ -136,6 +136,115 @@ class SSEEventBufferRepository:
         )
         raise last_error
 
+    def buffer_events_batch(
+        self,
+        db: DBSession,
+        task_id: str,
+        events: List[tuple],
+    ) -> int:
+        """
+        Buffer multiple SSE events in a single batch insert.
+
+        For PostgreSQL: Uses SELECT FOR UPDATE to prevent race conditions.
+        For SQLite: Relies on database-level locking (SQLite serializes writes).
+        
+        Args:
+            db: Database session
+            task_id: The task ID these events belong to
+            events: List of tuples (event_type, event_data, timestamp, session_id, user_id)
+            
+        Returns:
+            Number of events inserted
+            
+        Raises:
+            IntegrityError: If all retry attempts fail
+        """
+        if not events:
+            return 0
+        
+        # Check if database supports row-level locking (PostgreSQL does, SQLite doesn't)
+        dialect_name = db.bind.dialect.name if db.bind else "unknown"
+        supports_row_locking = dialect_name in ("postgresql", "mysql", "oracle")
+        
+        last_error = None
+        
+        for attempt in range(MAX_SEQUENCE_RETRIES):
+            try:
+                # Get task with optional row lock for databases that support it
+                task_query = db.query(TaskModel).filter(TaskModel.id == task_id)
+                if supports_row_locking:
+                    task_query = task_query.with_for_update()
+                task = task_query.first()
+                
+                # Get max sequence (safe due to row lock on PostgreSQL, or DB-level lock on SQLite)
+                max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
+                    .filter(SSEEventBufferModel.task_id == task_id)\
+                    .scalar() or 0
+                
+                # Build list of model instances with sequential sequence numbers
+                buffer_entries = []
+                for i, (event_type, event_data, timestamp, session_id, user_id) in enumerate(events):
+                    buffer_entries.append(SSEEventBufferModel(
+                        task_id=task_id,
+                        session_id=session_id,
+                        user_id=user_id,
+                        event_sequence=max_seq + i + 1,
+                        event_type=event_type,
+                        event_data=event_data,
+                        created_at=timestamp,
+                        consumed=False,
+                    ))
+                
+                # Bulk insert all events
+                db.bulk_save_objects(buffer_entries)
+                
+                # Mark task as having buffered events (task already fetched above)
+                if task and not task.events_buffered:
+                    task.events_buffered = True
+                
+                db.flush()
+                
+                log.debug(
+                    "%s Batch buffered %d events for task %s (sequences %d-%d)",
+                    self.log_identifier,
+                    len(events),
+                    task_id,
+                    max_seq + 1,
+                    max_seq + len(events),
+                )
+                
+                return len(events)
+                
+            except IntegrityError as e:
+                # Rollback the failed transaction
+                db.rollback()
+                last_error = e
+                
+                # Check if this is a sequence number collision
+                if "sse_event_buffer_task_seq_unique" in str(e) or "UNIQUE constraint" in str(e):
+                    log.warning(
+                        "%s Batch sequence number race condition detected for task %s (attempt %d/%d), retrying...",
+                        self.log_identifier,
+                        task_id,
+                        attempt + 1,
+                        MAX_SEQUENCE_RETRIES,
+                    )
+                    continue
+                else:
+                    # Some other integrity error, re-raise
+                    raise
+        
+        # All retries failed - this should be extremely rare
+        log.error(
+            "%s Failed to batch buffer %d events after %d attempts for task %s: %s",
+            self.log_identifier,
+            len(events),
+            MAX_SEQUENCE_RETRIES,
+            task_id,
+            last_error,
+        )
+        raise last_error
+
     def get_buffered_events(
         self,
         db: DBSession,

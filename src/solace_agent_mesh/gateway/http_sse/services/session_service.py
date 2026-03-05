@@ -378,6 +378,7 @@ class SessionService:
                         db=artifact_db,
                         log_prefix=log_prefix,
                         indexing_enabled=indexing_enabled,
+                        overwrite_existing=True,
                     )
 
                     if artifacts_copied > 0:

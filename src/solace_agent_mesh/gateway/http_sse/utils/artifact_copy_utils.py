@@ -92,6 +92,7 @@ async def copy_project_artifacts_to_session(
     db: "DbSession",
     log_prefix: str = "",
     indexing_enabled: bool = False,
+    overwrite_existing: bool = False,
 ) -> tuple[int, list[str]]:
     """
     Copy artifacts from a project to a session.
@@ -105,8 +106,8 @@ async def copy_project_artifacts_to_session(
     This function handles:
     - Loading artifacts from the project storage
     - Filtering based on indexing feature flag
-    - Checking which artifacts already exist in the session
     - Copying new artifacts to the session
+    - Optionally overwriting artifacts that already exist in the session
     - Preserving all metadata (conversion info, citations, etc.)
     - Setting the 'project_context_pending' flag for context injection
 
@@ -121,9 +122,12 @@ async def copy_project_artifacts_to_session(
         indexing_enabled: Whether BM25 indexing is enabled. When False, only
             original files are copied. When True, converted text files and
             BM25 index are also copied. Defaults to False for backward compatibility.
+        overwrite_existing: When True, overwrite artifacts that already exist
+            in the session with the latest version from the project. When False,
+            skip artifacts that already exist. Defaults to False.
 
     Returns:
-        Tuple of (artifacts_copied_count, list_of_new_artifact_names)
+        Tuple of (artifacts_copied_count, list_of_copied_artifact_names)
 
     Raises:
         Exception: If project or artifact service is not available
@@ -222,29 +226,39 @@ async def copy_project_artifacts_to_session(
             session_artifact_names = set()
 
         artifacts_copied = 0
-        new_artifact_names = []
+        copied_artifact_names = []
 
         for artifact_info in project_artifacts:
-            # Skip if artifact already exists in session
-            if artifact_info.filename in session_artifact_names:
+            already_exists = artifact_info.filename in session_artifact_names
+            artifact_type = "internal" if is_internal_artifact(artifact_info.filename) else "original"
+
+            if already_exists and not overwrite_existing:
                 log.debug(
-                    "%sSkipping artifact %s - already exists in session",
+                    "%sSkipping %s artifact %s - already exists in session",
                     log_prefix,
+                    artifact_type,
                     artifact_info.filename,
                 )
                 continue
 
-            new_artifact_names.append(artifact_info.filename)
+            if already_exists:
+                log.info(
+                    "%sOverwriting %s artifact %s in session %s with latest from project",
+                    log_prefix,
+                    artifact_type,
+                    artifact_info.filename,
+                    session_id,
+                )
+            else:
+                log.info(
+                    "%sCopying %s artifact %s to session %s",
+                    log_prefix,
+                    artifact_type,
+                    artifact_info.filename,
+                    session_id,
+                )
 
-            artifact_type = "internal" if is_internal_artifact(artifact_info.filename) else "original"
-
-            log.info(
-                "%sCopying %s artifact %s to session %s",
-                log_prefix,
-                artifact_type,
-                artifact_info.filename,
-                session_id,
-            )
+            copied_artifact_names.append(artifact_info.filename)
 
             try:
                 # Load artifact content from project storage
@@ -315,14 +329,14 @@ async def copy_project_artifacts_to_session(
                 )
 
         if artifacts_copied > 0:
-            # NOTE: new_artifact_names tracks attempted copies, so these counts
+            # NOTE: copied_artifact_names tracks attempted copies, so these counts
             # may exceed artifacts_copied if any individual copies failed.
             copied_original = sum(
-                1 for name in new_artifact_names
+                1 for name in copied_artifact_names
                 if not is_internal_artifact(name)
             )
             copied_internal = sum(
-                1 for name in new_artifact_names
+                1 for name in copied_artifact_names
                 if is_internal_artifact(name)
             )
 
@@ -335,9 +349,9 @@ async def copy_project_artifacts_to_session(
                 copied_internal,
             )
         else:
-            log.debug("%sNo new artifacts to copy to session %s", log_prefix, session_id)
+            log.debug("%sNo artifacts to copy to session %s", log_prefix, session_id)
 
-        return artifacts_copied, new_artifact_names
+        return artifacts_copied, copied_artifact_names
 
     except Exception as e:
         log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)

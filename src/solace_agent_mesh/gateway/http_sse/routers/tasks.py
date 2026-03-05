@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session as DBSession
 from ....gateway.http_sse.services.project_service import ProjectService
 
 from ....agent.utils.artifact_helpers import (
+    BM25_INDEX_FILENAME,
     get_artifact_info_list,
 )
 
@@ -65,6 +66,7 @@ class TaskStatusResponse(BaseModel):
     is_running: bool
     is_background: bool
     can_reconnect: bool
+    error_message: str | None = None
 
 
 @router.get("/tasks/{task_id}/status", response_model=TaskStatusResponse, tags=["Tasks"])
@@ -84,35 +86,65 @@ async def get_task_status(
     """
     log_prefix = f"[GET /api/v1/tasks/{task_id}/status] "
     log.debug("%sQuerying task status", log_prefix)
-    
+
     repo = TaskRepository()
     task = repo.find_by_id(db, task_id)
-    
+
     if not task:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
+
     # Determine if task is still running
     is_running = task.status in [None, "running", "pending"] and task.end_time is None
-    
+
     # Check if it's a background task
     is_background = task.background_execution_enabled or False
-    
+
     # Can reconnect if it's a background task and still running
     can_reconnect = is_background and is_running
-    
-    log.debug(
-        "%sTask status: running=%s, background=%s, can_reconnect=%s",
+
+    # Extract error message if task failed
+    error_message = None
+    if task.status in ["failed", "error", "timeout"]:
+        # Get task with events to extract error message
+        result = repo.find_by_id_with_events(db, task_id)
+        if result:
+            _, events = result
+            # Look for error message in the last event (events are ordered by created_time asc)
+            if events:
+                # Iterate in reverse to find the last event with an error message
+                for event in reversed(events):
+                    payload = event.payload
+                    # Check if this is a final response or error
+                    if "result" in payload:
+                        result_data = payload["result"]
+                        if isinstance(result_data, dict):
+                            # Check for status message in final task
+                            if "status" in result_data and "message" in result_data["status"]:
+                                msg_obj = result_data["status"]["message"]
+                                if isinstance(msg_obj, dict) and "text" in msg_obj:
+                                    error_message = msg_obj["text"]
+                                    break
+                    # Also check for JSON-RPC error messages
+                    if "error" in payload and isinstance(payload["error"], dict):
+                        if "message" in payload["error"]:
+                            error_message = payload["error"]["message"]
+                            break
+
+    log.info(
+        "%sTask status: running=%s, background=%s, can_reconnect=%s, has_error=%s",
         log_prefix,
         is_running,
         is_background,
         can_reconnect,
+        error_message is not None,
     )
-    
+
     return TaskStatusResponse(
         task=task,
         is_running=is_running,
         is_background=is_background,
-        can_reconnect=can_reconnect
+        can_reconnect=can_reconnect,
+        error_message=error_message
     )
 
 
@@ -156,8 +188,40 @@ async def get_active_background_tasks(
 
 
 # =============================================================================
-# Project Context Injection Helper
+# Project Context Injection Helpers
 # =============================================================================
+
+
+async def _check_project_has_bm25_index(
+    project,
+    project_service: ProjectService,
+    component: "WebUIBackendComponent",
+    log_prefix: str,
+) -> bool:
+    """Check whether a project has a BM25 search index artifact.
+
+    Uses artifact_service.list_versions to check if index exists
+    """
+    artifact_service = component.get_shared_artifact_service()
+    if not artifact_service:
+        return False
+
+    try:
+        versions = await artifact_service.list_versions(
+            app_name=project_service.app_name,
+            user_id=project.user_id,
+            session_id=f"project-{project.id}",
+            filename=BM25_INDEX_FILENAME,
+        )
+        return len(versions) > 0
+    except Exception:
+        log.exception(
+            "%sFailed to check BM25 index existence for project %s. "
+            "Returning True (tool will handle the error).",
+            log_prefix,
+            project.id,
+        )
+        return True
 
 
 async def _inject_project_context(
@@ -259,7 +323,7 @@ async def _inject_project_context(
                     original_artifacts_for_display = [
                         artifact for artifact in project_artifacts
                         if not artifact.filename.endswith('.converted.txt')
-                        and artifact.filename != 'project_bm25_index.zip'
+                        and artifact.filename != BM25_INDEX_FILENAME
                     ]
 
                     if original_artifacts_for_display:
@@ -445,6 +509,8 @@ async def _submit_task(
                     db.close()
 
         # Security: Validate user still has project access
+        # Retain project object for downstream index existence check
+        project = None
         if project_id and project_service:
             if SessionLocal is not None:
                 db = SessionLocal()
@@ -648,6 +714,32 @@ async def _submit_task(
                 additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
             if msg_metadata.get("maxExecutionTimeMs"):
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
+
+        # Pass project_id to agent for project-context-aware tool injection (e.g., index_search).
+        # Gated on project_indexing.enabled and BM25 index existence — the agent callback
+        # injects index_search when it sees project_id, so only pass it when the tool is usable.
+        if project_id:
+            project_indexing_config = component.get_config("project_indexing", {})
+            indexing_enabled = (
+                project_indexing_config.get("enabled", False)
+                if isinstance(project_indexing_config, dict)
+                else False
+            )
+            if indexing_enabled and project:
+                has_index = await _check_project_has_bm25_index(
+                    project=project,
+                    project_service=project_service,
+                    component=component,
+                    log_prefix=log_prefix,
+                )
+                if has_index:
+                    additional_metadata["project_id"] = project_id
+                    log.info(
+                        "%sPassing project_id %s to agent (session=%s)",
+                        log_prefix,
+                        project_id,
+                        session_id,
+                    )
 
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,

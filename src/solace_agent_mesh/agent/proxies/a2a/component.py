@@ -1129,10 +1129,21 @@ class A2AProxyComponent(BaseProxyComponent):
         for is_streaming in [True, False]:
             cache_key = (agent_name, session_id, is_streaming)
             if cache_key in self._a2a_clients:
-                self._a2a_clients.pop(cache_key)
+                client = self._a2a_clients.pop(cache_key)
+                try:
+                    await client.close()
+                except Exception as close_error:
+                    log.warning(
+                        "%s Error closing client for agent '%s' session '%s' streaming=%s: %s",
+                        log_identifier,
+                        agent_name,
+                        session_id,
+                        is_streaming,
+                        close_error,
+                    )
                 clients_removed += 1
                 log.info(
-                    "%s Removed cached Client for agent '%s' session '%s' streaming=%s.",
+                    "%s Removed and closed cached Client for agent '%s' session '%s' streaming=%s.",
                     log_identifier,
                     agent_name,
                     session_id,
@@ -2102,14 +2113,25 @@ class A2AProxyComponent(BaseProxyComponent):
         async def _async_cleanup():
             # Close all created clients using public API
             for cache_key, client in self._a2a_clients.items():
-                agent_name, session_id = cache_key
+                agent_name, session_id, is_streaming = cache_key
                 log.info(
-                    "%s Closing client for agent '%s' session '%s'",
+                    "%s Closing client for agent '%s' session '%s' streaming=%s",
                     self.log_identifier,
                     agent_name,
                     session_id,
+                    is_streaming,
                 )
-                await client.close()
+                try:
+                    await client.close()
+                except Exception as close_error:
+                    log.warning(
+                        "%s Error closing client for agent '%s' session '%s' streaming=%s: %s",
+                        self.log_identifier,
+                        agent_name,
+                        session_id,
+                        is_streaming,
+                        close_error,
+                    )
             self._a2a_clients.clear()
 
         if self._async_loop and self._async_loop.is_running():
