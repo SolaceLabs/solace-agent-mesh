@@ -63,7 +63,7 @@ class TestEvalCommand:
     
     def test_eval_command_basic(self, runner, test_config_file, mocker):
         """Test basic eval command with valid config file"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         result = runner.invoke(eval_cmd, [str(test_config_file)])
         
@@ -75,7 +75,7 @@ class TestEvalCommand:
     
     def test_eval_command_with_verbose(self, runner, test_config_file, mocker):
         """Test eval command with verbose flag"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         result = runner.invoke(eval_cmd, [str(test_config_file), "--verbose"])
         
@@ -85,7 +85,7 @@ class TestEvalCommand:
     
     def test_eval_command_with_verbose_short_flag(self, runner, test_config_file, mocker):
         """Test eval command with -v short flag"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         result = runner.invoke(eval_cmd, [str(test_config_file), "-v"])
         
@@ -103,7 +103,7 @@ class TestEvalCommand:
     
     def test_eval_command_with_logging_config(self, runner, test_config_file, logging_config_file, mocker):
         """Test eval command sets logging config path when it exists"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         # Change to directory with logging config
         original_cwd = Path.cwd()
@@ -124,7 +124,7 @@ class TestEvalCommand:
     
     def test_eval_command_without_logging_config(self, runner, test_config_file, tmp_path, mocker):
         """Test eval command when logging config doesn't exist"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         # Change to directory without logging config
         original_cwd = Path.cwd()
@@ -142,7 +142,7 @@ class TestEvalCommand:
     def test_eval_command_evaluation_exception(self, runner, test_config_file, mocker):
         """Test eval command handles evaluation exceptions"""
         mock_run_eval = mocker.patch(
-            "cli.commands.eval_cmd.run_evaluation_main",
+            "evaluation.run.main",
             side_effect=Exception("Evaluation failed")
         )
         mock_error_exit = mocker.patch("cli.commands.eval_cmd.error_exit", side_effect=SystemExit(1))
@@ -157,7 +157,7 @@ class TestEvalCommand:
     def test_eval_command_runtime_error(self, runner, test_config_file, mocker):
         """Test eval command handles runtime errors"""
         mock_run_eval = mocker.patch(
-            "cli.commands.eval_cmd.run_evaluation_main",
+            "evaluation.run.main",
             side_effect=RuntimeError("Runtime error occurred")
         )
         mock_error_exit = mocker.patch("cli.commands.eval_cmd.error_exit", side_effect=SystemExit(1))
@@ -171,7 +171,7 @@ class TestEvalCommand:
     def test_eval_command_value_error(self, runner, test_config_file, mocker):
         """Test eval command handles value errors"""
         mock_run_eval = mocker.patch(
-            "cli.commands.eval_cmd.run_evaluation_main",
+            "evaluation.run.main",
             side_effect=ValueError("Invalid configuration")
         )
         mock_error_exit = mocker.patch("cli.commands.eval_cmd.error_exit", side_effect=SystemExit(1))
@@ -185,7 +185,7 @@ class TestEvalCommand:
     def test_eval_command_file_not_found_error(self, runner, test_config_file, mocker):
         """Test eval command handles file not found errors"""
         mock_run_eval = mocker.patch(
-            "cli.commands.eval_cmd.run_evaluation_main",
+            "evaluation.run.main",
             side_effect=FileNotFoundError("Config file not found")
         )
         mock_error_exit = mocker.patch("cli.commands.eval_cmd.error_exit", side_effect=SystemExit(1))
@@ -197,7 +197,7 @@ class TestEvalCommand:
     
     def test_eval_command_output_formatting(self, runner, test_config_file, mocker):
         """Test eval command output formatting"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         result = runner.invoke(eval_cmd, [str(test_config_file)])
         
@@ -226,7 +226,7 @@ class TestEvalCommand:
     
     def test_eval_command_resolves_path(self, runner, test_config_file, mocker):
         """Test eval command resolves relative paths"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         # Use relative path
         original_cwd = Path.cwd()
@@ -244,7 +244,7 @@ class TestEvalCommand:
     
     def test_eval_command_logging_config_absolute_path(self, runner, test_config_file, logging_config_file, mocker):
         """Test eval command converts logging config to absolute path"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         original_cwd = Path.cwd()
         os.chdir(logging_config_file.parent.parent)
@@ -263,7 +263,7 @@ class TestEvalCommand:
     
     def test_eval_command_multiple_verbose_flags(self, runner, test_config_file, mocker):
         """Test eval command with multiple verbose flags (should still work)"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         result = runner.invoke(eval_cmd, [str(test_config_file), "-v", "-v"])
         
@@ -273,7 +273,7 @@ class TestEvalCommand:
     
     def test_eval_command_success_message_color(self, runner, test_config_file, mocker):
         """Test eval command shows success message in green"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         result = runner.invoke(eval_cmd, [str(test_config_file)])
         
@@ -283,7 +283,7 @@ class TestEvalCommand:
     
     def test_eval_command_starting_message_color(self, runner, test_config_file, mocker):
         """Test eval command shows starting message in blue"""
-        mock_run_eval = mocker.patch("cli.commands.eval_cmd.run_evaluation_main")
+        mock_run_eval = mocker.patch("evaluation.run.main")
         
         result = runner.invoke(eval_cmd, [str(test_config_file)])
         

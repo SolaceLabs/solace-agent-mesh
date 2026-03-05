@@ -54,8 +54,33 @@ def pytest_configure(config):
 
     This runs BEFORE all fixtures, ensuring env vars are available during fixture initialization.
     """
-    # Enable TEST_TOKEN_TRIGGER_THRESHOLD for proactive compaction tests (300 token threshold)
+    # TEST_TOKEN_TRIGGER_THRESHOLD should only be set in specific compaction tests,
+    # not globally, to avoid polluting non-compaction tests
+
+
+@pytest.fixture(scope="function")
+def enable_test_compaction_trigger():
+    """
+    Fixture to enable TEST_TOKEN_TRIGGER_THRESHOLD for specific compaction tests.
+
+    Use this fixture in tests that need to trigger proactive compaction.
+    Automatically cleans up the env var after the test to avoid pollution.
+
+    Example:
+        def test_my_compaction_scenario(enable_test_compaction_trigger):
+            # Test runs with TEST_TOKEN_TRIGGER_THRESHOLD=300
+            ...
+    """
+    original_value = os.environ.get("TEST_TOKEN_TRIGGER_THRESHOLD")
     os.environ["TEST_TOKEN_TRIGGER_THRESHOLD"] = "300"
+
+    yield
+
+    # Cleanup: restore original value or remove if it wasn't set
+    if original_value is not None:
+        os.environ["TEST_TOKEN_TRIGGER_THRESHOLD"] = original_value
+    else:
+        os.environ.pop("TEST_TOKEN_TRIGGER_THRESHOLD", None)
 
 
 @pytest.fixture(scope="session")
