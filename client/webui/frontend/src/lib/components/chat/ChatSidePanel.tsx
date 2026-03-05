@@ -60,6 +60,9 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         if (existingTask?.events?.length > 0) {
             const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
             setVisualizedTask(vizTask);
+        } else if (loadAttemptedRef.current.has(taskIdInSidePanel)) {
+            // No SSE events and backend load already attempted — clear stale data
+            setVisualizedTask(null);
         }
 
         // Load from backend ONLY if:
