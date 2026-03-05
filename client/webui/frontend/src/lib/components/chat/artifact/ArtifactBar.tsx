@@ -215,7 +215,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
                         </div>
                         {/* Project badge */}
-                        {source === "project" && sourceProjectName && <ProjectBadge text={sourceProjectName} maxWidth="360px" />}
+                        {source === "project" && sourceProjectName && <ProjectBadge text={sourceProjectName} className="max-w-[360px]" />}
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}

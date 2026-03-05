@@ -1,17 +1,11 @@
 import { Badge, Tooltip, TooltipContent, TooltipTrigger } from "@/lib";
+import { cn } from "@/lib/utils";
 
-interface ProjectBadgeProps {
-    text?: string;
-    className?: string;
-    minWidth?: string;
-    maxWidth?: string;
-}
-
-export const ProjectBadge = ({ text = "Unknown Project", className = "", minWidth = "24px", maxWidth = "120px" }: ProjectBadgeProps) => {
+export const ProjectBadge = ({ text = "Unknown Project", className }: { text?: string; className?: string }) => {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <Badge variant="default" className={`shrink ${className}`} style={{ minWidth, maxWidth }}>
+                <Badge variant="default" className={cn("max-w-[120px] min-w-[24px] shrink", className)}>
                     <span className="block truncate font-semibold">{text}</span>
                 </Badge>
             </TooltipTrigger>

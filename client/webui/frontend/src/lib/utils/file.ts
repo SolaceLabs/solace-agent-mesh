@@ -134,7 +134,7 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
  * fallback for legacy artifacts, or undefined if not project-sourced.
  */
 export const getSourceProjectName = (artifact: ArtifactInfo | undefined, activeProject: Project | null): string | undefined => {
-    if (artifact?.source_project_id === activeProject?.id) return activeProject?.name;
-    if (artifact?.source === "project" && !artifact?.source_project_id) return "Project";
+    if (artifact?.sourceProjectId === activeProject?.id) return activeProject?.name;
+    if (artifact?.source === "project" && !artifact?.sourceProjectId) return "Project";
     return undefined;
 };
