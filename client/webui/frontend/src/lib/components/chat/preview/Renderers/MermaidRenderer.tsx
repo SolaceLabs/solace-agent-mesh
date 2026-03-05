@@ -15,19 +15,19 @@ import type { BaseRendererProps } from ".";
  */
 const validateMermaidInput = (input: string): boolean => {
     const dangerousPatterns = [
-        /<script/i,          // Script tags
-        /javascript:/i,      // JavaScript protocol
-        /on\w+\s*=/i,        // Event handlers (onclick, onerror, etc.)
-        /<iframe/i,          // Iframes
-        /<object/i,          // Object embeds
-        /<embed/i,           // Embed tags
-        /data:text\/html/i,  // Data URLs with HTML
+        /<script/i, // Script tags
+        /javascript:/i, // JavaScript protocol
+        /on\w+\s*=/i, // Event handlers (onclick, onerror, etc.)
+        /<iframe/i, // Iframes
+        /<object/i, // Object embeds
+        /<embed/i, // Embed tags
+        /data:text\/html/i, // Data URLs with HTML
     ];
-    
+
     return !dangerousPatterns.some(pattern => pattern.test(input));
 };
 
-export const MermaidRenderer = ({ content, setRenderError } : BaseRendererProps) => {
+export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) => {
     const { currentTheme } = useThemeContext();
 
     const [svgHtml, setSvgHtml] = useState<string>("");
@@ -43,14 +43,13 @@ export const MermaidRenderer = ({ content, setRenderError } : BaseRendererProps)
         mermaid.initialize({
             startOnLoad: false,
             theme: currentTheme === "dark" ? "dark" : "default",
-            secure: ['theme', 'themeVariables', 'themeCSS'], // Prevent injection via theme configs
+            secure: ["theme", "themeVariables", "themeCSS"], // Prevent injection via theme configs
             fontFamily: "arial, sans-serif",
             logLevel: "error" as const,
             securityLevel: "strict",
             maxTextSize: 50000, // Prevent DoS with extremely large diagrams
         });
     }, [currentTheme]);
-
 
     useEffect(() => {
         let cancelled = false;
@@ -105,7 +104,7 @@ export const MermaidRenderer = ({ content, setRenderError } : BaseRendererProps)
         return () => {
             cancelled = true;
         };
-    }, [content, setRenderError]);
+    }, [content, currentTheme, setRenderError]);
 
     // Make the SVG responsive after it's inserted into the DOM
     useEffect(() => {
@@ -150,7 +149,7 @@ export const MermaidRenderer = ({ content, setRenderError } : BaseRendererProps)
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
 
-            setTransform((prev) => {
+            setTransform(prev => {
                 const newScale = Math.min(10, Math.max(0.1, prev.scale - e.deltaY * 0.001));
                 const ratio = newScale / prev.scale;
                 const x = mx - (mx - prev.x) * ratio;
@@ -167,24 +166,24 @@ export const MermaidRenderer = ({ content, setRenderError } : BaseRendererProps)
     const bind = useGesture(
         {
             onDrag: ({ offset: [x, y] }) => {
-                setTransform((prev) => ({ ...prev, x, y }));
+                setTransform(prev => ({ ...prev, x, y }));
             },
         },
         {
             drag: {
                 from: () => [transform.x, transform.y],
             },
-        },
+        }
     );
 
     return (
         <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden p-4">
             <div ref={offscreenRef} aria-hidden style={{ position: "fixed", top: -10000, left: -10000, width: 1920, height: 1080 }} />
-            <div ref={containerRef} className="relative flex w-full min-h-96 flex-1 items-start justify-center overflow-hidden" style={{ touchAction: "none" }} {...bind()}>
+            <div ref={containerRef} className="relative flex min-h-96 w-full flex-1 items-start justify-center overflow-hidden" style={{ touchAction: "none" }} {...bind()}>
                 {svgHtml ? (
                     <div
                         ref={svgContainerRef}
-                        className="max-h-full w-full cursor-grab items-start justify-center pt-16 active:cursor-grabbing flex"
+                        className="flex max-h-full w-full cursor-grab items-start justify-center pt-16 active:cursor-grabbing"
                         style={{
                             transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
                             transformOrigin: "0 0",
@@ -193,14 +192,14 @@ export const MermaidRenderer = ({ content, setRenderError } : BaseRendererProps)
                     />
                 ) : null}
 
-                <div className="absolute top-0 right-3 flex items-center gap-2 bg-muted rounded">
+                <div className="bg-muted absolute top-0 right-3 flex items-center gap-2 rounded">
                     <Button onClick={resetTransform} tooltip="Reset View" variant="ghost">
                         <Scan />
                     </Button>
                     <div className="h-6 w-px border-l" />
                     <div className="text-muted-foreground text-xs">Drag to pan</div>
                     <div className="h-6 w-px border-l" />
-                    <div className="text-muted-foreground text-xs pr-2">Scroll to zoom</div>
+                    <div className="text-muted-foreground pr-2 text-xs">Scroll to zoom</div>
                 </div>
             </div>
         </div>
