@@ -59,6 +59,8 @@ TOOL_RUNNER_MODULE = "solace_agent_mesh.sandbox.tool_runner"
 # and the tool source directory). --proc /proc provides a fresh procfs for PID
 # namespace isolation, and --dev /dev provides minimal device nodes.
 # The container needs CAP_SYS_ADMIN for namespace creation.
+MAX_OUTPUT_BYTES = 10 * 1024 * 1024  # 10 MB cap on stdout/stderr buffering
+
 SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
     "restrictive": {
         "rlimit_as_mb": 512,
@@ -66,6 +68,10 @@ SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
         "rlimit_fsize_mb": 64,
         "rlimit_nofile": 128,
         "rlimit_nproc": 32,
+        "rlimit_stack_mb": 8,
+        "rlimit_memlock_kb": 64,
+        "rlimit_msgqueue_bytes": 819200,
+        "nice_level": 15,
         "network_isolated": True,
         "keep_env": False,
         "writable_var": False,
@@ -76,6 +82,10 @@ SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
         "rlimit_fsize_mb": 256,
         "rlimit_nofile": 512,
         "rlimit_nproc": 128,
+        "rlimit_stack_mb": 16,
+        "rlimit_memlock_kb": 256,
+        "rlimit_msgqueue_bytes": 819200,
+        "nice_level": 10,
         "network_isolated": False,
         "keep_env": True,
         "writable_var": False,
@@ -86,6 +96,10 @@ SANDBOX_PROFILES: Dict[str, Dict[str, Any]] = {
         "rlimit_fsize_mb": 1024,
         "rlimit_nofile": 1024,
         "rlimit_nproc": 512,
+        "rlimit_stack_mb": 32,
+        "rlimit_memlock_kb": 1024,
+        "rlimit_msgqueue_bytes": 1638400,
+        "nice_level": 5,
         "network_isolated": False,
         "keep_env": True,
         "writable_var": True,
@@ -109,6 +123,7 @@ class SandboxRunnerConfig:
     tools_python_dir: str = DEFAULT_TOOLS_PYTHON_DIR
     default_profile: str = "standard"
     max_concurrent_executions: int = 4
+    cpu_affinity: Optional[List[int]] = None
 
 
 class SandboxRunner:
@@ -141,6 +156,15 @@ class SandboxRunner:
             self._config.max_concurrent_executions
         )
 
+        if self._config.mode == "bwrap":
+            bwrap_path = shutil.which(self._config.bwrap_bin)
+            if bwrap_path is None:
+                raise FileNotFoundError(
+                    f"bwrap binary not found at '{self._config.bwrap_bin}'. "
+                    "Install bubblewrap or switch to 'direct' mode for local development."
+                )
+            log.info("bwrap binary found: %s", bwrap_path)
+
         self._cleanup_stale_work_dirs()
 
         log.info(
@@ -171,6 +195,40 @@ class SandboxRunner:
             raise ValueError(f"Filename escapes base directory: {filename}")
 
         return candidate
+
+    @staticmethod
+    async def _bounded_communicate(
+        process: asyncio.subprocess.Process,
+        max_bytes: int = MAX_OUTPUT_BYTES,
+    ) -> tuple[bytes, bytes]:
+        """Read stdout/stderr with a size cap to prevent memory exhaustion.
+
+        A malicious tool could write unbounded data to stdout/stderr. Since
+        ``process.communicate()`` buffers everything in memory, this would
+        OOM the worker. Instead we read up to ``max_bytes`` per stream and
+        discard the rest, then wait for the process to finish.
+        """
+        async def _read_bounded(stream: Optional[asyncio.StreamReader]) -> bytes:
+            if stream is None:
+                return b""
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = await stream.read(65536)
+                if not chunk:
+                    break
+                remaining = max_bytes - total
+                if remaining > 0:
+                    chunks.append(chunk[:remaining])
+                    total += min(len(chunk), remaining)
+            return b"".join(chunks)
+
+        stdout_data, stderr_data = await asyncio.gather(
+            _read_bounded(process.stdout),
+            _read_bounded(process.stderr),
+        )
+        await process.wait()
+        return stdout_data, stderr_data
 
     def _get_profile(self, profile_name: str) -> Dict[str, Any]:
         """Get a sandbox profile by name, falling back to standard."""
@@ -475,18 +533,16 @@ class SandboxRunner:
         """
 
         def reader_thread():
+            fd = -1
             try:
-                # Open in non-blocking mode with select
                 fd = os.open(str(status_pipe_path), os.O_RDONLY | os.O_NONBLOCK)
                 buffer = ""
 
                 while not stop_event.is_set():
                     try:
-                        # Try to read from pipe
                         data = os.read(fd, 4096)
                         if data:
                             buffer += data.decode("utf-8", errors="replace")
-                            # Process complete lines
                             while "\n" in buffer:
                                 line, buffer = buffer.split("\n", 1)
                                 if line.strip():
@@ -499,25 +555,26 @@ class SandboxRunner:
                                             "Invalid status message format: %s", line
                                         )
                         else:
-                            # No data available, brief sleep
                             time.sleep(0.1)
                     except BlockingIOError:
-                        # No data available
                         time.sleep(0.1)
                     except Exception as e:
                         log.debug("Status reader error: %s", e)
                         time.sleep(0.1)
-
-                os.close(fd)
             except Exception as e:
                 log.warning("Status reader thread failed: %s", e)
+            finally:
+                if fd >= 0:
+                    os.close(fd)
 
         thread = threading.Thread(target=reader_thread, daemon=True)
         thread.start()
         return thread
 
     @staticmethod
-    def _make_preexec_fn(profile: Dict[str, Any]) -> Callable[[], None]:
+    def _make_preexec_fn(
+        profile: Dict[str, Any], cpu_affinity: Optional[List[int]] = None
+    ) -> Callable[[], None]:
         """
         Return a preexec_fn that sets resource limits before exec.
 
@@ -541,8 +598,20 @@ class SandboxRunner:
             if profile.get("rlimit_nproc"):
                 limit = profile["rlimit_nproc"]
                 resource.setrlimit(resource.RLIMIT_NPROC, (limit, limit))
-            # No core dumps
+            if profile.get("rlimit_stack_mb"):
+                limit = profile["rlimit_stack_mb"] * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_STACK, (limit, limit))
+            if profile.get("rlimit_memlock_kb"):
+                limit = profile["rlimit_memlock_kb"] * 1024
+                resource.setrlimit(resource.RLIMIT_MEMLOCK, (limit, limit))
+            if profile.get("rlimit_msgqueue_bytes") and hasattr(resource, "RLIMIT_MSGQUEUE"):
+                limit = profile["rlimit_msgqueue_bytes"]
+                resource.setrlimit(resource.RLIMIT_MSGQUEUE, (limit, limit))
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+            if profile.get("nice_level"):
+                os.nice(profile["nice_level"])
+            if cpu_affinity and hasattr(os, "sched_setaffinity"):
+                os.sched_setaffinity(0, cpu_affinity)
 
         return _set_limits
 
@@ -617,68 +686,27 @@ class SandboxRunner:
 
         return mounts
 
-    def _build_bwrap_command(
+    def _build_bwrap_base_args(
         self,
         work_dir: Path,
-        params: SandboxInvokeParams,
-        manifest_entry: ManifestEntry,
-        artifact_paths: Dict[str, str],
-        artifact_metadata: Dict[str, Dict[str, Any]],
+        args_file: Path,
         profile: Dict[str, Any],
     ) -> List[str]:
-        """
-        Build the bubblewrap command line.
+        """Build common bwrap command args shared by invoke and init.
 
-        Uses whitelist filesystem mounts (only /usr, /lib, /bin, /sbin, select
-        /etc files, and the tool source directory) instead of --ro-bind / /.
-        This prevents sandboxed code from reading /app (worker source),
-        /etc/shadow, /var/run/secrets (K8s SA token), or other sensitive paths.
-
-        Overlays on the whitelist:
-        - --dev /dev    — minimal device nodes (null, zero, urandom, etc.)
-        - --proc /proc  — fresh procfs (only shows sandboxed processes)
-        - --tmpfs /tmp  — writable temp directory
-        - --bind work_dir — writable work directory for tool I/O
-        - --tmpfs /var/run/secrets — defense-in-depth: hides K8s SA token
-
-        User isolation: --unshare-user maps the sandboxed process to
-        nobody (uid 65534), preventing SUID abuse and privilege escalation.
-
-        The container should be started with --cap-add=SYS_ADMIN for
-        namespace creation.
-
-        Module and function are resolved from the manifest entry (not from the
-        request params), so the agent doesn't need to know implementation details.
-
-        Args:
-            work_dir: The work directory path
-            params: The invocation parameters
-            manifest_entry: The manifest entry for the tool being invoked
-            artifact_paths: Mapping of param names to artifact file paths
-            artifact_metadata: Rich metadata per artifact param (filename, mime_type, etc.)
-            profile: The resolved sandbox profile dict
-
-        Returns:
-            Command line as list of strings
+        Includes user/namespace isolation, filesystem mounts, environment
+        setup, and the Python command. Callers can insert additional args
+        (e.g. writable_var) before the ``--`` separator by modifying the
+        returned list.
         """
         tools_python_dir = self._config.tools_python_dir
 
-        args_file = self._write_runner_args(
-            work_dir, params, manifest_entry, artifact_paths, artifact_metadata,
-        )
-
-        # Start building the bwrap command
         cmd: List[str] = [self._config.bwrap_bin]
 
-        # User namespace — run sandboxed tool as nobody to prevent SUID abuse
         cmd.extend([
             "--unshare-user",
             "--uid", "65534",
             "--gid", "65534",
-        ])
-
-        # Namespace isolation
-        cmd.extend([
             "--die-with-parent",
             "--new-session",
             "--unshare-pid",
@@ -689,51 +717,28 @@ class SandboxRunner:
         if profile.get("network_isolated"):
             cmd.append("--unshare-net")
 
-        # Whitelist filesystem — only mount what Python + tools need
         cmd.extend(self._build_filesystem_mounts(tools_python_dir))
-
-        # Minimal /dev with only essential device nodes
         cmd.extend(["--dev", "/dev"])
-
-        # Fresh /proc for PID namespace — only shows sandboxed processes
         cmd.extend(["--proc", "/proc"])
-
-        # Hide K8s service account token (defense-in-depth)
         cmd.extend(["--tmpfs", "/var/run/secrets"])
-
-        # Writable overlays
         cmd.extend(["--tmpfs", "/tmp"])
         cmd.extend(["--bind", str(work_dir), str(work_dir)])
-
-        if profile.get("writable_var"):
-            cmd.extend(["--tmpfs", "/var"])
-
-        # Working directory inside the sandbox
         cmd.extend(["--chdir", str(work_dir)])
 
-        # Environment variables — bwrap always uses --clearenv + explicit --setenv
-        # to prevent any env vars from leaking into the sandbox. The bwrap process
-        # itself is also started with a minimal env (see execute_tool) so that
-        # /proc/1/environ inside the PID namespace doesn't expose secrets.
         cmd.append("--clearenv")
         cmd.extend(["--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin"])
         cmd.extend(["--setenv", "HOME", "/tmp"])
         cmd.extend(["--setenv", "TMPDIR", "/tmp"])
         cmd.extend(["--setenv", "LANG", "C.UTF-8"])
         cmd.extend(["--setenv", "PYTHONPATH", tools_python_dir])
-        # Skip heavy built-in tool registration inside the sandbox
         cmd.extend(["--setenv", "_SAM_SANDBOX_LIGHT", "1"])
 
         if profile.get("keep_env"):
-            # For standard/permissive profiles, forward specific safe env vars
-            # that the tool may need (e.g., API keys set via tool_config).
-            # Note: container secrets like SOLACE_PASSWORD are NOT forwarded.
             for key in ("PYTHONDONTWRITEBYTECODE", "PYTHONUNBUFFERED"):
                 val = os.environ.get(key)
                 if val:
                     cmd.extend(["--setenv", key, val])
 
-        # Separator and Python command
         cmd.append("--")
         cmd.extend([
             self._config.python_bin,
@@ -741,6 +746,33 @@ class SandboxRunner:
             TOOL_RUNNER_MODULE,
             str(args_file),
         ])
+
+        return cmd
+
+    def _build_bwrap_command(
+        self,
+        work_dir: Path,
+        params: SandboxInvokeParams,
+        manifest_entry: ManifestEntry,
+        artifact_paths: Dict[str, str],
+        artifact_metadata: Dict[str, Dict[str, Any]],
+        profile: Dict[str, Any],
+    ) -> List[str]:
+        """Build the bubblewrap command line for tool invocation.
+
+        Delegates to ``_build_bwrap_base_args`` for the common isolation
+        setup and adds invocation-specific overlays (writable_var).
+        """
+        args_file = self._write_runner_args(
+            work_dir, params, manifest_entry, artifact_paths, artifact_metadata,
+        )
+
+        cmd = self._build_bwrap_base_args(work_dir, args_file, profile)
+
+        if profile.get("writable_var"):
+            separator_idx = cmd.index("--")
+            cmd.insert(separator_idx, "/var")
+            cmd.insert(separator_idx, "--tmpfs")
 
         return cmd
 
@@ -902,14 +934,13 @@ class SandboxRunner:
                         stderr=asyncio.subprocess.PIPE,
                         cwd=str(work_dir),
                         env=bwrap_env,
-                        preexec_fn=self._make_preexec_fn(profile),
+                        preexec_fn=self._make_preexec_fn(profile, self._config.cpu_affinity),
                     )
 
                 try:
-                    # Wait with timeout (add buffer for bwrap overhead)
                     timeout = params.timeout_seconds + 5
                     stdout, stderr = await asyncio.wait_for(
-                        process.communicate(), timeout=timeout
+                        self._bounded_communicate(process), timeout=timeout
                     )
                 except asyncio.TimeoutError:
                     # Kill the process
@@ -1119,55 +1150,7 @@ class SandboxRunner:
                     env=direct_env,
                 )
             else:
-                # Build bwrap command manually (simpler than _build_bwrap_command
-                # since we don't have SandboxInvokeParams)
-                tools_python_dir = self._config.tools_python_dir
-                cmd: List[str] = [self._config.bwrap_bin]
-
-                cmd.extend([
-                    "--unshare-user",
-                    "--uid", "65534",
-                    "--gid", "65534",
-                    "--die-with-parent",
-                    "--new-session",
-                    "--unshare-pid",
-                    "--unshare-ipc",
-                    "--unshare-uts",
-                ])
-
-                if profile.get("network_isolated"):
-                    cmd.append("--unshare-net")
-
-                cmd.extend(self._build_filesystem_mounts(tools_python_dir))
-                cmd.extend(["--dev", "/dev"])
-                cmd.extend(["--proc", "/proc"])
-                cmd.extend(["--tmpfs", "/var/run/secrets"])
-                cmd.extend(["--tmpfs", "/tmp"])
-                cmd.extend(["--bind", str(work_dir), str(work_dir)])
-                cmd.extend(["--chdir", str(work_dir)])
-
-                cmd.append("--clearenv")
-                cmd.extend(["--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin"])
-                cmd.extend(["--setenv", "HOME", "/tmp"])
-                cmd.extend(["--setenv", "TMPDIR", "/tmp"])
-                cmd.extend(["--setenv", "LANG", "C.UTF-8"])
-                cmd.extend(["--setenv", "PYTHONPATH", tools_python_dir])
-                cmd.extend(["--setenv", "_SAM_SANDBOX_LIGHT", "1"])
-
-                if profile.get("keep_env"):
-                    for key in ("PYTHONDONTWRITEBYTECODE", "PYTHONUNBUFFERED"):
-                        val = os.environ.get(key)
-                        if val:
-                            cmd.extend(["--setenv", key, val])
-
-                cmd.append("--")
-                cmd.extend([
-                    self._config.python_bin,
-                    "-m",
-                    TOOL_RUNNER_MODULE,
-                    str(args_file),
-                ])
-
+                cmd = self._build_bwrap_base_args(work_dir, args_file, profile)
                 bwrap_env = {"PATH": "/usr/local/bin:/usr/bin:/bin"}
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
@@ -1175,12 +1158,12 @@ class SandboxRunner:
                     stderr=asyncio.subprocess.PIPE,
                     cwd=str(work_dir),
                     env=bwrap_env,
-                    preexec_fn=self._make_preexec_fn(profile),
+                    preexec_fn=self._make_preexec_fn(profile, self._config.cpu_affinity),
                 )
 
             try:
                 stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=timeout_seconds + 5
+                    self._bounded_communicate(process), timeout=timeout_seconds + 5
                 )
             except asyncio.TimeoutError:
                 process.kill()

@@ -281,7 +281,17 @@ class SandboxWorkerApp(SamAppBase):
             port=health_port,
         )
 
+        self._worker_id = worker_id
         log.info("SandboxWorkerApp '%s' initialization complete", worker_id)
+
+    def run(self):
+        try:
+            super().run()
+        except Exception as e:
+            log.critical(
+                "Failed to start sandbox worker '%s': %s", self._worker_id, e, exc_info=e
+            )
+            raise
 
     def _check_liveness(self) -> dict:
         broker_ok = self._is_broker_connected()

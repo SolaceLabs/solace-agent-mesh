@@ -12,6 +12,7 @@ import importlib
 import logging
 import os
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -64,6 +65,7 @@ class ToolManifest:
         self._entries: Dict[str, ManifestEntry] = {}
         self._last_mtime: float = 0.0
         self._installed_wheels: Set[str] = set()
+        self._lock = threading.Lock()
         self._load()
 
     def _load(self) -> None:
@@ -71,7 +73,8 @@ class ToolManifest:
         path = Path(self._path)
         if not path.exists():
             log.warning("Manifest file not found: %s", self._path)
-            self._entries = {}
+            with self._lock:
+                self._entries = {}
             return
 
         try:
@@ -80,7 +83,8 @@ class ToolManifest:
 
             if not isinstance(raw, dict):
                 log.error("Invalid manifest format (expected dict): %s", self._path)
-                self._entries = {}
+                with self._lock:
+                    self._entries = {}
                 return
 
             version = raw.get("version", 1)
@@ -94,7 +98,8 @@ class ToolManifest:
             tools_dict = raw.get("tools", {})
             if not isinstance(tools_dict, dict):
                 log.error("Invalid 'tools' section in manifest (expected dict)")
-                self._entries = {}
+                with self._lock:
+                    self._entries = {}
                 return
 
             entries: Dict[str, ManifestEntry] = {}
@@ -116,7 +121,6 @@ class ToolManifest:
                     sandbox_profile=tool_def.get("sandbox_profile"),
                 )
 
-                # Validate python tools have module and either function or class_name
                 if entry.runtime == "python":
                     if not entry.module or (not entry.function and not entry.class_name):
                         log.error(
@@ -128,7 +132,8 @@ class ToolManifest:
 
                 entries[tool_name] = entry
 
-            self._entries = entries
+            with self._lock:
+                self._entries = entries
             log.info(
                 "Loaded manifest from %s: %d tools (%s)",
                 self._path,
@@ -138,20 +143,23 @@ class ToolManifest:
 
         except yaml.YAMLError as e:
             log.error("Failed to parse manifest YAML %s: %s", self._path, e)
-            self._entries = {}
+            with self._lock:
+                self._entries = {}
         except Exception as e:
             log.error("Failed to load manifest %s: %s", self._path, e)
-            self._entries = {}
+            with self._lock:
+                self._entries = {}
 
     def _maybe_reload(self) -> None:
         """Check mtime and reload if the file has changed."""
         try:
             path = Path(self._path)
             if not path.exists():
-                if self._entries:
-                    log.warning("Manifest file removed: %s", self._path)
-                    self._entries = {}
-                    self._last_mtime = 0.0
+                with self._lock:
+                    if self._entries:
+                        log.warning("Manifest file removed: %s", self._path)
+                        self._entries = {}
+                        self._last_mtime = 0.0
                 return
 
             current_mtime = path.stat().st_mtime
@@ -164,17 +172,20 @@ class ToolManifest:
     def get_tool(self, tool_name: str) -> Optional[ManifestEntry]:
         """Get a tool entry by name. Checks for file changes first."""
         self._maybe_reload()
-        return self._entries.get(tool_name)
+        with self._lock:
+            return self._entries.get(tool_name)
 
     def list_tools(self) -> List[ManifestEntry]:
         """List all tool entries. Checks for file changes first."""
         self._maybe_reload()
-        return list(self._entries.values())
+        with self._lock:
+            return list(self._entries.values())
 
     def get_tool_names(self) -> Set[str]:
         """Get the set of all tool names. Checks for file changes first."""
         self._maybe_reload()
-        return set(self._entries.keys())
+        with self._lock:
+            return set(self._entries.keys())
 
     def has_changed(self) -> bool:
         """Check if the manifest file has been modified since last load."""

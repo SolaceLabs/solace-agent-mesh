@@ -185,3 +185,37 @@ class TestGetConfig:
     def test_returns_default(self, tmp_path: Path):
         facade = _make_facade(tmp_path)
         assert facade.get_config("missing", "fallback") == "fallback"
+
+
+class TestSaveArtifactPathTraversal:
+    def test_rejects_dotdot(self, tmp_path: Path):
+        facade = _make_facade(tmp_path)
+        with pytest.raises(ValueError, match="Unsafe"):
+            facade.save_artifact("../etc/passwd", b"evil")
+
+    def test_rejects_absolute_path(self, tmp_path: Path):
+        facade = _make_facade(tmp_path)
+        with pytest.raises(ValueError, match="Unsafe"):
+            facade.save_artifact("/etc/passwd", b"evil")
+
+    def test_rejects_backslash_path(self, tmp_path: Path):
+        facade = _make_facade(tmp_path)
+        with pytest.raises(ValueError, match="Unsafe"):
+            facade.save_artifact("\\etc\\passwd", b"evil")
+
+    def test_rejects_empty_filename(self, tmp_path: Path):
+        facade = _make_facade(tmp_path)
+        with pytest.raises(ValueError, match="Empty"):
+            facade.save_artifact("", b"evil")
+
+    def test_accepts_valid_filename(self, tmp_path: Path):
+        facade = _make_facade(tmp_path)
+        path = facade.save_artifact("output.json", b'{"ok": true}')
+        assert Path(path).read_bytes() == b'{"ok": true}'
+
+
+class TestSaveArtifactTextPathTraversal:
+    def test_rejects_dotdot(self, tmp_path: Path):
+        facade = _make_facade(tmp_path)
+        with pytest.raises(ValueError, match="Unsafe"):
+            facade.save_artifact_text("../../evil.txt", "bad")

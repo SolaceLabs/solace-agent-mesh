@@ -1,6 +1,7 @@
 """Tests for ToolManifest."""
 
 import subprocess
+import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -289,3 +290,43 @@ class TestNonDictRoot:
         manifest = ToolManifest(str(mf))
 
         assert manifest.list_tools() == []
+
+
+class TestThreadSafeReload:
+    def test_concurrent_reads_during_reload(self, tmp_path: Path):
+        mf = tmp_path / "manifest.yaml"
+        mf.write_text(VALID_MANIFEST)
+        manifest = ToolManifest(str(mf))
+
+        errors = []
+
+        def reader():
+            for _ in range(50):
+                try:
+                    manifest.get_tool_names()
+                    manifest.get_tool("my_tool")
+                    manifest.list_tools()
+                except Exception as e:
+                    errors.append(e)
+
+        def writer():
+            for i in range(10):
+                content = f"""\
+version: 1
+tools:
+  tool_{i}:
+    runtime: python
+    module: mod_{i}
+    function: fn_{i}
+"""
+                mf.write_text(content)
+                time.sleep(0.01)
+
+        threads = [threading.Thread(target=reader) for _ in range(4)]
+        threads.append(threading.Thread(target=writer))
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert errors == [], f"Concurrent access errors: {errors}"

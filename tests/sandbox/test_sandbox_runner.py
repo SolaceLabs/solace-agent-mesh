@@ -1,12 +1,13 @@
 """Tests for SandboxRunner."""
 
+import asyncio
 import os
 import resource
 import shutil
 import stat
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -121,7 +122,8 @@ class TestMakePreexecFnSetsLimits:
         profile = SANDBOX_PROFILES["standard"]
         preexec = SandboxRunner._make_preexec_fn(profile)
 
-        with patch("solace_agent_mesh.sandbox.sandbox_runner.resource.setrlimit") as mock_set:
+        with patch("solace_agent_mesh.sandbox.sandbox_runner.resource.setrlimit") as mock_set, \
+             patch("solace_agent_mesh.sandbox.sandbox_runner.os.nice"):
             preexec()
 
         set_resources = {c[0][0] for c in mock_set.call_args_list}
@@ -130,7 +132,90 @@ class TestMakePreexecFnSetsLimits:
         assert resource.RLIMIT_FSIZE in set_resources
         assert resource.RLIMIT_NOFILE in set_resources
         assert resource.RLIMIT_NPROC in set_resources
+        assert resource.RLIMIT_STACK in set_resources
+        assert resource.RLIMIT_MEMLOCK in set_resources
         assert resource.RLIMIT_CORE in set_resources
+        if hasattr(resource, "RLIMIT_MSGQUEUE"):
+            assert resource.RLIMIT_MSGQUEUE in set_resources
+
+
+class TestNewRlimits:
+    def test_sets_rlimit_stack(self):
+        profile = {"rlimit_stack_mb": 16}
+        preexec = SandboxRunner._make_preexec_fn(profile)
+
+        with patch("solace_agent_mesh.sandbox.sandbox_runner.resource.setrlimit") as mock_set:
+            preexec()
+
+        calls = {c[0][0]: c[0][1] for c in mock_set.call_args_list}
+        assert calls[resource.RLIMIT_STACK] == (16 * 1024 * 1024, 16 * 1024 * 1024)
+
+    def test_sets_rlimit_memlock(self):
+        profile = {"rlimit_memlock_kb": 256}
+        preexec = SandboxRunner._make_preexec_fn(profile)
+
+        with patch("solace_agent_mesh.sandbox.sandbox_runner.resource.setrlimit") as mock_set:
+            preexec()
+
+        calls = {c[0][0]: c[0][1] for c in mock_set.call_args_list}
+        assert calls[resource.RLIMIT_MEMLOCK] == (256 * 1024, 256 * 1024)
+
+    @pytest.mark.skipif(
+        not hasattr(resource, "RLIMIT_MSGQUEUE"),
+        reason="RLIMIT_MSGQUEUE is Linux-only",
+    )
+    def test_sets_rlimit_msgqueue(self):
+        profile = {"rlimit_msgqueue_bytes": 819200}
+        preexec = SandboxRunner._make_preexec_fn(profile)
+
+        with patch("solace_agent_mesh.sandbox.sandbox_runner.resource.setrlimit") as mock_set:
+            preexec()
+
+        calls = {c[0][0]: c[0][1] for c in mock_set.call_args_list}
+        assert calls[resource.RLIMIT_MSGQUEUE] == (819200, 819200)
+
+    def test_nice_level_calls_os_nice(self):
+        profile = {"nice_level": 10}
+        preexec = SandboxRunner._make_preexec_fn(profile)
+
+        with patch("solace_agent_mesh.sandbox.sandbox_runner.os.nice") as mock_nice:
+            preexec()
+
+        mock_nice.assert_called_once_with(10)
+
+    def test_cpu_affinity_calls_sched_setaffinity(self):
+        profile = {}
+        preexec = SandboxRunner._make_preexec_fn(profile, cpu_affinity=[0, 1])
+
+        with patch.object(os, "sched_setaffinity", create=True) as mock_aff:
+            preexec()
+
+        mock_aff.assert_called_once_with(0, [0, 1])
+
+    def test_missing_values_skip_calls(self):
+        profile = {}
+        preexec = SandboxRunner._make_preexec_fn(profile)
+
+        with patch("solace_agent_mesh.sandbox.sandbox_runner.resource.setrlimit") as mock_set, \
+             patch("solace_agent_mesh.sandbox.sandbox_runner.os.nice") as mock_nice, \
+             patch.object(os, "sched_setaffinity", create=True) as mock_aff:
+            preexec()
+
+        calls = {c[0][0] for c in mock_set.call_args_list}
+        assert resource.RLIMIT_CORE in calls
+        assert resource.RLIMIT_STACK not in calls
+        assert resource.RLIMIT_MEMLOCK not in calls
+        mock_nice.assert_not_called()
+        mock_aff.assert_not_called()
+
+    def test_cpu_affinity_none_skips_call(self):
+        profile = {}
+        preexec = SandboxRunner._make_preexec_fn(profile, cpu_affinity=None)
+
+        with patch.object(os, "sched_setaffinity", create=True) as mock_aff:
+            preexec()
+
+        mock_aff.assert_not_called()
 
 
 class TestProfilesContainNproc:
@@ -403,6 +488,99 @@ class TestBwrapCommandProcMount:
         cmd = _build_bwrap_cmd(tmp_path)
         pairs = list(zip(cmd, cmd[1:]))
         assert ("--proc", "/proc") in pairs
+
+
+class TestBoundedCommunicate:
+    @pytest.mark.asyncio
+    async def test_caps_large_stdout(self):
+        process = await asyncio.create_subprocess_exec(
+            "python3", "-c", "import sys; sys.stdout.buffer.write(b'A' * 200_000)",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await SandboxRunner._bounded_communicate(process, max_bytes=1024)
+        assert len(stdout) == 1024
+        assert process.returncode == 0
+
+    @pytest.mark.asyncio
+    async def test_caps_large_stderr(self):
+        process = await asyncio.create_subprocess_exec(
+            "python3", "-c", "import sys; sys.stderr.buffer.write(b'E' * 200_000)",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await SandboxRunner._bounded_communicate(process, max_bytes=1024)
+        assert len(stderr) == 1024
+        assert len(stdout) == 0
+
+    @pytest.mark.asyncio
+    async def test_small_output_unchanged(self):
+        process = await asyncio.create_subprocess_exec(
+            "python3", "-c", "print('hello')",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await SandboxRunner._bounded_communicate(process)
+        assert stdout.strip() == b"hello"
+
+
+class TestBwrapPreflightCheck:
+    def test_raises_when_bwrap_missing(self, tmp_path: Path):
+        with patch("shutil.which", return_value=None):
+            with pytest.raises(FileNotFoundError, match="bwrap binary not found"):
+                _make_runner(tmp_path, mode="bwrap")
+
+    def test_succeeds_when_bwrap_present(self, tmp_path: Path):
+        with patch("shutil.which", return_value="/usr/bin/bwrap"):
+            runner = _make_runner(tmp_path, mode="bwrap")
+            assert runner._config.mode == "bwrap"
+
+    def test_skipped_in_direct_mode(self, tmp_path: Path):
+        runner = _make_runner(tmp_path, mode="direct")
+        assert runner._config.mode == "direct"
+
+
+class TestBuildBwrapBaseArgs:
+    def test_contains_isolation_flags(self, tmp_path: Path):
+        runner = _make_runner(tmp_path)
+        work_dir = runner._setup_work_directory("base-test")
+        args_file = work_dir / "runner_args.json"
+        args_file.write_text("{}")
+        profile = SANDBOX_PROFILES["standard"]
+
+        cmd = runner._build_bwrap_base_args(work_dir, args_file, profile)
+        assert "--unshare-user" in cmd
+        assert "--unshare-pid" in cmd
+        assert "--die-with-parent" in cmd
+        assert "--clearenv" in cmd
+        assert "--" in cmd
+
+    def test_invocation_adds_writable_var(self, tmp_path: Path):
+        runner = _make_runner(tmp_path)
+        params = MagicMock()
+        params.task_id = "var-test"
+        params.tool_name = "tool"
+        params.args = {}
+        params.tool_config = {}
+        params.timeout_seconds = 60
+        params.sandbox_profile = "permissive"
+        params.app_name = "app"
+        params.user_id = "u"
+        params.session_id = "s"
+
+        manifest_entry = MagicMock()
+        manifest_entry.module = "mod"
+        manifest_entry.function = "fn"
+        manifest_entry.class_name = None
+        manifest_entry.sandbox_profile = None
+
+        work_dir = runner._setup_work_directory("var-test")
+        profile = SANDBOX_PROFILES["permissive"]
+        runner._config.mode = "bwrap"
+
+        cmd = runner._build_bwrap_command(work_dir, params, manifest_entry, {}, {}, profile)
+        pairs = list(zip(cmd, cmd[1:]))
+        assert ("--tmpfs", "/var") in pairs
 
 
 class TestBuildFilesystemMounts:

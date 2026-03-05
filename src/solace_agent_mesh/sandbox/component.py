@@ -9,7 +9,7 @@ Solace communication.
 import logging
 import threading
 import time
-from typing import Any, Dict, Optional, Set
+from typing import Any, Optional, Set
 
 from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
@@ -96,6 +96,7 @@ class SandboxWorkerComponent(SamComponentBase):
 
         # Track which tool topics we're currently subscribed to
         self._subscribed_tools: Set[str] = set()
+        self._subscribed_tools_lock = threading.Lock()
 
         # Sandbox configuration - merge app-level tools_python_dir into runner config
         sandbox_cfg = self.get_config("sandbox", {})
@@ -111,20 +112,20 @@ class SandboxWorkerComponent(SamComponentBase):
         # Initialize sandbox runner
         self.sandbox_runner = SandboxRunner(sandbox_cfg)
 
-        # Track active executions for cleanup
-        self._active_executions: Dict[str, Any] = {}
-
-        # Background thread to watch manifest for changes
-        self._manifest_poll_interval: float = 2.0  # seconds
+        # Background thread to watch manifest for changes (started in _async_setup_and_run)
+        self._manifest_poll_interval: float = 2.0
         self._manifest_poll_stop = threading.Event()
         self._manifest_poll_thread = threading.Thread(
             target=self._manifest_poll_loop,
             name="manifest-watcher",
             daemon=True,
         )
-        self._manifest_poll_thread.start()
 
         log.info("%s SandboxWorkerComponent initialized", self.log_identifier)
+
+    async def _async_setup_and_run(self) -> None:
+        await super()._async_setup_and_run()
+        self._manifest_poll_thread.start()
 
     def _get_component_id(self) -> str:
         """Returns the worker ID as the component identifier."""
@@ -242,16 +243,16 @@ class SandboxWorkerComponent(SamComponentBase):
         """
         current_tools = self.manifest.get_tool_names()
 
-        # Tools to add (in manifest but not subscribed)
-        tools_to_add = current_tools - self._subscribed_tools
-        # Tools to remove (subscribed but no longer in manifest)
-        tools_to_remove = self._subscribed_tools - current_tools
+        with self._subscribed_tools_lock:
+            tools_to_add = current_tools - self._subscribed_tools
+            tools_to_remove = self._subscribed_tools - current_tools
 
         for tool_name in tools_to_add:
             topic = a2a.get_sam_remote_tool_invoke_topic(self.namespace, tool_name)
             try:
                 self.subscribe(topic)
-                self._subscribed_tools.add(tool_name)
+                with self._subscribed_tools_lock:
+                    self._subscribed_tools.add(tool_name)
                 log.info(
                     "%s Subscribed to tool topic: %s",
                     self.log_identifier,
@@ -265,7 +266,6 @@ class SandboxWorkerComponent(SamComponentBase):
                     e,
                 )
 
-            # Also subscribe to init topic for class-based tools
             entry = self.manifest.get_tool(tool_name)
             if entry and entry.class_name:
                 init_topic = a2a.get_sam_remote_tool_init_topic(
@@ -290,7 +290,8 @@ class SandboxWorkerComponent(SamComponentBase):
             topic = a2a.get_sam_remote_tool_invoke_topic(self.namespace, tool_name)
             try:
                 self.unsubscribe(topic)
-                self._subscribed_tools.discard(tool_name)
+                with self._subscribed_tools_lock:
+                    self._subscribed_tools.discard(tool_name)
                 log.info(
                     "%s Unsubscribed from tool topic: %s",
                     self.log_identifier,
@@ -304,14 +305,13 @@ class SandboxWorkerComponent(SamComponentBase):
                     e,
                 )
 
-            # Also unsubscribe from init topic
             init_topic = a2a.get_sam_remote_tool_init_topic(
                 self.namespace, tool_name
             )
             try:
                 self.unsubscribe(init_topic)
             except Exception:
-                pass  # Best effort
+                pass
 
     async def _handle_message_async(self, message: SolaceMessage, topic: str) -> None:
         """
@@ -555,7 +555,8 @@ class SandboxWorkerComponent(SamComponentBase):
                 )
                 try:
                     self.unsubscribe(invoke_topic)
-                    self._subscribed_tools.discard(tool_name)
+                    with self._subscribed_tools_lock:
+                        self._subscribed_tools.discard(tool_name)
                 except Exception as unsub_e:
                     log.error(
                         "%s Failed to unsubscribe from stale topic %s: %s",
@@ -793,15 +794,4 @@ class SandboxWorkerComponent(SamComponentBase):
     def stop_component(self) -> None:
         """Clean up resources when component is stopped."""
         log.info("%s Stopping SandboxWorkerComponent...", self.log_identifier)
-
-        # Cancel any active executions
-        for exec_id in list(self._active_executions.keys()):
-            log.warning(
-                "%s Cancelling active execution: %s",
-                self.log_identifier,
-                exec_id,
-            )
-
-        self._active_executions.clear()
-
         log.info("%s SandboxWorkerComponent stopped", self.log_identifier)

@@ -14,6 +14,7 @@ Key differences from ToolContextFacade:
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -330,7 +331,7 @@ class SandboxToolContextFacade:
         Returns:
             The local file path where the artifact was saved
         """
-        file_path = self._output_dir / filename
+        file_path = self._safe_output_path(filename)
         file_path.write_bytes(content)
         log.debug("Saved output artifact: %s (%d bytes)", filename, len(content))
         return str(file_path)
@@ -366,6 +367,28 @@ class SandboxToolContextFacade:
         if not self._output_dir.exists():
             return []
         return [f.name for f in self._output_dir.iterdir() if f.is_file()]
+
+    def _safe_output_path(self, filename: str) -> Path:
+        """Validate filename and return a safe path under _output_dir.
+
+        Rejects path traversal attempts (.., absolute paths) and verifies
+        the resolved path stays within _output_dir.
+
+        Raises:
+            ValueError: If the filename is unsafe.
+        """
+        if not filename:
+            raise ValueError("Empty filename")
+
+        if ".." in filename or filename.startswith("/") or filename.startswith("\\"):
+            raise ValueError(f"Unsafe filename rejected: {filename}")
+
+        candidate = (self._output_dir / filename).resolve()
+        base_resolved = self._output_dir.resolve()
+        if not str(candidate).startswith(str(base_resolved) + os.sep) and candidate != base_resolved:
+            raise ValueError(f"Filename escapes output directory: {filename}")
+
+        return candidate
 
     def __repr__(self) -> str:
         return (
