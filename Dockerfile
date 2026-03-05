@@ -68,13 +68,15 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     ffmpeg=7:7.1.3-0+deb13u1  \
     git \
     libtasn1-6/unstable \
+    libpng16-16t64=1.6.48-1+deb13u3 \
     libssl3t64=3.5.4-1~deb13u2 \
+    libvpx9=1.15.0-2.1+deb13u1 \
     openssl=3.5.4-1~deb13u2 && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1 && \
     python3 -m venv /opt/venv && \
-    uv pip install --system hatch
+    uv pip install --system "virtualenv<21" hatch
 
 WORKDIR /app
 
@@ -158,7 +160,9 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     git \
     libatomic1 \
     libtasn1-6/unstable \
+    libpng16-16t64=1.6.48-1+deb13u3 \
     libssl3t64=3.5.4-1~deb13u2 \
+    libvpx9=1.15.0-2.1+deb13u1 \
     openssl=3.5.4-1~deb13u2 && \
     if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
         echo "============================================================" && \

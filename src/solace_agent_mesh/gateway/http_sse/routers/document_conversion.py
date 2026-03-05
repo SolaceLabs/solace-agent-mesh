@@ -64,7 +64,7 @@ class ConversionResponse(BaseModel):
     success: bool = Field(..., description="Whether conversion was successful")
     error: str | None = Field(None, description="Error message if conversion failed")
 
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
 
 
 class ConversionStatusResponse(BaseModel):

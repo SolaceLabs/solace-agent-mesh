@@ -11,63 +11,74 @@ Cache entries are keyed by content hash (SHA-256) and file extension,
 allowing the same document uploaded by different users to share the
 cached conversion.
 """
+from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
-revision = '20260222_doc_conv_cache'
-down_revision = '20260213_prompt_version_fix'
-branch_labels = None
-depends_on = None
+revision: str = '20260222_doc_conv_cache'
+down_revision: Union[str, Sequence[str], None] = '20260213_prompt_version_fix'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
-def upgrade():
+def upgrade() -> None:
     """Add document conversion cache table."""
-    
-    # Create document_conversion_cache table
-    op.create_table(
-        'document_conversion_cache',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        # Cache key components
-        sa.Column('content_hash', sa.String(64), nullable=False),  # SHA-256 hex digest
-        sa.Column('file_extension', sa.String(10), nullable=False),  # docx, pptx, etc.
-        # Original document metadata
-        sa.Column('original_size_bytes', sa.BigInteger(), nullable=False),
-        # Cached PDF data
-        sa.Column('pdf_data', sa.LargeBinary(), nullable=False),
-        sa.Column('pdf_size_bytes', sa.BigInteger(), nullable=False),
-        # Timestamps (epoch milliseconds)
-        sa.Column('created_at', sa.BigInteger(), nullable=False),
-        sa.Column('last_accessed_at', sa.BigInteger(), nullable=False),
-        # Access statistics
-        sa.Column('access_count', sa.BigInteger(), nullable=False, server_default=sa.text('1')),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    
-    # Create unique composite index for cache lookup
-    # This ensures no duplicate entries for the same content + extension
-    op.create_index(
-        'ix_doc_conv_cache_lookup',
-        'document_conversion_cache',
-        ['content_hash', 'file_extension'],
-        unique=True,
-    )
-    
-    # Create index for cleanup queries (find old entries by last_accessed_at)
-    op.create_index(
-        'ix_doc_conv_cache_cleanup',
-        'document_conversion_cache',
-        ['last_accessed_at'],
-    )
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_tables = inspector.get_table_names()
+
+    # Create document_conversion_cache table if it doesn't exist
+    if 'document_conversion_cache' not in existing_tables:
+        op.create_table(
+            'document_conversion_cache',
+            sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+            # Cache key components
+            sa.Column('content_hash', sa.String(64), nullable=False),  # SHA-256 hex digest
+            sa.Column('file_extension', sa.String(10), nullable=False),  # docx, pptx, etc.
+            # Original document metadata
+            sa.Column('original_size_bytes', sa.BigInteger(), nullable=False),
+            # Cached PDF data
+            sa.Column('pdf_data', sa.LargeBinary(), nullable=False),
+            sa.Column('pdf_size_bytes', sa.BigInteger(), nullable=False),
+            # Timestamps (epoch milliseconds)
+            sa.Column('created_at', sa.BigInteger(), nullable=False),
+            sa.Column('last_accessed_at', sa.BigInteger(), nullable=False),
+            # Access statistics
+            sa.Column('access_count', sa.BigInteger(), nullable=False, server_default=sa.text('1')),
+            sa.PrimaryKeyConstraint('id'),
+        )
+
+        # Create unique composite index for cache lookup
+        # This ensures no duplicate entries for the same content + extension
+        op.create_index(
+            'ix_doc_conv_cache_lookup',
+            'document_conversion_cache',
+            ['content_hash', 'file_extension'],
+            unique=True,
+        )
+
+        # Create index for cleanup queries (find old entries by last_accessed_at)
+        op.create_index(
+            'ix_doc_conv_cache_cleanup',
+            'document_conversion_cache',
+            ['last_accessed_at'],
+        )
 
 
-def downgrade():
+def downgrade() -> None:
     """Remove document conversion cache table."""
-    
-    # Remove indexes
-    op.drop_index('ix_doc_conv_cache_cleanup', table_name='document_conversion_cache')
-    op.drop_index('ix_doc_conv_cache_lookup', table_name='document_conversion_cache')
-    
-    # Drop table
-    op.drop_table('document_conversion_cache')
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_tables = inspector.get_table_names()
+
+    # Drop table if it exists
+    if 'document_conversion_cache' in existing_tables:
+        # Remove indexes
+        op.drop_index('ix_doc_conv_cache_cleanup', table_name='document_conversion_cache')
+        op.drop_index('ix_doc_conv_cache_lookup', table_name='document_conversion_cache')
+
+        # Drop table
+        op.drop_table('document_conversion_cache')
