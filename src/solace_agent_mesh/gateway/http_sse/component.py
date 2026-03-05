@@ -120,6 +120,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.fastapi_https_port = self.get_config("fastapi_https_port", 8443)
             self.session_secret_key = self.get_config("session_secret_key")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
+            self.cors_allowed_origin_regex = self.get_config("cors_allowed_origin_regex", "")
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
@@ -2091,6 +2092,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     def get_cors_origins(self) -> list[str]:
         return self.cors_allowed_origins
+
+    def get_cors_origin_regex(self) -> str:
+        return self.cors_allowed_origin_regex
 
     def get_shared_artifact_service(self) -> BaseArtifactService | None:
         return self.shared_artifact_service
