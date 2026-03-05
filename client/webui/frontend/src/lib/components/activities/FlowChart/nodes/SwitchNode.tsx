@@ -19,7 +19,7 @@ const SwitchNode: FC<SwitchNodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
             className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-            style={{ width: 'fit-content', minWidth: '280px' }}
+            style={{ width: "fit-content", minWidth: "280px" }}
             onClick={e => {
                 e.stopPropagation();
                 onClick?.(node);

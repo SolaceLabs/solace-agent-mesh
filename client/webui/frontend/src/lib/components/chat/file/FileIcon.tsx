@@ -152,9 +152,32 @@ export const getFileTypeIcon = (mimeType?: string, filename?: string, iconProps:
         case "woff":
         case "woff2":
             return <Type {...props} />;
+        // Code/Text files
         case "htm":
         case "html":
+        case "js":
+        case "jsx":
+        case "ts":
+        case "tsx":
+        case "py":
+        case "java":
+        case "cpp":
+        case "c":
+        case "h":
+        case "css":
+        case "scss":
+        case "sass":
+        case "json":
+        case "xml":
+        case "yaml":
+        case "yml":
             return <FileCode {...props} />;
+        // Markdown and text files
+        case "md":
+        case "markdown":
+        case "txt":
+        case "text":
+            return <FileText {...props} />;
         default:
             return null;
     }
