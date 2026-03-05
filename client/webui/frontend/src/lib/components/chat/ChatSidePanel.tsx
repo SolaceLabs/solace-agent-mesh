@@ -46,8 +46,6 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
     // Process task data for visualization when the selected activity task ID changes
     // or when monitoredTasks is updated with new data.
-    // Strategy: SSE events take precedence for real-time updates during active execution.
-    // Backend is only loaded when no SSE data exists or the task has reached a terminal state.
     useEffect(() => {
         if (!taskIdInSidePanel) {
             setVisualizedTask(null);
