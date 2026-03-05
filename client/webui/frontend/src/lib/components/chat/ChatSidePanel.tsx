@@ -78,12 +78,13 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     // Reset load attempts when task ID changes
     useEffect(() => {
         if (taskIdInSidePanel) {
+            const loadAttempted = loadAttemptedRef.current;
             // Clear the load attempt for the previous task when switching to a new one
             // This allows re-loading if the user navigates away and back
             return () => {
                 // Don't clear immediately - only clear after a delay to allow for state updates
                 setTimeout(() => {
-                    loadAttemptedRef.current.delete(taskIdInSidePanel);
+                    loadAttempted.delete(taskIdInSidePanel);
                 }, 1000);
             };
         }
