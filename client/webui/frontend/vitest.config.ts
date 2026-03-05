@@ -14,6 +14,21 @@ export default mergeConfig(
     viteConfig({ mode: "DEVELOPMENT", command: "serve" }),
     defineConfig({
         test: {
+            // Coverage configuration for SonarQube integration
+            coverage: {
+                enabled: false, // Enable via CLI with --coverage flag
+                provider: "v8",
+                reporter: ["lcov", "text", "json"],
+                reportsDirectory: "./coverage",
+                include: ["src/**/*.{ts,tsx}"],
+                exclude: [
+                    "src/**/*.test.{ts,tsx}",
+                    "src/**/*.stories.{ts,tsx}",
+                    "src/stories/**",
+                    "src/**/*.d.ts",
+                    "node_modules/**",
+                ],
+            },
             projects: [
                 {
                     extends: true,
