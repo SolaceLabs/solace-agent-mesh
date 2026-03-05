@@ -2065,6 +2065,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         startNewChatWithPrompt,
         clearPendingPrompt,
 
+        /** Builder Mode */
+        builderMode,
+        setBuilderMode,
+        inputAreaLeftSlot: undefined,
+
         /** Background Task Monitoring */
         backgroundTasks,
         backgroundNotifications,
