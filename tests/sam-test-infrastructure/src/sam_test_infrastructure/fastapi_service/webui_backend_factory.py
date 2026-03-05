@@ -73,6 +73,7 @@ class WebUIBackendFactory:
             }
         )
         mock_component.get_cors_origins.return_value = ["*"]
+        mock_component.get_cors_origin_regex.return_value = ""
         mock_session_manager = Mock(secret_key="test-secret-key")
         mock_session_manager.create_new_session_id.side_effect = (
             lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
