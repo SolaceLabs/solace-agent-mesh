@@ -372,8 +372,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 _register_enterprise_feature_flags,
             )
             _register_enterprise_feature_flags()
+            log.debug("%s Enterprise feature flags registered.", self.log_identifier)
         except ImportError:
-            pass
+            log.debug("%s Enterprise feature flags not available.", self.log_identifier)
 
         log.info(
             "%s Feature checker initialised (%d flags).",
