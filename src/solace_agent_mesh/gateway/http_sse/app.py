@@ -62,6 +62,13 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "List of allowed origins for CORS requests.",
         },
         {
+            "name": "cors_allowed_origin_regex",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "Regex pattern for allowed CORS origins. Useful for local development with dynamic ports.",
+        },
+        {
             "name": "sse_max_queue_size",
             "required": False,
             "type": "integer",
