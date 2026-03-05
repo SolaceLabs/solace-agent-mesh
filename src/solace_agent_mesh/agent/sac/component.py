@@ -154,6 +154,7 @@ class SamAgentComponent(SamComponentBase):
         self._sandbox_executors = []
         # Targeted routing: correlation_id → executor for direct dispatch
         self._sandbox_correlation_map: Dict[str, Any] = {}
+        self._sandbox_correlation_lock = threading.Lock()
         try:
             self.namespace = self.get_config("namespace")
             if not self.namespace:
@@ -520,15 +521,18 @@ class SamAgentComponent(SamComponentBase):
 
     def register_sandbox_correlation(self, correlation_id: str, executor) -> None:
         """Register a correlation_id → executor mapping for targeted response routing."""
-        self._sandbox_correlation_map[correlation_id] = executor
+        with self._sandbox_correlation_lock:
+            self._sandbox_correlation_map[correlation_id] = executor
 
     def unregister_sandbox_correlation(self, correlation_id: str) -> None:
         """Remove a correlation_id mapping after the request is complete."""
-        self._sandbox_correlation_map.pop(correlation_id, None)
+        with self._sandbox_correlation_lock:
+            self._sandbox_correlation_map.pop(correlation_id, None)
 
     def handle_sandbox_response(self, correlation_id: str, payload: Dict) -> None:
         """Route a sandbox response to the executor that made the request."""
-        executor = self._sandbox_correlation_map.get(correlation_id)
+        with self._sandbox_correlation_lock:
+            executor = self._sandbox_correlation_map.get(correlation_id)
         if executor:
             log.debug(
                 "%s Routing sandbox response directly: correlation_id=%s",
@@ -545,7 +549,8 @@ class SamAgentComponent(SamComponentBase):
 
     def handle_sandbox_status(self, correlation_id: str, status_text: str) -> None:
         """Route a sandbox status update to the executor that made the request."""
-        executor = self._sandbox_correlation_map.get(correlation_id)
+        with self._sandbox_correlation_lock:
+            executor = self._sandbox_correlation_map.get(correlation_id)
         if executor:
             executor.handle_status(correlation_id, status_text)
         else:
