@@ -202,7 +202,7 @@ class TestConvertToPdfEndpoint:
             result = await convert_to_pdf(
                 request=valid_request,
                 user_id="test-user-123",
-                user_config={"tool:artifact:load": True},
+                _={"tool:artifact:load": True},
             )
             
             assert isinstance(result, ConversionResponse)
@@ -221,7 +221,7 @@ class TestConvertToPdfEndpoint:
                 await convert_to_pdf(
                     request=valid_request,
                     user_id="test-user-123",
-                    user_config={"tool:artifact:load": True},
+                    _={"tool:artifact:load": True},
                 )
             
             assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -244,7 +244,7 @@ class TestConvertToPdfEndpoint:
                 await convert_to_pdf(
                     request=unsupported_request,
                     user_id="test-user-123",
-                    user_config={"tool:artifact:load": True},
+                    _={"tool:artifact:load": True},
                 )
             
             assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
@@ -263,7 +263,7 @@ class TestConvertToPdfEndpoint:
                 await convert_to_pdf(
                     request=invalid_request,
                     user_id="test-user-123",
-                    user_config={"tool:artifact:load": True},
+                    _={"tool:artifact:load": True},
                 )
             
             assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
@@ -278,7 +278,7 @@ class TestConvertToPdfEndpoint:
             result = await convert_to_pdf(
                 request=valid_request,
                 user_id="test-user-123",
-                user_config={"tool:artifact:load": True},
+                _={"tool:artifact:load": True},
             )
             
             assert isinstance(result, ConversionResponse)
@@ -297,7 +297,7 @@ class TestConvertToPdfEndpoint:
                 await convert_to_pdf(
                     request=valid_request,
                     user_id="test-user-123",
-                    user_config={"tool:artifact:load": True},
+                    _={"tool:artifact:load": True},
                 )
             
             assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -331,7 +331,7 @@ class TestConvertToPdfEndpoint:
                 result = await convert_to_pdf(
                     request=request,
                     user_id="test-user-123",
-                    user_config={"tool:artifact:load": True},
+                    _={"tool:artifact:load": True},
                 )
                 
                 assert result.success is True, f"Failed for format: {filename}"
@@ -347,7 +347,7 @@ class TestConvertToPdfEndpoint:
                 await convert_to_pdf(
                     request=valid_request,
                     user_id="test-user-123",
-                    user_config={"tool:artifact:load": True},
+                    _={"tool:artifact:load": True},
                 )
                 
                 # Verify logging was called with user information
@@ -381,7 +381,7 @@ class TestConvertToPdfEndpointSecurity:
             result = await convert_to_pdf(
                 request=request,
                 user_id="valid-user",
-                user_config={"tool:artifact:load": True},
+                _={"tool:artifact:load": True},
             )
             assert result.success is True
 
@@ -398,7 +398,7 @@ class TestConvertToPdfEndpointSecurity:
             result = await convert_to_pdf(
                 request=request,
                 user_id="test-user",
-                user_config={"tool:artifact:load": True, "other:permission": False},
+                _={"tool:artifact:load": True, "other:permission": False},
             )
             assert result is not None
 
@@ -456,7 +456,7 @@ class TestConversionRequestEdgeCases:
             result = await convert_to_pdf(
                 request=request,
                 user_id="test-user",
-                user_config={"tool:artifact:load": True},
+                _={"tool:artifact:load": True},
             )
             assert result is not None
 
@@ -472,7 +472,7 @@ class TestConversionRequestEdgeCases:
                 await convert_to_pdf(
                     request=request,
                     user_id="test-user",
-                    user_config={"tool:artifact:load": True},
+                    _={"tool:artifact:load": True},
                 )
             
             # Router enforces 5MB limit with HTTP 413
@@ -490,7 +490,7 @@ class TestConversionRequestEdgeCases:
             result = await convert_to_pdf(
                 request=request,
                 user_id="test-user",
-                user_config={"tool:artifact:load": True},
+                _={"tool:artifact:load": True},
             )
             # Should work - service handles path extraction
             assert result is not None
@@ -508,7 +508,7 @@ class TestConversionRequestEdgeCases:
             result = await convert_to_pdf(
                 request=request,
                 user_id="test-user",
-                user_config={"tool:artifact:load": True},
+                _={"tool:artifact:load": True},
             )
             assert result is not None
 
@@ -525,6 +525,6 @@ class TestConversionRequestEdgeCases:
             result = await convert_to_pdf(
                 request=request,
                 user_id="test-user",
-                user_config={"tool:artifact:load": True},
+                _={"tool:artifact:load": True},
             )
             assert result is not None
