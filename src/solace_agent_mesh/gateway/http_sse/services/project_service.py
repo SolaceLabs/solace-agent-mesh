@@ -17,6 +17,7 @@ from ....agent.utils.artifact_helpers import (
     is_internal_artifact,
     save_artifact_with_metadata,
 )
+from ....common.utils.mime_helpers import resolve_mime_type
 from ...constants import (
     DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
@@ -609,6 +610,7 @@ class ProjectService:
         results = []
 
         for file, content_bytes in validated_files:
+            mime_type = resolve_mime_type(file.filename, file.content_type)
             metadata = {"source": "project"}
             desc = file_metadata.get(file.filename) if file_metadata else None
             if desc:
@@ -617,7 +619,7 @@ class ProjectService:
             # Add line-range citations for text-based files
             # This provides granular location info similar to page numbers for PDFs
             # Generate citations regardless of indexing_enabled (they're just metadata)
-            if self._is_text_file(file.content_type, file.filename):
+            if self._is_text_file(mime_type, file.filename):
                 try:
                     # Decode text content
                     text_content = content_bytes.decode('utf-8', errors='ignore')
@@ -643,7 +645,7 @@ class ProjectService:
                 session_id=storage_session_id,
                 filename=file.filename,
                 content_bytes=content_bytes,
-                mime_type=file.content_type,
+                mime_type=mime_type,
                 metadata_dict=metadata,
                 timestamp=datetime.now(timezone.utc),
             )
@@ -664,7 +666,7 @@ class ProjectService:
 
         for idx, (file, content_bytes) in enumerate(validated_files):
             filename = file.filename
-            mime_type = file.content_type
+            mime_type = resolve_mime_type(filename, file.content_type)
             file_version = results[idx]["data_version"]
 
             if self._should_convert_file(mime_type, filename):
