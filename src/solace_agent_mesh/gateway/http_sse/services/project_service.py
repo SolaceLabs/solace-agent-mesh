@@ -1286,17 +1286,22 @@ class ProjectService:
                                 self.logger.warning(f"{log_prefix} {skip_msg}")
                                 warnings.append(skip_msg)
                                 continue  # Skip this artifact, continue with others
-                            
+
                             # Find metadata from project.json
                             artifact_meta = next(
                                 (a for a in project_data.get('artifacts', [])
                                  if a['filename'] == filename),
                                 None
                             )
-                            
+
                             metadata = artifact_meta.get('metadata', {}) if artifact_meta else {}
                             mime_type = artifact_meta.get('mimeType', 'application/octet-stream') if artifact_meta else 'application/octet-stream'
-                            
+
+                            # Remap source project fields to the newly created project
+                            if metadata.get("source") == "project":
+                                metadata["source_project_id"] = project.id
+                                metadata["source_project_name"] = project.name
+
                             # Save artifact
                             from ....agent.utils.artifact_helpers import save_artifact_with_metadata
                             await save_artifact_with_metadata(
