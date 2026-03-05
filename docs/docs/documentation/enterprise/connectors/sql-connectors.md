@@ -116,7 +116,7 @@ Controls TLS encryption for data in transit between the connector and SQL Server
 | **Disabled** | No TLS encryption. |
 | **Strict** | Enforces TLS encryption and always validates the server certificate. The `Trust Server Certificate` setting is ignored when strict mode is active. |
 
-**Trust Server Certificate** *(MSSQL only)
+**Trust Server Certificate** *(MSSQL only)*
 
 Controls whether the connector validates the SQL Server's TLS certificate (expiry, trust chain, and server name match). This field appears only when **Encryption (TLS)** is set to **Enabled**.
 
