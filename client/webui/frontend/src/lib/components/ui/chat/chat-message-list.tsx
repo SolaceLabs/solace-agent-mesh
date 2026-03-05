@@ -31,6 +31,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
                 ref={scrollRef}
                 onWheel={disableAutoScroll}
                 onTouchMove={disableAutoScroll}
+                data-testid="chatContentArea"
                 {...props}
                 style={{
                     scrollBehavior: "smooth",
