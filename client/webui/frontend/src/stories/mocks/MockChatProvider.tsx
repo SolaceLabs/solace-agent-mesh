@@ -111,6 +111,8 @@ const defaultMockChatContext: DefaultMockContextType = {
     startNewChatWithPrompt: async () => {},
     clearPendingPrompt: () => {},
     isTaskRunningInBackground: () => false,
+    builderMode: false,
+    setBuilderMode: () => {},
 };
 
 interface MockChatProviderProps {

@@ -67,6 +67,11 @@ export interface ChatState {
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
     // Pending prompt for starting new chat
     pendingPrompt: PendingPromptData | null;
+    // Builder Mode
+    /** Whether the chat is in builder mode (hides agent selector, auto-selects builder agent) */
+    builderMode: boolean;
+    /** Optional ReactNode rendered in the input area's left button bar (used for builder mode toggle) */
+    inputAreaLeftSlot?: React.ReactNode;
     // Background Task Monitoring State
     backgroundTasks: BackgroundTaskState[];
     backgroundNotifications: BackgroundTaskNotification[];
@@ -120,6 +125,9 @@ export interface ChatActions {
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
 
     displayError: ({ title, error }: { title: string; error: string }) => void;
+
+    /** Builder Mode Actions */
+    setBuilderMode: React.Dispatch<React.SetStateAction<boolean>>;
 
     /** Background Task Monitoring Actions */
     isTaskRunningInBackground: (taskId: string) => boolean;

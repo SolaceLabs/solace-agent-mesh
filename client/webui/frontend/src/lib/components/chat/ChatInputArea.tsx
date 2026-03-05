@@ -53,7 +53,7 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt, builderMode, inputAreaLeftSlot } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -979,7 +979,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     <Paperclip className="size-4" />
                 </Button>
 
-                {!isOnboardMode && (
+                {/* Extension slot for builder mode toggle or other controls */}
+                {inputAreaLeftSlot}
+
+                {!isOnboardMode && !builderMode && (
                     <>
                         <div>Agent: </div>
                         <Select

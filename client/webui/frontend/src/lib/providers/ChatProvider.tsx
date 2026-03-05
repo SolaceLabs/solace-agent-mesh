@@ -142,6 +142,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<string>("files");
 
+    // Builder Mode
+    const [builderMode, setBuilderMode] = useState<boolean>(false);
+
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
 
@@ -2953,6 +2956,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         pendingPrompt,
         startNewChatWithPrompt,
         clearPendingPrompt,
+
+        /** Builder Mode */
+        builderMode,
+        setBuilderMode,
+        inputAreaLeftSlot: undefined,
 
         /** Background Task Monitoring */
         backgroundTasks,
