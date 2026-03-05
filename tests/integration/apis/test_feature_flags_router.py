@@ -43,33 +43,33 @@ class TestGetFeatureFlagsEndpoint:
             assert isinstance(flag["registry_default"], bool)
 
     def test_community_yaml_flag_is_present(self, api_client: TestClient):
-        """The background_tasks flag from community features.yaml is present."""
+        """The mentions flag from community features.yaml is present."""
         response = api_client.get("/api/v1/config/features")
         keys = [f["key"] for f in response.json()]
-        assert "background_tasks" in keys
+        assert "mentions" in keys
 
-    def test_background_tasks_flag_fields(self, api_client: TestClient):
-        """background_tasks must have the expected metadata values."""
+    def test_mentions_flag_fields(self, api_client: TestClient):
+        """mentions must have the expected metadata values."""
         response = api_client.get("/api/v1/config/features")
         flag = next(
-            f for f in response.json() if f["key"] == "background_tasks"
+            f for f in response.json() if f["key"] == "mentions"
         )
-        assert flag["release_phase"] == "ga"
+        assert flag["release_phase"] == "beta"
         assert flag["registry_default"] is False
 
     def test_no_env_override_by_default(self, api_client: TestClient, monkeypatch):
         """Without env vars set, has_env_override is False for every flag."""
-        monkeypatch.delenv("SAM_FEATURE_BACKGROUND_TASKS", raising=False)
+        monkeypatch.delenv("SAM_FEATURE_MENTIONS", raising=False)
         response = api_client.get("/api/v1/config/features")
         for flag in response.json():
             assert flag["has_env_override"] is False
 
     def test_env_override_detected(self, api_client: TestClient, monkeypatch):
         """Setting SAM_FEATURE_<KEY> must flip has_env_override to True."""
-        monkeypatch.setenv("SAM_FEATURE_BACKGROUND_TASKS", "true")
+        monkeypatch.setenv("SAM_FEATURE_MENTIONS", "true")
         response = api_client.get("/api/v1/config/features")
         flag = next(
-            f for f in response.json() if f["key"] == "background_tasks"
+            f for f in response.json() if f["key"] == "mentions"
         )
         assert flag["has_env_override"] is True
         assert flag["resolved"] is True
@@ -78,10 +78,10 @@ class TestGetFeatureFlagsEndpoint:
         self, api_client: TestClient, monkeypatch
     ):
         """SAM_FEATURE_<KEY>=false: has_env_override True, resolved False."""
-        monkeypatch.setenv("SAM_FEATURE_BACKGROUND_TASKS", "false")
+        monkeypatch.setenv("SAM_FEATURE_MENTIONS", "false")
         response = api_client.get("/api/v1/config/features")
         flag = next(
-            f for f in response.json() if f["key"] == "background_tasks"
+            f for f in response.json() if f["key"] == "mentions"
         )
         assert flag["has_env_override"] is True
         assert flag["resolved"] is False
