@@ -265,14 +265,18 @@ def setup_dependencies(component: "WebUIBackendComponent"):
 
 def _setup_middleware(component: "WebUIBackendComponent") -> None:
     allowed_origins = component.get_cors_origins()
+    cors_origin_regex = component.get_cors_origin_regex()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
+        allow_origin_regex=cors_origin_regex if cors_origin_regex else None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     log.info("CORSMiddleware added with origins: %s", allowed_origins)
+    if cors_origin_regex:
+        log.info("CORS origin regex pattern: %s", cors_origin_regex)
 
     session_manager = component.get_session_manager()
     app.add_middleware(SessionMiddleware, secret_key=session_manager.secret_key)
