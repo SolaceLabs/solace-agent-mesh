@@ -26,6 +26,11 @@ interface ConversionResponse {
 // Request timeout in milliseconds (30 seconds)
 const REQUEST_TIMEOUT_MS = 30000;
 
+// Retry configuration for rate-limited responses
+const RETRY_MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 2000; // 2s base, doubles each attempt for 503
+const RETRY_USER_LOCK_DELAY_MS = 3000; // fixed 3s for 429 (user's own lock)
+
 // LRU Cache for converted PDFs to avoid re-converting on tab switches
 // Key: hash of content + filename, Value: PDF data URL
 // Limited to prevent unbounded memory growth
@@ -154,11 +159,21 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
  * - Caches converted PDFs to avoid re-conversion on tab switches
  * - Adds request timeout to prevent hung requests
  */
+/** Error subclass that carries the HTTP status code for retry decisions. */
+class ConversionHttpError extends Error {
+    readonly status: number;
+    constructor(status: number, message: string) {
+        super(message);
+        this.name = "ConversionHttpError";
+        this.status = status;
+    }
+}
+
 export function OfficeDocumentRenderer({ content, filename, documentType, setRenderError }: OfficeDocumentRendererProps) {
     const config = useContext(ConfigContext);
 
-    // Conversion state machine: 'idle' | 'checking' | 'converting' | 'success' | 'error'
-    const [conversionState, setConversionState] = useState<"idle" | "checking" | "converting" | "success" | "error">("idle");
+    // Conversion state machine: 'idle' | 'checking' | 'converting' | 'waiting' | 'success' | 'error'
+    const [conversionState, setConversionState] = useState<"idle" | "checking" | "converting" | "waiting" | "success" | "error">("idle");
     const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -200,52 +215,106 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
         [documentType]
     );
 
-    // Convert document to PDF
-    const convertToPdf = useCallback(
-        async (signal: AbortSignal): Promise<string | null> => {
-            try {
-                const response = await fetchWithTimeout(
-                    "/api/v1/document-conversion/to-pdf",
-                    {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            content: content,
-                            filename: filename,
-                        }),
-                    },
-                    REQUEST_TIMEOUT_MS,
-                    signal
-                );
+    /**
+     * Attempt a single conversion request.
+     * Throws ConversionHttpError (with .status) for HTTP errors so the caller
+     * can decide whether to retry.
+     */
+    const attemptConversion = useCallback(
+        async (signal: AbortSignal): Promise<string> => {
+            const response = await fetchWithTimeout(
+                "/api/v1/document-conversion/to-pdf",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ content, filename }),
+                },
+                REQUEST_TIMEOUT_MS,
+                signal
+            );
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error("Document conversion failed:", response.status, errorText);
-                    throw new Error(`Conversion failed: ${response.status}`);
+            if (!response.ok) {
+                let userMessage: string;
+                try {
+                    const errorBody = await response.json();
+                    const detail = errorBody?.detail as string | undefined;
+                    if (response.status === 503) {
+                        userMessage = detail || "Server is busy. Please try again in a moment.";
+                    } else if (response.status === 429) {
+                        userMessage = detail || "A conversion is already in progress. Please wait and try again.";
+                    } else if (response.status === 413) {
+                        userMessage = detail || "Document is too large to convert.";
+                    } else {
+                        userMessage = detail || `Conversion failed (${response.status}).`;
+                    }
+                } catch {
+                    userMessage = `Conversion failed (${response.status}).`;
                 }
-
-                const data: ConversionResponse = await response.json();
-
-                // Accept both camelCase (pdfContent) and snake_case (pdf_content) from backend
-                // Pydantic may return either depending on serialize_by_alias config
-                const pdfBase64 = data.pdfContent || data.pdf_content;
-
-                if (!data.success || !pdfBase64) {
-                    throw new Error(data.error || "Conversion returned no content");
-                }
-
-                // Create a data URL for the PDF content
-                return `data:application/pdf;base64,${pdfBase64}`;
-            } catch (err) {
-                // Don't log abort errors
-                if (err instanceof Error && err.name === "AbortError") {
-                    throw err;
-                }
-                console.error("Failed to convert document to PDF:", err);
-                throw err;
+                console.error("Document conversion failed:", response.status, userMessage);
+                throw new ConversionHttpError(response.status, userMessage);
             }
+
+            const data: ConversionResponse = await response.json();
+            const pdfBase64 = data.pdfContent || data.pdf_content;
+
+            if (!data.success || !pdfBase64) {
+                throw new Error(data.error || "Conversion returned no content");
+            }
+
+            return `data:application/pdf;base64,${pdfBase64}`;
         },
         [content, filename]
+    );
+
+    /**
+     * Convert document to PDF with automatic retry on rate-limit responses.
+     * - 503 (global capacity full): exponential backoff, up to RETRY_MAX_ATTEMPTS
+     * - 429 (user already converting): fixed delay, up to RETRY_MAX_ATTEMPTS
+     * - Other errors: fail immediately
+     */
+    const convertToPdf = useCallback(
+        async (signal: AbortSignal, onWaiting: () => void): Promise<string | null> => {
+            let lastError: Error | null = null;
+
+            for (let attempt = 0; attempt <= RETRY_MAX_ATTEMPTS; attempt++) {
+                if (signal.aborted) return null;
+
+                try {
+                    return await attemptConversion(signal);
+                } catch (err) {
+                    if (err instanceof Error && err.name === "AbortError") throw err;
+                    if (signal.aborted) return null;
+
+                    if (err instanceof ConversionHttpError && (err.status === 503 || err.status === 429)) {
+                        lastError = err;
+
+                        if (attempt < RETRY_MAX_ATTEMPTS) {
+                            const delayMs = err.status === 429 ? RETRY_USER_LOCK_DELAY_MS : RETRY_BASE_DELAY_MS * Math.pow(2, attempt); // 2s, 4s, 8s
+
+                            console.log(`[OfficeDocumentRenderer] Rate limited (${err.status}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${RETRY_MAX_ATTEMPTS})`);
+                            onWaiting();
+
+                            await new Promise<void>((resolve, reject) => {
+                                const timer = setTimeout(resolve, delayMs);
+                                signal.addEventListener("abort", () => {
+                                    clearTimeout(timer);
+                                    reject(new DOMException("Aborted", "AbortError"));
+                                });
+                            });
+                            continue;
+                        }
+                        // Exhausted retries — fall through to throw
+                    }
+
+                    // Non-retryable error or retries exhausted
+                    throw err;
+                }
+            }
+
+            // Should not reach here, but satisfy TypeScript
+            throw lastError ?? new Error("Conversion failed after retries.");
+        },
+        [attemptConversion]
     );
 
     // Main effect to check service and convert
@@ -304,11 +373,13 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
                     return;
                 }
 
-                // Try to convert to PDF
+                // Try to convert to PDF (with automatic retry on rate limits)
                 setConversionState("converting");
 
                 try {
-                    const pdfUrl = await convertToPdf(signal);
+                    const pdfUrl = await convertToPdf(signal, () => {
+                        if (!signal.aborted) setConversionState("waiting");
+                    });
 
                     // Check if aborted
                     if (signal.aborted) return;
@@ -367,13 +438,14 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
         }
     }, [error, setRenderError]);
 
-    // Loading state while checking service or converting
-    if (conversionState === "checking" || conversionState === "converting") {
+    // Loading state while checking service, converting, or waiting to retry
+    if (conversionState === "checking" || conversionState === "converting" || conversionState === "waiting") {
+        const loadingMessage = conversionState === "waiting" ? "Processing preview, please wait..." : "Processing...";
         return (
             <div className="flex h-64 flex-col items-center justify-center space-y-4 text-center">
                 <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
                 <div>
-                    <p className="text-muted-foreground">{conversionState === "checking" ? "Checking service availability..." : "Converting document to PDF..."}</p>
+                    <p className="text-muted-foreground">{loadingMessage}</p>
                 </div>
             </div>
         );
