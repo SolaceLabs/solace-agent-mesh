@@ -1,5 +1,3 @@
-import React from "react";
-
 import { AudioRenderer, CsvRenderer, HtmlRenderer, ImageRenderer, MarkdownRenderer, MermaidRenderer, OfficeDocumentRenderer, PdfRenderer, StructuredDataRenderer, TextRenderer } from "./Renderers";
 import type { RAGSearchResult } from "@/lib/types";
 
@@ -14,7 +12,7 @@ interface ContentRendererProps {
     ragData?: RAGSearchResult;
 }
 
-export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData }) => {
+export function ContentRenderer({ content, rendererType, mime_type, url, filename, setRenderError, isStreaming, ragData }: ContentRendererProps) {
     switch (rendererType) {
         case "csv":
             return <CsvRenderer content={content} setRenderError={setRenderError} />;
@@ -45,4 +43,4 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rende
         default:
             return <TextRenderer content={content} setRenderError={setRenderError} isStreaming={isStreaming} />;
     }
-};
+}

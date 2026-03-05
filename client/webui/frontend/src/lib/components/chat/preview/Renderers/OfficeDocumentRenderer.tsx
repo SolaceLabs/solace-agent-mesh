@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
+import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { FileType, Loader2, Download } from "lucide-react";
 import PdfRenderer from "./PdfRenderer";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
@@ -154,7 +154,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
  * - Caches converted PDFs to avoid re-conversion on tab switches
  * - Adds request timeout to prevent hung requests
  */
-export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ content, filename, documentType, setRenderError }) => {
+export function OfficeDocumentRenderer({ content, filename, documentType, setRenderError }: OfficeDocumentRendererProps) {
     const config = useContext(ConfigContext);
 
     // Conversion state machine: 'idle' | 'checking' | 'converting' | 'success' | 'error'
@@ -399,6 +399,6 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
             </div>
         </div>
     );
-};
+}
 
 export default OfficeDocumentRenderer;

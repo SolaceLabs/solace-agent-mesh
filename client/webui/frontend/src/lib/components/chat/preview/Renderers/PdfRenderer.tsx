@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+import { Button } from "@/lib/components/ui/button";
 import { api } from "@/lib/api";
 // Use ?url import so Vite emits the worker as a tracked static asset with a
 // content-hashed filename when building the app.
@@ -55,7 +55,7 @@ type InteractionMode = "text" | "pan" | "snip";
 const PDF_BLOB_CACHE_MAX = 10;
 const pdfBlobCache = new Map<string, string>();
 
-const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, highlightTexts = [], citationMaps = [] }) => {
+export function PdfRenderer({ url, filename, initialPage, highlightTexts = [], citationMaps = [] }: PdfRendererProps) {
     // pdfOptions for react-pdf — no auth headers needed since we fetch via
     // the api client and pass a blob URL instead of the raw API URL.
     const pdfOptions = useMemo(() => ({ withCredentials: false }), []);
@@ -582,53 +582,34 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
         <div className="flex h-full flex-col overflow-auto bg-gray-100 p-4 dark:bg-gray-800">
             <div className="mb-2 flex items-center justify-center">
                 <div className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:bg-gray-700/80">
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button onClick={zoomOut} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
-                                <ZoomOut className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>Zoom Out</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button onClick={zoomIn} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
-                                <ZoomIn className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>Zoom In</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button onClick={fitToPage} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
-                                <ScanLine className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>Fit to Width</TooltipContent>
-                    </Tooltip>
+                    <Button variant="ghost" size="icon" onClick={zoomOut} tooltip="Zoom Out">
+                        <ZoomOut className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={zoomIn} tooltip="Zoom In">
+                        <ZoomIn className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={fitToPage} tooltip="Fit to Width">
+                        <ScanLine className="h-4 w-4" />
+                    </Button>
                     <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
-                                className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                            >
-                                <Hand className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
-                                className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                            >
-                                <Scissors className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}</TooltipContent>
-                    </Tooltip>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
+                        tooltip={interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}
+                        className={interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : ""}
+                    >
+                        <Hand className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
+                        tooltip={interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}
+                        className={interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : ""}
+                    >
+                        <Scissors className="h-4 w-4" />
+                    </Button>
                     {/* Show status indicator */}
                     {interactionMode === "snip" && snipStatus !== "idle" && (
                         <div
@@ -701,6 +682,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, h
             </div>
         </div>
     );
-};
+}
 
 export default PdfRenderer;
