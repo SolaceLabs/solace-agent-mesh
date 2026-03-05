@@ -9,10 +9,10 @@ import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
 
-const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-[--color-background-w100]"], {
+const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-[var(--color-background-w100)]"], {
     variants: {
         active: {
-            true: "bg-[--color-background-w100]",
+            true: "bg-[var(--color-background-w100)]",
             false: "",
         },
     },
@@ -22,8 +22,8 @@ const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "it
 const sessionTextStyles = cva(["block", "truncate", "text-sm", "transition-opacity", "duration-300"], {
     variants: {
         active: {
-            true: "text-[--color-primary-text-w10]",
-            false: "text-[--color-secondary-text-w50]",
+            true: "text-[var(--color-primary-text-w10)]",
+            false: "text-[var(--color-secondary-text-w50)]",
         },
         animation: {
             pulseGenerate: "animate-pulse-slow",
@@ -124,7 +124,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
             <div className="flex flex-col py-2">
                 {[...Array(3)].map((_, i) => (
                     <div key={i} className="flex h-10 items-center pl-6">
-                        <span className="animate-pulse-slow text-sm text-[--color-secondary-text-w50]">Loading...</span>
+                        <span className="animate-pulse-slow text-sm text-[var(--color-secondary-text-w50)]">Loading...</span>
                     </div>
                 ))}
             </div>
