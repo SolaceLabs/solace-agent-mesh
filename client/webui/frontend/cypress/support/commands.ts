@@ -19,7 +19,7 @@ declare global {
             navigateToChat(): Chainable;
             navigateToAgents(): Chainable;
             navigateToWorkflows(): Chainable;
-            ensurePanelExpanded(): Chainable;
+            ensureChatPanelExpanded(): Chainable;
         }
         interface SuiteConfigOverrides {
             tags?: string[];
@@ -69,7 +69,7 @@ Cypress.Commands.add("navigateToWorkflows", () => {
  * If the panel is collapsed, clicks the expand button and waits for expansion.
  * If already expanded, does nothing.
  */
-Cypress.Commands.add("ensurePanelExpanded", () => {
+Cypress.Commands.add("ensureChatPanelExpanded", () => {
     cy.get("body").then($body => {
         if ($body.find('[data-testid="expandPanel"]').length > 0) {
             cy.log("Panel is collapsed, expanding it");

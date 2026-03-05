@@ -48,7 +48,7 @@ describe.skip("Projects - File Upload and Indexing", { tags: ["@rc"] }, () => {
 
         cy.findByTestId("chat-input").should("be.visible").type("What information is available about the indexing feature?{enter}");
 
-        cy.ensurePanelExpanded();
+        cy.ensureChatPanelExpanded();
 
         cy.contains("button", "Activity", { timeout: 30000 }).should("be.visible");
 
