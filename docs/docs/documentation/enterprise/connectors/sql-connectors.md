@@ -3,10 +3,6 @@ title: SQL Connectors
 sidebar_position: 4
 ---
 
-:::info Coming Soon
-Microsoft SQL Server and Oracle connector support will be available in an upcoming release.
-:::
-
 SQL connectors allow agents to query and analyze database information using natural language.
 
 ## Overview
