@@ -20,7 +20,7 @@ jobs:
           ref: feat/check-external-contributor
 
       - name: Check External Contributor
-        uses: ./workflows-repo/.github/actions/check-external-contributor
+        uses: ./workflows-repo/check-external-contributor
         with:
           github_team_slug: solace-ai
           label_name: external contributor
