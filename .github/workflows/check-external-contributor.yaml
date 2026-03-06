@@ -2,7 +2,7 @@ name: Check External Contributor
 
 on:
   pull_request_target:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize]
 
 jobs:
   check-external-contributor:
