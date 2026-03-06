@@ -4017,7 +4017,7 @@ class SamAgentComponent(SamComponentBase):
             },
             "config": {
                 "gateway_max_artifact_resolve_size_bytes": self.get_config(
-                    "tool_output_llm_return_max_bytes", 4096
+                    "tool_output_llm_return_max_bytes", 32768
                 ),
                 "gateway_recursive_embed_depth": self.get_config(
                     "gateway_recursive_embed_depth", 12

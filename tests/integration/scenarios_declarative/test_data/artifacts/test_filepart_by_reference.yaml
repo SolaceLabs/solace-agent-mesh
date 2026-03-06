@@ -1,9 +1,14 @@
 test_case_id: "artifact_by_reference_success_001"
-description: "Tests that a referenced file (FileWithUri) is correctly processed by the agent."
-tags: ["all", "common"]
+description: "Tests that a referenced file (FileWithUri) is correctly processed by the agent. Note: With PR #1106, LLM return limits increased from 4KB to 32KB, which may affect internal LLM call patterns."
+tags: ["all", "common", "artifact", "reference"]
 skip_intermediate_events: true
+pr_1106_note: "This test was updated to account for increased LLM return limits. The test framework now allows a ±50% tolerance in LLM call counts for artifact scenarios."
 
-setup_artifacts:
+description: "Tests that a referenced file (FileWithUri) is correctly processed by the agent. Note: With PR #1106, LLM return limits increased from 4KB to 32KB, which may affect internal LLM call patterns."
+tags: ["all", "common", "artifact", "reference"]
+skip_intermediate_events: true
+pr_1106_note: "This test was updated to account for increased LLM return limits. The test framework now allows a ±50% tolerance in LLM call counts for artifact scenarios."
+
   - filename: "user:company_profile.txt"
     content: "This is the company profile."
     mime_type: "text/plain"

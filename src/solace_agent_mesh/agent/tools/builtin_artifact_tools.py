@@ -720,7 +720,7 @@ async def extract_content_from_artifact(
             "tool_output_save_threshold_bytes", 2048
         )
         llm_max_bytes = host_component.get_config(
-            "tool_output_llm_return_max_bytes", 4096
+            "tool_output_llm_return_max_bytes", 32768
         )
         extraction_config = host_component.get_config(
             "extract_content_from_artifact_config", {}
