@@ -82,7 +82,7 @@ class TaskContextManager:
         """
         with self._lock:
             return [
-                (tid, ctx)
+                (tid, ctx.copy())
                 for tid, ctx in self._contexts.items()
                 if predicate(tid, ctx)
             ]
