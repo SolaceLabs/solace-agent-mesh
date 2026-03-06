@@ -62,7 +62,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         onCollapseChange?.(value);
     };
 
-    const [internalActiveItem, setInternalActiveItem] = useState<string>("chats");
+    const [internalActiveItem, setInternalActiveItem] = useState<string>("");
     const activeItem = controlledActiveItemId ?? internalActiveItem;
     const setActiveItem = (value: string) => {
         if (controlledActiveItemId === undefined) {
@@ -122,7 +122,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                 }
             });
         } else {
-            setInternalActiveItem("chats");
+            setInternalActiveItem("");
         }
     }, [location.pathname, items, controlledActiveItemId, findActiveItemId]);
 
@@ -225,8 +225,8 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button onClick={handleNewChatClickResolved} className={navButtonStyles({ variant: "collapsed" })}>
-                                        <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
-                                            <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
+                                        <div className={iconWrapperStyles({ active: false })}>
+                                            <NewChatIcon className={iconStyles({ active: false })} />
                                         </div>
                                     </button>
                                 </TooltipTrigger>
@@ -302,10 +302,10 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     <div className="flex-shrink-0 py-3">
                         {showNewChatButton && (
                             <button onClick={handleNewChatClickResolved} className={navButtonStyles()}>
-                                <div className={iconWrapperStyles({ active: activeItem === "chats", withMargin: true })}>
-                                    <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
+                                <div className={iconWrapperStyles({ active: false, withMargin: true })}>
+                                    <NewChatIcon className={iconStyles({ active: false })} />
                                 </div>
-                                <span className={navTextStyles({ active: activeItem === "chats" })}>{newChatLabel}</span>
+                                <span className={navTextStyles({ active: false })}>{newChatLabel}</span>
                             </button>
                         )}
 
