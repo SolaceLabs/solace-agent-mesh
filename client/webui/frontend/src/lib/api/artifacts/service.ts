@@ -29,6 +29,25 @@ export async function getArtifactContent(projectId: string, filename: string): P
  * @throws Error if fetch fails or response is not ok
  */
 export async function fetchPdfBlob(url: string): Promise<string> {
+    // Handle data URLs directly - convert to blob URL without HTTP fetch
+    // PDF.js cannot handle data: URLs directly; we must convert to blob URL
+    if (url.startsWith("data:")) {
+        try {
+            const [header, base64Data] = url.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/pdf";
+            const binaryString = atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: mimeType });
+            return URL.createObjectURL(blob);
+        } catch (e) {
+            throw new Error(`Failed to decode data URL: ${e instanceof Error ? e.message : String(e)}`);
+        }
+    }
+
     const response = await api.webui.get(url, { fullResponse: true });
     if (!response.ok) {
         throw new Error(`Failed to fetch PDF: ${response.statusText}`);
