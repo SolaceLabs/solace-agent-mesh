@@ -5,9 +5,12 @@
 
 /* Custom animation for title generation pulse */
 @keyframes pulse-generating {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.4;
     }
@@ -340,4 +343,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.citation-highlight {
+    background-color: color-mix(in srgb, var(--color-accent-n6-wMain), transparent 80%);
+    padding: 0.125rem 0;
+    border-radius: 0.125rem;
+}
+
+/* Citation highlight for text-based content (markdown, HTML, etc.) - needs different dark mode styling */
+mark.citation-highlight {
+    background-color: color-mix(in srgb, var(--color-accent-n6-wMain), transparent 40%);
+    color: inherit;
 }
