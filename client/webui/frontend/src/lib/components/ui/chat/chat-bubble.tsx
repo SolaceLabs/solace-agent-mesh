@@ -24,7 +24,7 @@ const chatBubbleVariant = cva("flex gap-2 max-w-full items-end relative group", 
 interface ChatBubbleProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof chatBubbleVariant> {}
 
 const ChatBubble = React.forwardRef<HTMLDivElement, ChatBubbleProps>(({ className, variant, layout, children, ...props }, ref) => (
-    <div className={cn(chatBubbleVariant({ variant, layout, className }), "group relative")} ref={ref} {...props}>
+    <div className={cn(chatBubbleVariant({ variant, layout, className }), "group relative")} ref={ref} data-testid="chatMessage" {...props}>
         {React.Children.map(children, child =>
             React.isValidElement(child) && typeof child.type !== "string"
                 ? React.cloneElement(child, {
