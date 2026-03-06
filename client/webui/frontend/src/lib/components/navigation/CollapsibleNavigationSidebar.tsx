@@ -356,7 +356,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         </div>
                     )}
 
-                    <div className="mt-2 border-t border-[var(--color-secondary-w70)] pt-2">
+                    <div className="relative z-10 border-t border-[var(--color-secondary-w70)] bg-[var(--color-background-wMain)] pt-2">
                         {bottomItems.map(item => (
                             <button key={item.id} onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
                                 <div className={iconWrapperStyles({ withMargin: true })}>
