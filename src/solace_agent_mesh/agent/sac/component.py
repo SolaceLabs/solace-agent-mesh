@@ -8,6 +8,7 @@ import fnmatch
 import inspect
 import json
 import logging
+import os
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
@@ -161,10 +162,17 @@ class SamAgentComponent(SamComponentBase):
             if not self.agent_name:
                 raise ValueError("Internal Error: Agent name missing after validation.")
             self.model_config = self.get_config("model")
-            if not self.model_config:
+
+            if not self._lazy_model_mode and not self.model_config:
                 raise ValueError(
                     "Internal Error: Model config missing after validation."
                 )
+            if self._lazy_model_mode:
+                log.info(
+                    "%s Lazy model mode enabled. Agent will start without model config.",
+                    self.log_identifier,
+                )
+
             self.instruction_config = self.get_config("instruction", "")
             self.global_instruction_config = self.get_config("global_instruction", "")
             self.tools_config = self.get_config("tools", [])
@@ -4095,6 +4103,26 @@ class SamAgentComponent(SamComponentBase):
             )
             raise e
 
+    def _on_model_status_change(self, old_status: str, new_status: str):
+        """Callback invoked by LiteLlm on any status transition.
+
+        Handles starting/stopping agent card publishing based on model readiness.
+        """
+        log.info(
+            "%s Model status changed: %s -> %s",
+            self.log_identifier,
+            old_status,
+            new_status,
+        )
+        if new_status == "ready":
+            self._publish_agent_card()
+        elif new_status == "none" and old_status == "ready":
+            self.cancel_timer(self._card_publish_timer_id)
+            log.info(
+                "%s Agent card publishing stopped (model unconfigured).",
+                self.log_identifier,
+            )
+
     async def _async_setup_and_run(self) -> None:
         """
         Main async logic for the agent component.
@@ -4107,7 +4135,8 @@ class SamAgentComponent(SamComponentBase):
             # Perform agent-specific async initialization
             await self._perform_async_init()
 
-            self._publish_agent_card()
+            if not self._lazy_model_mode:
+                self._publish_agent_card()
 
         except Exception as e:
             log.exception(
