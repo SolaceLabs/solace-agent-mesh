@@ -3,6 +3,7 @@ A simple, file-based implementation of the BaseIdentityService.
 Useful for development, testing, or small-scale deployments.
 """
 
+import heapq
 import logging
 import json
 from typing import Any, Dict, List, Optional
@@ -112,6 +113,7 @@ class LocalFileIdentityService(BaseIdentityService):
     async def search_users(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Performs a case-insensitive search matching the start of first or last names, or email prefix.
+        Results are ranked by match quality: first name > email > other name parts.
 
         Examples:
         - "ed" matches "Edward Smith" (first name starts with "ed")
@@ -133,45 +135,50 @@ class LocalFileIdentityService(BaseIdentityService):
                 return cached_results
 
         lower_query = query.lower()
-        results = []
+        matches_with_scores = []
 
         for user in self.all_users:
-            if len(results) >= limit:
-                break
-
             # Get user fields
             name = str(user.get("name", "")).lower()
             email = str(user.get("email", "")).lower()
 
             # Split name into parts (first, last, middle names)
             name_parts = name.split()
+            email_prefix = email.split("@")[0] if "@" in email else email
 
-            # Check if query matches:
-            # 1. Start of any name part (first, last, middle)
-            # 2. Start of email (before @)
-            match = False
+            # Score matches by priority:
+            # 0 = first name match (highest priority)
+            # 1 = email match
+            # 2+ = other name parts (middle, last names)
+            score = None
 
-            # Match start of any name part
-            for part in name_parts:
-                if part.startswith(lower_query):
-                    match = True
-                    break
+            # Check first name match
+            if name_parts and name_parts[0].startswith(lower_query):
+                score = 0
+            # Check email match
+            elif email_prefix.startswith(lower_query):
+                score = 1
+            # Check other name parts
+            else:
+                for i, part in enumerate(name_parts[1:], start=1):
+                    if part.startswith(lower_query):
+                        score = 2 + i
+                        break
 
-            # Match start of email (before @)
-            if not match and email:
-                email_prefix = email.split("@")[0] if "@" in email else email
-                if email_prefix.startswith(lower_query):
-                    match = True
-
-            if match:
-                results.append(
+            if score is not None:
+                matches_with_scores.append((
+                    score,
                     {
                         "id": user.get("id"),
                         "displayName": user.get("name"),
                         "workEmail": user.get("email"),
                         "jobTitle": user.get("title"),
                     }
-                )
+                ))
+
+        # Use heap to efficiently get top N matches by score (lower is better)
+        top_matches = heapq.nsmallest(limit, matches_with_scores, key=lambda x: x[0])
+        results = [match[1] for match in top_matches]
 
         if self.cache:
             self.cache.set(cache_key, results, ttl=min(self.cache_ttl, 60))
