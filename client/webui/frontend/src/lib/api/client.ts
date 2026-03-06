@@ -124,6 +124,25 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     });
 
     if (response.status === 401) {
+        // Clone the response before reading it so we can still return it if needed
+        const cloned = response.clone();
+        let errorType: string | undefined;
+        try {
+            const body = await cloned.json();
+            errorType = body?.error_type;
+        } catch {
+            // ignore parse errors
+        }
+
+        // If the server explicitly says the token is invalid/expired, skip the
+        // refresh attempt and redirect to login immediately. This prevents the
+        // client from retrying the same expired token in a loop.
+        if (errorType === "invalid_token" || errorType === "authentication_required") {
+            clearTokens();
+            window.location.href = "/api/v1/auth/login";
+            return response;
+        }
+
         const newBearerToken = await refreshToken();
         if (newBearerToken) {
             return fetch(url, {
@@ -134,6 +153,8 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
                 },
             });
         }
+        // refreshToken() returned null — it already cleared tokens and redirected
+        // to login (or there was no refresh token). Return the 401 as-is.
     }
 
     return response;
