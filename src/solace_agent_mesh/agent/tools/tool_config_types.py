@@ -104,10 +104,37 @@ class OpenApiToolConfig(BaseToolConfig):
         return self
 
 
+class SamRemoteToolConfig(BaseToolConfig):
+    """Configuration for a SAM remote tool executed via broker on a remote worker."""
+
+    tool_type: Literal["sam_remote"]
+    tool_name: str = Field(
+        ...,
+        description="Name of the tool (used for topic-based routing to the worker)",
+    )
+    tool_description: Optional[str] = Field(
+        default=None,
+        description="Description of what the tool does",
+    )
+    timeout_seconds: int = Field(
+        default=300,
+        description="Maximum execution time in seconds",
+    )
+    sandbox_profile: str = Field(
+        default="standard",
+        description="Execution profile hint (restrictive, standard, permissive)",
+    )
+    parameters: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Parameter definitions for the tool (used to build LLM schema)",
+    )
+
+
 AnyToolConfig = Union[
     BuiltinToolConfig,
     BuiltinGroupToolConfig,
     PythonToolConfig,
+    SamRemoteToolConfig,
     McpToolConfig,
     OpenApiToolConfig,
 ]

@@ -3,6 +3,7 @@ Tool executors for running tools on different backends.
 
 This package provides an abstraction layer that allows tools to run on:
 - Local Python: Execute functions in the same process
+- Remote sandbox worker: Execute via Solace broker (SamRemoteExecutor)
 
 The PythonToolLoader handles all Python tool loading patterns:
 - Simple functions (module + function_name)
@@ -12,6 +13,7 @@ The PythonToolLoader handles all Python tool loading patterns:
 Usage:
     from solace_agent_mesh.agent.tools.executors import (
         PythonToolLoader,
+        SamRemoteExecutor,
         ExecutorBasedTool,
     )
 
@@ -34,6 +36,7 @@ from .base import (
 )
 
 from .unified_python_executor import PythonToolLoader
+from .sandboxed_executor import SamRemoteExecutor
 
 from .executor_tool import (
     ExecutorBasedTool,
@@ -51,6 +54,8 @@ __all__ = [
     "get_executor_class",
     "create_executor",
     "list_executor_types",
+    # Executor implementations
+    "SamRemoteExecutor",
     # Tool loader
     "PythonToolLoader",
     # Tool class
