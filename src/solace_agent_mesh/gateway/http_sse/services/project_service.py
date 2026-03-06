@@ -1294,7 +1294,6 @@ class ProjectService:
                             metadata = artifact_meta.get('metadata', {}) if artifact_meta else {}
                             mime_type = artifact_meta.get('mimeType', 'application/octet-stream') if artifact_meta else 'application/octet-stream'
 
-                            # Remap source project fields to the newly created project
                             if metadata.get("source") == "project":
                                 metadata["source_project_id"] = project.id
 
