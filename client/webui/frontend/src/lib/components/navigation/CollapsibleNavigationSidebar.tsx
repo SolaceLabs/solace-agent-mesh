@@ -299,7 +299,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto py-3">
+                    <div className="flex-shrink-0 py-3">
                         {showNewChatButton && (
                             <button onClick={handleNewChatClickResolved} className={navButtonStyles()}>
                                 <div className={iconWrapperStyles({ active: activeItem === "chats", withMargin: true })}>
@@ -339,22 +339,22 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                 );
                             })}
                         </div>
-
-                        {showRecentChats && (
-                            <>
-                                <div className="my-4 border-t border-[var(--color-secondary-w70)]" />
-                                <div className="mb-2 flex items-center justify-between pr-4 pl-6">
-                                    <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Recent Chats</span>
-                                    <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm font-normal text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
-                                        View All
-                                    </button>
-                                </div>
-                                <div className="flex-1">
-                                    <RecentChatsList maxItems={MAX_RECENT_CHATS} />
-                                </div>
-                            </>
-                        )}
                     </div>
+
+                    {showRecentChats && (
+                        <div className="flex min-h-0 flex-1 flex-col">
+                            <div className="border-t border-[var(--color-secondary-w70)]" />
+                            <div className="mb-2 flex items-center justify-between pt-4 pr-6 pl-6">
+                                <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Recent Chats</span>
+                                <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
+                                    View All
+                                </button>
+                            </div>
+                            <div className="scrollbar-subtle min-h-[120px] flex-1 overflow-y-auto">
+                                <RecentChatsList maxItems={MAX_RECENT_CHATS} />
+                            </div>
+                        </div>
+                    )}
 
                     <div className="mt-2 border-t border-[var(--color-secondary-w70)] pt-2">
                         {bottomItems.map(item => (

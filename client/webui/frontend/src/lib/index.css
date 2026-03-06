@@ -212,6 +212,15 @@
     animation: halo-pulse-dark 2s ease-in-out infinite;
 }
 
+.scrollbar-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.scrollbar-subtle:hover {
+    scrollbar-color: var(--color-secondary-w70) transparent;
+}
+
 @layer base {
     * {
         @apply border-border focus-visible:outline-ring focus-visible:border-0 focus-visible:ring-0 focus-visible:outline-1;
