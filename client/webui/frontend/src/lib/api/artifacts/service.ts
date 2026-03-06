@@ -32,16 +32,20 @@ export async function fetchPdfBlob(url: string): Promise<string> {
     // Handle data URLs directly - convert to blob URL without HTTP fetch
     // PDF.js cannot handle data: URLs directly; we must convert to blob URL
     if (url.startsWith("data:")) {
-        const [header, base64Data] = url.split(",");
-        const mimeMatch = header.match(/data:([^;]+)/);
-        const mimeType = mimeMatch ? mimeMatch[1] : "application/pdf";
-        const binaryString = atob(base64Data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
+        try {
+            const [header, base64Data] = url.split(",");
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "application/pdf";
+            const binaryString = atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: mimeType });
+            return URL.createObjectURL(blob);
+        } catch (e) {
+            throw new Error(`Failed to decode data URL: ${e instanceof Error ? e.message : String(e)}`);
         }
-        const blob = new Blob([bytes], { type: mimeType });
-        return URL.createObjectURL(blob);
     }
 
     const response = await api.webui.get(url, { fullResponse: true });
