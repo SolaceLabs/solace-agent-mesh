@@ -3,6 +3,9 @@ name: Check External Contributor
 on:
   pull_request_target:
     types: [opened, reopened]
+    branches:
+      - main
+      - feat/external-contributor
 
 jobs:
   check-external-contributor:
