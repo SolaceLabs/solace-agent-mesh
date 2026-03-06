@@ -3267,6 +3267,15 @@ wheels = [
 ]
 
 [[package]]
+name = "openfeature-sdk"
+version = "0.8.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/08/f6698d0614b8703170117b786bd77b7b0a04f3ee00f19fbe9b360d2dee69/openfeature_sdk-0.8.4.tar.gz", hash = "sha256:66abf71f928ec8c0db1111072bb0ef2635dfbd09510f77f4b548e5d0ea0e6c1a", size = 29676, upload-time = "2025-12-09T07:31:13.137Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/80/f6532778188c573cc83790b11abccde717d4c1442514e722d6bb6140e55c/openfeature_sdk-0.8.4-py3-none-any.whl", hash = "sha256:805ba090669798fc343ca9fdcbc56ff0f4b57bf6757533f0854d2021192e620a", size = 35986, upload-time = "2025-12-09T07:31:12.092Z" },
+]
+
+[[package]]
 name = "openpyxl"
 version = "3.1.5"
 source = { registry = "https://pypi.org/simple" }
@@ -4869,6 +4878,7 @@ dependencies = [
     { name = "mermaid-cli" },
     { name = "numpy" },
     { name = "openai" },
+    { name = "openfeature-sdk" },
     { name = "pandas" },
     { name = "pillow" },
     { name = "playwright" },
@@ -4963,6 +4973,7 @@ requires-dist = [
     { name = "mermaid-cli", specifier = "==0.1.2" },
     { name = "numpy", specifier = "==2.2.6" },
     { name = "openai", specifier = "==1.99.9" },
+    { name = "openfeature-sdk", specifier = "==0.8.4" },
     { name = "pandas", specifier = "==2.3.2" },
     { name = "pillow", specifier = "==12.1.1" },
     { name = "playwright", specifier = "==1.58.0" },
