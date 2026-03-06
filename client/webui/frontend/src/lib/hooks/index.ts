@@ -8,6 +8,7 @@ export * from "./useAuthContext";
 export * from "./useBackgroundTaskMonitor";
 export * from "./useBeforeUnload";
 export * from "./useChatContext";
+export * from "./useCitationClick";
 export * from "./useConfigContext";
 export * from "./useCsrfContext";
 export * from "./useDebounce";

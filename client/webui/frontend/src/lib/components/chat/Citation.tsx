@@ -116,8 +116,13 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
         if (citation.type === "document") {
             const position = citation.source.metadata?.location_range || citation.source.metadata?.primary_location;
             if (position) {
-                const combined = `${displayName}, ${position}`;
-                return truncateText(combined, maxLength);
+                // Calculate remaining space for display name (reserve space for ", " + position)
+                const separator = ", ";
+                const reservedSpace = separator.length + position.length;
+                const availableForName = Math.max(10, maxLength - reservedSpace); // At least 10 chars for name
+
+                const truncatedName = truncateText(displayName, availableForName);
+                return `${truncatedName}${separator}${position}`;
             }
         }
 
@@ -154,6 +159,9 @@ export function Citation({ citation, onClick, maxLength = DEFAULT_CITATION_MAX_L
     const isDeepResearch = sourceType === "deep_research" || citation.type === "research";
     const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
+    // For document citations with position, split filename and position for proper truncation
+    const documentPosition = isDocumentCitation ? citation.source?.metadata?.location_range || citation.source?.metadata?.primary_location : null;
+
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -178,7 +186,14 @@ export function Citation({ citation, onClick, maxLength = DEFAULT_CITATION_MAX_L
             aria-label={`Citation: ${tooltip}`}
             type="button"
         >
-            <span className="max-w-[200px] truncate">{displayText}</span>
+            {isDocumentCitation && documentPosition ? (
+                <>
+                    <span className="max-w-[120px] truncate">{citation.source?.filename ? extractFilename(citation.source.filename) : displayText}</span>
+                    <span className="flex-shrink-0">, {documentPosition}</span>
+                </>
+            ) : (
+                <span className="max-w-[200px] truncate">{displayText}</span>
+            )}
             {hasClickableUrl && <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />}
         </button>
     );
@@ -306,6 +321,10 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
 
     // For document citations: render simple button without popover
     if (isDocumentCitation) {
+        // Extract position from first citation for display
+        const documentPosition = firstCitation.source?.metadata?.location_range || firstCitation.source?.metadata?.primary_location;
+        const filename = firstCitation.source?.filename ? extractFilename(firstCitation.source.filename) : firstDisplayText;
+
         return (
             <button
                 onClick={handleClick}
@@ -313,7 +332,14 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                 aria-label={`${uniqueCitations.length} document citations`}
                 type="button"
             >
-                <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                {documentPosition ? (
+                    <>
+                        <span className="max-w-[120px] truncate">{filename}</span>
+                        <span className="flex-shrink-0">, {documentPosition}</span>
+                    </>
+                ) : (
+                    <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                )}
                 <span className="text-[10px] opacity-70">+{remainingCount}</span>
             </button>
         );
