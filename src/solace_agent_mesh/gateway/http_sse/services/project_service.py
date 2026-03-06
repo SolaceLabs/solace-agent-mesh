@@ -364,7 +364,6 @@ class ProjectService:
                 metadata = {
                     "source": "project",
                     "source_project_id": project_domain.id,
-                    "source_project_name": project_domain.name,
                 }
                 desc = file_metadata.get(file.filename) if file_metadata else None
                 if desc:
@@ -617,7 +616,6 @@ class ProjectService:
             metadata = {
                 "source": "project",
                 "source_project_id": project.id,
-                "source_project_name": project.name,
             }
             mime_type = resolve_mime_type(file.filename, file.content_type)
             desc = file_metadata.get(file.filename) if file_metadata else None
@@ -774,7 +772,6 @@ class ProjectService:
             metadata = {
                 "source": "project",
                 "source_project_id": project.id,
-                "source_project_name": project.name,
             }
             if description is not None:
                 self._validate_file_descriptions({filename: description})
@@ -1300,7 +1297,6 @@ class ProjectService:
                             # Remap source project fields to the newly created project
                             if metadata.get("source") == "project":
                                 metadata["source_project_id"] = project.id
-                                metadata["source_project_name"] = project.name
 
                             # Save artifact
                             from ....agent.utils.artifact_helpers import save_artifact_with_metadata

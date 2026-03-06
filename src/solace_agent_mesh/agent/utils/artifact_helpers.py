@@ -1123,7 +1123,6 @@ async def get_artifact_info_list(
                 # Extract source from metadata
                 source = metadata.get("source")
                 source_project_id = metadata.get("source_project_id")
-                source_project_name = metadata.get("source_project_name")
 
                 artifact_info_list.append(
                     ArtifactInfo(
@@ -1137,7 +1136,6 @@ async def get_artifact_info_list(
                         version_count=version_count,
                         source=source,
                         source_project_id=source_project_id,
-                        source_project_name=source_project_name,
                     )
                 )
                 log.debug(

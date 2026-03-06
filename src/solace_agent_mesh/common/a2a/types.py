@@ -54,7 +54,6 @@ class ArtifactInfo(BaseModel):
     version_count: Optional[int] = None
     source: Optional[str] = None  # Optional: Source of the artifact (e.g., "project")
     source_project_id: Optional[str] = None  # Optional: ID of the project this artifact came from
-    source_project_name: Optional[str] = None  # Optional: Name of the project this artifact came from
 
     model_config = ConfigDict(populate_by_name=True)
 
