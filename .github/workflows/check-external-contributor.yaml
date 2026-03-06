@@ -3,9 +3,6 @@ name: Check External Contributor
 on:
   pull_request_target:
     types: [opened, reopened]
-    branches:
-      - main
-      - feat/external-contributor
 
 jobs:
   check-external-contributor:
@@ -15,8 +12,15 @@ jobs:
       pull-requests: write
       issues: write
     steps:
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          repository: SolaceDev/solace-public-workflows
+          path: workflows-repo
+          ref: feat/check-external-contributor
+
       - name: Check External Contributor
-        uses: SolaceDev/solace-public-workflows/check-external-contributor@feat/check-external-contributor
+        uses: ./workflows-repo/.github/actions/check-external-contributor
         with:
           github_team_slug: solace-ai
           label_name: external contributor
