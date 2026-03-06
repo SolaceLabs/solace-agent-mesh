@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
-import { Scan } from "lucide-react";
+import { HelpCircle, Scan } from "lucide-react";
 import mermaid from "mermaid";
 
-import { Button } from "@/lib/components/ui";
-import { useThemeContext } from "@/lib/hooks/useThemeContext";
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { getErrorMessage } from "@/lib/utils";
 
 import type { BaseRendererProps } from ".";
@@ -27,49 +26,40 @@ const validateMermaidInput = (input: string): boolean => {
     return !dangerousPatterns.some(pattern => pattern.test(input));
 };
 
-export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) => {
-    const { currentTheme } = useThemeContext();
+/** Module-level counter ensures unique render IDs across all MermaidRenderer instances */
+let globalRenderCount = 0;
 
+/** Serialize mermaid.render() calls — mermaid's parser/renderer uses global state */
+let renderQueue: Promise<void> = Promise.resolve();
+
+let mermaidInitialized = false;
+
+function initializeMermaid() {
+    if (mermaidInitialized) return;
+    mermaidInitialized = true;
+
+    mermaid.initialize({
+        startOnLoad: false,
+        theme: "default",
+        secure: ["theme", "themeCSS"],
+        fontFamily: "arial, sans-serif",
+        logLevel: "error" as const,
+        securityLevel: "strict",
+        maxTextSize: 50000,
+    });
+}
+
+export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) => {
     const [svgHtml, setSvgHtml] = useState<string>("");
     const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
 
     const containerRef = useRef<HTMLDivElement>(null);
     const svgContainerRef = useRef<HTMLDivElement>(null);
     const offscreenRef = useRef<HTMLDivElement>(null);
-    const renderCountRef = useRef(0);
-
-    // Initialize Mermaid once when theme changes
-    useEffect(() => {
-        const styles = getComputedStyle(document.documentElement);
-        const cssVar = (name: string) => styles.getPropertyValue(name).trim();
-
-        mermaid.initialize({
-            startOnLoad: false,
-            theme: "base",
-            themeVariables: {
-                background: cssVar("--background"),
-                primaryColor: cssVar("--primary"),
-                primaryTextColor: cssVar("--foreground"),
-                primaryBorderColor: cssVar("--border"),
-                secondaryColor: cssVar("--secondary"),
-                tertiaryColor: cssVar("--muted"),
-                lineColor: cssVar("--muted-foreground"),
-                textColor: cssVar("--foreground"),
-                mainBkg: cssVar("--card"),
-                nodeBorder: cssVar("--border"),
-            },
-            secure: ["theme", "themeCSS"], // Prevent injection via theme configs
-            fontFamily: "arial, sans-serif",
-            logLevel: "error" as const,
-            securityLevel: "strict",
-            maxTextSize: 50000, // Prevent DoS with extremely large diagrams
-        });
-    }, [currentTheme]);
 
     useEffect(() => {
         let cancelled = false;
-        // Unique ID per render call — avoids collisions in React strict mode
-        const renderId = `mermaid-${++renderCountRef.current}`;
+        const renderId = `mermaid-${++globalRenderCount}`;
 
         const renderDiagram = async () => {
             if (!content.trim()) {
@@ -79,39 +69,46 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
 
             setRenderError(null);
 
-            // Validate input for dangerous patterns
             if (!validateMermaidInput(content)) {
                 setRenderError("Invalid diagram content: potentially unsafe patterns detected");
                 setSvgHtml("");
                 return;
             }
 
-            try {
-                const { svg, bindFunctions } = await mermaid.render(renderId, content, offscreenRef.current ?? undefined);
+            // Serialize renders — mermaid's parser/renderer uses global state
+            const ticket = renderQueue.then(async () => {
+                if (cancelled) return;
 
-                if (!cancelled) {
-                    setSvgHtml(svg);
-                    setRenderError(null);
+                initializeMermaid();
 
-                    // Clean up the off-screen render container to prevent DOM node leaks
-                    if (offscreenRef.current) {
-                        offscreenRef.current.innerHTML = "";
+                try {
+                    const { svg, bindFunctions } = await mermaid.render(renderId, content, offscreenRef.current ?? undefined);
+
+                    if (!cancelled) {
+                        setSvgHtml(svg);
+                        setRenderError(null);
+
+                        if (offscreenRef.current) {
+                            offscreenRef.current.innerHTML = "";
+                        }
+
+                        if (bindFunctions) {
+                            requestAnimationFrame(() => {
+                                if (svgContainerRef.current && !cancelled) {
+                                    bindFunctions(svgContainerRef.current);
+                                }
+                            });
+                        }
                     }
-
-                    if (bindFunctions) {
-                        requestAnimationFrame(() => {
-                            if (svgContainerRef.current && !cancelled) {
-                                bindFunctions(svgContainerRef.current);
-                            }
-                        });
+                } catch (error) {
+                    if (!cancelled) {
+                        setRenderError(getErrorMessage(error, "Failed to render diagram"));
+                        setSvgHtml("");
                     }
                 }
-            } catch (error) {
-                if (!cancelled) {
-                    setRenderError(getErrorMessage(error, "Failed to render diagram"));
-                    setSvgHtml("");
-                }
-            }
+            });
+
+            renderQueue = ticket.catch(() => {});
         };
 
         renderDiagram();
@@ -119,7 +116,7 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
         return () => {
             cancelled = true;
         };
-    }, [content, currentTheme, setRenderError]);
+    }, [content, setRenderError]);
 
     // Make the SVG responsive after it's inserted into the DOM
     useEffect(() => {
@@ -192,9 +189,9 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
     );
 
     return (
-        <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden p-4">
+        <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden rounded-sm p-4 dark:bg-(--color-background-w20)">
             <div ref={offscreenRef} aria-hidden style={{ position: "fixed", top: -10000, left: -10000, width: 1920, height: 1080 }} />
-            <div ref={containerRef} className="relative flex min-h-96 w-full flex-1 items-start justify-center overflow-hidden" style={{ touchAction: "none" }} {...bind()}>
+            <div ref={containerRef} className="relative flex w-full flex-1 items-start justify-center overflow-hidden" style={{ touchAction: "none" }} {...bind()}>
                 {svgHtml ? (
                     <div
                         ref={svgContainerRef}
@@ -203,18 +200,21 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
                             transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
                             transformOrigin: "0 0",
                         }}
-                        dangerouslySetInnerHTML={{ __html: svgHtml }}
-                    />
+                    >
+                        <div className="bg-background flex max-h-full w-full items-center justify-center rounded-xs p-4 dark:bg-(--color-background-w20)" dangerouslySetInnerHTML={{ __html: svgHtml }} />
+                    </div>
                 ) : null}
 
-                <div className="bg-muted absolute top-0 right-3 flex items-center gap-2 rounded">
+                <div className="bg-background absolute top-0 right-3 flex items-center gap-2 rounded-sm p-1 dark:bg-(--color-background-wMain)/50">
                     <Button onClick={resetTransform} tooltip="Reset View" variant="ghost">
                         <Scan />
                     </Button>
-                    <div className="h-6 w-px border-l" />
-                    <div className="text-muted-foreground text-xs">Drag to pan</div>
-                    <div className="h-6 w-px border-l" />
-                    <div className="text-muted-foreground pr-2 text-xs">Scroll to zoom</div>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <HelpCircle size="24" className="mr-2 text-(--color-secondary-text-w50)" />
+                        </TooltipTrigger>
+                        <TooltipContent>Drag to pan and scroll to view</TooltipContent>
+                    </Tooltip>
                 </div>
             </div>
         </div>
