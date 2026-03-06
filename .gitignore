@@ -8,6 +8,7 @@ __pycache__/
 *.a2a*
 *.jsonl
 .claude/
+.worktrees/
 
 
 # C extensions

@@ -2617,18 +2617,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [sessionId]);
 
     useEffect(() => {
-        const handleSessionMoved = async (event: Event) => {
+        const handleSessionUpdated = async (event: Event) => {
             const customEvent = event as CustomEvent;
-            const { sessionId: movedSessionId, projectId: newProjectId } = customEvent.detail;
+            const { sessionId: updatedSessionId, projectId } = customEvent.detail;
 
-            // If the moved session is the current session, update the project context
-            if (movedSessionId === sessionId) {
+            // Only handle if projectId is present (indicating a move)
+            if (projectId === undefined) return;
+
+            // If the updated session is the current session, update the project context
+            if (updatedSessionId === sessionId) {
                 // Set flag to prevent handleNewSession from being triggered by this project change
                 isSessionMoveRef.current = true;
 
-                if (newProjectId) {
+                if (projectId) {
                     // Session moved to a project - activate that project
-                    const project = projects.find((p: Project) => p.id === newProjectId);
+                    const project = projects.find((p: Project) => p.id === projectId);
                     if (project) {
                         setActiveProject(project);
                     }
@@ -2639,9 +2642,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         };
 
-        window.addEventListener("session-moved", handleSessionMoved);
+        window.addEventListener("session-updated", handleSessionUpdated);
         return () => {
-            window.removeEventListener("session-moved", handleSessionMoved);
+            window.removeEventListener("session-updated", handleSessionUpdated);
         };
     }, [sessionId, projects, setActiveProject]);
 
