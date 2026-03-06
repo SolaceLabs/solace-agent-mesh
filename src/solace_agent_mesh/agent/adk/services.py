@@ -621,6 +621,39 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 e,
             )
             raise
+    elif service_type == "azure":
+        container_name = config.get("container_name") or config.get("bucket_name")
+        if not container_name or not container_name.strip():
+            raise ValueError(
+                f"{component.log_identifier} 'container_name' is required for Azure artifact service."
+            )
+        try:
+            from .artifacts.azure_artifact_service import AzureArtifactService
+
+            azure_config = {}
+            for key, env_var in [
+                ("connection_string", "AZURE_STORAGE_CONNECTION_STRING"),
+                ("account_name", "AZURE_STORAGE_ACCOUNT_NAME"),
+                ("account_key", "AZURE_STORAGE_ACCOUNT_KEY"),
+            ]:
+                azure_config[key] = config.get(key) or os.environ.get(env_var)
+
+            azure_config_cleaned = {k: v for k, v in azure_config.items() if v is not None}
+            concrete_service = AzureArtifactService(
+                container_name=container_name, **azure_config_cleaned
+            )
+        except ImportError as e:
+            log.error(
+                "%s Azure dependencies not available: %s",
+                component.log_identifier, e,
+            )
+            raise
+        except Exception as e:
+            log.error(
+                "%s Failed to initialize AzureArtifactService: %s",
+                component.log_identifier, e,
+            )
+            raise
     elif service_type == "test_in_memory":
         if TestInMemoryArtifactService is None:
             log.error(
