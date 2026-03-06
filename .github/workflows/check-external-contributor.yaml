@@ -1,14 +1,23 @@
 name: Check External Contributor
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened]
+    branches:
+      - main
+      - feat/external-contributor
 
 jobs:
   check-external-contributor:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/check-external-contributor.yml@feat/check-external-contributor
-    with:
-      github_team_slug: solace-ai
-      label_name: external contributor
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    name: Check External Contributor
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check External Contributor
+        uses: SolaceDev/solace-public-workflows/check-external-contributor@feat/check-external-contributor
+        with:
+          github_team_slug: solace-ai
+          label_name: external contributor
+          github-token: ${{ secrets.GITHUB_TOKEN }}
