@@ -4,7 +4,7 @@ FastAPI application for Platform Service.
 
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Dict, Any
 
 import sqlalchemy as sa
 from alembic import command
@@ -88,19 +88,20 @@ def _run_community_migrations(database_url: str) -> None:
             ) from migration_error
 
 
-def _run_enterprise_migrations(database_url: str) -> None:
+def _run_enterprise_migrations(database_url: str, app_config: Optional[Dict[str, Any]]) -> None:
     """
     Run migrations for enterprise platform features.
     This is optional and only runs if the enterprise package is available.
 
     Args:
         database_url: Database connection string.
+        app_config: Full application configuration dict from connector.config (may be None)
     """
     try:
         from solace_agent_mesh_enterprise.platform_service.migration_runner import run_migrations
 
         log.info("[Platform Service] Starting enterprise migrations...")
-        run_migrations(database_url)
+        run_migrations(database_url, app_config)
         log.info("[Platform Service] Enterprise migrations completed successfully")
     except ImportError:
         log.debug("[Platform Service] Enterprise module not found - skipping enterprise migrations")
@@ -110,10 +111,15 @@ def _run_enterprise_migrations(database_url: str) -> None:
         raise RuntimeError(f"Enterprise platform database migration failed: {e}") from e
 
 
-def _setup_database(database_url: str) -> None:
-    """Initialize database and run migrations."""
+def _setup_database(database_url: str, app_config: Optional[Dict[str, Any]]) -> None:
+    """Initialize database and run migrations.
+
+    Args:
+        database_url: Database connection string.
+        app_config: Full application configuration dict from connector.config (may be None)
+    """
     log.info("[Platform Service] Initializing database and running migrations...")
-    _run_enterprise_migrations(database_url)
+    _run_enterprise_migrations(database_url, app_config)
     log.info("[Platform Service] Database initialization complete")
 
 
