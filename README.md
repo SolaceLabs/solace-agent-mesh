@@ -2,7 +2,7 @@
   <img src="./docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
 </p>
 <h2 align="center">
-  TEST - Solace Agent Mesh
+  TEST2 - Solace Agent Mesh
 </h2>
 <h3 align="center">Open-source framework for building event driven multi-agent AI systems</h3>
 <h5 align="center">Star ⭐️ this repo to stay updated as we ship new features and improvements.</h5>
