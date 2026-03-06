@@ -40,10 +40,25 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
 
     // Initialize Mermaid once when theme changes
     useEffect(() => {
+        const styles = getComputedStyle(document.documentElement);
+        const cssVar = (name: string) => styles.getPropertyValue(name).trim();
+
         mermaid.initialize({
             startOnLoad: false,
-            theme: currentTheme === "dark" ? "dark" : "default",
-            secure: ["theme", "themeVariables", "themeCSS"], // Prevent injection via theme configs
+            theme: "base",
+            themeVariables: {
+                background: cssVar("--background"),
+                primaryColor: cssVar("--primary"),
+                primaryTextColor: cssVar("--foreground"),
+                primaryBorderColor: cssVar("--border"),
+                secondaryColor: cssVar("--secondary"),
+                tertiaryColor: cssVar("--muted"),
+                lineColor: cssVar("--muted-foreground"),
+                textColor: cssVar("--foreground"),
+                mainBkg: cssVar("--card"),
+                nodeBorder: cssVar("--border"),
+            },
+            secure: ["theme", "themeCSS"], // Prevent injection via theme configs
             fontFamily: "arial, sans-serif",
             logLevel: "error" as const,
             securityLevel: "strict",
