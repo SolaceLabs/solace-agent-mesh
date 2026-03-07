@@ -96,21 +96,27 @@ const getArtifactApiUrl = (artifact: ArtifactWithSession): string => {
 /**
  * Determine if an artifact was uploaded or generated based on source and mime type
  * Returns null if we can't determine the origin (to hide the badge)
+ *
+ * NOTE: Source badges are currently disabled. The backend provides the source field,
+ * but we're not displaying badges until the UX is finalized.
+ * To re-enable, uncomment the code below and rename _artifact to artifact.
  */
-const getArtifactOrigin = (artifact: ArtifactWithSession): { label: string; color: string } | null => {
-    // Check the source field first - only show badge if we have explicit source info
-    if (artifact.source === "upload" || artifact.source === "user" || artifact.source === "uploaded") {
-        return { label: "Uploaded", color: "bg-blue-500/20 text-blue-600 dark:text-blue-400" };
-    }
-    if (artifact.source === "generated" || artifact.source === "agent" || artifact.source === "ai") {
-        return { label: "Generated", color: "bg-green-500/20 text-green-600 dark:text-green-400" };
-    }
-    if (artifact.source === "project") {
-        return { label: "Project", color: "bg-purple-500/20 text-purple-600 dark:text-purple-400" };
-    }
-
-    // If no explicit source, return null to hide the badge
+const getArtifactOrigin = (_artifact: ArtifactWithSession): { label: string; color: string } | null => {
+    // Source badges disabled for now - return null to hide all badges
+    void _artifact; // Suppress unused variable warning
     return null;
+
+    // Uncomment below to enable source badges (and rename _artifact to artifact):
+    // if (artifact.source === "upload" || artifact.source === "user" || artifact.source === "uploaded") {
+    //     return { label: "Uploaded", color: "bg-blue-500/20 text-blue-600 dark:text-blue-400" };
+    // }
+    // if (artifact.source === "generated" || artifact.source === "agent" || artifact.source === "ai") {
+    //     return { label: "Generated", color: "bg-green-500/20 text-green-600 dark:text-green-400" };
+    // }
+    // if (artifact.source === "project") {
+    //     return { label: "Project", color: "bg-purple-500/20 text-purple-600 dark:text-purple-400" };
+    // }
+    // return null;
 };
 
 /**
@@ -286,6 +292,8 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                     const blob = await response.blob();
                     if (abortController.signal.aborted) return;
 
+                    // Note: FileReader.readAsDataURL cannot be cancelled - it will complete in the background.
+                    // The isMounted/abortController checks after this prevent state updates on unmounted components.
                     const base64data = await new Promise<string>((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onloadend = () => {

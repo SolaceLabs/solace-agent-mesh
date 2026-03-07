@@ -11,6 +11,8 @@ export interface ArtifactWithSession extends ArtifactInfo {
     sessionName: string | null;
     projectId?: string;
     projectName?: string | null;
+    /** Source type: "upload", "generated", or "project" */
+    source?: string;
 }
 
 interface UseAllArtifactsReturn {
@@ -34,6 +36,7 @@ interface BulkArtifactsResponse {
         sessionName: string | null;
         projectId: string | null;
         projectName: string | null;
+        source: string | null;
     }>;
     totalCount: number;
 }
@@ -71,7 +74,8 @@ export const useAllArtifacts = (): UseAllArtifactsReturn => {
 
         try {
             // Use the bulk endpoint to fetch all artifacts in a single request
-            const response = await api.webui.get<BulkArtifactsResponse>("/api/v1/artifacts/all");
+            // Pass the AbortSignal to actually cancel the HTTP request on unmount
+            const response = await api.webui.get<BulkArtifactsResponse>("/api/v1/artifacts/all", { signal });
 
             // Only update state if not aborted
             if (signal.aborted) return;
@@ -89,6 +93,7 @@ export const useAllArtifacts = (): UseAllArtifactsReturn => {
                     sessionName: artifact.sessionName,
                     projectId: artifact.projectId ?? undefined,
                     projectName: artifact.projectName,
+                    source: artifact.source ?? undefined,
                 }));
 
             setArtifacts(transformedArtifacts);

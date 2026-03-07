@@ -3,6 +3,7 @@ FastAPI router for managing session-specific artifacts via REST endpoints.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from collections.abc import Callable
@@ -481,6 +482,9 @@ class ArtifactWithContext(BaseModel):
     project_id: Optional[str] = Field(None, alias="projectId")
     project_name: Optional[str] = Field(None, alias="projectName")
     
+    # Source field for origin badges (upload, generated, project)
+    source: Optional[str] = None
+    
     model_config = {"populate_by_name": True}
 
 
@@ -491,6 +495,10 @@ class BulkArtifactsResponse(BaseModel):
     total_count: int = Field(..., alias="totalCount")
     
     model_config = {"populate_by_name": True}
+
+
+# Semaphore to limit concurrent artifact fetches (prevent overwhelming the artifact service)
+_ARTIFACT_FETCH_SEMAPHORE = asyncio.Semaphore(10)
 
 
 @router.get(
@@ -507,16 +515,19 @@ async def list_all_artifacts(
     project_service: ProjectService | None = Depends(get_project_service_optional),
     db: Session | None = Depends(get_db_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
+    limit: int = Query(default=500, ge=1, le=1000, description="Maximum number of artifacts to return"),
 ):
     """
     Lists all artifacts across all sessions and projects for the current user.
     This bulk endpoint fetches all artifacts in a single request instead of
     requiring separate calls per session/project.
     
+    Uses parallel fetching with a semaphore to limit concurrent requests.
+    
     Returns artifacts with their session/project context for display in the artifacts page.
     """
     log_prefix = f"[ArtifactRouter:ListAll] User={user_id} -"
-    log.info("%s Request received.", log_prefix)
+    log.info("%s Request received (limit=%d).", log_prefix, limit)
     
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -525,10 +536,63 @@ async def list_all_artifacts(
             detail="Artifact service is not configured.",
         )
     
-    all_artifacts: list[ArtifactWithContext] = []
     app_name = component.get_config("name", "A2A_WebUI_App")
     
+    # Helper function to determine artifact source
+    def _determine_source(filename: str, session_id: str) -> str:
+        """Determine the source type of an artifact based on filename and session."""
+        if session_id.startswith("project-"):
+            return "project"
+        if filename.endswith('.converted.txt') or filename == 'project_bm25_index.zip':
+            return "generated"
+        # Default to upload for user-uploaded files
+        return "upload"
+    
+    # Helper function to fetch artifacts for a session with semaphore
+    async def _fetch_session_artifacts(
+        session_id: str,
+        session_name: Optional[str],
+        project_id: Optional[str],
+        project_name: Optional[str],
+        fetch_user_id: str,
+    ) -> list[ArtifactWithContext]:
+        """Fetch artifacts for a single session, respecting the semaphore."""
+        async with _ARTIFACT_FETCH_SEMAPHORE:
+            try:
+                artifacts = await get_artifact_info_list(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=fetch_user_id,
+                    session_id=session_id,
+                )
+                
+                # Filter out generated files and convert to ArtifactWithContext
+                result = []
+                for artifact in artifacts:
+                    if artifact.filename.endswith('.converted.txt') or artifact.filename == 'project_bm25_index.zip':
+                        continue
+                    
+                    result.append(ArtifactWithContext(
+                        filename=artifact.filename,
+                        size=artifact.size,
+                        mime_type=artifact.mime_type,
+                        last_modified=artifact.last_modified,
+                        uri=artifact.uri,
+                        session_id=session_id,
+                        session_name=session_name,
+                        project_id=project_id,
+                        project_name=project_name,
+                        source=_determine_source(artifact.filename, session_id),
+                    ))
+                return result
+            except Exception as e:
+                log.warning("%s Error fetching artifacts for session %s: %s", log_prefix, session_id, e)
+                return []
+    
     try:
+        # Collect all fetch tasks
+        fetch_tasks: list[asyncio.Task] = []
+        
         # Fetch artifacts from all user sessions
         if session_service and db:
             try:
@@ -553,40 +617,18 @@ async def list_all_artifacts(
                         log.warning("%s Reached safety limit of 100 pages for sessions", log_prefix)
                         break
                 
-                sessions = all_sessions
-                log.info("%s Found %d sessions for user", log_prefix, len(sessions))
+                log.info("%s Found %d sessions for user", log_prefix, len(all_sessions))
                 
-                for session in sessions:
-                    try:
-                        artifacts = await get_artifact_info_list(
-                            artifact_service=artifact_service,
-                            app_name=app_name,
-                            user_id=user_id,
-                            session_id=session.id,
-                        )
-                        
-                        # Filter out generated files
-                        original_artifacts = [
-                            a for a in artifacts
-                            if not a.filename.endswith('.converted.txt')
-                            and a.filename != 'project_bm25_index.zip'
-                        ]
-                        
-                        for artifact in original_artifacts:
-                            all_artifacts.append(ArtifactWithContext(
-                                filename=artifact.filename,
-                                size=artifact.size,
-                                mime_type=artifact.mime_type,
-                                last_modified=artifact.last_modified,
-                                uri=artifact.uri,
-                                session_id=session.id,
-                                session_name=session.name,
-                                project_id=session.project_id,
-                                project_name=session.project_name,
-                            ))
-                    except Exception as e:
-                        log.warning("%s Error fetching artifacts for session %s: %s", log_prefix, session.id, e)
-                        continue
+                # Create fetch tasks for all sessions
+                for session in all_sessions:
+                    task = asyncio.create_task(_fetch_session_artifacts(
+                        session_id=session.id,
+                        session_name=session.name,
+                        project_id=session.project_id,
+                        project_name=session.project_name,
+                        fetch_user_id=user_id,
+                    ))
+                    fetch_tasks.append(task)
                         
             except Exception as e:
                 log.warning("%s Error fetching sessions: %s", log_prefix, e)
@@ -597,50 +639,44 @@ async def list_all_artifacts(
                 projects = project_service.get_user_projects(db, user_id)
                 log.info("%s Found %d projects for user", log_prefix, len(projects))
                 
+                # Create fetch tasks for all projects
                 for project in projects:
-                    try:
-                        # Project artifacts use a special session ID format
-                        project_session_id = f"project-{project.id}"
-                        
-                        artifacts = await get_artifact_info_list(
-                            artifact_service=artifact_service,
-                            app_name=app_name,
-                            user_id=project.user_id,  # Use project owner's user_id
-                            session_id=project_session_id,
-                        )
-                        
-                        # Filter out generated files
-                        original_artifacts = [
-                            a for a in artifacts
-                            if not a.filename.endswith('.converted.txt')
-                            and a.filename != 'project_bm25_index.zip'
-                        ]
-                        
-                        for artifact in original_artifacts:
-                            all_artifacts.append(ArtifactWithContext(
-                                filename=artifact.filename,
-                                size=artifact.size,
-                                mime_type=artifact.mime_type,
-                                last_modified=artifact.last_modified,
-                                uri=artifact.uri,
-                                session_id=project_session_id,
-                                session_name=None,
-                                project_id=project.id,
-                                project_name=project.name,
-                            ))
-                    except Exception as e:
-                        log.warning("%s Error fetching artifacts for project %s: %s", log_prefix, project.id, e)
-                        continue
+                    project_session_id = f"project-{project.id}"
+                    task = asyncio.create_task(_fetch_session_artifacts(
+                        session_id=project_session_id,
+                        session_name=None,
+                        project_id=project.id,
+                        project_name=project.name,
+                        fetch_user_id=project.user_id,  # Use project owner's user_id
+                    ))
+                    fetch_tasks.append(task)
                         
             except Exception as e:
                 log.warning("%s Error fetching projects: %s", log_prefix, e)
         
-        # Deduplicate artifacts: if the same filename appears multiple times for the same project,
+        # Execute all fetch tasks in parallel
+        if fetch_tasks:
+            results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+            
+            # Flatten results, handling any exceptions
+            all_artifacts: list[ArtifactWithContext] = []
+            for result in results:
+                if isinstance(result, Exception):
+                    log.warning("%s Task failed with exception: %s", log_prefix, result)
+                    continue
+                all_artifacts.extend(result)
+        else:
+            all_artifacts = []
+        
+        # Deduplicate artifacts using O(n) dict-based approach:
+        # If the same filename appears multiple times for the same project,
         # prefer the one from the project itself (session_id starts with "project-") over
-        # artifacts from chat sessions within that project. This prevents project knowledge
-        # artifacts from appearing once per chat session.
+        # artifacts from chat sessions within that project.
+        #
+        # We use a dict to track seen artifacts and build the final list at the end,
+        # avoiding O(n^2) list.remove() operations.
         seen_project_artifacts: dict[tuple[str, str], ArtifactWithContext] = {}  # (project_id, filename) -> artifact
-        deduplicated_artifacts: list[ArtifactWithContext] = []
+        non_project_artifacts: list[ArtifactWithContext] = []
         
         for artifact in all_artifacts:
             if artifact.project_id:
@@ -650,26 +686,32 @@ async def list_all_artifacts(
                 if existing is None:
                     # First time seeing this artifact for this project
                     seen_project_artifacts[key] = artifact
-                    deduplicated_artifacts.append(artifact)
                 elif artifact.session_id.startswith("project-") and not existing.session_id.startswith("project-"):
                     # Current artifact is from project knowledge, existing is from a chat session
                     # Replace with the project knowledge version
-                    deduplicated_artifacts.remove(existing)
                     seen_project_artifacts[key] = artifact
-                    deduplicated_artifacts.append(artifact)
                 # else: keep the existing one (either both are from project, or existing is from project)
             else:
                 # Non-project artifact, always include
-                deduplicated_artifacts.append(artifact)
+                non_project_artifacts.append(artifact)
+        
+        # Build final deduplicated list from dict values + non-project artifacts
+        deduplicated_artifacts = list(seen_project_artifacts.values()) + non_project_artifacts
         
         # Sort by last_modified (newest first), handling None values
         deduplicated_artifacts.sort(key=lambda a: a.last_modified or "", reverse=True)
         
-        log.info("%s Returning %d total artifacts (after deduplication from %d)", log_prefix, len(deduplicated_artifacts), len(all_artifacts))
+        # Apply limit
+        total_count = len(deduplicated_artifacts)
+        if len(deduplicated_artifacts) > limit:
+            deduplicated_artifacts = deduplicated_artifacts[:limit]
+        
+        log.info("%s Returning %d artifacts (limit=%d, total=%d, before_dedup=%d)",
+                 log_prefix, len(deduplicated_artifacts), limit, total_count, len(all_artifacts))
         
         return BulkArtifactsResponse(
             artifacts=deduplicated_artifacts,
-            total_count=len(deduplicated_artifacts),
+            total_count=total_count,
         )
         
     except Exception as e:

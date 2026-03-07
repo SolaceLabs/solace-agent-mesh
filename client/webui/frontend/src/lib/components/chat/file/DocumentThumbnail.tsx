@@ -292,6 +292,8 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
     // Using 0.5 (50%) provides good quality while keeping memory usage reasonable
     const scale = 0.5;
 
+    // Note: thumbnail-document and thumbnail-page CSS classes are defined in App.css
+    // to avoid injecting duplicate <style> tags for each thumbnail instance
     return (
         <div className={cn("relative overflow-hidden bg-white", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>
             {/* Show loading spinner while page is loading */}
@@ -305,28 +307,6 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
                     <Page pageNumber={1} scale={scale} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={handlePageLoadSuccess} onLoadError={handlePageLoadError} className="thumbnail-page" />
                 </Document>
             </div>
-            <style>{`
-                .thumbnail-document {
-                    width: 100% !important;
-                    height: 100% !important;
-                    display: flex !important;
-                    align-items: center !important;
-                    justify-content: center !important;
-                }
-                .thumbnail-page {
-                    width: 100% !important;
-                    height: 100% !important;
-                    display: flex !important;
-                    align-items: center !important;
-                    justify-content: center !important;
-                }
-                .thumbnail-page canvas {
-                    width: 100% !important;
-                    height: 100% !important;
-                    object-fit: cover !important;
-                    object-position: top center !important;
-                }
-            `}</style>
         </div>
     );
 };
