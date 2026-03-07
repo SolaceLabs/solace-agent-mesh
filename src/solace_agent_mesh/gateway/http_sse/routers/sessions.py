@@ -204,7 +204,6 @@ async def get_session(
 async def save_task(
     session_id: str,
     request: SaveTaskRequest,
-    db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
     artifact_service = Depends(get_shared_artifact_service),
@@ -231,14 +230,7 @@ async def save_task(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
-
-        # Check if task already exists to determine status code
-        from ..repository.chat_task_repository import ChatTaskRepository
-
-        task_repo = ChatTaskRepository()
-        existing_task = task_repo.find_by_id(db, request.task_id, user_id)
-        is_update = existing_task is not None
-
+        
         # Resolve embeds in message_bubbles before saving
         message_bubbles = request.message_bubbles
         if artifact_service and message_bubbles and '«' in message_bubbles:
@@ -342,31 +334,61 @@ async def save_task(
                     request.task_id,
                     e,
                 )
+        
+        from ..dependencies import SessionLocal
+        if SessionLocal is None:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Session management requires database configuration.",
+            )
+        
+        db = SessionLocal()
+        is_update = False
+        saved_task = None
+        
+        try:
+            # Check if task already exists to determine status code
+            from ..repository.chat_task_repository import ChatTaskRepository
+            task_repo = ChatTaskRepository()
+            existing_task = task_repo.find_by_id(db, request.task_id, user_id)
+            is_update = existing_task is not None
 
-        # Save the task - pass strings directly
-        # Use the resolved message_bubbles if embeds were resolved, otherwise use the original
-        saved_task = session_service.save_task(
-            db=db,
-            task_id=request.task_id,
-            session_id=session_id,
-            user_id=user_id,
-            user_message=request.user_message,
-            message_bubbles=message_bubbles,  # Use resolved message_bubbles
-            task_metadata=request.task_metadata,  # Already a string
-        )
-
-        log.info(
-            "Task %s %s successfully for session %s",
-            request.task_id,
-            "updated" if is_update else "created",
-            session_id,
-        )
+            # Save the task - pass strings directly
+            # Use the resolved message_bubbles if embeds were resolved, otherwise use the original
+            saved_task = session_service.save_task(
+                db=db,
+                task_id=request.task_id,
+                session_id=session_id,
+                user_id=user_id,
+                user_message=request.user_message,
+                message_bubbles=message_bubbles,  # Use resolved message_bubbles
+                task_metadata=request.task_metadata,  # Already a string
+            )
+            
+            # Guard against None return from save_task
+            if saved_task is None:
+                raise ValueError(
+                    f"save_task returned None for task_id={request.task_id}"
+                )
+            
+            # Commit the transaction immediately after DB operations
+            db.commit()
+            
+            log.info(
+                "Task %s %s successfully for session %s",
+                request.task_id,
+                "updated" if is_update else "created",
+                session_id,
+            )
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
         # Clear SSE event buffer for this task (implicit cleanup)
-        # This is atomic with the save operation
+        # This is done AFTER the DB transaction is committed
         try:
-            from ..dependencies import get_sac_component
-            component = get_sac_component()
             log.debug(
                 "[BufferCleanup] Task %s: Starting cleanup. component=%s, sse_manager=%s",
                 request.task_id,

@@ -3,7 +3,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 import type { NavigationItem } from "@/lib/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
-import { ExperimentalBadge } from "@/lib/components/ui/experimental-badge";
+import { LifecycleBadge } from "@/lib/components/ui/lifecycleBadge";
 
 interface NavigationItemProps {
     item: NavigationItem;
@@ -46,7 +46,7 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                 >
                     <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--color-brand-wMain)")} />
                     <span className="text-center text-[13px] leading-tight">{label}</span>
-                    {badge && <ExperimentalBadge className="mt-1 h-4 pt-1 text-[8px] leading-none">{badge}</ExperimentalBadge>}
+                    {badge && <LifecycleBadge className="mt-1 text-[9px]">{badge}</LifecycleBadge>}
                 </button>
             </TooltipTrigger>
             <TooltipContent side="right">{label}</TooltipContent>

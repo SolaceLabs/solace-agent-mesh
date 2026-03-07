@@ -1,0 +1,83 @@
+test_case_id: "artifact_preload_single_001"
+description: |
+  Verifies that a tool with an Artifact type hint receives a full Artifact object
+  (pre-loaded by the framework) instead of just the filename.
+  The LLM provides a filename, but the tool receives an Artifact with content and metadata.
+skip_intermediate_events: true
+tags: ["all", "agent", "tools", "dynamic_tools", "artifact_preloading"]
+
+setup_artifacts:
+  - filename: "input_data.txt"
+    mime_type: "text/plain"
+    content: "This is the pre-loaded content from the artifact."
+    metadata:
+      description: "Test input file for artifact pre-loading"
+      source: "test_setup"
+
+gateway_input:
+  target_agent_name: "ArtifactContentAgent"
+  user_identity: "artifact_test_user@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process the artifact input_data.txt"
+  external_context:
+    a2a_session_id: "session_artifact_preload_single_001"
+
+llm_interactions:
+  - step_id: "llm_calls_process_single_artifact"
+    expected_request:
+      expected_tool_declarations_contain:
+        - name: "process_single_artifact"
+          description_contains: "single Artifact parameter"
+    static_response:
+      id: "chatcmpl-artifact-preload-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_artifact_1"
+                type: "function"
+                function:
+                  name: "process_single_artifact"
+                  arguments: '{"input_content": "input_data.txt", "input_filename": "input_data.txt"}'
+          finish_reason: "tool_calls"
+
+  - step_id: "llm_sees_preloaded_content"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            # The tool received the actual content, not the filename
+            received_content: "This is the pre-loaded content from the artifact."
+            received_filename: "input_data.txt"
+            # Artifact metadata is also available
+            artifact_filename: "input_data.txt"
+    static_response:
+      id: "chatcmpl-artifact-preload-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Successfully processed the artifact. The content was: This is the pre-loaded content from the artifact."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: "*"
+    contextId: "session_artifact_preload_single_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: "*"
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Successfully processed"
+              - "pre-loaded content"

@@ -8,6 +8,7 @@ __pycache__/
 *.a2a*
 *.jsonl
 .claude/
+.worktrees/
 
 
 # C extensions
@@ -60,11 +61,14 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+.configs/
 
 # Translations
 *.mo
 *.pot
 *.db
+*.db-wal
+*.db-shm
 
 # Django stuff:
 *.log

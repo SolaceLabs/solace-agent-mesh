@@ -8,3 +8,4 @@ export * from "./ThemeProvider";
 export * from "./ProjectProvider";
 export * from "./QueryProvider";
 export * from "./QueryClient";
+export * from "./SSEProvider";

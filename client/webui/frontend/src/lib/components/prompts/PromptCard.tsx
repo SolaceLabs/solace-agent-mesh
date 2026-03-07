@@ -135,7 +135,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
                     <div className="text-muted-foreground mb-2 text-xs">By {prompt.authorName || prompt.userId}</div>
-                    <div className="mb-3 line-clamp-2 text-sm leading-5">{prompt.description || "No description provided."}</div>
+                    <div className="mb-3 line-clamp-2 text-sm leading-5">{prompt.productionPrompt?.description || prompt.description || "No description provided."}</div>
                     <div className="mt-auto">
                         <div className="flex flex-wrap items-center gap-2">
                             {prompt.command && <span className="text-primary bg-primary/10 inline-block rounded px-2 py-0.5 font-mono text-xs">/{prompt.command}</span>}

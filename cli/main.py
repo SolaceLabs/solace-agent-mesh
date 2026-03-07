@@ -2,6 +2,7 @@ import click
 import os
 import sys
 import warnings
+from importlib.metadata import version, PackageNotFoundError
 
 _suppress_warnings = "--suppress-warnings" in sys.argv
 if _suppress_warnings:
@@ -19,11 +20,39 @@ from cli.commands.plugin_cmd import plugin
 from cli.commands.eval_cmd import eval_cmd
 from cli.commands.docs_cmd import docs
 from cli.commands.tools_cmd import tools
+from cli.commands.task_cmd import task
+
+
+def _get_version_info():
+    """Get version information for solace-agent-mesh and enterprise package if installed."""
+    version_lines = [f"solace-agent-mesh: {__version__}"]
+    # Check if enterprise package is installed and get its version
+    try:
+        enterprise_version = version('solace-agent-mesh-enterprise')
+        version_lines.append(f"solace-agent-mesh-enterprise: {enterprise_version}")
+    except PackageNotFoundError:
+        # Package not installed
+        pass
+
+    return "\n".join(version_lines)
+
+
+def _version_callback(ctx, param, value):
+    """Callback for --version flag."""
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo(_get_version_info())
+    ctx.exit()
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
-@click.version_option(
-    __version__, "-v", "--version", help="Show the CLI version and exit."
+@click.option(
+    '-v', '--version',
+    is_flag=True,
+    callback=_version_callback,
+    expose_value=False,
+    is_eager=True,
+    help="Show the CLI version and exit."
 )
 @click.option(
     '--suppress-warnings',
@@ -44,6 +73,7 @@ cli.add_command(plugin)
 cli.add_command(eval_cmd)
 cli.add_command(docs)
 cli.add_command(tools)
+cli.add_command(task)
 
 
 def main():

@@ -247,8 +247,9 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
     }
 
     // Calculate scale to fit the thumbnail dimensions
-    // We'll render at a fixed scale and let CSS handle the sizing
-    const scale = 0.15; // Small scale for thumbnail
+    // Render at a higher scale for better quality, then let CSS scale down
+    // Using 0.5 (50%) provides good quality while keeping memory usage reasonable
+    const scale = 0.5;
 
     return (
         <div className={cn("relative overflow-hidden bg-white", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>

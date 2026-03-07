@@ -1,9 +1,19 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+import { scrollToElement } from "@/lib/hooks/useScrollToHighlight";
+import { usePdfBlob } from "@/lib/api/artifacts/hooks";
+// Use ?url import so Vite emits the worker as a tracked static asset with a
+// content-hashed filename when building the app.
+// When building as a library (SAM Enterprise consumer), this import resolves
+// to "./pdf.worker.min.mjs" via pdfWorkerLibPlugin, or may be undefined if
+// the library was built without the plugin. The fallback ensures PDF.js always
+// has a valid workerSrc pointing to the file copied into static/ by
+// copyPdfWorkerPlugin in the SAM Enterprise vite.config.ts.
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 // Custom event for snip-to-chat functionality
 export const SNIP_TO_CHAT_EVENT = "snip-to-chat";
@@ -13,12 +23,23 @@ export interface SnipToChatEventDetail {
     filename: string;
 }
 
-// Configure PDF.js worker from local npm package (pdfjs-dist)
-pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+// Configure PDF.js worker.
+// Fall back to the stable filename when the ?url import resolves to undefined
+// (happens when the library bundle was built without pdfWorkerLibPlugin).
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl || "./pdf.worker.min.mjs";
+
+export interface CitationMapEntry {
+    location: string; // e.g., "physical_page_5"
+    char_start: number;
+    char_end: number;
+}
 
 interface PdfRendererProps {
     url: string;
     filename: string;
+    initialPage?: number;
+    citationMaps?: CitationMapEntry[];
+    disableInteractionModes?: boolean;
 }
 
 interface SelectionRect {
@@ -30,9 +51,19 @@ interface SelectionRect {
 
 type InteractionMode = "text" | "pan" | "snip";
 
-const pdfOptions = { withCredentials: true };
+/**
+ * PDF renderer with citation highlighting and snip-to-chat functionality.
+ *
+ * Performance: Renders all pages upfront (no virtualization) to support character-position
+ * highlighting. Tested performant up to ~50 pages; may be sluggish for larger documents.
+ */
+const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, citationMaps = [], disableInteractionModes = false }) => {
+    // Fetch PDF as blob URL using React Query
+    const { data: resolvedUrl, error: fetchError } = usePdfBlob(url);
 
-const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
+    // pdfOptions for react-pdf — no auth headers needed since we fetch via
+    // the api client and pass a blob URL instead of the raw API URL.
+    const pdfOptions = useMemo(() => ({ withCredentials: false }), []);
     const [numPages, setNumPages] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -44,17 +75,200 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     const [selection, setSelection] = useState<SelectionRect | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
     const [snipStatus, setSnipStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
+    // Document-wide page character boundaries: pageCharBoundaries[i] = char position where page i+1 starts
+    const [pageCharBoundaries, setPageCharBoundaries] = useState<number[]>([]);
+    // Track if we're waiting for highlighting to complete before showing the PDF
+    const [isWaitingForHighlight, setIsWaitingForHighlight] = useState(citationMaps.length > 0);
     const viewerRef = useRef<HTMLDivElement>(null);
     const documentContainerRef = useRef<HTMLDivElement>(null);
+    const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     useEffect(() => {
         if (pageWidth && viewerRef.current) {
             const containerWidth = viewerRef.current.clientWidth;
-            const scale = (containerWidth - 40) / pageWidth;
+            // Start at 50% of fit-to-width for a more zoomed out initial view
+            const scale = ((containerWidth - 40) / pageWidth) * 0.5;
             setZoomLevel(scale);
             setPan({ x: 0, y: 0 });
         }
     }, [pageWidth]);
+
+    // Scroll to initial page when document loads
+    // Skip this if we have highlighting - let the highlight scroll handle positioning instead
+    useEffect(() => {
+        const hasHighlighting = citationMaps.length > 0;
+        if (initialPage && initialPage > 0 && numPages && initialPage <= numPages && !hasHighlighting) {
+            requestAnimationFrame(() => {
+                const pageElement = pageRefs.current.get(initialPage);
+                if (pageElement && viewerRef.current) {
+                    pageElement.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+            });
+        }
+    }, [initialPage, numPages, citationMaps.length]);
+
+    // Build document-wide character boundaries for each page
+    // Performance trade-off: Rendering all pages upfront for citation highlighting accuracy.
+    useEffect(() => {
+        if (!citationMaps.length || !numPages || !resolvedUrl) return;
+
+        let cancelled = false;
+        const loadingTask = pdfjs.getDocument(resolvedUrl);
+
+        const buildPageBoundaries = async () => {
+            try {
+                const pdf = await loadingTask.promise;
+                if (cancelled) return;
+
+                // Build character boundaries for each page
+                let charCount = 0;
+                const boundaries: number[] = [0]; // Page 1 starts at char 0
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    if (cancelled) return;
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+
+                    for (const item of content.items) {
+                        if ("str" in item) {
+                            charCount += item.str.length;
+                        }
+                    }
+                    boundaries.push(charCount);
+                }
+
+                if (!cancelled) {
+                    setPageCharBoundaries(boundaries);
+                }
+            } catch (err) {
+                if (!cancelled && !(err instanceof Error && err.name === "AbortException")) {
+                    console.error("[PdfRenderer] Failed to build page boundaries (char-position highlighting disabled):", err);
+                }
+            }
+        };
+
+        buildPageBoundaries();
+
+        return () => {
+            cancelled = true;
+            loadingTask.destroy();
+        };
+    }, [citationMaps, numPages, resolvedUrl]);
+
+    // Highlight citation text using character positions from citation_map
+    useEffect(() => {
+        if (!numPages || !viewerRef.current) return;
+
+        // Only highlight if we have citation_maps with boundaries
+        const hasCitationMaps = citationMaps.length > 0 && pageCharBoundaries.length > 0;
+
+        if (!hasCitationMaps) return;
+
+        let cancelled = false;
+        let attempts = 0;
+        const maxAttempts = 50; // Try for up to 5 seconds (50 * 100ms)
+
+        // Why wait for text layer: react-pdf renders text layers asynchronously after the
+        // Page component mounts. For large PDFs (500+ pages), this can take several seconds.
+        // If we try to highlight immediately, querySelectorAll finds zero spans because the
+        // text content hasn't been injected into the DOM yet. Polling ensures we only attempt
+        // highlighting once the text spans actually exist, preventing silent failures on large PDFs.
+        const waitForTextLayerAndHighlight = () => {
+            if (cancelled) return;
+
+            attempts++;
+
+            // Find pages that should have citations
+            const pagesWithCitations: number[] = [];
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                const pageStart = pageCharBoundaries[pageNum - 1] || 0;
+                const pageEnd = pageCharBoundaries[pageNum] || pageStart;
+                const relevantMaps = citationMaps.filter(m => m.char_start < pageEnd && m.char_end > pageStart);
+                if (relevantMaps.length > 0) {
+                    pagesWithCitations.push(pageNum);
+                }
+            }
+
+            if (pagesWithCitations.length === 0) {
+                setIsWaitingForHighlight(false);
+                return;
+            }
+
+            // Check if text spans exist for pages with citations
+            let totalSpansFound = 0;
+            for (const pageNum of pagesWithCitations) {
+                const pageElement = pageRefs.current.get(pageNum);
+                if (pageElement) {
+                    const textSpans = pageElement.querySelectorAll(".react-pdf__Page__textContent span");
+                    totalSpansFound += textSpans.length;
+                }
+            }
+
+            if (totalSpansFound === 0) {
+                if (attempts < maxAttempts) {
+                    setTimeout(waitForTextLayerAndHighlight, 100);
+                    return;
+                } else {
+                    setIsWaitingForHighlight(false);
+                    return;
+                }
+            }
+
+            // Text spans are ready, perform highlighting
+            const matchedSpans: HTMLElement[] = [];
+
+            // CHARACTER-POSITION BASED HIGHLIGHTING
+            // For each page, highlight spans that fall within any citation_map range
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                const pageElement = pageRefs.current.get(pageNum);
+                if (!pageElement) continue;
+
+                const pageStart = pageCharBoundaries[pageNum - 1] || 0;
+                const pageEnd = pageCharBoundaries[pageNum] || pageStart;
+
+                // Find citation_maps that overlap with this page
+                const relevantMaps = citationMaps.filter(m => m.char_start < pageEnd && m.char_end > pageStart);
+
+                if (relevantMaps.length === 0) continue;
+
+                const textSpans = pageElement.querySelectorAll(".react-pdf__Page__textContent span");
+                let charPos = pageStart; // Start at page's document-wide position
+
+                textSpans.forEach(span => {
+                    const spanText = span.textContent || "";
+                    const spanStart = charPos;
+                    const spanEnd = charPos + spanText.length;
+
+                    // Check if this span overlaps with ANY citation range
+                    const overlaps = relevantMaps.some(m => spanStart < m.char_end && spanEnd > m.char_start);
+
+                    if (overlaps && spanText.trim().length > 0) {
+                        span.classList.add("citation-highlight");
+                        matchedSpans.push(span as HTMLElement);
+                    }
+
+                    charPos = spanEnd;
+                });
+            }
+
+            // Scroll to first highlight after browser paints the highlights
+            if (matchedSpans.length > 0) {
+                scrollToElement(matchedSpans[0], () => {
+                    setIsWaitingForHighlight(false);
+                });
+            } else {
+                // No matches found, still hide loading state
+                setIsWaitingForHighlight(false);
+            }
+        };
+
+        // Start the polling process
+        waitForTextLayerAndHighlight();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [citationMaps, pageCharBoundaries, numPages, interactionMode]);
 
     function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }): void {
         setNumPages(nextNumPages);
@@ -232,18 +446,11 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
 
     // Send the snip to chat input
     const sendToChat = (blob: Blob) => {
-        console.info("[PdfRenderer] sendToChat called, snipBlob:", blob ? "exists" : "null");
-
-        if (!blob) {
-            console.info("[PdfRenderer] No snipBlob available");
-            return;
-        }
+        if (!blob) return;
 
         // Create a File object from the blob
         const snipFilename = `${filename.replace(/\.[^/.]+$/, "")}-snip.png`;
         const file = new File([blob], snipFilename, { type: "image/png" });
-
-        console.info("[PdfRenderer] Dispatching snip-to-chat event with file:", snipFilename, "size:", file.size);
 
         // Dispatch custom event to send the file to chat input
         const event = new CustomEvent<SnipToChatEventDetail>(SNIP_TO_CHAT_EVENT, {
@@ -309,6 +516,19 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
         return "auto";
     };
 
+    if (fetchError) {
+        return (
+            <div className="flex h-full flex-col overflow-auto p-4">
+                <div className="flex flex-grow flex-col items-center justify-center text-center">
+                    <div className="mb-4 p-4 text-red-500">{fetchError instanceof Error ? fetchError.message : "Failed to load PDF."}</div>
+                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
+                        Download PDF
+                    </a>
+                </div>
+            </div>
+        );
+    }
+
     if (error) {
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
@@ -322,8 +542,18 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
         );
     }
 
+    if (!resolvedUrl) {
+        return (
+            <div className="flex h-full flex-col overflow-auto p-4">
+                <div className="flex flex-grow flex-col items-center justify-center text-center">
+                    <div className="p-4 text-gray-500">Loading PDF...</div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="flex h-full flex-col overflow-auto bg-gray-100 p-4 dark:bg-gray-800">
+        <div className="flex h-full flex-col bg-gray-100 p-4 dark:bg-gray-800">
             <div className="mb-2 flex items-center justify-center">
                 <div className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:bg-gray-700/80">
                     <Tooltip>
@@ -350,42 +580,46 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                         </TooltipTrigger>
                         <TooltipContent>Fit to Width</TooltipContent>
                     </Tooltip>
-                    <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
-                                className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                            >
-                                <Hand className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
-                                className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                            >
-                                <Scissors className="h-4 w-4" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}</TooltipContent>
-                    </Tooltip>
-                    {/* Show status indicator */}
-                    {interactionMode === "snip" && snipStatus !== "idle" && (
-                        <div
-                            className={`ml-2 rounded px-2 py-0.5 text-xs ${
-                                snipStatus === "processing"
-                                    ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
-                                    : snipStatus === "success"
-                                      ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
-                                      : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
-                            }`}
-                        >
-                            {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
-                        </div>
+                    {!disableInteractionModes && (
+                        <>
+                            <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
+                                        className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
+                                    >
+                                        <Hand className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
+                                        className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
+                                    >
+                                        <Scissors className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}</TooltipContent>
+                            </Tooltip>
+                            {/* Show status indicator */}
+                            {interactionMode === "snip" && snipStatus !== "idle" && (
+                                <div
+                                    className={`ml-2 rounded px-2 py-0.5 text-xs ${
+                                        snipStatus === "processing"
+                                            ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
+                                            : snipStatus === "success"
+                                              ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
+                                              : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
+                                    }`}
+                                >
+                                    {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -399,12 +633,19 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                 onWheel={handleWheel}
                 style={{ cursor: getCursor() }}
             >
+                {/* Loading overlay while waiting for highlighting to complete */}
+                {isWaitingForHighlight && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Loading PDF...</div>
+                    </div>
+                )}
+
                 {/* Selection overlay */}
                 {selection && getSelectionStyle() && <div style={getSelectionStyle()!} />}
 
                 <Document
                     options={pdfOptions}
-                    file={url}
+                    file={resolvedUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
                     onLoadError={onDocumentLoadError}
                     loading={<div className="p-4 text-center">Loading PDF...</div>}
@@ -413,7 +654,17 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                     <div ref={documentContainerRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
                         {numPages &&
                             Array.from(new Array(numPages), (_, index) => (
-                                <div key={`page_${index + 1}`} className="flex justify-center p-2">
+                                <div
+                                    key={`page_${index + 1}`}
+                                    ref={el => {
+                                        if (el) {
+                                            pageRefs.current.set(index + 1, el);
+                                        } else {
+                                            pageRefs.current.delete(index + 1);
+                                        }
+                                    }}
+                                    className="flex justify-center p-2"
+                                >
                                     <Page
                                         pageNumber={index + 1}
                                         scale={zoomLevel}
@@ -422,7 +673,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                                                 setPageWidth(page.width);
                                             }
                                         }}
-                                        renderTextLayer={interactionMode === "text"}
+                                        renderTextLayer={interactionMode === "text" || citationMaps.length > 0}
                                         renderAnnotationLayer={true}
                                         className="shadow-lg"
                                     />

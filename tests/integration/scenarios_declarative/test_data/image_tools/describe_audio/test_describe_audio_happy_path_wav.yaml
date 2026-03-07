@@ -25,7 +25,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "describe_audio"
-                  arguments: '{"audio_filename": "test_audio.wav"}'
+                  arguments: '{"input_audio": "test_audio.wav"}'
   - static_response:
       choices:
         - message:

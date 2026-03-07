@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { RefreshCcw, Upload } from "lucide-react";
 
-import type { PromptGroup } from "@/lib/types/prompts";
+import type { PromptGroup, Prompt } from "@/lib/types/prompts";
 import type { PromptImportData } from "@/lib/schemas";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
@@ -129,13 +129,33 @@ export const PromptsPage: React.FC = () => {
         navigate(`/prompts/${group.id}/edit`);
     };
 
-    const handleRestoreVersion = async (promptId: string) => {
+    const handleRestoreVersion = async (promptId: string, groupId: string) => {
         try {
-            await api.webui.patch(`/api/v1/prompts/${promptId}/make-production`);
+            // Restoring a version always creates a new version with that content
+            // The new version becomes the latest (and thus active) version
+
+            // First, get all versions for this group to find the prompt
+            const versions: Prompt[] = await api.webui.get(`/api/v1/prompts/groups/${groupId}/prompts`);
+            const prompt = versions.find(v => v.id === promptId);
+
+            if (!prompt) {
+                throw new Error("Prompt version not found");
+            }
+
+            // Create a new version with the restored content
+            await api.webui.patch(`/api/v1/prompts/groups/${groupId}`, {
+                initial_prompt: prompt.promptText,
+                name: prompt.name,
+                description: prompt.description,
+                category: prompt.category,
+                command: prompt.command,
+                create_new_version: true, // Always create new version when restoring
+            });
+
             fetchPromptGroups();
-            addNotification("Version made active", "success");
+            addNotification("Version restored as new version", "success");
         } catch (error) {
-            displayError({ title: "Failed to Update Version", error: getErrorMessage(error, "An error occurred while making the version active.") });
+            displayError({ title: "Failed to Restore Version", error: getErrorMessage(error, "An error occurred while restoring the version.") });
         }
     };
 

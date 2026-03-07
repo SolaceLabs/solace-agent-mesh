@@ -25,7 +25,7 @@ OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI spec
 
 ### SQL Connectors
 
-SQL connectors allow agents to query relational databases using natural language. The connectors convert user questions into SQL queries and execute them against MySQL, PostgreSQL, or MariaDB databases. For detailed information about creating and configuring SQL connectors, see [SQL Connectors](sql-connectors.md).
+SQL connectors allow agents to query relational databases using natural language. The connectors convert user questions into SQL queries and execute them against MySQL, PostgreSQL, MariaDB, Microsoft SQL Server, or Oracle databases. For detailed information about creating and configuring SQL connectors, see [SQL Connectors](sql-connectors.md).
 
 ## Creating Connectors
 

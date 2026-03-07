@@ -4,7 +4,7 @@ import EndNode from "@/lib/components/workflowVisualization/nodes/EndNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
 const meta = {
-    title: "Workflow/EndNode",
+    title: "Workflow/WorkflowVisualization/EndNode",
     component: EndNode,
     parameters: {
         layout: "fullscreen",

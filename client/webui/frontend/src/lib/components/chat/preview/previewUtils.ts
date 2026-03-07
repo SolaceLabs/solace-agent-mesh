@@ -348,6 +348,23 @@ export function encodeBase64Content(text: string): string {
 }
 
 /**
+ * Checks if a string is valid base64 encoded content.
+ * @param str The string to check.
+ * @returns True if the string appears to be valid base64.
+ */
+function isValidBase64(str: string): boolean {
+    if (!str || typeof str !== "string") {
+        return false;
+    }
+    // Check if string only contains valid base64 characters
+    // Valid base64: A-Z, a-z, 0-9, +, /, and = for padding
+    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+    // Also check that length is valid (must be multiple of 4 after trimming)
+    const trimmed = str.trim();
+    return base64Regex.test(trimmed) && trimmed.length % 4 === 0;
+}
+
+/**
  * Decodes a base64 encoded string into a UTF-8 string.
  * Attempts to use TextDecoder for proper UTF-8 handling, falls back to simple atob
  * if TextDecoder fails (e.g., for non-UTF8 binary data represented as base64).
@@ -357,16 +374,29 @@ export function encodeBase64Content(text: string): string {
  * @throws Error if base64 decoding itself fails.
  */
 export function decodeBase64Content(content: string): string {
+    // Early return if content is empty or not a string
+    if (!content || typeof content !== "string") {
+        return content || "";
+    }
+
+    if (!isValidBase64(content)) {
+        // Content is not valid base64, return as-is (it's likely already plain text)
+        return content;
+    }
+
     try {
         const bytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
         return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     } catch (error) {
-        console.warn("TextDecoder failed (potentially non-UTF8 data), falling back to simple atob:", error);
+        // Log at debug level since this is expected for some content types
+        console.debug("TextDecoder failed (potentially non-UTF8 data), falling back to simple atob:", error);
         // Fallback for potential binary data or non-UTF8 text
         try {
             return atob(content);
         } catch (atobError) {
-            console.error("Failed to decode base64 content with atob fallback:", atobError);
+            // If both methods fail, the content is likely already decoded or corrupted
+            // Return the original content instead of throwing
+            console.debug("Failed to decode base64 content with atob fallback, returning original content:", atobError);
             return content;
         }
     }

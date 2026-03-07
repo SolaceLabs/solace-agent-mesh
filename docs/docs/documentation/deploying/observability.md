@@ -13,13 +13,13 @@ These observability tools work together to create a complete picture of your sys
 The observability features described here focus on runtime behavior and message flows. For information about application logging, see [Logging Configuration](./logging.md).
 :::
 
-## Viewing Workflows
+## Viewing Activities
 
-The workflow viewer serves as your primary window into how individual requests flow through your agent mesh. This interactive visualization tool transforms complex multi-agent interactions into clear, understandable diagrams that show exactly how your system processes each user query.
+The activity viewer serves as your primary window into how individual requests flow through your agent mesh. This interactive visualization tool transforms complex multi-agent interactions into clear, understandable diagrams that show exactly how your system processes each user query.
 
-Understanding request flow is essential because Agent Mesh operates as a distributed system where multiple agents collaborate to fulfill user requests. The workflow viewer makes these interactions transparent by providing an interactive web-based interface for each user query and its corresponding response.
+Understanding request flow is essential because Agent Mesh operates as a distributed system where multiple agents collaborate to fulfill user requests. The activity viewer makes these interactions transparent by providing an interactive web-based interface for each user query and its corresponding response.
 
-The workflow viewer enables you to:
+The activity viewer enables you to:
 
 **Track complete request lifecycles**: Follow a stimulus (request) from its initial entry point through every agent interaction until the final response is delivered to the user.
 
@@ -27,11 +27,11 @@ The workflow viewer enables you to:
 
 **Monitor real-time agent activity**: Observe which agents are actively participating in request processing and identify potential bottlenecks or failures.
 
-To access the workflow viewer for any specific interaction, click the **View Agent Workflow** icon located at the bottom left of the final response in the web UI. The complete workflow chart will appear in the side panel on the right, providing an immediate visual representation of the entire request processing flow.
+To access the activity viewer for any specific interaction, click the **View Activity** icon located at the bottom left of each response in the web UI. The complete activity chart will appear in the side panel on the right, providing an immediate visual representation of the entire request processing flow.
 
 ## Viewing Agents
 
-The Agents view complements the workflow viewer by providing a bird's-eye perspective of your entire agent ecosystem. While the workflow viewer focuses on individual request flows, the Agents view helps you understand the overall structure and health of your agent mesh.
+The Agents view complements the activity viewer by providing a bird's-eye perspective of your entire agent ecosystem. While the activity viewer focuses on individual request flows, the Agents view helps you understand the overall structure and health of your agent mesh.
 
 This real-time dashboard becomes particularly valuable as your agent mesh grows in complexity. It allows you to quickly assess which agents are available, understand their capabilities, and visualize how they relate to each other within the system hierarchy.
 
@@ -43,13 +43,13 @@ The Agents view provides several key insights:
 
 **Hierarchical topology visualization**: Understand the relationships between agents and how they're organized within your system architecture, which is crucial for troubleshooting and optimization.
 
-To access this comprehensive overview, open the web interface in your browser and switch to the **Agents** tab.
+To access this comprehensive overview, open the web interface in your browser and switch to the **Agent Mesh** > **Agents** tab.
 
 ## Monitoring Event Broker Activity
 
 The Solace event broker serves as the central nervous system of your agent mesh, handling all communication between components. Monitoring Solace event broker activity provides deep insights into system behavior and helps identify communication issues before they impact users.
 
-Understanding message flows at the event broker level is essential because it reveals the actual communication patterns between your agents, regardless of how they're configured. This low-level visibility complements the higher-level views provided by the workflow viewer and agents dashboard.
+Understanding message flows at the event broker level is essential because it reveals the actual communication patterns between your agents, regardless of how they're configured. This low-level visibility complements the higher-level views provided by the activity viewer and agents dashboard.
 
 Several specialized tools help you monitor and interact with the Solace event broker:
 
@@ -84,7 +84,7 @@ This filter removes routine registration messages while preserving visibility in
 
 ## Examining Stimulus Logs
 
-Stimulus logs provide the most detailed level of observability in your Agent Mesh system. While the workflow viewer gives you visual representations and the Solace event broker tools show real-time message flows, stimulus logs create permanent, comprehensive records of every request that flows through your system.
+Stimulus logs provide the most detailed level of observability in your Agent Mesh system. While the activity viewer gives you visual representations and the Solace event broker tools show real-time message flows, stimulus logs create permanent, comprehensive records of every request that flows through your system.
 
 These logs serve as your system's memory, capturing complete traces that you can analyze long after events occur. This persistent record becomes invaluable for performance analysis, debugging complex issues, and understanding usage patterns over time.
 

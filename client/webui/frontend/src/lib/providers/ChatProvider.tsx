@@ -60,6 +60,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
     const ragDataRef = useRef<RAGSearchResult[]>([]);
     const [ragEnabled] = useState<boolean>(true);
+    const [expandedDocumentFilename, setExpandedDocumentFilename] = useState<string | null>(null);
 
     // Wrapper to keep ref in sync with state
     const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
@@ -349,6 +350,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             })),
             isError: message.isError,
             displayHtml: message.displayHtml,
+            contextQuote: message.contextQuote,
+            contextQuoteSourceId: message.contextQuoteSourceId,
         };
     }, []);
 
@@ -503,6 +506,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     artifactNotification: bubble.artifactNotification,
                     isError: bubble.isError,
                     displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
+                    contextQuote: bubble.contextQuote, // Restore context quote for user messages
+                    contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -1212,7 +1217,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 metadata: {
                                                     favicon: source.favicon || `https://www.google.com/s2/favicons?domain=${source.url}&sz=32`,
                                                     type: "web_search",
-                                                    source_type: source.source_type || "web",
+                                                    sourceType: source.source_type || "web",
                                                 },
                                             }));
 
@@ -1506,6 +1511,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isComplete: true,
                             metadata: { ...newMessages[taskMessageIndex].metadata, lastProcessedEventSequence: currentEventSequence },
                         };
+                    } else if (result.kind === "task" && result.status?.state !== "failed" && result.status?.message?.parts) {
+                        // Fallback: the final response arrived before any status updates
+                        // (race condition between response and status broker topics).
+                        // Create a bubble from the final response's content.
+                        const fallbackParts = (result.status.message.parts as PartFE[]).filter((p: PartFE) => p.kind === "text" || p.kind === "file");
+                        if (fallbackParts.length > 0) {
+                            newMessages.push({
+                                role: "agent",
+                                parts: fallbackParts,
+                                taskId: currentTaskIdFromResult,
+                                isUser: false,
+                                isComplete: true,
+                                metadata: {
+                                    messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                                    sessionId: (result as unknown as { contextId?: string }).contextId || sessionId,
+                                    lastProcessedEventSequence: currentEventSequence,
+                                },
+                            });
+                        }
                     }
                 }
 
@@ -1660,6 +1684,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [
             addNotification,
             closeCurrentEventSource,
@@ -2229,7 +2254,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null, contextQuoteSourceId?: string | null) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
@@ -2249,6 +2274,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 displayHtml: displayHtml || undefined,
+                contextQuote: contextQuote || undefined,
+                contextQuoteSourceId: contextQuoteSourceId || undefined,
                 metadata: {
                     messageId: `msg-${v4()}`,
                     sessionId: overrideSessionId || sessionId,
@@ -2590,18 +2617,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [sessionId]);
 
     useEffect(() => {
-        const handleSessionMoved = async (event: Event) => {
+        const handleSessionUpdated = async (event: Event) => {
             const customEvent = event as CustomEvent;
-            const { sessionId: movedSessionId, projectId: newProjectId } = customEvent.detail;
+            const { sessionId: updatedSessionId, projectId } = customEvent.detail;
 
-            // If the moved session is the current session, update the project context
-            if (movedSessionId === sessionId) {
+            // Only handle if projectId is present (indicating a move)
+            if (projectId === undefined) return;
+
+            // If the updated session is the current session, update the project context
+            if (updatedSessionId === sessionId) {
                 // Set flag to prevent handleNewSession from being triggered by this project change
                 isSessionMoveRef.current = true;
 
-                if (newProjectId) {
+                if (projectId) {
                     // Session moved to a project - activate that project
-                    const project = projects.find((p: Project) => p.id === newProjectId);
+                    const project = projects.find((p: Project) => p.id === projectId);
                     if (project) {
                         setActiveProject(project);
                     }
@@ -2612,9 +2642,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         };
 
-        window.addEventListener("session-moved", handleSessionMoved);
+        window.addEventListener("session-updated", handleSessionUpdated);
         return () => {
-            window.removeEventListener("session-moved", handleSessionMoved);
+            window.removeEventListener("session-updated", handleSessionUpdated);
         };
     }, [sessionId, projects, setActiveProject]);
 
@@ -2820,6 +2850,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const contextValue: ChatContextValue = {
         ragData,
         ragEnabled,
+        expandedDocumentFilename,
+        setExpandedDocumentFilename,
         configCollectFeedback,
         submittedFeedback,
         handleFeedbackSubmit,

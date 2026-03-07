@@ -185,7 +185,7 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
                     <div className="h-full">
                         {currentWorkflows.length > 0 ? (
                             <div className="rounded-xs border">
-                                <Table>
+                                <Table aria-label="Workflows">
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="font-semibold">

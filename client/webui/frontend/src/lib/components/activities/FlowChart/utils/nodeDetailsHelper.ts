@@ -173,7 +173,8 @@ function findAgentNodeDetails(node: LayoutNode, primaryStep: VisualizerStep, all
     }
 
     // Find the response (AGENT_RESPONSE_TEXT for this agent's task)
-    const responseStep = allSteps.find(s => s.owningTaskId === agentTaskId && s.type === "AGENT_RESPONSE_TEXT");
+    // Use findLast to get the most recent response if there are multiple
+    const responseStep = allSteps.findLast(s => s.owningTaskId === agentTaskId && s.type === "AGENT_RESPONSE_TEXT");
 
     // For workflow agents, find the WORKFLOW_NODE_EXECUTION_RESULT which contains output artifact
     let outputArtifactStep: VisualizerStep | undefined;

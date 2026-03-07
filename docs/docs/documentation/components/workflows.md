@@ -400,7 +400,7 @@ workflow:
 
 ## Schema Reference
 
-The complete JSON Schema for workflow definitions is available at [`src/solace_agent_mesh/common/schemas/workflow_schema.json`](https://github.com/SolaceDev/solace-agent-mesh/blob/main/src/solace_agent_mesh/common/schemas/workflow_schema.json).
+The complete JSON Schema for workflow definitions is available at [`src/solace_agent_mesh/common/schemas/workflow_schema.json`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/src/solace_agent_mesh/common/schemas/workflow_schema.json).
 
 Use this schema with your IDE or YAML validator for autocompletion and validation while writing workflow configurations.
 

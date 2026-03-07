@@ -40,6 +40,45 @@ router = APIRouter()
 
 
 # ============================================================================
+# Helper Functions
+# ============================================================================
+
+def get_latest_prompt(db: Session, group_id: str) -> Optional[PromptModel]:
+    """
+    Get the latest prompt version for a group (highest version number).
+    The latest version is always considered the active/production version.
+    """
+    return db.query(PromptModel).filter(
+        PromptModel.group_id == group_id
+    ).order_by(PromptModel.version.desc()).first()
+
+
+def get_next_version_number(db: Session, group_id: str) -> int:
+    """Get the next version number for a prompt group."""
+    max_version_result = db.query(func.max(PromptModel.version)).filter(
+        PromptModel.group_id == group_id
+    ).scalar()
+    return (max_version_result + 1) if max_version_result else 1
+
+
+def prompt_to_dict(prompt: PromptModel) -> Dict[str, Any]:
+    """Convert a PromptModel to a dictionary for API responses."""
+    return {
+        "id": prompt.id,
+        "prompt_text": prompt.prompt_text,
+        "group_id": prompt.group_id,
+        "user_id": prompt.user_id,
+        "version": prompt.version,
+        "name": prompt.name,
+        "description": prompt.description,
+        "category": prompt.category,
+        "command": prompt.command,
+        "created_at": prompt.created_at,
+        "updated_at": prompt.updated_at,
+    }
+
+
+# ============================================================================
 # Permission Helper Functions
 # ============================================================================
 
@@ -214,24 +253,11 @@ async def get_all_prompt_groups(
                     "production_prompt": None,
                 }
                 
-                if group.production_prompt_id:
-                    prod_prompt = db.query(PromptModel).filter(
-                        PromptModel.id == group.production_prompt_id
-                    ).first()
-                    if prod_prompt:
-                        group_dict["production_prompt"] = {
-                            "id": prod_prompt.id,
-                            "prompt_text": prod_prompt.prompt_text,
-                            "group_id": prod_prompt.group_id,
-                            "user_id": prod_prompt.user_id,
-                            "version": prod_prompt.version,
-                            "name": prod_prompt.name,
-                            "description": prod_prompt.description,
-                            "category": prod_prompt.category,
-                            "command": prod_prompt.command,
-                            "created_at": prod_prompt.created_at,
-                            "updated_at": prod_prompt.updated_at,
-                        }
+                # Get latest version as the active/production prompt
+                latest_prompt = get_latest_prompt(db, group.id)
+                if latest_prompt:
+                    group_dict["production_prompt_id"] = latest_prompt.id
+                    group_dict["production_prompt"] = prompt_to_dict(latest_prompt)
                 
                 result.append(PromptGroupResponse(**group_dict))
             except Exception as e:
@@ -323,24 +349,11 @@ async def list_prompt_groups(
                     "production_prompt": None,
                 }
                 
-                if group.production_prompt_id:
-                    prod_prompt = db.query(PromptModel).filter(
-                        PromptModel.id == group.production_prompt_id
-                    ).first()
-                    if prod_prompt:
-                        group_dict["production_prompt"] = {
-                            "id": prod_prompt.id,
-                            "prompt_text": prod_prompt.prompt_text,
-                            "group_id": prod_prompt.group_id,
-                            "user_id": prod_prompt.user_id,
-                            "version": prod_prompt.version,
-                            "name": prod_prompt.name,
-                            "description": prod_prompt.description,
-                            "category": prod_prompt.category,
-                            "command": prod_prompt.command,
-                            "created_at": prod_prompt.created_at,
-                            "updated_at": prod_prompt.updated_at,
-                        }
+                # Get latest version as the active/production prompt
+                latest_prompt = get_latest_prompt(db, group.id)
+                if latest_prompt:
+                    group_dict["production_prompt_id"] = latest_prompt.id
+                    group_dict["production_prompt"] = prompt_to_dict(latest_prompt)
                 
                 result_groups.append(PromptGroupResponse(**group_dict))
             except Exception as e:
@@ -400,24 +413,11 @@ async def get_prompt_group(
             "production_prompt": None,
         }
         
-        if group.production_prompt_id:
-            prod_prompt = db.query(PromptModel).filter(
-                PromptModel.id == group.production_prompt_id
-            ).first()
-            if prod_prompt:
-                group_dict["production_prompt"] = {
-                    "id": prod_prompt.id,
-                    "prompt_text": prod_prompt.prompt_text,
-                    "group_id": prod_prompt.group_id,
-                    "user_id": prod_prompt.user_id,
-                    "version": prod_prompt.version,
-                    "name": prod_prompt.name,
-                    "description": prod_prompt.description,
-                    "category": prod_prompt.category,
-                    "command": prod_prompt.command,
-                    "created_at": prod_prompt.created_at,
-                    "updated_at": prod_prompt.updated_at,
-                }
+        # Get latest version as the active/production prompt
+        latest_prompt = get_latest_prompt(db, group.id)
+        if latest_prompt:
+            group_dict["production_prompt_id"] = latest_prompt.id
+            group_dict["production_prompt"] = prompt_to_dict(latest_prompt)
         
         return PromptGroupResponse(**group_dict)
     except HTTPException:
@@ -467,7 +467,7 @@ async def create_prompt_group(
             command=group_data.command,
             user_id=user_id,
             author_name=user_display_name,
-            production_prompt_id=None,
+            production_prompt_id=None,  # Deprecated field, kept for backward compatibility
             is_shared=False,
             is_pinned=False,
             created_at=now_ms,
@@ -494,8 +494,7 @@ async def create_prompt_group(
         db.add(new_prompt)
         db.flush()
         
-        # Set production prompt reference
-        new_group.production_prompt_id = prompt_id
+        # Note: production_prompt_id is deprecated - latest version is always active
         new_group.updated_at = now_epoch_ms()
         
         db.commit()
@@ -510,7 +509,7 @@ async def create_prompt_group(
             command=new_group.command,
             user_id=new_group.user_id,
             author_name=new_group.author_name,
-            production_prompt_id=new_group.production_prompt_id,
+            production_prompt_id=new_prompt.id,  # Return latest version ID
             is_shared=new_group.is_shared,
             is_pinned=new_group.is_pinned,
             created_at=new_group.created_at,
@@ -577,33 +576,41 @@ async def update_prompt_group(
                     detail=f"Command '/{group_data.command}' already exists"
                 )
         
-        # Update fields (excluding initial_prompt which is handled separately)
-        update_data = group_data.dict(exclude_unset=True, exclude={'initial_prompt'})
-        for field, value in update_data.items():
-            setattr(group, field, value)
+        # Get the latest prompt to check if anything changed
+        latest_prompt = get_latest_prompt(db, group_id)
         
-        # If initial_prompt is provided, always create a new version
-        # This happens when user clicks "Save New Version" button
-        if hasattr(group_data, 'initial_prompt') and group_data.initial_prompt:
-            # Get next version number
-            max_version_result = db.query(func.max(PromptModel.version)).filter(
-                PromptModel.group_id == group_id
-            ).scalar()
-            
-            next_version = (max_version_result + 1) if max_version_result else 1
-            
-            # Create new prompt version
+        if not latest_prompt:
+            log.error("No prompt versions found for group %s", group_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No prompt versions found for this group"
+            )
+        
+        # Determine new values (use provided values or fall back to latest prompt values)
+        new_name = group_data.name if group_data.name is not None else latest_prompt.name
+        new_description = group_data.description if hasattr(group_data, 'description') and group_data.description is not None else latest_prompt.description
+        new_category = group_data.category if hasattr(group_data, 'category') and group_data.category is not None else latest_prompt.category
+        new_command = group_data.command if hasattr(group_data, 'command') and group_data.command is not None else latest_prompt.command
+        new_prompt_text = group_data.initial_prompt if hasattr(group_data, 'initial_prompt') and group_data.initial_prompt else latest_prompt.prompt_text
+        
+        # Check if user wants to create a new version
+        create_new_version = getattr(group_data, 'create_new_version', False)
+        
+        if create_new_version:
+            # Create a new version with the updated values
+            next_version = get_next_version_number(db, group_id)
             prompt_id = str(uuid.uuid4())
             now_ms = now_epoch_ms()
             
-            # Create new prompt version with current metadata
+            log.info("Creating new prompt version %s for group %s (user: %s)", next_version, group_id, user_id)
+            
             new_prompt = PromptModel(
                 id=prompt_id,
-                prompt_text=group_data.initial_prompt,
-                name=group_data.name if group_data.name else group.name,
-                description=group_data.description if group_data.description is not None else group.description,
-                category=group_data.category if group_data.category is not None else group.category,
-                command=group_data.command if group_data.command is not None else group.command,
+                prompt_text=new_prompt_text,
+                name=new_name,
+                description=new_description,
+                category=new_category,
+                command=new_command,
                 group_id=group_id,
                 user_id=user_id,
                 version=next_version,
@@ -612,9 +619,22 @@ async def update_prompt_group(
             )
             db.add(new_prompt)
             db.flush()
+        else:
+            # Update the latest version in-place
+            log.info("Updating prompt version %s in-place for group %s (user: %s)", latest_prompt.version, group_id, user_id)
             
-            # Update production prompt reference
-            group.production_prompt_id = prompt_id
+            latest_prompt.prompt_text = new_prompt_text
+            latest_prompt.name = new_name
+            latest_prompt.description = new_description
+            latest_prompt.category = new_category
+            latest_prompt.command = new_command
+            latest_prompt.updated_at = now_epoch_ms()
+            db.flush()
+        
+        # Update group-level fields for consistency (these are now just for reference)
+        update_data = group_data.model_dump(exclude_unset=True, exclude={'initial_prompt'})
+        for field, value in update_data.items():
+            setattr(group, field, value)
         
         group.updated_at = now_epoch_ms()
         
@@ -638,24 +658,11 @@ async def update_prompt_group(
             "production_prompt": None,
         }
         
-        if group.production_prompt_id:
-            prod_prompt = db.query(PromptModel).filter(
-                PromptModel.id == group.production_prompt_id
-            ).first()
-            if prod_prompt:
-                group_dict["production_prompt"] = {
-                    "id": prod_prompt.id,
-                    "prompt_text": prod_prompt.prompt_text,
-                    "group_id": prod_prompt.group_id,
-                    "user_id": prod_prompt.user_id,
-                    "version": prod_prompt.version,
-                    "name": prod_prompt.name,
-                    "description": prod_prompt.description,
-                    "category": prod_prompt.category,
-                    "command": prod_prompt.command,
-                    "created_at": prod_prompt.created_at,
-                    "updated_at": prod_prompt.updated_at,
-                }
+        # Get latest version as the active/production prompt
+        latest_prompt = get_latest_prompt(db, group.id)
+        if latest_prompt:
+            group_dict["production_prompt_id"] = latest_prompt.id
+            group_dict["production_prompt"] = prompt_to_dict(latest_prompt)
 
         return PromptGroupResponse(**group_dict)
     except HTTPException:
@@ -716,24 +723,11 @@ async def toggle_pin_prompt(
             "production_prompt": None,
         }
         
-        if group.production_prompt_id:
-            prod_prompt = db.query(PromptModel).filter(
-                PromptModel.id == group.production_prompt_id
-            ).first()
-            if prod_prompt:
-                group_dict["production_prompt"] = {
-                    "id": prod_prompt.id,
-                    "prompt_text": prod_prompt.prompt_text,
-                    "group_id": prod_prompt.group_id,
-                    "user_id": prod_prompt.user_id,
-                    "version": prod_prompt.version,
-                    "name": prod_prompt.name,
-                    "description": prod_prompt.description,
-                    "category": prod_prompt.category,
-                    "command": prod_prompt.command,
-                    "created_at": prod_prompt.created_at,
-                    "updated_at": prod_prompt.updated_at,
-                }
+        # Get latest version as the active/production prompt
+        latest_prompt = get_latest_prompt(db, group.id)
+        if latest_prompt:
+            group_dict["production_prompt_id"] = latest_prompt.id
+            group_dict["production_prompt"] = prompt_to_dict(latest_prompt)
         
         return PromptGroupResponse(**group_dict)
     except HTTPException:
@@ -867,15 +861,13 @@ async def create_prompt_version(
             )
         
         # Get next version number
-        max_version_result = db.query(func.max(PromptModel.version)).filter(
-            PromptModel.group_id == group_id
-        ).scalar()
-        
-        next_version = (max_version_result + 1) if max_version_result else 1
+        next_version = get_next_version_number(db, group_id)
         
         # Create new prompt
         prompt_id = str(uuid.uuid4())
         now_ms = now_epoch_ms()
+        
+        log.info("Creating prompt version %s for group %s via direct API (user: %s)", next_version, group_id, user_id)
         
         # Get current group metadata for the new version
         new_prompt = PromptModel(
@@ -983,63 +975,9 @@ async def update_prompt(
         )
 
 
-@router.patch("/{prompt_id}/make-production", response_model=PromptResponse)
-async def make_prompt_production(
-    prompt_id: str,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_user_id),
-    _: None = Depends(check_prompts_enabled),
-):
-    """Set a prompt as the production version for its group (requires write permission)."""
-    try:
-        prompt = db.query(PromptModel).filter(
-            PromptModel.id == prompt_id
-        ).first()
-        
-        if not prompt:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Prompt not found"
-            )
-        
-        # Check write permission on the group
-        check_permission(db, prompt.group_id, user_id, "write")
-        
-        # Update group's production prompt
-        group = db.query(PromptGroupModel).filter(
-            PromptGroupModel.id == prompt.group_id
-        ).first()
-        
-        if group:
-            group.production_prompt_id = prompt_id
-            group.updated_at = now_epoch_ms()
-            db.commit()
-            db.refresh(prompt)
-        
-        return PromptResponse(
-            id=prompt.id,
-            prompt_text=prompt.prompt_text,
-            group_id=prompt.group_id,
-            user_id=prompt.user_id,
-            version=prompt.version,
-            name=prompt.name,
-            description=prompt.description,
-            category=prompt.category,
-            command=prompt.command,
-            created_at=prompt.created_at,
-            updated_at=prompt.updated_at,
-        )
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
-        log.error(f"Error making prompt {prompt_id} production: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update production prompt"
-        )
-
+# REMOVED: make-production endpoint
+# The latest version (highest version number) is always the active version.
+# To "restore" an old version, create a new version with that content.
 
 @router.delete("/{prompt_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_prompt(
@@ -1076,17 +1014,7 @@ async def delete_prompt(
             # Delete the entire group if this is the last prompt
             db.delete(group)
         else:
-            # If this was the production prompt, set another as production
-            if group and group.production_prompt_id == prompt_id:
-                other_prompt = db.query(PromptModel).filter(
-                    PromptModel.group_id == prompt.group_id,
-                    PromptModel.id != prompt_id,
-                ).order_by(PromptModel.created_at.desc()).first()
-                
-                if other_prompt:
-                    group.production_prompt_id = other_prompt.id
-                    group.updated_at = now_epoch_ms()
-            
+            # Note: No need to update production_prompt_id since latest version is always active
             db.delete(prompt)
         
         db.commit()
@@ -1151,7 +1079,7 @@ async def prompt_builder_chat(
         # Process the message using real LLM with conflict checking
         response = await assistant.process_message(
             user_message=request.message,
-            conversation_history=[msg.dict() for msg in request.conversation_history],
+            conversation_history=[msg.model_dump() for msg in request.conversation_history],
             current_template=request.current_template or {},
             user_id=user_id
         )
@@ -1203,22 +1131,15 @@ async def export_prompt_group(
                 detail="Prompt group not found"
             )
         
-        # Fetch the production prompt
-        if not group.production_prompt_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No active prompt version to export"
-            )
-        
-        prod_prompt = db.query(PromptModel).filter(
-            PromptModel.id == group.production_prompt_id
-        ).first()
+        # Fetch the latest prompt (always the active version)
+        prod_prompt = get_latest_prompt(db, group_id)
         
         if not prod_prompt:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Active prompt version not found"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No prompt versions found to export"
             )
+        
         
         # Build export data
         # Use author_name if available, otherwise use current user's display name as fallback
@@ -1373,7 +1294,7 @@ async def import_prompt(
             command=command,
             user_id=user_id,
             author_name=user_display_name,  # Set to importing user, not original author
-            production_prompt_id=None,
+            production_prompt_id=None,  # Deprecated field
             is_shared=False,
             is_pinned=False,
             created_at=now_ms,
@@ -1400,8 +1321,7 @@ async def import_prompt(
         db.add(new_prompt)
         db.flush()
         
-        # Set as production prompt
-        new_group.production_prompt_id = prompt_id
+        # Note: production_prompt_id is deprecated - latest version is always active
         new_group.updated_at = now_epoch_ms()
         
         db.commit()

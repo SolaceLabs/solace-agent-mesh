@@ -5,17 +5,12 @@ Custom Solace AI Connector Component to Host Google ADK Agents via A2A Protocol.
 import asyncio
 import concurrent.futures
 import fnmatch
-import functools
 import inspect
 import json
 import logging
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
-
-from litellm.exceptions import BadRequestError
-
-from ...common.error_handlers import get_error_message
 
 from a2a.types import (
     AgentCard,
@@ -42,26 +37,31 @@ from google.adk.models import LlmResponse
 from google.adk.models.llm_request import LlmRequest
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
+from google.adk.tools import FunctionTool
 from google.adk.tools.mcp_tool import MCPToolset
 from google.adk.tools.openapi_tool import OpenAPIToolset
 from google.genai import types as adk_types
+from litellm.exceptions import BadRequestError
 from pydantic import BaseModel, ValidationError
 from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.common.utils import import_module
 
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
+from ...agent.adk.session_compaction import SessionCompactionState
 from ...agent.adk.services import (
     initialize_artifact_service,
     initialize_credential_service,
     initialize_memory_service,
     initialize_session_service,
 )
+from ...agent.adk.callbacks import _generate_tool_instructions_from_registry
 from ...agent.adk.setup import (
     initialize_adk_agent,
     initialize_adk_runner,
     load_adk_tools,
 )
+from ...agent.adk.tool_wrapper import ADKToolWrapper
 from ...agent.protocol.event_handlers import process_event, publish_agent_card
 from ...agent.tools.peer_agent_tool import (
     CORRELATION_DATA_PREFIX,
@@ -73,6 +73,7 @@ from ...agent.tools.registry import tool_registry
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...common import a2a
 from ...common.a2a.translation import format_and_route_adk_event
+from ...common.a2a.types import ArtifactInfo
 from ...common.agent_registry import AgentRegistry
 from ...common.constants import (
     DEFAULT_COMMUNICATION_TIMEOUT,
@@ -81,8 +82,8 @@ from ...common.constants import (
     EXTENSION_URI_AGENT_TYPE,
     EXTENSION_URI_SCHEMAS,
 )
-from ...common.a2a.types import ArtifactInfo
 from ...common.data_parts import AgentProgressUpdateData, ArtifactSavedData
+from ...common.error_handlers import get_error_message
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
@@ -195,6 +196,12 @@ class SamAgentComponent(SamComponentBase):
             self.memory_service_config = self.get_config(
                 "memory_service", {"type": "memory"}
             )
+            self.auto_summarization_config = self.get_config(
+                "auto_summarization", {
+                    "enabled": False,
+                    "compaction_percentage": 0.25
+                }
+            )
             self.artifact_handling_mode = self.get_config(
                 "artifact_handling_mode", "ignore"
             ).lower()
@@ -271,6 +278,10 @@ class SamAgentComponent(SamComponentBase):
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
         self._active_background_tasks = set()
+
+        # Initialize session compaction state for parallel task coordination
+        # Agent-scoped to ensure isolation when multiple agents run in the same process
+        self.session_compaction_state = SessionCompactionState()
 
         # Initialize structured invocation support
         self.structured_invocation_handler = StructuredInvocationHandler(self)
@@ -837,9 +848,20 @@ class SamAgentComponent(SamComponentBase):
             if original_task_context:
                 loop = self.get_async_loop()
                 if loop and loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        self.finalize_task_error(e, original_task_context), loop
-                    )
+                    # For structured invocation tasks, route the error through
+                    # the SI handler so it can send a proper structured error
+                    # result and clean up.
+                    if task_context.get_flag("structured_invocation"):
+                        asyncio.run_coroutine_threadsafe(
+                            self.structured_invocation_handler.finalize_deferred_structured_invocation(
+                                task_context, original_task_context, e
+                            ),
+                            loop,
+                        )
+                    else:
+                        asyncio.run_coroutine_threadsafe(
+                            self.finalize_task_error(e, original_task_context), loop
+                        )
                 else:
                     log.error(
                         "%s Async loop not available. Cannot schedule error finalization for task %s.",
@@ -1112,6 +1134,189 @@ class SamAgentComponent(SamComponentBase):
                     e,
                     exc_info=True,
                 )
+        return None
+
+    @staticmethod
+    def _remove_tool(llm_request: LlmRequest, tool_name: str) -> bool:
+        """Remove a tool's FunctionDeclaration from config.tools so the LLM
+        does not see it for this request.
+
+        The tool is intentionally kept in tools_dict so the ADK runtime can
+        still dispatch to it if the LLM calls it from conversation history.
+
+        Returns True if a declaration was found and removed, False otherwise.
+        """
+        removed = False
+
+        if llm_request.config and llm_request.config.tools:
+            for tool_obj in llm_request.config.tools:
+                if tool_obj.function_declarations:
+                    original_count = len(tool_obj.function_declarations)
+                    tool_obj.function_declarations = [
+                        fd for fd in tool_obj.function_declarations
+                        if fd.name != tool_name
+                    ]
+                    if len(tool_obj.function_declarations) < original_count:
+                        removed = True
+            # ADK requires Tool objects to have at least one declaration
+            llm_request.config.tools = [
+                t for t in llm_request.config.tools
+                if t.function_declarations
+            ]
+            if not llm_request.config.tools:
+                llm_request.config.tools = None
+
+        return removed
+
+    @staticmethod
+    def _has_declaration(llm_request: LlmRequest, tool_name: str) -> bool:
+        """Check whether a FunctionDeclaration with the given name exists in config.tools."""
+        if llm_request.config and llm_request.config.tools:
+            for tool_obj in llm_request.config.tools:
+                if tool_obj.function_declarations:
+                    if any(fd.name == tool_name for fd in tool_obj.function_declarations):
+                        return True
+        return False
+
+    def _ensure_tool_in_tools_dict(
+        self, llm_request: LlmRequest, tool_name: str
+    ) -> bool:
+        """Ensure a tool exists in tools_dict for ADK dispatch safety.
+
+        tools_dict is rebuilt from agent.tools on every LLM call, so
+        dynamically-injected tools from a previous call won't be present.
+        This method ensures the tool is always dispatchable — preventing
+        ValueError from the ADK runtime if the LLM calls it from
+        conversation history after it has been hidden.
+
+        If the tool is already in tools_dict (e.g., from YAML static
+        loading), it is left untouched to preserve any tool_config.
+
+        Returns True if the tool is (now) in tools_dict.
+        """
+        if tool_name in llm_request.tools_dict:
+            return True
+
+        tool_def = tool_registry.get_tool_by_name(tool_name)
+        if not tool_def:
+            return False
+
+        try:
+            tool_callable = ADKToolWrapper(
+                tool_def.implementation,
+                None,
+                tool_def.name,
+                origin="builtin",
+                raw_string_args=tool_def.raw_string_args,
+                artifact_args=tool_def.artifact_args,
+            )
+            tool_callable.__doc__ = tool_def.description
+            function_tool = FunctionTool(tool_callable)
+            function_tool.origin = "builtin"
+            llm_request.tools_dict[tool_def.name] = function_tool
+            return True
+        except Exception as e:
+            log.error(
+                "%s Failed to create FunctionTool for %s: %s",
+                self.log_identifier,
+                tool_name,
+                e,
+                exc_info=True,
+            )
+            return False
+
+    def _sync_tools_callback(
+        self, callback_context: CallbackContext, llm_request: LlmRequest
+    ) -> Optional[LlmResponse]:
+        """Sync the LLM tool list with the current request context.
+
+        Ensures tools that require specific context (e.g., a project index)
+        are only present when that context is available. Adds missing tools
+        when prerequisites are met, removes them when they are not.
+
+        The tool is always kept in tools_dict so the ADK runtime can dispatch
+        it if the LLM calls it from conversation history. Visibility to the
+        LLM is controlled exclusively via config.tools declarations.
+        """
+        log.debug("%s Running _sync_tools_callback...", self.log_identifier)
+
+        # Currently, the gateway only passes project_id when indexing is enabled
+        # AND the BM25 index exists and only index_search is added or removed
+        a2a_context = callback_context.state.get("a2a_context", {})
+        if not isinstance(a2a_context, dict):
+            a2a_context = {}
+
+        original_metadata = a2a_context.get("original_message_metadata", {})
+        if not isinstance(original_metadata, dict):
+            original_metadata = {}
+
+        has_project_id = bool(original_metadata.get("project_id"))
+
+        # Always ensure tools_dict has index_search so the ADK runtime can
+        # dispatch if the LLM calls it from conversation history. tools_dict
+        # is rebuilt from agent.tools each request, so dynamically-injected
+        # tools from a previous request won't be present.
+        self._ensure_tool_in_tools_dict(llm_request, "index_search")
+
+        if not has_project_id:
+            # No project — remove declaration so LLM doesn't see the tool
+            if SamAgentComponent._remove_tool(llm_request, "index_search"):
+                log.info(
+                    "%s Removed index_search declaration (no project or index available).",
+                    self.log_identifier,
+                )
+            # Set stale instructions to None for any previous project context so the
+            # LLM doesn't receive index_search related prompts.
+            callback_context.state["project_tool_instructions"] = None
+            return None
+
+        # Project is present — ensure the declaration exists
+        if SamAgentComponent._has_declaration(llm_request, "index_search"):
+            log.debug(
+                "%s index_search already declared, skipping injection.",
+                self.log_identifier,
+            )
+            return None
+
+        tool_def = tool_registry.get_tool_by_name("index_search")
+        if not tool_def:
+            log.debug(
+                "%s index_search not found in tool registry, skipping.",
+                self.log_identifier,
+            )
+            return None
+
+        try:
+            declaration = adk_types.FunctionDeclaration(
+                name=tool_def.name,
+                description=tool_def.description,
+                parameters=tool_def.parameters,
+            )
+
+            if not llm_request.config.tools:
+                llm_request.config.tools = [
+                    adk_types.Tool(function_declarations=[])
+                ]
+            llm_request.config.tools[0].function_declarations.append(declaration)
+
+            instructions = _generate_tool_instructions_from_registry(
+                [tool_def], self.log_identifier
+            )
+            if instructions:
+                callback_context.state["project_tool_instructions"] = instructions
+
+            log.debug(
+                "%s Dynamically injected index_search declaration.",
+                self.log_identifier,
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to inject index_search: %s",
+                self.log_identifier,
+                e,
+                exc_info=True,
+            )
+
         return None
 
     def _filter_tools_by_capability_callback(

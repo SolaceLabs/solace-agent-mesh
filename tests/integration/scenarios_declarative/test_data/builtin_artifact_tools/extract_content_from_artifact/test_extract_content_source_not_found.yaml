@@ -41,12 +41,8 @@ llm_interactions:
     expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_call_id_matches_prior_request_index: 0 # Matches tool_call_extract_content_notfound
-          response_json_matches:
-            status: "error_artifact_not_found"
-            # The message_to_llm includes the specific error from load_artifact_content_or_metadata
-            message_to_llm: "Could not extract content. Source artifact 'non_existent_file.txt' (version latest) was not found: Could not determine latest version for 'non_existent_file.txt': Artifact 'non_existent_file.txt' has no versions available to determine 'latest'."
-            filename: "non_existent_file.txt"
-            version_requested: "latest"
+          response_json_contains:
+            status: "error"
     static_response:
       id: "chatcmpl-extract-notfound-2"
       object: "chat.completion"

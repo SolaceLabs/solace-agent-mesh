@@ -3,6 +3,10 @@ title: SQL Connectors
 sidebar_position: 4
 ---
 
+:::info Coming Soon
+Microsoft SQL Server and Oracle connector support will be available in an upcoming release.
+:::
+
 SQL connectors allow agents to query and analyze database information using natural language.
 
 ## Overview
@@ -13,13 +17,17 @@ SQL connectors establish persistent connection pools to your database servers. A
 
 The connector supports common relational database systems and handles the specifics of each database type automatically, including appropriate SQL dialect, connection protocols, and driver configurations.
 
+The SQL connector functionality is powered by the [sam-sql-database-tool](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-sql-database-tool) plugin, which contains additional technical details about the underlying implementation.
+
 ## Supported Databases
 
-Agent Mesh Enterprise supports three database types for SQL connectors:
+Agent Mesh Enterprise supports the following database types for SQL connectors:
 
 - MySQL
 - PostgreSQL
 - MariaDB
+- Microsoft SQL Server (MSSQL)
+- Oracle
 
 Each database type uses the same configuration interface but requires connection parameters appropriate for that database system.
 
@@ -37,7 +45,13 @@ You need a database username and password with appropriate permissions for the o
 
 ### Network Connectivity
 
-Verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your database server on the appropriate port. Default ports are 3306 for MySQL and MariaDB, and 5432 for PostgreSQL.
+Verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your database server on the appropriate port. Default ports are:
+
+- MySQL: `3306`
+- MariaDB: `3306`
+- PostgreSQL: `5432`
+- MSSQL: `1433`
+- Oracle: `1521`
 
 ### Database Name
 
@@ -59,7 +73,7 @@ The connector name must be unique across all connectors in your deployment, rega
 
 **Database Type**
 
-Select the database system you are connecting to from the dropdown menu. The available options are MySQL, PostgreSQL, and MariaDB. This selection determines the appropriate driver and connection string format that Agent Mesh Enterprise uses.
+Select the database system you are connecting to from the dropdown menu. The available options are MySQL, PostgreSQL, MariaDB, Microsoft SQL Server, and Oracle. This selection determines the appropriate driver and connection string format that Agent Mesh Enterprise uses.
 
 If you select the wrong database type, connection tests will fail with errors about incompatible protocols or unsupported features.
 
@@ -75,6 +89,8 @@ The port number where your database accepts connections. Default ports are:
 - MySQL: `3306`
 - PostgreSQL: `5432`
 - MariaDB: `3306`
+- MSSQL: `1433`
+- Oracle: `1521`
 
 If your database administrator configured a custom port for security reasons or to avoid conflicts, enter that value instead of the default.
 
@@ -95,6 +111,18 @@ You should create a dedicated database user for agent access rather than using a
 The password for the database username. Agent Mesh Enterprise stores this credential securely in its configuration and uses it to establish database connections.
 
 The password is encrypted at rest and transmitted securely to the database server. However, you should still follow password security best practices, such as using strong passwords and rotating them periodically.
+
+**Service Name** *(Oracle only)*
+
+The Oracle service name that identifies the target database on the Oracle listener. The service name is not the same as the Database Name field used by other connector types; Oracle identifies databases by service name rather than a simple database name.
+
+Oracle connections use thin mode, which connects directly to the database without requiring Oracle Client libraries to be installed on the host.
+
+**ODBC Driver** *(MSSQL only)*
+
+The ODBC driver used to connect to SQL Server. Agent Mesh Enterprise includes Microsoft ODBC Driver 18 for SQL Server out of the box, which works for standard SQL operations and requires no additional installation.
+
+If your use case requires a different driver, you must install that driver on the host system first. If the driver is installed correctly, it appears in the ODBC Driver dropdown for selection.
 
 ### Connection Pooling
 
@@ -128,6 +156,29 @@ GRANT CONNECT ON DATABASE your_database TO agent_readonly;
 GRANT USAGE ON SCHEMA public TO agent_readonly;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO agent_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO agent_readonly;
+```
+
+**Microsoft SQL Server:**
+
+```sql
+CREATE LOGIN agent_readonly WITH PASSWORD = 'secure_password';
+USE your_database;
+CREATE USER agent_readonly FOR LOGIN agent_readonly;
+GRANT SELECT ON SCHEMA::dbo TO agent_readonly;
+```
+
+**Oracle:**
+
+```sql
+CREATE USER agent_readonly IDENTIFIED BY secure_password;
+GRANT CREATE SESSION TO agent_readonly;
+GRANT SELECT ANY TABLE TO agent_readonly;
+```
+
+For tighter access control, grant `SELECT` on individual tables rather than `SELECT ANY TABLE`:
+
+```sql
+GRANT SELECT ON your_schema.your_table TO agent_readonly;
 ```
 
 ## After Creating the Connector
@@ -179,3 +230,15 @@ If agents experience slow query responses:
 1. Ensure frequently queried columns have appropriate indexes
 2. Optimize database views if you use them for access control
 3. Review query patterns in database logs to identify inefficient queries that agents generate
+
+### MSSQL ODBC Driver Not Found
+
+If you are running Agent Mesh Enterprise from a wheel file and the MSSQL connector fails to connect with an error about a missing or unrecognised ODBC driver, Microsoft ODBC Driver 18 for SQL Server may not be installed on your host system.
+
+To install it, follow the [official Microsoft installation instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) for your operating system.
+
+After installation, restart Agent Mesh Enterprise. The driver should then appear in the ODBC Driver dropdown when you create or edit an MSSQL connector.
+
+:::note
+When running Agent Mesh Enterprise from the Docker image, Microsoft ODBC Driver 18 is already included and no additional installation is required.
+:::

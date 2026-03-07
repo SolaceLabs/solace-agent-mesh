@@ -22,8 +22,12 @@ export function useProjects() {
     return useQuery({
         queryKey: projectKeys.lists(),
         queryFn: projectService.getProjects,
+        refetchOnMount: "always",
     });
 }
+
+/** Ensures projects are fetched fresh on component mount */
+export const useFetchProjectsOnMount = () => useProjects();
 
 export function useProjectArtifacts(projectId: string | null) {
     return useQuery({
@@ -47,11 +51,11 @@ export function useProjectSessions(projectId: string | null) {
             }
         };
 
-        window.addEventListener("session-moved", handleSessionEvent);
+        window.addEventListener("session-updated", handleSessionEvent);
         window.addEventListener("new-chat-session", handleSessionEvent);
 
         return () => {
-            window.removeEventListener("session-moved", handleSessionEvent);
+            window.removeEventListener("session-updated", handleSessionEvent);
             window.removeEventListener("new-chat-session", handleSessionEvent);
         };
     }, [projectId, queryClient]);

@@ -68,13 +68,15 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     ffmpeg=7:7.1.3-0+deb13u1  \
     git \
     libtasn1-6/unstable \
+    libpng16-16t64=1.6.48-1+deb13u3 \
     libssl3t64=3.5.4-1~deb13u2 \
+    libvpx9=1.15.0-2.1+deb13u1 \
     openssl=3.5.4-1~deb13u2 && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1 && \
     python3 -m venv /opt/venv && \
-    uv pip install --system hatch
+    uv pip install --system "virtualenv<21" hatch
 
 WORKDIR /app
 
@@ -147,15 +149,21 @@ COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
 COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
 COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
 
-# Install minimal runtime dependencies
-# Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
+# Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
 # LibreOffice is optionally installed for document conversion (DOCX/PPTX to PDF for preview)
+# Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     ffmpeg=7:7.1.3-0+deb13u1 \
-    git && \
+    git \
+    libatomic1 \
+    libtasn1-6/unstable \
+    libpng16-16t64=1.6.48-1+deb13u3 \
+    libssl3t64=3.5.4-1~deb13u2 \
+    libvpx9=1.15.0-2.1+deb13u1 \
+    openssl=3.5.4-1~deb13u2 && \
     if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
         echo "============================================================" && \
         echo "NOTICE: Installing LibreOffice - a separate open-source application" && \

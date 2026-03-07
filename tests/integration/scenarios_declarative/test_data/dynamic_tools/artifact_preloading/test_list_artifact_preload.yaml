@@ -1,0 +1,93 @@
+test_case_id: "artifact_preload_list_001"
+description: |
+  Verifies that a tool with a List[Artifact] type hint receives a list
+  of Artifact objects (pre-loaded by the framework) instead of filenames.
+  The LLM provides a list of filenames, but the tool receives a list of Artifact objects.
+skip_intermediate_events: true
+tags: ["all", "agent", "tools", "dynamic_tools", "artifact_preloading"]
+
+setup_artifacts:
+  - filename: "file1.txt"
+    mime_type: "text/plain"
+    content: "Content of file 1"
+    metadata:
+      description: "First test file"
+  - filename: "file2.txt"
+    mime_type: "text/plain"
+    content: "Content of file 2"
+    metadata:
+      description: "Second test file"
+  - filename: "file3.txt"
+    mime_type: "text/plain"
+    content: "Content of file 3"
+    metadata:
+      description: "Third test file"
+
+gateway_input:
+  target_agent_name: "ArtifactContentAgent"
+  user_identity: "artifact_test_user@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process multiple artifacts: file1.txt, file2.txt, and file3.txt"
+  external_context:
+    a2a_session_id: "session_artifact_preload_list_001"
+
+llm_interactions:
+  - step_id: "llm_calls_process_multiple_artifacts"
+    expected_request:
+      expected_tool_declarations_contain:
+        - name: "process_multiple_artifacts"
+          description_contains: "List[Artifact] parameter"
+    static_response:
+      id: "chatcmpl-artifact-list-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_list_artifact_1"
+                type: "function"
+                function:
+                  name: "process_multiple_artifacts"
+                  arguments: '{"input_files": ["file1.txt", "file2.txt", "file3.txt"]}'
+          finish_reason: "tool_calls"
+
+  - step_id: "llm_sees_preloaded_contents"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            received_count: 3
+            # The tool received actual contents, not filenames
+            received_contents:
+              - "Content of file 1"
+              - "Content of file 2"
+              - "Content of file 3"
+    static_response:
+      id: "chatcmpl-artifact-list-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Successfully processed 3 artifacts with contents from file1, file2, and file3."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: "*"
+    contextId: "session_artifact_preload_list_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: "*"
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Successfully processed"
+              - "3 artifacts"

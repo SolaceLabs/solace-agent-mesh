@@ -243,7 +243,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     }
 
     return (
-        <div className="bg-background flex h-full flex-col">
+        <div className="bg-background flex h-full flex-col" role="complementary" aria-label="Node details panel">
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4">
                 <div className="flex min-w-0 flex-1 items-center gap-2.5">

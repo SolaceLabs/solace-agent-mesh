@@ -30,7 +30,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "edit_image_with_gemini"
-                  arguments: '{"image_filename": "image_for_missing_key.jpg", "edit_prompt": "add a sun"}'
+                  arguments: '{"input_image": "image_for_missing_key.jpg", "edit_prompt": "add a sun"}'
   - expected_request:
       messages:
         - role: "tool"
