@@ -1324,6 +1324,38 @@ async def get_artifact_by_uri(
             version,
         )
 
+        is_authorized = False
+        
+        if owner_user_id == requesting_user_id:
+            # User owns the artifact
+            is_authorized = True
+        elif session_id.startswith("project-"):
+            # Project artifact - check if user has shared access to the project
+            project_id = session_id.replace("project-", "", 1)
+            from ..dependencies import SessionLocal
+            from ..services.project_service import ProjectService
+            if SessionLocal:
+                db = SessionLocal()
+                try:
+                    project_service = ProjectService(component=component)
+                    # _has_view_access checks both ownership and shared access
+                    is_authorized = project_service._has_view_access(db, project_id, requesting_user_id)
+                finally:
+                    db.close()
+        
+        if not is_authorized:
+            log.warning(
+                "%s Authorization denied: User '%s' attempted to access artifact owned by '%s' (session=%s)",
+                log_id_prefix,
+                requesting_user_id,
+                owner_user_id,
+                session_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You are not authorized to access this artifact.",
+            )
+
         log.info(
             "%s User '%s' authorized to access artifact URI.",
             log_id_prefix,
@@ -1359,6 +1391,9 @@ async def get_artifact_by_uri(
 
     except (ValueError, IndexError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid artifact URI: {e}")
+    except HTTPException:
+        # Re-raise HTTP exceptions (authorization denied, not found, etc.)
+        raise
     except Exception as e:
         log.exception("%s Error fetching artifact by URI: %s", log_id_prefix, e)
         raise HTTPException(

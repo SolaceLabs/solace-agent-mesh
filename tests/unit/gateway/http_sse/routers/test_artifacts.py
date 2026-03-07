@@ -1705,3 +1705,162 @@ class TestListAllArtifacts:
         # Verify project artifacts are classified as 'project'
         assert source_map["knowledge.docx"] == "project", "Project DOCX should be classified as project"
 
+
+# =============================================================================
+# GET ARTIFACT BY URI ENDPOINT TESTS
+# =============================================================================
+
+from solace_agent_mesh.gateway.http_sse.routers.artifacts import get_artifact_by_uri
+
+
+class TestGetArtifactByUri:
+    """Test get_artifact_by_uri endpoint security and functionality."""
+
+    @pytest.fixture
+    def mock_component(self):
+        """Create mock component for artifact retrieval tests."""
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = "TestApp"
+        
+        # Mock artifact service
+        mock_artifact_service = MagicMock(spec=BaseArtifactService)
+        mock_component.get_shared_artifact_service.return_value = mock_artifact_service
+        
+        return mock_component
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_authorization_bypass_blocked(self, mock_component):
+        """Test that users cannot access other users' artifacts via URI manipulation.
+        
+        Security: This is the critical test that verifies the authorization bypass
+        vulnerability is fixed. A user should NOT be able to access another user's
+        artifacts by crafting a URI with a different user_id.
+        """
+        # User A (attacker) tries to access User B's (victim) artifact
+        attacker_user_id = "attacker-user-123"
+        victim_user_id = "victim-user-456"
+        
+        # Craft a malicious URI pointing to victim's artifact
+        malicious_uri = f"artifact://TestApp/{victim_user_id}/session-789/secret.pdf?version=1"
+        
+        # Execute - should be blocked with 403 Forbidden
+        with pytest.raises(HTTPException) as exc_info:
+            await get_artifact_by_uri(
+                uri=malicious_uri,
+                requesting_user_id=attacker_user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+        assert "not authorized" in str(exc_info.value.detail).lower()
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_own_artifact_allowed(self, mock_component):
+        """Test that users can access their own artifacts via URI."""
+        user_id = "test-user-123"
+        
+        # URI pointing to user's own artifact
+        own_artifact_uri = f"artifact://TestApp/{user_id}/session-456/document.pdf?version=1"
+        
+        # Mock successful artifact load
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.load_artifact_content_or_metadata') as mock_load:
+            mock_load.return_value = {
+                'status': 'success',
+                'raw_bytes': b'PDF content here',
+                'mime_type': 'application/pdf',
+            }
+            
+            # Execute - should succeed
+            result = await get_artifact_by_uri(
+                uri=own_artifact_uri,
+                requesting_user_id=user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+            
+            # Verify it's a streaming response
+            from starlette.responses import StreamingResponse
+            assert isinstance(result, StreamingResponse)
+            assert result.media_type == 'application/pdf'
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_invalid_scheme(self, mock_component):
+        """Test that invalid URI schemes are rejected."""
+        user_id = "test-user-123"
+        
+        # Invalid scheme (http instead of artifact)
+        invalid_uri = f"http://TestApp/{user_id}/session-456/document.pdf?version=1"
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await get_artifact_by_uri(
+                uri=invalid_uri,
+                requesting_user_id=user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Invalid" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_missing_version(self, mock_component):
+        """Test that URIs without version parameter are rejected."""
+        user_id = "test-user-123"
+        
+        # URI without version parameter
+        uri_no_version = f"artifact://TestApp/{user_id}/session-456/document.pdf"
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await get_artifact_by_uri(
+                uri=uri_no_version,
+                requesting_user_id=user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+        assert "version" in str(exc_info.value.detail).lower()
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_service_unavailable(self, mock_component):
+        """Test that endpoint returns 503 when artifact service is not available."""
+        user_id = "test-user-123"
+        uri = f"artifact://TestApp/{user_id}/session-456/document.pdf?version=1"
+        
+        # Mock artifact service as unavailable
+        mock_component.get_shared_artifact_service.return_value = None
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await get_artifact_by_uri(
+                uri=uri,
+                requesting_user_id=user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_artifact_not_found(self, mock_component):
+        """Test that endpoint returns 404 when artifact doesn't exist."""
+        user_id = "test-user-123"
+        uri = f"artifact://TestApp/{user_id}/session-456/nonexistent.pdf?version=1"
+        
+        # Mock artifact not found
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.load_artifact_content_or_metadata') as mock_load:
+            mock_load.return_value = {
+                'status': 'error',
+                'message': 'Artifact not found',
+            }
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await get_artifact_by_uri(
+                    uri=uri,
+                    requesting_user_id=user_id,
+                    component=mock_component,
+                    user_config={'tool:artifact:load': True},
+                )
+            
+            assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
