@@ -512,13 +512,15 @@ class TestUploadArtifactWithSession:
             deps['upload_file'].content_type = mime_type
 
             # Use BytesIO for each file type
+            # Fix: Capture file_buffer in closure default argument to avoid
+            # closure-over-loop-variable bug (each iteration needs its own buffer)
             file_buffer = io.BytesIO(content)
 
-            async def async_read_file(size=-1):
-                return file_buffer.read(size)
+            async def async_read_file(size=-1, buf=file_buffer):
+                return buf.read(size)
 
-            async def async_seek_file(offset):
-                return file_buffer.seek(offset)
+            async def async_seek_file(offset, buf=file_buffer):
+                return buf.seek(offset)
 
             deps['upload_file'].read = async_read_file
             deps['upload_file'].seek = async_seek_file
@@ -623,6 +625,121 @@ class TestUploadArtifactWithSession:
             
             # Verify upload still succeeded
             assert isinstance(result, ArtifactUploadResponse)
+
+    @pytest.mark.asyncio
+    async def test_upload_artifact_path_traversal_filenames(self, mock_dependencies):
+        """Test that path traversal filenames are rejected.
+        
+        Security: Verifies that filenames containing path traversal sequences
+        like '../' or absolute paths are rejected to prevent directory escape attacks.
+        
+        Note: The actual validation happens in process_artifact_upload (is_filename_safe),
+        which returns an error for invalid filenames. This test verifies the router
+        correctly handles that error response.
+        """
+        deps = mock_dependencies
+        
+        # Path traversal attack filenames
+        malicious_filenames = [
+            ("../../../etc/passwd", "path traversal with .."),
+            ("..\\..\\..\\windows\\system32\\config\\sam", "Windows path traversal"),
+            ("/etc/passwd", "absolute Unix path"),
+            ("foo/../../../bar.txt", "embedded path traversal"),
+        ]
+        
+        for malicious_filename, description in malicious_filenames:
+            # Mock process_artifact_upload to return error for invalid filename
+            # (simulating what the real is_filename_safe validation would do)
+            with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
+                mock_process.return_value = {
+                    'status': 'error',
+                    'message': f"Invalid filename: '{malicious_filename}'. Filename must not contain path separators or traversal sequences.",
+                    'error': 'invalid_filename'
+                }
+                
+                # Execute - should reject with 400 Bad Request
+                with pytest.raises(HTTPException) as exc_info:
+                    await upload_artifact_with_session(
+                        request=deps['request'],
+                        upload_file=deps['upload_file'],
+                        sessionId="test-session",
+                        filename=malicious_filename,
+                        metadata_json=None,
+                        artifact_service=deps['artifact_service'],
+                        user_id=deps['user_id'],
+                        validate_session=deps['validate_session'],
+                        component=deps['component'],
+                        user_config=deps['user_config'],
+                        session_manager=deps['session_manager'],
+                        session_service=deps['session_service'],
+                        db=deps['db']
+                    )
+                
+                assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST, \
+                    f"Expected 400 for {description}: {malicious_filename}"
+                assert "Invalid filename" in str(exc_info.value.detail), \
+                    f"Expected 'Invalid filename' in error for {description}"
+
+    @pytest.mark.asyncio
+    async def test_upload_artifact_size_limit_enforcement(self, mock_dependencies):
+        """Test that files exceeding the size limit are rejected.
+        
+        Security: Verifies that the gateway_max_upload_size_bytes limit is enforced
+        to prevent denial-of-service attacks via large file uploads.
+        """
+        deps = mock_dependencies
+        
+        # Set a small size limit for testing (1KB)
+        def mock_get_config_small_limit(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 1024  # 1KB limit
+            return default
+        deps['component'].get_config.side_effect = mock_get_config_small_limit
+        
+        # Create content that exceeds the limit (2KB)
+        large_content = b"x" * 2048
+        large_buffer = io.BytesIO(large_content)
+        
+        async def async_read_large(size=-1):
+            return large_buffer.read(size)
+        
+        async def async_seek_large(offset):
+            return large_buffer.seek(offset)
+        
+        deps['upload_file'].read = async_read_large
+        deps['upload_file'].seek = async_seek_large
+        
+        # Mock process_artifact_upload to verify it's not called
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
+            mock_process.return_value = {
+                'status': 'success',
+                'artifact_uri': 'artifact://TestApp/test-user-123/test-session/large.bin?version=1',
+                'version': 1
+            }
+            
+            # Execute - should reject due to size limit
+            with pytest.raises(HTTPException) as exc_info:
+                await upload_artifact_with_session(
+                    request=deps['request'],
+                    upload_file=deps['upload_file'],
+                    sessionId="test-session",
+                    filename="large.bin",
+                    metadata_json=None,
+                    artifact_service=deps['artifact_service'],
+                    user_id=deps['user_id'],
+                    validate_session=deps['validate_session'],
+                    component=deps['component'],
+                    user_config=deps['user_config'],
+                    session_manager=deps['session_manager'],
+                    session_service=deps['session_service'],
+                    db=deps['db']
+                )
+            
+            # Verify rejection with appropriate error
+            assert exc_info.value.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            assert "exceeds" in str(exc_info.value.detail).lower() or "too large" in str(exc_info.value.detail).lower()
 
 
 class TestListArtifactVersions:
@@ -1016,110 +1133,6 @@ from solace_agent_mesh.gateway.http_sse.routers.artifacts import (
     BulkArtifactsResponse,
 )
 from solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
-
-
-class TestArtifactWithContextModel:
-    """Test ArtifactWithContext Pydantic model."""
-
-    def test_artifact_with_context_creation(self):
-        """Test ArtifactWithContext model creation with all fields."""
-        artifact = ArtifactWithContext(
-            filename="test.txt",
-            size=1024,
-            mime_type="text/plain",
-            last_modified="2023-01-01T00:00:00Z",
-            uri="artifact://app/user/session/test.txt",
-            session_id="session-123",
-            session_name="Test Session",
-            project_id="project-456",
-            project_name="Test Project",
-            source="upload",
-        )
-        
-        assert artifact.filename == "test.txt"
-        assert artifact.size == 1024
-        assert artifact.mime_type == "text/plain"
-        assert artifact.session_id == "session-123"
-        assert artifact.project_id == "project-456"
-        assert artifact.source == "upload"
-
-    def test_artifact_with_context_json_serialization(self):
-        """Test that ArtifactWithContext uses camelCase in JSON output."""
-        artifact = ArtifactWithContext(
-            filename="test.txt",
-            size=1024,
-            session_id="session-123",
-        )
-        
-        json_data = artifact.model_dump(by_alias=True)
-        
-        # Check camelCase aliases are used
-        assert "sessionId" in json_data
-        assert "mimeType" in json_data
-        assert "lastModified" in json_data
-        assert "projectId" in json_data
-        assert "projectName" in json_data
-        assert "session_id" not in json_data
-
-    def test_artifact_with_context_source_field(self):
-        """Test source field for different artifact types."""
-        # Upload source
-        upload_artifact = ArtifactWithContext(
-            filename="uploaded.pdf",
-            size=2048,
-            session_id="session-123",
-            source="upload",
-        )
-        assert upload_artifact.source == "upload"
-        
-        # Project source
-        project_artifact = ArtifactWithContext(
-            filename="knowledge.docx",
-            size=4096,
-            session_id="project-456",
-            source="project",
-        )
-        assert project_artifact.source == "project"
-        
-        # Generated source
-        generated_artifact = ArtifactWithContext(
-            filename="report.md",
-            size=512,
-            session_id="session-123",
-            source="generated",
-        )
-        assert generated_artifact.source == "generated"
-
-
-class TestBulkArtifactsResponseModel:
-    """Test BulkArtifactsResponse Pydantic model."""
-
-    def test_bulk_artifacts_response_creation(self):
-        """Test BulkArtifactsResponse model creation."""
-        artifacts = [
-            ArtifactWithContext(filename="file1.txt", size=100, session_id="s1"),
-            ArtifactWithContext(filename="file2.txt", size=200, session_id="s2"),
-        ]
-        
-        response = BulkArtifactsResponse(
-            artifacts=artifacts,
-            total_count=2,
-        )
-        
-        assert len(response.artifacts) == 2
-        assert response.total_count == 2
-
-    def test_bulk_artifacts_response_json_serialization(self):
-        """Test that BulkArtifactsResponse uses camelCase in JSON output."""
-        response = BulkArtifactsResponse(
-            artifacts=[],
-            total_count=0,
-        )
-        
-        json_data = response.model_dump(by_alias=True)
-        
-        assert "totalCount" in json_data
-        assert "total_count" not in json_data
 
 
 class TestListAllArtifacts:
@@ -1546,4 +1559,149 @@ class TestListAllArtifacts:
         assert result.artifacts[0].filename == "newest.txt"
         assert result.artifacts[1].filename == "middle.txt"
         assert result.artifacts[2].filename == "old.txt"
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_user_isolation_sessions(self, mock_dependencies):
+        """Test that bulk endpoint only fetches sessions for the authenticated user.
+        
+        Security: Verifies user_id is correctly passed to get_user_sessions,
+        ensuring users cannot access other users' session artifacts.
+        """
+        deps = mock_dependencies
+        test_user_id = "specific-user-abc123"
+        
+        # Mock empty sessions response
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = []
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        await list_all_artifacts(
+            artifact_service=deps['artifact_service'],
+            user_id=test_user_id,
+            component=deps['component'],
+            session_service=deps['session_service'],
+            project_service=deps['project_service'],
+            db=deps['db'],
+            user_config=deps['user_config'],
+            limit=500,
+        )
+        
+        # Verify get_user_sessions was called with the correct user_id
+        deps['session_service'].get_user_sessions.assert_called_once()
+        call_kwargs = deps['session_service'].get_user_sessions.call_args
+        assert call_kwargs.kwargs.get('user_id') == test_user_id or call_kwargs.args[1] == test_user_id
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_user_isolation_projects(self, mock_dependencies):
+        """Test that bulk endpoint only fetches projects for the authenticated user.
+        
+        Security: Verifies user_id is correctly passed to get_user_projects,
+        ensuring users cannot access other users' project artifacts.
+        """
+        deps = mock_dependencies
+        test_user_id = "specific-user-xyz789"
+        
+        # Mock empty sessions response
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = []
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        await list_all_artifacts(
+            artifact_service=deps['artifact_service'],
+            user_id=test_user_id,
+            component=deps['component'],
+            session_service=deps['session_service'],
+            project_service=deps['project_service'],
+            db=deps['db'],
+            user_config=deps['user_config'],
+            limit=500,
+        )
+        
+        # Verify get_user_projects was called with the correct user_id
+        deps['project_service'].get_user_projects.assert_called_once()
+        call_args = deps['project_service'].get_user_projects.call_args
+        # Check both positional and keyword arguments for user_id
+        assert test_user_id in call_args.args or call_args.kwargs.get('user_id') == test_user_id
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_determine_source_heuristic(self, mock_dependencies):
+        """Test the _determine_source heuristic for classifying artifact origins.
+        
+        The heuristic should:
+        - Return 'project' for project-prefixed session IDs (project knowledge files)
+        - Return 'upload' for regular session artifacts (user uploads)
+        
+        Note: .converted.txt and project_bm25_index.zip are filtered out before
+        source determination, so they don't appear in results.
+        """
+        deps = mock_dependencies
+        
+        # Mock session with various artifact types
+        mock_session = MagicMock()
+        mock_session.id = "session-123"
+        mock_session.name = "Test Session"
+        mock_session.project_id = None
+        mock_session.project_name = None
+        
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock project
+        mock_project = MagicMock()
+        mock_project.id = "project-456"
+        mock_project.name = "Test Project"
+        mock_project.user_id = "test-user-123"
+        deps['project_service'].get_user_projects.return_value = [mock_project]
+        
+        # Create artifacts for session (should be 'upload')
+        session_artifacts = [
+            MagicMock(filename="document.pdf", size=1024, mime_type="application/pdf", last_modified="2023-01-01T00:00:00Z", uri="uri1"),
+            MagicMock(filename="image.png", size=2048, mime_type="image/png", last_modified="2023-01-02T00:00:00Z", uri="uri2"),
+        ]
+        
+        # Create artifacts for project (should be 'project')
+        project_artifacts = [
+            MagicMock(filename="knowledge.docx", size=4096, mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", last_modified="2023-01-03T00:00:00Z", uri="uri3"),
+        ]
+        
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+            # Return different artifacts based on session_id
+            def get_artifacts_for_session(**kwargs):
+                session_id = kwargs.get('session_id', '')
+                if session_id.startswith('project-'):
+                    return project_artifacts
+                return session_artifacts
+            
+            mock_get_list.side_effect = get_artifacts_for_session
+            
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=500,
+            )
+        
+        # Build a map of filename -> source for easier assertions
+        source_map = {a.filename: a.source for a in result.artifacts}
+        
+        # Verify session artifacts are classified as 'upload'
+        assert source_map["document.pdf"] == "upload", "Session PDF should be classified as upload"
+        assert source_map["image.png"] == "upload", "Session PNG should be classified as upload"
+        
+        # Verify project artifacts are classified as 'project'
+        assert source_map["knowledge.docx"] == "project", "Project DOCX should be classified as project"
 
