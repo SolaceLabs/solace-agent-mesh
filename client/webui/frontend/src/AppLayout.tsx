@@ -92,6 +92,7 @@ function AppLayoutContent() {
     const { items, activeItemId } = useNavigationItems({
         projectsEnabled,
         promptLibraryEnabled: configFeatureEnablement?.promptLibrary ?? false,
+        artifactsPageEnabled: configFeatureEnablement?.artifactsPage ?? false,
         logoutEnabled,
         isAuthenticated,
         onUserAccountClick: handleUserAccountClick,

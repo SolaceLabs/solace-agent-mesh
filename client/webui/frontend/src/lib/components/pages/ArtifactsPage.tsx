@@ -600,8 +600,6 @@ const StandalonePreviewPanel: React.FC<StandalonePreviewPanelProps> = ({ artifac
                     <div className="text-muted-foreground mt-0.5 flex items-center gap-2 text-xs">
                         <span>{formatBytes(artifact.size)}</span>
                         <span>•</span>
-                        <span>{artifact.mime_type}</span>
-                        <span>•</span>
                         <span>{formatTimestamp(artifact.last_modified)}</span>
                     </div>
                 </div>
