@@ -22,7 +22,9 @@ class OutboxEventModel(Base):
 
     __table_args__ = (
         Index("ix_outbox_status_retry", "status", "next_retry_at"),
-        Index("ix_outbox_entity", "entity_type", "entity_id", "status"),
+        Index("ix_outbox_entity", "entity_type", "entity_id", "event_type", "status"),
+        Index("ix_outbox_created_time", "created_time"),
+        Index("ix_outbox_updated_time", "updated_time"),
     )
 
 

@@ -51,7 +51,9 @@ def upgrade() -> None:
     )
 
     op.create_index("ix_outbox_status_retry", "outbox_events", ["status", "next_retry_at"])
-    op.create_index("ix_outbox_entity", "outbox_events", ["entity_type", "entity_id", "status"])
+    op.create_index("ix_outbox_entity", "outbox_events", ["entity_type", "entity_id", "event_type", "status"])
+    op.create_index("ix_outbox_created_time", "outbox_events", ["created_time"])
+    op.create_index("ix_outbox_updated_time", "outbox_events", ["updated_time"])
 
     if dialect_name != 'sqlite':
         op.create_check_constraint(
@@ -73,6 +75,8 @@ def downgrade() -> None:
     if dialect_name != 'sqlite':
         op.drop_constraint("check_outbox_status", "outbox_events", type_="check")
 
+    op.drop_index("ix_outbox_updated_time", table_name="outbox_events")
+    op.drop_index("ix_outbox_created_time", table_name="outbox_events")
     op.drop_index("ix_outbox_entity", table_name="outbox_events")
     op.drop_index("ix_outbox_status_retry", table_name="outbox_events")
     op.drop_table("outbox_events")
