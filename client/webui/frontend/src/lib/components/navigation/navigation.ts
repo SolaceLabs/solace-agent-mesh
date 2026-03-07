@@ -79,6 +79,12 @@ export const topNavigationItems: NavigationItem[] = [
         icon: FolderOpen,
     },
     {
+        id: "artifacts",
+        label: "Artifacts",
+        icon: FileBox,
+        badge: "EXPERIMENTAL",
+    },
+    {
         id: "prompts",
         label: "Prompts",
         icon: NotepadText,

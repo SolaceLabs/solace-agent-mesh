@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, Loader2, X } from "lucide-react";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, Loader2, X, AlertTriangle } from "lucide-react";
 import {
     Button,
     Input,
@@ -19,6 +19,12 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/lib/components/ui";
 import { useAllArtifacts, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api";
@@ -30,55 +36,61 @@ import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
 import type { FileAttachment } from "@/lib/types";
+import type { ArtifactWithSession } from "@/lib/hooks/useAllArtifacts";
 
-// Cache for document content to avoid re-fetching on subsequent renders
+// LRU Cache for document content with max size to prevent memory leaks
+const MAX_CACHE_SIZE = 50;
 const documentContentCache = new Map<string, string>();
+
+// Add to cache with LRU eviction
+const addToCache = (key: string, value: string): void => {
+    // If cache is full, remove oldest entry (first item in Map)
+    if (documentContentCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = documentContentCache.keys().next().value;
+        if (firstKey) {
+            documentContentCache.delete(firstKey);
+        }
+    }
+    documentContentCache.set(key, value);
+};
+
+// Get from cache and move to end (most recently used)
+const getFromCache = (key: string): string | undefined => {
+    const value = documentContentCache.get(key);
+    if (value !== undefined) {
+        // Move to end by re-inserting
+        documentContentCache.delete(key);
+        documentContentCache.set(key, value);
+    }
+    return value;
+};
 
 // Generate cache key for document content
 const getDocumentCacheKey = (sessionId: string, filename: string): string => {
     return `${sessionId}:${filename}`;
 };
 
-// Extended artifact type with session info
-interface ArtifactWithSession {
-    filename: string;
-    mime_type: string;
-    size: number;
-    last_modified: string;
-    uri?: string;
-    version?: number;
-    versionCount?: number;
-    description?: string | null;
-    source?: string;
-    sessionId: string;
-    sessionName: string | null;
-    projectId?: string;
-    projectName?: string | null;
-}
-
 // Helper to check if artifact is a project artifact
+// Note: Backend uses "project-{id}" format, but we also check "project:{id}" for backward compatibility
 const isProjectArtifact = (artifact: ArtifactWithSession): boolean => {
-    return artifact.sessionId.startsWith("project:") || artifact.source === "project";
-};
-
-// Helper to get the correct API URL for an artifact
-const getArtifactApiUrl = (artifact: ArtifactWithSession): string => {
-    if (isProjectArtifact(artifact) && artifact.projectId) {
-        // Project artifacts use the artifacts endpoint with project_id query param
-        return `/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${encodeURIComponent(artifact.projectId)}`;
-    }
-    return `/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
+    return artifact.sessionId.startsWith("project:") || artifact.sessionId.startsWith("project-") || artifact.source === "project";
 };
 
 /**
- * Format file size in human-readable format
+ * Helper to get the correct API URL for an artifact.
+ *
+ * NOTE: For project artifacts, we use "null" as a placeholder session ID in the URL path
+ * because the backend artifacts endpoint requires a session_id path parameter.
+ * The actual project is identified via the project_id query parameter.
+ * This is a known API design quirk - ideally there would be a separate endpoint
+ * like /api/v1/projects/{project_id}/artifacts/{filename} for project artifacts.
  */
-const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+const getArtifactApiUrl = (artifact: ArtifactWithSession): string => {
+    if (isProjectArtifact(artifact) && artifact.projectId) {
+        // Project artifacts use "null" as session placeholder with project_id query param
+        return `/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${encodeURIComponent(artifact.projectId)}`;
+    }
+    return `/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
 };
 
 /**
@@ -239,6 +251,10 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
 
     // Load content preview for text files, image thumbnail, or document thumbnail
     useEffect(() => {
+        // Track if component is still mounted
+        let isMounted = true;
+        const abortController = new AbortController();
+
         const loadPreview = async () => {
             // Get the correct API URL for this artifact (handles both session and project artifacts)
             const artifactApiUrl = getArtifactApiUrl(artifact);
@@ -247,25 +263,29 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                 // For images, create a thumbnail URL
                 try {
                     const url = api.webui.getFullUrl(artifactApiUrl);
-                    setImagePreviewUrl(url);
+                    if (isMounted) setImagePreviewUrl(url);
                 } catch (error) {
                     console.error("Error creating image preview URL:", error);
                 }
-            } else if (canAttemptDocumentThumbnail && !documentThumbnailFailed) {
+            } else if (canAttemptDocumentThumbnail) {
                 // For PDF, DOCX, PPTX, etc. - check cache first, then fetch content for thumbnail
                 const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-                const cachedContent = documentContentCache.get(cacheKey);
+                const cachedContent = getFromCache(cacheKey);
 
                 if (cachedContent) {
                     // Use cached content
-                    setDocumentContent(cachedContent);
+                    if (isMounted) setDocumentContent(cachedContent);
                     return;
                 }
 
-                setIsLoadingPreview(true);
+                if (isMounted) setIsLoadingPreview(true);
                 try {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
+                    if (abortController.signal.aborted) return;
+
                     const blob = await response.blob();
+                    if (abortController.signal.aborted) return;
+
                     const base64data = await new Promise<string>((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onloadend = () => {
@@ -280,21 +300,32 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                         };
                         reader.readAsDataURL(blob);
                     });
-                    // Cache the content for future renders
-                    documentContentCache.set(cacheKey, base64data);
-                    setDocumentContent(base64data);
+
+                    if (isMounted && !abortController.signal.aborted) {
+                        // Cache the content using LRU cache
+                        addToCache(cacheKey, base64data);
+                        setDocumentContent(base64data);
+                    }
                 } catch (error) {
-                    console.error("Error loading document content for thumbnail:", error);
-                    setDocumentContent(null);
+                    if (!abortController.signal.aborted) {
+                        console.error("Error loading document content for thumbnail:", error);
+                        if (isMounted) setDocumentContent(null);
+                    }
                 } finally {
-                    setIsLoadingPreview(false);
+                    if (isMounted && !abortController.signal.aborted) {
+                        setIsLoadingPreview(false);
+                    }
                 }
             } else if (supportsTextPreview(artifact.mime_type) && artifact.size < 50000) {
                 // Only load preview for text files under 50KB
-                setIsLoadingPreview(true);
+                if (isMounted) setIsLoadingPreview(true);
                 try {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
+                    if (abortController.signal.aborted) return;
+
                     const text = await response.text();
+                    if (abortController.signal.aborted) return;
+
                     // Get first 8 lines for preview (increased from 4), max 60 chars per line
                     const lines = text.split("\n").slice(0, 8);
                     const preview = lines
@@ -303,18 +334,31 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                             return trimmed.length > 60 ? trimmed.substring(0, 57) + "..." : trimmed;
                         })
                         .join("\n");
-                    setContentPreview(preview);
+
+                    if (isMounted) setContentPreview(preview);
                 } catch (error) {
-                    console.error("Error loading content preview:", error);
-                    setContentPreview(null);
+                    if (!abortController.signal.aborted) {
+                        console.error("Error loading content preview:", error);
+                        if (isMounted) setContentPreview(null);
+                    }
                 } finally {
-                    setIsLoadingPreview(false);
+                    if (isMounted && !abortController.signal.aborted) {
+                        setIsLoadingPreview(false);
+                    }
                 }
             }
         };
 
         loadPreview();
-    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.size, artifact.projectId, canAttemptDocumentThumbnail, documentThumbnailFailed]);
+
+        // Cleanup: abort in-flight requests and mark as unmounted
+        return () => {
+            isMounted = false;
+            abortController.abort();
+        };
+        // Note: documentThumbnailFailed is intentionally excluded from deps
+        // It's set as a result of the effect, not an input to it
+    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.size, artifact.projectId, canAttemptDocumentThumbnail]);
 
     // Handle document thumbnail error - fall back to icon
     const handleDocumentThumbnailError = useCallback(() => {
@@ -483,7 +527,7 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
             {/* Footer with metadata and extension badge */}
             <div className="flex items-center justify-between border-t px-3 py-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs">{formatFileSize(artifact.size)}</span>
+                    <span className="text-muted-foreground text-xs">{formatBytes(artifact.size)}</span>
                     <span className="text-muted-foreground text-xs">•</span>
                     <span className="text-muted-foreground text-xs">{formatTimestamp(artifact.last_modified)}</span>
                     {/* Only show origin badge for non-project artifacts (project badge is shown in header) */}
@@ -666,10 +710,11 @@ const StandalonePreviewPanel: React.FC<StandalonePreviewPanelProps> = ({ artifac
 export const ArtifactsPage: React.FC = () => {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
-    const { artifacts, isLoading, refetch } = useAllArtifacts();
+    const { artifacts, isLoading, error: fetchError, refetch } = useAllArtifacts();
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [previewArtifact, setPreviewArtifact] = useState<ArtifactWithSession | null>(null);
+    const [deleteConfirmArtifact, setDeleteConfirmArtifact] = useState<ArtifactWithSession | null>(null);
 
     // Get feature flags from config context
     const config = useContext(ConfigContext);
@@ -763,8 +808,9 @@ export const ArtifactsPage: React.FC = () => {
         [addNotification, displayError]
     );
 
-    const handleDelete = useCallback(
-        async (artifact: ArtifactWithSession) => {
+    // Show delete confirmation dialog
+    const handleDeleteRequest = useCallback(
+        (artifact: ArtifactWithSession) => {
             // Don't allow deleting project artifacts from here
             if (isProjectArtifact(artifact)) {
                 displayError?.({
@@ -773,20 +819,29 @@ export const ArtifactsPage: React.FC = () => {
                 });
                 return;
             }
-            try {
-                await api.webui.delete(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`);
-                addNotification?.(`Deleted ${artifact.filename}`, "success");
-                refetch();
-            } catch (error) {
-                console.error("Error deleting artifact:", error);
-                displayError?.({
-                    title: "Delete Failed",
-                    error: error instanceof Error ? error.message : "Failed to delete artifact",
-                });
-            }
+            setDeleteConfirmArtifact(artifact);
         },
-        [addNotification, displayError, refetch]
+        [displayError]
     );
+
+    // Actually perform the delete after confirmation
+    const handleDeleteConfirm = useCallback(async () => {
+        if (!deleteConfirmArtifact) return;
+
+        try {
+            await api.webui.delete(`/api/v1/artifacts/${deleteConfirmArtifact.sessionId}/${encodeURIComponent(deleteConfirmArtifact.filename)}`);
+            addNotification?.(`Deleted ${deleteConfirmArtifact.filename}`, "success");
+            setDeleteConfirmArtifact(null);
+            refetch();
+        } catch (error) {
+            console.error("Error deleting artifact:", error);
+            displayError?.({
+                title: "Delete Failed",
+                error: error instanceof Error ? error.message : "Failed to delete artifact",
+            });
+            setDeleteConfirmArtifact(null);
+        }
+    }, [deleteConfirmArtifact, addNotification, displayError, refetch]);
 
     const handlePreview = useCallback((artifact: ArtifactWithSession) => {
         // Open the preview panel directly on this page
@@ -877,7 +932,7 @@ export const ArtifactsPage: React.FC = () => {
                                             key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`}
                                             artifact={artifact}
                                             onDownload={handleDownload}
-                                            onDelete={handleDelete}
+                                            onDelete={handleDeleteRequest}
                                             onPreview={handlePreview}
                                             onGoToChat={handleGoToChat}
                                             onGoToProject={handleGoToProject}
@@ -894,7 +949,19 @@ export const ArtifactsPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {!isLoading && artifacts.length === 0 && (
+                            {/* Error state from fetching artifacts */}
+                            {!isLoading && fetchError && (
+                                <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                                    <AlertTriangle className="text-destructive mx-auto mb-4 h-12 w-12" />
+                                    <p className="text-destructive">Failed to load artifacts</p>
+                                    <p className="mt-2 text-xs">{fetchError}</p>
+                                    <Button variant="outline" className="mt-4" onClick={() => refetch()}>
+                                        Try Again
+                                    </Button>
+                                </div>
+                            )}
+
+                            {!isLoading && !fetchError && artifacts.length === 0 && (
                                 <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
                                     <File className="mx-auto mb-4 h-12 w-12" />
                                     <p>No artifacts available</p>
@@ -912,6 +979,27 @@ export const ArtifactsPage: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!deleteConfirmArtifact} onOpenChange={open => !open && setDeleteConfirmArtifact(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Artifact</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete <strong>{deleteConfirmArtifact?.filename}</strong>? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteConfirmArtifact(null)}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleDeleteConfirm}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

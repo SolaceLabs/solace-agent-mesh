@@ -32,14 +32,55 @@ interface ConversionResponse {
     error: string | null;
 }
 
-// Cache for converted PDFs and thumbnails to avoid re-converting
+// LRU Cache for converted PDFs and thumbnails with max size to prevent memory leaks
+const MAX_THUMBNAIL_CACHE_SIZE = 30;
 const thumbnailCache = new Map<string, string>();
 
-// Simple hash function for cache key
+// Add to cache with LRU eviction
+const addToThumbnailCache = (key: string, value: string): void => {
+    // If cache is full, remove oldest entry (first item in Map)
+    if (thumbnailCache.size >= MAX_THUMBNAIL_CACHE_SIZE) {
+        const firstKey = thumbnailCache.keys().next().value;
+        if (firstKey) {
+            thumbnailCache.delete(firstKey);
+        }
+    }
+    thumbnailCache.set(key, value);
+};
+
+// Get from cache and move to end (most recently used)
+const getFromThumbnailCache = (key: string): string | undefined => {
+    const value = thumbnailCache.get(key);
+    if (value !== undefined) {
+        // Move to end by re-inserting
+        thumbnailCache.delete(key);
+        thumbnailCache.set(key, value);
+    }
+    return value;
+};
+
+/**
+ * Generate a more robust cache key using a simple hash.
+ * Uses content length, filename, and samples from multiple positions
+ * to reduce collision probability.
+ */
 const hashContent = (content: string, filename: string): string => {
-    // Use first 50 chars + length + filename for a quick hash
-    const sample = content.substring(0, 50);
-    return `thumb:${filename}:${content.length}:${sample}`;
+    // Sample from beginning, middle, and end of content
+    const len = content.length;
+    const sample1 = content.substring(0, 32);
+    const sample2 = len > 64 ? content.substring(Math.floor(len / 2), Math.floor(len / 2) + 32) : "";
+    const sample3 = len > 32 ? content.substring(len - 32) : "";
+
+    // Simple hash combining samples
+    let hash = 0;
+    const combined = sample1 + sample2 + sample3;
+    for (let i = 0; i < combined.length; i++) {
+        const char = combined.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+
+    return `thumb:${filename}:${len}:${hash}`;
 };
 
 // Check if file is a PDF
@@ -96,15 +137,15 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
     const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
 
     // Convert Office document to PDF using the backend service
+    // Note: Using raw fetch here instead of api.webui because the document conversion
+    // endpoint requires specific handling (POST with JSON body) that the api wrapper
+    // doesn't handle correctly for this use case.
     const convertToPdf = useCallback(
         async (base64Content: string): Promise<string | null> => {
             try {
                 const response = await fetch("/api/v1/document-conversion/to-pdf", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         content: base64Content,
                         filename: filename,
@@ -144,9 +185,9 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
                 return;
             }
 
-            // Check cache first
+            // Check cache first (using LRU cache to prevent memory leaks)
             const cacheKey = hashContent(content, filename);
-            const cachedPdf = thumbnailCache.get(cacheKey);
+            const cachedPdf = getFromThumbnailCache(cacheKey);
 
             if (cachedPdf) {
                 setPdfDataUrl(cachedPdf);
@@ -198,8 +239,8 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
                 // Create data URL for the PDF
                 const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
 
-                // Cache the result
-                thumbnailCache.set(cacheKey, dataUrl);
+                // Cache the result using LRU cache to prevent memory leaks
+                addToThumbnailCache(cacheKey, dataUrl);
 
                 setPdfDataUrl(dataUrl);
                 setIsLoading(false);
