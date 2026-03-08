@@ -338,8 +338,11 @@ class ShareService:
         if not share_link or share_link.is_deleted():
             raise ValueError("Share link not found")
         
+        # Get shared user emails for user-specific access check
+        shared_user_emails = self.repository.find_share_user_emails(db, share_id)
+        
         # Check access permissions
-        can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email)
+        can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
         if not can_access:
             if reason == "authentication_required":
                 raise PermissionError("Authentication required to view this shared session")
@@ -760,6 +763,8 @@ class ShareService:
             except Exception as e:
                 log.error(f"Failed to add user {email} to share {share_id}: {e}")
         
+        db.commit()
+        
         return BatchAddShareUsersResponse(
             added_count=len(added_users),
             users=added_users
@@ -795,6 +800,7 @@ class ShareService:
             raise ValueError("Not authorized to remove share users")
         
         deleted_count = self.repository.delete_share_users_batch(db, share_id, user_emails)
+        db.commit()
         log.info(f"Removed {deleted_count} users from share {share_id}")
         
         return BatchDeleteShareUsersResponse(deleted_count=deleted_count)
