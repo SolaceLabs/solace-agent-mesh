@@ -120,13 +120,14 @@ class ShareLink(BaseModel):
         Args:
             user_id: User ID (None if not authenticated)
             user_email: User email (None if not authenticated)
-            shared_user_emails: List of emails with explicit access (from shared_link_users table)
+            shared_user_emails: List of emails with explicit access (from shared_link_users table).
+            Pass None if not queried, pass [] if queried but empty.
         
         Returns:
             Tuple of (can_access: bool, reason: str)
         """
-        # Check user-specific sharing first (if there are shared users)
-        if shared_user_emails:
+        # Check user-specific sharing first
+        if shared_user_emails is not None and len(shared_user_emails) > 0:
             # If there are shared users, only they can access (plus owner)
             if user_email and user_email.lower() in [e.lower() for e in shared_user_emails]:
                 return (True, "user_specific")
@@ -135,6 +136,8 @@ class ShareLink(BaseModel):
             if user_id is None:
                 return (False, "authentication_required")
             return (False, "not_shared_with_user")
+        
+        # No shared users (or not queried) - fall back to base authentication settings
         
         # Public access - anyone can view
         if not self.require_authentication:

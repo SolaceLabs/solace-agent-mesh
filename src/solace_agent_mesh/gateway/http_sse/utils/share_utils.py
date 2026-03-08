@@ -140,11 +140,13 @@ def anonymize_chat_task(task: Dict[str, Any]) -> Dict[str, Any]:
         task: Chat task dictionary
     
     Returns:
-        Anonymized task dictionary
+        Anonymized task dictionary (deep copy to avoid mutating original)
     """
     import json as json_module
+    import copy
     
-    anonymized = task.copy()
+    # Use deep copy to avoid mutating the original task
+    anonymized = copy.deepcopy(task)
     
     # Extract A2A task_id from task_metadata for workflow lookup
     # This is the key used in task_events dictionary

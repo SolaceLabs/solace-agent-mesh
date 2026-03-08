@@ -291,7 +291,12 @@ async def update_share_link(
         return updated_link
     
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
+        elif "not authorized" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except Exception as e:
         log.error(f"Error updating share link: {e}", exc_info=True)
         raise HTTPException(
@@ -331,7 +336,12 @@ async def delete_share_link(
         )
     
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
+        elif "not authorized" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except HTTPException:
         raise
     except Exception as e:
@@ -583,15 +593,17 @@ async def add_share_users(
     Only the owner can add users to a share.
     """
     try:
-        user_emails = [share.user_email for share in request.shares]
-        access_level = request.shares[0].access_level if request.shares else "RESOURCE_VIEWER"
+        # Convert request shares to list of dicts with per-user access levels
+        user_shares = [
+            {"user_email": share.user_email, "access_level": share.access_level}
+            for share in request.shares
+        ]
         
         return share_service.add_share_users(
             db=db,
             share_id=share_id,
             user_id=user_id,
-            user_emails=user_emails,
-            access_level=access_level
+            user_shares=user_shares
         )
     
     except ValueError as e:
