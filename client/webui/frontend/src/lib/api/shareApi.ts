@@ -148,6 +148,38 @@ export async function deleteShareLink(shareId: string): Promise<void> {
 }
 
 /**
+ * Get artifact content from a shared session
+ * @param shareId - The share ID
+ * @param filename - The artifact filename
+ * @returns Promise with content (base64) and mimeType
+ */
+export async function getSharedArtifactContent(shareId: string, filename: string): Promise<{ content: string; mimeType: string }> {
+    const encodedFilename = encodeURIComponent(filename);
+    const response = await fetch(`${API_BASE}/share/${shareId}/artifacts/${encodedFilename}`, {
+        method: "GET",
+        credentials: "include",
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch shared artifact content: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get("Content-Type") || "application/octet-stream";
+    const mimeType = contentType.split(";")[0].trim();
+    const blob = await response.blob();
+
+    // Convert blob to base64
+    const content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+
+    return { content, mimeType };
+}
+
+/**
  * Copy text to clipboard
  */
 export async function copyToClipboard(text: string): Promise<boolean> {

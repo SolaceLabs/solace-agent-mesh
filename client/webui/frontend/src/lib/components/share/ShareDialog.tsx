@@ -49,9 +49,17 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
     const [domainError, setDomainError] = useState<string | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-    // Load existing share link when dialog opens
+    // Reset state and load existing share link when dialog opens or sessionId changes
     useEffect(() => {
         if (open) {
+            // Reset state for new session
+            setShareLink(null);
+            setRequireAuth(false);
+            setDomains([]);
+            setDomainInput("");
+            setDomainError(null);
+            setCopied(false);
+            // Load share link for this session
             loadShareLink();
         }
     }, [open, sessionId]);

@@ -347,8 +347,14 @@ class ShareService:
         
         # Get session tasks (anonymized)
         from ..repository.chat_task_repository import ChatTaskRepository
+        from ..repository.session_repository import SessionRepository
         task_repo = ChatTaskRepository()
+        session_repo = SessionRepository()
         tasks = task_repo.find_by_session(db, share_link.session_id, share_link.user_id)
+        
+        # Get the session to check for project_id
+        session = session_repo.find_user_session(db, share_link.session_id, share_link.user_id)
+        project_id = session.project_id if session else None
         
         # Anonymize tasks
         anonymized_tasks = [anonymize_chat_task(task.model_dump()) for task in tasks]
@@ -357,15 +363,19 @@ class ShareService:
         artifact_list: List[SharedArtifactInfo] = []
         artifact_service = None
         
+        log.info(f"[ShareService] Loading artifacts - component available: {self.component is not None}")
+        
         if self.component:
             # Use get_shared_artifact_service() method which is the correct way to get the artifact service
             artifact_service = self.component.get_shared_artifact_service()
+            log.info(f"[ShareService] Artifact service available: {artifact_service is not None}")
             
         if artifact_service:
             try:
                 app_name = self.component.get_config("name", "A2A_WebUI_App")
-                log.info(f"Loading artifacts for shared session {share_id}, user_id={share_link.user_id}, session_id={share_link.session_id}, app_name={app_name}")
+                log.info(f"Loading artifacts for shared session {share_id}, user_id={share_link.user_id}, session_id={share_link.session_id}, project_id={project_id}, app_name={app_name}")
                 
+                # Load session artifacts
                 artifact_infos = await get_artifact_info_list(
                     artifact_service=artifact_service,
                     app_name=app_name,
@@ -373,7 +383,26 @@ class ShareService:
                     session_id=share_link.session_id
                 )
                 
-                log.info(f"Found {len(artifact_infos)} artifacts for shared session {share_id}")
+                log.info(f"Found {len(artifact_infos)} session artifacts for shared session {share_id}")
+                
+                # If session is part of a project, also load project artifacts
+                if project_id:
+                    project_artifact_infos = await get_artifact_info_list(
+                        artifact_service=artifact_service,
+                        app_name=app_name,
+                        user_id=share_link.user_id,
+                        session_id=project_id  # Project artifacts are stored under project_id as session_id
+                    )
+                    log.info(f"Found {len(project_artifact_infos)} project artifacts for shared session {share_id}")
+                    
+                    # Merge project artifacts with session artifacts (avoid duplicates by filename)
+                    existing_filenames = {info.filename for info in artifact_infos}
+                    for project_artifact in project_artifact_infos:
+                        if project_artifact.filename not in existing_filenames:
+                            artifact_infos.append(project_artifact)
+                            existing_filenames.add(project_artifact.filename)
+                    
+                    log.info(f"Total artifacts after merging: {len(artifact_infos)}")
                 
                 # Convert ArtifactInfo to SharedArtifactInfo
                 for info in artifact_infos:
