@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useCallback, useEffect, useContext, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, Loader2, X, AlertTriangle } from "lucide-react";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle } from "lucide-react";
 import {
     Button,
     Input,
@@ -28,10 +28,11 @@ import {
 } from "@/lib/components/ui";
 import { useAllArtifacts, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api";
-import { formatTimestamp, cn } from "@/lib/utils";
+import { formatTimestamp, cn, createLruCache } from "@/lib/utils";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
 import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
+import { getFileTypeColor } from "@/lib/components/chat/file/FileIcon";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
@@ -40,42 +41,18 @@ import type { FileAttachment } from "@/lib/types";
 import type { ArtifactWithSession } from "@/lib/hooks/useAllArtifacts";
 
 // LRU Cache for document content with max size to prevent memory leaks
-const MAX_CACHE_SIZE = 50;
-const documentContentCache = new Map<string, string>();
-
-// Add to cache with LRU eviction
-const addToCache = (key: string, value: string): void => {
-    // If cache is full, remove oldest entry (first item in Map)
-    if (documentContentCache.size >= MAX_CACHE_SIZE) {
-        const firstKey = documentContentCache.keys().next().value;
-        if (firstKey) {
-            documentContentCache.delete(firstKey);
-        }
-    }
-    documentContentCache.set(key, value);
-};
-
-// Get from cache and move to end (most recently used)
-const getFromCache = (key: string): string | undefined => {
-    const value = documentContentCache.get(key);
-    if (value !== undefined) {
-        // Move to end by re-inserting
-        documentContentCache.delete(key);
-        documentContentCache.set(key, value);
-    }
-    return value;
-};
+const documentContentCache = createLruCache<string>(50);
 
 // Generate cache key for document content
-const getDocumentCacheKey = (sessionId: string, filename: string): string => {
+function getDocumentCacheKey(sessionId: string, filename: string): string {
     return `${sessionId}:${filename}`;
-};
+}
 
 // Helper to check if artifact is a project artifact
 // Note: Backend uses "project-{id}" format, but we also check "project:{id}" for backward compatibility
-const isProjectArtifact = (artifact: ArtifactWithSession): boolean => {
+function isProjectArtifact(artifact: ArtifactWithSession): boolean {
     return artifact.sessionId.startsWith("project:") || artifact.sessionId.startsWith("project-") || artifact.source === "project";
-};
+}
 
 /**
  * Helper to get the correct API URL for an artifact.
@@ -86,127 +63,26 @@ const isProjectArtifact = (artifact: ArtifactWithSession): boolean => {
  * This is a known API design quirk - ideally there would be a separate endpoint
  * like /api/v1/projects/{project_id}/artifacts/{filename} for project artifacts.
  */
-const getArtifactApiUrl = (artifact: ArtifactWithSession): string => {
+function getArtifactApiUrl(artifact: ArtifactWithSession): string {
     if (isProjectArtifact(artifact) && artifact.projectId) {
         // Project artifacts use "null" as session placeholder with project_id query param
         return `/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${encodeURIComponent(artifact.projectId)}`;
     }
     return `/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
-};
-
-/**
- * Determine if an artifact was uploaded or generated based on source and mime type
- * Returns null if we can't determine the origin (to hide the badge)
- *
- * NOTE: Source badges are currently disabled. The backend provides the source field,
- * but we're not displaying badges until the UX is finalized.
- * To re-enable, uncomment the code below and rename _artifact to artifact.
- */
-const getArtifactOrigin = (_artifact: ArtifactWithSession): { label: string; color: string } | null => {
-    // Source badges disabled for now - return null to hide all badges
-    void _artifact; // Suppress unused variable warning
-    return null;
-
-    // Uncomment below to enable source badges (and rename _artifact to artifact):
-    // if (artifact.source === "upload" || artifact.source === "user" || artifact.source === "uploaded") {
-    //     return { label: "Uploaded", color: "bg-blue-500/20 text-blue-600 dark:text-blue-400" };
-    // }
-    // if (artifact.source === "generated" || artifact.source === "agent" || artifact.source === "ai") {
-    //     return { label: "Generated", color: "bg-green-500/20 text-green-600 dark:text-green-400" };
-    // }
-    // if (artifact.source === "project") {
-    //     return { label: "Project", color: "bg-purple-500/20 text-purple-600 dark:text-purple-400" };
-    // }
-    // return null;
-};
+}
 
 /**
  * Get file extension from filename
  */
-const getFileExtension = (filename: string): string => {
+function getFileExtension(filename: string): string {
     const parts = filename.split(".");
     return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
-};
-
-/**
- * Get colorful badge style based on file extension/mime type
- */
-const getExtensionBadgeStyle = (filename: string): string => {
-    const ext = getFileExtension(filename).toLowerCase();
-
-    // Color mapping based on file type
-    switch (ext) {
-        case "html":
-        case "htm":
-            return "bg-[#e34c26] text-white";
-        case "json":
-            return "bg-[#fbc02d] text-[#333]";
-        case "yaml":
-        case "yml":
-            return "bg-[#cb171e] text-white";
-        case "md":
-        case "markdown":
-            return "bg-[#6c757d] text-white";
-        case "txt":
-            return "bg-[#5c6bc0] text-white";
-        case "js":
-        case "jsx":
-            return "bg-[#f7df1e] text-[#333]";
-        case "ts":
-        case "tsx":
-            return "bg-[#3178c6] text-white";
-        case "py":
-            return "bg-[#3776ab] text-white";
-        case "css":
-            return "bg-[#264de4] text-white";
-        case "scss":
-        case "sass":
-            return "bg-[#cc6699] text-white";
-        case "xml":
-            return "bg-[#f16529] text-white";
-        case "pdf":
-            return "bg-[#ff0000] text-white";
-        case "doc":
-        case "docx":
-            return "bg-[#2b579a] text-white";
-        case "xls":
-        case "xlsx":
-        case "csv":
-            return "bg-[#217346] text-white";
-        case "ppt":
-        case "pptx":
-            return "bg-[#d24726] text-white";
-        case "zip":
-        case "rar":
-        case "7z":
-        case "tar":
-        case "gz":
-            return "bg-[#f9a825] text-[#333]";
-        case "jpg":
-        case "jpeg":
-        case "png":
-        case "gif":
-        case "svg":
-        case "webp":
-            return "bg-[#4caf50] text-white";
-        case "mp4":
-        case "avi":
-        case "mov":
-        case "webm":
-            return "bg-[#9c27b0] text-white";
-        case "mp3":
-        case "wav":
-        case "flac":
-            return "bg-[#ff5722] text-white";
-        default:
-            return "bg-gray-500 text-white";
-    }
-};
+}
 
 /**
  * Check if a MIME type supports text preview
  */
-const supportsTextPreview = (mimeType: string): boolean => {
+function supportsTextPreview(mimeType: string): boolean {
     return (
         mimeType.startsWith("text/") ||
         mimeType.includes("json") ||
@@ -217,14 +93,14 @@ const supportsTextPreview = (mimeType: string): boolean => {
         mimeType.includes("yaml") ||
         mimeType.includes("yml")
     );
-};
+}
 
 /**
  * Check if a MIME type is an image
  */
-const isImageType = (mimeType: string): boolean => {
+function isImageType(mimeType: string): boolean {
     return mimeType.startsWith("image/");
-};
+}
 
 interface ArtifactGridCardProps {
     artifact: ArtifactWithSession;
@@ -234,11 +110,11 @@ interface ArtifactGridCardProps {
     onGoToChat: (artifact: ArtifactWithSession) => void;
     onGoToProject: (artifact: ArtifactWithSession) => void;
     isSelected?: boolean;
+    /** Whether binary artifact preview (Office docs) is enabled */
+    binaryArtifactPreviewEnabled: boolean;
 }
 
-const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected }) => {
-    const origin = getArtifactOrigin(artifact);
-    const config = useContext(ConfigContext);
+function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected, binaryArtifactPreviewEnabled }: ArtifactGridCardProps) {
     const [contentPreview, setContentPreview] = useState<string | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
     const [documentContent, setDocumentContent] = useState<string | null>(null);
@@ -248,7 +124,6 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
 
     // Check if this file supports document thumbnail
     const isDocumentThumbnailSupported = supportsThumbnail(artifact.filename, artifact.mime_type);
-    const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
 
     // Check if file is a PDF (doesn't need conversion service)
     const isPdfFile = artifact.mime_type === "application/pdf" || artifact.filename.toLowerCase().endsWith(".pdf");
@@ -277,7 +152,7 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
             } else if (canAttemptDocumentThumbnail) {
                 // For PDF, DOCX, PPTX, etc. - check cache first, then fetch content for thumbnail
                 const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-                const cachedContent = getFromCache(cacheKey);
+                const cachedContent = documentContentCache.get(cacheKey);
 
                 if (cachedContent) {
                     // Use cached content
@@ -310,23 +185,23 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                         reader.readAsDataURL(blob);
                     });
 
-                    if (isMounted && !abortController.signal.aborted) {
-                        // Cache the content using LRU cache
-                        addToCache(cacheKey, base64data);
+                    if (abortController.signal.aborted) return;
+
+                    // Cache the content
+                    documentContentCache.set(cacheKey, base64data);
+
+                    if (isMounted) {
                         setDocumentContent(base64data);
+                        setIsLoadingPreview(false);
                     }
                 } catch (error) {
                     if (!abortController.signal.aborted) {
-                        console.error("Error loading document content for thumbnail:", error);
-                        if (isMounted) setDocumentContent(null);
-                    }
-                } finally {
-                    if (isMounted && !abortController.signal.aborted) {
-                        setIsLoadingPreview(false);
+                        console.error("Error loading document content:", error);
+                        if (isMounted) setIsLoadingPreview(false);
                     }
                 }
-            } else if (supportsTextPreview(artifact.mime_type) && artifact.size < 50000) {
-                // Only load preview for text files under 50KB
+            } else if (supportsTextPreview(artifact.mime_type)) {
+                // For text files, fetch a preview of the content
                 if (isMounted) setIsLoadingPreview(true);
                 try {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
@@ -335,24 +210,25 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                     const text = await response.text();
                     if (abortController.signal.aborted) return;
 
-                    // Get first 8 lines for preview (increased from 4), max 60 chars per line
-                    const lines = text.split("\n").slice(0, 8);
-                    const preview = lines
+                    // Take first 500 chars and first 8 lines for preview
+                    const preview = text
+                        .substring(0, 500)
+                        .split("\n")
+                        .slice(0, 8)
                         .map(line => {
-                            const trimmed = line.trim();
-                            return trimmed.length > 60 ? trimmed.substring(0, 57) + "..." : trimmed;
+                            // Truncate long lines
+                            return line.length > 50 ? line.substring(0, 50) + "..." : line;
                         })
                         .join("\n");
 
-                    if (isMounted) setContentPreview(preview);
+                    if (isMounted) {
+                        setContentPreview(preview);
+                        setIsLoadingPreview(false);
+                    }
                 } catch (error) {
                     if (!abortController.signal.aborted) {
-                        console.error("Error loading content preview:", error);
-                        if (isMounted) setContentPreview(null);
-                    }
-                } finally {
-                    if (isMounted && !abortController.signal.aborted) {
-                        setIsLoadingPreview(false);
+                        console.error("Error loading text preview:", error);
+                        if (isMounted) setIsLoadingPreview(false);
                     }
                 }
             }
@@ -360,22 +236,19 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
 
         loadPreview();
 
-        // Cleanup: abort in-flight requests and mark as unmounted
         return () => {
             isMounted = false;
             abortController.abort();
         };
-        // Note: documentThumbnailFailed is intentionally excluded from deps
-        // It's set as a result of the effect, not an input to it
-    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.size, artifact.projectId, canAttemptDocumentThumbnail]);
+    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.projectId, canAttemptDocumentThumbnail]);
 
     // Handle document thumbnail error - fall back to icon
     const handleDocumentThumbnailError = useCallback(() => {
         setDocumentThumbnailFailed(true);
     }, []);
 
-    // Check if we can show document thumbnail
-    const canShowDocumentThumbnail = canAttemptDocumentThumbnail && documentContent && !documentThumbnailFailed;
+    // Determine if we should show document thumbnail
+    const canShowDocumentThumbnail = canAttemptDocumentThumbnail && !documentThumbnailFailed;
 
     const handleCardClick = () => {
         onPreview(artifact);
@@ -385,9 +258,9 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
         <Card
             className={cn(
                 "group relative flex h-[220px] w-[280px] flex-shrink-0 cursor-pointer flex-col gap-0 overflow-hidden transition-all",
-                "hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-wMain)]",
-                "focus-visible:border-[var(--color-brand-w100)] focus-visible:outline-none",
-                isSelected && "border-[var(--color-brand-w100)]"
+                "hover:bg-(--color-primary-w10) dark:hover:bg-(--color-primary-wMain)",
+                "focus-visible:border-(--color-brand-w100) focus-visible:outline-none",
+                isSelected && "border-(--color-brand-w100)"
             )}
             onClick={handleCardClick}
             onKeyDown={e => {
@@ -539,17 +412,15 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                     <span className="text-muted-foreground text-xs">{formatBytes(artifact.size)}</span>
                     <span className="text-muted-foreground text-xs">•</span>
                     <span className="text-muted-foreground text-xs">{formatTimestamp(artifact.last_modified)}</span>
-                    {/* Only show origin badge for non-project artifacts (project badge is shown in header) */}
-                    {origin && origin.label !== "Project" && <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${origin.color}`}>{origin.label}</span>}
                 </div>
-                {/* Extension badge */}
-                <span className={cn("rounded px-2 py-0.5 text-[10px] font-bold", getExtensionBadgeStyle(artifact.filename))}>
+                {/* Extension badge - uses shared getFileTypeColor from FileIcon */}
+                <span className={cn("rounded px-2 py-0.5 text-[10px] font-bold text-white", getFileTypeColor(artifact.mime_type, artifact.filename))}>
                     {getFileExtension(artifact.filename).length > 4 ? getFileExtension(artifact.filename).substring(0, 4) : getFileExtension(artifact.filename)}
                 </span>
             </div>
         </Card>
     );
-};
+}
 
 /**
  * Standalone preview panel for artifacts page
@@ -563,27 +434,27 @@ interface StandalonePreviewPanelProps {
     onGoToProject: (artifact: ArtifactWithSession) => void;
 }
 
-const StandalonePreviewPanel: React.FC<StandalonePreviewPanelProps> = ({ artifact, onClose, onDownload, onGoToChat, onGoToProject }) => {
+function StandalonePreviewPanel({ artifact, onClose, onDownload, onGoToChat, onGoToProject }: StandalonePreviewPanelProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [fileContent, setFileContent] = useState<FileAttachment | null>(null);
-    const isFetchingRef = useRef(false);
-    const lastFetchedFilenameRef = useRef<string | null>(null);
+    const lastFetchedRef = useRef<string | null>(null);
 
     // Check if preview is supported
     const preview = useMemo(() => canPreviewArtifact(artifact), [artifact]);
 
     // Fetch artifact content
     useEffect(() => {
+        // Create a unique key for this artifact
+        const artifactKey = `${artifact.sessionId}:${artifact.filename}:${artifact.projectId || ""}`;
+
+        // Prevent duplicate fetches for the same artifact
+        if (lastFetchedRef.current === artifactKey) {
+            return;
+        }
+
         async function fetchContent() {
-            // Prevent duplicate fetches
-            if (isFetchingRef.current && lastFetchedFilenameRef.current === artifact.filename) {
-                return;
-            }
-
-            isFetchingRef.current = true;
-            lastFetchedFilenameRef.current = artifact.filename;
-
+            lastFetchedRef.current = artifactKey;
             setIsLoading(true);
             setError(null);
 
@@ -684,7 +555,7 @@ const StandalonePreviewPanel: React.FC<StandalonePreviewPanelProps> = ({ artifac
             <div className="min-h-0 flex-1 overflow-auto">
                 {isLoading && (
                     <div className="flex h-full items-center justify-center">
-                        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+                        <Spinner size="medium" variant="muted" />
                     </div>
                 )}
 
@@ -714,9 +585,9 @@ const StandalonePreviewPanel: React.FC<StandalonePreviewPanelProps> = ({ artifac
             </div>
         </div>
     );
-};
+}
 
-export const ArtifactsPage: React.FC = () => {
+export function ArtifactsPage() {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
     const { artifacts, isLoading, error: fetchError, refetch } = useAllArtifacts();
@@ -728,6 +599,7 @@ export const ArtifactsPage: React.FC = () => {
     // Get feature flags from config context
     const config = useContext(ConfigContext);
     const artifactsPageEnabled = config?.configFeatureEnablement?.artifactsPage ?? false;
+    const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
 
     // Redirect to chat if feature is disabled
     useEffect(() => {
@@ -941,6 +813,7 @@ export const ArtifactsPage: React.FC = () => {
                                             onGoToChat={handleGoToChat}
                                             onGoToProject={handleGoToProject}
                                             isSelected={previewArtifact?.filename === artifact.filename && previewArtifact?.sessionId === artifact.sessionId}
+                                            binaryArtifactPreviewEnabled={binaryArtifactPreviewEnabled}
                                         />
                                     ))}
                                 </div>
@@ -1006,4 +879,4 @@ export const ArtifactsPage: React.FC = () => {
             </Dialog>
         </div>
     );
-};
+}

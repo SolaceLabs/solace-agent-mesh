@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
+import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { Loader2 } from "lucide-react";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
-import { cn } from "@/lib/utils";
+import { cn, createLruCache } from "@/lib/utils";
 
 // Configure PDF.js worker (same as PdfRenderer)
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
@@ -33,38 +33,14 @@ interface ConversionResponse {
 }
 
 // LRU Cache for converted PDFs and thumbnails with max size to prevent memory leaks
-const MAX_THUMBNAIL_CACHE_SIZE = 30;
-const thumbnailCache = new Map<string, string>();
-
-// Add to cache with LRU eviction
-const addToThumbnailCache = (key: string, value: string): void => {
-    // If cache is full, remove oldest entry (first item in Map)
-    if (thumbnailCache.size >= MAX_THUMBNAIL_CACHE_SIZE) {
-        const firstKey = thumbnailCache.keys().next().value;
-        if (firstKey) {
-            thumbnailCache.delete(firstKey);
-        }
-    }
-    thumbnailCache.set(key, value);
-};
-
-// Get from cache and move to end (most recently used)
-const getFromThumbnailCache = (key: string): string | undefined => {
-    const value = thumbnailCache.get(key);
-    if (value !== undefined) {
-        // Move to end by re-inserting
-        thumbnailCache.delete(key);
-        thumbnailCache.set(key, value);
-    }
-    return value;
-};
+const thumbnailCache = createLruCache<string>(30);
 
 /**
  * Generate a more robust cache key using a simple hash.
  * Uses content length, filename, and samples from multiple positions
  * to reduce collision probability.
  */
-const hashContent = (content: string, filename: string): string => {
+function hashContent(content: string, filename: string): string {
     // Sample from beginning, middle, and end of content
     const len = content.length;
     const sample1 = content.substring(0, 32);
@@ -81,16 +57,16 @@ const hashContent = (content: string, filename: string): string => {
     }
 
     return `thumb:${filename}:${len}:${hash}`;
-};
+}
 
 // Check if file is a PDF
-const isPdf = (filename: string, mimeType?: string): boolean => {
+function isPdf(filename: string, mimeType?: string): boolean {
     if (mimeType === "application/pdf") return true;
     return filename.toLowerCase().endsWith(".pdf");
-};
+}
 
 // Check if file is an Office document that can be converted
-const isOfficeDocument = (filename: string, mimeType?: string): boolean => {
+function isOfficeDocument(filename: string, mimeType?: string): boolean {
     const ext = filename.toLowerCase().split(".").pop();
     const officeExtensions = ["docx", "doc", "pptx", "ppt", "xlsx", "xls", "odt", "odp", "ods"];
     if (ext && officeExtensions.includes(ext)) return true;
@@ -107,12 +83,12 @@ const isOfficeDocument = (filename: string, mimeType?: string): boolean => {
         "application/vnd.oasis.opendocument.spreadsheet",
     ];
     return mimeType ? officeMimeTypes.includes(mimeType) : false;
-};
+}
 
 // Check if file supports thumbnail generation
-export const supportsThumbnail = (filename: string, mimeType?: string): boolean => {
+export function supportsThumbnail(filename: string, mimeType?: string): boolean {
     return isPdf(filename, mimeType) || isOfficeDocument(filename, mimeType);
-};
+}
 
 const pdfOptions = { withCredentials: true };
 
@@ -125,7 +101,7 @@ const pdfOptions = { withCredentials: true };
  *
  * Falls back gracefully if conversion is not available or fails.
  */
-export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, filename, mimeType, width = 52, height = 67, className, onError, onLoad }) => {
+export function DocumentThumbnail({ content, filename, mimeType, width = 52, height = 67, className, onError, onLoad }: DocumentThumbnailProps) {
     const config = useContext(ConfigContext);
     const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -187,7 +163,7 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
 
             // Check cache first (using LRU cache to prevent memory leaks)
             const cacheKey = hashContent(content, filename);
-            const cachedPdf = getFromThumbnailCache(cacheKey);
+            const cachedPdf = thumbnailCache.get(cacheKey);
 
             if (cachedPdf) {
                 setPdfDataUrl(cachedPdf);
@@ -240,7 +216,7 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
                 const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
 
                 // Cache the result using LRU cache to prevent memory leaks
-                addToThumbnailCache(cacheKey, dataUrl);
+                thumbnailCache.set(cacheKey, dataUrl);
 
                 setPdfDataUrl(dataUrl);
                 setIsLoading(false);
@@ -309,6 +285,6 @@ export const DocumentThumbnail: React.FC<DocumentThumbnailProps> = ({ content, f
             </div>
         </div>
     );
-};
+}
 
 export default DocumentThumbnail;
