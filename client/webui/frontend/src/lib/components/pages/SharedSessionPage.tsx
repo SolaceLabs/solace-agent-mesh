@@ -226,12 +226,17 @@ export function SharedSessionPage() {
                                             mimeType: partObj.file.mimeType,
                                         },
                                     });
-                                } else if (partObj.kind === "artifact" && partObj.artifact) {
+                                } else if (partObj.kind === "artifact") {
+                                    // Handle both formats:
+                                    // 1. Nested: { kind: "artifact", artifact: { name, status } }
+                                    // 2. Flat: { kind: "artifact", name, status, file: { name, mime_type, uri } }
+                                    const artifactData = partObj.artifact || partObj;
+                                    const artifactName = (artifactData as { name?: string; filename?: string }).name || (artifactData as { name?: string; filename?: string }).filename || (partObj.file as { name?: string })?.name || "Artifact";
                                     parts.push({
                                         kind: "artifact",
                                         artifact: {
-                                            name: partObj.artifact.name || partObj.artifact.filename || "Artifact",
-                                            status: partObj.artifact.status || "completed",
+                                            name: artifactName,
+                                            status: (artifactData as { status?: string }).status || "completed",
                                         },
                                     });
                                 }

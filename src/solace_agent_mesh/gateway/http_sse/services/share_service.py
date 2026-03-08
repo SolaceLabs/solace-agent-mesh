@@ -84,7 +84,7 @@ class ShareService:
         existing = self.repository.find_by_session_id(db, session_id, user_id)
         if existing:
             log.info(f"Share link already exists for session {session_id}, returning existing link")
-            return self._build_share_link_response(existing, base_url)
+            return self._build_share_link_response(existing, base_url, db)
         
         # Validate authentication settings
         if request.allowed_domains and not request.require_authentication:
@@ -123,7 +123,7 @@ class ShareService:
         log.info(f"Created share link {share_id} for session {session_id} by user {user_id}")
         
         # Build response
-        return self._build_share_link_response(saved_link, base_url)
+        return self._build_share_link_response(saved_link, base_url, db)
 
     def get_share_link_by_id(
         self,
@@ -165,7 +165,7 @@ class ShareService:
         if not share_link:
             return None
         
-        return self._build_share_link_response(share_link, base_url)
+        return self._build_share_link_response(share_link, base_url, db)
 
     def list_user_share_links(
         self,
@@ -271,7 +271,7 @@ class ShareService:
         
         log.info(f"Updated share link {share_id} by user {user_id}")
         
-        return self._build_share_link_response(updated_link, base_url)
+        return self._build_share_link_response(updated_link, base_url, db)
 
     def delete_share_link(
         self,
@@ -713,8 +713,7 @@ class ShareService:
         db: DBSession,
         share_id: str,
         user_id: str,
-        user_emails: List[str],
-        access_level: str = "RESOURCE_VIEWER"
+        user_shares: List[Dict[str, str]]
     ) -> BatchAddShareUsersResponse:
         """
         Add users to a share link.
@@ -723,8 +722,7 @@ class ShareService:
             db: Database session
             share_id: Share ID
             user_id: User ID (must be owner)
-            user_emails: List of user emails to add
-            access_level: Access level for the users
+            user_shares: List of dicts with 'user_email' and optional 'access_level'
         
         Returns:
             BatchAddShareUsersResponse with added users
@@ -740,7 +738,13 @@ class ShareService:
             raise ValueError("Not authorized to add share users")
         
         added_users = []
-        for email in user_emails:
+        for share_info in user_shares:
+            email = share_info.get("user_email")
+            access_level = share_info.get("access_level", "RESOURCE_VIEWER")
+            
+            if not email:
+                continue
+            
             # Skip if already shared
             if self.repository.check_user_has_access(db, share_id, email):
                 log.info(f"User {email} already has access to share {share_id}")

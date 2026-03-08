@@ -8,7 +8,7 @@
  * and other shared session data.
  */
 
-import React, { useState, useRef, useMemo, useCallback } from "react";
+import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts/ChatContext";
 import type { ArtifactInfo, FileAttachment, RAGSearchResult } from "@/lib/types";
 import { getSharedArtifactContent } from "@/lib/api/shareApi";
@@ -32,10 +32,15 @@ interface SharedChatProviderProps {
 export const SharedChatProvider: React.FC<SharedChatProviderProps> = ({ children, artifacts: initialArtifacts, ragData = [], sessionId = "", shareId }) => {
     // State for artifacts and preview
     // Mark all artifacts as needing embed resolution so ArtifactMessage will fetch content
-    const [artifacts, setArtifacts] = useState<ArtifactInfo[]>(() => initialArtifacts.map(a => ({ ...a, needsEmbedResolution: true })));
+    const [artifacts, setArtifactsState] = useState<ArtifactInfo[]>(() => initialArtifacts.map(a => ({ ...a, needsEmbedResolution: true })));
     // Track which artifacts have had download attempts to prevent infinite retries
     const downloadAttemptedRef = React.useRef<Set<string>>(new Set());
     const [previewArtifact, setPreviewArtifact] = useState<ArtifactInfo | null>(null);
+
+    // Update artifacts when initialArtifacts changes (e.g., when session data loads)
+    useEffect(() => {
+        setArtifactsState(initialArtifacts.map(a => ({ ...a, needsEmbedResolution: true })));
+    }, [initialArtifacts]);
     const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
     const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
     const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
@@ -112,7 +117,7 @@ export const SharedChatProvider: React.FC<SharedChatProviderProps> = ({ children
                 const content = await getSharedArtifactContent(shareId, filename);
 
                 // On success, update the artifact to remove needsEmbedResolution
-                setArtifacts(prev => prev.map(a => (a.filename === filename ? { ...a, needsEmbedResolution: false } : a)));
+                setArtifactsState(prev => prev.map(a => (a.filename === filename ? { ...a, needsEmbedResolution: false } : a)));
 
                 return {
                     name: artifact.filename,
@@ -124,7 +129,7 @@ export const SharedChatProvider: React.FC<SharedChatProviderProps> = ({ children
                 console.error("Failed to download artifact:", error);
 
                 // On failure, also remove needsEmbedResolution to prevent infinite retries
-                setArtifacts(prev => prev.map(a => (a.filename === filename ? { ...a, needsEmbedResolution: false } : a)));
+                setArtifactsState(prev => prev.map(a => (a.filename === filename ? { ...a, needsEmbedResolution: false } : a)));
 
                 return null;
             }
