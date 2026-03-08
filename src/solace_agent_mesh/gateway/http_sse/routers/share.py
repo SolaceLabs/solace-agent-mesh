@@ -3,7 +3,7 @@ API routes for share link functionality.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session as DBSession
@@ -22,6 +22,11 @@ from ..repository.models.share_model import (
     ShareLinkResponse,
     ShareLinkItem,
     SharedSessionView,
+    ShareUsersResponse,
+    BatchAddShareUsersRequest,
+    BatchAddShareUsersResponse,
+    BatchDeleteShareUsersRequest,
+    BatchDeleteShareUsersResponse,
 )
 from solace_agent_mesh.shared.api.pagination import PaginationParams, PaginatedResponse
 
@@ -523,4 +528,113 @@ async def get_shared_artifact_content(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch artifact content"
+        )
+
+
+# Share User Management Endpoints
+
+@router.get("/{share_id}/users", response_model=ShareUsersResponse)
+async def get_share_users(
+    share_id: str,
+    user_id: str = Depends(get_user_id),
+    db: DBSession = Depends(get_db),
+    share_service: ShareService = Depends(get_share_service)
+):
+    """
+    Get all users with access to a share link.
+    
+    Only the owner can view the list of shared users.
+    """
+    try:
+        return share_service.get_share_users(
+            db=db,
+            share_id=share_id,
+            user_id=user_id
+        )
+    
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error getting share users: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get share users"
+        )
+
+
+@router.post("/{share_id}/users", response_model=BatchAddShareUsersResponse)
+async def add_share_users(
+    share_id: str,
+    request: BatchAddShareUsersRequest,
+    user_id: str = Depends(get_user_id),
+    db: DBSession = Depends(get_db),
+    share_service: ShareService = Depends(get_share_service)
+):
+    """
+    Add users to a share link.
+    
+    Only the owner can add users to a share.
+    """
+    try:
+        user_emails = [share.user_email for share in request.shares]
+        access_level = request.shares[0].access_level if request.shares else "RESOURCE_VIEWER"
+        
+        return share_service.add_share_users(
+            db=db,
+            share_id=share_id,
+            user_id=user_id,
+            user_emails=user_emails,
+            access_level=access_level
+        )
+    
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error adding share users: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to add share users"
+        )
+
+
+@router.delete("/{share_id}/users", response_model=BatchDeleteShareUsersResponse)
+async def delete_share_users(
+    share_id: str,
+    request: BatchDeleteShareUsersRequest,
+    user_id: str = Depends(get_user_id),
+    db: DBSession = Depends(get_db),
+    share_service: ShareService = Depends(get_share_service)
+):
+    """
+    Remove users from a share link.
+    
+    Only the owner can remove users from a share.
+    """
+    try:
+        return share_service.delete_share_users(
+            db=db,
+            share_id=share_id,
+            user_id=user_id,
+            user_emails=request.user_emails
+        )
+    
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error deleting share users: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete share users"
         )

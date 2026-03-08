@@ -3,12 +3,13 @@ Repository for share link data access operations.
 """
 
 import logging
+import uuid
 from typing import Optional, List
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import and_, or_, func
 
-from .models.share_model import SharedLinkModel, SharedArtifactModel
-from .entities.share import ShareLink, SharedArtifact
+from .models.share_model import SharedLinkModel, SharedArtifactModel, SharedLinkUserModel
+from .entities.share import ShareLink, SharedArtifact, SharedLinkUser
 from solace_agent_mesh.shared.api.pagination import PaginationParams
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
@@ -258,3 +259,171 @@ class ShareRepository:
         ).delete()
         
         return result
+
+    # Shared Link Users methods
+
+    def add_share_user(
+        self,
+        db: DBSession,
+        share_id: str,
+        user_email: str,
+        added_by_user_id: str,
+        access_level: str = "RESOURCE_VIEWER"
+    ) -> SharedLinkUser:
+        """
+        Add a user to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_email: Email of user to add
+            added_by_user_id: User ID of who is adding
+            access_level: Access level for the user
+        
+        Returns:
+            SharedLinkUser entity
+        """
+        model = SharedLinkUserModel(
+            id=str(uuid.uuid4()),
+            share_id=share_id,
+            user_email=user_email.lower().strip(),
+            access_level=access_level,
+            added_at=now_epoch_ms(),
+            added_by_user_id=added_by_user_id
+        )
+        db.add(model)
+        db.flush()
+        db.refresh(model)
+        return SharedLinkUser.model_validate(model)
+
+    def find_share_users(self, db: DBSession, share_id: str) -> List[SharedLinkUser]:
+        """
+        Find all users with access to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+        
+        Returns:
+            List of SharedLinkUser entities
+        """
+        models = db.query(SharedLinkUserModel).filter(
+            SharedLinkUserModel.share_id == share_id
+        ).all()
+        
+        return [SharedLinkUser.model_validate(m) for m in models]
+
+    def find_share_user_emails(self, db: DBSession, share_id: str) -> List[str]:
+        """
+        Get list of user emails with access to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+        
+        Returns:
+            List of user emails
+        """
+        results = db.query(SharedLinkUserModel.user_email).filter(
+            SharedLinkUserModel.share_id == share_id
+        ).all()
+        
+        return [r[0] for r in results]
+
+    def check_user_has_access(self, db: DBSession, share_id: str, user_email: str) -> bool:
+        """
+        Check if a user has access to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_email: User email to check
+        
+        Returns:
+            True if user has access, False otherwise
+        """
+        count = db.query(func.count(SharedLinkUserModel.id)).filter(
+            and_(
+                SharedLinkUserModel.share_id == share_id,
+                SharedLinkUserModel.user_email == user_email.lower().strip()
+            )
+        ).scalar()
+        
+        return count > 0
+
+    def delete_share_user(self, db: DBSession, share_id: str, user_email: str) -> bool:
+        """
+        Remove a user's access to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_email: User email to remove
+        
+        Returns:
+            True if deleted, False if not found
+        """
+        result = db.query(SharedLinkUserModel).filter(
+            and_(
+                SharedLinkUserModel.share_id == share_id,
+                SharedLinkUserModel.user_email == user_email.lower().strip()
+            )
+        ).delete()
+        
+        return result > 0
+
+    def delete_share_users_batch(self, db: DBSession, share_id: str, user_emails: List[str]) -> int:
+        """
+        Remove multiple users' access to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_emails: List of user emails to remove
+        
+        Returns:
+            Number of users removed
+        """
+        normalized_emails = [e.lower().strip() for e in user_emails]
+        result = db.query(SharedLinkUserModel).filter(
+            and_(
+                SharedLinkUserModel.share_id == share_id,
+                SharedLinkUserModel.user_email.in_(normalized_emails)
+            )
+        ).delete(synchronize_session='fetch')
+        
+        return result
+
+    def delete_all_share_users(self, db: DBSession, share_id: str) -> int:
+        """
+        Remove all users' access to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+        
+        Returns:
+            Number of users removed
+        """
+        result = db.query(SharedLinkUserModel).filter(
+            SharedLinkUserModel.share_id == share_id
+        ).delete()
+        
+        return result
+
+    def has_shared_users(self, db: DBSession, share_id: str) -> bool:
+        """
+        Check if a share link has any user-specific shares.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+        
+        Returns:
+            True if there are shared users, False otherwise
+        """
+        count = db.query(func.count(SharedLinkUserModel.id)).filter(
+            SharedLinkUserModel.share_id == share_id
+        ).scalar()
+        
+        return count > 0

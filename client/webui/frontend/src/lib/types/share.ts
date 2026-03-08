@@ -4,6 +4,8 @@
 
 import type { MessageBubble, TaskMetadata } from "./storage";
 
+export type ShareAccessType = "public" | "authenticated" | "domain-restricted" | "user-specific";
+
 export interface ShareLink {
     share_id: string;
     session_id: string;
@@ -11,7 +13,7 @@ export interface ShareLink {
     is_public: boolean;
     require_authentication: boolean;
     allowed_domains: string[];
-    access_type: "public" | "authenticated" | "domain-restricted";
+    access_type: ShareAccessType;
     created_time: number;
     share_url: string;
 }
@@ -23,7 +25,7 @@ export interface ShareLinkItem {
     is_public: boolean;
     require_authentication: boolean;
     allowed_domains: string[];
-    access_type: "public" | "authenticated" | "domain-restricted";
+    access_type: ShareAccessType;
     created_time: number;
     message_count: number;
 }
@@ -116,4 +118,40 @@ export interface SharedSessionViewResponse {
 export interface DeleteShareLinkResponse {
     success: boolean;
     message: string;
+}
+
+// User-specific sharing types
+
+export interface SharedLinkUserInfo {
+    user_email: string;
+    access_level: string;
+    added_at: number;
+}
+
+export interface ShareUsersResponse {
+    share_id: string;
+    owner_email: string;
+    users: SharedLinkUserInfo[];
+}
+
+export interface AddShareUserRequest {
+    user_email: string;
+    access_level?: string;
+}
+
+export interface BatchAddShareUsersRequest {
+    shares: AddShareUserRequest[];
+}
+
+export interface BatchAddShareUsersResponse {
+    added_count: number;
+    users: SharedLinkUserInfo[];
+}
+
+export interface BatchDeleteShareUsersRequest {
+    user_emails: string[];
+}
+
+export interface BatchDeleteShareUsersResponse {
+    deleted_count: number;
 }

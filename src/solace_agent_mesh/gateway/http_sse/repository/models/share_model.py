@@ -2,7 +2,8 @@
 Share link SQLAlchemy model and Pydantic models for strongly-typed operations.
 """
 
-from sqlalchemy import BigInteger, Boolean, Column, String, Text
+from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy.orm import relationship
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
@@ -25,6 +26,30 @@ class SharedLinkModel(Base):
     created_time = Column(BigInteger, nullable=False, default=now_epoch_ms)
     updated_time = Column(BigInteger, nullable=False, default=now_epoch_ms, onupdate=now_epoch_ms)
     deleted_at = Column(BigInteger, nullable=True)
+
+    # Relationships
+    shared_users = relationship("SharedLinkUserModel", back_populates="shared_link", cascade="all, delete-orphan")
+
+
+class SharedLinkUserModel(Base):
+    """SQLAlchemy model for tracking users with access to shared links."""
+
+    __tablename__ = "shared_link_users"
+
+    id = Column(String, primary_key=True)
+    share_id = Column(String(21), ForeignKey("shared_links.share_id", ondelete="CASCADE"), nullable=False)
+    user_email = Column(String(255), nullable=False)
+    access_level = Column(String(50), nullable=False, default="RESOURCE_VIEWER")
+    added_at = Column(BigInteger, nullable=False)
+    added_by_user_id = Column(String(255), nullable=False)
+
+    # Ensure a user can only be added once per share
+    __table_args__ = (
+        UniqueConstraint('share_id', 'user_email', name='uq_shared_link_user'),
+    )
+
+    # Relationships
+    shared_link = relationship("SharedLinkModel", back_populates="shared_users")
 
 
 class SharedArtifactModel(Base):
@@ -106,3 +131,46 @@ class SharedSessionView(BaseModel):
     tasks: List[dict]  # Anonymized chat tasks
     artifacts: List[SharedArtifactInfo]  # Full artifact info for side panel
     task_events: Optional[dict] = None  # Task events for workflow visualization: {task_id: SharedTaskEvents}
+
+
+# User-specific sharing models
+
+class SharedLinkUserInfo(BaseModel):
+    """Info about a user with access to a shared link."""
+    user_email: str
+    access_level: str
+    added_at: int
+
+
+class ShareUsersResponse(BaseModel):
+    """Response model for getting share users."""
+    share_id: str
+    owner_email: str
+    users: List[SharedLinkUserInfo]
+
+
+class AddShareUserRequest(BaseModel):
+    """Request to add a user to a share."""
+    user_email: str = Field(..., description="Email of user to share with")
+    access_level: str = Field(default="RESOURCE_VIEWER", description="Access level for the user")
+
+
+class BatchAddShareUsersRequest(BaseModel):
+    """Request to add multiple users to a share."""
+    shares: List[AddShareUserRequest]
+
+
+class BatchAddShareUsersResponse(BaseModel):
+    """Response for batch adding users to a share."""
+    added_count: int
+    users: List[SharedLinkUserInfo]
+
+
+class BatchDeleteShareUsersRequest(BaseModel):
+    """Request to remove multiple users from a share."""
+    user_emails: List[str]
+
+
+class BatchDeleteShareUsersResponse(BaseModel):
+    """Response for batch removing users from a share."""
+    deleted_count: int
