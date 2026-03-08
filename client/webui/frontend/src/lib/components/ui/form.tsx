@@ -2,8 +2,8 @@
 import * as React from "react";
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
-import { Controller, FormProvider, useFormContext, useFormState, type ControllerProps, type FieldPath, type FieldValues } from "react-hook-form";
-
+import { Controller, FormProvider, useFormContext, useFormState } from "react-hook-form";
+import type { FieldValues, FieldPath, ControllerProps } from "react-hook-form";
 import { cn } from "@/lib/utils/index";
 import { Label } from "@/lib/components/ui/label";
 
@@ -16,8 +16,10 @@ type FormFieldContextValue<TFieldValues extends FieldValues = FieldValues, TName
 const FormFieldContext = React.createContext<FormFieldContextValue>({} as FormFieldContextValue);
 
 const FormField = <TFieldValues extends FieldValues = FieldValues, TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>>({ ...props }: ControllerProps<TFieldValues, TName>) => {
+    const memoizedFieldName = React.useMemo(() => ({ name: props.name }), [props.name]);
+
     return (
-        <FormFieldContext.Provider value={{ name: props.name }}>
+        <FormFieldContext.Provider value={memoizedFieldName}>
             <Controller {...props} />
         </FormFieldContext.Provider>
     );
@@ -54,9 +56,10 @@ const FormItemContext = React.createContext<FormItemContextValue>({} as FormItem
 
 function FormItem({ className, ...props }: React.ComponentProps<"div">) {
     const id = React.useId();
+    const memoizedItemId = React.useMemo(() => ({ id }), [id]);
 
     return (
-        <FormItemContext.Provider value={{ id }}>
+        <FormItemContext.Provider value={memoizedItemId}>
             <div data-slot="form-item" className={cn("grid gap-2", className)} {...props} />
         </FormItemContext.Provider>
     );
@@ -65,7 +68,7 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
 function FormLabel({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
     const { error, formItemId } = useFormField();
 
-    return <Label data-slot="form-label" data-error={!!error} className={cn("data-[error=true]:text-destructive", className)} htmlFor={formItemId} {...props} />;
+    return <Label data-slot="form-label" data-error={!!error} className={cn("data-[error=true]:text-(--color-error-wMain)", className)} htmlFor={formItemId} {...props} />;
 }
 
 function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
@@ -80,19 +83,28 @@ function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
     return <p data-slot="form-description" id={formDescriptionId} className={cn("text-muted-foreground text-sm", className)} {...props} />;
 }
 
-function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
+function FormError({ className, ...props }: React.ComponentProps<"p">) {
     const { error, formMessageId } = useFormField();
-    const body = error ? String(error?.message ?? "") : props.children;
 
-    if (!body) {
-        return null;
-    }
+    if (!error) return null;
+
+    const body = String(error?.message ?? "");
 
     return (
-        <p data-slot="form-message" id={formMessageId} className={cn("text-destructive text-sm", className)} {...props}>
+        <p data-slot="form-error" id={formMessageId} className={cn("text-xs text-(--color-error-wMain)", className)} {...props}>
             {body}
         </p>
     );
 }
 
-export { useFormField, Form, FormItem, FormLabel, FormControl, FormDescription, FormMessage, FormField };
+function FormInputLabel({ className, rightAlign, ...props }: React.ComponentProps<"p"> & { rightAlign?: boolean }) {
+    const { formMessageId } = useFormField();
+    if (!props.children) return null;
+    return (
+        <p data-slot="form-input-label" id={formMessageId} className={cn("text-muted-foreground text-xs", rightAlign && "text-right", className)} {...props}>
+            {props.children}
+        </p>
+    );
+}
+
+export { useFormField, Form, FormItem, FormLabel, FormControl, FormDescription, FormError, FormInputLabel, FormField };

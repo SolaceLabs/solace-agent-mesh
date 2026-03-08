@@ -22,8 +22,12 @@ export function useProjects() {
     return useQuery({
         queryKey: projectKeys.lists(),
         queryFn: projectService.getProjects,
+        refetchOnMount: "always",
     });
 }
+
+/** Ensures projects are fetched fresh on component mount */
+export const useFetchProjectsOnMount = () => useProjects();
 
 export function useProjectArtifacts(projectId: string | null) {
     return useQuery({
@@ -47,11 +51,11 @@ export function useProjectSessions(projectId: string | null) {
             }
         };
 
-        window.addEventListener("session-moved", handleSessionEvent);
+        window.addEventListener("session-updated", handleSessionEvent);
         window.addEventListener("new-chat-session", handleSessionEvent);
 
         return () => {
-            window.removeEventListener("session-moved", handleSessionEvent);
+            window.removeEventListener("session-updated", handleSessionEvent);
             window.removeEventListener("new-chat-session", handleSessionEvent);
         };
     }, [projectId, queryClient]);
@@ -146,6 +150,38 @@ export function useImportProject() {
         mutationFn: ({ file, options }: { file: File; options: { preserveName: boolean; customName?: string } }) => projectService.importProject(file, options),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+        },
+    });
+}
+
+// Project Sharing Hooks
+
+export function useProjectShares(projectId: string) {
+    return useQuery({
+        queryKey: projectKeys.shares(projectId),
+        queryFn: () => projectService.getProjectShares(projectId),
+        enabled: !!projectId,
+    });
+}
+
+export function useCreateProjectShares() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ projectId, data }: { projectId: string; data: { shares: { userEmail: string; accessLevel: "RESOURCE_VIEWER" }[] } }) => projectService.createProjectShares(projectId, data),
+        onSuccess: (_, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.shares(projectId) });
+        },
+    });
+}
+
+export function useDeleteProjectShares() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ projectId, data }: { projectId: string; data: { userEmails: string[] } }) => projectService.deleteProjectShares(projectId, data),
+        onSuccess: (_, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.shares(projectId) });
         },
     });
 }

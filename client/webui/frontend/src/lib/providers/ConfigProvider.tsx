@@ -16,6 +16,7 @@ interface BackendConfig {
     frontend_logo_url: string;
     frontend_feature_enablement?: Record<string, boolean>;
     persistence_enabled?: boolean;
+    identity_service_type: string | null;
     validation_limits?: {
         projectNameMax?: number;
         projectDescriptionMax?: number;
@@ -112,6 +113,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 // Extract auto title generation config from feature enablement
                 const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
 
+                // Extract binary artifact preview config from feature enablement
+                const binaryArtifactPreviewEnabled = data.frontend_feature_enablement?.binaryArtifactPreview ?? false;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     webuiServerUrl: data.frontend_server_url,
@@ -132,6 +136,8 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     backgroundTasksDefaultTimeoutMs,
                     platformConfigured,
                     autoTitleGenerationEnabled,
+                    identityServiceType: data.identity_service_type,
+                    binaryArtifactPreviewEnabled,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import type React from "react";
 import type { LucideIcon } from "lucide-react";
 
 import type { AgentCard, AgentSkill, Part } from "./be";
@@ -60,6 +61,7 @@ export interface AgentCardInfo extends AgentInfo {
     displayName?: string;
     peerAgents?: string[];
     tools?: AgentSkill[];
+    isWorkflow?: boolean;
 }
 
 // This is a UI-specific type for managing artifacts in the side panel.
@@ -92,6 +94,7 @@ export interface FileAttachment {
     last_modified?: string; // ISO 8601 timestamp
     size?: number;
     uri?: string;
+    url?: string; // URL for direct file access (e.g., for PDF preview)
 }
 
 /**
@@ -130,6 +133,8 @@ export interface MessageFE {
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
     displayHtml?: string; // HTML for displaying user messages with mention chips (user messages only)
+    contextQuote?: string; // Original quoted text from "Ask Followup" action (user messages only)
+    contextQuoteSourceId?: string; // Task ID of the message containing the original quoted text (for scroll-to-source)
     authenticationLink?: {
         url: string;
         text: string;
@@ -210,6 +215,103 @@ export interface NavigationContextValue {
     setItems: (items: NavigationItem[]) => void;
 }
 
+/**
+ * Configuration for a single navigation item in CollapsibleNavigationSidebar.
+ *
+ * This interface is used by external repos (e.g., solace-chat) to define
+ * custom navigation structures. All properties support the presentational
+ * component pattern where business logic is injected via callbacks.
+ *
+ * @example
+ * ```tsx
+ * const myNavItem: NavItemConfig = {
+ *   id: "settings",
+ *   label: "Settings",
+ *   icon: SettingsIcon,
+ *   onClick: () => openSettingsDialog(),
+ *   badge: <LifecycleBadge>BETA</LifecycleBadge>,
+ * };
+ * ```
+ */
+export interface NavItemConfig {
+    /** Unique identifier for this item, used for active state tracking and event handling */
+    id: string;
+
+    /** Display text shown next to the icon in expanded mode */
+    label: string;
+
+    /** Lucide icon component or any React component that accepts className prop */
+    icon: React.ElementType;
+
+    /**
+     * Route path to navigate to when clicked (e.g., "/agents").
+     * Ignored if `onClick` is provided.
+     */
+    route?: string;
+
+    /**
+     * Pattern(s) to determine active state based on current URL.
+     * Supports string prefix matching, array of prefixes, or RegExp.
+     * @example "/projects" matches "/projects" and "/projects/123"
+     * @example ["/chat", "/conversations"] matches either prefix
+     * @example /^\/users\/\d+$/ matches "/users/123" but not "/users"
+     */
+    routeMatch?: string | string[] | RegExp;
+
+    /**
+     * Custom click handler that overrides default routing behavior.
+     * Use for items that open dialogs, trigger actions, or need custom logic.
+     */
+    onClick?: () => void;
+
+    /**
+     * Optional badge component rendered after the label.
+     * Accepts any React node for full flexibility (e.g., LifecycleBadge, custom pill).
+     * @example badge: <LifecycleBadge>EXPERIMENTAL</LifecycleBadge>
+     */
+    badge?: React.ReactNode;
+
+    /** Tooltip text shown on hover (both collapsed and expanded modes) */
+    tooltip?: string;
+
+    /** When true, item is rendered but non-interactive */
+    disabled?: boolean;
+
+    /** When true, item is completely hidden from the navigation */
+    hidden?: boolean;
+
+    /**
+     * Child items that create an expandable submenu.
+     * Parent item becomes a toggle button; clicking expands/collapses children.
+     */
+    children?: NavItemConfig[];
+
+    /** When true, submenu starts in expanded state on initial render */
+    defaultExpanded?: boolean;
+
+    /**
+     * Determines whether item renders in the main nav area or bottom section.
+     * Bottom items typically include user account, settings, and logout.
+     * @default "top"
+     */
+    position?: "top" | "bottom";
+}
+
+/** Header configuration for CollapsibleNavigationSidebar */
+export interface HeaderConfig {
+    /** Custom component to render instead of SolaceIcon (full override) */
+    component?: React.ReactNode;
+    /** Hide collapse/expand button */
+    hideCollapseButton?: boolean;
+}
+
+/** New Chat button configuration for CollapsibleNavigationSidebar */
+export interface NewChatConfig {
+    label?: string;
+    icon?: React.ElementType;
+    onClick?: () => void;
+}
+
 export interface Session {
     id: string;
     createdTime: string;
@@ -221,6 +323,21 @@ export interface Session {
 }
 
 // RAG (Retrieval-Augmented Generation) Types
+
+/**
+ * Represents a search source for display in UI components (favicons, source lists).
+ * Used by StackedFavicons, Sources, and related components.
+ */
+export interface SearchSource {
+    link?: string; // URL for web sources, optional for document sources
+    title?: string;
+    snippet?: string;
+    attribution?: string;
+    processed?: boolean;
+    sourceType?: string; // 'web', 'kb', 'document'
+    filename?: string; // For document sources
+}
+
 export interface RAGSource {
     citationId: string; // Unique citation ID (e.g., "turn1file0", "research0")
     fileId?: string; // Optional for deep_research
@@ -238,7 +355,7 @@ export interface RAGSource {
 export interface RAGSearchResult {
     query: string;
     title?: string; // LLM-generated human-readable title for deep research
-    searchType: "file_search" | "kb_search" | "deep_research" | "web_search";
+    searchType: "file_search" | "kb_search" | "deep_research" | "web_search" | "document_search";
     turnNumber?: number; // Turn number for citation tracking
     timestamp: string;
     sources: RAGSource[];

@@ -7,6 +7,10 @@ sidebar_position: 400
 
 Agent Mesh provides a framework for creating distributed AI applications using an event-driven architecture. You can build agents that communicate through the A2A (Agent-to-Agent) protocol, extend them with custom tools, integrate external systems through gateways, and create reusable components as plugins.
 
+:::tip
+Vibe coding is recommended for faster development of agents, plugins, tools, and gateways. For more details, see the [Vibe Coding guide](../vibe_coding.md).
+:::
+
 ## Understanding the Project Structure
 
 The framework uses YAML configuration files to define agents, gateways, and plugins, although you can extend functionality with custom Python components when needed. For a complete overview of project organization and component relationships, see [Project Structure](structure.md).
@@ -16,6 +20,10 @@ The framework uses YAML configuration files to define agents, gateways, and plug
 Agents are LLM-powered components that use tools to accomplish tasks and communicate with other agents through the A2A protocol. You can define tools as Python functions, configure agent behavior through YAML, and manage agent lifecycles effectively. For comprehensive guidance on agent development, see [Creating Agents](create-agents.md).
 
 The [Build Your Own Agent](tutorials/custom-agent.md) tutorial demonstrates creating a weather agent with external API integration, resource management, and artifact creation.
+
+## Orchestrating Agents with Workflows
+
+Workflows let you coordinate multiple agents through YAML configuration rather than AI-driven orchestration. You define the execution sequence, conditional branches, and data flow between agents explicitly. Workflows are useful when you need predictable execution paths, auditability, or control over exactly which agents run and in what order. The UI visualizes workflow progress in real time. For step-by-step guidance, see [Creating Workflows](creating-workflows.md).
 
 ## Extending Agent Capabilities
 

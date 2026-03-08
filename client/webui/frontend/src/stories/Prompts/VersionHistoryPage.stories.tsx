@@ -1,7 +1,7 @@
 import { VersionHistoryPage } from "@/lib/components/prompts";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
-import { weatherPromptGroup, defaultVersions } from "./data";
+import { weatherPromptGroup, defaultVersions } from "../data/prompts";
 import { expect, within } from "storybook/test";
 
 const handlers = [

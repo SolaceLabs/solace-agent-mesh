@@ -1,7 +1,7 @@
 """Add share links tables for chat sharing feature
 
 Revision ID: 20260123_add_share_links
-Revises: 20251126_background_tasks
+Revises: 20260222_doc_conv_cache
 Create Date: 2026-01-23
 
 This migration adds tables for the chat sharing feature:
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260123_add_share_links"
-down_revision: str | Sequence[str] | None = "20251126_background_tasks"
+down_revision: str | Sequence[str] | None = "20260222_doc_conv_cache"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

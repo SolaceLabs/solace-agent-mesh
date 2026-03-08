@@ -1,5 +1,9 @@
 # Speech Integration
 
+:::warning Experimental Feature
+Speech integration is currently an experimental feature. While functional, the configuration options may change in future releases.
+:::
+
 Agent Mesh provides speech capabilities through integrated Speech-to-Text (STT) and Text-to-Speech (TTS) services. You can enable users to interact with agents through voice input and receive spoken responses, creating more natural and accessible conversational experiences.
 
 ## Understanding Speech Integration

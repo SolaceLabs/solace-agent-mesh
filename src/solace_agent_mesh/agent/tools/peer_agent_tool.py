@@ -77,8 +77,9 @@ class PeerAgentTool(BaseTool):
 
     def _build_enhanced_description(self, agent_card: AgentCard) -> str:
         """
-        Builds an enhanced description including skills.
+        Builds an enhanced description including display name and skills.
         Returns a structured, markdown-formatted description with:
+        - Display name (if available)
         - Base description
         - Skills section (if skills are available)
         - Summary format (counts + skill names, up to 8 skills before truncation)
@@ -90,12 +91,27 @@ class PeerAgentTool(BaseTool):
         Returns:
             Enhanced description string with markdown formatting
         """
+        # Extract display name from agent card extensions
+        display_name = None
+        if agent_card.capabilities and agent_card.capabilities.extensions:
+            for ext in agent_card.capabilities.extensions:
+                if ext.uri == "https://solace.com/a2a/extensions/display-name":
+                    if ext.params and ext.params.get("display_name"):
+                        display_name = ext.params["display_name"]
+                        break
+        
         # Start with base description - ensure it's clean (no extra whitespace)
         base_desc = (
             agent_card.description
             or f"Interact with the {self.target_agent_name} agent."
         )
         base_desc = " ".join(base_desc.split())  # Normalize whitespace
+        
+        # Prepend display name if available
+        if display_name:
+            enhanced_desc = f"**Agent:** {display_name}\n\n{base_desc}"
+        else:
+            enhanced_desc = base_desc
 
         # Extract skills information
         if agent_card.skills and len(agent_card.skills) > 0:
@@ -117,11 +133,9 @@ class PeerAgentTool(BaseTool):
 
             # Include skill count in the header
             if skill_count > 1:
-                enhanced_desc = (
-                    f"{base_desc}\n\n**Skills ({skill_count}):** {skills_str}"
-                )
+                enhanced_desc += f"\n\n**Skills ({skill_count}):** {skills_str}"
             else:
-                enhanced_desc = f"{base_desc}\n\n**Skills:** {skills_str}"
+                enhanced_desc += f"\n\n**Skills:** {skills_str}"
 
             # Check length and truncate if needed (soft limit ~600 chars)
             if len(enhanced_desc) > 600:
@@ -138,15 +152,16 @@ class PeerAgentTool(BaseTool):
                     remaining = skill_count - 4
                     skills_str += f" ({remaining} more...)"
 
-                if skill_count > 1:
-                    enhanced_desc = (
-                        f"{base_desc}\n\n**Skills ({skill_count}):** {skills_str}"
-                    )
+                # Rebuild with display name if present
+                if display_name:
+                    enhanced_desc = f"**Agent:** {display_name}\n\n{base_desc}"
                 else:
-                    enhanced_desc = f"{base_desc}\n\n**Skills:** {skills_str}"
-        else:
-            # No skills - just return base description
-            enhanced_desc = base_desc
+                    enhanced_desc = base_desc
+                    
+                if skill_count > 1:
+                    enhanced_desc += f"\n\n**Skills ({skill_count}):** {skills_str}"
+                else:
+                    enhanced_desc += f"\n\n**Skills:** {skills_str}"
 
         return enhanced_desc
 

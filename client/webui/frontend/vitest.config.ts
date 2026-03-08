@@ -40,7 +40,7 @@ export default mergeConfig(
                         globals: true,
                         environment: "jsdom",
                         include: ["src/**/*.test.{ts,tsx}"],
-                        setupFiles: ["./.storybook/vitest.setup.ts"],
+                        setupFiles: ["./.storybook/vitest.globals.ts", "./.storybook/vitest.setup.ts"],
                         alias: {
                             "@": path.resolve(dirname, "src"),
                         },

@@ -47,6 +47,6 @@
     "@rollup/rollup-linux-x64-gnu": "4.36.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=25.5.0 <26"
   }
 }

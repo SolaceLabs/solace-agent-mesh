@@ -1,11 +1,14 @@
-import React, { useState } from "react";
-import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import { useState } from "react";
+import { Pencil, Trash2, MoreHorizontal, Share2 } from "lucide-react";
 
-import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
+import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea, Spinner } from "@/lib/components/ui";
+import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
+import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext, useSessionStorage } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
+import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
@@ -13,15 +16,60 @@ import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 
+// Helper function to return applicable indexing banner
+const getIndexingBanner = (isIndexing: boolean, indexingError: string | null, onDismiss: () => void) => {
+    if (indexingError) {
+        return <MessageBanner variant="error" dismissible onDismiss={onDismiss} message={indexingError} className="m-6" />;
+    }
+    if (isIndexing) {
+        return (
+            <MessageBanner
+                variant="info"
+                message={
+                    <div className="flex gap-2">
+                        <div>Processing project files for faster access...</div>
+                        <Spinner size="small" />
+                    </div>
+                }
+                className="m-6"
+            />
+        );
+    }
+    return null;
+};
+
 interface ProjectDetailViewProps {
     project: Project;
     onBack: () => void;
     onStartNewChat?: () => void;
     onChatClick?: (sessionId: string) => void;
+    onShare?: () => void;
 }
 
-export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
+export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick, onShare }: ProjectDetailViewProps) => {
+    const isOwner = useIsProjectOwner(project.userId);
     const { updateProject, projects, deleteProject } = useProjectContext();
+    const { validationLimits } = useConfigContext();
+    const { addNotification } = useChatContext();
+    const isProjectSharingEnabled = useIsProjectSharingEnabled();
+
+    const [indexingError, setIndexingError] = useSessionStorage<string | null>(`sam_indexing_error_${project.id}`, null);
+    const { isIndexing } = useIndexingSSE({
+        resourceId: project.id,
+        onComplete: (failedFiles = [], errors = []) => {
+            const messages: string[] = [...errors];
+            if (failedFiles.length > 0) {
+                messages.push(`Unable to process: ${failedFiles.join(", ")}`);
+            }
+            if (messages.length > 0) {
+                setIndexingError(`${messages.join(" ")}. Please ensure all files are valid and try again.`);
+            } else {
+                setIndexingError(null);
+                addNotification("Project files processed", "success");
+            }
+        },
+    });
+
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -30,6 +78,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [nameError, setNameError] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_MAX_DESCRIPTION_LENGTH;
+    const isDescriptionOverLimit = editedDescription.length > MAX_DESCRIPTION_LENGTH;
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
@@ -100,6 +151,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
         setIsEditing(false);
         setNameError(null);
     };
+
     const handleDeleteClick = () => {
         setIsDeleteDialogOpen(true);
     };
@@ -125,23 +177,35 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
-                        <Pencil className="h-4 w-4" />
-                        Edit Details
-                    </Button>,
-                    <DropdownMenu key="more">
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={handleDeleteClick}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>,
+                    ...(isOwner
+                        ? [
+                              <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2" disabled={isIndexing}>
+                                  <Pencil className="h-4 w-4" />
+                                  Edit Details
+                              </Button>,
+                              ...(onShare
+                                  ? [
+                                        <Button key="share" variant="ghost" size="sm" onClick={onShare} testid="shareButton" className="gap-2" disabled={isIndexing}>
+                                            <Share2 className="h-4 w-4" />
+                                            Share
+                                        </Button>,
+                                    ]
+                                  : []),
+                              <DropdownMenu key="more">
+                                  <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={isIndexing}>
+                                          <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={handleDeleteClick}>
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete
+                                      </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                              </DropdownMenu>,
+                          ]
+                        : []),
                 ]}
             />
 
@@ -149,22 +213,20 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
             <div className="flex min-h-0 flex-1">
                 {/* Left Panel - Description and Project Chats */}
                 <div className="w-[60%] overflow-y-auto border-r">
-                    {/* Description section */}
+                    {getIndexingBanner(isIndexing, indexingError, () => setIndexingError(null))}
                     {project.description && (
                         <div className="px-8 py-4">
                             <p className="text-muted-foreground text-sm">{project.description}</p>
                         </div>
                     )}
-                    {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} />}
+                    {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} isDisabled={isIndexing} />}
                 </div>
 
                 {/* Right Panel - Metadata Sidebar */}
-                <div className="flex min-h-0 w-[40%] flex-col">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
-
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
-
-                    <KnowledgeSection project={project} />
+                <div className="flex min-h-0 w-[40%] flex-col overflow-y-auto">
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} isDisabled={isIndexing} error={error} />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isDisabled={isIndexing} />
+                    <KnowledgeSection project={project} isDisabled={isIndexing} onFileChange={() => setIndexingError(null)} />
                 </div>
             </div>
 
@@ -189,8 +251,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
-                            <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={1000} />
-                            <div className="text-muted-foreground text-right text-xs">{editedDescription.length}/1000</div>
+                            <Textarea
+                                value={editedDescription}
+                                onChange={e => setEditedDescription(e.target.value)}
+                                placeholder="Project description"
+                                rows={4}
+                                disabled={isSaving}
+                                maxLength={MAX_DESCRIPTION_LENGTH + 1}
+                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
+                            />
+                            <FieldFooter hasError={isDescriptionOverLimit} message={`${editedDescription.length} / ${MAX_DESCRIPTION_LENGTH}`} error={`Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`} />
                         </div>
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>
@@ -198,7 +268,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
                             Discard Changes
                         </Button>
-                        <Button onClick={handleSave} disabled={isSaving}>
+                        <Button onClick={handleSave} disabled={isSaving || isDescriptionOverLimit}>
                             Save
                         </Button>
                     </DialogFooter>
@@ -206,7 +276,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
             </Dialog>
 
             {/* Delete Project Dialog */}
-            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} isDeleting={isDeleting} />
+            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} isProjectSharingEnabled={isProjectSharingEnabled} isDeleting={isDeleting} />
         </div>
     );
 };

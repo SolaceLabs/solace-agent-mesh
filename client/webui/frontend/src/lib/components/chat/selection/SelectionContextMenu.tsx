@@ -4,7 +4,7 @@ import { MessageSquarePlus } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import type { SelectionContextMenuProps } from "./types";
 
-export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ isOpen, position, selectedText, onClose }) => {
+export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ isOpen, position, selectedText, sourceTaskId, onClose }) => {
     const menuRef = useRef<HTMLDivElement>(null);
 
     // Handle click outside to close menu
@@ -43,12 +43,14 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ isOp
 
     const handleAskFollowup = () => {
         // Dispatch event to populate the main chat input with the selected text
+        // Include sourceMessageId (which is the taskId) for scroll-to-source functionality
         window.dispatchEvent(
             new CustomEvent("follow-up-question", {
                 detail: {
                     text: selectedText,
                     prompt: "", // Empty prompt so it just populates with the text
                     autoSubmit: false, // Don't auto-submit, let user type their question
+                    sourceMessageId: sourceTaskId, // Pass taskId for scroll-to-source
                 },
             })
         );

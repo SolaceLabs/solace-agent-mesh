@@ -59,9 +59,9 @@ export const Empty: Story = {
 };
 
 /**
- * Description at character limit (1000 characters)
+ * Description character limit error - 1001 characters
  */
-export const DescriptionCharacterLimit: Story = {
+export const DescriptionCharacterLimitError: Story = {
     args: {
         isOpen: true,
         onClose: () => alert("Project creation will cancel. Dialog will close."),
@@ -74,14 +74,16 @@ export const DescriptionCharacterLimit: Story = {
         const dialogContent = within(dialog);
 
         const descriptionInput = await dialogContent.findByLabelText("Description");
-        const maxText = "This is a pretty short string with 50 characters!!".repeat(20);
+        const atLimitText = "a".repeat(1000);
 
         await userEvent.click(descriptionInput);
-        await userEvent.paste(maxText);
-        expect(await dialogContent.findByText("1000/1000")).toBeInTheDocument();
+        await userEvent.paste(atLimitText);
+        expect(await dialogContent.findByText("1000 / 1000")).toBeInTheDocument();
 
-        await userEvent.type(descriptionInput, "extra text (you shouldn't see this)");
-        expect(await dialogContent.findByText("1000/1000")).toBeInTheDocument();
+        await userEvent.type(descriptionInput, "b");
+        expect(await dialogContent.findByText("Description must be less than 1000 characters")).toBeInTheDocument();
+
+        expect(await dialogContent.findByRole("button", { name: "Create Project" })).toBeDisabled();
     },
 };
 

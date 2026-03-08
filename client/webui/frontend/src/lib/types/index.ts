@@ -5,4 +5,5 @@ export * from "./fe";
 export * from "./people";
 export * from "./projects";
 export * from "./prompts";
+export * from "./sse";
 export * from "./storage";

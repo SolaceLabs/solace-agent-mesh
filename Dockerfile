@@ -9,7 +9,7 @@
 # ============================================================
 
 # Build Config Portal UI
-FROM node:20-trixie-slim AS ui-config-portal
+FROM node:25.5.0-trixie-slim AS ui-config-portal
 WORKDIR /build/config_portal/frontend
 COPY config_portal/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -18,7 +18,7 @@ COPY config_portal/frontend ./
 RUN npm run build
 
 # Build WebUI
-FROM node:20-trixie-slim AS ui-webui
+FROM node:25.5.0-trixie-slim AS ui-webui
 WORKDIR /build/client/webui/frontend
 COPY client/webui/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -27,7 +27,7 @@ COPY client/webui/frontend ./
 RUN npm run build
 
 # Build Documentation
-FROM node:20-trixie-slim AS ui-docs
+FROM node:25.5.0-trixie-slim AS ui-docs
 WORKDIR /build/docs
 COPY docs/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -36,6 +36,9 @@ COPY docs ./
 COPY README.md ../README.md
 COPY cli/__init__.py ../cli/__init__.py
 RUN npm run build
+
+# Stage to extract Node.js binaries for use in Python stages
+FROM node:25.5.0-trixie-slim AS node-binaries
 
 # ============================================================
 # Python Build Stage
@@ -46,24 +49,34 @@ RUN npm run build
 # - Source code changes only rebuild the wheel build layer
 # - Independent from UI build stages - Python changes don't rebuild UI
 # ============================================================
-FROM python:3.11-slim AS builder
+FROM python:3.13.11-slim-trixie AS builder
+
+# Copy Node.js 25 from the official node image - Revert to NodeSource when useful (25.5 or 26) version is available
+COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 # Install system dependencies and uv
-RUN apt-get update && \
+# Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
+RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
+    printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ffmpeg=7:7.1.3-0+deb13u1  \
-    git && \
+    git \
+    libtasn1-6/unstable \
+    libpng16-16t64=1.6.48-1+deb13u3 \
+    libssl3t64=3.5.4-1~deb13u2 \
+    libvpx9=1.15.0-2.1+deb13u1 \
+    openssl=3.5.4-1~deb13u2 && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
-    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1 && \
     python3 -m venv /opt/venv && \
-    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    uv pip install --system hatch
+    uv pip install --system "virtualenv<21" hatch
 
 WORKDIR /app
 
@@ -113,20 +126,65 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install /app/dist/solace_agent_mesh-*.whl
 
 # Runtime stage
-FROM python:3.11-slim AS runtime
+FROM python:3.13.11-slim-trixie AS runtime
 
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install minimal runtime dependencies (no uv for licensing compliance)
-RUN apt-get update && \
+# Build argument to control LibreOffice installation for binary artifact preview
+# LibreOffice is NOT installed by default to keep image size smaller
+# To enable binary artifact preview (DOCX/PPTX), set:
+#   docker build --build-arg INSTALL_LIBREOFFICE=true -t sam .
+# Or via environment variable:
+#   INSTALL_LIBREOFFICE=true docker build --build-arg INSTALL_LIBREOFFICE -t sam .
+#
+# IMPORTANT: LibreOffice is a separate open-source application licensed under MPL-2.0.
+# See THIRD_PARTY_LICENSES/LIBREOFFICE.md for full license and attribution details.
+# Source code: https://www.libreoffice.org/download/source-code/
+ARG INSTALL_LIBREOFFICE
+
+# Copy Node.js 25 from the official node image
+COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node-binaries /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+# Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
+# LibreOffice is optionally installed for document conversion (DOCX/PPTX to PDF for preview)
+# Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
+RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
+    printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     ffmpeg=7:7.1.3-0+deb13u1 \
-    git && \
-    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
+    git \
+    libatomic1 \
+    libtasn1-6/unstable \
+    libpng16-16t64=1.6.48-1+deb13u3 \
+    libssl3t64=3.5.4-1~deb13u2 \
+    libvpx9=1.15.0-2.1+deb13u1 \
+    openssl=3.5.4-1~deb13u2 && \
+    if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
+        echo "============================================================" && \
+        echo "NOTICE: Installing LibreOffice - a separate open-source application" && \
+        echo "LibreOffice is licensed under Mozilla Public License 2.0 (MPL-2.0)" && \
+        echo "License: https://www.mozilla.org/en-US/MPL/2.0/" && \
+        echo "Source:  https://www.libreoffice.org/download/source-code/" && \
+        echo "See THIRD_PARTY_LICENSES/LIBREOFFICE.md for full attribution" && \
+        echo "============================================================" && \
+        apt-get install -y --no-install-recommends \
+        libreoffice-writer-nogui \
+        libreoffice-impress-nogui \
+        libreoffice-calc-nogui; \
+    else \
+        echo "Skipping LibreOffice installation (set INSTALL_LIBREOFFICE=true to enable binary artifact preview)"; \
+    fi && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1
+
+# Fix CVE-2026-25547: Upgrade npm to 11.9.0+ (includes @isaacs/brace-expansion@5.0.1)
+# Node 25.5.0 bundles npm 11.8.0 which has vulnerable @isaacs/brace-expansion@5.0.0
+RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.9.0
 
 
 # Install playwright temporarily just for browser installation (cached layer)
@@ -134,9 +192,10 @@ RUN apt-get update && \
 # We'll use the playwright from the full venv at runtime
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/playwright \
-    python -m pip install playwright && \
+    python3 -m pip install playwright && \
     playwright install-deps chromium && \
-    playwright install chromium
+    playwright install chromium && \
+    python3 -m pip uninstall playwright -y
 
 # Create non-root user and Playwright cache directory
 RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai && \

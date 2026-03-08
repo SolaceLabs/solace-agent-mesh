@@ -11,7 +11,7 @@ interface TimelineEvent {
     url?: string;
     favicon?: string;
     title?: string;
-    source_type?: string;
+    sourceType?: string;
 }
 
 interface RAGInfoPanelProps {
@@ -432,7 +432,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                 // Add read events for sources that were fetched/analyzed
                                 search.sources.forEach(source => {
                                     if (source.url || source.title) {
-                                        const sourceType = source.metadata?.source_type || "web";
+                                        const sourceType = source.metadata?.sourceType || "web";
                                         events.push({
                                             type: "read",
                                             timestamp: source.retrievedAt || search.timestamp,
@@ -440,7 +440,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                             url: source.url,
                                             favicon: source.metadata?.favicon || (source.url ? `https://www.google.com/s2/favicons?domain=${source.url}&sz=32` : ""),
                                             title: source.title,
-                                            source_type: sourceType,
+                                            sourceType: sourceType,
                                         });
                                     }
                                 });

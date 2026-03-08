@@ -6,7 +6,7 @@ import { useEffect, useMemo } from "react";
 import { Network } from "lucide-react";
 // Import directly from the file to avoid pulling in context-dependent components
 import { processTaskForVisualization } from "@/lib/components/activities/taskVisualizerProcessor";
-import { SharedFlowChartPanel } from "./SharedFlowChartPanel";
+import SharedFlowChartPanel from "./SharedFlowChartPanel";
 import type { SharedTaskEvents, SharedTaskEvent } from "@/lib/types/share";
 import type { A2AEventSSEPayload, TaskFE, VisualizedTask } from "@/lib/types";
 

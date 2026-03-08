@@ -11,10 +11,12 @@
         "jsxImportSource": "react",
         "esModuleInterop": true,
         "target": "ES2020",
+        "module": "ESNext",
         "lib": ["ES2023", "DOM", "DOM.Iterable"],
         "downlevelIteration": true,
         "skipLibCheck": true,
-        "moduleResolution": "node",
+        "types": ["node", "vite/client"],
+        "moduleResolution": "bundler",
         "allowSyntheticDefaultImports": true,
         "baseUrl": ".",
         "paths": {

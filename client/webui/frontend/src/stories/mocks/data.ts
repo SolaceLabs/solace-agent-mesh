@@ -40,6 +40,29 @@ export const mockAgentCards: AgentCard[] = [
         skills: [],
         protocolVersion: "",
     },
+    {
+        name: "MockWorkflow",
+        description: "A mock workflow agent used for testing workflow filtering.",
+        url: "solace:beta/a2a/v1/agent/request/MockWorkflow",
+        version: "1.0.0-alpha",
+        capabilities: {
+            streaming: true,
+            pushNotifications: false,
+            stateTransitionHistory: false,
+            extensions: [
+                {
+                    params: {
+                        type: "workflow",
+                    },
+                    uri: "https://solace.com/a2a/extensions/agent-type",
+                },
+            ],
+        },
+        defaultInputModes: ["text"],
+        defaultOutputModes: ["text"],
+        skills: [],
+        protocolVersion: "",
+    },
 ];
 
 export const getMockAgentCards = (count: number): AgentCard[] => {

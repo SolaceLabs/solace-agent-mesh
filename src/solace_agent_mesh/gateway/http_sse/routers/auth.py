@@ -91,15 +91,19 @@ async def auth_callback(
 
 
 @router.post("/auth/logout")
-async def logout(request: FastAPIRequest, response: Response):
+async def logout(
+    request: FastAPIRequest,
+    response: Response,
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+):
     """
     Logout endpoint - clears server-side session and access token.
-    
+
     This endpoint:
     - Clears the access_token from the session storage
     - Clears all session data
     - Returns success even if already logged out (idempotent)
-    
+
     The session cookie will be invalidated, requiring re-authentication
     on the next request.
     """
@@ -108,28 +112,32 @@ async def logout(request: FastAPIRequest, response: Response):
         if hasattr(request, 'session') and 'access_token' in request.session:
             del request.session['access_token']
             log.debug("Cleared access_token from session")
-        
+
         # Clear refresh token if present
         if hasattr(request, 'session') and 'refresh_token' in request.session:
             del request.session['refresh_token']
             log.debug("Cleared refresh_token from session")
-        
+
         # Clear all other session data
         if hasattr(request, 'session'):
             request.session.clear()
             log.debug("Cleared all session data")
-        
-        # Clear the session cookie from response to FE cannot use
+
+        # Clear the session cookie from response so FE cannot use it
+        use_secure = bool(component.ssl_keyfile and component.ssl_certfile)
+
         response.delete_cookie(
-            key="session",  # Starlette's default session cookie name
-            path="/",
-            samesite="lax"
+            key="session",      # SessionMiddleware default
+            path="/",           # SessionMiddleware default
+            samesite="lax",     # SessionMiddleware default
+            httponly=True,      # Always set by SessionMiddleware
+            secure=use_secure,  # Match SSL configuration
         )
-        log.debug("Deleted session cookie")
-        
+        log.debug(f"Deleted session cookie (httponly=True, secure={use_secure})")
+
         log.info("User logged out successfully")
         return {"success": True, "message": "Logged out successfully"}
-    
+
     except Exception as e:
         log.error(f"Error during logout: {e}")
         # Still return success - logout should be idempotent

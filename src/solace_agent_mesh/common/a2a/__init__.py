@@ -126,6 +126,10 @@ from .translation import (
     translate_adk_function_response_to_a2a_parts,
     translate_adk_part_to_a2a_filepart,
 )
+from ..data_parts import (
+    StructuredInvocationRequest,
+    StructuredInvocationResult,
+)
 from .utils import (
     is_gateway_card,
     extract_gateway_info,
@@ -246,6 +250,8 @@ __all__ = [
     "translate_a2a_to_adk_content",
     "translate_adk_function_response_to_a2a_parts",
     "translate_adk_part_to_a2a_filepart",
+    "StructuredInvocationRequest",
+    "StructuredInvocationResult",
     # utils.py
     "is_gateway_card",
     "extract_gateway_info",

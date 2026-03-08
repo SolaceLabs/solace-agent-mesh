@@ -220,6 +220,57 @@ function isAudioFile(fileName?: string, mimeType?: string): boolean {
 }
 
 /**
+ * Checks if a filename or MIME type indicates a DOCX file.
+ * @param fileName The name of the file.
+ * @param mimeType The MIME type of the file.
+ * @returns True if it's likely a DOCX file.
+ */
+function isDocxFile(fileName?: string, mimeType?: string): boolean {
+    if (mimeType) {
+        const lowerMime = mimeType.toLowerCase();
+        if (lowerMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+            return true;
+        }
+    }
+    if (!fileName) return false;
+    return fileName.toLowerCase().endsWith(".docx");
+}
+
+/**
+ * Checks if a filename or MIME type indicates a PDF file.
+ * @param fileName The name of the file.
+ * @param mimeType The MIME type of the file.
+ * @returns True if it's likely a PDF file.
+ */
+function isPdfFile(fileName?: string, mimeType?: string): boolean {
+    if (mimeType) {
+        const lowerMime = mimeType.toLowerCase();
+        if (lowerMime === "application/pdf") {
+            return true;
+        }
+    }
+    if (!fileName) return false;
+    return fileName.toLowerCase().endsWith(".pdf");
+}
+
+/**
+ * Checks if a filename or MIME type indicates a PPTX file.
+ * @param fileName The name of the file.
+ * @param mimeType The MIME type of the file.
+ * @returns True if it's likely a PPTX file.
+ */
+function isPptxFile(fileName?: string, mimeType?: string): boolean {
+    if (mimeType) {
+        const lowerMime = mimeType.toLowerCase();
+        if (lowerMime === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
+            return true;
+        }
+    }
+    if (!fileName) return false;
+    return fileName.toLowerCase().endsWith(".pptx");
+}
+
+/**
  * Determines the appropriate renderer type based on filename and/or MIME type.
  * Checks all available file types and returns the corresponding renderer type.
  * @param fileName The name of the file (optional).
@@ -259,12 +310,58 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
         return "csv";
     }
 
+    if (isDocxFile(fileName, mimeType)) {
+        return "docx";
+    }
+
+    if (isPptxFile(fileName, mimeType)) {
+        return "pptx";
+    }
+
+    if (isPdfFile(fileName, mimeType)) {
+        return "pdf";
+    }
+
     if (isTextFile(fileName, mimeType)) {
         return "text";
     }
 
     // No renderer found
     return null;
+}
+
+/**
+ * Encodes a UTF-8 string to base64.
+ * Useful for re-encoding text content after truncation.
+ *
+ * @param text The string to encode.
+ * @returns The base64 encoded string.
+ */
+export function encodeBase64Content(text: string): string {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(text);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+/**
+ * Checks if a string is valid base64 encoded content.
+ * @param str The string to check.
+ * @returns True if the string appears to be valid base64.
+ */
+function isValidBase64(str: string): boolean {
+    if (!str || typeof str !== "string") {
+        return false;
+    }
+    // Check if string only contains valid base64 characters
+    // Valid base64: A-Z, a-z, 0-9, +, /, and = for padding
+    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+    // Also check that length is valid (must be multiple of 4 after trimming)
+    const trimmed = str.trim();
+    return base64Regex.test(trimmed) && trimmed.length % 4 === 0;
 }
 
 /**
@@ -277,26 +374,40 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
  * @throws Error if base64 decoding itself fails.
  */
 export function decodeBase64Content(content: string): string {
+    // Early return if content is empty or not a string
+    if (!content || typeof content !== "string") {
+        return content || "";
+    }
+
+    if (!isValidBase64(content)) {
+        // Content is not valid base64, return as-is (it's likely already plain text)
+        return content;
+    }
+
     try {
         const bytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
         return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     } catch (error) {
-        console.warn("TextDecoder failed (potentially non-UTF8 data), falling back to simple atob:", error);
+        // Log at debug level since this is expected for some content types
+        console.debug("TextDecoder failed (potentially non-UTF8 data), falling back to simple atob:", error);
         // Fallback for potential binary data or non-UTF8 text
         try {
             return atob(content);
         } catch (atobError) {
-            console.error("Failed to decode base64 content with atob fallback:", atobError);
+            // If both methods fail, the content is likely already decoded or corrupted
+            // Return the original content instead of throwing
+            console.debug("Failed to decode base64 content with atob fallback, returning original content:", atobError);
             return content;
         }
     }
 }
 
-const RENDER_TYPES = ["csv", "html", "json", "mermaid", "image", "markdown", "audio", "text", "yaml"];
-const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
+const RENDER_TYPES = ["csv", "html", "json", "mermaid", "image", "markdown", "audio", "text", "yaml", "docx", "pptx", "pdf"];
+const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio", "docx", "pptx"];
+const RENDER_TYPES_WITH_URL_ONLY = ["pdf"];
 
 export const getFileContent = (file: FileAttachment | null) => {
-    if (!file || !file.content) {
+    if (!file) {
         return "";
     }
 
@@ -305,6 +416,16 @@ export const getFileContent = (file: FileAttachment | null) => {
 
     if (!renderType || !RENDER_TYPES.includes(renderType)) {
         return ""; // Return empty string if unsupported render type
+    }
+
+    // For URL-only render types (like PDF), return a placeholder content
+    // The actual rendering will use the URL instead of content
+    if (RENDER_TYPES_WITH_URL_ONLY.includes(renderType)) {
+        return "url-based-content"; // Placeholder to indicate content is available via URL
+    }
+
+    if (!file.content) {
+        return "";
     }
 
     if (RENDER_TYPES_WITH_RAW_CONTENT.includes(renderType)) {
@@ -326,9 +447,30 @@ export const getFileContent = (file: FileAttachment | null) => {
     }
 };
 
-// Configuration constants
-const MAX_ARTIFACT_SIZE = 5 * 1024 * 1024; // configurable limit
+/**
+ * Preview Size Limits
+ *
+ * The preview system has different size limits based on the rendering approach:
+ *
+ * 1. CONTENT-BASED RENDERERS (5MB default):
+ *    - These renderers load the entire artifact content into memory and render it in the browser
+ *    - Examples: CSV, JSON, Markdown, YAML, HTML, Mermaid, Text
+ *
+ * 2. URL-BASED RENDERERS (50MB default):
+ *    - These renderers use object URLs and stream content as needed
+ *    - Examples: PDF (native browser viewer), Images, Audio
+ *    - The limit is higher because content is streamed from a URL, not loaded entirely into memory
+ *
+ * 3. CONVERSION-BASED RENDERERS (5MB default):
+ *    - These send content to backend for conversion (DOCX/PPTX → PDF)
+ *    - Then use URL-based rendering for the result
+ *
+ * Note: These limits are enforced client-side for UX. Backend has its own limits.
+ */
+const MAX_ARTIFACT_SIZE = 5 * 1024 * 1024; // 5 MB for content-based and conversion-based renderers
+const MAX_ARTIFACT_SIZE_URL_BASED = 50 * 1024 * 1024; // 50 MB for URL-based renderers (streaming)
 const MAX_ARTIFACT_SIZE_HUMAN = formatBytes(MAX_ARTIFACT_SIZE);
+const MAX_ARTIFACT_SIZE_URL_BASED_HUMAN = formatBytes(MAX_ARTIFACT_SIZE_URL_BASED);
 
 export function canPreviewArtifact(artifact: ArtifactInfo | null): { canPreview: boolean; reason?: string } {
     if (!artifact || !artifact.size) {
@@ -341,11 +483,17 @@ export function canPreviewArtifact(artifact: ArtifactInfo | null): { canPreview:
         return { canPreview: false, reason: "Preview not yet supported for this file type." };
     }
 
+    // URL-based renderers (like PDF) can handle larger files since they stream content
+    // instead of loading it all into memory
+    const isUrlBasedRenderer = RENDER_TYPES_WITH_URL_ONLY.includes(renderType);
+    const maxSize = isUrlBasedRenderer ? MAX_ARTIFACT_SIZE_URL_BASED : MAX_ARTIFACT_SIZE;
+    const maxSizeHuman = isUrlBasedRenderer ? MAX_ARTIFACT_SIZE_URL_BASED_HUMAN : MAX_ARTIFACT_SIZE_HUMAN;
+
     // Check if the file size is within limits
-    if (artifact.size > MAX_ARTIFACT_SIZE) {
+    if (artifact.size > maxSize) {
         return {
             canPreview: false,
-            reason: `Preview not supported for files this large. Maximum size is: ${MAX_ARTIFACT_SIZE_HUMAN}.`,
+            reason: `Preview not supported for files this large. Maximum size is: ${maxSizeHuman}.`,
         };
     }
 

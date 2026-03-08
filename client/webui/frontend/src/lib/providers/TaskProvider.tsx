@@ -5,9 +5,14 @@ import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
 import { getApiBearerToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
+// Helper to strip gateway timestamp prefix from request text
+const stripGatewayTimestamp = (text: string): string => {
+    const gatewayTimestampPattern = /^Request received by gateway at:[^\n]*\n?/;
+    return text.replace(gatewayTimestampPattern, "").trim();
+};
+
 interface SubscriptionResponse {
     stream_id: string;
-    sse_endpoint_url: string;
 }
 
 interface TaskProviderProps {
@@ -63,7 +68,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                     if (params?.message?.parts) {
                         const textParts = params.message.parts.filter(p => p.kind === "text" && p.text);
                         if (textParts.length > 0) {
-                            initialRequestText = textParts[textParts.length - 1].text;
+                            // Join all text parts and strip any gateway timestamp prefix
+                            const combinedText = textParts.map(p => p.text).join("\n");
+                            initialRequestText = stripGatewayTimestamp(combinedText);
                         }
                     }
                 }
@@ -153,7 +160,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             }
             const subscriptionData: SubscriptionResponse = await subscribeResponse.json();
             setTaskMonitorSseStreamId(subscriptionData.stream_id);
-            const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? api.webui.getFullUrl(subscriptionData.sse_endpoint_url) : subscriptionData.sse_endpoint_url;
+            const sseUrl = api.webui.getFullUrl(`/api/v1/visualization/${subscriptionData.stream_id}/events`);
 
             if (taskMonitorEventSourceRef.current) taskMonitorEventSourceRef.current.close();
             const accessToken = getApiBearerToken();
@@ -299,9 +306,10 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
             for (const [tid, taskData] of Object.entries(allTasks)) {
                 const events = taskData.events;
+                const rawRequestText = taskData.initial_request_text || "Task loaded from history";
                 const taskFE: TaskFE = {
                     taskId: tid,
-                    initialRequestText: taskData.initial_request_text || "Task loaded from history",
+                    initialRequestText: stripGatewayTimestamp(rawRequestText),
                     events: events,
                     firstSeen: new Date(events[0]?.timestamp || Date.now()),
                     lastUpdated: new Date(events[events.length - 1]?.timestamp || Date.now()),
@@ -309,10 +317,14 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 loadedTasks[tid] = taskFE;
             }
 
-            setMonitoredTasks(prevTasks => ({
-                ...prevTasks,
-                ...loadedTasks,
-            }));
+            setMonitoredTasks(prevTasks => {
+                const updated = { ...prevTasks };
+                for (const [tid, loadedTask] of Object.entries(loadedTasks)) {
+                    const existing = prevTasks[tid];
+                    updated[tid] = existing ? { ...existing, ...loadedTask, initialRequestText: loadedTask.initialRequestText || existing.initialRequestText } : loadedTask;
+                }
+                return updated;
+            });
 
             setMonitoredTaskOrder(prevOrder => {
                 if (prevOrder.includes(taskId)) {
@@ -328,6 +340,29 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         }
     }, []);
 
+    const registerTaskEarly = useCallback((taskId: string, initialRequestText: string) => {
+        console.log(`TaskProvider: Pre-registering task ${taskId} before SSE events arrive`);
+        setMonitoredTasks(prevTasks => {
+            // Only register if not already present
+            if (prevTasks[taskId]) {
+                console.log(`TaskProvider: Task ${taskId} already exists, skipping pre-registration`);
+                return prevTasks;
+            }
+
+            const now = new Date();
+            const newTask: TaskFE = {
+                taskId,
+                initialRequestText,
+                events: [],
+                firstSeen: now,
+                lastUpdated: now,
+            };
+
+            setMonitoredTaskOrder(prevOrder => [taskId, ...prevOrder.filter(id => id !== taskId)]);
+            return { ...prevTasks, [taskId]: newTask };
+        });
+    }, []);
+
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,
         isTaskMonitorConnected,
@@ -341,6 +376,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         disconnectTaskMonitorStream,
         setHighlightedStepId,
         loadTaskFromBackend,
+        registerTaskEarly,
     };
 
     return <TaskContext.Provider value={contextValue}>{children}</TaskContext.Provider>;

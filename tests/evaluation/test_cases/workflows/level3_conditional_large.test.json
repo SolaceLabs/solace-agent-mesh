@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level3_conditional_large",
+  "category": "Workflows",
+  "description": "Tests conditional branching with switch node via orchestrator delegation. The workflow classifies 200 as large (>=100) and halves it.",
+  "query": "Please use the ConditionalBranchingWorkflow to process the value 200, and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 240,
+  "evaluation": {
+    "expected_tools": ["workflow_ConditionalBranchingWorkflow"],
+    "expected_response": "The ConditionalBranchingWorkflow has successfully processed the value 200. The workflow: Classified the value 200 as large, Routed it to the large value handler, Processed it through the large handler, which returned a result of 100.0. Workflow Results: Input Value: 200, Category: large, Handler Used: large value handler, Final Result: 100.0",
+    "criterion": "Evaluate if the orchestrator successfully delegated to ConditionalBranchingWorkflow, and the workflow correctly classified 200 as 'large', routed to the large handler, and returned result=100."
+  }
+}

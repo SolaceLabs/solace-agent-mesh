@@ -137,9 +137,7 @@ async def get_user_config(
             "request": request,
         }
 
-    return await config_resolver.resolve_user_config(
-        user_id, gateway_context, app_config
-    )
+    return await config_resolver.resolve_user_config(user, gateway_context, app_config)
 
 
 class ValidatedUserConfig:

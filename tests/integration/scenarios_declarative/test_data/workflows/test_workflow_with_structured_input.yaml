@@ -1,0 +1,76 @@
+test_case_id: "workflow_structured_input_001"
+description: "Tests workflow with structured input schema validation (multiple fields)"
+tags: ["all", "workflows", "validation"]
+skip_intermediate_events: true
+expected_completion_timeout_seconds: 20
+
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
+gateway_input:
+  target_agent_name: "StructuredTestWorkflow"
+  user_identity: "workflow_test_user@example.com"
+  external_context:
+    a2a_session_id: "workflow_test_session"
+  parts:
+    - type: "data"
+      data:
+        customer_name: "John Doe"
+        order_id: "ORD-12345"
+        amount: 150
+
+llm_interactions:
+  # Step 1: TestPeerAgentA receives structured input with schema validation
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              «««save_artifact: filename="step1_output.json" mime_type="application/json" description="Validated order data"
+              {"customer_name": "John Doe", "order_id": "ORD-12345", "amount": 150, "status": "validated"}
+              »»»
+    expected_request:
+      tools_present: ["load_artifact"]
+
+  # Step 2: System processes the fenced block and injects _notify_artifact_save
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Order validated successfully. «result:artifact=step1_output.json:v0 status=success»"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "step1_output.json"
+            status: "success"
+
+  # Step 3: TestPeerAgentB processes the validated data
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              «««save_artifact: filename="step2_output.json" mime_type="application/json" description="Final processed order"
+              {"customer_name": "John Doe", "order_id": "ORD-12345", "amount": 150, "status": "validated", "processed": true}
+              »»»
+    expected_request:
+      tools_present: ["load_artifact"]
+
+  # Step 4: System processes the fenced block for step 2
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Order processed successfully. «result:artifact=step2_output.json:v0 status=success»"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "step2_output.json"
+            status: "success"
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"

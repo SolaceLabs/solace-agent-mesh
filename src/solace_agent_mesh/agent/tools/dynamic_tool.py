@@ -12,6 +12,7 @@ from typing import (
     Callable,
     Dict,
     Any,
+    Set,
     get_origin,
     get_args,
     Union,
@@ -26,6 +27,12 @@ from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
 
 from solace_agent_mesh.agent.utils.context_helpers import get_original_session_id
+from solace_agent_mesh.agent.utils.tool_context_facade import ToolContextFacade
+from .artifact_types import Artifact, is_artifact_type, get_artifact_info, ArtifactTypeInfo
+from .artifact_preloading import (
+    is_tool_context_facade_param as _is_tool_context_facade_param,
+    resolve_artifact_params,
+)
 
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -37,6 +44,7 @@ from ...common.utils.embeds import (
 from ...common.utils.embeds.types import ResolutionMode
 
 log = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
@@ -116,14 +124,64 @@ class DynamicTool(BaseTool, ABC):
         """
         return "early"
 
+    @property
+    def artifact_args(self) -> List[str]:
+        """
+        Return a list of argument names that should have artifacts pre-loaded.
+        The framework will load the artifact before invoking the tool,
+        replacing the filename with an Artifact object containing content and metadata.
+
+        Subclasses can override this property to specify which parameters
+        should have artifacts pre-loaded.
+
+        Returns:
+            List of parameter names to pre-load artifacts for.
+        """
+        return []
+
+    @property
+    def artifact_params(self) -> Dict[str, ArtifactTypeInfo]:
+        """
+        Return detailed information about artifact parameters.
+
+        This maps parameter names to ArtifactTypeInfo objects that indicate:
+        - is_list: Whether the parameter expects a list of artifacts
+        - is_optional: Whether the parameter is optional
+
+        Subclasses can override this for fine-grained control over artifact loading.
+        Default implementation creates basic info from artifact_args.
+
+        Returns:
+            Dict mapping parameter names to ArtifactTypeInfo.
+        """
+        # Default: create basic info from artifact_args
+        return {name: ArtifactTypeInfo(is_artifact=True) for name in self.artifact_args}
+
+    @property
+    def ctx_facade_param_name(self) -> Optional[str]:
+        """
+        Return the parameter name that should receive a ToolContextFacade.
+
+        If not None, the framework will create and inject a ToolContextFacade
+        instance for this parameter before invoking the tool.
+
+        Subclasses can override this property to specify the parameter name.
+        Default is None (no facade injection).
+
+        Returns:
+            Parameter name for ToolContextFacade injection, or None.
+        """
+        return None
+
     def _get_declaration(self) -> Optional[Any]:
         """
         Generate the FunctionDeclaration for this dynamic tool.
         This follows the same pattern as PeerAgentTool and MCP tools.
         """
-        # Update the tool name to match what the module defines
+        # Update the tool name and description to match what the module defines
         self.name = self.tool_name
-
+        self.description = self.tool_description
+        
         return adk_types.FunctionDeclaration(
             name=self.tool_name,
             description=self.tool_description,
@@ -189,6 +247,33 @@ class DynamicTool(BaseTool, ABC):
                 )
                 resolved_kwargs[key] = resolved_value
 
+        # Pre-load artifacts for Artifact parameters
+        artifact_param_info = self.artifact_params
+        if artifact_param_info:
+            error = await resolve_artifact_params(
+                artifact_params=artifact_param_info,
+                resolved_kwargs=resolved_kwargs,
+                tool_context=tool_context,
+                tool_name=self.tool_name,
+                log_identifier=log_identifier,
+            )
+            if error is not None:
+                return error
+
+        # Inject ToolContextFacade if the tool expects it
+        ctx_param = self.ctx_facade_param_name
+        if ctx_param:
+            facade = ToolContextFacade(
+                tool_context=tool_context,
+                tool_config=self.tool_config if isinstance(self.tool_config, dict) else {},
+            )
+            resolved_kwargs[ctx_param] = facade
+            log.debug(
+                "%s Injected ToolContextFacade as '%s'",
+                log_identifier,
+                ctx_param,
+            )
+
         return await self._run_async_impl(
             args=resolved_kwargs, tool_context=tool_context, credential=None
         )
@@ -207,9 +292,34 @@ class DynamicTool(BaseTool, ABC):
 # --- Internal Adapter for Function-Based Tools ---
 
 
-def _get_schema_from_signature(func: Callable) -> adk_types.Schema:
+class _SchemaDetectionResult:
+    """Result from schema generation with detected special params."""
+
+    def __init__(self):
+        self.schema: Optional[adk_types.Schema] = None
+        # Maps param name to ArtifactTypeInfo (includes is_list, is_optional)
+        self.artifact_params: Dict[str, ArtifactTypeInfo] = {}
+        self.ctx_facade_param_name: Optional[str] = None
+
+    @property
+    def artifact_args(self) -> Set[str]:
+        """Property returning set of artifact param names."""
+        return set(self.artifact_params.keys())
+
+
+def _get_schema_from_signature(
+    func: Callable,
+    artifact_args: Optional[Set[str]] = None,
+    detection_result: Optional[_SchemaDetectionResult] = None,
+) -> adk_types.Schema:
     """
     Introspects a function's signature and generates an ADK Schema for its parameters.
+
+    Args:
+        func: The function to introspect
+        artifact_args: Optional set to populate with param names that have
+                       Artifact type annotation (will be pre-loaded)
+        detection_result: Optional result object to populate with all detected params
     """
     sig = inspect.signature(func)
     properties = {}
@@ -239,12 +349,59 @@ def _get_schema_from_signature(func: Callable) -> adk_types.Schema:
             # Get the actual type from Union[T, None]
             param_type = next((t for t in args if t is not type(None)), Any)
 
-        adk_type = type_map.get(param_type)
-        if not adk_type:
-            # Default to string if type is not supported or specified (e.g., Any)
-            adk_type = adk_types.Type.STRING
+        # Check for ToolContextFacade - exclude from schema (injected by framework)
+        if _is_tool_context_facade_param(param_type):
+            if detection_result is not None:
+                detection_result.ctx_facade_param_name = param.name
+            log.debug(
+                "Detected ToolContextFacade param '%s' in %s, excluding from schema",
+                param.name,
+                func.__name__,
+            )
+            continue  # Don't add to schema - framework injects this
 
-        properties[param.name] = adk_types.Schema(type=adk_type, nullable=is_optional)
+        # Check for Artifact type - translate to appropriate schema for LLM
+        # Also check the original annotation for List/Optional detection
+        original_annotation = param.annotation
+        artifact_type_info = get_artifact_info(original_annotation)
+
+        if artifact_type_info.is_artifact:
+            if artifact_args is not None:
+                artifact_args.add(param.name)
+            if detection_result is not None:
+                detection_result.artifact_params[param.name] = artifact_type_info
+
+            if artifact_type_info.is_list:
+                # List[Artifact] -> array of strings (filenames)
+                log.debug(
+                    "Detected List[Artifact] param '%s' in %s, translating to ARRAY of STRING",
+                    param.name,
+                    func.__name__,
+                )
+                properties[param.name] = adk_types.Schema(
+                    type=adk_types.Type.ARRAY,
+                    items=adk_types.Schema(type=adk_types.Type.STRING),
+                    nullable=is_optional or artifact_type_info.is_optional,
+                )
+            else:
+                # Single Artifact -> string (filename)
+                log.debug(
+                    "Detected Artifact param '%s' in %s, translating to STRING",
+                    param.name,
+                    func.__name__,
+                )
+                properties[param.name] = adk_types.Schema(
+                    type=adk_types.Type.STRING,
+                    nullable=is_optional or artifact_type_info.is_optional,
+                )
+        else:
+            # Resolve generic aliases (e.g., List[str] -> list, Dict[str, Any] -> dict)
+            resolved_type = get_origin(param_type) or param_type
+            adk_type = type_map.get(resolved_type)
+            if not adk_type:
+                # Default to string if type is not supported or specified (e.g., Any)
+                adk_type = adk_types.Type.STRING
+            properties[param.name] = adk_types.Schema(type=adk_type, nullable=is_optional)
 
         if param.default is inspect.Parameter.empty and not is_optional:
             required.append(param.name)
@@ -270,7 +427,27 @@ class _FunctionAsDynamicTool(DynamicTool):
         super().__init__(tool_config=tool_config)
         self._func = func
         self._provider_instance = provider_instance
-        self._schema = _get_schema_from_signature(func)
+
+        # Detect special params during schema generation
+        self._detection_result = _SchemaDetectionResult()
+        self._schema = _get_schema_from_signature(
+            func,
+            detection_result=self._detection_result,
+        )
+
+        if self._detection_result.artifact_args:
+            log.info(
+                "[_FunctionAsDynamicTool:%s] Will pre-load artifacts for params: %s",
+                func.__name__,
+                list(self._detection_result.artifact_args),
+            )
+
+        if self._detection_result.ctx_facade_param_name:
+            log.info(
+                "[_FunctionAsDynamicTool:%s] Will inject ToolContextFacade as '%s'",
+                func.__name__,
+                self._detection_result.ctx_facade_param_name,
+            )
 
         # Check if the function is an instance method that needs `self`
         self._is_instance_method = False
@@ -291,6 +468,21 @@ class _FunctionAsDynamicTool(DynamicTool):
     @property
     def parameters_schema(self) -> adk_types.Schema:
         return self._schema
+
+    @property
+    def artifact_args(self) -> List[str]:
+        """Return the detected Artifact parameters."""
+        return list(self._detection_result.artifact_args)
+
+    @property
+    def artifact_params(self) -> Dict[str, ArtifactTypeInfo]:
+        """Return detailed info about Artifact parameters (including is_list)."""
+        return self._detection_result.artifact_params
+
+    @property
+    def ctx_facade_param_name(self) -> Optional[str]:
+        """Return the detected ToolContextFacade parameter name."""
+        return self._detection_result.ctx_facade_param_name
 
     async def _run_async_impl(
         self,

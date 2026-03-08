@@ -1363,6 +1363,14 @@ class BaseGatewayComponent(SamComponentBase):
                 text_to_resolve = current_buffer + part.text
                 current_buffer = ""  # Buffer is now being processed
 
+                # Debug: Log the text before embed resolution
+                log.debug(
+                    "%s Input text for embed resolution (len=%d): %s",
+                    log_id_prefix,
+                    len(text_to_resolve),
+                    text_to_resolve[:500] + "..." if len(text_to_resolve) > 500 else text_to_resolve,
+                )
+
                 (
                     resolved_text,
                     processed_idx,
@@ -1375,6 +1383,16 @@ class BaseGatewayComponent(SamComponentBase):
                     resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
                     log_identifier=log_id_prefix,
                     config=embed_eval_config,
+                )
+
+                # Debug: Log the resolved text
+                log.debug(
+                    "%s Resolved text (processed_idx=%d, signals=%d, len=%d): %s",
+                    log_id_prefix,
+                    processed_idx,
+                    len(signals_with_placeholders),
+                    len(resolved_text),
+                    resolved_text[:500] + "..." if len(resolved_text) > 500 else resolved_text,
                 )
 
                 if not signals_with_placeholders:
@@ -1964,10 +1982,11 @@ class BaseGatewayComponent(SamComponentBase):
 
         if is_truly_final_event_for_context_cleanup:
             log.info(
-                "%s Truly final event processed for task %s. Removing context.",
+                "%s Truly final event processed for task %s. Closing connections and removing context.",
                 log_id_prefix,
                 a2a_task_id,
             )
+            await self._close_external_connections(external_request_context)
             self.task_context_manager.remove_context(a2a_task_id)
             self.task_context_manager.remove_context(f"{a2a_task_id}_stream_buffer")
 
@@ -2054,6 +2073,7 @@ class BaseGatewayComponent(SamComponentBase):
                 code=-32000, message="Invalid event structure received from agent."
             )
             await self._send_error_to_external(external_request_context, generic_error)
+            await self._close_external_connections(external_request_context)
             self.task_context_manager.remove_context(task_id_from_topic)
             self.task_context_manager.remove_context(
                 f"{task_id_from_topic}_stream_buffer"
@@ -2079,6 +2099,7 @@ class BaseGatewayComponent(SamComponentBase):
                 code=-32000, message=f"Gateway processing error: {e}"
             )
             await self._send_error_to_external(external_request_context, error_obj)
+            await self._close_external_connections(external_request_context)
             self.task_context_manager.remove_context(task_id_from_topic)
             self.task_context_manager.remove_context(
                 f"{task_id_from_topic}_stream_buffer"
@@ -2313,6 +2334,17 @@ class BaseGatewayComponent(SamComponentBase):
     async def _send_error_to_external(
         self, external_request_context: Dict[str, Any], error_data: JSONRPCError
     ) -> None:
+        pass
+
+    async def _close_external_connections(
+        self, external_request_context: Dict[str, Any]
+    ) -> None:
+        """Close external connections (e.g., SSE) during context cleanup.
+
+        Called after the final event is fully processed, ensuring any
+        pending status updates are delivered before the connection closes.
+        Subclasses should override to perform transport-specific cleanup.
+        """
         pass
 
     def _detect_gateway_type(self) -> str:

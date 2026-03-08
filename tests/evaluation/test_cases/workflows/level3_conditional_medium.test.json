@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level3_conditional_medium",
+  "category": "Workflows",
+  "description": "Tests conditional branching with switch node via orchestrator delegation. The workflow classifies 50 as medium (10-99) and doubles it.",
+  "query": "Please use the ConditionalBranchingWorkflow to process the value 50, and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 240,
+  "evaluation": {
+    "expected_tools": ["workflow_ConditionalBranchingWorkflow"],
+    "expected_response": "The ConditionalBranchingWorkflow has successfully processed the value 50. The workflow: Classified the value 50 as medium, Routed it to the medium value handler, Processed it to produce a result of 100. Results: Input Value: 50, Classification: medium, Handler Used: medium, Final Result: 100",
+    "criterion": "Evaluate if the orchestrator successfully delegated to ConditionalBranchingWorkflow, and the workflow correctly classified 50 as 'medium', routed to the medium handler, and returned result=100."
+  }
+}

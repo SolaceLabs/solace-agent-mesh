@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level2_parallel_execution",
+  "category": "Workflows",
+  "description": "Tests implicit parallel execution with fork and join via orchestrator delegation. The workflow validates input, then squares and increments the value in parallel, finally adding the results.",
+  "query": "Please use the ParallelExecutionWorkflow to process the value 5, and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 240,
+  "evaluation": {
+    "expected_tools": ["workflow_ParallelExecutionWorkflow"],
+    "expected_response": "The ParallelExecutionWorkflow has successfully processed the value 5. The workflow executed in parallel: Squared the value: 5² = 25, Incremented the value: 5 + 1 = 6, Added the results: 25 + 6 = 31. Workflow Results: Squared: 25, Incremented: 6, Sum: 31",
+    "criterion": "Evaluate if the orchestrator successfully delegated to ParallelExecutionWorkflow, and the workflow correctly executed parallel branches (5² = 25 and 5+1 = 6) and added them (25 + 6 = 31)."
+  }
+}

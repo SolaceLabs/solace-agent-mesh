@@ -96,7 +96,11 @@ class PromptGroupUpdate(BaseModel):
         None,
         min_length=1,
         max_length=10000,
-        description="Updated prompt text (creates new version if changed)"
+        description="Updated prompt text"
+    )
+    create_new_version: Optional[bool] = Field(
+        False,
+        description="If true, creates a new version. If false, updates the current version in-place."
     )
 
 

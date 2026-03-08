@@ -1,15 +1,20 @@
 import logging
 import tempfile
 import uuid
+from importlib.resources import files as pkg_files
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
+from openfeature import api as openfeature_api
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from solace_agent_mesh.common.features.checker import FeatureChecker
+from solace_agent_mesh.common.features.provider import SamFeatureProvider
+from solace_agent_mesh.common.features.registry import FeatureRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from solace_agent_mesh.gateway.http_sse.dependencies import get_session_business_service
@@ -68,6 +73,7 @@ class WebUIBackendFactory:
             }
         )
         mock_component.get_cors_origins.return_value = ["*"]
+        mock_component.get_cors_origin_regex.return_value = ""
         mock_session_manager = Mock(secret_key="test-secret-key")
         mock_session_manager.create_new_session_id.side_effect = (
             lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
@@ -203,6 +209,16 @@ class WebUIBackendFactory:
 
         # Create a real SessionService and attach it to the mock component
         mock_component.session_service = SessionService(component=mock_component)
+
+        # Initialise the OpenFeature provider so feature-flag evaluations work in tests
+        _registry = FeatureRegistry()
+        _features_yaml = str(
+            pkg_files("solace_agent_mesh.common.features").joinpath("features.yaml")
+        )
+        _registry.load_from_yaml(_features_yaml)
+        feature_checker = FeatureChecker(registry=_registry)
+        mock_component.feature_checker = feature_checker
+        openfeature_api.set_provider(SamFeatureProvider(feature_checker))
 
         # Create a completely independent FastAPI app instance instead of using the global singleton
         self.app = FastAPI(
@@ -370,6 +386,8 @@ class WebUIBackendFactory:
         # Multi-user auth overrides that read from test header
         async def override_get_current_user(request: Request) -> dict:
             user_id = request.headers.get(test_user_header, "sam_dev_user")
+            # Return user info based on the header value
+            # Support any user ID for flexible multi-user testing
             if user_id == "secondary_user":
                 return {
                     "id": "secondary_user",
@@ -378,11 +396,20 @@ class WebUIBackendFactory:
                     "authenticated": True,
                     "auth_method": "development",
                 }
-            else:
+            elif user_id == "sam_dev_user":
                 return {
                     "id": "sam_dev_user",
                     "name": "Sam Dev User",
                     "email": "sam@dev.local",
+                    "authenticated": True,
+                    "auth_method": "development",
+                }
+            else:
+                # For any other user ID (e.g., test_user_0, test_user_1, etc.)
+                return {
+                    "id": user_id,
+                    "name": f"Test User {user_id}",
+                    "email": f"{user_id}@test.local",
                     "authenticated": True,
                     "auth_method": "development",
                 }

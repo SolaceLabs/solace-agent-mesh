@@ -108,7 +108,7 @@ export default function CompletionStep({
       case "solace":
         return "Existing Solace Pub/Sub+ broker";
       case "container":
-        return "New local Solace PubSub+ broker container (podman/docker)";
+        return "New local Solace broker container (podman/docker)";
       case "dev_mode":
         return "Run in 'dev mode' - all in one process (not recommended for production)";
       default:
@@ -225,17 +225,28 @@ export default function CompletionStep({
     if (cleanedData.container_started) {
       delete cleanedData.container_started;
     }
-    if (cleanedData.llm_provider) {
-      cleanedData.llm_provider = PROVIDER_PREFIX_MAP[cleanedData.llm_provider as keyof typeof PROVIDER_PREFIX_MAP];
-    }
+    
+    const originalProvider = cleanedData.llm_provider as string;
+    
+    // For AWS Bedrock, keep the provider as 'aws_bedrock' and don't transform
+    if (originalProvider === "aws_bedrock") {
+      // Keep llm_provider as 'aws_bedrock' for backend detection
+      // Don't format model name or delete provider
+    } else {
+      // For other providers, apply the normal transformation
+      if (cleanedData.llm_provider) {
+        cleanedData.llm_provider = PROVIDER_PREFIX_MAP[cleanedData.llm_provider as keyof typeof PROVIDER_PREFIX_MAP];
+      }
 
-    if (cleanedData.llm_model_name && cleanedData.llm_provider) {
-      cleanedData.llm_model_name = formatModelName(
-        String(cleanedData.llm_model_name),
-        String(cleanedData.llm_provider)
-      );
-      delete cleanedData.llm_provider;
+      if (cleanedData.llm_model_name && cleanedData.llm_provider) {
+        cleanedData.llm_model_name = formatModelName(
+          String(cleanedData.llm_model_name),
+          String(cleanedData.llm_provider)
+        );
+        delete cleanedData.llm_provider;
+      }
     }
+    
     if (data.broker_type === "container") {
       
       data.broker_type = "solace";

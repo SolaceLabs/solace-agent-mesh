@@ -221,7 +221,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     self.log_identifier,
                     timer_id,
                 )
-        elif event.event_type == EventType.CACHE_EXPIRY:  
+        elif event.event_type == EventType.CACHE_EXPIRY:
             import asyncio
             import inspect
 
@@ -232,13 +232,13 @@ class SamComponentBase(ComponentBase, abc.ABC):
             if inspect.iscoroutinefunction(handler):
                 # Schedule async handler on the event loop
                 if self._async_loop and self._async_loop.is_running():
+
                     async def handle_async():
                         await handler(cache_data)
 
                     try:
                         future = asyncio.run_coroutine_threadsafe(
-                            handle_async(),
-                            self._async_loop
+                            handle_async(), self._async_loop
                         )
 
                         def on_done(f):
@@ -249,19 +249,20 @@ class SamComponentBase(ComponentBase, abc.ABC):
                                     "%s Error in async cache expiry handler: %s",
                                     self.log_identifier,
                                     e,
-                                    exc_info=True
+                                    exc_info=True,
                                 )
+
                         future.add_done_callback(on_done)
                     except RuntimeError as e:
                         log.error(
                             "%s Failed to schedule async CACHE_EXPIRY handler (event loop may be stopping): %s",
                             self.log_identifier,
-                            e
+                            e,
                         )
                 else:
                     log.error(
                         "%s Cannot handle async CACHE_EXPIRY: event loop not available",
-                        self.log_identifier
+                        self.log_identifier,
                     )
             else:
                 handler(cache_data)
@@ -400,13 +401,13 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 "%s [publish_a2a_message] Starting - topic: %s, payload keys: %s",
                 self.log_identifier,
                 topic,
-                list(payload.keys()) if isinstance(payload, dict) else "not_dict"
+                list(payload.keys()) if isinstance(payload, dict) else "not_dict",
             )
 
             # Create user_properties if it doesn't exist
             if user_properties is None:
                 user_properties = {}
-            
+
             user_properties["timestamp"] = int(time.time() * 1000)
 
             # Validate message size
@@ -436,7 +437,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
             if app:
                 log.debug(
                     "%s [publish_a2a_message] Got app instance, about to call app.send_message",
-                    self.log_identifier
+                    self.log_identifier,
                 )
 
                 # Conditionally log to invocation monitor if it exists (i.e., on an agent)
@@ -451,22 +452,22 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 if trace_logger.isEnabledFor(logging.DEBUG):
                     trace_logger.debug(
                         "%s [publish_a2a_message] About to call app.send_message on topic '%s'\nwith payload: %s\nwith user_properties: %s",
-                        self.log_identifier, topic, payload, user_properties
+                        self.log_identifier,
+                        topic,
+                        payload,
+                        user_properties,
                     )
                 else:
                     log.debug(
                         "%s [publish_a2a_message] About to call app.send_message on topic '%s' (for more details, enable TRACE logging)",
-                        self.log_identifier, topic
+                        self.log_identifier,
+                        topic,
                     )
 
                 app.send_message(
                     payload=payload, topic=topic, user_properties=user_properties
                 )
 
-                log.debug(
-                    "%s [publish_a2a_message] Successfully called app.send_message on topic '%s'",
-                    self.log_identifier, topic
-                )
             else:
                 log.error(
                     "%s Cannot publish message: Not running within a SAC App context.",
@@ -561,14 +562,19 @@ class SamComponentBase(ComponentBase, abc.ABC):
             )
 
         # Monitor async initialization without blocking (critical for multi-agent processes)
-        if hasattr(self, '_async_init_future') and self._async_init_future is not None:
-            log.info("%s Setting up async initialization monitoring...", self.log_identifier)
+        if hasattr(self, "_async_init_future") and self._async_init_future is not None:
+            log.info(
+                "%s Setting up async initialization monitoring...", self.log_identifier
+            )
 
             def handle_init_completion(future):
                 """Non-blocking callback for initialization completion."""
                 try:
                     future.result()  # Raises if init failed
-                    log.info("%s Async initialization completed successfully.", self.log_identifier)
+                    log.info(
+                        "%s Async initialization completed successfully.",
+                        self.log_identifier,
+                    )
                 except Exception as init_error:
                     error_msg = f"{self.log_identifier} Async initialization failed: {init_error}"
                     log.error(error_msg, exc_info=init_error)
@@ -578,7 +584,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     )
 
             self._async_init_future.add_done_callback(handle_init_completion)
-            log.info("%s Async initialization monitoring active (non-blocking).", self.log_identifier)
+            log.info(
+                "%s Async initialization monitoring active (non-blocking).",
+                self.log_identifier,
+            )
 
         super().run()
         log.info("%s SamComponentBase run method finished.", self.log_identifier)
@@ -707,9 +716,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     add_timer_callback=self.add_timer,
                     event_loop=self.get_async_loop(),
                 )
-                log.info(
-                    "%s Initialized Trust Manager", self.log_identifier
-                )
+                log.info("%s Initialized Trust Manager", self.log_identifier)
             except Exception as e:
                 log.error(
                     "%s Failed to initialize Trust Manager: %s",

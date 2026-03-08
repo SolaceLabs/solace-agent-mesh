@@ -223,3 +223,44 @@ class TestProjectsAuthorization:
         # Assert: User2 should only see their project
         assert "user2-project-001" in user2_project_ids
         assert "user1-project-001" not in user2_project_ids
+
+
+class TestProjectRepositoryBatching:
+    """Tests for ProjectRepository batching logic with large share lists."""
+
+    def test_get_accessible_projects_batches_large_share_lists(
+        self, db_session_factory, gateway_adapter
+    ):
+        """
+        Test that get_accessible_projects correctly batches when >500 shared IDs.
+        Covers the else branch at repository lines 69-86.
+        """
+        from solace_agent_mesh.gateway.http_sse.repository import ProjectRepository
+
+        gateway_adapter.seed_project(
+            project_id="owned-batch-001",
+            name="Owned Project",
+            user_id="batch_test_user",
+        )
+
+        shared_ids = []
+        for i in range(3):
+            gateway_adapter.seed_project(
+                project_id=f"shared-batch-{i:03d}",
+                name=f"Shared Project {i}",
+                user_id="other_user",
+            )
+            shared_ids.append(f"shared-batch-{i:03d}")
+
+        large_share_list = shared_ids + [f"fake-id-{i}" for i in range(600)]
+        assert len(large_share_list) > 500
+
+        with db_session_factory() as session:
+            repo = ProjectRepository(session)
+            results = repo.get_accessible_projects("batch_test_user", large_share_list)
+
+        result_ids = [p.id for p in results]
+        assert "owned-batch-001" in result_ids
+        for sid in shared_ids:
+            assert sid in result_ids
+        assert len(results) == 4

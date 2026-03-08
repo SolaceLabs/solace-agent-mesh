@@ -11,6 +11,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..routers.dto.requests.project_requests import CreateProjectRequest
 from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
+from ...constants import (
+    DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_PROJECT_SIZE_BYTES,
+    DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
+)
+from ..services.document_conversion_service import get_document_conversion_service
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -20,38 +28,42 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# Default max upload size (50MB) - matches gateway_max_upload_size_bytes default
-DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800
-# Default max ZIP upload size (100MB) - for project import ZIP files
-DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 104857600
-
-
 def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[str, Any]:
     """
     Extract validation limits from Pydantic models to expose to frontend.
     This ensures frontend and backend validation limits stay in sync.
     """
-    # Extract limits from CreateProjectRequest model
     create_fields = CreateProjectRequest.model_fields
-    
-    # Get max upload size from component config, with fallback to default
-    max_upload_size_bytes = (
-        component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_UPLOAD_SIZE_BYTES)
-        if component else DEFAULT_MAX_UPLOAD_SIZE_BYTES
+
+    max_per_file_upload_size_bytes = (
+        component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES)
+        if component else DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES
     )
-    
-    # Get max ZIP upload size from component config, with fallback to default (100MB)
+
+    max_batch_upload_size_bytes = (
+        component.get_config("gateway_max_batch_upload_size_bytes", DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES)
+        if component else DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES
+    )
+
     max_zip_upload_size_bytes = (
         component.get_config("gateway_max_zip_upload_size_bytes", DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES)
         if component else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
     )
-    
+
+    max_project_size_bytes = (
+        component.get_config("gateway_max_project_size_bytes", DEFAULT_MAX_PROJECT_SIZE_BYTES)
+        if component else DEFAULT_MAX_PROJECT_SIZE_BYTES
+    )
+
     return {
         "projectNameMax": create_fields["name"].metadata[1].max_length if create_fields["name"].metadata else 255,
         "projectDescriptionMax": create_fields["description"].metadata[0].max_length if create_fields["description"].metadata else 1000,
         "projectInstructionsMax": create_fields["system_prompt"].metadata[0].max_length if create_fields["system_prompt"].metadata else 4000,
-        "maxUploadSizeBytes": max_upload_size_bytes,
+        "projectFileDescriptionMax": DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
+        "maxPerFileUploadSizeBytes": max_per_file_upload_size_bytes,
+        "maxBatchUploadSizeBytes": max_batch_upload_size_bytes,
         "maxZipUploadSizeBytes": max_zip_upload_size_bytes,
+        "maxProjectSizeBytes": max_project_size_bytes,
     }
 
 
@@ -138,6 +150,85 @@ def _determine_auto_title_generation_enabled(
     return True
 
 
+def _determine_mentions_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if mentions (@user) feature should be enabled.
+    
+    Logic:
+    1. Check if identity_service is configured (required for user search)
+    2. Check explicit mentions.enabled config (must be explicitly enabled, defaults to False)
+    3. Check frontend_feature_enablement.mentions override
+    
+    Returns:
+        bool: True if mentions should be enabled
+    """
+    # Mentions require identity_service to be configured for user search
+    if component.identity_service is None:
+        log.debug("%s Mentions disabled: no identity_service configured", log_prefix)
+        return False
+    
+    # Check explicit mentions config - disabled by default
+    mentions_config = component.get_config("mentions", {})
+    explicitly_enabled = False
+    if isinstance(mentions_config, dict):
+        explicitly_enabled = mentions_config.get("enabled", False)
+    
+    # Check frontend_feature_enablement override
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    if "mentions" in feature_flags:
+        explicitly_enabled = feature_flags.get("mentions", False)
+    
+    if not explicitly_enabled:
+        log.debug("%s Mentions disabled: not explicitly enabled in config", log_prefix)
+        return False
+    
+    log.debug("%s Mentions enabled: identity_service configured and explicitly enabled", log_prefix)
+    return True
+
+
+def _determine_binary_artifact_preview_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if binary artifact preview (DOCX, PPTX, XLSX to PDF conversion) should be enabled.
+    
+    Logic:
+    1. Check if explicitly enabled in frontend_feature_enablement.binaryArtifactPreview
+    2. Check if LibreOffice is available on the system
+    
+    Returns:
+        bool: True if binary artifact preview should be enabled
+    """
+    # Check explicit feature flag - defaults to False (LibreOffice not installed by default)
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    explicitly_enabled = feature_flags.get("binaryArtifactPreview", False)
+    
+    if not explicitly_enabled:
+        log.debug("%s Binary artifact preview disabled: not enabled in config (set binaryArtifactPreview: true to enable)", log_prefix)
+        return False
+    
+    # Check if LibreOffice is available
+    try:
+        conversion_service = get_document_conversion_service()
+        if not conversion_service.is_available:
+            log.warning(
+                "%s Binary artifact preview enabled in config but LibreOffice not available. "
+                "Build with INSTALL_LIBREOFFICE=true to enable this feature.",
+                log_prefix
+            )
+            return False
+    except Exception as e:
+        log.debug("%s Binary artifact preview disabled: error checking LibreOffice: %s", log_prefix, e)
+        return False
+    
+    log.debug("%s Binary artifact preview enabled: LibreOffice available and feature enabled", log_prefix)
+    return True
+
+
 def _determine_projects_enabled(
     component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
@@ -194,6 +285,9 @@ async def get_app_config(
     try:
         # Start with explicitly defined feature flags
         feature_enablement = component.get_config("frontend_feature_enablement", {})
+
+        identity_service_config = component.get_config("identity_service", None)
+        identity_service_type = identity_service_config.get("type") if identity_service_config else None
 
         # Manually check for the task_logging feature and add it
         task_logging_config = component.get_config("task_logging", {})
@@ -309,13 +403,9 @@ async def get_app_config(
             log.debug("%s Background tasks feature flag is disabled.", log_prefix)
 
         # Determine if mentions (@user) should be enabled
-        # Mentions require identity_service to be configured for user search
-        mentions_enabled = component.identity_service is not None
+        # Mentions require identity_service AND explicit enablement (defaults to False)
+        mentions_enabled = _determine_mentions_enabled(component, log_prefix)
         feature_enablement["mentions"] = mentions_enabled
-        if mentions_enabled:
-            log.debug("%s Mentions feature flag is enabled (identity_service configured).", log_prefix)
-        else:
-            log.debug("%s Mentions feature flag is disabled (no identity_service configured).", log_prefix)
         
         # Determine if auto title generation should be enabled
         auto_title_generation_enabled = _determine_auto_title_generation_enabled(component, api_config, log_prefix)
@@ -324,6 +414,14 @@ async def get_app_config(
             log.debug("%s Auto title generation feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Auto title generation feature flag is disabled.", log_prefix)
+        
+        # Determine if binary artifact preview (DOCX, PPTX, XLSX to PDF) should be enabled
+        binary_artifact_preview_enabled = _determine_binary_artifact_preview_enabled(component, log_prefix)
+        feature_enablement["binaryArtifactPreview"] = binary_artifact_preview_enabled
+        if binary_artifact_preview_enabled:
+            log.debug("%s Binary artifact preview feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Binary artifact preview feature flag is disabled.", log_prefix)
         
         # Check tool configuration status
         tool_config_status = {}
@@ -420,6 +518,7 @@ async def get_app_config(
             "tool_config_status": tool_config_status,
             "tts_settings": tts_settings,
             "background_tasks_config": _get_background_tasks_config(component, log_prefix),
+            "identity_service_type": identity_service_type
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data

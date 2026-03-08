@@ -22,7 +22,7 @@ def broker_setup_step(
     broker_type_prompt = (
         "Which broker type do you want to use?\n"
         "  1) Existing Solace Pub/Sub+ broker\n"
-        "  2) New local Solace PubSub+ broker container (requires Podman or Docker)\n"
+        "  2) New local Solace broker container (requires Podman or Docker)\n"
         "  3) Run in 'dev mode' (all-in-one process, not for production)\n"
         "Enter the number of your choice"
     )
@@ -64,7 +64,7 @@ def broker_setup_step(
 
         full_container_command = f"{container_engine}{CONTAINER_RUN_COMMAND}"
         click.echo(
-            f"Attempting to run Solace PubSub+ broker container using {container_engine}:"
+            f"Attempting to run Solace broker container using {container_engine}:"
         )
         click.echo(f"  Command: {full_container_command}")
 
@@ -113,7 +113,7 @@ def broker_setup_step(
             if response_status != 0:
                 click.echo(
                     click.style(
-                        f"Error: Failed to start Solace PubSub+ broker container (exit code: {response_status}). Check container logs.",
+                        f"Error: Failed to start Solace broker container (exit code: {response_status}). Check container logs.",
                         fg="red",
                     ),
                     err=True,
@@ -121,7 +121,7 @@ def broker_setup_step(
                 sys.exit(1)
             click.echo(
                 click.style(
-                    "Solace PubSub+ broker container started successfully (or already running).",
+                    "Solace broker container started successfully (or already running).",
                     fg="green",
                 )
             )

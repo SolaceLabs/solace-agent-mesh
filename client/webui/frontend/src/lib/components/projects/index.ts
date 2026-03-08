@@ -15,3 +15,4 @@ export { EditInstructionsDialog } from "./EditInstructionsDialog";
 export { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
 export { FileDetailsDialog } from "./FileDetailsDialog";
 export { DeleteProjectFileDialog } from "./DeleteProjectFileDialog";
+export { ShareProjectDialog } from "./ShareProjectDialog";

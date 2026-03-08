@@ -14,7 +14,7 @@ Frontend interface for Solace Agent Mesh (SAM) platform. This React application 
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js version >=25.5.0 and <26.0.0
 - npm, yarn, or pnpm
 
 ### Installation

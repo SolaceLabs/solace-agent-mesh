@@ -239,3 +239,114 @@ def test_get_registry_status():
     assert status["has_custom_bindings"], "Expected registry to have custom bindings."
 
     # Removed print statement as assertion messages provide sufficient context.
+
+
+def test_register_post_migration_hook():
+    """
+    Tests that a post-migration hook can be registered.
+    """
+    from src.solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
+
+    # Reset to ensure clean state
+    MiddlewareRegistry.reset_bindings()
+
+    def sample_migration_hook(database_url: str):
+        pass
+
+    MiddlewareRegistry.register_post_migration_hook(sample_migration_hook)
+
+    # Verify that the hook is registered
+    assert sample_migration_hook in MiddlewareRegistry._post_migration_hooks
+    assert len(MiddlewareRegistry._post_migration_hooks) == 1
+
+
+def test_run_post_migration_hooks():
+    """
+    Tests that post-migration hooks execute with the correct database_url.
+    """
+    from src.solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
+
+    # Reset to ensure clean state
+    MiddlewareRegistry.reset_bindings()
+
+    # Track hook execution
+    hook_calls = []
+
+    def tracking_hook(database_url: str):
+        hook_calls.append(database_url)
+
+    MiddlewareRegistry.register_post_migration_hook(tracking_hook)
+
+    # Run the hooks
+    test_url = "sqlite:///test.db"
+    MiddlewareRegistry.run_post_migration_hooks(test_url)
+
+    # Verify hook was called with correct URL
+    assert len(hook_calls) == 1
+    assert hook_calls[0] == test_url
+
+
+def test_run_post_migration_hooks_raises_on_error():
+    """
+    Tests that a failing post-migration hook raises an exception.
+    Migration failures should not be silent.
+    """
+    from src.solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
+
+    # Reset to ensure clean state
+    MiddlewareRegistry.reset_bindings()
+
+    def failing_hook(database_url: str):
+        raise RuntimeError("Migration failed!")
+
+    MiddlewareRegistry.register_post_migration_hook(failing_hook)
+
+    # Verify that the hook raises
+    with pytest.raises(RuntimeError, match="Migration failed!"):
+        MiddlewareRegistry.run_post_migration_hooks("sqlite:///test.db")
+
+
+def test_reset_bindings_clears_post_migration_hooks():
+    """
+    Tests that reset_bindings clears post-migration hooks.
+    """
+    from src.solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
+
+    def sample_hook(database_url: str):
+        pass
+
+    MiddlewareRegistry.register_post_migration_hook(sample_hook)
+    assert len(MiddlewareRegistry._post_migration_hooks) > 0
+
+    # Reset bindings
+    MiddlewareRegistry.reset_bindings()
+
+    # Verify hooks are cleared
+    assert len(MiddlewareRegistry._post_migration_hooks) == 0
+
+
+def test_get_registry_status_includes_post_migration_hooks():
+    """
+    Tests that get_registry_status includes the post_migration_hooks count.
+    """
+    from src.solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
+
+    # Reset to ensure clean state
+    MiddlewareRegistry.reset_bindings()
+
+    # Register some hooks
+    def hook1(database_url: str):
+        pass
+
+    def hook2(database_url: str):
+        pass
+
+    MiddlewareRegistry.register_post_migration_hook(hook1)
+    MiddlewareRegistry.register_post_migration_hook(hook2)
+
+    # Get status
+    status = MiddlewareRegistry.get_registry_status()
+
+    # Verify post_migration_hooks count is included
+    assert "post_migration_hooks" in status
+    assert status["post_migration_hooks"] == 2

@@ -3,6 +3,7 @@ FastAPI router for managing session-specific artifacts via REST endpoints.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional
@@ -42,7 +43,7 @@ from ....common.utils.embeds import (
     resolve_embeds_recursively_in_string,
 )
 from ....common.utils.embeds.types import ResolutionMode
-from ....common.utils.mime_helpers import is_text_based_mime_type
+from ....common.utils.mime_helpers import is_text_based_mime_type, resolve_mime_type
 from ....common.utils.templates import resolve_template_blocks_in_string
 from ..dependencies import (
     get_project_service_optional,
@@ -369,7 +370,7 @@ async def upload_artifact_with_session(
                 detail="Failed to read uploaded file"
             )
 
-        mime_type = upload_file.content_type or "application/octet-stream"
+        mime_type = resolve_mime_type(filename, upload_file.content_type)
         filename_clean = filename.strip()
 
         log.debug(
@@ -598,8 +599,22 @@ async def list_artifacts(
             session_id=storage_session_id,
         )
 
-        log.info("%s Returning %d artifact details.", log_prefix, len(artifact_info_list))
-        return artifact_info_list
+        # Filter out generated files (converted text files and BM25 index)
+        # Users should only see original files in the UI, not internal conversion artifacts
+        original_artifacts_only = [
+            artifact for artifact in artifact_info_list
+            if not artifact.filename.endswith('.converted.txt')
+            and artifact.filename != 'project_bm25_index.zip'
+        ]
+
+        log.info(
+            "%s Returning %d artifact details (filtered from %d total, excluded %d generated files).",
+            log_prefix,
+            len(original_artifacts_only),
+            len(artifact_info_list),
+            len(artifact_info_list) - len(original_artifacts_only),
+        )
+        return original_artifacts_only
 
     except Exception as e:
         log.exception("%s Error retrieving artifact details: %s", log_prefix, e)
@@ -943,11 +958,20 @@ async def get_specific_artifact_version(
             )
 
         filename_encoded = quote(filename)
+        # Artifact versions are immutable (version number is fixed), so we can
+        # cache aggressively. Use private cache (user-specific content) with a
+        # 1-hour max-age. The ETag is derived from the filename + resolved version
+        # (both immutable) — no need to hash the content bytes.
+        # This allows the browser to validate with If-None-Match and get a 304
+        # instead of re-downloading the full content on subsequent visits.
+        etag = f'"{hashlib.md5(f"{filename}-v{resolved_version_from_helper}".encode()).hexdigest()}"'
         return StreamingResponse(
             io.BytesIO(data_bytes),
             media_type=mime_type,
             headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}",
+                "Cache-Control": "private, max-age=3600",
+                "ETag": etag,
             },
         )
 

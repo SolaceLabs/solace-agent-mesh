@@ -238,6 +238,44 @@ tools:
       CONFIG_PATH: "/etc/myconfig"
 ```
 
+### SSL/TLS Configuration
+
+For remote MCP connections (SSE and Streamable HTTP), you can configure SSL/TLS settings to connect to servers with self-signed certificates or custom CA bundles.
+
+#### Disable SSL Verification (Development Only)
+
+:::warning[Security Risk]
+Disabling SSL verification should only be used in development environments. Never disable SSL verification in production.
+:::
+
+```yaml
+tools:
+  - tool_type: mcp
+    connection_params:
+      type: sse
+      url: "https://dev-mcp-server.local/sse"
+      ssl_config:
+        verify: false
+```
+
+#### Custom CA Certificate
+
+For servers using certificates signed by a private CA:
+
+```yaml
+tools:
+  - tool_type: mcp
+    connection_params:
+      type: sse
+      url: "https://internal-mcp.example.com/sse"
+      ssl_config:
+        ca_bundle: "/path/to/ca-certificate.pem"
+```
+
+:::note
+The `ssl_config` option only applies to remote connections (`sse` and `streamable-http`). It has no effect on `stdio` connections which run as local processes.
+:::
+
 ## Running Your MCP-Enabled Agent
 
 1. **Create the working directory** (for filesystem example):

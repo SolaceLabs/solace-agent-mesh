@@ -32,6 +32,11 @@ class TaskModel(Base):
     last_activity_time = Column(BigInteger, nullable=True, index=True)
     background_execution_enabled = Column(Boolean, nullable=True, default=False)
     max_execution_time_ms = Column(BigInteger, nullable=True)
+    
+    # SSE event buffer state columns
+    session_id = Column(String, nullable=True, index=True)
+    events_buffered = Column(Boolean, nullable=True, default=False, index=True)
+    events_consumed = Column(Boolean, nullable=True, default=False)
 
     # Relationship to events
     events = relationship(

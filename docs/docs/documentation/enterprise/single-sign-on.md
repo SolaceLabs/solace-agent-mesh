@@ -23,7 +23,7 @@ Before you begin, ensure you have:
 Agent Mesh Enterprise uses a two-component architecture for SSO:
 
 1. The main UI server (default port 8000) handles user interactions and serves the web interface
-2. The OAuth2 authentication service (default port 9000) manages the authentication flow with your identity provider
+2. The OAuth2 authentication service (default port 8080) manages the authentication flow with your identity provider
 
 When a user attempts to access the UI, they are redirected to your OAuth2 provider for authentication. After successful authentication, the provider redirects back to the application with an authorization code, which is then exchanged for access tokens. This separation of concerns keeps authentication logic isolated from the main application.
 
@@ -55,7 +55,7 @@ shared_config:
       enabled: true
       config_file: "configs/sso_vol/oauth2_config.yaml"
       host: ${OAUTH2_HOST, localhost}
-      port: ${OAUTH2_PORT, 9000}
+      port: ${OAUTH2_PORT, 8080}
       ssl_cert: ""  # Optional: path to SSL certificate
       ssl_key: ""   # Optional: path to SSL private key
 
@@ -177,7 +177,7 @@ security:
     requests_per_minute: ${OAUTH2_RATE_LIMIT_RPM:60}
 ```
 
-This configuration file provides several important features:
+This configuration file provides several features:
 
 The `enabled` setting controls whether the OAuth2 service is active. You can enable it by setting the OAUTH2_ENABLED environment variable to true.
 
@@ -195,6 +195,10 @@ The system uses OpenID Connect (OIDC) discovery, which means it automatically fi
 The `session` configuration determines how long authenticated sessions remain valid. The default of 3600 seconds (1 hour) balances security with user convenience.
 
 The `security` section configures Cross-Origin Resource Sharing (CORS) and rate limiting. CORS allows the web UI to communicate with the OAuth2 service from different origins, while rate limiting prevents abuse by restricting the number of authentication requests per minute.
+
+:::info
+The Platform Service shares this same SSO infrastructure. When you configure the WebUI Gateway for OAuth2 authentication, the Platform Service automatically uses the same token validation and the same OAuth2 provider. For details, see [Authentication and Authorization](platform-service-auth.md).
+:::
 
 ### Update Your WebUI Gateway
 
@@ -319,7 +323,7 @@ You may need to include `--platform linux/amd64` depending on the host machine y
 :::
 
 ```bash
-docker run -itd -p 8000:8000 -p 9000:9000 \
+docker run -itd -p 8000:8000 -p 8080:8080 \
   -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
   -e LLM_SERVICE_ENDPOINT="<YOUR_LLM_SERVICE_ENDPOINT>" \
   -e LLM_SERVICE_PLANNING_MODEL_NAME="<YOUR_MODEL_NAME>" \
@@ -339,11 +343,11 @@ docker run -itd -p 8000:8000 -p 9000:9000 \
   -e OAUTH2_LOG_LEVEL="DEBUG" \
   -e OAUTH2_DEV_MODE="true" \
   -e OAUTH2_HOST="0.0.0.0" \
-  -e OAUTH2_PORT="9000" \
+  -e OAUTH2_PORT="8080" \
   -e FRONTEND_USE_AUTHORIZATION="true" \
   -e FRONTEND_REDIRECT_URL="http://localhost:8000" \
   -e FRONTEND_AUTH_LOGIN_URL="http://localhost:8000/api/v1/auth/login" \
-  -e EXTERNAL_AUTH_SERVICE_URL="http://localhost:9000" \
+  -e EXTERNAL_AUTH_SERVICE_URL="http://localhost:8080" \
   -e EXTERNAL_AUTH_PROVIDER="azure" \
   -e EXTERNAL_AUTH_CALLBACK="http://localhost:8000/api/v1/auth/callback" \
   -v <YOUR_NAMED_DOCKER_VOLUME>:/app/config/sso_vol/ \
@@ -351,7 +355,7 @@ docker run -itd -p 8000:8000 -p 9000:9000 \
 solace-agent-mesh-enterprise:<tag> run config/sso_vol/oauth2_server.yaml config/webui_backend.yaml config/a2a_orchestrator.yaml config/a2a_agents.yaml
 ```
 
-This command starts the container in detached mode with interactive terminal support. The `-p` flags expose both the main UI port (8000) and the OAuth2 service port (9000) to the host machine. The volume mount makes your configuration files available inside the container at the expected location.
+This command starts the container in detached mode with interactive terminal support. The `-p` flags expose both the main UI port (8000) and the OAuth2 service port (8080) to the host machine. The volume mount makes your configuration files available inside the container at the expected location.
 
 After the container starts successfully, you can access the Agent Mesh Enterprise UI at http://localhost:8000. When you navigate to this URL, the system will redirect you to your OAuth2 provider's login page for authentication.
 
@@ -405,10 +409,10 @@ The OAUTH2_ENABLED variable activates the OAuth2 service. Setting OAUTH2_LOG_LEV
 
 ```bash
 -e OAUTH2_HOST="0.0.0.0" \
--e OAUTH2_PORT="9000" \
+-e OAUTH2_PORT="8080" \
 ```
 
-These variables specify where the OAuth2 authentication service listens for requests. Using "0.0.0.0" as the host allows external access to the container, which is necessary because the OAuth2 provider needs to reach the callback endpoint. The port must match the port mapping in your Docker run command.
+These variables specify where the OAuth2 authentication service listens for requests. Using "0.0.0.0" as the host allows external access to the container. The port must match the port mapping in your Docker run command.
 
 ```bash
 -e OAUTH2_DEV_MODE="true" \
@@ -440,11 +444,11 @@ The required variables depend on which provider you configured in oauth2_config.
 These variables connect the main UI to the OAuth2 service:
 
 ```bash
--e EXTERNAL_AUTH_SERVICE_URL="http://localhost:9000" \
+-e EXTERNAL_AUTH_SERVICE_URL="http://localhost:8080" \
 -e EXTERNAL_AUTH_PROVIDER="azure" \
 ```
 
-The EXTERNAL_AUTH_SERVICE_URL specifies the public URL where the OAuth2 service can be reached. This must be accessible from outside the Docker container because your OAuth2 provider will redirect users to this service. The EXTERNAL_AUTH_PROVIDER must match one of the provider names defined in your oauth2_config.yaml file (in this example, "azure").
+The EXTERNAL_AUTH_SERVICE_URL specifies the URL where the OAuth2 service can be reached by the WebUI Gateway backend. This is used for server-to-server communication (code exchange, token validation, user info retrieval) and does not need to be publicly accessible. The identity provider redirects users to `EXTERNAL_AUTH_CALLBACK` (the WebUI Gateway), not to this URL. The EXTERNAL_AUTH_PROVIDER must match one of the provider names defined in your oauth2_config.yaml file (in this example, "azure").
 
 ```bash
 -e EXTERNAL_AUTH_CALLBACK="http://localhost:8000/api/v1/auth/callback" \
@@ -454,13 +458,13 @@ The EXTERNAL_AUTH_CALLBACK is the URL where your OAuth2 provider redirects users
 
 ### Port Mapping and Volume Mount
 
-Two additional configuration elements are essential for SSO to function:
+Two additional configuration elements are required for SSO to function:
 
 ```bash
--p 8000:8000 -p 9000:9000 \
+-p 8000:8000 -p 8080:8080 \
 ```
 
-Both the main UI port (8000) and the OAuth2 service port (9000) must be mapped to the host machine. This allows external access to both services, which is necessary for the authentication flow to complete successfully.
+Both the main UI port (8000) and the OAuth2 service port (8080) must be mapped to the host machine. The UI port must be externally accessible for the OAuth callback redirect. The OAuth2 service port needs to be reachable from the WebUI Gateway backend for server-to-server token operations.
 
 ```bash
 -v <YOUR_NAMED_DOCKER_VOLUME>:/app/config/sso_vol/ \
@@ -481,7 +485,7 @@ If you encounter issues, check that:
 
 - Your OAuth2 provider credentials are correct
 - The redirect URI in your provider's configuration matches the EXTERNAL_AUTH_CALLBACK value
-- Both ports (8000 and 9000) are accessible from your network
+- Both ports (8000 and 8080) are accessible from your network
 - The configuration files are properly mounted in the container
 
 ## Understanding the OAuth2 Flow and Environment Variables
@@ -493,22 +497,22 @@ When using SSO, it’s important to understand how the authentication flow works
 1. A user opens the frontend application (for example, `http://localhost:8000`).  
    - The frontend checks whether a valid access token exists (e.g., in local storage or cookies).  
    - If no valid token is found or the token has expired, the frontend automatically calls the backend endpoint defined by `FRONTEND_AUTH_LOGIN_URL` (for example, `http://localhost:8000/api/v1/auth/login`) to start the authentication process.  
-2. The WebUI Gateway calls the `EXTERNAL_AUTH_SERVICE_URL` (typically `http://localhost:9000`) and passes the `EXTERNAL_AUTH_PROVIDER` value (such as `azure` or `keycloak` or `auth0`, or `google`).
-3. The OAuth2 service looks up the provider in `oauth2_config.yaml` and automatically constructs the correct authorization request using the provider’s `issuer`, `client_id`, `redirect_uri`, and `scope`.
+2. The WebUI Gateway redirects the user's browser to the OAuth2 service at `EXTERNAL_AUTH_SERVICE_URL` (typically `http://localhost:8080`), passing the `EXTERNAL_AUTH_PROVIDER` value (such as `azure` or `keycloak` or `auth0`, or `google`) and the `EXTERNAL_AUTH_CALLBACK` as the redirect URI.
+3. The OAuth2 service looks up the provider in `oauth2_config.yaml` and automatically constructs the correct authorization request using the provider's `issuer`, `client_id`, `redirect_uri`, and `scope`.
 4. The user is redirected to the IdP (e.g., Azure AD, Auth0, or Keycloak) for login.
-5. After successful login, the IdP redirects back to `EXTERNAL_AUTH_CALLBACK` (for example, `http://localhost:8000/api/v1/auth/callback`).
-6. The OAuth2 service exchanges the authorization code for tokens and finalizes authentication.
+5. After successful login, the IdP redirects the user back to `EXTERNAL_AUTH_CALLBACK` (for example, `http://localhost:8000/api/v1/auth/callback`), which is handled by the WebUI Gateway.
+6. The WebUI Gateway receives the authorization code and calls the OAuth2 service's `/exchange-code` endpoint (server-to-server) to exchange it for tokens. The OAuth2 service returns the tokens and user info to the WebUI Gateway, which then mints a SAM Access Token (if enabled) and returns it to the frontend.
 
-> **Note:**  
-> You do *not* need to manually append `client_id`, `scope`, or `redirect_uri` query parameters to the login URL.  
-> The OAuth2 service automatically handles these based on the selected provider in `oauth2_config.yaml`.
+:::info
+You do not need to manually append `client_id`, `scope`, or `redirect_uri` query parameters to the login URL. The OAuth2 service automatically handles these based on the selected provider in `oauth2_config.yaml`.
+:::
 
 ### Common Environment Variables
 
 | Variable | Purpose | Example |
 |-----------|----------|----------|
 | `FRONTEND_AUTH_LOGIN_URL` | The frontend endpoint that triggers authentication. It should **not** include OAuth query parameters. | `http://localhost:8000/api/v1/auth/login` |
-| `EXTERNAL_AUTH_SERVICE_URL` | URL of the OAuth2 authentication service. | `http://localhost:9000` |
+| `EXTERNAL_AUTH_SERVICE_URL` | URL of the OAuth2 authentication service. | `http://localhost:8080` |
 | `EXTERNAL_AUTH_PROVIDER` | The IdP name as defined under `providers:` in `oauth2_config.yaml`. | `azure` or `keycloak` |
 | `EXTERNAL_AUTH_CALLBACK` | Callback URI used after login. Must match the redirect URI registered with your IdP. | `http://localhost:8000/api/v1/auth/callback` |
 | `FRONTEND_REDIRECT_URL` | Where users are redirected after login completes. | `http://localhost:8000` |

@@ -5,16 +5,18 @@ log:
   log_file_level: DEBUG
   log_file: eval_backend.log
 
-# Shared SAM config
-!include ./shared_config.yaml
-
 apps:
   - name: a2a_eval_backend_app
     app_base_path: .
     app_module: sam_rest_gateway.app
 
     broker:
-      <<: *broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
 
     app_config:
       namespace: ${NAMESPACE}

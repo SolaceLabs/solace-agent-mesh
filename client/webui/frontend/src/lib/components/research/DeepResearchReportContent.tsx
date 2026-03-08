@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { MarkdownRenderer } from "@/lib/components/chat/preview/Renderers";
 import { stripReportMetadataSections, isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 import { api } from "@/lib/api";
-import { parseArtifactUri } from "@/lib/utils/download";
+import { parseArtifactUri } from "@/lib/utils";
 import type { ArtifactInfo, RAGSearchResult } from "@/lib/types";
 
 interface DeepResearchReportContentProps {

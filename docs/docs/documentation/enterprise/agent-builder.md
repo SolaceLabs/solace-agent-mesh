@@ -138,3 +138,7 @@ Agent Builder operations require specific RBAC capabilities. The table below sho
 | `sam:deployments:read` | View deployment status and history |
 
 For information about connector-related capabilities, see [Connectors](connectors/connectors.md#access-control). For detailed information about configuring role-based access control and assigning capabilities to users, see [Setting Up RBAC](rbac-setup-guide.md). For Kubernetes-specific RBAC configuration, see the [Helm Chart RBAC documentation](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs-site/#role-based-access-control-rbac).
+
+## Related Topics
+
+In addition to creating agents through Agent Builder, you can connect external A2A agents that run on separate infrastructure. External agents communicate over HTTPS and integrate with your mesh through a proxy. For more information, see [Connect External Agents](connect-external-agents.md).

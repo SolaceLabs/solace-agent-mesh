@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level5_loop_polling",
+  "category": "Workflows",
+  "description": "Tests loop node with condition-based iteration. The workflow polls status until iteration count reaches 3.",
+  "query": "Please use the LoopPollingWorkflow to poll status with max_iterations of 3, and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 300,
+  "evaluation": {
+    "expected_tools": ["workflow_LoopPollingWorkflow"],
+    "expected_response": "The LoopPollingWorkflow has successfully completed polling. The workflow iterated 3 times until ready condition was met. Final iteration: 2, Ready: true, Status: checking",
+    "criterion": "Evaluate if the orchestrator successfully delegated to LoopPollingWorkflow, and the workflow correctly used loop node to iterate until ready (expected 3 iterations with final_iteration=2 when ready=true)."
+  }
+}

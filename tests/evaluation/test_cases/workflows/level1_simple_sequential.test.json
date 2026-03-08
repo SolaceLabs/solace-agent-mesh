@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level1_simple_sequential",
+  "category": "Workflows",
+  "description": "Tests basic sequential workflow execution with two agent nodes via orchestrator delegation. The workflow doubles a value and then formats it with a message.",
+  "query": "Please use the SimpleSequentialWorkflow to process the value 42, and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 180,
+  "evaluation": {
+    "expected_tools": ["workflow_SimpleSequentialWorkflow"],
+    "expected_response": "The SimpleSequentialWorkflow has successfully processed the value 42. The workflow doubled the input value (42 × 2 = 84) and formatted it with a message. Workflow Result: Input value: 42, Doubled value: 84, Final message: The final result is: 84",
+    "criterion": "Evaluate if the orchestrator successfully delegated to SimpleSequentialWorkflow, and the workflow executed both nodes sequentially (doubling 42 to 84, then formatting the result) and returned the correct message."
+  }
+}

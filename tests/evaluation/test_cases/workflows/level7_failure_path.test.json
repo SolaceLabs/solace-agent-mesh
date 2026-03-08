@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level7_failure_path",
+  "category": "Workflows",
+  "description": "Tests error handling workflow in failure mode. The workflow fails and triggers on_failure and always exit handlers.",
+  "query": "Please use the ErrorHandlingWorkflow with mode 'failure', and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 300,
+  "evaluation": {
+    "expected_tools": ["workflow_ErrorHandlingWorkflow"],
+    "expected_response": "The ErrorHandlingWorkflow completed with status: failed. The workflow encountered a simulated failure, then triggered the failure alert and cleanup handlers. Error: simulated failure, Failure alert sent, Cleanup performed",
+    "criterion": "Evaluate if the orchestrator successfully delegated to ErrorHandlingWorkflow in failure mode, the workflow failed as expected, and the on_failure and always exit handlers were executed (failure alert + cleanup)."
+  }
+}

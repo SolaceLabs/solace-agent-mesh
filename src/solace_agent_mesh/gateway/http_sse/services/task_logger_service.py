@@ -5,6 +5,7 @@ Service for logging A2A tasks and events to the database.
 import copy
 import json
 import logging
+import math
 import uuid
 from typing import Any, Callable, Dict, Union
 
@@ -60,8 +61,12 @@ class TaskLoggerService:
             )
             return
 
-        if "discovery" in topic:
+        if "/a2a/v1/discovery/" in topic:
             # Ignore discovery messages
+            return
+
+        if "/a2a/v1/trust/" in topic:
+            # Ignore trust messages early to avoid queue buildup
             return
 
         # Parse the event into a Pydantic model first.
@@ -75,7 +80,7 @@ class TaskLoggerService:
             repo = TaskRepository()
 
             # Infer details from the parsed event
-            direction, task_id, user_id = self._infer_event_details(
+            direction, task_id, user_id, session_id = self._infer_event_details(
                 topic, parsed_event, user_properties
             )
 
@@ -146,12 +151,14 @@ class TaskLoggerService:
                         last_activity_time=current_time,
                         background_execution_enabled=background_execution_enabled,
                         max_execution_time_ms=max_execution_time_ms,
+                        session_id=session_id,  # Store session_id for persistent event buffering
                     )
                     repo.save_task(db, new_task)
                     log.info(
                         f"{self.log_identifier} Created new task record for ID: {task_id}"
                         + (f" with parent: {parent_task_id}" if parent_task_id else "")
                         + (f" (background execution enabled)" if background_execution_enabled else "")
+                        + (f" (session: {session_id})" if session_id else "")
                     )
                 else:
                     # We received an event for a task we haven't seen the start of.
@@ -166,6 +173,7 @@ class TaskLoggerService:
                         execution_mode="foreground",
                         last_activity_time=current_time,
                         background_execution_enabled=False,
+                        session_id=session_id,  # Store session_id for persistent event buffering
                     )
                     repo.save_task(db, placeholder_task)
                     log.info(
@@ -173,8 +181,19 @@ class TaskLoggerService:
                     )
             else:
                 # Update last activity time for existing task
-                task.last_activity_time = now_epoch_ms()
-                repo.save_task(db, task)
+                # This is a non-critical update that can fail due to cross-process SQLite concurrency
+                try:
+                    task.last_activity_time = now_epoch_ms()
+                    repo.save_task(db, task)
+                except Exception as activity_update_error:
+                    # StaleDataError or other concurrency issues - log and continue
+                    # The task may have been modified/deleted by another process (FastAPI vs SAC)
+                    log.debug(
+                        f"{self.log_identifier} Non-critical: Failed to update last_activity_time for task {task_id}: {activity_update_error}"
+                    )
+                    # Rollback and begin a new transaction so subsequent operations can continue
+                    db.rollback()
+                    db.begin()
 
             # Create and save the event using the sanitized raw payload
             task_event = TaskEvent(
@@ -218,19 +237,6 @@ class TaskLoggerService:
                         f"{self.log_identifier} Finalized task record for ID: {task_id} with status: {final_status}"
                     )
                     
-                    # For background tasks, save chat messages when task completes
-                    # Only save for top-level tasks (no parent_task_id) to avoid duplicates
-                    # Sub-tasks (delegated by orchestrator) have parent_task_id set and contain system prompts
-                    if task_to_update.background_execution_enabled and not task_to_update.parent_task_id:
-                        self._save_chat_messages_for_background_task(db, task_id, task_to_update, repo)
-                        
-                        # Note: The frontend will detect task completion through:
-                        # 1. SSE final_response event (if connected to that task)
-                        # 2. Session list refresh triggered by the ChatProvider
-                        # 3. Database status check when loading sessions
-                        log.info(
-                            f"{self.log_identifier} Background task {task_id} completed and chat messages saved"
-                        )
             
             db.commit()
         except Exception as e:
@@ -288,10 +294,15 @@ class TaskLoggerService:
 
     def _infer_event_details(
         self, topic: str, parsed_event: Any, user_props: Dict | None
-    ) -> tuple[str, str | None, str | None]:
-        """Infers direction, task_id, and user_id from a parsed A2A event."""
+    ) -> tuple[str, str | None, str | None, str | None]:
+        """Infers direction, task_id, user_id, and session_id from a parsed A2A event.
+        
+        Returns:
+            Tuple of (direction, task_id, user_id, session_id)
+        """
         direction = "unknown"
         task_id = None
+        session_id = None  # Will be extracted from context_id
         # Ensure user_props is a dict, not None
         user_props = user_props or {}
         user_id = user_props.get("userId")
@@ -299,6 +310,10 @@ class TaskLoggerService:
         if isinstance(parsed_event, A2ARequest):
             direction = "request"
             task_id = a2a.get_request_id(parsed_event)
+            # Extract session_id from context_id in the message
+            message = a2a.get_message_from_send_request(parsed_event)
+            if message:
+                session_id = a2a.get_context_id(message)
         elif isinstance(
             parsed_event, (A2ATask, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
         ):
@@ -306,10 +321,13 @@ class TaskLoggerService:
             task_id = getattr(parsed_event, "task_id", None) or getattr(
                 parsed_event, "id", None
             )
+            # Extract session_id from context_id
+            session_id = getattr(parsed_event, "context_id", None)
         elif isinstance(parsed_event, JSONRPCError):
             direction = "error"
             if isinstance(parsed_event.data, dict):
                 task_id = parsed_event.data.get("taskId")
+                session_id = parsed_event.data.get("contextId")
 
         if not user_id:
             user_config = user_props.get("a2aUserConfig") or user_props.get("a2a_user_config")
@@ -318,7 +336,7 @@ class TaskLoggerService:
                 if isinstance(user_profile, dict):
                     user_id = user_profile.get("id")
 
-        return direction, str(task_id) if task_id else None, user_id
+        return direction, str(task_id) if task_id else None, user_id, session_id
 
     def _extract_initial_text(self, parsed_event: Any) -> str | None:
         """Extracts the initial text from a send message request."""
@@ -349,16 +367,41 @@ class TaskLoggerService:
                 return False
         return True
 
+    @staticmethod
+    def _sanitize_non_finite_floats(value: Any) -> Any:
+        """
+        Recursively sanitize a value, replacing non-finite floats (NaN, Infinity, -Infinity)
+        with None since PostgreSQL JSON type doesn't support these values.
+        """
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return None
+            return value
+        elif isinstance(value, dict):
+            return {k: TaskLoggerService._sanitize_non_finite_floats(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [TaskLoggerService._sanitize_non_finite_floats(item) for item in value]
+        else:
+            return value
+
     def _sanitize_payload(self, payload: Dict) -> Dict:
-        """Strips or truncates file content from payload based on configuration."""
+        """
+        Sanitizes payload for database storage:
+        1. Strips or truncates file content based on configuration
+        2. Replaces non-finite floats (NaN, Infinity, -Infinity) with None
+           since PostgreSQL JSON type doesn't support these values
+        """
         new_payload = copy.deepcopy(payload)
 
         def walk_and_sanitize(node):
             if isinstance(node, dict):
                 for key, value in list(node.items()):
-                    if key == "parts" and isinstance(value, list):
+                    # Sanitize non-finite floats using the helper
+                    node[key] = self._sanitize_non_finite_floats(value)
+                    
+                    if key == "parts" and isinstance(node[key], list):
                         new_parts = []
-                        for part in value:
+                        for part in node[key]:
                             if isinstance(part, dict) and "file" in part:
                                 if not self.config.get("log_file_parts", True):
                                     continue  # Skip this part entirely
@@ -379,11 +422,13 @@ class TaskLoggerService:
                                 walk_and_sanitize(part)
                                 new_parts.append(part)
                         node["parts"] = new_parts
-                    else:
-                        walk_and_sanitize(value)
+                    elif isinstance(node[key], (dict, list)):
+                        walk_and_sanitize(node[key])
             elif isinstance(node, list):
-                for item in node:
-                    walk_and_sanitize(item)
+                for i, item in enumerate(node):
+                    node[i] = self._sanitize_non_finite_floats(item)
+                    if isinstance(node[i], (dict, list)):
+                        walk_and_sanitize(node[i])
 
         walk_and_sanitize(new_payload)
         return new_payload
@@ -395,6 +440,10 @@ class TaskLoggerService:
         Save chat messages for a completed background task by reconstructing them from task events.
         This ensures chat history is available when users return to a session after a background task completes.
         Uses upsert to avoid duplicates.
+        
+        NOTE: Even if SSE events are buffered (task.events_buffered=True), we still save to chat_tasks
+        from task_events. The chat_tasks data will have unresolved embeds, but this serves as a fallback.
+        The frontend should prefer replaying from sse_event_buffer when available.
         """
         try:
             # Get all events for this task
@@ -484,19 +533,32 @@ class TaskLoggerService:
                                             elif part_kind == "data":
                                                 # Extract RAG metadata from tool_result data parts
                                                 data = part.get("data", {})
-                                                if isinstance(data, dict) and data.get("type") == "tool_result":
-                                                    result_data = data.get("result_data", {})
-                                                    if isinstance(result_data, dict) and "rag_metadata" in result_data:
-                                                        rag_metadata = result_data["rag_metadata"]
-                                                        if isinstance(rag_metadata, dict):
-                                                            # Add taskId to the RAG metadata
-                                                            rag_metadata["taskId"] = task_id
-                                                            rag_data.append(rag_metadata)
-                                                            log.info(
-                                                                f"{self.log_identifier} Extracted RAG metadata for task {task_id}: "
-                                                                f"searchType={rag_metadata.get('searchType')}, "
-                                                                f"sources_count={len(rag_metadata.get('sources', []))}"
-                                                            )
+                                                if isinstance(data, dict):
+                                                    data_type = data.get("type")
+                                                    
+                                                    if data_type == "tool_result":
+                                                        result_data = data.get("result_data", {})
+                                                        if isinstance(result_data, dict) and "rag_metadata" in result_data:
+                                                            rag_metadata = result_data["rag_metadata"]
+                                                            if isinstance(rag_metadata, dict):
+                                                                # Add taskId to the RAG metadata
+                                                                rag_metadata["taskId"] = task_id
+                                                                rag_data.append(rag_metadata)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted RAG metadata for task {task_id}: "
+                                                                    f"searchType={rag_metadata.get('searchType')}, "
+                                                                    f"sources_count={len(rag_metadata.get('sources', []))}"
+                                                                )
+                                                    elif data_type == "artifact_creation_progress":
+                                                        # Handle cancelled artifacts with rolled back text
+                                                        if data.get("status") == "cancelled":
+                                                            rolled_back_text = data.get("rolled_back_text")
+                                                            if rolled_back_text:
+                                                                accumulated_agent_text.append(rolled_back_text)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted rolled_back_text from cancelled artifact event for task {task_id}"
+                                                                )
+                                                
                                                 accumulated_agent_parts.append(part)
                                             else:
                                                 # Accumulate other non-text, non-data parts
@@ -641,6 +703,42 @@ class TaskLoggerService:
                 )
                 return
             
+            # Check if a chat task already exists (frontend may have saved it first with frontend-only fields)
+            # If so, preserve frontend-only fields like contextQuote and displayHtml from the user message
+            chat_task_repo = ChatTaskRepository()
+            existing_chat_task = chat_task_repo.find_by_id(db, task_id)
+            if existing_chat_task:
+                try:
+                    existing_bubbles = json.loads(existing_chat_task.message_bubbles) if isinstance(existing_chat_task.message_bubbles, str) else existing_chat_task.message_bubbles
+                    # Find the existing user message bubble
+                    existing_user_bubble = next((b for b in existing_bubbles if b.get("type") == "user"), None)
+                    if existing_user_bubble:
+                        # Extract frontend-only fields
+                        frontend_only_fields = {}
+                        if existing_user_bubble.get("contextQuote"):
+                            frontend_only_fields["contextQuote"] = existing_user_bubble["contextQuote"]
+                        if existing_user_bubble.get("contextQuoteSourceId"):
+                            frontend_only_fields["contextQuoteSourceId"] = existing_user_bubble["contextQuoteSourceId"]
+                        if existing_user_bubble.get("displayHtml"):
+                            frontend_only_fields["displayHtml"] = existing_user_bubble["displayHtml"]
+                        
+                        if frontend_only_fields:
+                            # Find the reconstructed user message bubble and merge frontend-only fields
+                            for bubble in message_bubbles:
+                                if bubble.get("type") == "user":
+                                    bubble.update(frontend_only_fields)
+                                    log.info(
+                                        f"{self.log_identifier} Preserved frontend-only fields for task {task_id}: "
+                                        f"contextQuote={bool(frontend_only_fields.get('contextQuote'))}, "
+                                        f"contextQuoteSourceId={bool(frontend_only_fields.get('contextQuoteSourceId'))}, "
+                                        f"displayHtml={bool(frontend_only_fields.get('displayHtml'))}"
+                                    )
+                                    break
+                except Exception as e:
+                    log.warning(
+                        f"{self.log_identifier} Failed to extract frontend-only fields from existing chat task {task_id}: {e}"
+                    )
+            
             # Build task metadata including RAG data if present
             task_metadata_dict = {
                 "schema_version": 1,
@@ -667,7 +765,7 @@ class TaskLoggerService:
                 updated_time=task.end_time,
             )
             
-            chat_task_repo = ChatTaskRepository()
+            # chat_task_repo was already created above when checking for existing task
             chat_task_repo.save(db, chat_task)
             
             log.info(

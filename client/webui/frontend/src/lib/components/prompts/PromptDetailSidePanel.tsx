@@ -55,7 +55,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             <div className="border-b p-4">
                 <div className="mb-2 flex items-center justify-between">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <NotepadText className="text-muted-foreground h-5 w-5 flex-shrink-0" />
+                        <NotepadText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                         <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                                 <h2 className="cursor-default truncate text-lg font-semibold">{prompt.name}</h2>
@@ -100,10 +100,10 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                         </Button>
                     </div>
                 </div>
-                {prompt.category && (
+                {(prompt.productionPrompt?.category || prompt.category) && (
                     <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium">
                         <Tag size={12} />
-                        {prompt.category}
+                        {prompt.productionPrompt?.category || prompt.category}
                     </span>
                 )}
             </div>
@@ -115,15 +115,15 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                     {/* Description */}
                     <div>
                         <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Description</h3>
-                        <div className="text-sm leading-relaxed">{prompt.description || "No description provided."}</div>
+                        <div className="text-sm leading-relaxed">{prompt.productionPrompt?.description || prompt.description || "No description provided."}</div>
                     </div>
 
                     {/* Chat Shortcut */}
-                    {prompt.command && (
+                    {(prompt.productionPrompt?.command || prompt.command) && (
                         <div>
                             <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Chat Shortcut</h3>
                             <div>
-                                <span className="text-primary bg-primary/10 inline-block rounded px-2 py-0.5 font-mono text-xs">/{prompt.command}</span>
+                                <span className="text-primary bg-primary/10 inline-block rounded px-2 py-0.5 font-mono text-xs">/{prompt.productionPrompt?.command || prompt.command}</span>
                             </div>
                         </div>
                     )}

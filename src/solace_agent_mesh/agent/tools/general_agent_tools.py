@@ -4,8 +4,6 @@ Collection of Python tools that can be configured for general purpose agents.
 
 import logging
 import asyncio
-import inspect
-import json
 import os
 import tempfile
 import uuid
@@ -18,16 +16,11 @@ from google.adk.tools import ToolContext
 from markitdown import MarkItDown, UnsupportedFormatException
 from mermaid_cli import render_mermaid
 
-from ...agent.utils.artifact_helpers import (
-    ensure_correct_extension,
-    save_artifact_with_metadata,
-    METADATA_SUFFIX,
-    DEFAULT_SCHEMA_MAX_KEYS,
-)
-from ...agent.utils.context_helpers import get_original_session_id
-
+from ...agent.utils.artifact_helpers import ensure_correct_extension
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult, DataObject, DataDisposition
+from .artifact_types import Artifact
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -46,140 +39,43 @@ def _simple_truncate_text(text: str, max_bytes: int = 2048) -> Tuple[str, bool]:
 
 
 async def convert_file_to_markdown(
-    input_filename: str,
+    input_filename: Artifact,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Converts an input file artifact to Markdown using the MarkItDown library.
     The supported input types are those supported by MarkItDown (e.g., PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP).
     The output is a new Markdown artifact.
 
     Args:
-        input_filename: The filename (and optional :version) of the input artifact.
+        input_filename: The input file artifact (pre-loaded by the framework).
         tool_context: The context provided by the ADK framework.
         tool_config: Optional dictionary for tool-specific configuration (unused by this tool).
 
     Returns:
-        A dictionary with status, output artifact details, and a preview of the result.
+        ToolResult with output artifact details and a preview of the result.
     """
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
-    log_identifier = f"[GeneralTool:convert_to_markdown:{input_filename}]"
+    log_identifier = f"[GeneralTool:convert_to_markdown:{input_filename.filename}]"
     log.info("%s Processing request.", log_identifier)
 
     temp_input_file = None
-    original_input_basename = "unknown_input"
 
     try:
-        inv_context = tool_context._invocation_context
-        app_name = inv_context.app_name
-        user_id = inv_context.user_id
-        session_id = get_original_session_id(inv_context)
-        artifact_service = inv_context.artifact_service
-        if not artifact_service:
-            raise ValueError("ArtifactService is not available in the context.")
+        # Use pre-loaded artifact data
+        artifact_filename = input_filename.filename
+        artifact_version = input_filename.version
+        input_bytes = input_filename.as_bytes()
+        source_metadata = input_filename.metadata or {}
 
-        parts = input_filename.split(":", 1)
-        filename_base_for_load = parts[0]
-        version_str = parts[1] if len(parts) > 1 else None
-        version_to_load = int(version_str) if version_str else None
+        # Get original filename from metadata or use artifact filename
+        original_input_filename = source_metadata.get("filename", artifact_filename)
+        original_input_basename, original_input_ext = os.path.splitext(original_input_filename)
 
-        if version_to_load is None:
-            list_versions_method = getattr(artifact_service, "list_versions")
-            if inspect.iscoroutinefunction(list_versions_method):
-                versions = await list_versions_method(
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            else:
-                versions = await asyncio.to_thread(
-                    list_versions_method,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            if not versions:
-                raise FileNotFoundError(
-                    f"Artifact '{filename_base_for_load}' not found."
-                )
-            version_to_load = max(versions)
-            log.debug(
-                "%s Using latest version for input: %d", log_identifier, version_to_load
-            )
-
-        metadata_filename_to_load = f"{filename_base_for_load}{METADATA_SUFFIX}"
-        try:
-            load_meta_method = getattr(artifact_service, "load_artifact")
-            if inspect.iscoroutinefunction(load_meta_method):
-                metadata_part = await load_meta_method(
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=metadata_filename_to_load,
-                    version=version_to_load,
-                )
-            else:
-                metadata_part = await asyncio.to_thread(
-                    load_meta_method,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=metadata_filename_to_load,
-                    version=version_to_load,
-                )
-            if not metadata_part or not metadata_part.inline_data:
-                raise FileNotFoundError(
-                    f"Metadata for '{filename_base_for_load}' v{version_to_load} not found."
-                )
-            input_metadata = json.loads(metadata_part.inline_data.data.decode("utf-8"))
-            original_input_filename_from_meta = input_metadata.get(
-                "filename", filename_base_for_load
-            )
-            original_input_basename, original_input_ext = os.path.splitext(
-                original_input_filename_from_meta
-            )
-        except Exception as meta_err:
-            log.warning(
-                "%s Could not load metadata for '%s' v%s: %s. Using input filename for naming.",
-                log_identifier,
-                filename_base_for_load,
-                version_to_load,
-                meta_err,
-            )
-            original_input_basename, original_input_ext = os.path.splitext(
-                filename_base_for_load
-            )
-
-        load_artifact_method = getattr(artifact_service, "load_artifact")
-        if inspect.iscoroutinefunction(load_artifact_method):
-            input_artifact_part = await load_artifact_method(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-        else:
-            input_artifact_part = await asyncio.to_thread(
-                load_artifact_method,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-
-        if not input_artifact_part or not input_artifact_part.inline_data:
-            raise FileNotFoundError(
-                f"Content for artifact '{filename_base_for_load}' v{version_to_load} not found."
-            )
-        input_bytes = input_artifact_part.inline_data.data
-
+        # Write to temp file for MarkItDown processing
         temp_suffix = original_input_ext if original_input_ext else None
         temp_input_file = tempfile.NamedTemporaryFile(delete=False, suffix=temp_suffix)
         temp_input_file.write(input_bytes)
@@ -209,72 +105,56 @@ async def convert_file_to_markdown(
             log.warning(
                 "%s MarkItDown conversion resulted in empty content for %s.",
                 log_identifier,
-                input_filename,
+                artifact_filename,
             )
-
-        markdown_content_bytes = markdown_text_content.encode("utf-8")
 
         output_filename = f"{original_input_basename}_converted.md"
-        output_mime_type = "text/markdown"
 
-        host_component = getattr(inv_context.agent, "host_component", None)
-        schema_max_keys = DEFAULT_SCHEMA_MAX_KEYS
-
-        save_metadata_dict = {
+        metadata = {
             "description": f"Markdown conversion of '{original_input_basename}{original_input_ext}'",
-            "source_artifact": input_filename,
-            "source_artifact_version": version_to_load,
+            "source_artifact": artifact_filename,
+            "source_artifact_version": artifact_version,
             "conversion_tool": "MarkItDown",
+            "conversion_timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=output_filename,
-            content_bytes=markdown_content_bytes,
-            mime_type=output_mime_type,
-            metadata_dict=save_metadata_dict,
-            timestamp=datetime.now(timezone.utc),
-            schema_max_keys=schema_max_keys,
-            tool_context=tool_context,
-        )
-        if save_result["status"] == "error":
-            raise IOError(
-                f"Failed to save Markdown artifact: {save_result.get('message', 'Unknown error')}"
-            )
 
         preview_data, truncated = _simple_truncate_text(markdown_text_content)
-        preview_message = f"File converted to Markdown successfully. Full result saved as '{output_filename}' v{save_result['data_version']}."
+        preview_message = f"File converted to Markdown successfully."
         if truncated:
-            preview_message += f" Preview shows first portion."
+            preview_message += " Preview shows first portion."
 
-        return {
-            "status": "success",
-            "message": preview_message,
-            "output_filename": output_filename,
-            "output_version": save_result["data_version"],
-            "result_preview": preview_data,
-            "result_truncated": truncated,
-        }
+        log.info("%s Returning markdown as DataObject for artifact storage", log_identifier)
 
-    except FileNotFoundError as e:
-        log.warning("%s File not found error: %s", log_identifier, e)
-        return {"status": "error", "message": str(e)}
+        return ToolResult.ok(
+            preview_message,
+            data={
+                "result_preview": preview_data,
+                "result_truncated": truncated,
+            },
+            data_objects=[
+                DataObject(
+                    name=output_filename,
+                    content=markdown_text_content,
+                    mime_type="text/markdown",
+                    disposition=DataDisposition.ARTIFACT_WITH_PREVIEW,
+                    description=f"Markdown conversion of '{original_input_basename}{original_input_ext}'",
+                    metadata=metadata,
+                    preview=preview_data,
+                )
+            ],
+        )
+
     except UnsupportedFormatException as e:
         log.warning("%s MarkItDown unsupported format: %s", log_identifier, e)
-        return {
-            "status": "error",
-            "message": f"Unsupported file format for MarkItDown: {e}",
-        }
+        return ToolResult.error(f"Unsupported file format for MarkItDown: {e}")
     except ValueError as e:
         log.warning("%s Value error: %s", log_identifier, e)
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except Exception as e:
         log.exception(
             "%s Unexpected error in convert_file_to_markdown: %s", log_identifier, e
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
     finally:
         if (
             temp_input_file
@@ -346,7 +226,7 @@ async def mermaid_diagram_generator(
     output_filename: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Generates a PNG image from Mermaid diagram syntax and saves it as an artifact.
     The diagram must be detailed.
@@ -359,26 +239,17 @@ async def mermaid_diagram_generator(
         tool_config: Optional dictionary for tool-specific configuration (unused by this tool).
 
     Returns:
-        A dictionary with status, output artifact details, and a preview message.
+        ToolResult with output artifact details and a preview message.
     """
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
-    log_identifier = f"[GeneralTool:mermaid_diagram_generator]"
+    log_identifier = "[GeneralTool:mermaid_diagram_generator]"
     if output_filename:
         log_identifier += f":{output_filename}"
     log.info("%s Processing request.", log_identifier)
 
     try:
-        inv_context = tool_context._invocation_context
-        app_name = inv_context.app_name
-        user_id = inv_context.user_id
-        session_id = get_original_session_id(inv_context)
-        artifact_service = inv_context.artifact_service
-
-        if not artifact_service:
-            raise ValueError("ArtifactService is not available in the context.")
-
         log.debug(
             "%s Calling render_mermaid for syntax: %s",
             log_identifier,
@@ -393,10 +264,9 @@ async def mermaid_diagram_generator(
                 "%s Failed to render Mermaid diagram. No image data returned.",
                 log_identifier,
             )
-            return {
-                "status": "error",
-                "message": "Failed to render Mermaid diagram. No image data returned.",
-            }
+            return ToolResult.error(
+                "Failed to render Mermaid diagram. No image data returned."
+            )
         try:
             scale = max(2, len(mermaid_syntax.splitlines()) // 10)
             image_data = await _convert_svg_to_png_with_playwright(svg_image_data.decode("utf-8"), scale)
@@ -406,10 +276,7 @@ async def mermaid_diagram_generator(
                 log_identifier,
                 e,
             )
-            return {
-                "status": "error",
-                "message": f"Failed to convert SVG to PNG: {e}",
-            }
+            return ToolResult.error(f"Failed to convert SVG to PNG: {e}")
 
         log.debug(
             "%s Mermaid diagram rendered successfully with scale %d, image_data length: %d bytes",
@@ -429,71 +296,45 @@ async def mermaid_diagram_generator(
             final_output_filename,
         )
 
-        output_mime_type = "image/png"
-        schema_max_keys = DEFAULT_SCHEMA_MAX_KEYS
-
-        save_metadata_dict = {
+        metadata = {
             "description": f"PNG image generated from Mermaid syntax. Original requested filename: {output_filename if output_filename else 'N/A'}",
             "source_format": "mermaid_syntax",
             "generation_tool": "mermaid_diagram_generator (mermaid-cli)",
+            "generation_timestamp": datetime.now(timezone.utc).isoformat(),
             "mermaid_title": title if title else "N/A",
             "mermaid_description": desc if desc else "N/A",
         }
 
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=final_output_filename,
-            content_bytes=image_data,
-            mime_type=output_mime_type,
-            metadata_dict=save_metadata_dict,
-            timestamp=datetime.now(timezone.utc),
-            schema_max_keys=schema_max_keys,
-            tool_context=tool_context,
+        log.info("%s Returning PNG as DataObject for artifact storage", log_identifier)
+
+        return ToolResult.ok(
+            "Mermaid diagram rendered successfully.",
+            data={
+                "mermaid_title": title if title else "N/A",
+                "mermaid_description": desc if desc else "N/A",
+            },
+            data_objects=[
+                DataObject(
+                    name=final_output_filename,
+                    content=image_data,
+                    mime_type="image/png",
+                    disposition=DataDisposition.ARTIFACT,
+                    description=f"PNG diagram from Mermaid syntax{f': {title}' if title else ''}",
+                    metadata=metadata,
+                )
+            ],
         )
-
-        if save_result["status"] == "error":
-            log.error(
-                "%s Failed to save PNG artifact: %s",
-                log_identifier,
-                save_result.get("message", "Unknown error"),
-            )
-            raise IOError(
-                f"Failed to save PNG artifact: {save_result.get('message', 'Unknown error')}"
-            )
-
-        log.info(
-            "%s PNG artifact saved successfully: %s v%d",
-            log_identifier,
-            final_output_filename,
-            save_result["data_version"],
-        )
-
-        preview_message = f"Mermaid diagram rendered and saved as artifact '{final_output_filename}' v{save_result['data_version']}."
-
-        return {
-            "status": "success",
-            "message": preview_message,
-            "output_filename": final_output_filename,
-            "output_version": save_result["data_version"],
-            "result_preview": f"Artifact '{final_output_filename}' (v{save_result['data_version']}) created successfully.",
-        }
 
     except ValueError as e:
         log.warning(
             "%s Value error in mermaid_diagram_generator: %s", log_identifier, e
         )
-        return {"status": "error", "message": str(e)}
-    except IOError as e:
-        log.warning("%s IO error in mermaid_diagram_generator: %s", log_identifier, e)
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except Exception as e:
         log.exception(
             "%s Unexpected error in mermaid_diagram_generator: %s", log_identifier, e
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 async def _continue_generation() -> Dict[str, Any]:

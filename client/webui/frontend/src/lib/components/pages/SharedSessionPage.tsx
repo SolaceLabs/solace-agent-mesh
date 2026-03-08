@@ -119,16 +119,33 @@ export function SharedSessionPage() {
 
         for (const task of session.tasks) {
             try {
+                // Use workflow_task_id for workflow lookup (A2A task ID), fallback to id
+                const taskId = task.workflow_task_id || task.id;
+
+                // First, add the user message if it exists (from user_message field)
+                if (task.user_message) {
+                    result.push({
+                        type: "user",
+                        text: task.user_message,
+                        timestamp: task.created_time,
+                        taskId: taskId,
+                        isLastInTask: false,
+                    });
+                }
+
                 const bubbles = typeof task.message_bubbles === "string" ? JSON.parse(task.message_bubbles) : task.message_bubbles;
 
                 if (Array.isArray(bubbles)) {
                     (bubbles as MessageBubble[]).forEach((bubble: MessageBubble, index: number) => {
+                        // Skip user bubbles if we already added user_message to avoid duplicates
+                        if (bubble.type === "user" && task.user_message) {
+                            return;
+                        }
                         result.push({
                             type: bubble.type || "agent",
                             text: bubble.text || "",
                             timestamp: task.created_time,
-                            // Use workflow_task_id for workflow lookup (A2A task ID), fallback to id
-                            taskId: task.workflow_task_id || task.id,
+                            taskId: taskId,
                             isLastInTask: index === bubbles.length - 1,
                         });
                     });

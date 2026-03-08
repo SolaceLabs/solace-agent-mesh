@@ -37,8 +37,12 @@ const getRefreshToken = () => localStorage.getItem("refresh_token");
 
 const setTokens = (accessToken: string, samAccessToken: string, refreshToken: string) => {
     localStorage.setItem("access_token", accessToken);
-    localStorage.setItem("sam_access_token", samAccessToken);
     localStorage.setItem("refresh_token", refreshToken);
+    if (samAccessToken) {
+        localStorage.setItem("sam_access_token", samAccessToken);
+    } else {
+        localStorage.removeItem("sam_access_token");
+    }
 };
 
 const clearTokens = () => {
@@ -48,6 +52,11 @@ const clearTokens = () => {
 };
 
 const refreshToken = async () => {
+    // Don't attempt token refresh if we're in the middle of logging out
+    if (sessionStorage.getItem("logout_in_progress") === "true") {
+        return null;
+    }
+
     const token = getRefreshToken();
     if (!token) {
         return null;
@@ -212,3 +221,4 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+export { getErrorFromResponse };

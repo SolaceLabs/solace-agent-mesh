@@ -123,6 +123,71 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         return self._agent_config_by_name.get(agent_name)
 
+    def _get_effective_agent_card_auth(
+        self, agent_config: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
+        """
+        Resolves the effective authentication configuration for agent card fetching.
+
+        This method implements the auth resolution priority for agent card requests:
+        1. If agent_card_authentication is specified, use it (new field takes precedence)
+        2. If authentication is specified AND use_auth_for_agent_card=True, use it (legacy behavior)
+        3. Otherwise, no authentication for agent card
+
+        Args:
+            agent_config: The agent configuration dictionary.
+
+        Returns:
+            Tuple of (auth_config, should_use_auth):
+            - auth_config: The authentication config dict to use, or None if no auth
+            - should_use_auth: Boolean flag indicating whether to apply auth
+        """
+        # Priority 1: Check for new agent_card_authentication field
+        agent_card_auth = agent_config.get("agent_card_authentication")
+        if agent_card_auth is not None:
+            return (agent_card_auth, True)
+
+        # Priority 2: Check for legacy authentication with use_auth_for_agent_card flag
+        legacy_auth = agent_config.get("authentication")
+        use_auth_for_agent_card = agent_config.get("use_auth_for_agent_card", False)
+        if legacy_auth is not None and use_auth_for_agent_card:
+            return (legacy_auth, True)
+
+        # No authentication for agent card
+        return (None, False)
+
+    def _get_effective_task_auth(
+        self, agent_config: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
+        """
+        Resolves the effective authentication configuration for task invocations.
+
+        This method implements the auth resolution priority for task requests:
+        1. If task_authentication is specified, use it (new field takes precedence)
+        2. If authentication is specified, use it (legacy behavior - tasks always get auth)
+        3. Otherwise, no authentication for tasks
+
+        Args:
+            agent_config: The agent configuration dictionary.
+
+        Returns:
+            Tuple of (auth_config, should_use_auth):
+            - auth_config: The authentication config dict to use, or None if no auth
+            - should_use_auth: Boolean flag indicating whether to apply auth
+        """
+        # Priority 1: Check for new task_authentication field
+        task_auth = agent_config.get("task_authentication")
+        if task_auth is not None:
+            return (task_auth, True)
+
+        # Priority 2: Check for legacy authentication (always applies to tasks)
+        legacy_auth = agent_config.get("authentication")
+        if legacy_auth is not None:
+            return (legacy_auth, True)
+
+        # No authentication for tasks
+        return (None, False)
+
     def _extract_security_scheme_name(
         self, agent_card: Optional[AgentCard], auth_type: str, agent_name: str
     ) -> str:
@@ -249,6 +314,196 @@ class A2AProxyComponent(BaseProxyComponent):
         }
         return defaults.get(auth_type, "bearer")
 
+    def _construct_security_schemes_from_auth(
+        self, auth_config: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, List[str]]]]]:
+        """
+        Constructs securitySchemes and security arrays from authentication config.
+
+        This creates the security configuration that would normally be in an agent card,
+        based on the authentication settings in the proxy configuration.
+
+        Args:
+            auth_config: Authentication configuration from proxied_agent config.
+
+        Returns:
+            Tuple of (securitySchemes dict, security list), or (None, None) if no auth.
+        """
+        if not auth_config:
+            return None, None
+
+        # Determine auth type
+        auth_type = auth_config.get("type")
+        if not auth_type and auth_config.get("scheme"):
+            # Legacy config: infer type from scheme
+            scheme = auth_config.get("scheme", "bearer")
+            auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
+
+        if not auth_type:
+            return None, None
+
+        security_schemes = {}
+        security = []
+
+        if auth_type == "static_bearer":
+            # HTTP Bearer authentication
+            scheme_name = "bearer"
+            security_schemes[scheme_name] = {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "Static bearer token authentication",
+            }
+            security.append({scheme_name: []})
+
+        elif auth_type == "static_apikey":
+            # API Key authentication
+            scheme_name = "apikey"
+            security_schemes[scheme_name] = {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key",
+                "description": "API key authentication via X-API-Key header",
+            }
+            security.append({scheme_name: []})
+
+        elif auth_type == "oauth2_client_credentials":
+            # OAuth 2.0 Client Credentials flow
+            scheme_name = "oauth2ClientCredentials"
+            token_url = auth_config.get("token_url")
+            scope_string = auth_config.get("scope", "")
+
+            # Parse scope string into dict (e.g., "read write" -> {"read": "", "write": ""})
+            scopes_dict = {}
+            scopes_list = []
+            if scope_string:
+                scopes_list = scope_string.split()
+                scopes_dict = {scope: "" for scope in scopes_list}
+
+            security_schemes[scheme_name] = {
+                "type": "oauth2",
+                "description": "OAuth 2.0 client credentials flow",
+                "flows": {
+                    "clientCredentials": {
+                        "tokenUrl": token_url,
+                        "scopes": scopes_dict,
+                    }
+                },
+            }
+            security.append({scheme_name: scopes_list})
+
+        return security_schemes, security
+
+    def _construct_synthetic_agent_card(
+        self, agent_config: Dict[str, Any]
+    ) -> Optional[AgentCard]:
+        """
+        Constructs a synthetic AgentCard from embedded agent_card_data in config.
+
+        This allows proxying agents that don't have a live agent card endpoint.
+        The agent card data is embedded directly in the YAML configuration, and
+        security schemes are constructed from the authentication config.
+
+        Args:
+            agent_config: Agent configuration with agent_card_data, url, and authentication.
+
+        Returns:
+            A synthetic AgentCard constructed from the config, or None if invalid.
+        """
+        card_data = agent_config.get("agent_card_data")
+        if not card_data:
+            return None
+
+        agent_name = agent_config.get("name")
+        log_identifier = f"{self.log_identifier}[ConstructCard:{agent_name}]"
+
+        try:
+            # Start with a copy of the embedded card data
+            synthetic_card_dict = dict(card_data)
+
+            # Add URL from config
+            synthetic_card_dict["url"] = agent_config["url"]
+
+            # Add reasonable defaults to required fields prior to AgentCard Pydantic validation
+            if not synthetic_card_dict.get("capabilities"):
+                synthetic_card_dict["capabilities"] = {}
+
+            if not synthetic_card_dict.get("defaultInputModes"):
+                synthetic_card_dict["defaultInputModes"] = []
+
+            if not synthetic_card_dict.get("defaultOutputModes"):
+                synthetic_card_dict["defaultOutputModes"] = []
+
+            if not synthetic_card_dict.get("name"):
+                synthetic_card_dict["name"] = agent_name
+
+            if not synthetic_card_dict.get("description"):
+                synthetic_card_dict["description"] = f"Agent: {agent_name}"
+
+            if not synthetic_card_dict.get("version"):
+                synthetic_card_dict["version"] = "1.0.0"
+
+            if synthetic_card_dict.get("skills"):
+                for i, skill in enumerate(synthetic_card_dict["skills"]):
+                    if not skill.get("name"):
+                        skill["name"] = f"skill_{i}"
+
+                    if not skill.get("description"):
+                        skill["description"] = f"Description for {skill['name']}"
+                    
+                    if not skill.get("id"):
+                        skill["id"] = skill["name"]
+                    
+                    if not skill.get("tags"):
+                        skill["tags"] = []
+
+            # Construct security schemes from authentication config
+            auth_config = agent_config.get("authentication")
+            if auth_config:
+                security_schemes, security = self._construct_security_schemes_from_auth(
+                    auth_config
+                )
+                if security_schemes:
+                    synthetic_card_dict["securitySchemes"] = security_schemes
+                    log.debug(
+                        "%s Added security schemes for auth type '%s': %s",
+                        log_identifier,
+                        auth_config.get("type"),
+                        list(security_schemes.keys()),
+                    )
+                if security:
+                    synthetic_card_dict["security"] = security
+
+            # Validate and construct AgentCard (same pattern as HTTP fetch)
+            agent_card = AgentCard.model_validate(synthetic_card_dict)
+
+            log.info(
+                "%s Successfully constructed synthetic agent card for '%s' with %d security scheme(s).",
+                log_identifier,
+                agent_card.name,
+                len(agent_card.security_schemes) if agent_card.security_schemes else 0,
+            )
+            return agent_card
+
+        except ValueError as e:
+            # Pydantic validation errors
+            log.exception(
+                "%s Pydantic validation failed for synthetic agent card '%s': %s. "
+                "Agent card data: %s",
+                log_identifier,
+                agent_name,
+                e,
+                synthetic_card_dict if 'synthetic_card_dict' in locals() else card_data,
+            )
+            return None
+        except Exception as e:
+            log.exception(
+                "%s Failed to construct synthetic agent card for '%s': %s",
+                log_identifier,
+                agent_name,
+                e,
+            )
+            return None
+
     async def _ensure_credentials(
         self,
         agent_card: Optional[AgentCard],
@@ -283,6 +538,7 @@ class A2AProxyComponent(BaseProxyComponent):
         agent_config: Dict[str, Any],
         custom_headers_key: str,
         use_auth: bool = True,
+        context: str = "task",
     ) -> Dict[str, str]:
         """
         Builds HTTP headers for requests, applying authentication and custom headers.
@@ -300,6 +556,8 @@ class A2AProxyComponent(BaseProxyComponent):
             agent_config: The agent configuration dictionary.
             custom_headers_key: Key to look up custom headers in config ('agent_card_headers' or 'task_headers').
             use_auth: Whether to apply authentication headers.
+            context: The authentication context ("agent_card" or "task").
+                     Defaults to "task" for backward compatibility.
 
         Returns:
             Dictionary of HTTP headers. Custom headers are applied after auth headers
@@ -307,13 +565,19 @@ class A2AProxyComponent(BaseProxyComponent):
             custom headers are supplementary (applied at httpx client level) and do
             not override AuthInterceptor headers (applied at middleware level).
         """
+        # Create a context-aware wrapper for the OAuth token fetcher
+        async def oauth_token_fetcher_with_context(
+            agent_name: str, auth_config: Dict[str, Any]
+        ) -> str:
+            return await self._fetch_oauth2_token(agent_name, auth_config, context)
+
         return await build_full_auth_headers(
             agent_name=agent_name,
             agent_config=agent_config,
             custom_headers_key=custom_headers_key,
             use_auth=use_auth,
             log_identifier=self.log_identifier,
-            oauth_token_fetcher=self._fetch_oauth2_token,
+            oauth_token_fetcher=oauth_token_fetcher_with_context,
         )
 
     async def _fetch_agent_card(
@@ -328,7 +592,7 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         agent_name = agent_config.get("name")
         agent_url = agent_config.get("url")
-        agent_card_path = agent_config.get("agent_card_path", "/agent/card.json")
+        agent_card_path = agent_config.get("agent_card_path", "/.well-known/agent-card.json")
         log_identifier = f"{self.log_identifier}[FetchCard:{agent_name}]"
 
         if not agent_url:
@@ -336,13 +600,21 @@ class A2AProxyComponent(BaseProxyComponent):
             return None
 
         try:
-            # Build headers based on configuration
-            use_auth = agent_config.get("use_auth_for_agent_card", False)
+            # Get effective authentication for agent card using resolution logic
+            effective_auth, should_use_auth = self._get_effective_agent_card_auth(agent_config)
+
+            # Create a temporary config with the effective auth for header building
+            # This allows _build_headers() to work with the resolved auth config
+            config_for_headers = agent_config.copy()
+            if should_use_auth and effective_auth:
+                config_for_headers["authentication"] = effective_auth
+
             headers = await self._build_headers(
                 agent_name=agent_name,
-                agent_config=agent_config,
+                agent_config=config_for_headers,
                 custom_headers_key="agent_card_headers",
-                use_auth=use_auth,
+                use_auth=should_use_auth,
+                context="agent_card",
             )
 
             if headers:
@@ -350,13 +622,21 @@ class A2AProxyComponent(BaseProxyComponent):
                     "%s Fetching agent card with %d custom header(s) (auth=%s)",
                     log_identifier,
                     len(headers),
-                    use_auth,
+                    should_use_auth,
                 )
             else:
                 log.debug("%s Fetching agent card without authentication", log_identifier)
 
+            ssl_verify = agent_config.get("ssl_verify", True)
+            if not ssl_verify:
+                log.warning(
+                    "%s SSL verification disabled for agent '%s'. "
+                    "This should only be used in development environments.",
+                    log_identifier,
+                    agent_name,
+                )
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
-            async with httpx.AsyncClient(headers=headers) as client:
+            async with httpx.AsyncClient(headers=headers, verify=ssl_verify) as client:
                 resolver = A2ACardResolver(httpx_client=client, base_url=agent_url, agent_card_path=agent_card_path)
                 agent_card = await resolver.get_agent_card()
                 return agent_card
@@ -643,24 +923,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 raise
 
             except A2AClientHTTPError as e:
-                # Step 4: Add specific handling for 401 Unauthorized errors
-                # The error might be wrapped in an SSE parsing error, so we need to check
-                # if the underlying cause is a 401
-                is_401_error = False
-
-                # Check if this is directly a 401
-                if hasattr(e, "status_code") and e.status_code == 401:
-                    is_401_error = True
-                # Check if this is an SSE parsing error caused by a 401 response
-                elif "401" in str(e) or "Unauthorized" in str(e):
-                    is_401_error = True
-                # Check if the error message mentions application/json content type
-                # (which is what 401 responses typically return)
-                elif "application/json" in str(e) and "text/event-stream" in str(e):
-                    # This is likely an SSE parsing error caused by a 401 JSON response
-                    is_401_error = True
-
-                if is_401_error and auth_retry_count < max_auth_retries:
+                # Step 4: Check for 401 errors FIRST (they need retry logic)
+                if self._is_401_error(e) and auth_retry_count < max_auth_retries:
                     log.warning(
                         "%s Received 401 Unauthorized from agent '%s' (detected from error: %s). Attempting token refresh (retry %d/%d).",
                         log_identifier,
@@ -676,6 +940,22 @@ class A2AProxyComponent(BaseProxyComponent):
                     if should_retry:
                         auth_retry_count += 1
                         continue  # Retry with fresh token
+
+                # Step 5: Check for SSE Content-Type errors on first attempt
+                # These include 307 redirects, 401 auth errors, and endpoint misconfigurations
+                error_str = str(e)
+                is_sse_content_type_error = (
+                    "Content-Type" in error_str and
+                    "text/event-stream" in error_str and
+                    "Invalid SSE response" in error_str and
+                    auth_retry_count == 0
+                )
+
+                if is_sse_content_type_error:
+                    await self._handle_sse_content_type_error(
+                        agent_name, task_context, log_identifier
+                    )
+                    break
 
                 # Not a retryable auth error, or max retries exceeded
                 log.exception(
@@ -709,6 +989,72 @@ class A2AProxyComponent(BaseProxyComponent):
                 response = create_error_response(error=error, request_id=task_context.a2a_context.get("jsonrpc_request_id"))
                 self._publish_a2a_message(response.model_dump(exclude_none=True), reply_topic)
 
+    def _is_401_error(self, error: A2AClientHTTPError) -> bool:
+        """
+        Check if an A2AClientHTTPError represents a 401 Unauthorized error.
+        
+        Args:
+            error: The HTTP error to check
+            
+        Returns:
+            True if this is a 401 error, False otherwise
+        """
+        # Check if this is directly a 401
+        if hasattr(error, "status_code") and error.status_code == 401:
+            return True
+        
+        # Check error string for 401 indicators
+        error_str = str(error)
+        if "401" in error_str or "Unauthorized" in error_str:
+            return True
+            
+        return False
+
+    async def _handle_sse_content_type_error(
+        self,
+        agent_name: str,
+        task_context: ProxyTaskContext,
+        log_identifier: str
+    ) -> None:
+        """
+        Handle SSE Content-Type errors by providing user-friendly error messages.
+        
+        These errors occur when the agent endpoint returns an invalid Content-Type
+        for SSE streaming (e.g., due to 307 redirects, 401 auth errors, or
+        endpoint misconfigurations).
+        
+        Args:
+            agent_name: Name of the agent being called
+            task_context: Current task context
+            log_identifier: Log prefix for consistent logging
+        """
+        from ....common.a2a import create_error_response
+
+        error_msg = (
+            f"The agent '{agent_name}' endpoint did not return a valid SSE streaming response. "
+            f"Common causes: (1) HTTP 307/308 redirects are not supported, "
+            f"(2) authentication failure (HTTP 401), "
+            f"(3) the endpoint is misconfigured or not an A2A streaming endpoint, "
+            f"or (4) the agent is unavailable. "
+            f"Please verify the agent endpoint URL and authentication configuration."
+        )
+        log.error("%s %s", log_identifier, error_msg)
+
+        error = InternalError(
+            message=error_msg,
+            data={"agent_name": agent_name}
+        )
+        reply_topic = task_context.a2a_context.get("reply_to_topic")
+        if reply_topic:
+            response = create_error_response(
+                error=error,
+                request_id=task_context.a2a_context.get("jsonrpc_request_id")
+            )
+            self._publish_a2a_message(
+                response.model_dump(exclude_none=True),
+                reply_topic
+            )
+
     async def _handle_auth_error(
         self, agent_name: str, task_context: ProxyTaskContext
     ) -> bool:
@@ -740,11 +1086,11 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             return False
 
-        # Step 2: Check authentication type
-        auth_config = agent_config.get("authentication")
-        if not auth_config:
+        # Step 2: Get effective task authentication (uses new resolution logic)
+        auth_config, should_use_auth = self._get_effective_task_auth(agent_config)
+        if not should_use_auth or not auth_config:
             log.debug(
-                "%s No authentication configured for agent. No retry needed.",
+                "%s No authentication configured for tasks. No retry needed.",
                 log_identifier,
             )
             return False
@@ -763,13 +1109,13 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             return False
 
-        # Step 3: Invalidate cached OAuth token
+        # Step 3: Invalidate cached OAuth token for task context
         log.info(
-            "%s Invalidating cached OAuth 2.0 token for agent '%s'.",
+            "%s Invalidating cached OAuth 2.0 token for agent '%s' (context: task).",
             log_identifier,
             agent_name,
         )
-        await self._oauth_token_cache.invalidate(agent_name)
+        await self._oauth_token_cache.invalidate(agent_name, context="task")
 
         # Step 4: Remove ALL cached Clients for this agent/session combination
         # We clear both streaming and non-streaming clients because:
@@ -783,10 +1129,21 @@ class A2AProxyComponent(BaseProxyComponent):
         for is_streaming in [True, False]:
             cache_key = (agent_name, session_id, is_streaming)
             if cache_key in self._a2a_clients:
-                self._a2a_clients.pop(cache_key)
+                client = self._a2a_clients.pop(cache_key)
+                try:
+                    await client.close()
+                except Exception as close_error:
+                    log.warning(
+                        "%s Error closing client for agent '%s' session '%s' streaming=%s: %s",
+                        log_identifier,
+                        agent_name,
+                        session_id,
+                        is_streaming,
+                        close_error,
+                    )
                 clients_removed += 1
                 log.info(
-                    "%s Removed cached Client for agent '%s' session '%s' streaming=%s.",
+                    "%s Removed and closed cached Client for agent '%s' session '%s' streaming=%s.",
                     log_identifier,
                     agent_name,
                     session_id,
@@ -815,14 +1172,14 @@ class A2AProxyComponent(BaseProxyComponent):
         return True
 
     async def _fetch_oauth2_token(
-        self, agent_name: str, auth_config: Dict[str, Any]
+        self, agent_name: str, auth_config: Dict[str, Any], context: str = "task"
     ) -> str:
         """
         Fetches an OAuth 2.0 access token using the client credentials flow.
 
         This method implements token caching to avoid unnecessary token requests.
-        Tokens are cached per agent and automatically expire based on the configured
-        cache duration (default: 55 minutes).
+        Tokens are cached per agent and context (agent_card vs task) and
+        automatically expire based on the configured cache duration (default: 55 minutes).
 
         Args:
             agent_name: The name of the agent (used as cache key).
@@ -832,6 +1189,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 - client_secret: OAuth 2.0 client secret (required)
                 - scope: (optional) Space-separated scope string
                 - token_cache_duration_seconds: (optional) Cache duration in seconds
+            context: The authentication context ("agent_card" or "task").
+                     Defaults to "task" for backward compatibility.
 
         Returns:
             A valid OAuth 2.0 access token (string).
@@ -841,10 +1200,10 @@ class A2AProxyComponent(BaseProxyComponent):
             httpx.HTTPStatusError: If token request returns non-2xx status.
             httpx.RequestError: If network error occurs.
         """
-        log_identifier = f"{self.log_identifier}[OAuth2:{agent_name}]"
+        log_identifier = f"{self.log_identifier}[OAuth2:{agent_name}:{context}]"
 
-        # Step 1: Check cache first
-        cached_token = await self._oauth_token_cache.get(agent_name)
+        # Step 1: Check cache first (with context)
+        cached_token = await self._oauth_token_cache.get(agent_name, context)
         if cached_token:
             log.debug("%s Using cached OAuth token.", log_identifier)
             return cached_token
@@ -891,9 +1250,9 @@ class A2AProxyComponent(BaseProxyComponent):
 
             access_token = token_data["access_token"]
 
-            # Step 6: Cache the token
+            # Step 6: Cache the token (with context)
             await self._oauth_token_cache.set(
-                agent_name, access_token, cache_duration
+                agent_name, access_token, cache_duration, context
             )
 
             # Step 7: Log success
@@ -1005,10 +1364,19 @@ class A2AProxyComponent(BaseProxyComponent):
             agent_config=agent_config,
             custom_headers_key="task_headers",
             use_auth=not has_security_schemes,  # Apply auth directly if no security_schemes
+            context="task",
         )
 
         # Create a new httpx client with the specific timeout and custom headers for this agent
         # httpx.Timeout requires explicit values for connect, read, write, and pool
+        ssl_verify = agent_config.get("ssl_verify", True)
+        if not ssl_verify:
+            log.warning(
+                "%s SSL verification disabled for agent '%s'. "
+                "This should only be used in development environments.",
+                self.log_identifier,
+                agent_name,
+            )
         httpx_client_for_agent = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=agent_timeout,
@@ -1017,6 +1385,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 pool=agent_timeout,
             ),
             headers=task_headers if task_headers else None,
+            verify=ssl_verify,
         )
 
         if task_headers:
@@ -1032,8 +1401,9 @@ class A2AProxyComponent(BaseProxyComponent):
         # because oauth2_authorization_code requires AuthInterceptor even without security_schemes
         needs_auth_interceptor = has_security_schemes
 
-        auth_config = agent_config.get("authentication")
-        if auth_config:
+        # Get effective authentication for tasks using resolution logic
+        auth_config, should_use_auth = self._get_effective_task_auth(agent_config)
+        if should_use_auth and auth_config:
             auth_type = auth_config.get("type")
 
             # Determine auth type (with backward compatibility)
@@ -1097,7 +1467,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 # OAuth 2.0 Client Credentials Flow
                 try:
                     access_token = await self._fetch_oauth2_token(
-                        agent_name, auth_config
+                        agent_name, auth_config, context="task"
                     )
                     # Only store credentials in credential store if agent card has security_schemes
                     # (AuthInterceptor requires security_schemes to work)
@@ -1502,12 +1872,21 @@ class A2AProxyComponent(BaseProxyComponent):
                 task_context.task_id,
             )
 
-        # Replace the downstream task ID with SAM's task ID for upstream responses
+        # Replace the downstream task ID and context_id with SAM's values for upstream responses
         original_task_id = task_context.task_id
+        sam_session_id = task_context.a2a_context.get("session_id")
         if hasattr(event_payload, "task_id") and event_payload.task_id:
             event_payload.task_id = original_task_id
         elif hasattr(event_payload, "id") and event_payload.id:
             event_payload.id = original_task_id
+        
+        if hasattr(event_payload, "context_id"):
+            event_payload.context_id = sam_session_id
+        
+        if hasattr(event_payload, "status") and event_payload.status:
+            if hasattr(event_payload.status, "message") and event_payload.status.message:
+                if hasattr(event_payload.status.message, "context_id"):
+                    event_payload.status.message.context_id = sam_session_id
 
         if isinstance(event_payload, Task) and event_payload.artifacts:
             text_only_artifacts_content = []
@@ -1566,15 +1945,17 @@ class A2AProxyComponent(BaseProxyComponent):
                 text_content = "\n".join(a2a.get_text_content_from_artifact(artifact))
 
                 # Convert to status update
+                # Use SAM's session_id, not the remote agent's context_id
+                sam_session_id = task_context.a2a_context.get("session_id")
                 text_message = a2a.create_agent_text_message(
                     text=text_content,
-                    task_id=event_payload.task_id,
-                    context_id=event_payload.context_id,
+                    task_id=task_context.task_id,
+                    context_id=sam_session_id,
                 )
 
                 status_event = TaskStatusUpdateEvent(
-                    task_id=event_payload.task_id,
-                    context_id=event_payload.context_id,
+                    task_id=task_context.task_id,
+                    context_id=sam_session_id,
                     kind="status-update",
                     status=TaskStatus(state=TaskState.working, message=text_message),
                     final=False,
@@ -1634,9 +2015,10 @@ class A2AProxyComponent(BaseProxyComponent):
                     message=event_payload.status.message if event_payload.status else None,
                 )
 
+                # Use SAM's task_id and session_id, not the remote agent's values
                 final_task = Task(
-                    id=event_payload.task_id,
-                    context_id=event_payload.context_id,
+                    id=task_context.task_id,
+                    context_id=task_context.a2a_context.get("session_id"),
                     status=final_task_status,
                     artifacts=None,  # Artifacts come via separate events
                     metadata=event_payload.metadata,
@@ -1731,14 +2113,25 @@ class A2AProxyComponent(BaseProxyComponent):
         async def _async_cleanup():
             # Close all created clients using public API
             for cache_key, client in self._a2a_clients.items():
-                agent_name, session_id = cache_key
+                agent_name, session_id, is_streaming = cache_key
                 log.info(
-                    "%s Closing client for agent '%s' session '%s'",
+                    "%s Closing client for agent '%s' session '%s' streaming=%s",
                     self.log_identifier,
                     agent_name,
                     session_id,
+                    is_streaming,
                 )
-                await client.close()
+                try:
+                    await client.close()
+                except Exception as close_error:
+                    log.warning(
+                        "%s Error closing client for agent '%s' session '%s' streaming=%s: %s",
+                        self.log_identifier,
+                        agent_name,
+                        session_id,
+                        is_streaming,
+                        close_error,
+                    )
             self._a2a_clients.clear()
 
         if self._async_loop and self._async_loop.is_running():

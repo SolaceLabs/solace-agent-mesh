@@ -1,4 +1,3 @@
-
 """
 Helper functions for artifact management, including metadata handling and schema inference.
 """
@@ -33,8 +32,26 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 METADATA_SUFFIX = ".metadata.json"
+CONVERTED_TEXT_SUFFIX = ".converted.txt"
+BM25_INDEX_FILENAME = "project_bm25_index.zip"
 DEFAULT_SCHEMA_MAX_KEYS = 20
 DEFAULT_SCHEMA_INFERENCE_DEPTH = 4
+
+
+def is_internal_artifact(filename: str) -> bool:
+    """
+    Check if an artifact filename is an internal/generated file (not a user-uploaded artifact).
+
+    Returns True for:
+    - Metadata files (*.metadata.json)
+    - Converted text files (*.converted.txt)
+    - Index files (project_bm25_index.zip)
+    """
+    return (
+        filename.endswith(METADATA_SUFFIX)
+        or filename.endswith(CONVERTED_TEXT_SUFFIX)
+        or filename == BM25_INDEX_FILENAME
+    )
 
 
 def is_filename_safe(filename: str) -> bool:
@@ -984,7 +1001,7 @@ async def get_artifact_counts_batch(
         session_ids: List of session IDs to get counts for.
     
     Returns:
-        Dict mapping session_id to artifact_count (excluding metadata files)
+        Dict mapping session_id to artifact_count (excluding internal/generated files)
     """
     log_prefix = f"[ArtifactHelper:get_counts_batch] App={app_name}, User={user_id} -"
     counts: Dict[str, int] = {}
@@ -997,8 +1014,12 @@ async def get_artifact_counts_batch(
                 keys = await list_keys_method(
                     app_name=app_name, user_id=user_id, session_id=session_id
                 )
-                # Count only non-metadata files
-                count = sum(1 for key in keys if not key.endswith(METADATA_SUFFIX))
+                # Count only user-uploaded files (exclude metadata, converted text, and index files)
+                # NOTE: list_artifact_keys() may also return user-scoped keys (prefixed
+                # with "user:") which are shared across sessions. Currently no code path
+                # creates user-scoped artifacts, but if that changes, these keys should
+                # be filtered out here to avoid inflating per-project counts.
+                count = sum(1 for key in keys if not is_internal_artifact(key))
                 counts[session_id] = count
                 log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
             except Exception as e:

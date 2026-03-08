@@ -60,3 +60,9 @@ If you run multiple pod replicas, ensure all instances access the same persisten
 ### Resource Limits
 
 You should define resource requests and limits for your containers to ensure stable operation and enable effective autoscaling. The Helm quickstart includes recommended resource configurations.
+
+### Health Checks
+
+Agent Mesh provides HTTP health check endpoints that integrate with Kubernetes probes for automated lifecycle management. Configure startup, readiness, and liveness probes in your deployment manifests to enable graceful deployments and automatic recovery from failures.
+
+For detailed configuration options and probe examples, see [Health Checks](../health-checks.md).

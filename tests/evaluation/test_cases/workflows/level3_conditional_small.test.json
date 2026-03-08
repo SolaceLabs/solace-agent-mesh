@@ -1,0 +1,13 @@
+{
+  "test_case_id": "workflow_level3_conditional_small",
+  "category": "Workflows",
+  "description": "Tests conditional branching with switch node routing to small value handler. The workflow classifies 5 as small (<10) and multiplies it by 10.",
+  "query": "Please use the ConditionalBranchingWorkflow to process the value 5, and render the output file.",
+  "target_agent": "OrchestratorAgent",
+  "wait_time": 240,
+  "evaluation": {
+    "expected_tools": ["workflow_ConditionalBranchingWorkflow"],
+    "expected_response": "The ConditionalBranchingWorkflow has successfully processed the value 5. The workflow: Classified the value 5 as small, Routed it to the small value handler, Processed it to produce a result of 50. Workflow Results: Input Value: 5, Classification: small, Handler Used: small value handler, Final Result: 50",
+    "criterion": "Evaluate if the workflow correctly classified 5 as 'small', routed to the small handler, and returned result=50 (5*10), handler='small', category='small'."
+  }
+}

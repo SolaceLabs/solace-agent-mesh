@@ -5,17 +5,12 @@ Custom Solace AI Connector Component to Host Google ADK Agents via A2A Protocol.
 import asyncio
 import concurrent.futures
 import fnmatch
-import functools
 import inspect
 import json
 import logging
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
-
-from litellm.exceptions import BadRequestError
-
-from ...common.error_handlers import get_error_message
 
 from a2a.types import (
     AgentCard,
@@ -42,47 +37,57 @@ from google.adk.models import LlmResponse
 from google.adk.models.llm_request import LlmRequest
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
+from google.adk.tools import FunctionTool
 from google.adk.tools.mcp_tool import MCPToolset
 from google.adk.tools.openapi_tool import OpenAPIToolset
 from google.genai import types as adk_types
+from litellm.exceptions import BadRequestError
 from pydantic import BaseModel, ValidationError
 from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.common.utils import import_module
 
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
+from ...agent.adk.session_compaction import SessionCompactionState
 from ...agent.adk.services import (
     initialize_artifact_service,
     initialize_credential_service,
     initialize_memory_service,
     initialize_session_service,
 )
+from ...agent.adk.callbacks import _generate_tool_instructions_from_registry
 from ...agent.adk.setup import (
     initialize_adk_agent,
     initialize_adk_runner,
     load_adk_tools,
 )
+from ...agent.adk.tool_wrapper import ADKToolWrapper
 from ...agent.protocol.event_handlers import process_event, publish_agent_card
 from ...agent.tools.peer_agent_tool import (
     CORRELATION_DATA_PREFIX,
     PEER_TOOL_PREFIX,
     PeerAgentTool,
 )
+from ...agent.tools.workflow_tool import WorkflowAgentTool
 from ...agent.tools.registry import tool_registry
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...common import a2a
 from ...common.a2a.translation import format_and_route_adk_event
+from ...common.a2a.types import ArtifactInfo
 from ...common.agent_registry import AgentRegistry
 from ...common.constants import (
     DEFAULT_COMMUNICATION_TIMEOUT,
     HEALTH_CHECK_INTERVAL_SECONDS,
     HEALTH_CHECK_TTL_SECONDS,
+    EXTENSION_URI_AGENT_TYPE,
+    EXTENSION_URI_SCHEMAS,
 )
-from ...common.a2a.types import ArtifactInfo
 from ...common.data_parts import AgentProgressUpdateData, ArtifactSavedData
+from ...common.error_handlers import get_error_message
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
+from .structured_invocation.handler import StructuredInvocationHandler
 
 log = logging.getLogger(__name__)
 
@@ -191,6 +196,12 @@ class SamAgentComponent(SamComponentBase):
             self.memory_service_config = self.get_config(
                 "memory_service", {"type": "memory"}
             )
+            self.auto_summarization_config = self.get_config(
+                "auto_summarization", {
+                    "enabled": False,
+                    "compaction_percentage": 0.25
+                }
+            )
             self.artifact_handling_mode = self.get_config(
                 "artifact_handling_mode", "ignore"
             ).lower()
@@ -252,6 +263,7 @@ class SamAgentComponent(SamComponentBase):
         self.adk_agent: LlmAgent = None
         self.runner: Runner = None
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
+        self.tool_scopes_map: Dict[str, List[str]] = {}  # Maps tool names to required scopes
         self.peer_agents: Dict[str, Any] = {}  # Keep for backward compatibility
         self._card_publish_timer_id: str = f"publish_card_{self.agent_name}"
         self._async_init_future = None
@@ -266,6 +278,14 @@ class SamAgentComponent(SamComponentBase):
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
         self._active_background_tasks = set()
+
+        # Initialize session compaction state for parallel task coordination
+        # Agent-scoped to ensure isolation when multiple agents run in the same process
+        self.session_compaction_state = SessionCompactionState()
+
+        # Initialize structured invocation support
+        self.structured_invocation_handler = StructuredInvocationHandler(self)
+
         try:
             self.agent_specific_state: Dict[str, Any] = {}
             init_func_details = self.get_config("agent_init_function")
@@ -828,9 +848,20 @@ class SamAgentComponent(SamComponentBase):
             if original_task_context:
                 loop = self.get_async_loop()
                 if loop and loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        self.finalize_task_error(e, original_task_context), loop
-                    )
+                    # For structured invocation tasks, route the error through
+                    # the SI handler so it can send a proper structured error
+                    # result and clean up.
+                    if task_context.get_flag("structured_invocation"):
+                        asyncio.run_coroutine_threadsafe(
+                            self.structured_invocation_handler.finalize_deferred_structured_invocation(
+                                task_context, original_task_context, e
+                            ),
+                            loop,
+                        )
+                    else:
+                        asyncio.run_coroutine_threadsafe(
+                            self.finalize_task_error(e, original_task_context), loop
+                        )
                 else:
                     log.error(
                         "%s Async loop not available. Cannot schedule error finalization for task %s.",
@@ -992,22 +1023,60 @@ class SamAgentComponent(SamComponentBase):
                 continue
 
             try:
-                peer_tool_instance = PeerAgentTool(
-                    target_agent_name=peer_name, host_component=self
-                )
-                if peer_tool_instance.name not in llm_request.tools_dict:
-                    peer_tools_to_add.append(peer_tool_instance)
+                # Determine agent type and schemas
+                agent_type = "standard"
+                input_schema = None
+
+                if agent_card.capabilities and agent_card.capabilities.extensions:
+                    for ext in agent_card.capabilities.extensions:
+                        if ext.uri == EXTENSION_URI_AGENT_TYPE:
+                            agent_type = ext.params.get("type", "standard")
+                        elif ext.uri == EXTENSION_URI_SCHEMAS:
+                            input_schema = ext.params.get("input_schema")
+
+                tool_instance = None
+                tool_description_line = ""
+
+                if agent_type == "workflow":
+                    # Default schema if none provided
+                    if not input_schema:
+                        input_schema = {
+                            "type": "object",
+                            "properties": {"text": {"type": "string"}},
+                            "required": ["text"],
+                        }
+
+                    tool_instance = WorkflowAgentTool(
+                        target_agent_name=peer_name,
+                        input_schema=input_schema,
+                        host_component=self,
+                    )
+
+                    desc = (
+                        getattr(agent_card, "description", "No description")
+                        or "No description"
+                    )
+                    tool_description_line = f"- `{tool_instance.name}`: {desc}"
+
+                else:
+                    # Standard Peer Agent
+                    tool_instance = PeerAgentTool(
+                        target_agent_name=peer_name, host_component=self
+                    )
                     # Get enhanced description from the tool instance
                     # which includes capabilities, skills, and tools
-                    enhanced_desc = peer_tool_instance._build_enhanced_description(
+                    enhanced_desc = tool_instance._build_enhanced_description(
                         agent_card
                     )
-                    allowed_peer_descriptions.append(
-                        f"\n### `peer_{peer_name}`\n{enhanced_desc}"
-                    )
+                    tool_description_line = f"\n### `peer_{peer_name}`\n{enhanced_desc}"
+
+                if tool_instance.name not in llm_request.tools_dict:
+                    peer_tools_to_add.append(tool_instance)
+                    allowed_peer_descriptions.append(tool_description_line)
+
             except Exception as e:
                 log.error(
-                    "%s Failed to create PeerAgentTool for '%s': %s",
+                    "%s Failed to create tool for '%s': %s",
                     self.log_identifier,
                     peer_name,
                     e,
@@ -1016,18 +1085,22 @@ class SamAgentComponent(SamComponentBase):
         if allowed_peer_descriptions:
             peer_list_str = "\n".join(allowed_peer_descriptions)
             instruction_text = (
-                "## Peer Agent Delegation\n\n"
-                "You can delegate tasks to other specialized agents if they are better suited.\n\n"
-                "**How to delegate:**\n"
+                "## Peer Agent and Workflow Delegation\n\n"
+                "You can delegate tasks to other specialized agents or workflows if they are better suited.\n\n"
+                "**How to delegate to peer agents:**\n"
                 "- Use the `peer_<agent_name>(task_description: str)` tool for delegation\n"
                 "- Replace `<agent_name>` with the actual name of the target agent\n"
                 "- Provide a clear and detailed `task_description` for the peer agent\n"
                 "- **Important:** The peer agent does not have access to your session history, "
                 "so you must provide all required context necessary to fulfill the request\n\n"
+                "**How to delegate to workflows:**\n"
+                "- Use the `workflow_<agent_name>` tool for workflow delegation\n"
+                "- Follow the specific parameter requirements defined in the tool schema\n"
+                "- Workflows also do not have access to your session history\n\n"
                 "IMPORTANT: When a peer agent's response contains citation markers like [[cite:search0]], [[cite:file1]], etc., "
                 "you MUST preserve these markers in your response to the user. These markers link to source references and are "
                 "essential for proper attribution. Include them exactly as they appear in the peer's response. DO NOT repeat them without markers.\n\n"
-                "## Available Peer Agents\n"
+                "## Available Peer Agents and Workflows\n"
                 f"{peer_list_str}"
             )
             callback_context.state["peer_tool_instructions"] = instruction_text
@@ -1043,8 +1116,9 @@ class SamAgentComponent(SamComponentBase):
                 if len(llm_request.config.tools) > 0:
                     for tool in peer_tools_to_add:
                         llm_request.tools_dict[tool.name] = tool
+                        declaration = tool._get_declaration()
                         llm_request.config.tools[0].function_declarations.append(
-                            tool._get_declaration()
+                            declaration
                         )
                 else:
                     llm_request.append_tools(peer_tools_to_add)
@@ -1058,7 +1132,191 @@ class SamAgentComponent(SamComponentBase):
                     "%s Failed to append dynamic peer tools to LLM request: %s",
                     self.log_identifier,
                     e,
+                    exc_info=True,
                 )
+        return None
+
+    @staticmethod
+    def _remove_tool(llm_request: LlmRequest, tool_name: str) -> bool:
+        """Remove a tool's FunctionDeclaration from config.tools so the LLM
+        does not see it for this request.
+
+        The tool is intentionally kept in tools_dict so the ADK runtime can
+        still dispatch to it if the LLM calls it from conversation history.
+
+        Returns True if a declaration was found and removed, False otherwise.
+        """
+        removed = False
+
+        if llm_request.config and llm_request.config.tools:
+            for tool_obj in llm_request.config.tools:
+                if tool_obj.function_declarations:
+                    original_count = len(tool_obj.function_declarations)
+                    tool_obj.function_declarations = [
+                        fd for fd in tool_obj.function_declarations
+                        if fd.name != tool_name
+                    ]
+                    if len(tool_obj.function_declarations) < original_count:
+                        removed = True
+            # ADK requires Tool objects to have at least one declaration
+            llm_request.config.tools = [
+                t for t in llm_request.config.tools
+                if t.function_declarations
+            ]
+            if not llm_request.config.tools:
+                llm_request.config.tools = None
+
+        return removed
+
+    @staticmethod
+    def _has_declaration(llm_request: LlmRequest, tool_name: str) -> bool:
+        """Check whether a FunctionDeclaration with the given name exists in config.tools."""
+        if llm_request.config and llm_request.config.tools:
+            for tool_obj in llm_request.config.tools:
+                if tool_obj.function_declarations:
+                    if any(fd.name == tool_name for fd in tool_obj.function_declarations):
+                        return True
+        return False
+
+    def _ensure_tool_in_tools_dict(
+        self, llm_request: LlmRequest, tool_name: str
+    ) -> bool:
+        """Ensure a tool exists in tools_dict for ADK dispatch safety.
+
+        tools_dict is rebuilt from agent.tools on every LLM call, so
+        dynamically-injected tools from a previous call won't be present.
+        This method ensures the tool is always dispatchable — preventing
+        ValueError from the ADK runtime if the LLM calls it from
+        conversation history after it has been hidden.
+
+        If the tool is already in tools_dict (e.g., from YAML static
+        loading), it is left untouched to preserve any tool_config.
+
+        Returns True if the tool is (now) in tools_dict.
+        """
+        if tool_name in llm_request.tools_dict:
+            return True
+
+        tool_def = tool_registry.get_tool_by_name(tool_name)
+        if not tool_def:
+            return False
+
+        try:
+            tool_callable = ADKToolWrapper(
+                tool_def.implementation,
+                None,
+                tool_def.name,
+                origin="builtin",
+                raw_string_args=tool_def.raw_string_args,
+                artifact_args=tool_def.artifact_args,
+            )
+            tool_callable.__doc__ = tool_def.description
+            function_tool = FunctionTool(tool_callable)
+            function_tool.origin = "builtin"
+            llm_request.tools_dict[tool_def.name] = function_tool
+            return True
+        except Exception as e:
+            log.error(
+                "%s Failed to create FunctionTool for %s: %s",
+                self.log_identifier,
+                tool_name,
+                e,
+                exc_info=True,
+            )
+            return False
+
+    def _sync_tools_callback(
+        self, callback_context: CallbackContext, llm_request: LlmRequest
+    ) -> Optional[LlmResponse]:
+        """Sync the LLM tool list with the current request context.
+
+        Ensures tools that require specific context (e.g., a project index)
+        are only present when that context is available. Adds missing tools
+        when prerequisites are met, removes them when they are not.
+
+        The tool is always kept in tools_dict so the ADK runtime can dispatch
+        it if the LLM calls it from conversation history. Visibility to the
+        LLM is controlled exclusively via config.tools declarations.
+        """
+        log.debug("%s Running _sync_tools_callback...", self.log_identifier)
+
+        # Currently, the gateway only passes project_id when indexing is enabled
+        # AND the BM25 index exists and only index_search is added or removed
+        a2a_context = callback_context.state.get("a2a_context", {})
+        if not isinstance(a2a_context, dict):
+            a2a_context = {}
+
+        original_metadata = a2a_context.get("original_message_metadata", {})
+        if not isinstance(original_metadata, dict):
+            original_metadata = {}
+
+        has_project_id = bool(original_metadata.get("project_id"))
+
+        # Always ensure tools_dict has index_search so the ADK runtime can
+        # dispatch if the LLM calls it from conversation history. tools_dict
+        # is rebuilt from agent.tools each request, so dynamically-injected
+        # tools from a previous request won't be present.
+        self._ensure_tool_in_tools_dict(llm_request, "index_search")
+
+        if not has_project_id:
+            # No project — remove declaration so LLM doesn't see the tool
+            if SamAgentComponent._remove_tool(llm_request, "index_search"):
+                log.info(
+                    "%s Removed index_search declaration (no project or index available).",
+                    self.log_identifier,
+                )
+            # Set stale instructions to None for any previous project context so the
+            # LLM doesn't receive index_search related prompts.
+            callback_context.state["project_tool_instructions"] = None
+            return None
+
+        # Project is present — ensure the declaration exists
+        if SamAgentComponent._has_declaration(llm_request, "index_search"):
+            log.debug(
+                "%s index_search already declared, skipping injection.",
+                self.log_identifier,
+            )
+            return None
+
+        tool_def = tool_registry.get_tool_by_name("index_search")
+        if not tool_def:
+            log.debug(
+                "%s index_search not found in tool registry, skipping.",
+                self.log_identifier,
+            )
+            return None
+
+        try:
+            declaration = adk_types.FunctionDeclaration(
+                name=tool_def.name,
+                description=tool_def.description,
+                parameters=tool_def.parameters,
+            )
+
+            if not llm_request.config.tools:
+                llm_request.config.tools = [
+                    adk_types.Tool(function_declarations=[])
+                ]
+            llm_request.config.tools[0].function_declarations.append(declaration)
+
+            instructions = _generate_tool_instructions_from_registry(
+                [tool_def], self.log_identifier
+            )
+            if instructions:
+                callback_context.state["project_tool_instructions"] = instructions
+
+            log.debug(
+                "%s Dynamically injected index_search declaration.",
+                self.log_identifier,
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to inject index_search: %s",
+                self.log_identifier,
+                e,
+                exc_info=True,
+            )
+
         return None
 
     def _filter_tools_by_capability_callback(
@@ -2564,6 +2822,7 @@ class SamAgentComponent(SamComponentBase):
         log_identifier = f"{self.log_identifier}[HistoryRepair]"
         try:
             from ...agent.adk.callbacks import create_dangling_tool_call_repair_content
+            from ...agent.adk.services import append_event_with_retry
 
             session_id = a2a_context.get("effective_session_id")
             user_id = a2a_context.get("user_id")
@@ -2611,7 +2870,16 @@ class SamAgentComponent(SamComponentBase):
                 content=repair_content,
             )
 
-            await self.session_service.append_event(session=session, event=repair_event)
+            # Use retry helper to handle stale session race conditions
+            await append_event_with_retry(
+                session_service=self.session_service,
+                session=session,
+                event=repair_event,
+                app_name=agent_name,
+                user_id=user_id,
+                session_id=session_id,
+                log_identifier=log_identifier,
+            )
             log.info(
                 "%s Session history repaired successfully with an error function_response.",
                 log_identifier,
@@ -3060,6 +3328,7 @@ class SamAgentComponent(SamComponentBase):
             f"{self.log_identifier}[SubmitA2ATask:{target_agent_name}]"
         )
         main_task_id = a2a_message.metadata.get("parentTaskId", "unknown_parent")
+
         log.debug(
             "%s Submitting non-blocking task for main task %s",
             log_identifier_helper,
@@ -3102,13 +3371,17 @@ class SamAgentComponent(SamComponentBase):
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
 
-        # Retrieve and propagate authentication token from parent task context
+        # Retrieve call depth and auth token from parent task context
         parent_task_id = a2a_message.metadata.get("parentTaskId")
+        current_depth = 0
         if parent_task_id:
             with self.active_tasks_lock:
                 parent_task_context = self.active_tasks.get(parent_task_id)
 
             if parent_task_context:
+                # Get current call depth from parent context
+                current_depth = parent_task_context.a2a_context.get("call_depth", 0)
+
                 auth_token = parent_task_context.get_security_data("auth_token")
                 if auth_token:
                     user_properties["authToken"] = auth_token
@@ -3130,6 +3403,9 @@ class SamAgentComponent(SamComponentBase):
                     log_identifier_helper,
                     parent_task_id,
                 )
+
+        # Add call depth to user properties (increment for outgoing call)
+        user_properties["callDepth"] = current_depth + 1
 
         self.publish_a2a_message(
             payload=a2a_request.model_dump(by_alias=True, exclude_none=True),
@@ -3189,6 +3465,7 @@ class SamAgentComponent(SamComponentBase):
                 loaded_tools,
                 enabled_builtin_tools,
                 self._tool_cleanup_hooks,
+                self.tool_scopes_map,
             ) = await load_adk_tools(self)
             log.info(
                 "%s Initializing ADK Agent/Runner asynchronously in dedicated thread...",
@@ -3218,6 +3495,8 @@ class SamAgentComponent(SamComponentBase):
                             e,
                         )
                         continue
+                    # Get scopes from the toolset (config-level scopes apply to all MCP tools)
+                    toolset_scopes = getattr(tool, "required_scopes", [])
                     for mcp_tool in mcp_tools:
                         tool_manifest.append(
                             {
@@ -3225,6 +3504,7 @@ class SamAgentComponent(SamComponentBase):
                                 "name": mcp_tool.name,
                                 "description": mcp_tool.description
                                 or "No description available.",
+                                "required_scopes": toolset_scopes,
                             }
                         )
                 elif isinstance(tool, OpenAPIToolset):
@@ -3243,6 +3523,8 @@ class SamAgentComponent(SamComponentBase):
                             e,
                         )
                         continue
+                    # Get scopes from the toolset (config-level scopes apply to all OpenAPI tools)
+                    toolset_scopes = getattr(tool, "required_scopes", [])
                     for openapi_tool in openapi_tools:
                         tool_manifest.append(
                             {
@@ -3250,6 +3532,7 @@ class SamAgentComponent(SamComponentBase):
                                 "name": openapi_tool.name,
                                 "description": openapi_tool.description
                                 or "No description available.",
+                                "required_scopes": toolset_scopes,
                             }
                         )
                 else:
@@ -3263,6 +3546,7 @@ class SamAgentComponent(SamComponentBase):
                                     tool, "description", getattr(tool, "__doc__", None)
                                 )
                                 or "No description available.",
+                                "required_scopes": self.tool_scopes_map.get(tool_name, []),
                             }
                         )
 
@@ -3530,13 +3814,15 @@ class SamAgentComponent(SamComponentBase):
 
     def set_agent_system_instruction_callback(
         self,
-        callback_function: Callable[[CallbackContext, LlmRequest], Optional[str]],
+        callback_function: Optional[
+            Callable[[CallbackContext, LlmRequest], Optional[str]]
+        ],
     ) -> None:
         """
         Sets a callback function to dynamically generate system prompt injections.
         Called by the agent's init_function.
         """
-        if not callable(callback_function):
+        if callback_function is not None and not callable(callback_function):
             log.error(
                 "%s Invalid type for callback_function: %s. Must be callable.",
                 self.log_identifier,

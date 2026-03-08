@@ -1,0 +1,206 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: test_gateway_workflow.log
+
+!include ../shared_config.yaml
+
+apps:
+  # Simple echo agent that just returns input as output
+  - name: simple_echo_agent
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SimpleEchoAgent"
+      model: *planning_model
+
+      instruction: |
+        Echo back the input data.
+        1. Read the input data
+        2. Create a JSON artifact with the same data plus a "status" field set to "echoed"
+        3. End with: <<result:artifact=<artifact_name> status=success>>
+
+      input_schema:
+        type: object
+        additionalProperties: true
+
+      output_schema:
+        type: object
+        additionalProperties: true
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Echoes back the input data"
+        skills: [{id: "echo", name: "Echo", description: "Echoes input data", tags: ["echo", "test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # Simple workflow that calls the echo agent
+  - name: simple_test_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SimpleTestWorkflow"
+      display_name: "Simple Test Workflow"
+
+      workflow:
+        version: "1.0.0"
+        description: "A simple workflow for testing the gateway"
+        max_call_depth: 5
+
+        input_schema:
+          type: object
+          additionalProperties: true
+
+        output_schema:
+          type: object
+          additionalProperties: true
+
+        nodes:
+          - id: echo_step
+            type: agent
+            agent_name: "SimpleEchoAgent"
+            input:
+              data: "{{workflow.input}}"
+
+        output_mapping:
+          result: "{{echo_step.output}}"
+          input_received: "{{workflow.input}}"
+
+        skills:
+          - id: "test_workflow"
+            name: "Test Workflow"
+            description: "Simple workflow for gateway testing"
+            tags: ["test", "gateway"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # Agent that intentionally fails for error path testing
+  - name: error_agent
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ErrorTestAgent"
+      model: *planning_model
+
+      instruction: |
+        You are an agent for testing error handling.
+
+        IMPORTANT: You MUST intentionally fail by using the result embed with status=error.
+
+        When you receive any input:
+        1. Read the input data to see what error message is requested (if any)
+        2. Always respond with: «result:artifact=none status=error message="Intentional test error: <reason>"»
+
+        If the input contains an "error_message" field, use that as the reason.
+        Otherwise, use "Default test failure" as the reason.
+
+        DO NOT create any artifacts. DO NOT succeed. Your job is to fail.
+
+      input_schema:
+        type: object
+        properties:
+          error_message:
+            type: string
+            description: "Custom error message to return"
+        additionalProperties: true
+
+      output_schema:
+        type: object
+        additionalProperties: true
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Agent that intentionally fails for error testing"
+        skills: [{id: "error_test", name: "Error Test", description: "Always fails with an error", tags: ["error", "test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # Workflow that calls the error agent to test error handling
+  - name: error_test_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ErrorTestWorkflow"
+      display_name: "Error Test Workflow"
+
+      workflow:
+        version: "1.0.0"
+        description: "A workflow that intentionally fails for testing error paths"
+        max_call_depth: 5
+
+        input_schema:
+          type: object
+          properties:
+            error_message:
+              type: string
+              description: "Custom error message to trigger"
+          additionalProperties: true
+
+        output_schema:
+          type: object
+          additionalProperties: true
+
+        nodes:
+          - id: trigger_error
+            type: agent
+            agent_name: "ErrorTestAgent"
+            input:
+              error_message: "{{workflow.input.error_message}}"
+              test_data: "{{workflow.input}}"
+
+        output_mapping:
+          result: "{{trigger_error.output}}"
+          input_received: "{{workflow.input}}"
+
+        skills:
+          - id: "error_test_workflow"
+            name: "Error Test Workflow"
+            description: "Workflow for testing error handling"
+            tags: ["error", "test"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

@@ -4,24 +4,24 @@ Utility functions for share link functionality.
 
 import re
 import logging
+import secrets
 from typing import Optional, Dict, Any, List
-from nanoid import generate
 
 log = logging.getLogger(__name__)
 
-# Nanoid alphabet (URL-safe characters)
-NANOID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-NANOID_SIZE = 21  # 126 bits of entropy
+# URL-safe alphabet (same as nanoid default)
+SHARE_ID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+SHARE_ID_SIZE = 21  # 126 bits of entropy
 
 
 def generate_share_id() -> str:
     """
-    Generate a unique share ID using nanoid.
+    Generate a unique share ID using cryptographically secure random generation.
     
     Returns:
         21-character URL-safe string with 126 bits of entropy
     """
-    return generate(NANOID_ALPHABET, NANOID_SIZE)
+    return ''.join(secrets.choice(SHARE_ID_ALPHABET) for _ in range(SHARE_ID_SIZE))
 
 
 def validate_domain(domain: str) -> bool:
