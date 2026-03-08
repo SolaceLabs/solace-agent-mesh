@@ -35,6 +35,7 @@ import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
+import { Header } from "@/lib/components/header/Header";
 import type { FileAttachment } from "@/lib/types";
 import type { ArtifactWithSession } from "@/lib/hooks/useAllArtifacts";
 
@@ -877,13 +878,8 @@ export const ArtifactsPage: React.FC = () => {
 
     return (
         <div className="flex h-full flex-col">
-            {/* Page Header - spans full width */}
-            <div className="flex items-center justify-between border-b px-6 py-4">
-                <div>
-                    <h1 className="text-foreground text-xl font-semibold">Artifacts</h1>
-                    <p className="text-muted-foreground mt-1 text-sm">View and manage all your files and artifacts across chat sessions and projects</p>
-                </div>
-            </div>
+            {/* Page Header - using shared Header component for consistent styling */}
+            <Header title="Artifacts" />
 
             {/* Content area with optional preview panel */}
             <div className="flex min-h-0 flex-1">
