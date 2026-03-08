@@ -58,7 +58,7 @@ def get_optional_user_id(request: Request) -> Optional[str]:
         if hasattr(request.state, 'user_id'):
             return request.state.user_id
         return None
-    except:
+    except Exception:
         return None
 
 
@@ -70,7 +70,7 @@ def get_optional_user_email(request: Request) -> Optional[str]:
         if hasattr(request.state, 'user_email'):
             return request.state.user_email
         return None
-    except:
+    except Exception:
         return None
 
 
@@ -376,8 +376,11 @@ async def get_shared_artifact_content(
                 detail="Share link not found"
             )
         
+        # Get shared user emails for user-specific access check
+        shared_user_emails = share_repo.find_share_user_emails(db, share_id)
+        
         # Check access permissions
-        can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email)
+        can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
         if not can_access:
             if "Authentication required" in reason:
                 raise PermissionError(reason)
