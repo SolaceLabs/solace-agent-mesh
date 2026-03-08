@@ -74,7 +74,7 @@ dependencies = [
     "cryptography==46.0.5",  # [CVE-2026-26007] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
     "pillow==12.1.1",  # [CVE-2026-25990] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
     "bm25s==0.2.14",
-    "pypdf==6.6.2",
+    "pypdf==6.7.2",
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "google-cloud-storage==3.9.0",
@@ -124,7 +124,7 @@ dependencies = [
     "psycopg2-binary",
     "asyncpg",
     "bm25s==0.2.14",
-    "pypdf==6.6.2",
+    "pypdf==6.7.2",
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
