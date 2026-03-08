@@ -2,7 +2,18 @@
  * API client for chat sharing operations
  */
 
-import type { ShareLink, CreateShareLinkRequest, UpdateShareLinkRequest, SharedSessionView, ShareLinksListResponse } from "../types/share";
+import type {
+    ShareLink,
+    CreateShareLinkRequest,
+    UpdateShareLinkRequest,
+    SharedSessionView,
+    ShareLinksListResponse,
+    ShareUsersResponse,
+    BatchAddShareUsersRequest,
+    BatchAddShareUsersResponse,
+    BatchDeleteShareUsersRequest,
+    BatchDeleteShareUsersResponse,
+} from "../types/share";
 
 const API_BASE = "/api/v1";
 
@@ -219,6 +230,12 @@ export function getAccessTypeDisplay(accessType: string): {
                 icon: "🏢",
                 description: "Restricted to specific email domains",
             };
+        case "user-specific":
+            return {
+                label: "Specific Users",
+                icon: "👥",
+                description: "Shared with specific users",
+            };
         default:
             return {
                 label: "Unknown",
@@ -226,4 +243,65 @@ export function getAccessTypeDisplay(accessType: string): {
                 description: "Unknown access type",
             };
     }
+}
+
+// Share User Management APIs
+
+/**
+ * Get users with access to a share link
+ */
+export async function getShareUsers(shareId: string): Promise<ShareUsersResponse> {
+    const response = await fetch(`${API_BASE}/share/${shareId}/users`, {
+        method: "GET",
+        credentials: "include",
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Failed to get share users" }));
+        throw new Error(error.detail || "Failed to get share users");
+    }
+
+    return await response.json();
+}
+
+/**
+ * Add users to a share link
+ */
+export async function addShareUsers(shareId: string, data: BatchAddShareUsersRequest): Promise<BatchAddShareUsersResponse> {
+    const response = await fetch(`${API_BASE}/share/${shareId}/users`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Failed to add share users" }));
+        throw new Error(error.detail || "Failed to add share users");
+    }
+
+    return await response.json();
+}
+
+/**
+ * Remove users from a share link
+ */
+export async function deleteShareUsers(shareId: string, data: BatchDeleteShareUsersRequest): Promise<BatchDeleteShareUsersResponse> {
+    const response = await fetch(`${API_BASE}/share/${shareId}/users`, {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Failed to delete share users" }));
+        throw new Error(error.detail || "Failed to delete share users");
+    }
+
+    return await response.json();
 }

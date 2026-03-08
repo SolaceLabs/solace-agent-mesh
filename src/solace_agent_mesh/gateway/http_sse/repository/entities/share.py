@@ -8,6 +8,19 @@ from typing import Optional, List
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 
+class SharedLinkUser(BaseModel):
+    """Shared link user domain entity."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    share_id: str
+    user_email: str
+    access_level: str = "RESOURCE_VIEWER"
+    added_at: int
+    added_by_user_id: str
+
+
 class ShareLink(BaseModel):
     """Share link domain entity with business logic."""
 
@@ -33,13 +46,18 @@ class ShareLink(BaseModel):
         self.deleted_at = now_epoch_ms()
         self.updated_time = now_epoch_ms()
 
-    def get_access_type(self) -> str:
+    def get_access_type(self, has_shared_users: bool = False) -> str:
         """
         Determine the access type for this share link.
         
+        Args:
+            has_shared_users: Whether this share has user-specific shares
+        
         Returns:
-            "public", "authenticated", or "domain-restricted"
+            "public", "authenticated", "domain-restricted", or "user-specific"
         """
+        if has_shared_users:
+            return "user-specific"
         if not self.require_authentication:
             return "public"
         if not self.allowed_domains:
@@ -90,17 +108,34 @@ class ShareLink(BaseModel):
         
         self.updated_time = now_epoch_ms()
 
-    def can_be_accessed_by_user(self, user_id: Optional[str], user_email: Optional[str]) -> tuple[bool, str]:
+    def can_be_accessed_by_user(
+        self,
+        user_id: Optional[str],
+        user_email: Optional[str],
+        shared_user_emails: Optional[List[str]] = None
+    ) -> tuple[bool, str]:
         """
         Check if a user can access this share link.
         
         Args:
             user_id: User ID (None if not authenticated)
             user_email: User email (None if not authenticated)
+            shared_user_emails: List of emails with explicit access (from shared_link_users table)
         
         Returns:
             Tuple of (can_access: bool, reason: str)
         """
+        # Check user-specific sharing first (if there are shared users)
+        if shared_user_emails:
+            # If there are shared users, only they can access (plus owner)
+            if user_email and user_email.lower() in [e.lower() for e in shared_user_emails]:
+                return (True, "user_specific")
+            # If user is not in the shared list and there are shared users, deny access
+            # (unless they're the owner, which is checked elsewhere)
+            if user_id is None:
+                return (False, "authentication_required")
+            return (False, "not_shared_with_user")
+        
         # Public access - anyone can view
         if not self.require_authentication:
             return (True, "public")

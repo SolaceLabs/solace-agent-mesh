@@ -9,14 +9,18 @@ from typing import TYPE_CHECKING, Optional, List, Dict, Any
 from sqlalchemy.orm import Session as DBSession
 
 from ..repository.share_repository import ShareRepository
-from ..repository.entities.share import ShareLink, SharedArtifact
+from ..repository.entities.share import ShareLink, SharedArtifact, SharedLinkUser
 from ..repository.models.share_model import (
     ShareLinkResponse,
     ShareLinkItem,
     SharedSessionView,
     SharedArtifactInfo,
     CreateShareLinkRequest,
-    UpdateShareLinkRequest
+    UpdateShareLinkRequest,
+    ShareUsersResponse,
+    SharedLinkUserInfo,
+    BatchAddShareUsersResponse,
+    BatchDeleteShareUsersResponse
 )
 from ..utils.share_utils import (
     generate_share_id,
@@ -603,8 +607,13 @@ class ShareService:
         
         return formatted_events
 
-    def _build_share_link_response(self, share_link: ShareLink, base_url: str) -> ShareLinkResponse:
+    def _build_share_link_response(self, share_link: ShareLink, base_url: str, db: DBSession = None) -> ShareLinkResponse:
         """Build ShareLinkResponse from entity."""
+        # Check if there are shared users to determine access type
+        has_shared_users = False
+        if db:
+            has_shared_users = self.repository.has_shared_users(db, share_link.share_id)
+        
         return ShareLinkResponse(
             share_id=share_link.share_id,
             session_id=share_link.session_id,
@@ -612,7 +621,7 @@ class ShareService:
             is_public=share_link.is_public,
             require_authentication=share_link.require_authentication,
             allowed_domains=share_link.get_allowed_domains_list(),
-            access_type=share_link.get_access_type(),
+            access_type=share_link.get_access_type(has_shared_users),
             created_time=share_link.created_time,
             share_url=build_share_url(share_link.share_id, base_url)
         )
@@ -644,3 +653,183 @@ class ShareService:
         #         created_time=now_epoch_ms()
         #     )
         #     self.repository.save_artifact(db, shared_artifact)
+
+    # Share User Management Methods
+
+    def get_share_users(
+        self,
+        db: DBSession,
+        share_id: str,
+        user_id: str
+    ) -> ShareUsersResponse:
+        """
+        Get all users with access to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_id: User ID (must be owner)
+        
+        Returns:
+            ShareUsersResponse with owner and shared users
+        
+        Raises:
+            ValueError: If share not found or user not authorized
+        """
+        share_link = self.repository.find_by_share_id(db, share_id)
+        if not share_link:
+            raise ValueError(f"Share link {share_id} not found")
+        
+        if share_link.user_id != user_id:
+            raise ValueError("Not authorized to view share users")
+        
+        # Get owner email from session service
+        from ..services.session_service import SessionService
+        session_service = SessionService(self.component)
+        session = session_service.get_session_details(db, share_link.session_id, user_id)
+        owner_email = session.user_id if session else user_id  # Fallback to user_id
+        
+        # Get shared users
+        shared_users = self.repository.find_share_users(db, share_id)
+        
+        return ShareUsersResponse(
+            share_id=share_id,
+            owner_email=owner_email,
+            users=[
+                SharedLinkUserInfo(
+                    user_email=u.user_email,
+                    access_level=u.access_level,
+                    added_at=u.added_at
+                )
+                for u in shared_users
+            ]
+        )
+
+    def add_share_users(
+        self,
+        db: DBSession,
+        share_id: str,
+        user_id: str,
+        user_emails: List[str],
+        access_level: str = "RESOURCE_VIEWER"
+    ) -> BatchAddShareUsersResponse:
+        """
+        Add users to a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_id: User ID (must be owner)
+            user_emails: List of user emails to add
+            access_level: Access level for the users
+        
+        Returns:
+            BatchAddShareUsersResponse with added users
+        
+        Raises:
+            ValueError: If share not found or user not authorized
+        """
+        share_link = self.repository.find_by_share_id(db, share_id)
+        if not share_link:
+            raise ValueError(f"Share link {share_id} not found")
+        
+        if share_link.user_id != user_id:
+            raise ValueError("Not authorized to add share users")
+        
+        added_users = []
+        for email in user_emails:
+            # Skip if already shared
+            if self.repository.check_user_has_access(db, share_id, email):
+                log.info(f"User {email} already has access to share {share_id}")
+                continue
+            
+            try:
+                shared_user = self.repository.add_share_user(
+                    db=db,
+                    share_id=share_id,
+                    user_email=email,
+                    added_by_user_id=user_id,
+                    access_level=access_level
+                )
+                added_users.append(SharedLinkUserInfo(
+                    user_email=shared_user.user_email,
+                    access_level=shared_user.access_level,
+                    added_at=shared_user.added_at
+                ))
+                log.info(f"Added user {email} to share {share_id}")
+            except Exception as e:
+                log.error(f"Failed to add user {email} to share {share_id}: {e}")
+        
+        return BatchAddShareUsersResponse(
+            added_count=len(added_users),
+            users=added_users
+        )
+
+    def delete_share_users(
+        self,
+        db: DBSession,
+        share_id: str,
+        user_id: str,
+        user_emails: List[str]
+    ) -> BatchDeleteShareUsersResponse:
+        """
+        Remove users from a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_id: User ID (must be owner)
+            user_emails: List of user emails to remove
+        
+        Returns:
+            BatchDeleteShareUsersResponse with count of removed users
+        
+        Raises:
+            ValueError: If share not found or user not authorized
+        """
+        share_link = self.repository.find_by_share_id(db, share_id)
+        if not share_link:
+            raise ValueError(f"Share link {share_id} not found")
+        
+        if share_link.user_id != user_id:
+            raise ValueError("Not authorized to remove share users")
+        
+        deleted_count = self.repository.delete_share_users_batch(db, share_id, user_emails)
+        log.info(f"Removed {deleted_count} users from share {share_id}")
+        
+        return BatchDeleteShareUsersResponse(deleted_count=deleted_count)
+
+    def check_user_access_to_share(
+        self,
+        db: DBSession,
+        share_id: str,
+        user_id: Optional[str],
+        user_email: Optional[str]
+    ) -> tuple[bool, str]:
+        """
+        Check if a user can access a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_id: User ID (None if not authenticated)
+            user_email: User email (None if not authenticated)
+        
+        Returns:
+            Tuple of (can_access: bool, reason: str)
+        """
+        share_link = self.repository.find_by_share_id(db, share_id)
+        if not share_link:
+            return (False, "share_not_found")
+        
+        if share_link.is_deleted():
+            return (False, "share_deleted")
+        
+        # Owner always has access
+        if user_id and share_link.user_id == user_id:
+            return (True, "owner")
+        
+        # Get shared user emails for user-specific access check
+        shared_user_emails = self.repository.find_share_user_emails(db, share_id)
+        
+        return share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
