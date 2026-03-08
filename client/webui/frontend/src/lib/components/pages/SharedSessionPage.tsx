@@ -2,21 +2,56 @@
  * SharedSessionPage - Public view of a shared chat session
  */
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2 } from "lucide-react";
-import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui";
+import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { viewSharedSession } from "@/lib/api/shareApi";
-import type { SharedSessionView } from "@/lib/types/share";
+import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
-import type { RAGSearchResult } from "@/lib/types";
-import { SharedArtifactPanel } from "@/lib/components/share/SharedArtifactPanel";
+import type { RAGSearchResult, ArtifactInfo } from "@/lib/types";
+import { ArtifactPanel } from "@/lib/components/chat/artifact/ArtifactPanel";
 import { SharedWorkflowPanel } from "@/lib/components/share/SharedWorkflowPanel";
+import { FileMessage, ArtifactMessage } from "@/lib/components/chat/file";
 import { TextWithCitations } from "@/lib/components/chat/Citation";
 import { parseCitations } from "@/lib/utils/citations";
 import { RAGInfoPanel } from "@/lib/components/chat/rag/RAGInfoPanel";
 import { Sources } from "@/lib/components/web/Sources";
+import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
+import { downloadBlob } from "@/lib/utils/download";
+
+/**
+ * Convert SharedArtifact to ArtifactInfo for use with unified components
+ */
+function convertToArtifactInfo(artifact: SharedArtifact): ArtifactInfo {
+    return {
+        filename: artifact.filename,
+        mime_type: artifact.mime_type,
+        size: artifact.size,
+        last_modified: artifact.last_modified || new Date().toISOString(),
+        version: artifact.version ?? undefined,
+        versionCount: artifact.version_count ?? undefined,
+        description: artifact.description,
+        source: artifact.source ?? undefined,
+    };
+}
+
+interface FileInfo {
+    name: string;
+    mimeType?: string;
+}
+
+interface ArtifactRef {
+    name: string;
+    status?: string;
+}
+
+// Part types for preserving render order
+type MessagePart = { kind: "text"; text: string } | { kind: "file"; file: FileInfo } | { kind: "artifact"; artifact: ArtifactRef };
+
+// Regex to match __EMBED_SIGNAL_xxx__ placeholders
+const EMBED_SIGNAL_REGEX = /__EMBED_SIGNAL_[a-f0-9]+__/g;
 
 export function SharedSessionPage() {
     const { shareId } = useParams<{ shareId: string }>();
@@ -27,6 +62,31 @@ export function SharedSessionPage() {
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(false);
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "sources">("files");
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+    // Custom download handler for shared artifacts using the share API
+    const handleSharedArtifactDownload = useCallback(
+        async (artifact: ArtifactInfo) => {
+            if (!shareId) return;
+
+            try {
+                const encodedFilename = encodeURIComponent(artifact.filename);
+                const response = await fetch(`/api/v1/share/${shareId}/artifacts/${encodedFilename}`, {
+                    method: "GET",
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to download: ${response.statusText}`);
+                }
+
+                const blob = await response.blob();
+                downloadBlob(blob, artifact.filename);
+            } catch (error) {
+                console.error("Failed to download artifact:", error);
+            }
+        },
+        [shareId]
+    );
 
     useEffect(() => {
         if (shareId) {
@@ -105,13 +165,19 @@ export function SharedSessionPage() {
         return allRagData;
     }, [session]);
 
-    // Parse message bubbles from tasks
+    // Convert SharedArtifact[] to ArtifactInfo[] for the unified ArtifactPanel
+    const convertedArtifacts = useMemo(() => {
+        if (!session?.artifacts) return [];
+        return session.artifacts.map(convertToArtifactInfo);
+    }, [session?.artifacts]);
+
+    // Parse message bubbles from tasks - preserving part order for proper rendering
     const messages = useMemo(() => {
         if (!session) return [];
 
         const result: Array<{
             type: string;
-            text: string;
+            parts: MessagePart[]; // Preserve original part order
             timestamp?: number;
             taskId: string;
             isLastInTask: boolean;
@@ -122,28 +188,65 @@ export function SharedSessionPage() {
                 // Use workflow_task_id for workflow lookup (A2A task ID), fallback to id
                 const taskId = task.workflow_task_id || task.id;
 
-                // First, add the user message if it exists (from user_message field)
-                if (task.user_message) {
-                    result.push({
-                        type: "user",
-                        text: task.user_message,
-                        timestamp: task.created_time,
-                        taskId: taskId,
-                        isLastInTask: false,
-                    });
-                }
-
                 const bubbles = typeof task.message_bubbles === "string" ? JSON.parse(task.message_bubbles) : task.message_bubbles;
 
                 if (Array.isArray(bubbles)) {
                     (bubbles as MessageBubble[]).forEach((bubble: MessageBubble, index: number) => {
-                        // Skip user bubbles if we already added user_message to avoid duplicates
-                        if (bubble.type === "user" && task.user_message) {
-                            return;
+                        const parts: MessagePart[] = [];
+
+                        // First, add uploadedFiles for user messages (they appear before text)
+                        if (bubble.uploadedFiles && Array.isArray(bubble.uploadedFiles)) {
+                            for (const f of bubble.uploadedFiles) {
+                                const fileObj = f as { name?: string; filename?: string; mimeType?: string; mime_type?: string };
+                                parts.push({
+                                    kind: "file",
+                                    file: {
+                                        name: fileObj.name || fileObj.filename || "Attached file",
+                                        mimeType: fileObj.mimeType || fileObj.mime_type,
+                                    },
+                                });
+                            }
                         }
+
+                        // Process parts array to preserve order
+                        if (bubble.parts && Array.isArray(bubble.parts)) {
+                            for (const part of bubble.parts) {
+                                const partObj = part as { kind?: string; text?: string; file?: { name?: string; filename?: string; mimeType?: string; mime_type?: string }; artifact?: { name?: string; filename?: string; status?: string } };
+                                if (partObj.kind === "text" && partObj.text) {
+                                    // Remove __EMBED_SIGNAL_xxx__ placeholders from text
+                                    const cleanedText = partObj.text.replace(EMBED_SIGNAL_REGEX, "").trim();
+                                    if (cleanedText) {
+                                        parts.push({ kind: "text", text: cleanedText });
+                                    }
+                                } else if (partObj.kind === "file" && partObj.file) {
+                                    parts.push({
+                                        kind: "file",
+                                        file: {
+                                            name: partObj.file.name || "Attached file",
+                                            mimeType: partObj.file.mimeType,
+                                        },
+                                    });
+                                } else if (partObj.kind === "artifact" && partObj.artifact) {
+                                    parts.push({
+                                        kind: "artifact",
+                                        artifact: {
+                                            name: partObj.artifact.name || partObj.artifact.filename || "Artifact",
+                                            status: partObj.artifact.status || "completed",
+                                        },
+                                    });
+                                }
+                            }
+                        } else if (bubble.text) {
+                            // Fallback: use bubble.text if no parts array
+                            const cleanedText = bubble.text.replace(EMBED_SIGNAL_REGEX, "").trim();
+                            if (cleanedText) {
+                                parts.push({ kind: "text", text: cleanedText });
+                            }
+                        }
+
                         result.push({
                             type: bubble.type || "agent",
-                            text: bubble.text || "",
+                            parts: parts,
                             timestamp: task.created_time,
                             taskId: taskId,
                             isLastInTask: index === bubbles.length - 1,
@@ -333,7 +436,7 @@ export function SharedSessionPage() {
                         <div className="min-h-0 flex-1">
                             <TabsContent value="files" className="m-0 h-full">
                                 <div className="h-full">
-                                    <SharedArtifactPanel artifacts={session.artifacts} />
+                                    <ArtifactPanel readOnly={true} onDownloadOverride={handleSharedArtifactDownload} />
                                 </div>
                             </TabsContent>
                             <TabsContent value="workflow" className="m-0 h-full">
@@ -363,26 +466,75 @@ export function SharedSessionPage() {
         }
     };
 
-    // Render message content with citation support
-    const renderMessageContent = (message: { type: string; text: string; taskId: string }) => {
-        // User messages don't have citations
-        if (message.type === "user") {
-            return <p className="whitespace-pre-wrap">{message.text}</p>;
-        }
+    // Render message content with citation support - preserving part order
+    const renderMessageContent = (message: { type: string; parts: MessagePart[]; taskId: string }) => {
+        // Get RAG data for this task (for citations in agent messages)
+        const taskRagData = message.type !== "user" ? getTaskRagData(message.taskId) : undefined;
 
-        // Get RAG data for this task
-        const taskRagData = getTaskRagData(message.taskId);
+        return (
+            <>
+                {message.parts.map((part, idx) => {
+                    if (part.kind === "text") {
+                        const text = part.text;
+                        if (!text || !text.trim()) return null;
 
-        // Parse citations from the message text
-        const citations = parseCitations(message.text, taskRagData);
+                        // For agent messages, check for citations
+                        if (message.type !== "user" && taskRagData) {
+                            const citations = parseCitations(text, taskRagData);
+                            if (citations.length > 0) {
+                                return <TextWithCitations key={idx} text={text} citations={citations} onCitationClick={handleCitationClick} />;
+                            }
+                        }
+                        return (
+                            <p key={idx} className="whitespace-pre-wrap">
+                                {text}
+                            </p>
+                        );
+                    }
 
-        // If there are citations, use TextWithCitations
-        if (citations.length > 0) {
-            return <TextWithCitations text={message.text} citations={citations} onCitationClick={handleCitationClick} />;
-        }
+                    if (part.kind === "file") {
+                        return (
+                            <div key={idx} className="my-2">
+                                <FileMessage filename={part.file.name} mimeType={part.file.mimeType} readOnly />
+                            </div>
+                        );
+                    }
 
-        // No citations - render as plain text
-        return <p className="whitespace-pre-wrap">{message.text}</p>;
+                    if (part.kind === "artifact") {
+                        // Find the full artifact info from the session artifacts
+                        const fullArtifact = convertedArtifacts.find(a => a.filename === part.artifact.name);
+                        if (fullArtifact) {
+                            return (
+                                <div key={idx} className="my-2">
+                                    <ArtifactMessage
+                                        status="completed"
+                                        name={fullArtifact.filename}
+                                        fileAttachment={{
+                                            name: fullArtifact.filename,
+                                            mime_type: fullArtifact.mime_type,
+                                        }}
+                                    />
+                                </div>
+                            );
+                        }
+                        // Fallback if artifact not found in session artifacts
+                        return (
+                            <div key={idx} className="my-2">
+                                <ArtifactMessage
+                                    status="completed"
+                                    name={part.artifact.name}
+                                    fileAttachment={{
+                                        name: part.artifact.name,
+                                    }}
+                                />
+                            </div>
+                        );
+                    }
+
+                    return null;
+                })}
+            </>
+        );
     };
 
     // Get sources element for a specific task (for stacked favicons display)
@@ -409,80 +561,90 @@ export function SharedSessionPage() {
         return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={false} onDeepResearchClick={handleCitationClick} />;
     };
 
+    // Get session ID for the provider
+    const sessionIdForProvider = session.tasks[0]?.session_id || session.share_id;
+
     return (
-        <div className="flex h-screen flex-col">
-            {/* Header */}
-            <header className="border-b px-6 py-4">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back
-                        </Button>
-                        <div className="h-6 border-r" />
-                        <div>
-                            <h1 className="text-lg font-semibold">{session.title}</h1>
-                            <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                                {getAccessIcon(session.access_type)}
-                                <span>{getAccessLabel(session.access_type)}</span>
-                                <span>•</span>
-                                <span>Shared on {new Date(session.created_time).toLocaleDateString()}</span>
-                                {hasArtifacts && (
-                                    <>
-                                        <span>•</span>
-                                        <span>
-                                            {session.artifacts.length} file{session.artifacts.length !== 1 ? "s" : ""}
-                                        </span>
-                                    </>
-                                )}
+        <SharedChatProvider artifacts={convertedArtifacts} ragData={ragData} sessionId={sessionIdForProvider} shareId={shareId || ""}>
+            <div className="flex h-screen flex-col">
+                {/* Header */}
+                <header className="border-b px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Back
+                            </Button>
+                            <div className="h-6 border-r" />
+                            <div>
+                                <h1 className="text-lg font-semibold">{session.title}</h1>
+                                <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                                    {getAccessIcon(session.access_type)}
+                                    <span>{getAccessLabel(session.access_type)}</span>
+                                    <span>•</span>
+                                    <span>Shared on {new Date(session.created_time).toLocaleDateString()}</span>
+                                    {hasArtifacts && (
+                                        <>
+                                            <span>•</span>
+                                            <span>
+                                                {session.artifacts.length} file{session.artifacts.length !== 1 ? "s" : ""}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </header>
+                </header>
 
-            {/* Main content with resizable panels - always show side panel */}
-            <div className="min-h-0 flex-1">
-                <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
-                    {/* Messages panel */}
-                    <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-session-messages-panel">
-                        <main className="h-full overflow-y-auto p-6">
-                            <div className="mx-auto max-w-3xl space-y-4">
-                                {messages.length === 0 ? (
-                                    <div className="text-muted-foreground py-12 text-center">
-                                        <p>No messages in this session.</p>
-                                    </div>
-                                ) : (
-                                    messages.map((message, index) => (
-                                        <div key={index} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"} mb-4 flex-col`}>
-                                            <div className={`max-w-[80%] rounded-lg px-4 py-2 ${message.type === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted mr-auto"}`}>{renderMessageContent(message)}</div>
-                                            {/* Show workflow button and sources outside the bubble for the last AI message in each task */}
-                                            {message.type !== "user" && message.isLastInTask && (
-                                                <div className="mt-1 flex items-center justify-start gap-2">
-                                                    <ViewWorkflowButton onClick={() => handleViewWorkflow(message.taskId)} />
-                                                    {getSourcesElement(message.taskId)}
-                                                </div>
-                                            )}
+                {/* Main content with resizable panels - always show side panel */}
+                <div className="min-h-0 flex-1">
+                    <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
+                        {/* Messages panel */}
+                        <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-session-messages-panel">
+                            <main className="h-full overflow-y-auto p-6">
+                                <div className="mx-auto max-w-3xl space-y-4">
+                                    {messages.length === 0 ? (
+                                        <div className="text-muted-foreground py-12 text-center">
+                                            <p>No messages in this session.</p>
                                         </div>
-                                    ))
-                                )}
-                            </div>
-                        </main>
-                    </ResizablePanel>
+                                    ) : (
+                                        messages.map((message, index) => {
+                                            const variant = message.type === "user" ? "sent" : "received";
+                                            return (
+                                                <div key={index} className="mb-4 flex flex-col">
+                                                    <ChatBubble variant={variant}>
+                                                        <ChatBubbleMessage variant={variant}>{renderMessageContent(message)}</ChatBubbleMessage>
+                                                    </ChatBubble>
+                                                    {/* Show workflow button and sources outside the bubble for the last AI message in each task */}
+                                                    {message.type !== "user" && message.isLastInTask && (
+                                                        <div className="mt-1 flex items-center justify-start gap-2">
+                                                            <ViewWorkflowButton onClick={() => handleViewWorkflow(message.taskId)} />
+                                                            {getSourcesElement(message.taskId)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </main>
+                        </ResizablePanel>
 
-                    <ResizableHandle />
+                        <ResizableHandle />
 
-                    {/* Side panel - always visible */}
-                    <ResizablePanel defaultSize={isSidePanelCollapsed ? 4 : 30} minSize={isSidePanelCollapsed ? 4 : 20} maxSize={isSidePanelCollapsed ? 4 : 50} id="shared-session-side-panel">
-                        {renderSidePanel()}
-                    </ResizablePanel>
-                </ResizablePanelGroup>
+                        {/* Side panel - always visible */}
+                        <ResizablePanel defaultSize={isSidePanelCollapsed ? 4 : 30} minSize={isSidePanelCollapsed ? 4 : 20} maxSize={isSidePanelCollapsed ? 4 : 50} id="shared-session-side-panel">
+                            {renderSidePanel()}
+                        </ResizablePanel>
+                    </ResizablePanelGroup>
+                </div>
+
+                {/* Footer */}
+                <footer className="text-muted-foreground border-t px-6 py-3 text-center text-sm">
+                    <p>This is a read-only view of a shared chat session.</p>
+                </footer>
             </div>
-
-            {/* Footer */}
-            <footer className="text-muted-foreground border-t px-6 py-3 text-center text-sm">
-                <p>This is a read-only view of a shared chat session.</p>
-            </footer>
-        </div>
+        </SharedChatProvider>
     );
 }

@@ -5,8 +5,10 @@ API routes for share link functionality.
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session as DBSession
 from pydantic import BaseModel
+import io
 
 from ..dependencies import (
     get_db,
@@ -332,4 +334,193 @@ async def delete_share_link(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete share link"
+        )
+
+
+@router.get("/{share_id}/artifacts/{filename:path}")
+async def get_shared_artifact_content(
+    share_id: str,
+    filename: str,
+    request: Request,
+    user_id: Optional[str] = Depends(get_optional_user_id),
+    user_email: Optional[str] = Depends(get_optional_user_email),
+    db: DBSession = Depends(get_db),
+    share_service: ShareService = Depends(get_share_service),
+    component = Depends(get_sac_component)
+):
+    """
+    Get artifact content from a shared session.
+    
+    This endpoint allows fetching artifact content for shared sessions
+    without requiring full authentication (respects share link access settings).
+    
+    Access control follows the same rules as view_shared_session:
+    - If require_authentication=False: Public access (no login required)
+    - If require_authentication=True: Must be authenticated
+    - If allowed_domains is set: User's email domain must match
+    """
+    try:
+        # First get the share link to verify access and get the original user_id
+        from ..repository.share_repository import ShareRepository
+        share_repo = ShareRepository()
+        share_link = share_repo.find_by_share_id(db, share_id)
+        
+        if not share_link:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Share link not found"
+            )
+        
+        # Check access permissions
+        can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email)
+        if not can_access:
+            if "Authentication required" in reason:
+                raise PermissionError(reason)
+            else:
+                raise PermissionError(reason)
+        
+        # Get the session view to verify the artifact exists
+        session_view = await share_service.get_shared_session_view(
+            db=db,
+            share_id=share_id,
+            user_id=user_id,
+            user_email=user_email
+        )
+        
+        # Check if the artifact is in the shared session's artifacts
+        # Note: artifacts can be either dict or object depending on how the response is constructed
+        artifact_info = None
+        artifact_mime_type = None
+        for artifact in session_view.artifacts:
+            if isinstance(artifact, dict):
+                if artifact.get("filename") == filename:
+                    artifact_info = artifact
+                    artifact_mime_type = artifact.get("mime_type")
+                    break
+            else:
+                if artifact.filename == filename:
+                    artifact_info = artifact
+                    artifact_mime_type = artifact.mime_type
+                    break
+        
+        if not artifact_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Artifact '{filename}' not found in shared session"
+            )
+        
+        # Get the artifact service and load the content
+        artifact_service = component.get_shared_artifact_service()
+        if not artifact_service:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Artifact service not available"
+            )
+        
+        # Use the session_id and user_id from the share link (original owner)
+        session_id = share_link.session_id
+        owner_user_id = share_link.user_id
+        
+        # Get project_id from the session
+        from ..repository.session_repository import SessionRepository
+        session_repo = SessionRepository()
+        session = session_repo.find_user_session(db, session_id, owner_user_id)
+        project_id = session.project_id if session else None
+        
+        # Get app_name from the component
+        app_name = component.get_config("name", "A2A_WebUI_App")
+        
+        # Load the artifact content
+        from ....agent.utils.artifact_helpers import load_artifact_content_or_metadata
+        
+        # Try loading from session first, then from project if that fails
+        load_result = await load_artifact_content_or_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=owner_user_id,
+            session_id=session_id,
+            filename=filename,
+            version="latest",
+            load_metadata_only=False,
+            return_raw_bytes=True,
+        )
+        
+        # If not found in session and we have a project_id, try loading from project
+        if load_result.get("status") != "success" and project_id:
+            load_result = await load_artifact_content_or_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=owner_user_id,
+                session_id=project_id,  # Project artifacts are stored under project_id
+                filename=filename,
+                version="latest",
+                load_metadata_only=False,
+                return_raw_bytes=True,
+            )
+        
+        if load_result.get("status") != "success":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Failed to load artifact content: {load_result.get('message', 'Unknown error')}"
+            )
+        
+        # Get raw bytes from the result
+        content_bytes = load_result.get("raw_bytes")
+        if content_bytes is None:
+            # Fallback to content if raw_bytes not available
+            content = load_result.get("content")
+            if content is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Artifact content not found"
+                )
+            # Convert content to bytes if it's a string
+            if isinstance(content, str):
+                content_bytes = content.encode("utf-8")
+            elif isinstance(content, bytes):
+                content_bytes = content
+            else:
+                content_bytes = str(content).encode("utf-8")
+        
+        # Determine content type - prefer from load result, then artifact info
+        mime_type = load_result.get("mime_type") or artifact_mime_type or "application/octet-stream"
+        
+        # Return as streaming response
+        return StreamingResponse(
+            io.BytesIO(content_bytes),
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+                "Content-Length": str(len(content_bytes)),
+            }
+        )
+    
+    except PermissionError as e:
+        error_msg = str(e)
+        if "Authentication required" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=error_msg,
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error_msg
+            )
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    
+    except HTTPException:
+        raise
+    
+    except Exception as e:
+        log.error(f"Error fetching shared artifact: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch artifact content"
         )
