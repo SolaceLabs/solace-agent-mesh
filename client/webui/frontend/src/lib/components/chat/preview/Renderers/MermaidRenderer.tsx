@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGesture } from "@use-gesture/react";
-import { HelpCircle, Scan } from "lucide-react";
+import { Scan } from "lucide-react";
 import mermaid from "mermaid";
 
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Button } from "@/lib/components/ui";
 import { getErrorMessage } from "@/lib/utils";
 
 import type { BaseRendererProps } from ".";
@@ -189,32 +189,28 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
     );
 
     return (
-        <div className="bg-background flex h-full min-w-0 flex-col overflow-hidden rounded-sm p-4 dark:bg-(--color-background-w20)">
+        <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-sm p-4">
             <div ref={offscreenRef} aria-hidden style={{ position: "fixed", top: -10000, left: -10000, width: 1920, height: 1080 }} />
-            <div ref={containerRef} className="relative flex w-full flex-1 items-start justify-center overflow-hidden" style={{ touchAction: "none" }} {...bind()}>
+            <div ref={containerRef} className="bg-muted relative flex w-full items-start justify-center overflow-hidden p-2" style={{ touchAction: "none" }} {...bind()}>
                 {svgHtml ? (
                     <div
                         ref={svgContainerRef}
-                        className="flex max-h-full w-full cursor-grab items-start justify-center pt-16 active:cursor-grabbing"
+                        className="mt-16 flex max-h-full w-full cursor-grab items-start justify-center active:cursor-grabbing"
                         style={{
                             transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
                             transformOrigin: "0 0",
                         }}
                     >
-                        <div className="bg-background flex max-h-full w-full items-center justify-center rounded-xs p-4 dark:bg-(--color-background-w20)" dangerouslySetInnerHTML={{ __html: svgHtml }} />
+                        <div className="flex max-h-full w-full items-center justify-center rounded-sm bg-(--color-background) p-4 dark:bg-(--color-background-w20)" dangerouslySetInnerHTML={{ __html: svgHtml }} />
                     </div>
                 ) : null}
 
-                <div className="bg-background absolute top-0 right-3 flex items-center gap-2 rounded-sm p-1 dark:bg-(--color-background-wMain)/50">
+                <div className="bg-background absolute top-3 right-3 flex items-center gap-2 rounded-sm p-1">
                     <Button onClick={resetTransform} tooltip="Reset View" variant="ghost">
                         <Scan />
                     </Button>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <HelpCircle size="24" className="mr-2 text-(--color-secondary-text-w50)" />
-                        </TooltipTrigger>
-                        <TooltipContent>Drag to pan and scroll to view</TooltipContent>
-                    </Tooltip>
+                    <div className="h-6 w-px border-l" />
+                    <div className="text-muted-foreground pr-2 text-xs">Drag to pan and scroll to zoom</div>
                 </div>
             </div>
         </div>
