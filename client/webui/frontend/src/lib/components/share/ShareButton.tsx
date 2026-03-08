@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Share2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { ShareDialog } from "./ShareDialog";
+import { useChatContext } from "@/lib/hooks";
 
 interface ShareButtonProps {
     sessionId: string;
@@ -15,6 +16,7 @@ interface ShareButtonProps {
 
 export function ShareButton({ sessionId, sessionTitle, className }: ShareButtonProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const { displayError, addNotification } = useChatContext();
 
     return (
         <>
@@ -23,7 +25,14 @@ export function ShareButton({ sessionId, sessionTitle, className }: ShareButtonP
                 <span className="ml-2 hidden sm:inline">Share</span>
             </Button>
 
-            <ShareDialog sessionId={sessionId} sessionTitle={sessionTitle} open={isDialogOpen} onOpenChange={setIsDialogOpen} />
+            <ShareDialog
+                sessionId={sessionId}
+                sessionTitle={sessionTitle}
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                onError={error => displayError({ title: error.title, error: error.message })}
+                onSuccess={message => addNotification(message, "success")}
+            />
         </>
     );
 }

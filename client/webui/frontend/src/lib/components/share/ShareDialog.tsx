@@ -2,8 +2,9 @@
  * ShareDialog component - Modal for managing share links
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Copy, Check, X, Loader2, Link, Users, Shield, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -15,19 +16,18 @@ import { createShareLink, getShareLinkForSession, updateShareLink, deleteShareLi
 import { useConfigContext } from "../../hooks/useConfigContext";
 import type { ShareLink, SharedLinkUserInfo } from "../../types/share";
 
-// Simple notification helper
-const showNotification = (message: string, type: "success" | "error" = "success") => {
-    console.log(`[${type.toUpperCase()}]`, message);
-};
-
 interface ShareDialogProps {
     sessionId: string;
     sessionTitle: string;
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    /** Callback for displaying errors to the user */
+    onError?: (error: { title: string; message: string }) => void;
+    /** Callback for displaying success notifications */
+    onSuccess?: (message: string) => void;
 }
 
-export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: ShareDialogProps) {
+export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onError, onSuccess }: ShareDialogProps) {
     const { identityServiceType } = useConfigContext();
     const [shareLink, setShareLink] = useState<ShareLink | null>(null);
     const [loading, setLoading] = useState(false);
@@ -42,6 +42,38 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
     const [savingUser, setSavingUser] = useState(false);
     const [showAddUser, setShowAddUser] = useState(false);
 
+    // Load share link for the session
+    const loadShareLink = useCallback(async () => {
+        setLoading(true);
+        try {
+            const link = await getShareLinkForSession(sessionId);
+            if (link) {
+                setShareLink(link);
+                setRequireAuth(link.require_authentication);
+            }
+        } catch (error) {
+            console.error("Failed to load share link:", error);
+            onError?.({ title: "Failed to Load Share Link", message: error instanceof Error ? error.message : "Unknown error" });
+        } finally {
+            setLoading(false);
+        }
+    }, [sessionId, onError]);
+
+    // Load shared users for the share link
+    const loadSharedUsers = useCallback(async () => {
+        if (!shareLink?.share_id) return;
+        setLoadingUsers(true);
+        try {
+            const response = await getShareUsers(shareLink.share_id);
+            setSharedUsers(response.users);
+        } catch (error) {
+            console.error("Failed to load shared users:", error);
+            onError?.({ title: "Failed to Load Shared Users", message: error instanceof Error ? error.message : "Unknown error" });
+        } finally {
+            setLoadingUsers(false);
+        }
+    }, [shareLink?.share_id, onError]);
+
     // Reset state when dialog opens
     useEffect(() => {
         if (open) {
@@ -53,42 +85,14 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
             setShowAddUser(false);
             loadShareLink();
         }
-    }, [open, sessionId]);
+    }, [open, sessionId, loadShareLink]);
 
     // Load shared users when share link is available
     useEffect(() => {
         if (shareLink?.share_id) {
             loadSharedUsers();
         }
-    }, [shareLink?.share_id]);
-
-    const loadShareLink = async () => {
-        setLoading(true);
-        try {
-            const link = await getShareLinkForSession(sessionId);
-            if (link) {
-                setShareLink(link);
-                setRequireAuth(link.require_authentication);
-            }
-        } catch (error) {
-            console.error("Failed to load share link:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadSharedUsers = async () => {
-        if (!shareLink?.share_id) return;
-        setLoadingUsers(true);
-        try {
-            const response = await getShareUsers(shareLink.share_id);
-            setSharedUsers(response.users);
-        } catch (error) {
-            console.error("Failed to load shared users:", error);
-        } finally {
-            setLoadingUsers(false);
-        }
-    };
+    }, [shareLink?.share_id, loadSharedUsers]);
 
     const handleCreateShare = async () => {
         setLoading(true);
@@ -101,9 +105,9 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
             await copyToClipboard(link.share_url);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-            showNotification("Share link created and copied!", "success");
+            onSuccess?.("Share link created and copied!");
         } catch (error) {
-            showNotification(`Failed to create share link: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+            onError?.({ title: "Failed to Create Share Link", message: error instanceof Error ? error.message : "Unknown error" });
         } finally {
             setLoading(false);
         }
@@ -118,9 +122,9 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
             setRequireAuth(false);
             setSharedUsers([]);
             setShowDeleteConfirm(false);
-            showNotification("Share link deleted", "success");
+            onSuccess?.("Share link deleted");
         } catch (error) {
-            showNotification(`Failed to delete: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+            onError?.({ title: "Failed to Delete Share Link", message: error instanceof Error ? error.message : "Unknown error" });
         } finally {
             setLoading(false);
         }
@@ -145,9 +149,9 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
             setNewUserEmail(null);
             setShowAddUser(false);
             await loadSharedUsers();
-            showNotification("User added", "success");
+            onSuccess?.("User added");
         } catch (error) {
-            showNotification(`Failed to add user: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+            onError?.({ title: "Failed to Add User", message: error instanceof Error ? error.message : "Unknown error" });
         } finally {
             setSavingUser(false);
         }
@@ -160,7 +164,7 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
             await deleteShareUsers(shareLink.share_id, { user_emails: [email] });
             setSharedUsers(prev => prev.filter(user => user.user_email !== email));
         } catch (error) {
-            showNotification(`Failed to remove user: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+            onError?.({ title: "Failed to Remove User", message: error instanceof Error ? error.message : "Unknown error" });
         } finally {
             setSavingUser(false);
         }
@@ -199,7 +203,7 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
                                 {/* URL with Copy and Delete Buttons */}
                                 <div className="flex gap-2">
                                     <Input value={shareLink.share_url} readOnly className="flex-1 text-sm" onClick={e => (e.target as HTMLInputElement).select()} />
-                                    <Button variant={copied ? "default" : "outline"} size="icon" onClick={handleCopyUrl} className={copied ? "bg-green-600 hover:bg-green-600" : ""} title="Copy link">
+                                    <Button variant={copied ? "default" : "outline"} size="icon" onClick={handleCopyUrl} className={cn(copied && "bg-(--color-success-wMain) hover:bg-(--color-success-wMain)")} title="Copy link">
                                         {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                                     </Button>
                                     <Button variant="outline" size="icon" onClick={() => setShowDeleteConfirm(true)} className="text-destructive hover:text-destructive" title="Delete share link">

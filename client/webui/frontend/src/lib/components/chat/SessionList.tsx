@@ -1,12 +1,30 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
-
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2 } from "lucide-react";
-
+import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
+import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
+import { ShareDialog } from "@/lib/components/share/ShareDialog";
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@/lib/components/ui";
 
 interface SessionNameProps {
     session: Session;
@@ -60,28 +78,8 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
         return "opacity-100";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
-    return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
+    return <span className={cn("truncate font-semibold transition-opacity duration-300", animationClass)}>{animatedName}</span>;
 };
-import { formatTimestamp, getErrorMessage } from "@/lib/utils";
-import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
-import { ShareDialog } from "@/lib/components/share/ShareDialog";
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-    Spinner,
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from "@/lib/components/ui";
 
 export interface PaginatedSessionsResponse {
     data: Session[];
@@ -640,6 +638,8 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                             setSessionToShare(null);
                         }
                     }}
+                    onError={error => displayError({ title: error.title, error: error.message })}
+                    onSuccess={message => addNotification(message, "success")}
                 />
             )}
         </div>

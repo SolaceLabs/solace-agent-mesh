@@ -191,6 +191,23 @@ export async function getSharedArtifactContent(shareId: string, filename: string
 }
 
 /**
+ * Download a shared artifact as a blob (for direct download)
+ */
+export async function downloadSharedArtifact(shareId: string, filename: string): Promise<Blob> {
+    const encodedFilename = encodeURIComponent(filename);
+    const response = await fetch(`${API_BASE}/share/${shareId}/artifacts/${encodedFilename}`, {
+        method: "GET",
+        credentials: "include",
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to download: ${response.statusText}`);
+    }
+
+    return await response.blob();
+}
+
+/**
  * Copy text to clipboard
  */
 export async function copyToClipboard(text: string): Promise<boolean> {
@@ -200,48 +217,6 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     } catch (err) {
         console.error("Failed to copy to clipboard:", err);
         return false;
-    }
-}
-
-/**
- * Get access type display text
- */
-export function getAccessTypeDisplay(accessType: string): {
-    label: string;
-    icon: string;
-    description: string;
-} {
-    switch (accessType) {
-        case "public":
-            return {
-                label: "Public Access",
-                icon: "🌐",
-                description: "Anyone with the link can view",
-            };
-        case "authenticated":
-            return {
-                label: "Authenticated Users Only",
-                icon: "🔒",
-                description: "Requires login to view",
-            };
-        case "domain-restricted":
-            return {
-                label: "Domain-Restricted",
-                icon: "🏢",
-                description: "Restricted to specific email domains",
-            };
-        case "user-specific":
-            return {
-                label: "Specific Users",
-                icon: "👥",
-                description: "Shared with specific users",
-            };
-        default:
-            return {
-                label: "Unknown",
-                icon: "❓",
-                description: "Unknown access type",
-            };
     }
 }
 

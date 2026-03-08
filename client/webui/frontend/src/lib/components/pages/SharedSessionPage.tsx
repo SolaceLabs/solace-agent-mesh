@@ -7,7 +7,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2 } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
-import { viewSharedSession } from "@/lib/api/shareApi";
+import { viewSharedSession, downloadSharedArtifact } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
 import type { RAGSearchResult, ArtifactInfo } from "@/lib/types";
@@ -63,23 +63,27 @@ export function SharedSessionPage() {
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "sources">("files");
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+    // Load shared session data
+    const loadSharedSession = useCallback(async (id: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await viewSharedSession(id);
+            setSession(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to load shared session");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     // Custom download handler for shared artifacts using the share API
     const handleSharedArtifactDownload = useCallback(
         async (artifact: ArtifactInfo) => {
             if (!shareId) return;
 
             try {
-                const encodedFilename = encodeURIComponent(artifact.filename);
-                const response = await fetch(`/api/v1/share/${shareId}/artifacts/${encodedFilename}`, {
-                    method: "GET",
-                    credentials: "include",
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to download: ${response.statusText}`);
-                }
-
-                const blob = await response.blob();
+                const blob = await downloadSharedArtifact(shareId, artifact.filename);
                 downloadBlob(blob, artifact.filename);
             } catch (error) {
                 console.error("Failed to download artifact:", error);
@@ -92,20 +96,7 @@ export function SharedSessionPage() {
         if (shareId) {
             loadSharedSession(shareId);
         }
-    }, [shareId]);
-
-    const loadSharedSession = async (id: string) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const data = await viewSharedSession(id);
-            setSession(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load shared session");
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [shareId, loadSharedSession]);
 
     const getAccessIcon = (accessType: string) => {
         switch (accessType) {

@@ -378,7 +378,7 @@ const SharedFlowRenderer: React.FC<SharedFlowChartPanelProps> = ({ processedStep
             </PopoverManual>
         </div>
     );
-};
+}
 
 const SharedFlowChartPanel: React.FC<SharedFlowChartPanelProps> = props => {
     return (
