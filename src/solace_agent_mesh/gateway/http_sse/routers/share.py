@@ -382,10 +382,10 @@ async def get_shared_artifact_content(
         # Check access permissions
         can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
         if not can_access:
-            if "Authentication required" in reason:
-                raise PermissionError(reason)
+            if reason == "authentication_required":
+                raise PermissionError("Authentication required to access this artifact")
             else:
-                raise PermissionError(reason)
+                raise PermissionError("Access denied")
         
         # Get the session view to verify the artifact exists
         session_view = await share_service.get_shared_session_view(
