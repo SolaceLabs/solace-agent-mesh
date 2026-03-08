@@ -3,7 +3,7 @@
  * This is a simplified version of FlowChartPanel that doesn't depend on ChatContext or TaskContext
  */
 
-import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { Scan } from "lucide-react";
 
 import type { VisualizerStep } from "@/lib/types";
@@ -21,7 +21,7 @@ interface SharedFlowChartPanelProps {
 
 const EMPTY_MAP: Record<string, string> = {};
 
-const SharedFlowChartPanel: React.FC<SharedFlowChartPanelProps> = ({ processedSteps, agentNameDisplayNameMap = EMPTY_MAP }) => {
+function SharedFlowChartPanel({ processedSteps, agentNameDisplayNameMap = EMPTY_MAP }: SharedFlowChartPanelProps) {
     // Dialog state
     const [selectedStep, setSelectedStep] = useState<VisualizerStep | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -195,6 +195,6 @@ const SharedFlowChartPanel: React.FC<SharedFlowChartPanelProps> = ({ processedSt
             </Dialog>
         </div>
     );
-};
+}
 
 export default SharedFlowChartPanel;

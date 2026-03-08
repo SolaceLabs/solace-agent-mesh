@@ -8,13 +8,13 @@
  * and other shared session data.
  */
 
-import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect, type ReactNode } from "react";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts/ChatContext";
 import type { ArtifactInfo, FileAttachment, RAGSearchResult } from "@/lib/types";
 import { getSharedArtifactContent } from "@/lib/api/shareApi";
 
 interface SharedChatProviderProps {
-    children: React.ReactNode;
+    children: ReactNode;
     /** Artifacts to display in the shared session */
     artifacts: ArtifactInfo[];
     /** RAG data for the shared session */
@@ -29,12 +29,12 @@ interface SharedChatProviderProps {
  * A minimal ChatContext provider for shared/read-only sessions.
  * Provides read-only access to artifacts and disables all write operations.
  */
-export const SharedChatProvider: React.FC<SharedChatProviderProps> = ({ children, artifacts: initialArtifacts, ragData = [], sessionId = "", shareId }) => {
+export function SharedChatProvider({ children, artifacts: initialArtifacts, ragData = [], sessionId = "", shareId }: SharedChatProviderProps) {
     // State for artifacts and preview
     // Mark all artifacts as needing embed resolution so ArtifactMessage will fetch content
     const [artifacts, setArtifactsState] = useState<ArtifactInfo[]>(() => initialArtifacts.map(a => ({ ...a, needsEmbedResolution: true })));
     // Track which artifacts have had download attempts to prevent infinite retries
-    const downloadAttemptedRef = React.useRef<Set<string>>(new Set());
+    const downloadAttemptedRef = useRef<Set<string>>(new Set());
     const [previewArtifact, setPreviewArtifact] = useState<ArtifactInfo | null>(null);
 
     // Update artifacts when initialArtifacts changes (e.g., when session data loads)
@@ -261,4 +261,4 @@ export const SharedChatProvider: React.FC<SharedChatProviderProps> = ({ children
     );
 
     return <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>;
-};
+}

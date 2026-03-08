@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo } from "react";
 import { Network } from "lucide-react";
+import { cn } from "@/lib/utils";
 // Import directly from the file to avoid pulling in context-dependent components
 import { processTaskForVisualization } from "@/lib/components/activities/taskVisualizerProcessor";
 import SharedFlowChartPanel from "./SharedFlowChartPanel";
@@ -161,15 +162,15 @@ export function SharedWorkflowPanel({ taskEvents, selectedTaskId, onTaskSelect }
 function SharedFlowChartDetails({ task }: { task: VisualizedTask }) {
     const getStatusBadge = (status: string) => {
         const statusColors: Record<string, string> = {
-            completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-            failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-            canceled: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
-            working: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+            completed: "bg-(--color-success-w10) text-(--color-success-wMain)",
+            failed: "bg-(--color-error-w10) text-(--color-error-wMain)",
+            canceled: "bg-(--color-secondary-w10) text-(--color-secondary-foreground)",
+            working: "bg-(--color-info-w10) text-(--color-info-wMain)",
         };
 
         const colorClass = statusColors[status] || statusColors.working;
 
-        return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>;
+        return <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", colorClass)}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>;
     };
 
     return (
