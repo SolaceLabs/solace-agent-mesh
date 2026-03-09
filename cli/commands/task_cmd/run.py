@@ -173,6 +173,24 @@ async def wait_for_agents(
     is_flag=True,
     help="Enable debug output",
 )
+@click.option(
+    "--si-input-schema",
+    type=click.Path(exists=True),
+    default=None,
+    help="JSON Schema file for structured invocation input validation.",
+)
+@click.option(
+    "--si-output-schema",
+    type=click.Path(exists=True),
+    default=None,
+    help="JSON Schema file for structured invocation output validation.",
+)
+@click.option(
+    "--data",
+    "-d",
+    default=None,
+    help="JSON data to send as a DataPart. Inline JSON string or @filepath for a JSON file.",
+)
 def run_task(
     message: str,
     config_paths: tuple,
@@ -189,6 +207,9 @@ def run_task(
     no_stim: bool,
     system_env: bool,
     debug: bool,
+    si_input_schema: Optional[str],
+    si_output_schema: Optional[str],
+    data: Optional[str],
 ):
     """
     Start SAM, send a task, stream the response, and stop.
@@ -231,6 +252,9 @@ def run_task(
                 no_stim=no_stim,
                 system_env=system_env,
                 debug=debug,
+                si_input_schema=si_input_schema,
+                si_output_schema=si_output_schema,
+                data=data,
             )
         )
         sys.exit(exit_code)
@@ -260,6 +284,9 @@ async def _run_task_main(
     no_stim: bool,
     system_env: bool,
     debug: bool,
+    si_input_schema: Optional[str] = None,
+    si_output_schema: Optional[str] = None,
+    data: Optional[str] = None,
 ) -> int:
     """Main async implementation of the task run command."""
 
@@ -344,6 +371,9 @@ async def _run_task_main(
             quiet=quiet,
             no_stim=no_stim,
             debug=debug,
+            si_input_schema=si_input_schema,
+            si_output_schema=si_output_schema,
+            data=data,
         )
 
     finally:
