@@ -31,6 +31,7 @@ interface StoredBubble {
     progressUpdates?: MessageFE["progressUpdates"];
     thinkingContent?: string;
     isThinkingComplete?: boolean;
+    userInputRequest?: MessageFE["userInputRequest"];
 
     // Legacy snake_case variants — older persisted data may use these
     sender_display_name?: string;
@@ -161,6 +162,8 @@ export function deserializeChatMessages(task: StoredTask, sessionId: string): Me
             senderEmail: bubble.senderEmail ?? bubble.sender_email,
             ...(bubble.progressUpdates && bubble.progressUpdates.length > 0 ? { progressUpdates: bubble.progressUpdates } : {}),
             ...((bubble.thinkingContent?.length ?? 0) > 0 ? { thinkingContent: bubble.thinkingContent, isThinkingComplete: bubble.isThinkingComplete ?? true } : {}),
+            // Restore HIL state (responded summary banner).
+            ...(bubble.userInputRequest ? { userInputRequest: bubble.userInputRequest } : {}),
             metadata: {
                 messageId: bubble.id,
                 sessionId,
