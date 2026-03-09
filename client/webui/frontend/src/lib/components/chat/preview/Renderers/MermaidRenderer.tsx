@@ -8,10 +8,7 @@ import { getErrorMessage } from "@/lib/utils";
 
 import type { BaseRendererProps } from ".";
 
-/**
- * Validates Mermaid input for potentially dangerous patterns
- * Provides defense-in-depth by catching obvious attacks before Mermaid processing
- */
+/** Validate Mermaid input for potentially dangerous patterns */
 const validateMermaidInput = (input: string): boolean => {
     const dangerousPatterns = [
         /<script/i, // Script tags
@@ -26,12 +23,12 @@ const validateMermaidInput = (input: string): boolean => {
     return !dangerousPatterns.some(pattern => pattern.test(input));
 };
 
-/** Module-level counter ensures unique render IDs across all MermaidRenderer instances */
+/** Module-level counter to ensure unique render IDs */
 let globalRenderCount = 0;
 
-/** Serialize mermaid.render() calls — mermaid's parser/renderer uses global state */
+/** Serialize mermaid.render() calls */
 let renderQueue: Promise<void> = Promise.resolve();
-
+/** Initialize mermaid once */
 let mermaidInitialized = false;
 
 function initializeMermaid() {
@@ -57,6 +54,10 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
     const svgContainerRef = useRef<HTMLDivElement>(null);
     const offscreenRef = useRef<HTMLDivElement>(null);
 
+    const resetTransform = useCallback(() => {
+        setTransform({ x: 0, y: 0, scale: 1 });
+    }, []);
+
     useEffect(() => {
         let cancelled = false;
         const renderId = `mermaid-${++globalRenderCount}`;
@@ -75,7 +76,7 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
                 return;
             }
 
-            // Serialize renders — mermaid's parser/renderer uses global state
+            // Serialize renders because mermaid's parser/renderer uses global state
             const ticket = renderQueue.then(async () => {
                 if (cancelled) return;
 
@@ -140,17 +141,12 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
         svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
     }, [svgHtml]);
 
-    // Reset transform to initial view
-    const resetTransform = useCallback(() => {
-        setTransform({ x: 0, y: 0, scale: 1 });
-    }, []);
-
-    // Reset transform when content changes
+    // Reset when svgHtml changes
     useEffect(() => {
-        setTransform({ x: 0, y: 0, scale: 1 });
-    }, [svgHtml]);
+        resetTransform();
+    }, [resetTransform, svgHtml]);
 
-    // Zoom via native wheel listener (must be non-passive to preventDefault)
+    // Zoom via native wheel listener
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
