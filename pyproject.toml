@@ -84,6 +84,7 @@ dependencies = [
     "cachetools==7.0.1",
     "openfeature-sdk==0.8.4",
     "filelock==3.20.1",
+    "uuid-utils>=0.11.1",
 ]
 
 [project.optional-dependencies]
