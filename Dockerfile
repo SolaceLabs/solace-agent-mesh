@@ -184,7 +184,11 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
 
 # Fix CVE-2026-25547: Upgrade npm to 11.9.0+ (includes @isaacs/brace-expansion@5.0.1)
 # Node 25.5.0 bundles npm 11.8.0 which has vulnerable @isaacs/brace-expansion@5.0.0
-RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.9.0
+# Fix CVE-2026-29786 and CVE-2026-26960: Upgrade tar to 7.5.10 in npm's bundled modules
+# Fix CVE-2026-26996, CVE-2026-27903, CVE-2026-27904: Upgrade minimatch to 10.2.3 in npm's bundled modules
+# TODO: Remove bundled upgrades once npm releases a version bundling tar>=7.5.10 and minimatch>=10.2.3, then just bump the npm version above
+RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.9.0 && \
+    cd /usr/local/lib/node_modules/npm && node bin/npm-cli.js install tar@7.5.10 minimatch@10.2.4 --no-save
 
 
 # Install playwright temporarily just for browser installation (cached layer)
