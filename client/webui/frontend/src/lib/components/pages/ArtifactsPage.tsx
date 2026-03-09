@@ -293,7 +293,7 @@ function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToCha
     return (
         <Card
             className={cn(
-                "group relative flex h-[220px] w-[280px] flex-shrink-0 cursor-pointer flex-col gap-0 overflow-hidden transition-all",
+                "group relative flex h-[220px] w-[320px] flex-shrink-0 cursor-pointer flex-col gap-0 overflow-hidden transition-all",
                 "hover:bg-(--color-primary-w10) dark:hover:bg-(--color-primary-wMain)",
                 "focus-visible:border-(--color-brand-w100) focus-visible:outline-none",
                 isSelected && "border-(--color-brand-w100)"
@@ -388,7 +388,7 @@ function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToCha
                 {imagePreviewUrl ? (
                     <img src={imagePreviewUrl} alt={artifact.filename} className="h-full w-full object-cover" onError={() => setImagePreviewUrl(null)} />
                 ) : canShowDocumentThumbnail && documentContent ? (
-                    <DocumentThumbnail content={documentContent} filename={artifact.filename} mimeType={artifact.mime_type} width={280} height={130} onError={handleDocumentThumbnailError} className="absolute inset-0 h-full w-full" />
+                    <DocumentThumbnail content={documentContent} filename={artifact.filename} mimeType={artifact.mime_type} width={320} height={130} onError={handleDocumentThumbnailError} className="absolute inset-0 h-full w-full" />
                 ) : contentPreview ? (
                     <div className="text-muted-foreground h-full w-full overflow-hidden px-3 py-2 font-mono text-[11px] leading-relaxed">
                         {contentPreview.split("\n").map((line, index) => (
@@ -450,7 +450,7 @@ function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToCha
                     <span className="text-muted-foreground text-xs">{formatTimestamp(artifact.last_modified)}</span>
                 </div>
                 {/* Extension badge - uses shared getFileTypeColor from FileIcon */}
-                <span className={cn("rounded px-2 py-0.5 text-[10px] font-bold text-white", getFileTypeColor(artifact.mime_type, artifact.filename))}>
+                <span className={cn("ml-3 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-white", getFileTypeColor(artifact.mime_type, artifact.filename))}>
                     {getFileExtension(artifact.filename).length > 4 ? getFileExtension(artifact.filename).substring(0, 4) : getFileExtension(artifact.filename)}
                 </span>
             </div>
