@@ -4,6 +4,6 @@
  */
 export const artifactKeys = {
     all: ["artifacts"] as const,
-    content: (projectId: string, filename: string) => [...artifactKeys.all, "content", projectId, filename] as const,
+    content: (sessionId: string, filename: string) => [...artifactKeys.all, "content", sessionId, filename] as const,
     pdfBlob: (url: string) => [...artifactKeys.all, "pdf-blob", url] as const,
 };
