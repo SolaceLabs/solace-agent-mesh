@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { SamFeatureProvider } from "./SamFeatureProvider";
+import { SamFeatureProvider } from "@/lib/providers/openfeature/SamFeatureProvider";
 
 describe("SamFeatureProvider", () => {
     describe("metadata", () => {
