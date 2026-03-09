@@ -143,6 +143,17 @@ export interface MessageFE {
         authenticationAttempted?: boolean; // Track if auth button was clicked
         rejected?: boolean; // Track if reject button was clicked
     };
+    userInputRequest?: {
+        requestId: string;
+        expiresAt: string; // ISO 8601
+        source: "ask_user_question" | "tool_approval";
+        surface: A2UISurface; // Parsed A2UI v0.9 surface JSON
+        taskId: string;
+        agentName: string;
+        responded?: boolean; // Track if user already submitted/cancelled
+        timedOut?: boolean; // Track if request expired
+        responseText?: string; // completionText from the button that was clicked
+    };
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)
@@ -150,6 +161,21 @@ export interface MessageFE {
         lastProcessedEventSequence?: number; // Sequence number of the last SSE event processed for this bubble
     };
     parts: PartFE[];
+}
+
+// A2UI Types (Human-in-the-Loop surfaces)
+
+export interface A2UIComponent {
+    id: string;
+    component: string;
+    [key: string]: unknown;
+}
+
+export interface A2UISurface {
+    surfaceId: string;
+    catalogId: string;
+    components: A2UIComponent[];
+    dataModel: Record<string, unknown>;
 }
 
 // Layout Types

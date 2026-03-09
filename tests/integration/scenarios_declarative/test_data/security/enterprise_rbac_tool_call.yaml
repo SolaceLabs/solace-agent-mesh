@@ -1,0 +1,64 @@
+test_case_id: "enterprise_rbac_tool_call_001"
+description: "Enterprise user with scopes can invoke tools. Verifies auth identity flows through tool execution."
+tags: ["enterprise", "security"]
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "enterprise_tool_user@example.com"
+  enterprise:
+    user_scopes:
+      - "agent:TestAgent:delegate"
+      - "tool:*:execute"
+    user_roles:
+      - "developer"
+  a2a_parts:
+    - type: "text"
+      text: "What time is it?"
+  external_context:
+    a2a_session_id: "session_enterprise_tool_001"
+
+llm_interactions:
+  - step_id: "agent_calls_time_tool"
+    static_response:
+      id: "chatcmpl-enterprise-tool-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - index: 0
+          message:
+            role: "assistant"
+            content: null
+            tool_calls:
+              - id: "call_time_001"
+                type: "function"
+                function:
+                  name: "get_current_datetime"
+                  arguments: "{}"
+          finish_reason: "tool_calls"
+      usage:
+        prompt_tokens: 20
+        completion_tokens: 10
+        total_tokens: 30
+
+  - step_id: "agent_formats_response"
+    static_response:
+      id: "chatcmpl-enterprise-tool-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - index: 0
+          message:
+            role: "assistant"
+            content: "The current time has been retrieved for you."
+          finish_reason: "stop"
+      usage:
+        prompt_tokens: 30
+        completion_tokens: 10
+        total_tokens: 40
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "current time"
+    task_state: "completed"

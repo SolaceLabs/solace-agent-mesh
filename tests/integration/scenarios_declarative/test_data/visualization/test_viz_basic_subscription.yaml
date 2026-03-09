@@ -1,0 +1,49 @@
+test_case_id: "viz_basic_subscription_001"
+description: >
+  Visualization: subscribe to all namespace traffic and verify events are
+  received when an agent processes a request.
+tags: ["visualization", "all"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "viz_user@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Hello from visualization test"
+  external_context:
+    a2a_session_id: "session_viz_basic_001"
+
+llm_interactions:
+  - step_id: "agent_responds"
+    static_response:
+      id: "chatcmpl-viz-basic"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - index: 0
+          message:
+            role: "assistant"
+            content: "Hello! I received your message."
+          finish_reason: "stop"
+      usage:
+        prompt_tokens: 10
+        completion_tokens: 5
+        total_tokens: 15
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Hello! I received your message."
+
+# Visualization: subscribe to all A2A traffic in the test namespace
+# and verify we receive at least the agent request and gateway response events.
+visualization:
+  targets:
+    - type: topic
+      name: "test-ns/a2a/v1/>"
+  expected_events:
+    - topic_contains: "agent/request/TestAgent"
+    - topic_contains: "gateway/response"

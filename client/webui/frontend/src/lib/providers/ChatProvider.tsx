@@ -36,6 +36,7 @@ import type {
     Project,
     StoredTaskData,
     RAGSearchResult,
+    A2UISurface,
 } from "@/lib/types";
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
@@ -352,6 +353,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             displayHtml: message.displayHtml,
             contextQuote: message.contextQuote,
             contextQuoteSourceId: message.contextQuoteSourceId,
+            // Persist HIL state so the summary banner survives page reloads.
+            ...(message.userInputRequest ? { userInputRequest: message.userInputRequest } : {}),
         };
     }, []);
 
@@ -508,6 +511,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
                     contextQuote: bubble.contextQuote, // Restore context quote for user messages
                     contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
+                    // Restore HIL state (responded summary banner).
+                    ...(bubble.userInputRequest ? { userInputRequest: bubble.userInputRequest } : {}),
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -1175,6 +1180,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     }
                                     break;
                                 }
+                                case "user_input_request": {
+                                    const requestId = data?.request_id;
+                                    const surface = data?.surface;
+                                    if (requestId && surface) {
+                                        const hilMessage: MessageFE = {
+                                            role: "agent",
+                                            taskId: currentTaskIdFromResult,
+                                            parts: [{ kind: "text", text: "" }],
+                                            userInputRequest: {
+                                                requestId: String(requestId),
+                                                expiresAt: typeof data?.expires_at === "string" ? data.expires_at : "",
+                                                source: data?.source === "tool_approval" ? "tool_approval" : "ask_user_question",
+                                                surface: surface as A2UISurface,
+                                                taskId: currentTaskIdFromResult ?? "",
+                                                agentName: selectedAgentName ?? "",
+                                            },
+                                            isUser: false,
+                                            isComplete: false,
+                                            metadata: { messageId: `hil-${requestId}` },
+                                        };
+                                        setMessages(prev => [...prev, hilMessage]);
+                                    }
+                                    break;
+                                }
                                 case "rag_info_update": {
                                     // Handle RAG info updates from deep research (title and sources)
                                     // This is sent early during research so UI can display title and sources
@@ -1430,7 +1459,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // For progress updates, always update the same message (don't replace, just update the data)
                 // The InlineResearchProgress component will handle showing all stages
-                if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                if (isProgressUpdate && lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: newContentParts,
@@ -1441,7 +1470,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         },
                     };
                     newMessages[newMessages.length - 1] = updatedMessage;
-                } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                } else if (lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
                     // Regular append for non-progress updates
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
