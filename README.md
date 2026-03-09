@@ -1,4 +1,4 @@
-TTT<p align="center">
+TEST<p align="center">
   <img src="./docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
 </p>
 <h2 align="center">
