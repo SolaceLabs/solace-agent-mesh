@@ -56,11 +56,8 @@ const clearTokens = () => {
 let pendingRefresh: Promise<string | null> | null = null;
 
 const refreshToken = async () => {
-    if (pendingRefresh) {
-        return pendingRefresh;
-    }
-
-    // Don't attempt token refresh if we're in the middle of logging out
+    // Check abort conditions before joining any in-flight refresh, so a logout
+    // initiated mid-refresh doesn't let new callers receive a fresh token.
     if (sessionStorage.getItem("logout_in_progress") === "true") {
         return null;
     }
@@ -68,6 +65,10 @@ const refreshToken = async () => {
     const token = getRefreshToken();
     if (!token) {
         return null;
+    }
+
+    if (pendingRefresh) {
+        return pendingRefresh;
     }
 
     pendingRefresh = (async () => {
@@ -86,9 +87,11 @@ const refreshToken = async () => {
         clearTokens();
         globalThis.location.href = "/api/v1/auth/login";
         return null;
-    })().finally(() => {
-        pendingRefresh = null;
-    });
+    })()
+        .catch(() => null)
+        .finally(() => {
+            pendingRefresh = null;
+        });
 
     return pendingRefresh;
 };
@@ -154,6 +157,9 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
             if (retryResponse.status === 401) {
                 clearTokens();
                 globalThis.location.href = "/api/v1/auth/login";
+                // Navigation is async — return the 401 as-is; the page will
+                // navigate away before callers can act on it.
+                return retryResponse;
             }
 
             return retryResponse;
