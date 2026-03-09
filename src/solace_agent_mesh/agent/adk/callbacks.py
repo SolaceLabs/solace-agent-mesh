@@ -1645,7 +1645,7 @@ If a plan is created:
 """
     injected_instructions.append(planning_instruction)
 
-    # Inject LLM self-awareness: tell the agent which model it is running as
+    # Inject LLM self-awareness: tell the agent which model it is running as.
     _model_config = host_component.get_config("model", {})
     if isinstance(_model_config, dict):
         _llm_model_name = _model_config.get("model", "")
@@ -1654,12 +1654,13 @@ If a plan is created:
     else:
         _llm_model_name = ""
     if _llm_model_name:
+        _llm_model_name_display = _llm_model_name.rsplit("/", 1)[-1]
         injected_instructions.append(
             f"**Your LLM Identity:**\n"
-            f"You are running as the `{_llm_model_name}` language model. "
+            f"You are running as the `{_llm_model_name_display}` language model. "
             "If a user asks which AI model or LLM you are, you may truthfully state this."
         )
-        log.debug("%s Injected LLM self-awareness instruction (model: %s).", log_identifier, _llm_model_name)
+        log.debug("%s Injected LLM self-awareness instruction (model: %s).", log_identifier, _llm_model_name_display)
 
     # Add the consolidated block instructions
     injected_instructions.append(_generate_fenced_artifact_instruction())
