@@ -94,6 +94,37 @@ def build_file_parts(file_paths: List[str]) -> List[dict]:
     return parts
 
 
+def build_structured_invocation_part(
+    input_schema_path: Optional[str],
+    output_schema_path: Optional[str],
+) -> dict:
+    """Build a StructuredInvocationRequest data part from schema file paths."""
+    import json as _json
+
+    input_schema = None
+    output_schema = None
+
+    if input_schema_path:
+        with open(input_schema_path) as f:
+            input_schema = _json.load(f)
+
+    if output_schema_path:
+        with open(output_schema_path) as f:
+            output_schema = _json.load(f)
+
+    data = {
+        "type": "structured_invocation_request",
+        "workflow_name": "cli-test",
+        "node_id": f"cli-{uuid.uuid4().hex[:8]}",
+    }
+    if input_schema is not None:
+        data["input_schema"] = input_schema
+    if output_schema is not None:
+        data["output_schema"] = output_schema
+
+    return {"kind": "data", "data": data}
+
+
 async def download_stim_file(
     url: str, task_id: str, output_dir: Path, headers: dict
 ):
@@ -109,6 +140,20 @@ async def download_stim_file(
             f.write(response.content)
 
 
+def build_data_part(data_str: str) -> dict:
+    """Build a DataPart from inline JSON or a @file path."""
+    import json as _json
+
+    if data_str.startswith("@"):
+        file_path = data_str[1:]
+        with open(file_path) as f:
+            data = _json.load(f)
+    else:
+        data = _json.loads(data_str)
+
+    return {"kind": "data", "data": data}
+
+
 async def execute_task(
     message: str,
     url: str,
@@ -122,6 +167,9 @@ async def execute_task(
     no_stim: bool,
     debug: bool,
     session_hint: str = "",
+    si_input_schema: Optional[str] = None,
+    si_output_schema: Optional[str] = None,
+    data: Optional[str] = None,
 ) -> int:
     """
     Core task execution: send a task, stream SSE response, save outputs.
@@ -165,6 +213,18 @@ async def execute_task(
         parts.extend(file_parts)
         if not quiet:
             click.echo(click.style(f"Attached {len(file_parts)} file(s)", fg="blue"))
+
+    if si_input_schema or si_output_schema:
+        si_part = build_structured_invocation_part(si_input_schema, si_output_schema)
+        parts.append(si_part)
+        if not quiet:
+            click.echo(click.style("Structured invocation mode enabled", fg="blue"))
+
+    if data:
+        data_part = build_data_part(data)
+        parts.append(data_part)
+        if not quiet:
+            click.echo(click.style("Data part attached", fg="blue"))
 
     # Build JSON-RPC request payload
     payload = {

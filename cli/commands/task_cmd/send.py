@@ -84,6 +84,24 @@ from .common import (
     is_flag=True,
     help="Enable debug output",
 )
+@click.option(
+    "--si-input-schema",
+    type=click.Path(exists=True),
+    default=None,
+    help="JSON Schema file for structured invocation input validation.",
+)
+@click.option(
+    "--si-output-schema",
+    type=click.Path(exists=True),
+    default=None,
+    help="JSON Schema file for structured invocation output validation.",
+)
+@click.option(
+    "--data",
+    "-d",
+    default=None,
+    help="JSON data to send as a DataPart. Inline JSON string or @filepath for a JSON file.",
+)
 def send_task(
     message: str,
     url: str,
@@ -96,6 +114,9 @@ def send_task(
     quiet: bool,
     no_stim: bool,
     debug: bool,
+    si_input_schema: Optional[str],
+    si_output_schema: Optional[str],
+    data: Optional[str],
 ):
     """
     Send a task to the webui gateway and stream the response.
@@ -133,6 +154,9 @@ def send_task(
                 quiet=quiet,
                 no_stim=no_stim,
                 debug=debug,
+                si_input_schema=si_input_schema,
+                si_output_schema=si_output_schema,
+                data=data,
             )
         )
         sys.exit(exit_code)
@@ -155,6 +179,9 @@ async def _send_task_async(
     quiet: bool,
     no_stim: bool,
     debug: bool,
+    si_input_schema: Optional[str] = None,
+    si_output_schema: Optional[str] = None,
+    data: Optional[str] = None,
 ) -> int:
     """Async implementation of the task send command."""
 
@@ -203,4 +230,7 @@ async def _send_task_async(
         no_stim=no_stim,
         debug=debug,
         session_hint="  (use with --session-id to continue)",
+        si_input_schema=si_input_schema,
+        si_output_schema=si_output_schema,
+        data=data,
     )
