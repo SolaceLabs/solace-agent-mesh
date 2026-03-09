@@ -69,6 +69,9 @@ class TestInitFeatureCheckerEnterprise:
 
         _call_init_feature_checker()
 
+        provider = openfeature_api.provider_registry.get_default_provider()
+        assert isinstance(provider, SamFeatureProvider)
+
     def test_enterprise_extension_called_after_provider_is_set(self, monkeypatch):
         provider_at_call_time = []
 
