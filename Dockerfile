@@ -187,13 +187,15 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
 # Fix CVE-2026-29786 and CVE-2026-26960: Upgrade tar to 7.5.10 in npm's bundled modules
 # Fix CVE-2026-26996, CVE-2026-27903, CVE-2026-27904: Upgrade minimatch to 10.2.4 in npm's bundled modules
 # TODO: Remove bundled upgrades once npm releases a version bundling tar>=7.5.10 and minimatch>=10.2.4, then just bump the npm version above
-# Note: packages are installed globally first then moved into npm's bundled node_modules to avoid
+# Note: packages are installed into a temporary prefix and then moved into npm's bundled node_modules to avoid
 # triggering npm's own dependency resolution (which includes private packages not on the public registry)
+# Using --prefix /tmp/npm-fix avoids creating global bin shims that could shadow system tar or become broken links
 RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.9.0 && \
-    npm install -g tar@7.5.10 minimatch@10.2.4 && \
+    npm install -g --prefix /tmp/npm-fix tar@7.5.10 minimatch@10.2.4 && \
     rm -rf /usr/local/lib/node_modules/npm/node_modules/tar /usr/local/lib/node_modules/npm/node_modules/minimatch && \
-    mv /usr/local/lib/node_modules/tar /usr/local/lib/node_modules/npm/node_modules/tar && \
-    mv /usr/local/lib/node_modules/minimatch /usr/local/lib/node_modules/npm/node_modules/minimatch
+    mv /tmp/npm-fix/lib/node_modules/tar /usr/local/lib/node_modules/npm/node_modules/tar && \
+    mv /tmp/npm-fix/lib/node_modules/minimatch /usr/local/lib/node_modules/npm/node_modules/minimatch && \
+    rm -rf /tmp/npm-fix
 
 
 # Install playwright temporarily just for browser installation (cached layer)
