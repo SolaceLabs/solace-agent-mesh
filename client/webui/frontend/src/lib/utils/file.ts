@@ -1,4 +1,4 @@
-import { api } from "../api";
+import { api, getErrorFromResponse } from "../api";
 
 /**
  * Converts a File object to a Base64-encoded string.
@@ -78,7 +78,7 @@ export const getArtifactContent = async ({ filename, sessionId, projectId, versi
 
     const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
     if (!contentResponse.ok) {
-        throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
+        throw new Error(await getErrorFromResponse(contentResponse));
     }
 
     const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";

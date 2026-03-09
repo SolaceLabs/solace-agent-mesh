@@ -5,18 +5,39 @@ import * as artifactService from "./service";
 
 /**
  * Hook to fetch artifact content for preview.
- * Returns base64 content and mimeType for the specified artifact.
+ * Returns base64 content and mimeType for the specified project artifact.
  *
  * @param projectId - The project ID (null disables the query)
  * @param filename - The filename to fetch (null disables the query)
+ * @param version - Optional specific version number (defaults to "latest")
  * @returns React Query result with content and mimeType
  */
-export function useArtifactContent(projectId: string | null, filename: string | null) {
+export function useProjectArtifactContent(projectId: string | null, filename: string | null, version?: number) {
     return useQuery({
-        queryKey: projectId && filename ? artifactKeys.content(projectId, filename) : ["artifacts", "content", "empty"],
-        queryFn: projectId && filename ? () => artifactService.getArtifactContent(projectId, filename) : skipToken,
+        queryKey: projectId && filename ? artifactKeys.content(null, projectId, filename, version) : ["artifacts", "content", "empty"],
+        queryFn: projectId && filename ? () => artifactService.getArtifactContent({ projectId, filename, version }) : skipToken,
         enabled: !!projectId && !!filename,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+        retry: 1,
+    });
+}
+
+/**
+ * Hook to fetch session-scoped artifact content for preview.
+ * Returns base64 content and mimeType for the specified session artifact.
+ *
+ * @param sessionId - The session ID (null disables the query)
+ * @param filename - The filename to fetch (null disables the query)
+ * @param version - Optional specific version number (defaults to "latest")
+ * @returns React Query result with content and mimeType
+ */
+export function useSessionArtifactContent(sessionId: string | null, filename: string | null, version?: number) {
+    return useQuery({
+        queryKey: sessionId && filename ? artifactKeys.content(sessionId, null, filename, version) : ["artifacts", "session", "empty"],
+        queryFn: sessionId && filename ? () => artifactService.getArtifactContent({ sessionId, filename, version }) : skipToken,
+        enabled: !!sessionId && !!filename,
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+        retry: 1,
     });
 }
 
