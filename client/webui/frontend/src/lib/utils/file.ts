@@ -34,11 +34,11 @@ export const blobToBase64 = (blob: Blob): Promise<string> => {
  * @param options.filename - The name of the artifact file
  * @param options.sessionId - Optional session ID for session-scoped artifacts
  * @param options.projectId - Optional project ID for project-scoped artifacts (used when no session)
- * @param options.version - Optional version number. If omitted, returns URL for listing all versions
+ * @param options.version - Optional version number or "latest". If omitted, returns URL for listing all versions
  * @returns The constructed artifact URL
  * @throws {Error} When neither sessionId nor projectId is provided
  */
-export const getArtifactUrl = ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number }): string => {
+export const getArtifactUrl = ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number | "latest" }): string => {
     const isValidSession = sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined";
     const encodedFilename = encodeURIComponent(filename);
 
@@ -64,11 +64,11 @@ export const getArtifactUrl = ({ filename, sessionId, projectId, version }: { fi
  * @param options.filename - The name of the artifact file
  * @param options.sessionId - Optional session ID for session-scoped artifacts
  * @param options.projectId - Optional project ID for project-scoped artifacts (used when no session)
- * @param options.version - Optional version number. If omitted, fetches the latest version
+ * @param options.version - Optional version number or "latest". If omitted, fetches the latest version
  * @returns A promise that resolves to an object containing the content as a base64 string and the MIME type
  * @throws {Error} When the fetch operation fails
  */
-export const getArtifactContent = async ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number }): Promise<{ content: string; mimeType: string }> => {
+export const getArtifactContent = async ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number | "latest" }): Promise<{ content: string; mimeType: string }> => {
     const contentUrl = getArtifactUrl({
         filename,
         sessionId,
@@ -106,7 +106,10 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
             // Fallback for legacy format: artifact://{session_id}/{filename}
             // In this case, hostname might be session_id and filename is in path
             const sessionId = url.hostname || null;
-            const filename = pathParts.length > 0 ? pathParts[pathParts.length - 1] : "";
+            // Decode the filename — new URL() auto-encodes the pathname, so
+            // filenames with spaces/brackets arrive percent-encoded here.
+            // Downstream code re-encodes with encodeURIComponent().
+            const filename = pathParts.length > 0 ? decodeURIComponent(pathParts[pathParts.length - 1]) : "";
             if (!filename) {
                 return null;
             }
@@ -116,7 +119,7 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
 
         // Standard format: extract session_id from path (index 1)
         const sessionId = pathParts[1];
-        const filename = pathParts[2];
+        const filename = decodeURIComponent(pathParts[2]);
 
         const version = url.searchParams.get("version");
         return { sessionId, filename, version };

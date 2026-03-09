@@ -84,7 +84,6 @@ class VisualizationSubscribeResponse(BaseModel):
     """Response body for a successful visualization subscription."""
 
     stream_id: str = Field(..., description="Unique ID for the visualization stream.")
-    sse_endpoint_url: str = Field(..., description="URL for the SSE event stream.")
     actual_subscribed_targets: List[ActualSubscribedTarget] = Field(
         default_factory=list,
         description="List of abstract targets processed, with their subscription status.",
@@ -134,35 +133,6 @@ class VisualizationSubscriptionError(BaseModel):
 
 from sse_starlette.sse import EventSourceResponse
 
-
-def _generate_sse_url(fastapi_request: FastAPIRequest, stream_id: str) -> str:
-    """
-    Generate SSE endpoint URL with proper scheme and host detection for reverse proxy scenarios.
-
-    Args:
-        fastapi_request: The FastAPI request object
-        stream_id: The stream ID for the SSE endpoint
-
-    Returns:
-        Complete SSE URL with correct scheme (http/https) and host.
-    """
-    base_url = fastapi_request.url_for(
-        "get_visualization_stream_events", stream_id=stream_id
-    )
-
-    forwarded_proto = fastapi_request.headers.get("x-forwarded-proto")
-    forwarded_host = fastapi_request.headers.get("x-forwarded-host")
-
-    if forwarded_proto and forwarded_host:
-        # In a reverse proxy environment like GitHub Codespaces, reconstruct the URL
-        # using the forwarded headers to ensure it's publicly accessible.
-        return str(base_url.replace(scheme=forwarded_proto, netloc=forwarded_host))
-    elif forwarded_proto:
-        # Handle cases with only a forwarded protocol (standard reverse proxy)
-        return str(base_url.replace(scheme=forwarded_proto))
-    else:
-        # Default behavior when not behind a reverse proxy
-        return str(base_url)
 
 
 def _translate_target_to_solace_topics(
@@ -358,10 +328,8 @@ async def subscribe_to_visualization_stream(
                 log_id_prefix,
                 stream_id,
             )
-            sse_url = _generate_sse_url(fastapi_request, stream_id)
             return VisualizationSubscribeResponse(
                 stream_id=stream_id,
-                sse_endpoint_url=sse_url,
                 actual_subscribed_targets=existing_stream_data.get(
                     "abstract_targets", []
                 ),
@@ -742,19 +710,16 @@ async def subscribe_to_visualization_stream(
             len(failed_targets),
         )
 
-    sse_url = _generate_sse_url(fastapi_request, stream_id)
     log.info(
-        "%s Visualization stream %s initiated for user %s. SSE URL: %s. Processed Targets: %s",
+        "%s Visualization stream %s initiated for user %s. Processed Targets: %s",
         log_id_prefix,
         stream_id,
         user_id,
-        sse_url,
         processed_targets_for_response,
     )
 
     return VisualizationSubscribeResponse(
         stream_id=stream_id,
-        sse_endpoint_url=sse_url,
         actual_subscribed_targets=processed_targets_for_response,
         message=response_message,
     )
