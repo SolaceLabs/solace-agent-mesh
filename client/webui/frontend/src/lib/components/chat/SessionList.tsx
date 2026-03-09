@@ -371,7 +371,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             // Dispatch event to notify other components (like ProjectChatsSection) to refresh
             if (typeof window !== "undefined") {
                 window.dispatchEvent(
-                    new CustomEvent("session-moved", {
+                    new CustomEvent("session-updated", {
                         detail: {
                             sessionId: sessionToMove.id,
                             projectId: targetProjectId,
