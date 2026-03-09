@@ -134,7 +134,17 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
  * fallback for legacy artifacts, or undefined if not project-sourced.
  */
 export const getSourceProjectName = (artifact: ArtifactInfo | undefined, activeProject: Project | null): string | undefined => {
+    // [DEBUG] Diagnose project badge issue - remove after investigation
+
+    console.log("[DEBUG getSourceProjectName]", {
+        sourceProjectId: artifact?.sourceProjectId,
+        activeProjectId: activeProject?.id,
+        idsMatch: artifact?.sourceProjectId === activeProject?.id,
+        source: artifact?.source,
+        hasSourceProjectId: !!artifact?.sourceProjectId,
+        typeofSourceProjectId: typeof artifact?.sourceProjectId,
+    });
     if (artifact?.sourceProjectId === activeProject?.id) return activeProject?.name;
-    if (artifact?.source === "project" && !artifact?.sourceProjectId) return "Project";
+    if (artifact?.source === "project" && !artifact?.sourceProjectId) return "Generic Project";
     return undefined;
 };

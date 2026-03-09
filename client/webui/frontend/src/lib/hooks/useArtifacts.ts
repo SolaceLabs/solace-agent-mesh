@@ -49,6 +49,13 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
 
             type RawArtifactInfo = Omit<ArtifactInfo, "sourceProjectId"> & { source_project_id?: string };
             const data: RawArtifactInfo[] = await api.webui.get(endpoint);
+
+            // [DEBUG] Diagnose project badge issue - remove after investigation
+            if (data.length > 0) {
+                console.log("[DEBUG useArtifacts] raw API response[0]:", JSON.stringify(data[0]));
+                console.log("[DEBUG useArtifacts] raw API response has source_project_id:", "source_project_id" in data[0], "value:", data[0].source_project_id);
+            }
+
             // Filter out intermediate web content artifacts from deep research
             const filteredData = data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
             const artifactsWithUris = filteredData.map(({ source_project_id, ...artifact }) => ({
@@ -56,6 +63,13 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
                 sourceProjectId: source_project_id,
                 uri: artifact.uri || `artifact://${sessionId}/${artifact.filename}`,
             }));
+
+            // [DEBUG] Diagnose project badge issue - remove after investigation
+            if (artifactsWithUris.length > 0) {
+                console.log("[DEBUG useArtifacts] mapped artifact[0]:", JSON.stringify(artifactsWithUris[0]));
+                console.log("[DEBUG useArtifacts] mapped sourceProjectId:", artifactsWithUris[0].sourceProjectId);
+            }
+
             setArtifacts(artifactsWithUris);
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : "Failed to fetch artifacts.";

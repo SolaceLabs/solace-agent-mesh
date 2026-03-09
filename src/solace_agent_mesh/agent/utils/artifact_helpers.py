@@ -1124,6 +1124,9 @@ async def get_artifact_info_list(
                 source = metadata.get("source")
                 source_project_id = metadata.get("source_project_id")
 
+                # [DEBUG] Diagnose project badge issue - remove after investigation
+                print(f"[DEBUG get_artifact_info_list] artifact={filename}, source={source}, source_project_id={source_project_id}, metadata_keys={list(metadata.keys())}")
+
                 artifact_info_list.append(
                     ArtifactInfo(
                         filename=filename,
