@@ -51,7 +51,15 @@ const clearTokens = () => {
     localStorage.removeItem("refresh_token");
 };
 
+// Shared promise to deduplicate concurrent refresh attempts.
+// Multiple simultaneous 401s will all await the same refresh call.
+let pendingRefresh: Promise<string | null> | null = null;
+
 const refreshToken = async () => {
+    if (pendingRefresh) {
+        return pendingRefresh;
+    }
+
     // Don't attempt token refresh if we're in the middle of logging out
     if (sessionStorage.getItem("logout_in_progress") === "true") {
         return null;
@@ -62,21 +70,27 @@ const refreshToken = async () => {
         return null;
     }
 
-    const response = await fetch("/api/v1/auth/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: token }),
+    pendingRefresh = (async () => {
+        const response = await fetch("/api/v1/auth/refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: token }),
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            setTokens(data.access_token, data.sam_access_token, data.refresh_token);
+            return getApiBearerToken();
+        }
+
+        clearTokens();
+        globalThis.location.href = "/api/v1/auth/login";
+        return null;
+    })().finally(() => {
+        pendingRefresh = null;
     });
 
-    if (response.ok) {
-        const data = await response.json();
-        setTokens(data.access_token, data.sam_access_token, data.refresh_token);
-        return getApiBearerToken();
-    }
-
-    clearTokens();
-    window.location.href = "/api/v1/auth/login";
-    return null;
+    return pendingRefresh;
 };
 
 const getErrorFromResponse = async (response: Response): Promise<string> => {
@@ -124,34 +138,25 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     });
 
     if (response.status === 401) {
-        // Clone the response before reading it so we can still return it if needed
-        const cloned = response.clone();
-        let errorType: string | undefined;
-        try {
-            const body = await cloned.json();
-            errorType = body?.error_type;
-        } catch {
-            // ignore parse errors
-        }
-
-        // If the server explicitly says the token is invalid/expired, skip the
-        // refresh attempt and redirect to login immediately. This prevents the
-        // client from retrying the same expired token in a loop.
-        if (errorType === "invalid_token" || errorType === "authentication_required") {
-            clearTokens();
-            window.location.href = "/api/v1/auth/login";
-            return response;
-        }
-
         const newBearerToken = await refreshToken();
         if (newBearerToken) {
-            return fetch(url, {
+            const retryResponse = await fetch(url, {
                 ...options,
                 headers: {
                     ...options.headers,
                     Authorization: `Bearer ${newBearerToken}`,
                 },
             });
+
+            // If the retry after a successful refresh still returns 401, the new
+            // token is also being rejected (e.g. persistent server-side issue).
+            // Redirect to login to break any external retry loop.
+            if (retryResponse.status === 401) {
+                clearTokens();
+                globalThis.location.href = "/api/v1/auth/login";
+            }
+
+            return retryResponse;
         }
         // refreshToken() returned null — it already cleared tokens and redirected
         // to login (or there was no refresh token). Return the 401 as-is.
