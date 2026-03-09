@@ -9,7 +9,7 @@ import { NoPreviewState } from "@/lib/components/chat/preview/Renderers";
 import { EmptyState } from "@/lib/components/common/EmptyState";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { useArtifactContent } from "@/lib/api/artifacts";
-import { useProjectContext } from "@/lib/providers/ProjectProvider";
+import { useChatContext } from "@/lib/hooks";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
 import { highlightCitationsInText } from "@/lib/utils/highlightUtils";
 import { getArtifactUrl } from "@/lib/utils/file";
@@ -33,13 +33,13 @@ export interface CitationPreviewModalProps {
  * or scrolls to the relevant location (for PDFs: page, for text: line).
  */
 export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOpen, onClose, filename, locationLabel, initialLocation, citations }) => {
-    const { activeProject } = useProjectContext();
-    const projectId = activeProject?.id ?? null;
+    const { sessionId } = useChatContext();
+    const hasSession = !!sessionId && sessionId !== "";
 
     const [renderError, setRenderError] = useState<string | null>(null);
     const textContentRef = useRef<HTMLDivElement>(null);
 
-    const { data: artifactData, isLoading, error: fetchError } = useArtifactContent(isOpen ? projectId : null, isOpen ? filename : null);
+    const { data: artifactData, isLoading, error: fetchError } = useArtifactContent(isOpen && hasSession ? sessionId : null, isOpen ? filename : null);
 
     // For PDFs, prioritize filename extension over mimeType since backend may return
     // application/json wrapper which would incorrectly trigger JSON renderer
@@ -51,9 +51,9 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
 
     // Use "latest" version to get actual file content (using unified getArtifactUrl helper)
     const fileUrl = useMemo(() => {
-        if (!projectId) return null;
-        return getArtifactUrl({ filename, projectId, version: "latest" });
-    }, [filename, projectId]);
+        if (!hasSession) return null;
+        return getArtifactUrl({ filename, sessionId, version: "latest" });
+    }, [filename, sessionId, hasSession]);
 
     // Extract citation_map entries for precise character-position highlighting
     const citationMaps = useMemo((): CitationMapEntry[] => {
@@ -126,7 +126,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                                         disableInteractionModes={true}
                                     />
                                 ) : (
-                                    <MessageBanner variant="warning" message="Unable to preview PDF: No active project context" />
+                                    <MessageBanner variant="warning" message="Unable to preview PDF: No active session context" />
                                 )
                             ) : renderType === "text" || renderType === "markdown" ? (
                                 <div ref={textContentRef} className="p-4">

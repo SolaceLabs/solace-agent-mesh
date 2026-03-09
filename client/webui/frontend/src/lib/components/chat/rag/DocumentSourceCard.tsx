@@ -4,7 +4,7 @@ import { ChevronRight, Loader2 } from "lucide-react";
 import { AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui/accordion";
 import { FileIcon } from "@/lib/components/chat/file/FileIcon";
 import { useArtifactContent } from "@/lib/api/artifacts";
-import { useProjectContext } from "@/lib/providers/ProjectProvider";
+import { useChatContext } from "@/lib/hooks";
 import { canPreviewArtifact } from "@/lib/components/chat/preview/previewUtils";
 import { ArtifactPreviewDownload } from "@/lib/components/chat/artifact/ArtifactPreviewDownload";
 import type { GroupedDocument, LocationCitation } from "@/lib/utils/documentSourceUtils";
@@ -26,13 +26,13 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
     const { totalCitations, locations, fileExtension, filename } = document;
     const [selectedLocation, setSelectedLocation] = useState<LocationCitation | null>(null);
 
-    const { activeProject } = useProjectContext();
-    const projectId = activeProject?.id ?? null;
+    const { sessionId } = useChatContext();
+    const activeSessionId = sessionId || null;
 
     const needsPreviewCheck = fileExtension.toLowerCase() === "pptx" || fileExtension.toLowerCase() === "docx";
 
     // Fetch artifact content to check if it can be previewed
-    const { data: artifactData, isLoading: isLoadingArtifact } = useArtifactContent(needsPreviewCheck ? projectId : null, needsPreviewCheck ? filename : null);
+    const { data: artifactData, isLoading: isLoadingArtifact } = useArtifactContent(needsPreviewCheck ? activeSessionId : null, needsPreviewCheck ? filename : null);
 
     // Check if artifact can be previewed (based on size and file type support)
     const previewCheck = useMemo(() => {
