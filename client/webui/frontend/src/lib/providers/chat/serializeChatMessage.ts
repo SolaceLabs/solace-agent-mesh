@@ -37,5 +37,7 @@ export function serializeChatMessage(message: MessageFE) {
         // Persist inline progress timeline data so it survives page reloads
         ...(message.progressUpdates && message.progressUpdates.length > 0 ? { progressUpdates: message.progressUpdates } : {}),
         ...((message.thinkingContent?.length ?? 0) > 0 ? { thinkingContent: message.thinkingContent, isThinkingComplete: message.isThinkingComplete ?? true } : {}),
+        // Persist HIL state so the summary banner survives page reloads.
+        ...(message.userInputRequest ? { userInputRequest: message.userInputRequest } : {}),
     };
 }

@@ -29,6 +29,7 @@ import { downloadFile } from "@/lib/utils/download";
 import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 import { CompactionNotification, type CompactionNotificationData } from "./CompactionNotification";
+import { UserInputMessage } from "./hil";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
 import { MessageAttribution } from "./MessageAttribution";
@@ -647,6 +648,10 @@ const getChatBubble = (
 
     if (message.authenticationLink) {
         return <AuthenticationMessage message={message} />;
+    }
+
+    if (message.userInputRequest) {
+        return <UserInputMessage message={message} />;
     }
 
     // Check for deep research progress data
