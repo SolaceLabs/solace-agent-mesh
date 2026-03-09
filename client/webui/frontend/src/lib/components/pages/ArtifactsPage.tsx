@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useContext, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle } from "lucide-react";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import {
     Button,
     Input,
@@ -276,7 +276,7 @@ function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToCha
             isMounted = false;
             abortController.abort();
         };
-    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.projectId, canAttemptDocumentThumbnail, isVisible]);
+    }, [artifact, canAttemptDocumentThumbnail, isVisible]);
 
     // Handle document thumbnail error - fall back to icon
     const handleDocumentThumbnailError = useCallback(() => {
@@ -723,12 +723,25 @@ const StandalonePreviewPanel = memo(function StandalonePreviewPanel({ artifact, 
     );
 });
 
+// Sort options for artifacts
+type SortField = "date" | "name" | "type" | "size";
+type SortDirection = "asc" | "desc";
+
+const SORT_OPTIONS: { value: SortField; label: string }[] = [
+    { value: "date", label: "Date" },
+    { value: "name", label: "Name" },
+    { value: "type", label: "Type" },
+    { value: "size", label: "Size" },
+];
+
 export function ArtifactsPage() {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
     const { artifacts, isLoading, error: fetchError, refetch } = useAllArtifacts();
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedProject, setSelectedProject] = useState<string>("all");
+    const [sortBy, setSortBy] = useState<SortField>("date");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
     const [previewArtifact, setPreviewArtifact] = useState<ArtifactWithSession | null>(null);
     const [deleteConfirmArtifact, setDeleteConfirmArtifact] = useState<ArtifactWithSession | null>(null);
 
@@ -766,7 +779,7 @@ export function ArtifactsPage() {
         return sortedNames;
     }, [artifacts]);
 
-    // Filter artifacts by project and search query
+    // Filter and sort artifacts by project, search query, and sort options
     const filteredArtifacts = useMemo(() => {
         let filtered = artifacts;
 
@@ -791,8 +804,57 @@ export function ArtifactsPage() {
             });
         }
 
-        return filtered;
-    }, [artifacts, selectedProject, searchQuery]);
+        // Sort artifacts
+        const sorted = [...filtered].sort((a, b) => {
+            let comparison = 0;
+
+            switch (sortBy) {
+                case "date": {
+                    // Sort by last_modified date
+                    const dateA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
+                    const dateB = b.last_modified ? new Date(b.last_modified).getTime() : 0;
+                    comparison = dateA - dateB;
+                    break;
+                }
+                case "name":
+                    // Sort by filename (case-insensitive)
+                    comparison = a.filename.toLowerCase().localeCompare(b.filename.toLowerCase());
+                    break;
+                case "type": {
+                    // Sort by file extension
+                    const extA = a.filename.split(".").pop()?.toLowerCase() || "";
+                    const extB = b.filename.split(".").pop()?.toLowerCase() || "";
+                    comparison = extA.localeCompare(extB);
+                    break;
+                }
+                case "size":
+                    // Sort by file size
+                    comparison = a.size - b.size;
+                    break;
+            }
+
+            // Apply sort direction
+            return sortDirection === "asc" ? comparison : -comparison;
+        });
+
+        return sorted;
+    }, [artifacts, selectedProject, searchQuery, sortBy, sortDirection]);
+
+    // Toggle sort direction or change sort field
+    const handleSortChange = useCallback(
+        (field: SortField) => {
+            if (field === sortBy) {
+                // Toggle direction if same field
+                setSortDirection(prev => (prev === "asc" ? "desc" : "asc"));
+            } else {
+                // Change field and set default direction
+                setSortBy(field);
+                // Default to desc for date/size (newest/largest first), asc for name/type (A-Z)
+                setSortDirection(field === "date" || field === "size" ? "desc" : "asc");
+            }
+        },
+        [sortBy]
+    );
 
     const handleDownload = useCallback(
         async (artifact: ArtifactWithSession) => {
@@ -923,6 +985,28 @@ export function ArtifactsPage() {
                                     </Select>
                                 </div>
                             )}
+
+                            {/* Sort Controls */}
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium whitespace-nowrap">Sort:</label>
+                                <div className="flex items-center">
+                                    <Select value={sortBy} onValueChange={(value: SortField) => handleSortChange(value)}>
+                                        <SelectTrigger className="h-9 w-24 rounded-r-none border-r-0">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {SORT_OPTIONS.map(option => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Button variant="outline" size="icon" className="h-9 w-9 rounded-l-none" onClick={() => setSortDirection(prev => (prev === "asc" ? "desc" : "asc"))} title={sortDirection === "asc" ? "Ascending" : "Descending"}>
+                                        {sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                                    </Button>
+                                </div>
+                            </div>
 
                             {!isLoading && artifacts.length > 0 && (
                                 <span className="text-muted-foreground text-sm">
