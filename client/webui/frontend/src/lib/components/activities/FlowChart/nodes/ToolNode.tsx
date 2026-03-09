@@ -18,6 +18,7 @@ const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
 
     return (
         <div
+            data-testid={`tool-node-${node.data.label}`}
             className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} flex flex-col justify-center ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
             style={{ width: "225px", minHeight: "50px" }}
             onClick={e => {

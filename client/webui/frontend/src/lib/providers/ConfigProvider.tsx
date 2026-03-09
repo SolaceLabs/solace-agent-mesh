@@ -144,6 +144,10 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 const platformConfigured = Boolean(data.frontend_platform_server_url);
                 const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
 
+                // Extract binary artifact preview config from feature enablement
+                const binaryArtifactPreviewEnabled = data.frontend_feature_enablement?.binaryArtifactPreview ?? false;
+
+                // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     webuiServerUrl: data.frontend_server_url,
                     platformServerUrl: data.frontend_platform_server_url,
@@ -164,6 +168,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     platformConfigured,
                     autoTitleGenerationEnabled,
                     identityServiceType: data.identity_service_type,
+                    binaryArtifactPreviewEnabled,
                 };
                 if (isMounted) {
                     await OpenFeature.setProviderAndWait(new SamFeatureProvider(featureFlags));
