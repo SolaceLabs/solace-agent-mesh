@@ -1,6 +1,13 @@
 import { api, getErrorFromResponse } from "../api";
 
 /**
+ * Returns the identifier if it is a usable, non-sentinel value, or undefined otherwise.
+ * Filters out null, undefined, empty strings, whitespace-only strings,
+ * and the literal strings "null" / "undefined" that can leak from serialization.
+ */
+export const validIdOrUndefined = (id: string | null | undefined): string | undefined => (id && id.trim() && id !== "null" && id !== "undefined" ? id : undefined);
+
+/**
  * Converts a File object to a Base64-encoded string.
  * @param file - The file to convert
  * @returns A promise that resolves to the Base64 string
@@ -39,19 +46,19 @@ export const blobToBase64 = (blob: Blob): Promise<string> => {
  * @throws {Error} When neither sessionId nor projectId is provided
  */
 export const getArtifactUrl = ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number | "latest" }): string => {
-    const isValidSession = sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined";
+    const validSessionId = validIdOrUndefined(sessionId);
     const encodedFilename = encodeURIComponent(filename);
 
-    const basePath = isValidSession ? `/api/v1/artifacts/${sessionId}/${encodedFilename}/versions` : `/api/v1/artifacts/null/${encodedFilename}/versions`;
+    const basePath = validSessionId ? `/api/v1/artifacts/${validSessionId}/${encodedFilename}/versions` : `/api/v1/artifacts/null/${encodedFilename}/versions`;
     const versionPath = version !== undefined ? `/${version}` : "";
     const url = `${basePath}${versionPath}`;
 
     // Add projectId query param if needed (when no valid session)
-    if (!isValidSession && projectId) {
+    if (!validSessionId && projectId) {
         return `${url}?project_id=${projectId}`;
     }
 
-    if (!isValidSession && !projectId) {
+    if (!validSessionId && !projectId) {
         throw new Error("No valid context for artifact: either sessionId or projectId must be provided");
     }
 

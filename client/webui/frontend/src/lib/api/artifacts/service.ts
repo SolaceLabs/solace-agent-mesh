@@ -1,5 +1,5 @@
 import { api, getErrorFromResponse } from "@/lib/api";
-import { getArtifactContent as getArtifactContentUtil } from "@/lib/utils/file";
+import { getArtifactContent as getArtifactContentUtil, validIdOrUndefined } from "@/lib/utils/file";
 
 /**
  * Retrieves artifact content for preview.
@@ -12,10 +12,12 @@ import { getArtifactContent as getArtifactContentUtil } from "@/lib/utils/file";
  * @returns Promise with content (base64) and mimeType
  */
 export async function getArtifactContent({ sessionId, projectId, filename, version }: { sessionId?: string; projectId?: string; filename: string; version?: number }): Promise<{ content: string; mimeType: string }> {
+    const validSession = validIdOrUndefined(sessionId);
+    const validProject = validIdOrUndefined(projectId);
     return getArtifactContentUtil({
         filename,
-        ...(sessionId ? { sessionId } : {}),
-        ...(projectId ? { projectId } : {}),
+        ...(validSession ? { sessionId: validSession } : {}),
+        ...(validProject ? { projectId: validProject } : {}),
         version: version ?? "latest",
     });
 }

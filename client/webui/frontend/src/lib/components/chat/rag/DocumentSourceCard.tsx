@@ -34,12 +34,16 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
     const fileVersion: number | undefined = locations[0]?.citations[0]?.metadata?.file_version ?? undefined;
 
     // Fetch artifact content to check if it can be previewed
-    const { data: artifactData, isLoading: isLoadingArtifact } = useSessionArtifactContent(needsPreviewCheck ? sessionId : null, needsPreviewCheck ? filename : null, fileVersion);
+    const { data: artifactData, isLoading: isLoadingArtifact, error: artifactError } = useSessionArtifactContent(needsPreviewCheck ? sessionId : null, needsPreviewCheck ? filename : null, fileVersion);
 
     // Check if artifact can be previewed (based on size and file type support)
     const previewCheck = useMemo(() => {
         if (!needsPreviewCheck) {
             return { canPreview: true };
+        }
+
+        if (artifactError) {
+            return { canPreview: false, reason: "Unable to check preview availability" };
         }
 
         if (!artifactData) {
@@ -58,7 +62,7 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
         };
 
         return canPreviewArtifact(mockArtifact);
-    }, [artifactData, filename, needsPreviewCheck]);
+    }, [artifactData, artifactError, filename, needsPreviewCheck]);
 
     return (
         <>

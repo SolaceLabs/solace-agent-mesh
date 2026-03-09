@@ -12,7 +12,7 @@ import { useSessionArtifactContent } from "@/lib/api/artifacts";
 import { useChatContext } from "@/lib/hooks";
 import { getRenderType, decodeBase64Content } from "@/lib/components/chat/preview/previewUtils";
 import { highlightCitationsInText } from "@/lib/utils/highlightUtils";
-import { getArtifactUrl } from "@/lib/utils/file";
+import { getArtifactUrl, validIdOrUndefined } from "@/lib/utils/file";
 import { useScrollToHighlight } from "@/lib/hooks/useScrollToHighlight";
 import type { RAGSource } from "@/lib/types";
 import type { CitationMapEntry } from "@/lib/components/chat/preview/Renderers/PdfRenderer";
@@ -53,7 +53,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
 
     // Build URL for PDF rendering, using the specific file version if available
     const fileUrl = useMemo(() => {
-        if (!sessionId) return null;
+        if (!validIdOrUndefined(sessionId)) return null;
         return getArtifactUrl({ filename, sessionId, version: fileVersion ?? "latest" });
     }, [filename, sessionId, fileVersion]);
 

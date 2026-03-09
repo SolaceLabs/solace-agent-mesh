@@ -1,5 +1,6 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 
+import { validIdOrUndefined } from "@/lib/utils/file";
 import { artifactKeys } from "./keys";
 import * as artifactService from "./service";
 
@@ -13,10 +14,11 @@ import * as artifactService from "./service";
  * @returns React Query result with content and mimeType
  */
 export function useProjectArtifactContent(projectId: string | null, filename: string | null, version?: number) {
+    const validProjectId = validIdOrUndefined(projectId);
     return useQuery({
-        queryKey: projectId && filename ? artifactKeys.content(null, projectId, filename, version) : ["artifacts", "content", "empty"],
-        queryFn: projectId && filename ? () => artifactService.getArtifactContent({ projectId, filename, version }) : skipToken,
-        enabled: !!projectId && !!filename,
+        queryKey: validProjectId && filename ? artifactKeys.content(null, validProjectId, filename, version) : ["artifacts", "content", "empty"],
+        queryFn: validProjectId && filename ? () => artifactService.getArtifactContent({ projectId: validProjectId, filename, version }) : skipToken,
+        enabled: !!validProjectId && !!filename,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
         retry: 1,
     });
@@ -32,10 +34,11 @@ export function useProjectArtifactContent(projectId: string | null, filename: st
  * @returns React Query result with content and mimeType
  */
 export function useSessionArtifactContent(sessionId: string | null, filename: string | null, version?: number) {
+    const validSessionId = validIdOrUndefined(sessionId);
     return useQuery({
-        queryKey: sessionId && filename ? artifactKeys.content(sessionId, null, filename, version) : ["artifacts", "session", "empty"],
-        queryFn: sessionId && filename ? () => artifactService.getArtifactContent({ sessionId, filename, version }) : skipToken,
-        enabled: !!sessionId && !!filename,
+        queryKey: validSessionId && filename ? artifactKeys.content(validSessionId, null, filename, version) : ["artifacts", "session", "empty"],
+        queryFn: validSessionId && filename ? () => artifactService.getArtifactContent({ sessionId: validSessionId, filename, version }) : skipToken,
+        enabled: !!validSessionId && !!filename,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
         retry: 1,
     });
