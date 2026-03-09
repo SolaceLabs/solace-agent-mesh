@@ -108,7 +108,10 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
             // Fallback for legacy format: artifact://{session_id}/{filename}
             // In this case, hostname might be session_id and filename is in path
             const sessionId = url.hostname || null;
-            const filename = pathParts.length > 0 ? pathParts[pathParts.length - 1] : "";
+            // Decode the filename — new URL() auto-encodes the pathname, so
+            // filenames with spaces/brackets arrive percent-encoded here.
+            // Downstream code re-encodes with encodeURIComponent().
+            const filename = pathParts.length > 0 ? decodeURIComponent(pathParts[pathParts.length - 1]) : "";
             if (!filename) {
                 return null;
             }
@@ -118,7 +121,7 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
 
         // Standard format: extract session_id from path (index 1)
         const sessionId = pathParts[1];
-        const filename = pathParts[2];
+        const filename = decodeURIComponent(pathParts[2]);
 
         const version = url.searchParams.get("version");
         return { sessionId, filename, version };
