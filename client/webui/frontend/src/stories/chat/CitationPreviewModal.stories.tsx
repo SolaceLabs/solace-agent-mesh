@@ -34,6 +34,7 @@ const mockTextCitations: RAGSource[] = [
         metadata: {
             location_range: "Lines 1-10",
             primary_location: "Line 5",
+            file_version: 0,
         },
     },
 ];
@@ -65,14 +66,14 @@ const mockPdfCitations: RAGSource[] = [
 
 // MSW Handlers
 const successHandlers = [
-    // Text file handler - returns plain text (service will convert to base64)
-    http.get("*/api/v1/artifacts/null/test_document.txt/versions/latest*", () => {
+    // Text file handler (version 0) - returns plain text (service will convert to base64)
+    http.get("*/api/v1/artifacts/:sessionId/test_document.txt/versions/0", () => {
         return new HttpResponse(sampleTextContent, {
             headers: { "Content-Type": "text/plain" },
         });
     }),
-    // PDF file handler - returns raw PDF bytes
-    http.get("*/api/v1/artifacts/null/quarterly_report.pdf/versions/latest*", () => {
+    // PDF file handler (no file_version, defaults to "latest") - returns raw PDF bytes
+    http.get("*/api/v1/artifacts/:sessionId/quarterly_report.pdf/versions/latest", () => {
         const pdfBinary = atob(minimalPdfBase64);
         const bytes = new Uint8Array(pdfBinary.length);
         for (let i = 0; i < pdfBinary.length; i++) {
@@ -85,17 +86,17 @@ const successHandlers = [
 ];
 
 const loadingHandlers = [
-    http.get("*/api/v1/artifacts/null/*/versions/latest*", async () => {
+    http.get("*/api/v1/artifacts/:sessionId/*/versions/:version", async () => {
         await delay("infinite");
         return new HttpResponse(null);
     }),
 ];
 
 const errorHandlers = [
-    http.get("*/api/v1/artifacts/null/*/versions/latest*", () => {
-        return new HttpResponse(null, {
-            status: 500,
-            statusText: "Internal Server Error",
+    http.get("*/api/v1/artifacts/:sessionId/*/versions/:version", () => {
+        return new HttpResponse(JSON.stringify({ detail: "Artifact not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
         });
     }),
 ];
@@ -110,8 +111,8 @@ const meta = {
                 component: "Modal for previewing document citations. Displays document content with highlighted citations (for text files) or scrolls to the relevant page (for PDFs).",
             },
         },
-        projectContext: {
-            activeProject: { id: "test-project-id", name: "Test Project" },
+        chatContext: {
+            sessionId: "test-session-id",
         },
     },
     decorators: [

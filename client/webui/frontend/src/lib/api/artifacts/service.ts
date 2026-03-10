@@ -1,22 +1,25 @@
-import { api } from "@/lib/api";
-import { getArtifactContent as getArtifactContentUtil } from "@/lib/utils/file";
+import { api, getErrorFromResponse } from "@/lib/api";
+import { getArtifactContent as getArtifactContentUtil, validIdOrUndefined } from "@/lib/utils/file";
 import type { BulkArtifactsResponse } from "./types";
 
 /**
- * Retrieves artifact content for a file in a project.
- * Uses the unified artifact utility with version "latest" to fetch actual file content.
+ * Retrieves artifact content for preview.
+ * Supports both session-scoped and project-scoped artifacts (sessionId takes priority).
  *
- * @param projectId - The project ID containing the artifact
- * @param filename - The filename of the artifact
+ * @param options.sessionId - Optional session ID for session-scoped artifacts
+ * @param options.projectId - Optional project ID for project-scoped artifacts
+ * @param options.filename - The filename of the artifact
+ * @param options.version - Optional specific version number (defaults to "latest")
  * @returns Promise with content (base64) and mimeType
  */
-export async function getArtifactContent(projectId: string, filename: string): Promise<{ content: string; mimeType: string }> {
-    // Use the unified utility from @/lib/utils/file.ts
-    // This supports both session-scoped and project-scoped artifacts
+export async function getArtifactContent({ sessionId, projectId, filename, version }: { sessionId?: string; projectId?: string; filename: string; version?: number }): Promise<{ content: string; mimeType: string }> {
+    const validSession = validIdOrUndefined(sessionId);
+    const validProject = validIdOrUndefined(projectId);
     return getArtifactContentUtil({
         filename,
-        projectId,
-        version: "latest", // Fetch latest version
+        ...(validSession ? { sessionId: validSession } : {}),
+        ...(validProject ? { projectId: validProject } : {}),
+        version: version ?? "latest",
     });
 }
 
@@ -51,7 +54,7 @@ export async function fetchPdfBlob(url: string): Promise<string> {
 
     const response = await api.webui.get(url, { fullResponse: true });
     if (!response.ok) {
-        throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+        throw new Error(await getErrorFromResponse(response));
     }
     const blob = await response.blob();
     return URL.createObjectURL(blob);
