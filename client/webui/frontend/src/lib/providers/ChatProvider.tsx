@@ -911,6 +911,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // This handles cases where the task fails before streaming any status updates
                     if (result.status?.state === "failed" && result.status?.message) {
                         messageToProcess = result.status.message;
+                    } else if (result.status?.message?.parts?.some((p: any) => p.kind === "file")) {
+                        // The gateway resolves artifact_return embeds into file parts
+                        // interleaved with text at their original positions. Use the full
+                        // parts array so artifacts appear inline where the LLM placed them.
+                        messageToProcess = result.status.message;
                     } else {
                         // For successful tasks, content has already been streamed via status_updates
                         messageToProcess = undefined;
@@ -965,7 +970,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     if (status === "cancelled") {
                                         setMessages(prev => {
                                             const newMessages = [...prev];
-                                            const agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+                                            const agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && !m.userInputRequest && m.taskId === currentTaskIdFromResult);
                                             if (agentMessageIndex !== -1) {
                                                 const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
                                                 // Remove the artifact part for this filename
@@ -1057,7 +1062,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                     setMessages(prev => {
                                         const newMessages = [...prev];
-                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && !m.userInputRequest && m.taskId === currentTaskIdFromResult);
 
                                         if (agentMessageIndex === -1) {
                                             const newAgentMessage: MessageFE = {
@@ -1471,10 +1476,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     };
                     newMessages[newMessages.length - 1] = updatedMessage;
                 } else if (lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
-                    // Regular append for non-progress updates
+                    // When the final response includes file parts, the gateway has
+                    // resolved artifact_return embeds and interleaved them at the
+                    // correct text positions. Replace the streamed parts with the
+                    // authoritative final parts to preserve that ordering.
+                    // For non-final events, append as usual.
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
-                        parts: [...lastMessage.parts, ...newContentParts],
+                        parts: isFinalEvent && hasNewFiles ? newContentParts : [...lastMessage.parts, ...newContentParts],
                         isComplete: isFinalEvent || hasNewFiles,
                         isError: isTaskFailed || lastMessage.isError,
                         metadata: {

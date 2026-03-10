@@ -196,6 +196,25 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         };
     }, []);
 
+    // Handle set-chat-input events from welcome screen suggestion chips
+    useEffect(() => {
+        const handleSetChatInput = (event: Event) => {
+            const customEvent = event as CustomEvent<{ text: string }>;
+            const text = customEvent.detail.text;
+            setInputValue(text);
+            setDesiredCursorPosition(text.length);
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+                setDesiredCursorPosition(undefined);
+            }, 100);
+        };
+
+        window.addEventListener("set-chat-input", handleSetChatInput);
+        return () => {
+            window.removeEventListener("set-chat-input", handleSetChatInput);
+        };
+    }, []);
+
     // Handle follow-up question from text selection
     useEffect(() => {
         const handleFollowUp = async (event: Event) => {
