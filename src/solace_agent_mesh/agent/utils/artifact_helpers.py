@@ -87,14 +87,11 @@ def is_filename_safe(filename: str) -> bool:
 
 
 def sanitize_to_filename(
-    text: str,
-    max_length: int = 50,
-    suffix: str = "",
-    replacement_char: str = "_"
+    text: str, max_length: int = 50, suffix: str = "", replacement_char: str = "_"
 ) -> str:
     """
     Sanitizes arbitrary text into a safe filename.
-    
+
     Converts text (like a research question or title) into a filesystem-safe
     filename by:
     1. Converting to lowercase
@@ -102,16 +99,16 @@ def sanitize_to_filename(
     3. Replacing spaces and hyphens with the replacement character
     4. Limiting length to max_length
     5. Optionally appending a suffix
-    
+
     Args:
         text: The text to convert into a filename (e.g., research question, title)
         max_length: Maximum length of the base filename (before suffix). Default: 50
         suffix: Optional suffix to append (e.g., "_report.md"). Default: ""
         replacement_char: Character to replace spaces/hyphens with. Default: "_"
-    
+
     Returns:
         A sanitized filename string safe for filesystem use.
-    
+
     Examples:
         >>> sanitize_to_filename("What is AI?")
         'what_is_ai'
@@ -121,29 +118,29 @@ def sanitize_to_filename(
         'a_very_long_research'
     """
     import re
-    
+
     if not text:
         return f"unnamed{suffix}"
-    
+
     # Convert to lowercase and remove non-word characters except spaces and hyphens
-    safe_name = re.sub(r'[^\w\s-]', '', text.lower())
-    
+    safe_name = re.sub(r"[^\w\s-]", "", text.lower())
+
     # Replace spaces and hyphens with the replacement character
-    safe_name = re.sub(r'[-\s]+', replacement_char, safe_name)
-    
+    safe_name = re.sub(r"[-\s]+", replacement_char, safe_name)
+
     # Strip leading/trailing replacement chars
     safe_name = safe_name.strip(replacement_char)
-    
+
     # Limit length
     if max_length > 0:
         safe_name = safe_name[:max_length]
         # Strip trailing replacement char if we cut in the middle
         safe_name = safe_name.rstrip(replacement_char)
-    
+
     # Handle empty result
     if not safe_name:
         safe_name = "unnamed"
-    
+
     return f"{safe_name}{suffix}"
 
 
@@ -458,7 +455,9 @@ async def save_artifact_with_metadata(
                         a2a_context = tool_context.state.get("a2a_context")
                         # Get function_call_id if this was created by a tool
                         # Try state first (legacy), then the ADK attribute
-                        function_call_id = tool_context.state.get("function_call_id") or getattr(tool_context, "function_call_id", None)
+                        function_call_id = tool_context.state.get(
+                            "function_call_id"
+                        ) or getattr(tool_context, "function_call_id", None)
                     except Exception as ctx_err:
                         log.info(
                             "%s Could not extract context from tool_context: %s",
@@ -474,7 +473,9 @@ async def save_artifact_with_metadata(
                         version=data_version,
                         mime_type=mime_type,
                         size=len(content_bytes),
-                        description=metadata_dict.get("description") if metadata_dict else None,
+                        description=metadata_dict.get("description")
+                        if metadata_dict
+                        else None,
                         version_count=None,  # Count not available in save context
                     )
 
@@ -993,22 +994,22 @@ async def get_artifact_counts_batch(
 ) -> Dict[str, int]:
     """
     Get artifact counts for multiple sessions in a batch operation.
-    
+
     Args:
         artifact_service: The artifact service instance.
         app_name: The application name.
         user_id: The user ID.
         session_ids: List of session IDs to get counts for.
-    
+
     Returns:
         Dict mapping session_id to artifact_count (excluding internal/generated files)
     """
     log_prefix = f"[ArtifactHelper:get_counts_batch] App={app_name}, User={user_id} -"
     counts: Dict[str, int] = {}
-    
+
     try:
         list_keys_method = getattr(artifact_service, "list_artifact_keys")
-        
+
         for session_id in session_ids:
             try:
                 keys = await list_keys_method(
@@ -1021,16 +1022,23 @@ async def get_artifact_counts_batch(
                 # be filtered out here to avoid inflating per-project counts.
                 count = sum(1 for key in keys if not is_internal_artifact(key))
                 counts[session_id] = count
-                log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
+                log.debug(
+                    "%s Session %s has %d artifacts", log_prefix, session_id, count
+                )
             except Exception as e:
-                log.warning("%s Failed to get count for session %s: %s", log_prefix, session_id, e)
+                log.warning(
+                    "%s Failed to get count for session %s: %s",
+                    log_prefix,
+                    session_id,
+                    e,
+                )
                 counts[session_id] = 0
-                
+
     except Exception as e:
         log.exception("%s Error in batch count operation: %s", log_prefix, e)
         # Return 0 for all sessions on error
         return {session_id: 0 for session_id in session_ids}
-    
+
     return counts
 
 
@@ -1125,7 +1133,12 @@ async def get_artifact_info_list(
                 source_project_id = metadata.get("source_project_id")
 
                 # [DEBUG] Diagnose project badge issue - remove after investigation
-                print(f"[DEBUG get_artifact_info_list] artifact={filename}, source={source}, source_project_id={source_project_id}, metadata_keys={list(metadata.keys())}")
+                log.info(
+                    "moodi4 get_artifact_info_list] artifact={filename}, source={source}, source_project_id={source_project_id}, metadata_keys={list(metadata.keys())}"
+                )
+                print(
+                    f"[moodi5 DEBUG get_artifact_info_list] artifact={filename}, source={source}, source_project_id={source_project_id}, metadata_keys={list(metadata.keys())}"
+                )
 
                 artifact_info_list.append(
                     ArtifactInfo(
@@ -1244,7 +1257,9 @@ async def load_artifact_content_or_metadata(
             try:
                 list_versions_method = getattr(artifact_service, "list_versions")
                 # Use metadata filename when loading metadata, content filename otherwise
-                version_check_filename = f"{filename}{METADATA_SUFFIX}" if load_metadata_only else filename
+                version_check_filename = (
+                    f"{filename}{METADATA_SUFFIX}" if load_metadata_only else filename
+                )
                 available_versions = await list_versions_method(
                     app_name=app_name,
                     user_id=user_id,
@@ -1379,7 +1394,7 @@ async def load_artifact_content_or_metadata(
                     used_encoding = None
                     encodings_to_try = [encoding, "utf-16", "cp1252", "latin-1"]
                     decode_errors = []
-                    
+
                     for enc in encodings_to_try:
                         try:
                             content_str = data_bytes.decode(enc, errors=error_handling)
@@ -1397,7 +1412,7 @@ async def load_artifact_content_or_metadata(
                         except UnicodeDecodeError as e:
                             decode_errors.append(f"{enc}: {e}")
                             continue
-                    
+
                     if content_str is None:
                         # All encodings failed
                         log.error(
@@ -1410,18 +1425,22 @@ async def load_artifact_content_or_metadata(
                         raise ValueError(
                             f"Failed to decode artifact '{filename}' v{version_to_load}. Tried encodings: {', '.join(encodings_to_try)}"
                         )
-                    
-                    original_content_str = content_str  # Save for line count calculation
+
+                    original_content_str = (
+                        content_str  # Save for line count calculation
+                    )
 
                     # Add line numbers if requested (before truncation)
                     if include_line_numbers:
-                        lines = content_str.split('\n')
-                        numbered_lines = [f"{i+1}\t{line}" for i, line in enumerate(lines)]
-                        content_str = '\n'.join(numbered_lines)
+                        lines = content_str.split("\n")
+                        numbered_lines = [
+                            f"{i+1}\t{line}" for i, line in enumerate(lines)
+                        ]
+                        content_str = "\n".join(numbered_lines)
                         log.debug(
                             "%s Added line numbers to %d lines.",
                             log_identifier,
-                            len(lines)
+                            len(lines),
                         )
 
                     message_to_llm = ""
@@ -1431,8 +1450,8 @@ async def load_artifact_content_or_metadata(
                         # Calculate line range if line numbers are included
                         line_range_msg = ""
                         if include_line_numbers:
-                            visible_line_count = truncated_content.count('\n') + 1
-                            total_line_count = original_content_str.count('\n') + 1
+                            visible_line_count = truncated_content.count("\n") + 1
+                            total_line_count = original_content_str.count("\n") + 1
                             line_range_msg = f" Lines 1-{visible_line_count} of {total_line_count} total."
 
                         if (

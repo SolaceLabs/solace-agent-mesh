@@ -146,7 +146,7 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
 export const getSourceProjectName = (artifact: ArtifactInfo | undefined, activeProject: Project | null): string | undefined => {
     // [DEBUG] Diagnose project badge issue - remove after investigation
 
-    console.log("[DEBUG getSourceProjectName]", {
+    console.log("[moodi DEBUG3 getSourceProjectName]", {
         sourceProjectId: artifact?.sourceProjectId,
         activeProjectId: activeProject?.id,
         idsMatch: artifact?.sourceProjectId === activeProject?.id,

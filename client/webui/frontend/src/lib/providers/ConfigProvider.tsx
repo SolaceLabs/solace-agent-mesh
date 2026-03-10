@@ -13,6 +13,7 @@ interface BackendConfig {
     frontend_redirect_url: string;
     frontend_collect_feedback: boolean;
     frontend_bot_name: string;
+    frontend_activity_tab_label?: string;
     frontend_logo_url: string;
     frontend_feature_enablement?: Record<string, boolean>;
     persistence_enabled?: boolean;
@@ -126,6 +127,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     configRedirectUrl: data.frontend_redirect_url,
                     configCollectFeedback: data.frontend_collect_feedback,
                     configBotName: data.frontend_bot_name,
+                    configActivityTabLabel: data.frontend_activity_tab_label ?? "Activity",
                     configLogoUrl: data.frontend_logo_url,
                     configFeatureEnablement: data.frontend_feature_enablement ?? {},
                     frontend_use_authorization: data.frontend_use_authorization,

@@ -475,7 +475,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // [DEBUG] Diagnose project badge issue - remove after investigation
 
     console.log(
-        "[DEBUG ArtifactMessage]",
+        "[moodi6 DEBUG ArtifactMessage]",
         artifact?.filename,
         "sourceProjectId:",
         artifact?.sourceProjectId,

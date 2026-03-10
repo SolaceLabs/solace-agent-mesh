@@ -52,9 +52,10 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
 
             // [DEBUG] Diagnose project badge issue - remove after investigation
             if (data.length > 0) {
-                console.log("[DEBUG useArtifacts] raw API response[0]:", JSON.stringify(data[0]));
-                console.log("[DEBUG useArtifacts] raw API response has source_project_id:", "source_project_id" in data[0], "value:", data[0].source_project_id);
+                console.log("[moodi DEBUG useArtifacts] raw API response[0]:", JSON.stringify(data[0]));
+                console.log("[moodi DEBUG useArtifacts] raw API response has source_project_id:", "source_project_id" in data[0], "value:", data[0].source_project_id);
             }
+            console.log("[moodi DEBUG 1]");
 
             // Filter out intermediate web content artifacts from deep research
             const filteredData = data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
@@ -66,9 +67,10 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
 
             // [DEBUG] Diagnose project badge issue - remove after investigation
             if (artifactsWithUris.length > 0) {
-                console.log("[DEBUG useArtifacts] mapped artifact[0]:", JSON.stringify(artifactsWithUris[0]));
-                console.log("[DEBUG useArtifacts] mapped sourceProjectId:", artifactsWithUris[0].sourceProjectId);
+                console.log("[moodi DEBUG useArtifacts] mapped artifact[0]:", JSON.stringify(artifactsWithUris[0]));
+                console.log("[moodi DEBUG useArtifacts] mapped sourceProjectId:", artifactsWithUris[0].sourceProjectId);
             }
+            console.log("[moodi DEBUG 0]");
 
             setArtifacts(artifactsWithUris);
         } catch (err: unknown) {

@@ -29,7 +29,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
     if (projectsEnabled) {
         items.push({
             id: "projects",
-            label: "Projects",
+            label: "projects-test",
             icon: FolderOpen,
         });
     }
@@ -63,7 +63,7 @@ export const topNavigationItems: NavigationItem[] = [
     },
     {
         id: "projects",
-        label: "Projects",
+        label: "projects-test",
         icon: FolderOpen,
     },
     {

@@ -511,6 +511,7 @@ async def get_app_config(
             "frontend_redirect_url": component.get_config("frontend_redirect_url", ""),
             "frontend_collect_feedback": feedback_enabled,
             "frontend_bot_name": component.get_config("frontend_bot_name", "A2A Agent"),
+            "frontend_activity_tab_label": "Activities testing",
             "frontend_logo_url": component.get_config("frontend_logo_url", ""),
             "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),

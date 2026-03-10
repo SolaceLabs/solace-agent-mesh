@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { PanelRightIcon, FileText, Network, RefreshCw, Link2 } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
-import { useTaskContext, useChatContext, useIsProjectIndexingEnabled } from "@/lib/hooks";
+import { useTaskContext, useChatContext, useIsProjectIndexingEnabled, useConfigContext } from "@/lib/hooks";
 import { FlowChartPanel, processTaskForVisualization } from "@/lib/components/activities";
 import type { VisualizedTask } from "@/lib/types";
 import { hasSourcesWithUrls, hasDocumentSearchResults } from "@/lib/utils";
@@ -24,6 +24,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel, ragData, ragEnabled } = useChatContext();
     const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
     const isProjectIndexingEnabled = useIsProjectIndexingEnabled();
+    const { configActivityTabLabel } = useConfigContext();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
     const [isLoadingTask, setIsLoadingTask] = useState<boolean>(false);
 
@@ -169,7 +170,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                     <FileText className="size-5" />
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => handleIconClick("activity")} className={hasSourcesInSession ? "mb-2 h-10 w-10 p-0" : "h-10 w-10 p-0"} tooltip="Activity">
+                <Button variant="ghost" size="sm" onClick={() => handleIconClick("activity")} className={hasSourcesInSession ? "mb-2 h-10 w-10 p-0" : "h-10 w-10 p-0"} tooltip={configActivityTabLabel}>
                     <Network className="size-5" />
                 </Button>
 
@@ -203,11 +204,11 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             </TabsTrigger>
                             <TabsTrigger
                                 value="activity"
-                                title="Activity"
+                                title={configActivityTabLabel}
                                 className={`border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}
                             >
                                 <Network className="h-4 w-4 shrink-0" />
-                                <span className="ml-1.5 hidden truncate @[240px]:inline">Activity</span>
+                                <span className="ml-1.5 hidden truncate @[240px]:inline">{configActivityTabLabel}</span>
                             </TabsTrigger>
                             {hasSourcesInSession && (
                                 <TabsTrigger
@@ -246,7 +247,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                         <div className="flex h-full items-center justify-center p-4">
                                             <div className="text-muted-foreground text-center">
                                                 <Network className="mx-auto mb-4 h-12 w-12" />
-                                                <div className="text-lg font-medium">Activity</div>
+                                                <div className="text-lg font-medium">{configActivityTabLabel}</div>
                                                 <div className="mt-2 text-sm">{emptyStateContent?.message}</div>
                                                 {emptyStateContent?.showButton && (
                                                     <div className="mt-4">

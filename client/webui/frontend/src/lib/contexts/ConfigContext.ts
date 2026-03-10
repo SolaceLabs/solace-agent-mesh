@@ -20,6 +20,7 @@ export interface ConfigContextValue {
     configRedirectUrl: string;
     configCollectFeedback: boolean;
     configBotName: string;
+    configActivityTabLabel: string;
     configLogoUrl: string;
     configFeatureEnablement?: Record<string, boolean>;
     /**
