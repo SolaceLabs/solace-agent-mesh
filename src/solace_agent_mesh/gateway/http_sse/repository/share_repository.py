@@ -427,3 +427,48 @@ class ShareRepository:
         ).scalar()
         
         return count > 0
+
+    def find_shares_for_user_email(self, db: DBSession, user_email: str) -> List[dict]:
+        """
+        Find all share links that have been shared with a specific user email.
+        Joins shared_link_users with shared_links to return share details.
+        
+        Args:
+            db: Database session
+            user_email: Email of the user to find shares for
+        
+        Returns:
+            List of dicts with share link details and access info
+        """
+        results = db.query(
+            SharedLinkModel.share_id,
+            SharedLinkModel.session_id,
+            SharedLinkModel.title,
+            SharedLinkModel.user_id,  # owner
+            SharedLinkModel.created_time,
+            SharedLinkUserModel.access_level,
+            SharedLinkUserModel.added_at,
+        ).join(
+            SharedLinkUserModel,
+            SharedLinkModel.share_id == SharedLinkUserModel.share_id
+        ).filter(
+            and_(
+                SharedLinkUserModel.user_email == user_email.lower().strip(),
+                SharedLinkModel.deleted_at.is_(None)
+            )
+        ).order_by(
+            SharedLinkUserModel.added_at.desc()
+        ).all()
+        
+        return [
+            {
+                "share_id": r.share_id,
+                "session_id": r.session_id,
+                "title": r.title or "Untitled",
+                "owner_email": r.user_id,
+                "created_time": r.created_time,
+                "access_level": r.access_level,
+                "shared_at": r.added_at,
+            }
+            for r in results
+        ]

@@ -155,3 +155,20 @@ export interface BatchDeleteShareUsersRequest {
 export interface BatchDeleteShareUsersResponse {
     deleted_count: number;
 }
+
+// Shared-with-me types
+
+export interface SharedWithMeItem {
+    share_id: string;
+    title: string;
+    owner_email: string;
+    access_level: string;
+    shared_at: number; // epoch ms
+    share_url: string;
+}
+
+export interface ForkSharedChatResponse {
+    session_id: string;
+    session_name: string;
+    message: string;
+}

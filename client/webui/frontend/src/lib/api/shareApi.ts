@@ -13,6 +13,8 @@ import type {
     BatchAddShareUsersResponse,
     BatchDeleteShareUsersRequest,
     BatchDeleteShareUsersResponse,
+    SharedWithMeItem,
+    ForkSharedChatResponse,
 } from "../types/share";
 
 const API_BASE = "/api/v1";
@@ -276,6 +278,42 @@ export async function deleteShareUsers(shareId: string, data: BatchDeleteShareUs
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: "Failed to delete share users" }));
         throw new Error(error.detail || "Failed to delete share users");
+    }
+
+    return await response.json();
+}
+
+// Shared-with-me APIs
+
+/**
+ * List all chats shared with the current user
+ */
+export async function listSharedWithMe(): Promise<SharedWithMeItem[]> {
+    const response = await fetch(`${API_BASE}/share/shared-with-me`, {
+        method: "GET",
+        credentials: "include",
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Failed to list shared chats" }));
+        throw new Error(error.detail || "Failed to list shared chats");
+    }
+
+    return await response.json();
+}
+
+/**
+ * Fork a shared chat into the user's own sessions
+ */
+export async function forkSharedChat(shareId: string): Promise<ForkSharedChatResponse> {
+    const response = await fetch(`${API_BASE}/share/${shareId}/fork`, {
+        method: "POST",
+        credentials: "include",
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Failed to fork shared chat" }));
+        throw new Error(error.detail || "Failed to fork shared chat");
     }
 
     return await response.json();

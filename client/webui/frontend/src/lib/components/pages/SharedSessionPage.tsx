@@ -4,10 +4,10 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2 } from "lucide-react";
+import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2 } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
-import { viewSharedSession, downloadSharedArtifact } from "@/lib/api/shareApi";
+import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
 import type { RAGSearchResult, ArtifactInfo } from "@/lib/types";
@@ -62,6 +62,8 @@ export function SharedSessionPage() {
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(false);
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "sources">("files");
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [isForking, setIsForking] = useState(false);
+    const [forkError, setForkError] = useState<string | null>(null);
 
     // Load shared session data
     const loadSharedSession = useCallback(async (id: string) => {
@@ -91,6 +93,28 @@ export function SharedSessionPage() {
         },
         [shareId]
     );
+
+    // Fork shared chat into user's own sessions
+    const handleForkChat = useCallback(async () => {
+        if (!shareId || isForking) return;
+
+        setIsForking(true);
+        setForkError(null);
+        try {
+            await forkSharedChat(shareId);
+            // Navigate to the main chat view and trigger session refresh
+            navigate(`/chat`);
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("new-chat-session"));
+            }, 100);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to fork chat";
+            setForkError(message);
+            console.error("Failed to fork chat:", err);
+        } finally {
+            setIsForking(false);
+        }
+    }, [shareId, isForking, navigate]);
 
     useEffect(() => {
         if (shareId) {
@@ -589,6 +613,13 @@ export function SharedSessionPage() {
                                     )}
                                 </div>
                             </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {forkError && <span className="text-destructive text-sm">{forkError}</span>}
+                            <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
+                                {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                Fork & Continue
+                            </Button>
                         </div>
                     </div>
                 </header>
