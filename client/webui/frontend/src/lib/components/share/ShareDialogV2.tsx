@@ -59,6 +59,12 @@ const shareFormSchema = z.object({
         })
     ),
     pendingRemoves: z.array(z.string().email()),
+    accessLevelChanges: z.array(
+        z.object({
+            email: z.string().email(),
+            newAccessLevel: z.enum(["read-only", "copy", "collaborate"]),
+        })
+    ),
 });
 
 type ShareFormData = z.infer<typeof shareFormSchema>;
@@ -90,13 +96,14 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
 
     const { control, handleSubmit, reset, setValue, watch } = useForm<ShareFormData>({
         resolver: zodResolver(shareFormSchema),
-        defaultValues: { viewers: [], pendingRemoves: [] },
+        defaultValues: { viewers: [], pendingRemoves: [], accessLevelChanges: [] },
         mode: "onBlur",
     });
 
     const { fields, prepend, remove } = useFieldArray({ control, name: "viewers" });
     const viewers = watch("viewers");
     const pendingRemoves = watch("pendingRemoves");
+    const accessLevelChanges = watch("accessLevelChanges");
 
     // Load share link for the session
     const loadShareLink = useCallback(async () => {
@@ -137,6 +144,7 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
             reset({
                 viewers: defaultShowAddRow ? [{ id: `typeahead-${Date.now()}`, email: null, accessLevel: "read-only" }] : [],
                 pendingRemoves: [],
+                accessLevelChanges: [],
             });
 
             // Auto-generate link if none exists
@@ -181,6 +189,20 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
         setValue("pendingRemoves", [...pendingRemoves, email]);
     };
 
+    const handleAccessLevelChange = (email: string, newAccessLevel: AccessLevel) => {
+        const existingChangeIndex = accessLevelChanges.findIndex(change => change.email === email);
+
+        if (existingChangeIndex >= 0) {
+            // Update existing change
+            const updated = [...accessLevelChanges];
+            updated[existingChangeIndex] = { email, newAccessLevel };
+            setValue("accessLevelChanges", updated);
+        } else {
+            // Add new change
+            setValue("accessLevelChanges", [...accessLevelChanges, { email, newAccessLevel }]);
+        }
+    };
+
     const handleCopyPublicLink = async () => {
         // Generate share link if it doesn't exist
         if (!shareLink) {
@@ -220,7 +242,7 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
     };
 
     const handleDiscard = () => {
-        reset({ viewers: [], pendingRemoves: [] });
+        reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
         onOpenChange(false);
     };
 
@@ -245,7 +267,13 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                 onSuccess?.(`${data.pendingRemoves.length} ${userText} removed`);
             }
 
-            reset({ viewers: [], pendingRemoves: [] });
+            // TODO: Implement access level changes API call
+            if (data.accessLevelChanges.length > 0) {
+                // await updateShareUserAccessLevels(shareLink.share_id, data.accessLevelChanges);
+                onSuccess?.(`Access levels updated for ${data.accessLevelChanges.length} user(s)`);
+            }
+
+            reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
             await loadSharedUsers();
             onOpenChange(false);
         } catch (error) {
@@ -262,10 +290,10 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
     }, [sharedUsers, viewers]);
 
     const displayedViewers = useMemo(() => {
-        return sharedUsers.filter(user => !pendingRemoves.includes(user.user_email));
+        return sharedUsers.filter(user => !pendingRemoves.includes(user.user_email)).sort((a, b) => a.user_email.localeCompare(b.user_email));
     }, [sharedUsers, pendingRemoves]);
 
-    const hasChanges = viewers.filter(v => v.email !== null).length > 0 || pendingRemoves.length > 0;
+    const hasChanges = viewers.filter(v => v.email !== null).length > 0 || pendingRemoves.length > 0 || accessLevelChanges.length > 0;
     const hasIncompleteRows = viewers.some(v => v.email === null);
 
     return (
@@ -389,6 +417,15 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                             </div>
                         ) : (
                             <>
+                                {/* Owner row (current user) - always shown first */}
+                                {ownerEmail && (
+                                    <div className="bg-muted/10 flex items-center gap-4 border-b px-4 py-3">
+                                        <div className="min-w-0 flex-1 text-sm">{ownerEmail}</div>
+                                        <div className="w-full shrink-0 sm:w-[200px]" /> {/* No snapshot time for owner */}
+                                        <div className="text-muted-foreground w-full shrink-0 text-sm sm:w-[200px]">Owner</div>
+                                        <div className="w-8 shrink-0" /> {/* Space for alignment */}
+                                    </div>
+                                )}
                                 {displayedViewers.map(user => {
                                     const snapshotDate = new Date(user.added_at * 1000);
                                     const formattedDate = snapshotDate.toLocaleDateString("en-US", {
@@ -414,16 +451,41 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                                                 </Tooltip>
                                             </div>
                                             <div className="w-full shrink-0 sm:w-[200px]">
-                                                <Select defaultValue={user.access_level} disabled>
-                                                    <SelectTrigger className="w-full">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="read-only">Read Only</SelectItem>
-                                                        <SelectItem value="copy">Copy</SelectItem>
-                                                        <SelectItem value="collaborate">Collaborate</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
+                                                {(() => {
+                                                    const change = accessLevelChanges.find(c => c.email === user.user_email);
+                                                    const currentValue = change?.newAccessLevel || user.access_level;
+                                                    const selectedOption = accessLevelOptions.find(opt => opt.value === currentValue);
+                                                    const SelectedIcon = selectedOption?.icon;
+
+                                                    return (
+                                                        <Select value={currentValue} onValueChange={value => handleAccessLevelChange(user.user_email, value as AccessLevel)}>
+                                                            <SelectTrigger className="w-full">
+                                                                <SelectValue>
+                                                                    <div className="flex items-center gap-2">
+                                                                        {SelectedIcon && <SelectedIcon className="text-muted-foreground h-4 w-4" />}
+                                                                        {selectedOption?.label}
+                                                                    </div>
+                                                                </SelectValue>
+                                                            </SelectTrigger>
+                                                            <SelectContent className="w-[280px]">
+                                                                {accessLevelOptions.map(option => {
+                                                                    const Icon = option.icon;
+                                                                    return (
+                                                                        <SelectItem key={option.value} value={option.value}>
+                                                                            <div className="flex items-start gap-3 py-1">
+                                                                                <Icon className="text-muted-foreground mt-0.5 h-5 w-5 shrink-0" />
+                                                                                <div className="flex flex-col items-start">
+                                                                                    <div className="text-sm font-medium">{option.label}</div>
+                                                                                    <div className="text-muted-foreground mt-0.5 text-xs leading-tight">{option.description}</div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </SelectItem>
+                                                                    );
+                                                                })}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    );
+                                                })()}
                                             </div>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -445,15 +507,6 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                                         </div>
                                     );
                                 })}
-                                {/* Owner row (current user) */}
-                                {ownerEmail && (
-                                    <div className="bg-muted/10 flex items-center gap-4 px-4 py-3">
-                                        <div className="min-w-0 flex-1 text-sm">{ownerEmail}</div>
-                                        <div className="w-full shrink-0 sm:w-[200px]" /> {/* No snapshot time for owner */}
-                                        <div className="text-muted-foreground w-full shrink-0 text-sm sm:w-[200px]">Owner</div>
-                                        <div className="w-8 shrink-0" /> {/* Space for alignment */}
-                                    </div>
-                                )}
                             </>
                         )}
                     </div>
