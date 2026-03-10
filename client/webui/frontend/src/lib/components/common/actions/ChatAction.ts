@@ -32,17 +32,13 @@ export class ChatAction implements ExecutableAction {
             navigate("/chat");
         }
 
-        // Start new chat with the prompt
+        // Start new chat with the prompt and auto-submit
+        // The groupId "command-palette-auto-submit" signals ChatInputArea to auto-submit
         startNewChatWithPrompt({
             promptText: this.prompt,
-            groupId: "command-palette",
+            groupId: "command-palette-auto-submit",
             groupName: "Command Palette",
         });
-
-        // Focus the chat input after a delay
-        setTimeout(() => {
-            window.dispatchEvent(new Event("focus-chat-input"));
-        }, 200);
     }
 }
 

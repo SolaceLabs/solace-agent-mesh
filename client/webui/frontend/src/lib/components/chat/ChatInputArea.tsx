@@ -131,11 +131,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     useEffect(() => {
         if (pendingPrompt && selectedAgentName) {
             const { promptText, groupId, groupName } = pendingPrompt;
+            const shouldAutoSubmit = groupId === "command-palette-auto-submit";
 
             // Check if prompt has variables
             const variables = detectVariables(promptText);
-            if (variables.length > 0) {
-                // Show variable dialog
+            if (variables.length > 0 && !shouldAutoSubmit) {
+                // Show variable dialog (but not for auto-submit from command palette)
                 setPendingPromptGroup({
                     id: groupId,
                     name: groupName,
@@ -144,15 +145,27 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 setShowVariableDialog(true);
             } else {
                 setInputValue(promptText);
-                setTimeout(() => {
-                    chatInputRef.current?.focus();
-                }, 100);
+
+                if (shouldAutoSubmit) {
+                    // Auto-submit for command palette
+                    setTimeout(async () => {
+                        const fakeEvent = new Event("submit") as unknown as FormEvent;
+                        await handleSubmit(fakeEvent, [], promptText, null, null, null, null);
+                        setInputValue("");
+                        scrollToBottom?.();
+                    }, 150);
+                } else {
+                    // Just focus for regular prompt templates
+                    setTimeout(() => {
+                        chatInputRef.current?.focus();
+                    }, 100);
+                }
             }
 
             // Clear the pending prompt from provider
             clearPendingPrompt();
         }
-    }, [pendingPrompt, selectedAgentName, clearPendingPrompt]);
+    }, [pendingPrompt, selectedAgentName, clearPendingPrompt, handleSubmit, scrollToBottom]);
 
     // Handle session changes (for normal session switching, not prompt template usage)
     useEffect(() => {
