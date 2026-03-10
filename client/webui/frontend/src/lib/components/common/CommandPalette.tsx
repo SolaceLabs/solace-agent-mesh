@@ -222,13 +222,22 @@ export function CommandPalette() {
                                             className={cn(
                                                 "w-full rounded-xs px-3 py-2.5 text-left transition-all duration-200",
                                                 "border-2 border-dashed shadow-sm",
+                                                // Light mode colors
                                                 "border-[var(--color-brand-wMain)] bg-[var(--color-brand-w30)]",
+                                                // Dark mode colors - semi-transparent overlay
+                                                "dark:border-[var(--color-brand-w60)] dark:bg-[rgba(0,200,149,0.15)]",
+                                                // Light mode hover
                                                 "hover:border-solid hover:bg-[var(--color-brand-w60)] hover:shadow-md",
-                                                filteredActions.length === selectedIndex && "border-solid bg-[var(--color-brand-w60)] shadow-md"
+                                                // Dark mode hover - stronger overlay with teal glow
+                                                "dark:hover:bg-[rgba(0,200,149,0.25)] dark:hover:shadow-[0_0_12px_rgba(0,200,149,0.3)]",
+                                                // Selected state
+                                                filteredActions.length === selectedIndex && "border-solid shadow-md",
+                                                filteredActions.length === selectedIndex && "bg-[var(--color-brand-w60)]",
+                                                filteredActions.length === selectedIndex && "dark:bg-[rgba(0,200,149,0.25)] dark:shadow-[0_0_12px_rgba(0,200,149,0.3)]"
                                             )}
                                         >
                                             <div className="flex items-center gap-3">
-                                                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-wMain)]">
+                                                <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-full", "bg-[var(--color-brand-wMain)]", "dark:bg-[var(--color-brand-w60)]")}>
                                                     <MessageSquarePlus className="size-4 text-white" />
                                                 </div>
                                                 <div className="flex-1">
