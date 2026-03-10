@@ -10,7 +10,7 @@ import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useT
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ChatWelcomeScreen, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
@@ -419,6 +419,33 @@ export function ChatPage() {
         return map;
     }, [messages]);
 
+    // Detect if we're in the initial welcome state (only the auto-injected greeting message)
+    const isWelcomeState = useMemo(() => {
+        if (messages.length === 0) return true;
+        if (messages.length === 1 && !messages[0].isUser && messages[0].metadata?.sessionId === "") return true;
+        return false;
+    }, [messages]);
+
+    const loadingMessage = useMemo(() => {
+        return messages.find(message => message.isStatusBubble);
+    }, [messages]);
+
+    const backendStatusText = useMemo(() => {
+        if (!loadingMessage || !loadingMessage.parts) return null;
+        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
+        return textPart?.text || null;
+    }, [loadingMessage]);
+
+    const handleViewProgressClick = useMemo(() => {
+        // Use currentTaskId directly instead of relying on loadingMessage
+        if (!currentTaskId) return undefined;
+
+        return () => {
+            setTaskIdInSidePanel(currentTaskId);
+            openSidePanelTab("activity");
+        };
+    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
+
     // Handle navigation state (e.g., from SharedChatViewPage returning to /chat)
     useEffect(() => {
         if (useNewNav) return;
@@ -531,6 +558,8 @@ export function ChatPage() {
                                                 <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading session...</p>
                                             </Spinner>
                                         </div>
+                                    ) : isWelcomeState && !isResponding ? (
+                                        <ChatWelcomeScreen agents={agents} />
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>

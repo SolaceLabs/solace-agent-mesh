@@ -785,6 +785,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 eventSequence: sseEventSequenceRef.current,
                 isTaskRunningInBackground,
             });
+            });
 
             // Apply state updates
             if (output.messages) {
@@ -808,6 +809,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Execute side effects
             for (const effect of output.effects) {
                 executeEffect(effect);
+            }
             }
         },
 
