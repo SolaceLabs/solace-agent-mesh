@@ -6,7 +6,7 @@ import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/se
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useUIMode } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/types";
 
@@ -17,6 +17,7 @@ function AppLayoutContent() {
     const { configFeatureEnablement } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
     const { addNotification } = useChatContext();
+    const { isOnboardMode } = useUIMode();
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
@@ -142,11 +143,11 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            {useNewNav ? (
+            {!isOnboardMode && (useNewNav ? (
                 <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
             ) : (
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
-            )}
+            ))}
             <main className="h-full w-full flex-1 overflow-auto">
                 <Outlet />
             </main>

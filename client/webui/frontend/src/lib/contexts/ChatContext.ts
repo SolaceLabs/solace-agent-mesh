@@ -1,6 +1,16 @@
 import React, { createContext, type FormEvent } from "react";
+import type { ReactNode } from "react";
 
 import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
+
+/** Custom side panel tab injected by extensions (e.g., enterprise builder) */
+export interface CustomSidePanelTab {
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    content: ReactNode;
+    badge?: string;
+}
 
 /** Pending prompt data for starting a new chat with a prompt template */
 export interface PendingPromptData {
@@ -39,7 +49,9 @@ export interface ChatState {
     expandedDocumentFilename: string | null;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "activity" | "rag";
+    activeSidePanelTab: string;
+    /** Custom tabs injected by extensions (e.g., enterprise builder tab) */
+    customSidePanelTabs?: CustomSidePanelTab[];
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -56,6 +68,11 @@ export interface ChatState {
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
     // Pending prompt for starting new chat
     pendingPrompt: PendingPromptData | null;
+    // Builder Mode
+    /** Whether the chat is in builder mode (hides agent selector, auto-selects builder agent) */
+    builderMode: boolean;
+    /** Optional ReactNode rendered in the input area's left button bar (used for builder mode toggle) */
+    inputAreaLeftSlot?: React.ReactNode;
     // Background Task Monitoring State
     backgroundTasks: BackgroundTaskState[];
     backgroundNotifications: BackgroundTaskNotification[];
@@ -79,8 +96,8 @@ export interface ChatActions {
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "activity" | "rag">>;
-    openSidePanelTab: (tab: "files" | "activity" | "rag") => void;
+    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<string>>;
+    openSidePanelTab: (tab: string) => void;
 
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;
@@ -109,6 +126,9 @@ export interface ChatActions {
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
 
     displayError: ({ title, error }: { title: string; error: string }) => void;
+
+    /** Builder Mode Actions */
+    setBuilderMode: React.Dispatch<React.SetStateAction<boolean>>;
 
     /** Background Task Monitoring Actions */
     isTaskRunningInBackground: (taskId: string) => boolean;

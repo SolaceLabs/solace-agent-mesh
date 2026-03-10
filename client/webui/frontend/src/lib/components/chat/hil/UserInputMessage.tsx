@@ -99,6 +99,7 @@ function buildAnswerEntries(surface: A2UISurface, context: Record<string, unknow
     return entries;
 }
 
+
 export function UserInputMessage({ message }: { message: MessageFE }) {
     const req = message.userInputRequest;
     const { setMessages } = useChatContext();
