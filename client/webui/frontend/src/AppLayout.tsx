@@ -20,6 +20,7 @@ function AppLayoutContent() {
     const { addNotification } = useChatContext();
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+    const [settingsInitialSection, setSettingsInitialSection] = useState<"general" | "speech" | "about">("general");
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
 
@@ -52,12 +53,20 @@ function AppLayoutContent() {
         setIsMoveDialogOpen(true);
     }, []);
 
+    const handleOpenSettingsDialog = useCallback((event: CustomEvent<{ section?: "general" | "speech" | "about" }>) => {
+        const section = event.detail?.section || "general";
+        setSettingsInitialSection(section);
+        setIsSettingsDialogOpen(true);
+    }, []);
+
     useEffect(() => {
         window.addEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
+        window.addEventListener("open-settings-dialog", handleOpenSettingsDialog as EventListener);
         return () => {
             window.removeEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
+            window.removeEventListener("open-settings-dialog", handleOpenSettingsDialog as EventListener);
         };
-    }, [handleOpenMoveDialog]);
+    }, [handleOpenMoveDialog, handleOpenSettingsDialog]);
 
     const handleMoveConfirm = async (targetProjectId: string | null) => {
         if (!sessionToMove) return;
@@ -164,7 +173,7 @@ function AppLayoutContent() {
                 session={sessionToMove}
                 currentProjectId={sessionToMove?.projectId}
             />
-            <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
+            <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} initialSection={settingsInitialSection} />
             <CommandPalette />
         </div>
     );

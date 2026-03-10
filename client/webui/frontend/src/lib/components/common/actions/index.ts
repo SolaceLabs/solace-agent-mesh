@@ -1,5 +1,6 @@
 import ActionRegistry from "./ActionRegistry";
 import { createNavigationAction } from "./NavigationAction";
+import { createSettingsAction } from "./SettingsAction";
 import DynamicNavigationLoader from "./DynamicNavigationLoader";
 
 /**
@@ -43,6 +44,37 @@ export function initializeActions(): void {
         }),
     ]);
 
+    // Register settings actions
+    registry.registerMany([
+        createSettingsAction({
+            id: "settings:open",
+            label: "Open Settings",
+            description: "Open the settings dialog",
+            keywords: ["settings", "preferences", "configuration", "config"],
+        }),
+        createSettingsAction({
+            id: "settings:general",
+            label: "General Settings",
+            section: "general",
+            description: "Configure general application settings",
+            keywords: ["settings", "general", "preferences"],
+        }),
+        createSettingsAction({
+            id: "settings:speech",
+            label: "Speech Settings",
+            section: "speech",
+            description: "Configure speech-to-text and text-to-speech settings",
+            keywords: ["settings", "speech", "voice", "audio", "tts", "stt"],
+        }),
+        createSettingsAction({
+            id: "settings:about",
+            label: "About Product",
+            section: "about",
+            description: "View product information and version details",
+            keywords: ["about", "version", "info", "information"],
+        }),
+    ]);
+
     // Register static subsection actions
     const loader = DynamicNavigationLoader.getInstance();
     loader.registerStaticSubsections();
@@ -53,3 +85,4 @@ export { default as ActionRegistry } from "./ActionRegistry";
 export { default as DynamicNavigationLoader } from "./DynamicNavigationLoader";
 export * from "./types";
 export * from "./NavigationAction";
+export * from "./SettingsAction";
