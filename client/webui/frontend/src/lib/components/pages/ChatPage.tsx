@@ -11,6 +11,7 @@ import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog,
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { ShareButton } from "@/lib/components/share/ShareButton";
+import { ShareButtonV2 } from "@/lib/components/share/ShareButtonV2";
 import { useLocation, useNavigate } from "react-router-dom";
 
 // Constants for sidepanel behavior
@@ -276,7 +277,11 @@ export function ChatPage() {
                             </div>
                         ) : null
                     }
-                    buttons={sessionId ? [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />] : undefined}
+                    buttons={
+                        sessionId
+                            ? [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />, <ShareButtonV2 key="share-button-v2" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />]
+                            : undefined
+                    }
                 />
             </div>
             <div className="flex min-h-0 flex-1">
