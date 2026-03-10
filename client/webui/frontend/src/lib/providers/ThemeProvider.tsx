@@ -6,7 +6,7 @@ import { generateThemeVariables } from "./themes/themeMapping";
 const LOCAL_STORAGE_KEY = "sam-theme";
 
 // Feature flag: true = new dual-palette system (solace + solaceDark), false = legacy single-palette with dual mapping
-const USE_DUAL_PALETTE = false;
+const USE_DUAL_PALETTE = true;
 
 function paletteToCSSVariables(themePalette: ThemePalette): Record<string, string> {
     const variables: Record<string, string> = {};
@@ -191,7 +191,10 @@ function applyThemeToDOM(themePalette: ThemePalette, theme: "light" | "dark"): v
             console.log(`Applying ${theme} theme with palette`);
         }
         root.classList.remove("light", "dark");
-        root.classList.add(theme);
+        if (!USE_DUAL_PALETTE) {
+            // Legacy mode: add dark/light class so Tailwind dark: variants activate
+            root.classList.add(theme);
+        }
 
         localStorage.setItem(LOCAL_STORAGE_KEY, theme);
     });
