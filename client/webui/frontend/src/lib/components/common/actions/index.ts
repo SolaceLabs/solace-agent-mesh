@@ -1,5 +1,6 @@
 import ActionRegistry from "./ActionRegistry";
 import { createNavigationAction } from "./NavigationAction";
+import DynamicNavigationLoader from "./DynamicNavigationLoader";
 
 /**
  * Initialize and register all default actions
@@ -41,9 +42,14 @@ export function initializeActions(): void {
             keywords: ["agents", "mesh", "workflow", "visualization", "network"],
         }),
     ]);
+
+    // Register static subsection actions
+    const loader = DynamicNavigationLoader.getInstance();
+    loader.registerStaticSubsections();
 }
 
 // Export the registry and types
 export { default as ActionRegistry } from "./ActionRegistry";
+export { default as DynamicNavigationLoader } from "./DynamicNavigationLoader";
 export * from "./types";
 export * from "./NavigationAction";

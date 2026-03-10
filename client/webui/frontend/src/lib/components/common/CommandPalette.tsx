@@ -4,8 +4,9 @@ import { Dialog, DialogContent } from "@/lib/components/ui/dialog";
 import { Input } from "@/lib/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Command, Search } from "lucide-react";
-import { ActionRegistry, initializeActions, isExecutableAction } from "./actions";
+import { ActionRegistry, DynamicNavigationLoader, initializeActions, isExecutableAction } from "./actions";
 import type { ExecutableAction } from "./actions";
+import { useProjectContext } from "@/lib/providers/ProjectProvider";
 
 function fuzzyMatch(search: string, text: string): number {
     const searchLower = search.toLowerCase();
@@ -37,6 +38,7 @@ function fuzzyMatch(search: string, text: string): number {
 
 export function CommandPalette() {
     const navigate = useNavigate();
+    const { projects } = useProjectContext();
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -48,6 +50,26 @@ export function CommandPalette() {
         const registry = ActionRegistry.getInstance();
         setActions(registry.getAllActions());
     }, []);
+
+    // Load dynamic actions when dialog opens
+    useEffect(() => {
+        if (isOpen) {
+            const loadDynamicActions = async () => {
+                const loader = DynamicNavigationLoader.getInstance();
+
+                // Load project actions if we have projects
+                if (projects.length > 0) {
+                    await loader.loadProjectActions(projects);
+                }
+
+                // Refresh actions list
+                const registry = ActionRegistry.getInstance();
+                setActions(registry.getAllActions());
+            };
+
+            loadDynamicActions();
+        }
+    }, [isOpen, projects]);
 
     // Filter and sort actions based on search query
     const filteredActions = useMemo(() => {
