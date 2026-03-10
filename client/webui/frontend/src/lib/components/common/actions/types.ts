@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+
 /**
  * Base interface for all command palette actions
  */
@@ -12,6 +14,8 @@ export interface Action {
     keywords?: string[];
     /** Category for grouping actions (e.g., "navigation", "file", "view") */
     category?: string;
+    /** Optional icon to display alongside the action */
+    icon?: LucideIcon;
 }
 
 /**

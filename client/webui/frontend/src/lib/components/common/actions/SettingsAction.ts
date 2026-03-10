@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ExecutableAction } from "./types";
 
 export type SettingsSection = "general" | "speech" | "about";
@@ -12,14 +13,16 @@ export class SettingsAction implements ExecutableAction {
     description?: string;
     keywords?: string[];
     category = "settings";
+    icon?: LucideIcon;
     private section?: SettingsSection;
 
-    constructor(config: { id: string; label: string; section?: SettingsSection; description?: string; keywords?: string[] }) {
+    constructor(config: { id: string; label: string; section?: SettingsSection; description?: string; keywords?: string[]; icon?: LucideIcon }) {
         this.id = config.id;
         this.label = config.label;
         this.section = config.section;
         this.description = config.description;
         this.keywords = config.keywords;
+        this.icon = config.icon;
     }
 
     execute(): void {
@@ -35,6 +38,6 @@ export class SettingsAction implements ExecutableAction {
 /**
  * Factory function to create settings actions
  */
-export function createSettingsAction(config: { id: string; label: string; section?: SettingsSection; description?: string; keywords?: string[] }): SettingsAction {
+export function createSettingsAction(config: { id: string; label: string; section?: SettingsSection; description?: string; keywords?: string[]; icon?: LucideIcon }): SettingsAction {
     return new SettingsAction(config);
 }

@@ -1,3 +1,4 @@
+import { ArrowRight, Settings, Palette, Sun, Moon, Info } from "lucide-react";
 import ActionRegistry from "./ActionRegistry";
 import { createNavigationAction } from "./NavigationAction";
 import { createSettingsAction } from "./SettingsAction";
@@ -21,6 +22,7 @@ export function initializeActions(): void {
             path: "/chat",
             description: "Open the chat interface to start or continue conversations",
             keywords: ["chat", "conversation", "message", "talk"],
+            icon: ArrowRight,
         }),
         createNavigationAction({
             id: "nav:projects",
@@ -28,6 +30,7 @@ export function initializeActions(): void {
             path: "/projects",
             description: "View and manage your projects",
             keywords: ["projects", "workspace", "folders"],
+            icon: ArrowRight,
         }),
         createNavigationAction({
             id: "nav:prompts",
@@ -35,6 +38,7 @@ export function initializeActions(): void {
             path: "/prompts",
             description: "Browse and manage your prompt templates",
             keywords: ["prompts", "templates", "library", "saved"],
+            icon: ArrowRight,
         }),
         createNavigationAction({
             id: "nav:agents",
@@ -42,6 +46,7 @@ export function initializeActions(): void {
             path: "/agents",
             description: "View the agent mesh and workflow visualizations",
             keywords: ["agents", "mesh", "workflow", "visualization", "network"],
+            icon: ArrowRight,
         }),
     ]);
 
@@ -52,6 +57,7 @@ export function initializeActions(): void {
             label: "Open Settings",
             description: "Open the settings dialog",
             keywords: ["settings", "preferences", "configuration", "config"],
+            icon: Settings,
         }),
         createSettingsAction({
             id: "settings:general",
@@ -59,6 +65,7 @@ export function initializeActions(): void {
             section: "general",
             description: "Configure general application settings",
             keywords: ["settings", "general", "preferences"],
+            icon: Settings,
         }),
         createSettingsAction({
             id: "settings:speech",
@@ -66,6 +73,7 @@ export function initializeActions(): void {
             section: "speech",
             description: "Configure speech-to-text and text-to-speech settings",
             keywords: ["settings", "speech", "voice", "audio", "tts", "stt"],
+            icon: Settings,
         }),
         createSettingsAction({
             id: "settings:about",
@@ -73,6 +81,7 @@ export function initializeActions(): void {
             section: "about",
             description: "View product information and version details",
             keywords: ["about", "version", "info", "information"],
+            icon: Info,
         }),
     ]);
 
@@ -84,6 +93,7 @@ export function initializeActions(): void {
             mode: "toggle",
             description: "Switch between light and dark mode",
             keywords: ["theme", "dark", "light", "mode", "appearance", "toggle"],
+            icon: Palette,
         }),
         createThemeAction({
             id: "theme:light",
@@ -91,6 +101,7 @@ export function initializeActions(): void {
             mode: "light",
             description: "Change the theme to light mode",
             keywords: ["theme", "light", "mode", "appearance", "bright"],
+            icon: Sun,
         }),
         createThemeAction({
             id: "theme:dark",
@@ -98,6 +109,7 @@ export function initializeActions(): void {
             mode: "dark",
             description: "Change the theme to dark mode",
             keywords: ["theme", "dark", "mode", "appearance", "night"],
+            icon: Moon,
         }),
     ]);
 

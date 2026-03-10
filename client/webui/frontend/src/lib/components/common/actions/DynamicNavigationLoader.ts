@@ -1,3 +1,4 @@
+import { Plus, FolderOpen } from "lucide-react";
 import ActionRegistry from "./ActionRegistry";
 import { createNavigationAction } from "./NavigationAction";
 import type { Project } from "@/lib/types/projects";
@@ -39,6 +40,7 @@ export class DynamicNavigationLoader {
                 path: `/projects/${project.id}`,
                 description: project.description || `Open the ${project.name} project`,
                 keywords: ["project", project.name.toLowerCase(), ...(project.description?.toLowerCase().split(" ") || [])],
+                icon: FolderOpen,
             })
         );
 
@@ -60,6 +62,7 @@ export class DynamicNavigationLoader {
                 path: "/chat",
                 description: "Start a new conversation",
                 keywords: ["new", "chat", "conversation", "session", "start"],
+                icon: Plus,
             })
         );
 
@@ -71,6 +74,7 @@ export class DynamicNavigationLoader {
                 path: "/prompts/new",
                 description: "Open the prompt builder to create a new prompt template",
                 keywords: ["new", "create", "prompt", "template", "builder"],
+                icon: Plus,
             }),
             createNavigationAction({
                 id: "nav:prompts:new:manual",
@@ -78,6 +82,7 @@ export class DynamicNavigationLoader {
                 path: "/prompts/new?mode=manual",
                 description: "Create a new prompt using the manual editor",
                 keywords: ["new", "create", "prompt", "manual", "editor"],
+                icon: Plus,
             }),
         ]);
     }

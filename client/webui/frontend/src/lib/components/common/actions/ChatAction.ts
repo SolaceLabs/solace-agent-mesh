@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ExecutableAction, ActionContext } from "./types";
 
 /**
@@ -9,14 +10,16 @@ export class ChatAction implements ExecutableAction {
     description?: string;
     keywords?: string[];
     category = "chat";
+    icon?: LucideIcon;
     private prompt: string;
 
-    constructor(config: { id: string; label: string; prompt: string; description?: string; keywords?: string[] }) {
+    constructor(config: { id: string; label: string; prompt: string; description?: string; keywords?: string[]; icon?: LucideIcon }) {
         this.id = config.id;
         this.label = config.label;
         this.prompt = config.prompt;
         this.description = config.description;
         this.keywords = config.keywords;
+        this.icon = config.icon;
     }
 
     execute(context: ActionContext): void {
@@ -45,6 +48,6 @@ export class ChatAction implements ExecutableAction {
 /**
  * Factory function to create chat actions
  */
-export function createChatAction(config: { id: string; label: string; prompt: string; description?: string; keywords?: string[] }): ChatAction {
+export function createChatAction(config: { id: string; label: string; prompt: string; description?: string; keywords?: string[]; icon?: LucideIcon }): ChatAction {
     return new ChatAction(config);
 }

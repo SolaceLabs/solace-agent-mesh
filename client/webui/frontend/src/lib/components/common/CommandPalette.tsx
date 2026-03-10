@@ -200,17 +200,29 @@ export function CommandPalette() {
                             <div className="text-muted-foreground py-6 text-center text-sm">No actions found</div>
                         ) : (
                             <div className="space-y-1">
-                                {filteredActions.map((action, index) => (
-                                    <button
-                                        key={action.id}
-                                        onClick={() => handleActionSelect(action)}
-                                        onMouseEnter={() => setSelectedIndex(index)}
-                                        className={cn("w-full rounded-xs px-3 py-2 text-left transition-colors", "hover:bg-accent hover:text-accent-foreground", index === selectedIndex && "bg-accent text-accent-foreground")}
-                                    >
-                                        <div className="font-medium">{action.label}</div>
-                                        {action.description && <div className="text-muted-foreground text-xs">{action.description}</div>}
-                                    </button>
-                                ))}
+                                {filteredActions.map((action, index) => {
+                                    const Icon = action.icon;
+                                    return (
+                                        <button
+                                            key={action.id}
+                                            onClick={() => handleActionSelect(action)}
+                                            onMouseEnter={() => setSelectedIndex(index)}
+                                            className={cn("w-full rounded-xs px-3 py-2 text-left transition-colors", "hover:bg-accent hover:text-accent-foreground", index === selectedIndex && "bg-accent text-accent-foreground")}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                {Icon && (
+                                                    <div className="text-muted-foreground flex size-5 shrink-0 items-center justify-center">
+                                                        <Icon className="size-4" />
+                                                    </div>
+                                                )}
+                                                <div className="flex-1">
+                                                    <div className="font-medium">{action.label}</div>
+                                                    {action.description && <div className="text-muted-foreground text-xs">{action.description}</div>}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
 
                                 {/* Fallback: Ask as Chat Action */}
                                 {askAction && (

@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ExecutableAction, ActionContext } from "./types";
 
 type ThemeMode = "light" | "dark" | "toggle";
@@ -11,14 +12,16 @@ export class ThemeAction implements ExecutableAction {
     description?: string;
     keywords?: string[];
     category = "theme";
+    icon?: LucideIcon;
     private mode: ThemeMode;
 
-    constructor(config: { id: string; label: string; mode: ThemeMode; description?: string; keywords?: string[] }) {
+    constructor(config: { id: string; label: string; mode: ThemeMode; description?: string; keywords?: string[]; icon?: LucideIcon }) {
         this.id = config.id;
         this.label = config.label;
         this.mode = config.mode;
         this.description = config.description;
         this.keywords = config.keywords;
+        this.icon = config.icon;
     }
 
     execute(context: ActionContext): void {
@@ -40,6 +43,6 @@ export class ThemeAction implements ExecutableAction {
 /**
  * Factory function to create theme actions
  */
-export function createThemeAction(config: { id: string; label: string; mode: ThemeMode; description?: string; keywords?: string[] }): ThemeAction {
+export function createThemeAction(config: { id: string; label: string; mode: ThemeMode; description?: string; keywords?: string[]; icon?: LucideIcon }): ThemeAction {
     return new ThemeAction(config);
 }

@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ExecutableAction, ActionContext } from "./types";
 
 /**
@@ -9,14 +10,16 @@ export class NavigationAction implements ExecutableAction {
     description?: string;
     keywords?: string[];
     category = "navigation";
+    icon?: LucideIcon;
     private path: string;
 
-    constructor(config: { id: string; label: string; path: string; description?: string; keywords?: string[] }) {
+    constructor(config: { id: string; label: string; path: string; description?: string; keywords?: string[]; icon?: LucideIcon }) {
         this.id = config.id;
         this.label = config.label;
         this.path = config.path;
         this.description = config.description;
         this.keywords = config.keywords;
+        this.icon = config.icon;
     }
 
     execute(context: ActionContext): void {
@@ -38,6 +41,6 @@ export class NavigationAction implements ExecutableAction {
 /**
  * Factory function to create navigation actions
  */
-export function createNavigationAction(config: { id: string; label: string; path: string; description?: string; keywords?: string[] }): NavigationAction {
+export function createNavigationAction(config: { id: string; label: string; path: string; description?: string; keywords?: string[]; icon?: LucideIcon }): NavigationAction {
     return new NavigationAction(config);
 }
