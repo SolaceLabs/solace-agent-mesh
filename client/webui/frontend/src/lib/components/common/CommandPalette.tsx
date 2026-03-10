@@ -220,18 +220,20 @@ export function CommandPalette() {
                                             onClick={() => handleActionSelect(askAction)}
                                             onMouseEnter={() => setSelectedIndex(filteredActions.length)}
                                             className={cn(
-                                                "w-full rounded-xs px-3 py-2 text-left transition-colors",
-                                                "border-2 border-dashed",
-                                                "border-[var(--color-brand-wMain)] bg-[var(--color-brand-w10)]",
-                                                "hover:border-solid hover:bg-[var(--color-brand-w30)]",
-                                                filteredActions.length === selectedIndex && "border-solid bg-[var(--color-brand-w30)]"
+                                                "w-full rounded-xs px-3 py-2.5 text-left transition-all duration-200",
+                                                "border-2 border-dashed shadow-sm",
+                                                "border-[var(--color-brand-wMain)] bg-[var(--color-brand-w30)]",
+                                                "hover:border-solid hover:bg-[var(--color-brand-w60)] hover:shadow-md",
+                                                filteredActions.length === selectedIndex && "border-solid bg-[var(--color-brand-w60)] shadow-md"
                                             )}
                                         >
-                                            <div className="flex items-center gap-2">
-                                                <MessageSquarePlus className="size-4 text-[var(--color-brand-wMain)]" />
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-wMain)]">
+                                                    <MessageSquarePlus className="size-4 text-white" />
+                                                </div>
                                                 <div className="flex-1">
-                                                    <div className="font-medium text-[var(--color-brand-wMain)]">{askAction.label}</div>
-                                                    <div className="text-xs text-[var(--color-brand-wMain)] opacity-80">{askAction.description}</div>
+                                                    <div className="text-foreground font-semibold">{askAction.label}</div>
+                                                    <div className="text-muted-foreground text-xs">{askAction.description}</div>
                                                 </div>
                                             </div>
                                         </button>
