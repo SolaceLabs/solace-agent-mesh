@@ -5,6 +5,7 @@ import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottom
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
+import { CommandPalette } from "@/lib/components/common/CommandPalette";
 import { ChatProvider } from "@/lib/providers";
 import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
 import { api } from "@/lib/api";
@@ -164,6 +165,7 @@ function AppLayoutContent() {
                 currentProjectId={sessionToMove?.projectId}
             />
             <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
+            <CommandPalette />
         </div>
     );
 }

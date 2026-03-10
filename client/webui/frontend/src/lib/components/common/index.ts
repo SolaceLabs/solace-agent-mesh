@@ -1,3 +1,4 @@
+export { CommandPalette } from "./CommandPalette";
 export { ConfirmationDialog } from "./ConfirmationDialog";
 export { EmptyState } from "./EmptyState";
 export { OnboardingBanner } from "./OnboardingBanner";
