@@ -24,6 +24,8 @@ export interface ActionContext {
     toggleTheme?: () => void;
     /** Set theme to a specific mode */
     setTheme?: (theme: "light" | "dark") => void;
+    /** Start a new chat session with a prompt */
+    startNewChatWithPrompt?: (data: { promptText: string; groupId: string; groupName: string }) => void;
     /** Any additional context needed by specific action types */
     [key: string]: unknown;
 }

@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent } from "@/lib/components/ui/dialog";
 import { Input } from "@/lib/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Command, Search } from "lucide-react";
-import { ActionRegistry, DynamicNavigationLoader, initializeActions, isExecutableAction } from "./actions";
+import { Command, Search, MessageSquarePlus } from "lucide-react";
+import { ActionRegistry, DynamicNavigationLoader, initializeActions, isExecutableAction, createChatAction } from "./actions";
 import type { ExecutableAction } from "./actions";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
-import { useThemeContext } from "@/lib/hooks";
+import { useThemeContext, useChatContext } from "@/lib/hooks";
 
 function fuzzyMatch(search: string, text: string): number {
     const searchLower = search.toLowerCase();
@@ -41,6 +41,7 @@ export function CommandPalette() {
     const navigate = useNavigate();
     const { projects } = useProjectContext();
     const { toggleTheme, setTheme } = useThemeContext();
+    const { startNewChatWithPrompt } = useChatContext();
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -75,15 +76,17 @@ export function CommandPalette() {
 
     // Filter and sort actions based on search query
     const filteredActions = useMemo(() => {
-        if (!searchQuery.trim()) {
+        const query = searchQuery.trim();
+
+        if (!query) {
             return actions;
         }
 
         const scored = actions
             .map(action => {
-                const labelScore = fuzzyMatch(searchQuery, action.label);
-                const descScore = action.description ? fuzzyMatch(searchQuery, action.description) * 0.5 : 0;
-                const keywordsScore = action.keywords ? action.keywords.reduce((sum, keyword) => sum + fuzzyMatch(searchQuery, keyword) * 0.3, 0) : 0;
+                const labelScore = fuzzyMatch(query, action.label);
+                const descScore = action.description ? fuzzyMatch(query, action.description) * 0.5 : 0;
+                const keywordsScore = action.keywords ? action.keywords.reduce((sum, keyword) => sum + fuzzyMatch(query, keyword) * 0.3, 0) : 0;
                 return {
                     action,
                     score: labelScore + descScore + keywordsScore,
@@ -95,6 +98,20 @@ export function CommandPalette() {
         return scored.map(item => item.action);
     }, [searchQuery, actions]);
 
+    // Create fallback "Ask" action when there's a search query
+    const askAction = useMemo(() => {
+        const query = searchQuery.trim();
+        if (!query) return null;
+
+        return createChatAction({
+            id: "chat:ask",
+            label: `Ask: "${query}"`,
+            prompt: query,
+            description: "Start a new chat with this question",
+            keywords: [],
+        });
+    }, [searchQuery]);
+
     // Reset state when dialog opens/closes
     useEffect(() => {
         if (!isOpen) {
@@ -102,6 +119,25 @@ export function CommandPalette() {
             setSelectedIndex(0);
         }
     }, [isOpen]);
+
+    const handleActionSelect = useCallback(
+        (action: ExecutableAction) => {
+            if (isExecutableAction(action)) {
+                try {
+                    action.execute({
+                        navigate,
+                        toggleTheme,
+                        setTheme,
+                        startNewChatWithPrompt,
+                    });
+                    setIsOpen(false);
+                } catch (error) {
+                    console.error("Error executing action:", error);
+                }
+            }
+        },
+        [navigate, toggleTheme, setTheme, startNewChatWithPrompt]
+    );
 
     // Handle keyboard shortcuts
     useEffect(() => {
@@ -114,16 +150,20 @@ export function CommandPalette() {
 
             // Handle navigation and selection when dialog is open
             if (isOpen) {
+                const totalItems = filteredActions.length + (askAction ? 1 : 0);
+
                 if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    setSelectedIndex(prev => (prev + 1) % filteredActions.length);
+                    setSelectedIndex(prev => (prev + 1) % totalItems);
                 } else if (e.key === "ArrowUp") {
                     e.preventDefault();
-                    setSelectedIndex(prev => (prev - 1 + filteredActions.length) % filteredActions.length);
+                    setSelectedIndex(prev => (prev - 1 + totalItems) % totalItems);
                 } else if (e.key === "Enter") {
                     e.preventDefault();
-                    if (filteredActions.length > 0) {
+                    if (selectedIndex < filteredActions.length && filteredActions.length > 0) {
                         handleActionSelect(filteredActions[selectedIndex]);
+                    } else if (askAction && selectedIndex === filteredActions.length) {
+                        handleActionSelect(askAction);
                     }
                 } else if (e.key === "Escape") {
                     e.preventDefault();
@@ -134,26 +174,12 @@ export function CommandPalette() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, filteredActions, selectedIndex]);
+    }, [isOpen, filteredActions, askAction, selectedIndex, handleActionSelect]);
 
     // Update selected index when filtered results change
     useEffect(() => {
         setSelectedIndex(0);
     }, [searchQuery]);
-
-    const handleActionSelect = useCallback(
-        (action: ExecutableAction) => {
-            if (isExecutableAction(action)) {
-                try {
-                    action.execute({ navigate, toggleTheme, setTheme });
-                    setIsOpen(false);
-                } catch (error) {
-                    console.error("Error executing action:", error);
-                }
-            }
-        },
-        [navigate, toggleTheme, setTheme]
-    );
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -170,7 +196,7 @@ export function CommandPalette() {
 
                     {/* Actions List */}
                     <div className="max-h-[400px] overflow-y-auto p-2">
-                        {filteredActions.length === 0 ? (
+                        {filteredActions.length === 0 && !askAction ? (
                             <div className="text-muted-foreground py-6 text-center text-sm">No actions found</div>
                         ) : (
                             <div className="space-y-1">
@@ -185,6 +211,32 @@ export function CommandPalette() {
                                         {action.description && <div className="text-muted-foreground text-xs">{action.description}</div>}
                                     </button>
                                 ))}
+
+                                {/* Fallback: Ask as Chat Action */}
+                                {askAction && (
+                                    <>
+                                        {filteredActions.length > 0 && <div className="my-2 border-t" />}
+                                        <button
+                                            onClick={() => handleActionSelect(askAction)}
+                                            onMouseEnter={() => setSelectedIndex(filteredActions.length)}
+                                            className={cn(
+                                                "w-full rounded-xs px-3 py-2 text-left transition-colors",
+                                                "border-2 border-dashed",
+                                                "border-[var(--color-brand-wMain)] bg-[var(--color-brand-w10)]",
+                                                "hover:border-solid hover:bg-[var(--color-brand-w30)]",
+                                                filteredActions.length === selectedIndex && "border-solid bg-[var(--color-brand-w30)]"
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <MessageSquarePlus className="size-4 text-[var(--color-brand-wMain)]" />
+                                                <div className="flex-1">
+                                                    <div className="font-medium text-[var(--color-brand-wMain)]">{askAction.label}</div>
+                                                    <div className="text-xs text-[var(--color-brand-wMain)] opacity-80">{askAction.description}</div>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
@@ -193,7 +245,7 @@ export function CommandPalette() {
                     <div className="text-muted-foreground border-t px-4 py-2 text-xs">
                         <div className="flex items-center justify-between">
                             <span>Navigate with ↑↓ • Select with ↵</span>
-                            <span>Close with Esc</span>
+                            {askAction ? <span className="font-medium text-[var(--color-brand-wMain)]">Press ↵ to ask in chat</span> : <span>Close with Esc</span>}
                         </div>
                     </div>
                 </div>

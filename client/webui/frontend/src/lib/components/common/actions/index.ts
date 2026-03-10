@@ -113,3 +113,4 @@ export * from "./types";
 export * from "./NavigationAction";
 export * from "./SettingsAction";
 export * from "./ThemeAction";
+export * from "./ChatAction";
