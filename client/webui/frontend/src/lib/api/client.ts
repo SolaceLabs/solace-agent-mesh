@@ -51,8 +51,13 @@ const clearTokens = () => {
     localStorage.removeItem("refresh_token");
 };
 
+// Shared promise to deduplicate concurrent refresh attempts.
+// Multiple simultaneous 401s will all await the same refresh call.
+let pendingRefresh: Promise<string | null> | null = null;
+
 const refreshToken = async () => {
-    // Don't attempt token refresh if we're in the middle of logging out
+    // Check abort conditions before joining any in-flight refresh, so a logout
+    // initiated mid-refresh doesn't let new callers receive a fresh token.
     if (sessionStorage.getItem("logout_in_progress") === "true") {
         return null;
     }
@@ -62,21 +67,33 @@ const refreshToken = async () => {
         return null;
     }
 
-    const response = await fetch("/api/v1/auth/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: token }),
-    });
-
-    if (response.ok) {
-        const data = await response.json();
-        setTokens(data.access_token, data.sam_access_token, data.refresh_token);
-        return getApiBearerToken();
+    if (pendingRefresh) {
+        return pendingRefresh;
     }
 
-    clearTokens();
-    window.location.href = "/api/v1/auth/login";
-    return null;
+    pendingRefresh = (async () => {
+        const response = await fetch("/api/v1/auth/refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: token }),
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            setTokens(data.access_token, data.sam_access_token, data.refresh_token);
+            return getApiBearerToken();
+        }
+
+        clearTokens();
+        globalThis.location.href = "/api/v1/auth/login";
+        return null;
+    })()
+        .catch(() => null)
+        .finally(() => {
+            pendingRefresh = null;
+        });
+
+    return pendingRefresh;
 };
 
 const getErrorFromResponse = async (response: Response): Promise<string> => {
@@ -126,14 +143,29 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     if (response.status === 401) {
         const newBearerToken = await refreshToken();
         if (newBearerToken) {
-            return fetch(url, {
+            const retryResponse = await fetch(url, {
                 ...options,
                 headers: {
                     ...options.headers,
                     Authorization: `Bearer ${newBearerToken}`,
                 },
             });
+
+            // If the retry after a successful refresh still returns 401, the new
+            // token is also being rejected (e.g. persistent server-side issue).
+            // Redirect to login to break any external retry loop.
+            if (retryResponse.status === 401) {
+                clearTokens();
+                globalThis.location.href = "/api/v1/auth/login";
+                // Navigation is async — return the 401 as-is; the page will
+                // navigate away before callers can act on it.
+                return retryResponse;
+            }
+
+            return retryResponse;
         }
+        // refreshToken() returned null — it already cleared tokens and redirected
+        // to login (or there was no refresh token). Return the 401 as-is.
     }
 
     return response;
