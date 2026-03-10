@@ -76,7 +76,7 @@ def mock_solace_connector(mocker):
 @pytest.fixture
 def mock_initialize(mocker):
     """Mock the initialize function"""
-    return mocker.patch("cli.commands.run_cmd.initialize")
+    return mocker.patch("solace_agent_mesh.common.utils.initializer.initialize")
 
 
 @pytest.fixture
@@ -360,7 +360,7 @@ class TestRunCommand:
         
         try:
             mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
-            mocker.patch("cli.commands.run_cmd.initialize")
+            mocker.patch("solace_agent_mesh.common.utils.initializer.initialize")
             
             result = runner.invoke(run, [])
             output = result.output + caplog.text

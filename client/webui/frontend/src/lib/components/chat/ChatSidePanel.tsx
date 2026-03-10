@@ -45,70 +45,46 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     }, [ragData]);
 
     // Process task data for visualization when the selected activity task ID changes
-    // or when monitoredTasks is updated with new data
+    // or when monitoredTasks is updated with new data.
     useEffect(() => {
         if (!taskIdInSidePanel) {
             setVisualizedTask(null);
             return;
         }
 
-        // Check if task is already in monitoredTasks with events
         const existingTask = monitoredTasks[taskIdInSidePanel];
 
-        // Always try to load from backend first if we haven't already
-        // This ensures we get historical events that may not be in the SSE stream
-        // (e.g., after browser refresh for a running background task)
-        if (!loadAttemptedRef.current.has(taskIdInSidePanel)) {
-            loadAttemptedRef.current.add(taskIdInSidePanel);
-            setIsLoadingTask(true);
-
-            loadTaskFromBackend(taskIdInSidePanel)
-                .then(loadedTask => {
-                    if (!loadedTask) {
-                        // Backend load failed, but we might still have SSE events
-                        // Check if we have any events from SSE stream
-                        if (existingTask && existingTask.events && existingTask.events.length > 0) {
-                            const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
-                            setVisualizedTask(vizTask);
-                        } else {
-                            setVisualizedTask(null);
-                        }
-                    }
-                    // loadTaskFromBackend updates monitoredTasks, which will trigger this effect again
-                    // to process the visualization with the updated data
-                })
-                .catch(() => {
-                    // On error, try to use existing SSE events if available
-                    if (existingTask && existingTask.events && existingTask.events.length > 0) {
-                        const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
-                        setVisualizedTask(vizTask);
-                    } else {
-                        setVisualizedTask(null);
-                    }
-                })
-                .finally(() => {
-                    setIsLoadingTask(false);
-                });
-        } else if (existingTask && existingTask.events && existingTask.events.length > 0) {
-            // Already loaded from backend, now process with latest events from monitoredTasks
+        // ALWAYS process SSE events if available (real-time priority)
+        if (existingTask?.events?.length > 0) {
             const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
             setVisualizedTask(vizTask);
-            setIsLoadingTask(false);
-        } else {
-            // Already attempted to load but no data - show empty state
+        } else if (loadAttemptedRef.current.has(taskIdInSidePanel)) {
+            // No SSE events and backend load already attempted — clear stale data
             setVisualizedTask(null);
+        }
+
+        // Load from backend ONLY if:
+        // 1. No SSE data exists (e.g., page refresh, navigating to historical task), OR
+        // 2. Task has reached a terminal state (backfill complete history)
+        const isTerminalState = existingTask?.events?.some(e => e.full_payload?.result?.status?.state && ["completed", "failed", "canceled", "rejected"].includes(e.full_payload.result.status.state));
+
+        if ((!existingTask || existingTask.events.length === 0 || isTerminalState) && !loadAttemptedRef.current.has(taskIdInSidePanel)) {
+            loadAttemptedRef.current.add(taskIdInSidePanel);
+            setIsLoadingTask(true);
+            loadTaskFromBackend(taskIdInSidePanel).finally(() => setIsLoadingTask(false));
         }
     }, [taskIdInSidePanel, monitoredTasks, loadTaskFromBackend]);
 
     // Reset load attempts when task ID changes
     useEffect(() => {
         if (taskIdInSidePanel) {
+            const loadAttempted = loadAttemptedRef.current;
             // Clear the load attempt for the previous task when switching to a new one
             // This allows re-loading if the user navigates away and back
             return () => {
                 // Don't clear immediately - only clear after a delay to allow for state updates
                 setTimeout(() => {
-                    loadAttemptedRef.current.delete(taskIdInSidePanel);
+                    loadAttempted.delete(taskIdInSidePanel);
                 }, 1000);
             };
         }

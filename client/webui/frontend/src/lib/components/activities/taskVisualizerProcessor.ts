@@ -127,6 +127,7 @@ export const processTaskForVisualization = (
     // If no request event exists but we have initialRequestText, synthesize one
     // This handles the case where a background task is reconnected after browser refresh
     // and the original request event was not captured by the task logger
+    let syntheticRequestEvent: A2AEventSSEPayload | null = null;
     if (!hasRequestEvent && parentTaskObject.initialRequestText && parentTaskObject.events && parentTaskObject.events.length > 0) {
         const firstEventTimestamp = parentTaskObject.events[0]?.timestamp || parentTaskObject.firstSeen.toISOString();
         // Create a synthetic timestamp slightly before the first event
@@ -141,7 +142,7 @@ export const processTaskForVisualization = (
             targetAgent = firstEvent.full_payload.result.metadata.agent_name;
         }
 
-        const syntheticRequestEvent: A2AEventSSEPayload = {
+        syntheticRequestEvent = {
             task_id: parentTaskObject.taskId,
             direction: "request",
             timestamp: syntheticTimestamp,
@@ -166,9 +167,6 @@ export const processTaskForVisualization = (
                 },
             },
         };
-
-        // Add the synthetic event to the beginning of the events array
-        parentTaskObject.events = [syntheticRequestEvent, ...parentTaskObject.events];
     }
 
     // --- Performance Report Initialization ---
@@ -225,13 +223,18 @@ export const processTaskForVisualization = (
         }
     >();
 
-    const combinedEvents = collectAllDescendantEvents(
+    let combinedEvents = collectAllDescendantEvents(
         parentTaskObject.taskId,
         allMonitoredTasks,
         taskNestingLevels,
         0, // Root task is at level 0
         new Set() // visitedTaskIds
     );
+
+    // Prepend synthetic request event if needed (without mutating parentTaskObject)
+    if (syntheticRequestEvent) {
+        combinedEvents = [syntheticRequestEvent, ...combinedEvents];
+    }
 
     if (combinedEvents.length === 0) {
         return {

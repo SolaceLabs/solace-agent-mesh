@@ -21,6 +21,7 @@ import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
 import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
+import { SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./preview/Renderers/PdfRenderer";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -239,6 +240,41 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             window.removeEventListener("follow-up-question", handleFollowUp);
         };
     }, [handleSubmit, scrollToBottom]);
+
+    // Handle snip-to-chat event from PDF renderer
+    useEffect(() => {
+        const handleSnipToChat = (event: Event) => {
+            console.log("[ChatInputArea] Received snip-to-chat event");
+            const customEvent = event as CustomEvent<SnipToChatEventDetail>;
+            const { file } = customEvent.detail;
+
+            console.log("[ChatInputArea] Adding file to selectedFiles:", file.name);
+
+            // Add the snipped image to selected files
+            // Filter out duplicates based on name, size, and last modified time
+            setSelectedFiles(prev => {
+                const isDuplicate = prev.some(existingFile => existingFile.name === file.name && existingFile.size === file.size && existingFile.lastModified === file.lastModified);
+                if (isDuplicate) {
+                    console.log("[ChatInputArea] File is duplicate, skipping");
+                    return prev;
+                }
+                console.log("[ChatInputArea] File added successfully");
+                return [...prev, file];
+            });
+
+            // Focus the chat input
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+            }, 100);
+        };
+
+        console.log("[ChatInputArea] Setting up snip-to-chat event listener");
+        window.addEventListener(SNIP_TO_CHAT_EVENT, handleSnipToChat);
+        return () => {
+            console.log("[ChatInputArea] Removing snip-to-chat event listener");
+            window.removeEventListener(SNIP_TO_CHAT_EVENT, handleSnipToChat);
+        };
+    }, []);
 
     const handleFileSelect = () => {
         if (!isResponding) {

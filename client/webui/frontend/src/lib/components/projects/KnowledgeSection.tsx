@@ -19,9 +19,10 @@ import { DeleteProjectFileDialog } from "./DeleteProjectFileDialog";
 interface KnowledgeSectionProps {
     project: Project;
     isDisabled?: boolean;
+    onFileChange?: () => void;
 }
 
-export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSectionProps) => {
+export const KnowledgeSection = ({ project, isDisabled = false, onFileChange }: KnowledgeSectionProps) => {
     const isOwner = useIsProjectOwner(project.userId);
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
@@ -86,8 +87,10 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
     const handleConfirmUpload = async (formData: FormData) => {
         setIsSubmitting(true);
         setUploadError(null);
+
         try {
             const result = await addFilesToProject(project.id, formData);
+            onFileChange?.();
 
             // close dialog and then start indexing if required
             setFilesToUpload(null);
@@ -124,6 +127,7 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
 
         try {
             const result = await removeFileFromProject(project.id, fileToDelete.filename);
+            onFileChange?.();
 
             // close dialog and then start indexing if required
             setFileToDelete(null);

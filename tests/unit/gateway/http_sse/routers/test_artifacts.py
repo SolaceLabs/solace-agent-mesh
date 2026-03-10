@@ -1005,3 +1005,46 @@ class TestDeleteArtifact:
         assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         assert "Failed to delete artifact" in str(exc_info.value.detail)
 
+
+class TestGetSpecificArtifactVersion:
+    """Test get_specific_artifact_version endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_not_found_returns_404(self):
+        """Regression: a missing artifact must return 404, not 500.
+
+        load_artifact_content_or_metadata returns {"status": "not_found", ...}.
+        The handler converts this to HTTPException(404) inside its try block.
+        Previously the generic 'except Exception' caught that HTTPException
+        and re-wrapped it as a 500.
+        """
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = "TestApp"
+        mock_component.enable_embed_resolution = False
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "status": "not_found",
+                "message": "Artifact 'deleted_file.pdf' version 0 not found or has no data.",
+            }
+
+            with pytest.raises(HTTPException) as exc_info:
+                await get_specific_artifact_version(
+                    session_id="test-session",
+                    filename="deleted_file.pdf",
+                    version=0,
+                    project_id=None,
+                    artifact_service=MagicMock(spec=BaseArtifactService),
+                    user_id="test-user-123",
+                    validate_session=MagicMock(return_value=True),
+                    component=mock_component,
+                    project_service=None,
+                    user_config={"tool:artifact:load": True},
+                )
+
+            assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+            assert "not found" in exc_info.value.detail.lower()
+
