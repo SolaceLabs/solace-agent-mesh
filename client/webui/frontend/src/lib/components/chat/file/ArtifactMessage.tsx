@@ -472,23 +472,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         return undefined;
     }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent]);
 
-    // [DEBUG] Diagnose project badge issue - remove after investigation
-
-    console.log(
-        "[DEBUG ArtifactMessage]",
-        artifact?.filename,
-        "sourceProjectId:",
-        artifact?.sourceProjectId,
-        "source:",
-        artifact?.source,
-        "activeProject.id:",
-        activeProject?.id,
-        "activeProject.name:",
-        activeProject?.name,
-        "badge result:",
-        getSourceProjectName(artifact, activeProject)
-    );
-
     // Render the bar with expanded content inside
     return (
         <ArtifactBar
