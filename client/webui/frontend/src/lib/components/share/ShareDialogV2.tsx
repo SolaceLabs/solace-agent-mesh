@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Plus, MoreVertical, Eye, Copy, Users, RefreshCw, Trash2, ExternalLink } from "lucide-react";
+import { X, Plus, MoreVertical, Eye, Copy, Users, RefreshCw, Trash2, ExternalLink, Link2, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { UserTypeahead } from "../common/UserTypeahead";
 import { Input } from "../ui/input";
-import { createShareLink, getShareLinkForSession, getShareUsers, addShareUsers, deleteShareUsers } from "../../api/shareApi";
+import { createShareLink, getShareLinkForSession, getShareUsers, addShareUsers, deleteShareUsers, copyToClipboard } from "../../api/shareApi";
 import { useConfigContext } from "../../hooks/useConfigContext";
 import type { ShareLink, SharedLinkUserInfo } from "../../types/share";
 
@@ -74,15 +74,19 @@ interface ShareDialogV2Props {
     onSuccess?: (message: string) => void;
     /** For testing/stories - show add row by default */
     defaultShowAddRow?: boolean;
+    /** For testing/stories - show public link section by default */
+    defaultShowPublicLink?: boolean;
 }
 
-export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onError, onSuccess, defaultShowAddRow = false }: Readonly<ShareDialogV2Props>) {
+export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onError, onSuccess, defaultShowAddRow = false, defaultShowPublicLink = false }: Readonly<ShareDialogV2Props>) {
     const { identityServiceType } = useConfigContext();
     const [shareLink, setShareLink] = useState<ShareLink | null>(null);
     const [sharedUsers, setSharedUsers] = useState<SharedLinkUserInfo[]>([]);
     const [ownerEmail, setOwnerEmail] = useState<string>("");
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [savingUser, setSavingUser] = useState(false);
+    const [showPublicLink, setShowPublicLink] = useState(defaultShowPublicLink);
+    const [publicLinkCopied, setPublicLinkCopied] = useState(false);
 
     const { control, handleSubmit, reset, setValue, watch } = useForm<ShareFormData>({
         resolver: zodResolver(shareFormSchema),
@@ -175,6 +179,44 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
 
     const handleRemoveUser = (email: string) => {
         setValue("pendingRemoves", [...pendingRemoves, email]);
+    };
+
+    const handleCopyPublicLink = async () => {
+        // Generate share link if it doesn't exist
+        if (!shareLink) {
+            try {
+                const newLink = await createShareLink(sessionId, {
+                    require_authentication: false, // Public link = no auth required
+                });
+                setShareLink(newLink);
+
+                // Copy to clipboard
+                const success = await copyToClipboard(newLink.share_url);
+                if (success) {
+                    setPublicLinkCopied(true);
+                    setTimeout(() => setPublicLinkCopied(false), 2000);
+                    setShowPublicLink(true);
+                    onSuccess?.("Public link created and copied to clipboard");
+                }
+            } catch (error) {
+                onError?.({ title: "Failed to Create Public Link", message: error instanceof Error ? error.message : "Unknown error" });
+            }
+            return;
+        }
+
+        // Copy existing link
+        const success = await copyToClipboard(shareLink.share_url);
+        if (success) {
+            setPublicLinkCopied(true);
+            setTimeout(() => setPublicLinkCopied(false), 2000);
+            setShowPublicLink(true);
+            onSuccess?.("Public link copied to clipboard");
+        }
+    };
+
+    const handleDeletePublicLink = () => {
+        setShowPublicLink(false);
+        onSuccess?.("Public link removed");
     };
 
     const handleDiscard = () => {
@@ -332,7 +374,7 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                                 <Label className="text-sm text-(--color-secondary-text-wMain)">Email</Label>
                             </div>
                             <div className="w-full shrink-0 sm:w-[200px]">
-                                <Label className="text-sm text-(--color-secondary-text-wMain)">Snapshot Time</Label>
+                                <Label className="text-sm text-(--color-secondary-text-wMain)">Shared On</Label>
                             </div>
                             <div className="w-full shrink-0 sm:w-[200px]">
                                 <Label className="text-sm text-(--color-secondary-text-wMain)">Access Level</Label>
@@ -349,18 +391,11 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                             <>
                                 {displayedViewers.map(user => {
                                     const snapshotDate = new Date(user.added_at * 1000);
-                                    const formattedDate =
-                                        snapshotDate.toLocaleDateString("en-US", {
-                                            year: "numeric",
-                                            month: "2-digit",
-                                            day: "2-digit",
-                                        }) +
-                                        " " +
-                                        snapshotDate.toLocaleTimeString("en-US", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                            hour12: true,
-                                        });
+                                    const formattedDate = snapshotDate.toLocaleDateString("en-US", {
+                                        month: "2-digit",
+                                        day: "2-digit",
+                                        year: "numeric",
+                                    });
 
                                     return (
                                         <div key={user.user_email} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
@@ -397,7 +432,7 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => shareLink && window.open(shareLink.share_url, "_blank")}>
                                                         <ExternalLink className="mr-2 h-4 w-4" />
                                                         Preview Chat
                                                     </DropdownMenuItem>
@@ -422,15 +457,90 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                             </>
                         )}
                     </div>
+
+                    {/* Public Link Section - only shown if public link exists */}
+                    {showPublicLink && shareLink && (
+                        <div className="rounded bg-(--color-background-w20) p-4">
+                            <div className="mb-4 flex items-start justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <Link2 className="h-4 w-4" />
+                                        <Label className="text-sm font-bold">Public Link</Label>
+                                    </div>
+                                    <p className="text-muted-foreground mt-1 text-sm">Anyone with this link can view the chat in a read-only mode.</p>
+                                </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => shareLink && window.open(shareLink.share_url, "_blank")}>
+                                            <ExternalLink className="mr-2 h-4 w-4" />
+                                            Preview Chat
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={handleDeletePublicLink} className="text-destructive focus:text-destructive">
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Remove Public Link
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <div className="relative min-w-0 flex-1">
+                                    <div className="bg-background truncate rounded border px-3 py-2 pr-10 font-mono text-xs">{shareLink.share_url}</div>
+                                    <Button variant="ghost" size="icon" className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2" onClick={handleCopyPublicLink}>
+                                        {publicLinkCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                                    </Button>
+                                </div>
+                                <div className="flex shrink-0 flex-col items-start px-4">
+                                    <span className="text-muted-foreground text-xs">Shared On</span>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-sm whitespace-nowrap">
+                                            {new Date(shareLink.created_time * 1000).toLocaleDateString("en-US", {
+                                                month: "2-digit",
+                                                day: "2-digit",
+                                                year: "numeric",
+                                            })}
+                                        </span>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-5 w-5" aria-label="Refresh public link snapshot">
+                                                    <RefreshCw className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Update Snapshot</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                <DialogFooter className="flex justify-end gap-2">
-                    <Button variant="ghost" onClick={handleDiscard} disabled={savingUser}>
-                        Discard Changes
-                    </Button>
-                    <Button onClick={handleSubmit(onSubmit)} disabled={savingUser || !hasChanges}>
-                        Save
-                    </Button>
+                <DialogFooter className="flex justify-between gap-2">
+                    {/* Public Link Button - left side */}
+                    {!showPublicLink && (
+                        <Button variant="ghost" size="sm" onClick={handleCopyPublicLink}>
+                            <Link2 className="mr-2 h-4 w-4" />
+                            Copy Public Link
+                        </Button>
+                    )}
+                    <div className="flex-1" />
+
+                    {/* Save/Discard - right side */}
+                    <div className="flex gap-2">
+                        <Button variant="ghost" onClick={handleDiscard} disabled={savingUser}>
+                            Discard Changes
+                        </Button>
+                        <Button onClick={handleSubmit(onSubmit)} disabled={savingUser || !hasChanges}>
+                            Save
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
