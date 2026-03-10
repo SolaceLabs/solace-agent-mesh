@@ -975,6 +975,8 @@ async def get_specific_artifact_version(
             },
         )
 
+    except HTTPException:
+        raise
     except FileNotFoundError:
         log.warning("%s Artifact version not found by service.", log_prefix)
         raise HTTPException(
@@ -1089,6 +1091,8 @@ async def get_artifact_by_uri(
             },
         )
 
+    except HTTPException:
+        raise
     except (ValueError, IndexError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid artifact URI: {e}")
     except Exception as e:
