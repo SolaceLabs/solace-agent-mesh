@@ -174,3 +174,20 @@ class BatchDeleteShareUsersRequest(BaseModel):
 class BatchDeleteShareUsersResponse(BaseModel):
     """Response for batch removing users from a share."""
     deleted_count: int
+
+
+class SharedWithMeItem(BaseModel):
+    """Item representing a chat shared with the current user."""
+    share_id: str
+    title: str
+    owner_email: str
+    access_level: str
+    shared_at: int  # epoch ms when the share was added
+    share_url: str = ""
+
+
+class ForkSharedChatResponse(BaseModel):
+    """Response for forking a shared chat into the user's own sessions."""
+    session_id: str
+    session_name: str
+    message: str = "Chat forked successfully"

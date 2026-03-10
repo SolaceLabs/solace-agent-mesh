@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2 } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2, UserSearch, GitFork, ExternalLink } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { listSharedWithMe, forkSharedChat } from "@/lib/api/shareApi";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
+import type { SharedWithMeItem } from "@/lib/types/share";
 import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import {
@@ -141,6 +143,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
 
+    // Shared-with-me state
+    const [sharedWithMe, setSharedWithMe] = useState<SharedWithMeItem[]>([]);
+    const [, setIsLoadingShared] = useState(false);
+    const [forkingShareId, setForkingShareId] = useState<string | null>(null);
+
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
         triggerOnce: false,
@@ -243,6 +250,53 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             fetchSessions(currentPage + 1, true);
         }
     }, [inView, hasMore, isLoading, currentPage, fetchSessions]);
+
+    // Fetch shared-with-me chats
+    const fetchSharedWithMe = useCallback(async () => {
+        setIsLoadingShared(true);
+        try {
+            const items = await listSharedWithMe();
+            setSharedWithMe(items);
+        } catch (error) {
+            console.error("Failed to fetch shared-with-me chats:", error);
+        } finally {
+            setIsLoadingShared(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchSharedWithMe();
+    }, [fetchSharedWithMe]);
+
+    const handleForkChat = useCallback(
+        async (item: SharedWithMeItem) => {
+            if (forkingShareId) return;
+
+            setForkingShareId(item.share_id);
+            try {
+                const result = await forkSharedChat(item.share_id);
+                addNotification?.(`Chat forked: "${result.session_name}"`, "success");
+
+                // Refresh sessions list to show the new forked session
+                fetchSessions(1, false);
+
+                // Switch to the new session
+                await handleSwitchSession(result.session_id);
+            } catch (error) {
+                displayError({ title: "Failed to Fork Chat", error: getErrorMessage(error, "An unknown error occurred while forking the chat.") });
+            } finally {
+                setForkingShareId(null);
+            }
+        },
+        [forkingShareId, addNotification, fetchSessions, handleSwitchSession, displayError]
+    );
+
+    const handleViewSharedChat = useCallback(
+        (item: SharedWithMeItem) => {
+            navigate(`/share/${item.share_id}`);
+        },
+        [navigate]
+    );
 
     useEffect(() => {
         if (editingSessionId && inputRef.current) {
@@ -611,6 +665,67 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 {hasMore && (
                     <div ref={loadMoreRef} className="flex justify-center py-4">
                         {isLoading && <Spinner size="small" variant="muted" />}
+                    </div>
+                )}
+
+                {/* Shared with me section */}
+                {sharedWithMe.length > 0 && (
+                    <div className="mt-6 border-t pt-4 pr-4">
+                        <div className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
+                            <UserSearch size={14} />
+                            Shared with me
+                        </div>
+                        <ul>
+                            {sharedWithMe.map(item => (
+                                <li key={item.share_id} className="group my-2">
+                                    <div className="hover:bg-muted/50 flex items-center gap-2 rounded-sm px-2 py-2">
+                                        <button onClick={() => handleViewSharedChat(item)} className="min-w-0 flex-1 cursor-pointer text-left">
+                                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                <span className="truncate font-semibold">{item.title}</span>
+                                                <span className="text-muted-foreground truncate text-xs">
+                                                    from {item.owner_email} • {formatTimestamp(String(item.shared_at))}
+                                                </span>
+                                            </div>
+                                        </button>
+                                        <div className="flex flex-shrink-0 items-center gap-1">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0"
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleViewSharedChat(item);
+                                                        }}
+                                                    >
+                                                        <ExternalLink size={16} />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>View shared chat</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0"
+                                                        disabled={forkingShareId === item.share_id}
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleForkChat(item);
+                                                        }}
+                                                    >
+                                                        {forkingShareId === item.share_id ? <Loader2 size={16} className="animate-spin" /> : <GitFork size={16} />}
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Fork to my chats</TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 )}
             </div>

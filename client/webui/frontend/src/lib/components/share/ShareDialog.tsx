@@ -187,7 +187,7 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onErr
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[480px]">
+                <DialogContent className="sm:max-w-[480px]" showCloseButton>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Link className="h-5 w-5" />

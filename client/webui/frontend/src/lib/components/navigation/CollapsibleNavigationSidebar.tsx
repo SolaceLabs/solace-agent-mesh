@@ -5,6 +5,7 @@ import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useChatContext, useSessionStorage } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
+import { SharedChatsList } from "@/lib/components/chat/SharedChatsList";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { cn } from "@/lib/utils";
@@ -339,6 +340,8 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                 );
                             })}
                         </div>
+                        {/* Shared with me section - renders nothing if no shared chats */}
+                        <SharedChatsList maxItems={5} />
                     </div>
 
                     {showRecentChats && (

@@ -20,7 +20,9 @@ from ..repository.models.share_model import (
     ShareUsersResponse,
     SharedLinkUserInfo,
     BatchAddShareUsersResponse,
-    BatchDeleteShareUsersResponse
+    BatchDeleteShareUsersResponse,
+    SharedWithMeItem,
+    ForkSharedChatResponse,
 )
 from ..utils.share_utils import (
     generate_share_id,
@@ -843,3 +845,134 @@ class ShareService:
         shared_user_emails = self.repository.find_share_user_emails(db, share_id)
         
         return share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
+
+    def list_shared_with_me(
+        self,
+        db: DBSession,
+        user_email: str,
+        base_url: str = ""
+    ) -> List[SharedWithMeItem]:
+        """
+        List all chats that have been shared with the current user.
+        
+        Args:
+            db: Database session
+            user_email: Email of the current user
+            base_url: Base URL for building share URLs
+        
+        Returns:
+            List of SharedWithMeItem objects
+        """
+        if not user_email:
+            return []
+        
+        shares = self.repository.find_shares_for_user_email(db, user_email)
+        
+        return [
+            SharedWithMeItem(
+                share_id=s["share_id"],
+                title=s["title"],
+                owner_email=s["owner_email"],
+                access_level=s["access_level"],
+                shared_at=s["shared_at"],
+                share_url=build_share_url(s["share_id"], base_url)
+            )
+            for s in shares
+        ]
+
+    def fork_shared_chat(
+        self,
+        db: DBSession,
+        share_id: str,
+        user_id: str,
+        user_email: Optional[str] = None
+    ) -> ForkSharedChatResponse:
+        """
+        Fork a shared chat into the user's own sessions.
+        Creates a new session with copies of the chat tasks from the shared session.
+        
+        Args:
+            db: Database session
+            share_id: Share ID to fork
+            user_id: User ID of the person forking
+            user_email: User email for access check
+        
+        Returns:
+            ForkSharedChatResponse with new session details
+        
+        Raises:
+            ValueError: If share not found
+            PermissionError: If user doesn't have access
+        """
+        import uuid
+        
+        # Get the share link
+        share_link = self.repository.find_by_share_id(db, share_id)
+        if not share_link or share_link.is_deleted():
+            raise ValueError("Share link not found")
+        
+        # Check access permissions
+        shared_user_emails = self.repository.find_share_user_emails(db, share_id)
+        can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
+        
+        # Owner can also fork
+        if not can_access and share_link.user_id != user_id:
+            if reason == "authentication_required":
+                raise PermissionError("Authentication required to fork this chat")
+            else:
+                raise PermissionError("Access denied")
+        
+        # Get the original session's chat tasks
+        from ..repository.chat_task_repository import ChatTaskRepository
+        task_repo = ChatTaskRepository()
+        original_tasks = task_repo.find_by_session(db, share_link.session_id, share_link.user_id)
+        
+        if not original_tasks:
+            raise ValueError("No messages found in the shared session")
+        
+        # Create a new session for the forking user
+        from ..services.session_service import SessionService
+        session_service = SessionService(self.component)
+        
+        fork_title = f"{share_link.title or 'Untitled'} (forked)"
+        new_session = session_service.create_session(
+            db=db,
+            user_id=user_id,
+            name=fork_title,
+        )
+        
+        if not new_session:
+            raise ValueError("Failed to create new session for fork")
+        
+        # Copy chat tasks to the new session
+        from ..repository.entities.chat_task import ChatTask
+        from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+        
+        for original_task in original_tasks:
+            new_task_id = str(uuid.uuid4())
+            now_ms = now_epoch_ms()
+            
+            new_task = ChatTask(
+                id=new_task_id,
+                session_id=new_session.id,
+                user_id=user_id,
+                user_message=original_task.user_message,
+                message_bubbles=original_task.message_bubbles,
+                task_metadata=original_task.task_metadata,
+                created_time=now_ms,
+                updated_time=now_ms,
+            )
+            task_repo.save(db, new_task)
+        
+        db.commit()
+        
+        log.info(
+            f"User {user_id} forked shared chat {share_id} into new session {new_session.id} "
+            f"with {len(original_tasks)} tasks"
+        )
+        
+        return ForkSharedChatResponse(
+            session_id=new_session.id,
+            session_name=fork_title,
+            message=f"Chat forked successfully with {len(original_tasks)} messages"
+        )

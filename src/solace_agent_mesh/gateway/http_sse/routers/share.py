@@ -27,6 +27,8 @@ from ..repository.models.share_model import (
     BatchAddShareUsersResponse,
     BatchDeleteShareUsersRequest,
     BatchDeleteShareUsersResponse,
+    SharedWithMeItem,
+    ForkSharedChatResponse,
 )
 from solace_agent_mesh.shared.api.pagination import PaginationParams, PaginatedResponse
 
@@ -54,9 +56,12 @@ def get_optional_user_id(request: Request) -> Optional[str]:
     Does not raise exception if not authenticated.
     """
     try:
-        # Try to get user from request state (set by auth middleware)
-        if hasattr(request.state, 'user_id'):
+        # Try request.state.user_id first (legacy)
+        if hasattr(request.state, 'user_id') and request.state.user_id:
             return request.state.user_id
+        # Try request.state.user dict (set by AuthMiddleware)
+        if hasattr(request.state, 'user') and request.state.user:
+            return request.state.user.get('id')
         return None
     except Exception:
         return None
@@ -67,8 +72,12 @@ def get_optional_user_email(request: Request) -> Optional[str]:
     Get user email if authenticated, None otherwise.
     """
     try:
-        if hasattr(request.state, 'user_email'):
+        # Try request.state.user_email first (legacy)
+        if hasattr(request.state, 'user_email') and request.state.user_email:
             return request.state.user_email
+        # Try request.state.user dict (set by AuthMiddleware)
+        if hasattr(request.state, 'user') and request.state.user:
+            return request.state.user.get('email')
         return None
     except Exception:
         return None
@@ -197,6 +206,108 @@ async def list_share_links(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list share links"
+        )
+
+
+@router.get("/shared-with-me", response_model=List[SharedWithMeItem])
+async def list_shared_with_me(
+    request: Request,
+    user_id: str = Depends(get_user_id),
+    db: DBSession = Depends(get_db),
+    share_service: ShareService = Depends(get_share_service)
+):
+    """
+    List all chats that have been shared with the current user.
+    
+    Returns chats where the user's email/ID appears in the shared_link_users table.
+    Uses get_user_id for consistency with other share endpoints.
+    """
+    try:
+        # Try to get email from request state (set by AuthMiddleware)
+        user_email = None
+        if hasattr(request.state, 'user') and request.state.user:
+            user_email = request.state.user.get("email")
+        
+        # Fall back to user_id (e.g., sam_dev_user in dev mode)
+        lookup_key = user_email or user_id
+        log.info(f"[shared-with-me] user_id={user_id}, user_email={user_email}, lookup_key={lookup_key}")
+        if not lookup_key:
+            return []
+        
+        base_url = get_base_url(request)
+        result = share_service.list_shared_with_me(
+            db=db,
+            user_email=lookup_key,
+            base_url=base_url
+        )
+        log.info(f"[shared-with-me] Found {len(result)} shared chats for {lookup_key}")
+        return result
+    
+    except Exception as e:
+        log.error(f"Error listing shared-with-me chats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list shared chats"
+        )
+
+
+@router.post("/{share_id}/fork", response_model=ForkSharedChatResponse)
+async def fork_shared_chat(
+    share_id: str,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+    db: DBSession = Depends(get_db),
+    share_service: ShareService = Depends(get_share_service)
+):
+    """
+    Fork a shared chat into the user's own sessions.
+    
+    Creates a new session with copies of all messages from the shared chat.
+    The user can then continue the conversation in their own session.
+    """
+    try:
+        # Get email from request state if available
+        user_email = None
+        if hasattr(request.state, 'user') and request.state.user:
+            user_email = request.state.user.get("email")
+        
+        result = share_service.fork_shared_chat(
+            db=db,
+            share_id=share_id,
+            user_id=user_id,
+            user_email=user_email
+        )
+        
+        return result
+    
+    except PermissionError as e:
+        error_msg = str(e)
+        if "Authentication required" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=error_msg,
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error_msg
+            )
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    
+    except HTTPException:
+        raise
+    
+    except Exception as e:
+        log.error(f"Error forking shared chat: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fork shared chat"
         )
 
 
