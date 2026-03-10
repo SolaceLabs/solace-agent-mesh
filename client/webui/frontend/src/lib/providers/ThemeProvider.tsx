@@ -213,6 +213,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
                 setCurrentTheme(newTheme);
                 localStorage.setItem(LOCAL_STORAGE_KEY, newTheme);
             },
+            setTheme: (theme: "light" | "dark") => {
+                setCurrentTheme(theme);
+                localStorage.setItem(LOCAL_STORAGE_KEY, theme);
+            },
         }),
         [currentTheme]
     );

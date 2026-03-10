@@ -7,6 +7,7 @@ import { Command, Search } from "lucide-react";
 import { ActionRegistry, DynamicNavigationLoader, initializeActions, isExecutableAction } from "./actions";
 import type { ExecutableAction } from "./actions";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
+import { useThemeContext } from "@/lib/hooks";
 
 function fuzzyMatch(search: string, text: string): number {
     const searchLower = search.toLowerCase();
@@ -39,6 +40,7 @@ function fuzzyMatch(search: string, text: string): number {
 export function CommandPalette() {
     const navigate = useNavigate();
     const { projects } = useProjectContext();
+    const { toggleTheme, setTheme } = useThemeContext();
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -143,14 +145,14 @@ export function CommandPalette() {
         (action: ExecutableAction) => {
             if (isExecutableAction(action)) {
                 try {
-                    action.execute({ navigate });
+                    action.execute({ navigate, toggleTheme, setTheme });
                     setIsOpen(false);
                 } catch (error) {
                     console.error("Error executing action:", error);
                 }
             }
         },
-        [navigate]
+        [navigate, toggleTheme, setTheme]
     );
 
     return (

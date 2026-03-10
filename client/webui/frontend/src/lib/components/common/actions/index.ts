@@ -1,6 +1,7 @@
 import ActionRegistry from "./ActionRegistry";
 import { createNavigationAction } from "./NavigationAction";
 import { createSettingsAction } from "./SettingsAction";
+import { createThemeAction } from "./ThemeAction";
 import DynamicNavigationLoader from "./DynamicNavigationLoader";
 
 /**
@@ -75,6 +76,31 @@ export function initializeActions(): void {
         }),
     ]);
 
+    // Register theme actions (direct manipulation without opening settings)
+    registry.registerMany([
+        createThemeAction({
+            id: "theme:toggle",
+            label: "Toggle Theme",
+            mode: "toggle",
+            description: "Switch between light and dark mode",
+            keywords: ["theme", "dark", "light", "mode", "appearance", "toggle"],
+        }),
+        createThemeAction({
+            id: "theme:light",
+            label: "Switch to Light Mode",
+            mode: "light",
+            description: "Change the theme to light mode",
+            keywords: ["theme", "light", "mode", "appearance", "bright"],
+        }),
+        createThemeAction({
+            id: "theme:dark",
+            label: "Switch to Dark Mode",
+            mode: "dark",
+            description: "Change the theme to dark mode",
+            keywords: ["theme", "dark", "mode", "appearance", "night"],
+        }),
+    ]);
+
     // Register static subsection actions
     const loader = DynamicNavigationLoader.getInstance();
     loader.registerStaticSubsections();
@@ -86,3 +112,4 @@ export { default as DynamicNavigationLoader } from "./DynamicNavigationLoader";
 export * from "./types";
 export * from "./NavigationAction";
 export * from "./SettingsAction";
+export * from "./ThemeAction";

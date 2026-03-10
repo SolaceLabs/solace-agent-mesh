@@ -20,6 +20,10 @@ export interface Action {
 export interface ActionContext {
     /** Router navigate function for navigation actions */
     navigate?: (path: string) => void;
+    /** Toggle theme between light and dark */
+    toggleTheme?: () => void;
+    /** Set theme to a specific mode */
+    setTheme?: (theme: "light" | "dark") => void;
     /** Any additional context needed by specific action types */
     [key: string]: unknown;
 }
