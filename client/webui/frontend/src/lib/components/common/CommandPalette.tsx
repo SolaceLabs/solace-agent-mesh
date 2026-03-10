@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent } from "@/lib/components/ui/dialog";
 import { Input } from "@/lib/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Command, Search, MessageSquarePlus } from "lucide-react";
+import { Command, Search, MessageSquare } from "lucide-react";
 import { ActionRegistry, DynamicNavigationLoader, initializeActions, isExecutableAction, createChatAction } from "./actions";
 import type { ExecutableAction } from "./actions";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
@@ -249,8 +249,8 @@ export function CommandPalette() {
                                             )}
                                         >
                                             <div className="flex items-center gap-3">
-                                                <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-full", "bg-[var(--color-brand-wMain)]", "dark:bg-[var(--color-brand-w60)]")}>
-                                                    <MessageSquarePlus className="size-4 text-white" />
+                                                <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", "bg-[var(--color-brand-wMain)] shadow-sm", "dark:bg-[var(--color-brand-w70)]")}>
+                                                    <MessageSquare className="size-5 text-white drop-shadow-sm" strokeWidth={2.5} />
                                                 </div>
                                                 <div className="flex-1">
                                                     <div className="text-foreground font-semibold">{askAction.label}</div>
