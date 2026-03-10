@@ -2,6 +2,44 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 
 import { artifactKeys } from "./keys";
 import * as artifactService from "./service";
+import type { ArtifactWithSession, BulkArtifactsResponse } from "./types";
+
+/**
+ * Checks if an artifact is an intermediate web content artifact from deep research.
+ * These are temporary files that should not be shown in the files tab.
+ */
+const isIntermediateWebContentArtifact = (filename: string | undefined): boolean => {
+    if (!filename) return false;
+    return filename.startsWith("web_content_");
+};
+
+/**
+ * Hook to fetch all artifacts across all sessions and projects.
+ * Uses the bulk /api/v1/artifacts/all endpoint to fetch all artifacts in a single request,
+ * eliminating the N+1 API call pattern.
+ */
+export function useAllArtifacts() {
+    return useQuery({
+        queryKey: artifactKeys.lists(),
+        queryFn: artifactService.getAllArtifacts,
+        refetchOnMount: "always",
+        select: (data: BulkArtifactsResponse): ArtifactWithSession[] =>
+            data.artifacts
+                .filter(artifact => !isIntermediateWebContentArtifact(artifact.filename))
+                .map(artifact => ({
+                    filename: artifact.filename,
+                    size: artifact.size,
+                    mime_type: artifact.mimeType ?? "application/octet-stream",
+                    last_modified: artifact.lastModified ?? new Date().toISOString(),
+                    uri: artifact.uri ?? "",
+                    sessionId: artifact.sessionId,
+                    sessionName: artifact.sessionName,
+                    projectId: artifact.projectId ?? undefined,
+                    projectName: artifact.projectName,
+                    source: artifact.source ?? undefined,
+                })),
+    });
+}
 
 /**
  * Hook to fetch artifact content for preview.

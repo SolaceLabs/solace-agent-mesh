@@ -26,7 +26,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/lib/components/ui";
-import { useAllArtifacts, useChatContext } from "@/lib/hooks";
+import { useChatContext } from "@/lib/hooks";
+import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent } from "@/lib/utils";
 import { formatBytes } from "@/lib/utils/format";
@@ -38,7 +39,7 @@ import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
 import { Header } from "@/lib/components/header/Header";
 import type { FileAttachment } from "@/lib/types";
-import type { ArtifactWithSession } from "@/lib/hooks/useAllArtifacts";
+import type { ArtifactWithSession } from "@/lib/api/artifacts";
 
 // LRU Cache for document content with max size to prevent memory leaks
 const documentContentCache = createLruCache<string>(50);
@@ -737,7 +738,7 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
 export function ArtifactsPage() {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
-    const { artifacts, isLoading, error: fetchError, refetch } = useAllArtifacts();
+    const { data: artifacts = [], isLoading, error: fetchError, refetch } = useAllArtifacts();
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [sortBy, setSortBy] = useState<SortField>("date");
@@ -1053,7 +1054,7 @@ export function ArtifactsPage() {
                                 <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
                                     <AlertTriangle className="text-destructive mx-auto mb-4 h-12 w-12" />
                                     <p className="text-destructive">Failed to load artifacts</p>
-                                    <p className="mt-2 text-xs">{fetchError}</p>
+                                    <p className="mt-2 text-xs">{fetchError?.message}</p>
                                     <Button variant="outline" className="mt-4" onClick={() => refetch()}>
                                         Try Again
                                     </Button>

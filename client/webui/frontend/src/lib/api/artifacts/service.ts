@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import { getArtifactContent as getArtifactContentUtil } from "@/lib/utils/file";
+import type { BulkArtifactsResponse } from "./types";
 
 /**
  * Retrieves artifact content for a file in a project.
@@ -54,4 +55,13 @@ export async function fetchPdfBlob(url: string): Promise<string> {
     }
     const blob = await response.blob();
     return URL.createObjectURL(blob);
+}
+
+/**
+ * Fetches all artifacts across all sessions and projects using the bulk endpoint.
+ *
+ * @returns Promise with the bulk artifacts response
+ */
+export async function getAllArtifacts(): Promise<BulkArtifactsResponse> {
+    return api.webui.get<BulkArtifactsResponse>("/api/v1/artifacts/all");
 }
