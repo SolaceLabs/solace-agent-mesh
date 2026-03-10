@@ -255,8 +255,14 @@ export function CommandPalette() {
                     {/* Footer with keyboard hints */}
                     <div className="text-muted-foreground border-t px-4 py-2 text-xs">
                         <div className="flex items-center justify-between">
-                            <span>Navigate with ↑↓ • Select with ↵</span>
-                            {askAction ? <span className="font-medium text-[var(--color-brand-wMain)]">Press ↵ to ask in chat</span> : <span>Close with Esc</span>}
+                            <span>Navigate with ↑↓</span>
+                            {askAction && selectedIndex === filteredActions.length ? (
+                                <span className="font-medium text-[var(--color-brand-wMain)]">Press ↵ to ask in chat</span>
+                            ) : filteredActions.length > 0 && selectedIndex < filteredActions.length ? (
+                                <span className="font-medium">Press ↵ to perform action</span>
+                            ) : (
+                                <span>Close with Esc</span>
+                            )}
                         </div>
                     </div>
                 </div>

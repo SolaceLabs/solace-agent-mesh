@@ -106,6 +106,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Flag to track if we've already processed the current location state
     const processedLocationStateRef = useRef<string | null>(null);
 
+    // Flag to track if we've already processed the current pending prompt
+    const processedPendingPromptRef = useRef<string | null>(null);
+
     // Handle pending prompt use from router state - delegate to ChatProvider
     useEffect(() => {
         if (location.state?.promptText && processedLocationStateRef.current !== location.state.groupId) {
@@ -131,7 +134,24 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     useEffect(() => {
         if (pendingPrompt && selectedAgentName) {
             const { promptText, groupId, groupName } = pendingPrompt;
+
+            // Check if we've already processed this exact prompt
+            if (processedPendingPromptRef.current === groupId) {
+                return;
+            }
+
+            // Mark this prompt as processed
+            processedPendingPromptRef.current = groupId;
+
             const shouldAutoSubmit = groupId === "command-palette-auto-submit";
+
+            // Clear the pending prompt to prevent duplicate submissions
+            clearPendingPrompt();
+
+            // Reset the processed ref after clearing to allow future prompts
+            setTimeout(() => {
+                processedPendingPromptRef.current = null;
+            }, 1000);
 
             // Check if prompt has variables
             const variables = detectVariables(promptText);
@@ -144,26 +164,21 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 } as PromptGroup);
                 setShowVariableDialog(true);
             } else {
-                setInputValue(promptText);
-
                 if (shouldAutoSubmit) {
-                    // Auto-submit for command palette
+                    // Auto-submit for command palette - submit directly without setting input
                     setTimeout(async () => {
                         const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], promptText, null, null, null, null);
-                        setInputValue("");
                         scrollToBottom?.();
                     }, 150);
                 } else {
-                    // Just focus for regular prompt templates
+                    // Just set input value and focus for regular prompt templates
+                    setInputValue(promptText);
                     setTimeout(() => {
                         chatInputRef.current?.focus();
                     }, 100);
                 }
             }
-
-            // Clear the pending prompt from provider
-            clearPendingPrompt();
         }
     }, [pendingPrompt, selectedAgentName, clearPendingPrompt, handleSubmit, scrollToBottom]);
 
