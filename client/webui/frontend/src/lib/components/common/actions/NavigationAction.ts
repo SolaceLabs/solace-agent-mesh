@@ -25,6 +25,13 @@ export class NavigationAction implements ExecutableAction {
             return;
         }
         context.navigate(this.path);
+
+        // If navigating to chat, focus the input after navigation
+        if (this.path.startsWith("/chat")) {
+            setTimeout(() => {
+                window.dispatchEvent(new Event("focus-chat-input"));
+            }, 150);
+        }
     }
 }
 
