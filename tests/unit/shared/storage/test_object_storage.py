@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from azure.storage.blob import ContentSettings
 from botocore.exceptions import ClientError
 
 from solace_agent_mesh.services.platform.storage.base import StorageObject
@@ -642,3 +643,246 @@ class TestGcsPublicUrl:
     def test_url_format(self, gcs_client):
         url = gcs_client.get_public_url("ns/file.zip")
         assert url == "https://storage.googleapis.com/test-bucket/ns/file.zip"
+
+
+@pytest.fixture()
+def mock_blob_service():
+    with patch("solace_agent_mesh.services.platform.storage.azure_client.BlobServiceClient") as mock_cls:
+        mock_service = MagicMock()
+        mock_cls.return_value = mock_service
+        mock_cls.from_connection_string.return_value = mock_service
+        mock_container = MagicMock()
+        mock_service.get_container_client.return_value = mock_container
+        mock_service.account_name = "testaccount"
+        yield {"cls": mock_cls, "service": mock_service, "container": mock_container}
+
+
+@pytest.fixture()
+def azure_client_conn_str(mock_blob_service):
+    from solace_agent_mesh.services.platform.storage.azure_client import AzureBlobStorageClient
+
+    return AzureBlobStorageClient(
+        container_name="test-container",
+        connection_string="DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=dGVzdGtleQ==;EndpointSuffix=core.windows.net",
+    )
+
+
+@pytest.fixture()
+def azure_client_key(mock_blob_service):
+    from solace_agent_mesh.services.platform.storage.azure_client import AzureBlobStorageClient
+
+    return AzureBlobStorageClient(
+        container_name="test-container",
+        account_name="testaccount",
+        account_key="testkey123",
+    )
+
+
+@pytest.fixture()
+def azure_client_workload_identity(mock_blob_service):
+    from solace_agent_mesh.services.platform.storage.azure_client import AzureBlobStorageClient
+
+    with patch("azure.identity.DefaultAzureCredential") as mock_dac:
+        mock_dac.return_value = MagicMock()
+        client = AzureBlobStorageClient(
+            container_name="test-container",
+            account_name="testaccount",
+        )
+    return client
+
+
+class TestAzureInit:
+    def test_connection_string_init(self, mock_blob_service):
+        from solace_agent_mesh.services.platform.storage.azure_client import AzureBlobStorageClient
+
+        AzureBlobStorageClient(
+            container_name="test-container",
+            connection_string="DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=dGVzdGtleQ==",
+        )
+        mock_blob_service["cls"].from_connection_string.assert_called_once_with(
+            "DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=dGVzdGtleQ=="
+        )
+
+    def test_account_name_and_key_init(self, mock_blob_service):
+        from solace_agent_mesh.services.platform.storage.azure_client import AzureBlobStorageClient
+
+        AzureBlobStorageClient(
+            container_name="test-container",
+            account_name="testaccount",
+            account_key="testkey123",
+        )
+        mock_blob_service["cls"].assert_called_once_with(
+            account_url="https://testaccount.blob.core.windows.net",
+            credential="testkey123",
+        )
+
+    def test_account_name_only_uses_default_credential(self, mock_blob_service):
+        from solace_agent_mesh.services.platform.storage.azure_client import AzureBlobStorageClient
+
+        with patch("azure.identity.DefaultAzureCredential") as mock_dac:
+            mock_cred = MagicMock()
+            mock_dac.return_value = mock_cred
+            client = AzureBlobStorageClient(
+                container_name="test-container",
+                account_name="testaccount",
+            )
+        mock_dac.assert_called_once()
+        mock_blob_service["cls"].assert_called_once_with(
+            account_url="https://testaccount.blob.core.windows.net",
+            credential=mock_cred,
+        )
+        assert client._account_key is None
+
+    def test_no_args_raises_value_error(self, mock_blob_service):
+        from solace_agent_mesh.services.platform.storage.azure_client import AzureBlobStorageClient
+
+        with pytest.raises(ValueError, match="Azure Blob Storage requires"):
+            AzureBlobStorageClient(container_name="test-container")
+
+    def test_connection_string_extracts_account_key(self, mock_blob_service):
+        from solace_agent_mesh.services.platform.storage.azure_client import AzureBlobStorageClient
+
+        client = AzureBlobStorageClient(
+            container_name="test-container",
+            connection_string="DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=dGVzdGtleQ==;EndpointSuffix=core.windows.net",
+        )
+        assert client._account_key == "dGVzdGtleQ=="
+
+
+class TestAzureErrorTranslation:
+    def test_resource_not_found_maps_to_storage_not_found(self, azure_client_conn_str, mock_blob_service):
+        from azure.core.exceptions import ResourceNotFoundError
+
+        mock_blob_client = MagicMock()
+        mock_blob_client.download_blob.side_effect = ResourceNotFoundError("not found")
+        mock_blob_service["container"].get_blob_client.return_value = mock_blob_client
+
+        with pytest.raises(StorageNotFoundError):
+            azure_client_conn_str.get_object("missing-key")
+
+    def test_http_403_maps_to_storage_permission(self, azure_client_conn_str, mock_blob_service):
+        from azure.core.exceptions import HttpResponseError
+
+        error = HttpResponseError("forbidden")
+        error.status_code = 403
+        mock_blob_client = MagicMock()
+        mock_blob_client.upload_blob.side_effect = error
+        mock_blob_service["container"].get_blob_client.return_value = mock_blob_client
+
+        with pytest.raises(StoragePermissionError):
+            azure_client_conn_str.put_object("key", b"data", "text/plain")
+
+    def test_connection_error_maps_to_storage_connection(self, azure_client_conn_str, mock_blob_service):
+        mock_blob_client = MagicMock()
+        mock_blob_client.download_blob.side_effect = ConnectionError("timeout")
+        mock_blob_service["container"].get_blob_client.return_value = mock_blob_client
+
+        with pytest.raises(StorageConnectionError):
+            azure_client_conn_str.get_object("key")
+
+    def test_unknown_error_maps_to_base_storage_error(self, azure_client_conn_str, mock_blob_service):
+        mock_blob_client = MagicMock()
+        mock_blob_client.upload_blob.side_effect = RuntimeError("boom")
+        mock_blob_service["container"].get_blob_client.return_value = mock_blob_client
+
+        with pytest.raises(StorageError) as exc_info:
+            azure_client_conn_str.put_object("key", b"data", "text/plain")
+
+        assert type(exc_info.value) is StorageError
+
+
+class TestAzurePutObject:
+    def test_returns_key(self, azure_client_conn_str, mock_blob_service):
+        result = azure_client_conn_str.put_object("ns/file.zip", b"data", "application/zip")
+        assert result == "ns/file.zip"
+
+    def test_calls_upload_blob_with_correct_params(self, azure_client_conn_str, mock_blob_service):
+        mock_blob_client = MagicMock()
+        mock_blob_service["container"].get_blob_client.return_value = mock_blob_client
+
+        azure_client_conn_str.put_object("k", b"d", "text/plain", metadata={"env": "prod"})
+
+        call_kwargs = mock_blob_client.upload_blob.call_args
+        assert call_kwargs.kwargs["overwrite"] is True
+        assert call_kwargs.kwargs["metadata"] == {"env": "prod"}
+        assert isinstance(call_kwargs.kwargs["content_settings"], ContentSettings)
+
+
+class TestAzureGetObject:
+    def test_returns_storage_object(self, azure_client_conn_str, mock_blob_service):
+        mock_blob_client = MagicMock()
+        mock_download = MagicMock()
+        mock_download.readall.return_value = b"file-bytes"
+        mock_download.properties.content_settings.content_type = "image/png"
+        mock_download.properties.metadata = {"version": "1"}
+        mock_blob_client.download_blob.return_value = mock_download
+        mock_blob_service["container"].get_blob_client.return_value = mock_blob_client
+
+        result = azure_client_conn_str.get_object("img.png")
+
+        assert isinstance(result, StorageObject)
+        assert result.content == b"file-bytes"
+        assert result.content_type == "image/png"
+        assert result.metadata == {"version": "1"}
+
+    def test_defaults_content_type_when_none(self, azure_client_conn_str, mock_blob_service):
+        mock_blob_client = MagicMock()
+        mock_download = MagicMock()
+        mock_download.readall.return_value = b"data"
+        mock_download.properties.content_settings.content_type = None
+        mock_download.properties.metadata = None
+        mock_blob_client.download_blob.return_value = mock_download
+        mock_blob_service["container"].get_blob_client.return_value = mock_blob_client
+
+        result = azure_client_conn_str.get_object("file.bin")
+        assert result.content_type == "application/octet-stream"
+
+
+class TestAzureDeleteObject:
+    def test_delete_succeeds(self, azure_client_conn_str, mock_blob_service):
+        azure_client_conn_str.delete_object("ns/file.zip")
+        mock_blob_service["container"].get_blob_client.return_value.delete_blob.assert_called_once()
+
+    def test_delete_not_found_is_silent(self, azure_client_conn_str, mock_blob_service):
+        from azure.core.exceptions import ResourceNotFoundError
+
+        mock_blob_client = MagicMock()
+        mock_blob_client.delete_blob.side_effect = ResourceNotFoundError("gone")
+        mock_blob_service["container"].get_blob_client.return_value = mock_blob_client
+
+        azure_client_conn_str.delete_object("already-gone")
+
+
+class TestAzurePresignedUrl:
+    @patch("solace_agent_mesh.services.platform.storage.azure_client.generate_blob_sas")
+    def test_with_account_key_uses_generate_blob_sas(self, mock_gen_sas, azure_client_key, mock_blob_service):
+        mock_gen_sas.return_value = "sas-token-here"
+        url = azure_client_key.generate_presigned_url("file.txt")
+        assert "sas-token-here" in url
+        call_kwargs = mock_gen_sas.call_args.kwargs
+        assert call_kwargs["account_key"] == "testkey123"
+
+    @patch("solace_agent_mesh.services.platform.storage.azure_client.generate_blob_sas")
+    def test_without_account_key_uses_delegation_key(self, mock_gen_sas, azure_client_workload_identity, mock_blob_service):
+        mock_delegation_key = MagicMock()
+        mock_blob_service["service"].get_user_delegation_key.return_value = mock_delegation_key
+        mock_gen_sas.return_value = "delegation-sas-token"
+        url = azure_client_workload_identity.generate_presigned_url("file.txt")
+        assert "delegation-sas-token" in url
+        call_kwargs = mock_gen_sas.call_args.kwargs
+        assert "user_delegation_key" in call_kwargs
+        assert call_kwargs["user_delegation_key"] is mock_delegation_key
+
+    @patch("solace_agent_mesh.services.platform.storage.azure_client.generate_blob_sas")
+    def test_url_format(self, mock_gen_sas, azure_client_key, mock_blob_service):
+        mock_gen_sas.return_value = "sas-token"
+        url = azure_client_key.generate_presigned_url("path/file.txt")
+        assert "testaccount" in url
+        assert "test-container" in url
+        assert "path/file.txt" in url
+
+
+class TestAzurePublicUrl:
+    def test_url_format(self, azure_client_conn_str):
+        url = azure_client_conn_str.get_public_url("ns/file.zip")
+        assert url == "https://testaccount.blob.core.windows.net/test-container/ns/file.zip"
