@@ -310,6 +310,50 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 e,
             )
             raise
+    elif service_type == "azure":
+        container_name = config.get("container_name")
+        if not container_name or not container_name.strip():
+            raise ValueError(
+                f"{component.log_identifier} 'container_name' is required for Azure artifact service."
+            )
+
+        try:
+            from .artifacts.azure_artifact_service import AzureArtifactService
+
+            azure_config = {}
+            for key in ["account_name", "account_key", "connection_string"]:
+                if key in config and config[key] is not None:
+                    azure_config[key] = config[key]
+
+            if "connection_string" not in azure_config:
+                env_conn_str = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+                if env_conn_str:
+                    azure_config["connection_string"] = env_conn_str
+            if "account_name" not in azure_config:
+                env_name = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")
+                if env_name:
+                    azure_config["account_name"] = env_name
+            if "account_key" not in azure_config:
+                env_key = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
+                if env_key:
+                    azure_config["account_key"] = env_key
+
+            concrete_service = AzureArtifactService(
+                container_name=container_name, **azure_config
+            )
+        except ImportError as e:
+            log.error(
+                "%s azure-storage-blob not installed. Please install 'azure-storage-blob'.",
+                component.log_identifier,
+            )
+            raise
+        except Exception as e:
+            log.error(
+                "%s Failed to initialize AzureArtifactService: %s",
+                component.log_identifier,
+                e,
+            )
+            raise
     elif service_type == "s3":
         bucket_name = config.get("bucket_name")
         if not bucket_name or not bucket_name.strip():

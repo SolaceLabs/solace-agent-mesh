@@ -43,8 +43,18 @@ class AzureBlobStorageClient(ObjectStorageClient):
         elif account_name and account_key:
             account_url = f"https://{account_name}.blob.core.windows.net"
             self._service_client = BlobServiceClient(account_url=account_url, credential=account_key)
+        elif account_name:
+            from azure.identity import DefaultAzureCredential
+
+            account_url = f"https://{account_name}.blob.core.windows.net"
+            self._service_client = BlobServiceClient(
+                account_url=account_url, credential=DefaultAzureCredential()
+            )
         else:
-            raise ValueError("Azure Blob Storage requires either connection_string or account_name + account_key")
+            raise ValueError(
+                "Azure Blob Storage requires either connection_string, "
+                "account_name + account_key, or account_name (for workload identity)"
+            )
 
         if not self._account_name:
             self._account_name = self._service_client.account_name

@@ -26,13 +26,20 @@ class GcsStorageClient(ObjectStorageClient):
         bucket_name: str,
         project: str | None = None,
         credentials_path: str | None = None,
+        credentials_json: str | None = None,
     ):
         self._bucket_name = bucket_name
         self._credentials = None
         kwargs: dict = {}
         if project:
             kwargs["project"] = project
-        if credentials_path:
+        if credentials_json:
+            import json
+
+            info = json.loads(credentials_json)
+            self._credentials = service_account.Credentials.from_service_account_info(info)
+            kwargs["credentials"] = self._credentials
+        elif credentials_path:
             self._credentials = service_account.Credentials.from_service_account_file(credentials_path)
             kwargs["credentials"] = self._credentials
 
@@ -59,7 +66,6 @@ class GcsStorageClient(ObjectStorageClient):
         try:
             blob = self._bucket.blob(key)
             content = blob.download_as_bytes()
-            blob.reload()
             return StorageObject(
                 content=content,
                 content_type=blob.content_type or "application/octet-stream",
@@ -96,6 +102,11 @@ class GcsStorageClient(ObjectStorageClient):
             raise self._translate_error(e) from e
 
     def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        if not self._credentials:
+            raise StoragePermissionError(
+                "Service account credentials are required to generate signed URLs",
+                key=key,
+            )
         try:
             blob = self._bucket.blob(key)
             return blob.generate_signed_url(
