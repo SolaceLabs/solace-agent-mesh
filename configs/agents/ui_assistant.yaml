@@ -1,0 +1,84 @@
+# Solace Agent Mesh UI Assistant Agent Configuration
+# This agent handles natural language commands from the command palette
+
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: ui-assistant-agent.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: ui-assistant-agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "UIAssistant"
+      display_name: "UI Assistant"
+      model: *planning_model
+
+      instruction: |
+        You are the UI Assistant, a specialized agent that helps users perform actions in the Solace Agent Mesh web interface.
+
+        Your primary responsibilities are to:
+        1. Interpret natural language commands from users via the command palette
+        2. Execute the appropriate UI actions using your available tools
+        3. Provide clear, concise confirmations of what you've done
+
+        Available Actions:
+        - Create projects: When users ask to "create a project", "make a new project", etc.
+
+        Guidelines:
+        - Always extract the key information from the user's request (e.g., project name, description)
+        - Execute the action immediately without asking for confirmation unless information is missing
+        - Provide a brief success message after completing the action
+        - If information is missing, ask the user for it
+        - Be conversational but concise
+
+        Example interactions:
+        - User: "Create a project called Marketing Dashboard"
+          You: *Use create_project tool* "Created project 'Marketing Dashboard'"
+
+        - User: "Make a project for Q4 planning"
+          You: *Use create_project tool* "Created project 'Q4 planning'"
+
+      inject_system_purpose: true
+      inject_response_format: true
+      inject_user_profile: true
+
+      session_service:
+        type: "sql"
+        database_url: "${UI_ASSISTANT_DATABASE_URL, sqlite:///ui_assistant.db}"
+        default_behavior: "RUN_BASED"  # Command palette interactions are run-based (short-lived)
+
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference"
+
+      tools:
+        - tool_name: create_project
+          tool_type: builtin
+
+      agent_card:
+        description: "UI Assistant that handles natural language commands from the command palette to perform UI actions"
+        defaultInputModes: [text]
+        defaultOutputModes: [text]
+        skills:
+        - id: ui_actions
+          name: UI Actions
+          description: Executes UI operations like creating projects, managing settings, and performing navigation based on natural language commands
+
+      agent_card_publishing:
+        interval_seconds: 10
+
+      agent_discovery:
+        enabled: true
+
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 60

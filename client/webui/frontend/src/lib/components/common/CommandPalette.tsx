@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent } from "@/lib/components/ui/dialog";
 import { Input } from "@/lib/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Command, Search, MessageSquare } from "lucide-react";
-import { ActionRegistry, DynamicNavigationLoader, initializeActions, isExecutableAction, createChatAction } from "./actions";
+import { Command, Search, MessageSquare, Sparkles } from "lucide-react";
+import { ActionRegistry, DynamicNavigationLoader, initializeActions, isExecutableAction, createChatAction, createAgentAction } from "./actions";
 import type { ExecutableAction } from "./actions";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
 import { useThemeContext, useChatContext } from "@/lib/hooks";
@@ -98,10 +98,31 @@ export function CommandPalette() {
         return scored.map(item => item.action);
     }, [searchQuery, actions]);
 
-    // Create fallback "Ask" action when there's a search query
+    // Detect if query is a command that should be handled by the agent
+    const isAgentCommand = (query: string): boolean => {
+        const commandPatterns = [/^(create|make|new|start)\s+(a\s+)?project/i, /^(add|create)\s+.*\s+(project|folder)/i];
+        return commandPatterns.some(pattern => pattern.test(query));
+    };
+
+    // Create agent-powered action for command-like queries
+    const agentAction = useMemo(() => {
+        const query = searchQuery.trim();
+        if (!query || !isAgentCommand(query)) return null;
+
+        return createAgentAction({
+            id: "agent:execute",
+            label: `${query}`,
+            command: query,
+            description: "Execute this command via AI assistant",
+            keywords: [],
+            icon: Sparkles,
+        });
+    }, [searchQuery]);
+
+    // Create fallback "Ask" action when there's a search query (but not a command)
     const askAction = useMemo(() => {
         const query = searchQuery.trim();
-        if (!query) return null;
+        if (!query || isAgentCommand(query)) return null;
 
         return createChatAction({
             id: "chat:ask",
@@ -150,7 +171,7 @@ export function CommandPalette() {
 
             // Handle navigation and selection when dialog is open
             if (isOpen) {
-                const totalItems = filteredActions.length + (askAction ? 1 : 0);
+                const totalItems = filteredActions.length + (agentAction ? 1 : 0) + (askAction ? 1 : 0);
 
                 if (e.key === "ArrowDown") {
                     e.preventDefault();
@@ -162,7 +183,9 @@ export function CommandPalette() {
                     e.preventDefault();
                     if (selectedIndex < filteredActions.length && filteredActions.length > 0) {
                         handleActionSelect(filteredActions[selectedIndex]);
-                    } else if (askAction && selectedIndex === filteredActions.length) {
+                    } else if (agentAction && selectedIndex === filteredActions.length) {
+                        handleActionSelect(agentAction);
+                    } else if (askAction && selectedIndex === filteredActions.length + (agentAction ? 1 : 0)) {
                         handleActionSelect(askAction);
                     }
                 } else if (e.key === "Escape") {
@@ -174,7 +197,7 @@ export function CommandPalette() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, filteredActions, askAction, selectedIndex, handleActionSelect]);
+    }, [isOpen, filteredActions, agentAction, askAction, selectedIndex, handleActionSelect]);
 
     // Update selected index when filtered results change
     useEffect(() => {
@@ -224,13 +247,48 @@ export function CommandPalette() {
                                     );
                                 })}
 
-                                {/* Fallback: Ask as Chat Action */}
-                                {askAction && (
+                                {/* Agent-powered command action */}
+                                {agentAction && (
                                     <>
                                         {filteredActions.length > 0 && <div className="my-2 border-t" />}
                                         <button
-                                            onClick={() => handleActionSelect(askAction)}
+                                            onClick={() => handleActionSelect(agentAction)}
                                             onMouseEnter={() => setSelectedIndex(filteredActions.length)}
+                                            className={cn(
+                                                "w-full rounded-xs px-3 py-2.5 text-left transition-all duration-200",
+                                                "border-2 border-dashed shadow-sm",
+                                                // Purple/AI theme for agent actions
+                                                "border-purple-500/60 bg-purple-500/10",
+                                                "dark:border-purple-400/60 dark:bg-purple-400/15",
+                                                // Hover
+                                                "hover:border-solid hover:bg-purple-500/20 hover:shadow-md",
+                                                "dark:hover:bg-purple-400/25 dark:hover:shadow-[0_0_12px_rgba(168,85,247,0.3)]",
+                                                // Selected state
+                                                filteredActions.length === selectedIndex && "border-solid shadow-md",
+                                                filteredActions.length === selectedIndex && "bg-purple-500/20",
+                                                filteredActions.length === selectedIndex && "dark:bg-purple-400/25 dark:shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", "bg-purple-600 shadow-sm", "dark:bg-purple-500")}>
+                                                    <Sparkles className="size-5 text-white drop-shadow-sm" strokeWidth={2.5} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="text-foreground font-semibold">{agentAction.label}</div>
+                                                    <div className="text-muted-foreground text-xs">{agentAction.description}</div>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </>
+                                )}
+
+                                {/* Fallback: Ask as Chat Action */}
+                                {askAction && (
+                                    <>
+                                        {(filteredActions.length > 0 || agentAction) && <div className="my-2 border-t" />}
+                                        <button
+                                            onClick={() => handleActionSelect(askAction)}
+                                            onMouseEnter={() => setSelectedIndex(filteredActions.length + (agentAction ? 1 : 0))}
                                             className={cn(
                                                 "w-full rounded-xs px-3 py-2.5 text-left transition-all duration-200",
                                                 "border-2 border-dashed shadow-sm",
@@ -268,7 +326,9 @@ export function CommandPalette() {
                     <div className="text-muted-foreground border-t px-4 py-2 text-xs">
                         <div className="flex items-center justify-between">
                             <span>Navigate with ↑↓</span>
-                            {askAction && selectedIndex === filteredActions.length ? (
+                            {agentAction && selectedIndex === filteredActions.length ? (
+                                <span className="font-medium text-purple-600 dark:text-purple-400">Press ↵ to execute with AI</span>
+                            ) : askAction && selectedIndex === filteredActions.length + (agentAction ? 1 : 0) ? (
                                 <span className="font-medium text-[var(--color-brand-wMain)]">Press ↵ to ask in chat</span>
                             ) : filteredActions.length > 0 && selectedIndex < filteredActions.length ? (
                                 <span className="font-medium">Press ↵ to perform action</span>

@@ -1,0 +1,196 @@
+
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: webui_app.log
+
+
+!include ../shared_config.yaml
+
+apps:
+  - name: a2a_webui_app
+    app_base_path: .
+    app_module: solace_agent_mesh.gateway.http_sse.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      session_secret_key: "${SESSION_SECRET_KEY}"
+
+      model: *general_model
+      artifact_service: *default_artifact_service
+      session_service: 
+        type: "sql"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui_gateway.db}"
+        default_behavior: "PERSISTENT"
+      gateway_id: ${WEBUI_GATEWAY_ID}
+      fastapi_host: ${FASTAPI_HOST}
+      fastapi_port: ${FASTAPI_PORT, 8000}
+      cors_allowed_origins:
+        - "http://localhost:3000"
+        - "http://127.0.0.1:3000"
+
+      # Platform Service Configuration (runs as second app in this template)
+      platform_service:
+        url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
+
+      # OAuth2 Authentication (Community: false, Enterprise: true)
+      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
+      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}
+
+      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
+      gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
+      sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.
+
+      # --- Frontend Config Passthrough ---
+      frontend_welcome_message: 
+      frontend_bot_name: Solace Agent Mesh
+      frontend_collect_feedback: false
+      frontend_logo_url: 
+
+      task_logging:
+        enabled: true
+        log_status_updates: true
+        log_artifact_events: true
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
+      
+      # --- Frontend Feature Flags ---
+      # Uncomment to control speech features in the UI
+      frontend_feature_enablement:
+      #   speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
+      #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
+      #   projects: true
+      #   promptLibrary: true
+        background_tasks: true  # NOTE: task_logging must also be enabled for background tasks to work
+
+      # --- Background Tasks Configuration ---
+      background_tasks:
+        default_timeout_ms: 3600000  # Default: 1 hour (3600000ms)
+
+      # --- Speech Configuration (STT/TTS) ---
+      speech:
+        # stt:
+        #   provider: openai
+        #   url: "https://api.openai.com/v1/audio/transcriptions"
+        #   api_key: "${OPENAI_API_KEY}"
+        #   model: "whisper-1"
+        stt:
+          provider: azure
+          azure:
+            api_key: "${AZURE_SPEECH_KEY}"
+            region: "${AZURE_SPEECH_REGION}"
+            language: en-US
+        
+        # Text-to-Speech Configuration
+        tts:
+          provider: ${TTS_PROVIDER, gemini}  # "gemini", "azure", or "polly" (can be overridden by UI)
+          
+          # Azure Neural Voices Configuration
+          azure:
+            api_key: "${AZURE_SPEECH_KEY}"
+            region: "${AZURE_SPEECH_REGION}"
+            default_voice: "en-US-Andrew:DragonHDLatestNeural"
+            voices:
+              # DragonHD Latest Neural Voices (Highest Quality)
+              - "en-US-Ava:DragonHDLatestNeural"
+              - "en-US-Ava3:DragonHDLatestNeural"
+              - "en-US-Adam:DragonHDLatestNeural"
+              - "en-US-Alloy:DragonHDLatestNeural"
+              - "en-US-Andrew:DragonHDLatestNeural"
+              - "en-US-Andrew2:DragonHDLatestNeural"
+              - "en-US-Andrew3:DragonHDLatestNeural"
+              - "en-US-Aria:DragonHDLatestNeural"
+              - "en-US-Brian:DragonHDLatestNeural"
+              - "en-US-Davis:DragonHDLatestNeural"
+              - "en-US-Emma:DragonHDLatestNeural"
+              - "en-US-Emma2:DragonHDLatestNeural"
+              - "en-US-Jenny:DragonHDLatestNeural"
+              - "en-US-MultiTalker-Ava-Andrew:DragonHDLatestNeural"
+              - "en-US-Nova:DragonHDLatestNeural"
+              - "en-US-Phoebe:DragonHDLatestNeural"
+              - "en-US-Serena:DragonHDLatestNeural"
+              - "en-US-Steffan:DragonHDLatestNeural"
+              # Standard Neural Voices
+              - "en-US-JennyNeural"
+              - "en-US-GuyNeural"
+              - "en-US-AriaNeural"
+              - "en-US-DavisNeural"
+              - "en-US-JaneNeural"
+              - "en-US-JasonNeural"
+              - "en-US-NancyNeural"
+              - "en-US-TonyNeural"
+              - "en-GB-LibbyNeural"
+              - "en-GB-RyanNeural"
+              - "en-GB-SoniaNeural"
+              - "en-AU-NatashaNeural"
+              - "en-AU-WilliamNeural"
+          
+          # Google Gemini Configuration
+          gemini:
+            api_key: "${GEMINI_API_KEY}"
+            model: "gemini-2.5-flash-preview-tts"
+            default_voice: "Kore"
+            language: "en-US"
+            voices:
+            - "Kore"
+            - "Puck"
+            - "Zephyr"
+            - "Charon"
+            - "Fenrir"
+            - "Leda"
+            - "Aoede"
+            - "Callirhoe"
+            - "Umbriel"
+            - "Enceladus"
+            - "Iapetus"
+            - "Erinome"
+            - "Algieba"
+            - "Despina"
+            - "Algenib"
+            - "Achernar"
+            - "Schedar"
+            - "Gacrux"
+            - "Pulcherrima"
+            - "Achird"
+            - "Zubenelgenubi"
+            - "Vindemiatrix"
+            - "Sadachbia"
+            - "Sadaltager"
+            - "Sulafat"
+            - "Autonoe"
+            - "Laomedeia"
+            - "Orus"
+            - "Rasalgethi"
+            - "Alnilam"
+        
+        # Frontend Speech Tab Default Settings (optional)
+        speechTab:
+          advancedMode: false
+          speechToText:
+            speechToText: true
+            engineSTT: "external"  # Use external for better quality
+            languageSTT: "en-US"
+          textToSpeech:
+            textToSpeech: true
+            engineTTS: "external"  # Use external for better quality
+            voice: "Kore"
+            playbackRate: 1.0
+            cacheTTS: true
+
