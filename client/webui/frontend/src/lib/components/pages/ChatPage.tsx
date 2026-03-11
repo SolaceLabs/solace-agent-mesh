@@ -77,8 +77,8 @@ export function ChatPage() {
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
 
     // TODO: Replace with actual collaboration state from backend
-    // For now, using mock data to design the UI
-    const collaborationInfo: CollaborativeSessionInfo | null = mockActiveCollaborativeSession;
+    // For now, only enable collaboration mode for specific session IDs (for testing)
+    const collaborationInfo: CollaborativeSessionInfo | null = sessionId === "mock-collaborative-session" ? mockActiveCollaborativeSession : null;
     const isCollaborativeSession = collaborationInfo?.isSharedSession || false;
 
     // Refs for resizable panel state
