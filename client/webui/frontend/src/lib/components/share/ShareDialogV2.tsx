@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Plus, MoreVertical, Eye, Copy, Users, RefreshCw, Trash2, ExternalLink, Link2, Check } from "lucide-react";
+import { X, Plus, MoreVertical, RefreshCw, Trash2, ExternalLink, Link2, Check, Copy } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
@@ -19,33 +19,21 @@ import { createShareLink, getShareLinkForSession, getShareUsers, addShareUsers, 
 import { useConfigContext } from "../../hooks/useConfigContext";
 import type { ShareLink, SharedLinkUserInfo } from "../../types/share";
 
-type AccessLevel = "read-only" | "copy" | "collaborate";
+type AccessLevel = "read-only" | "collaborate";
 
 interface AccessLevelOption {
     value: AccessLevel;
     label: string;
-    description: string;
-    icon: React.ComponentType<{ className?: string }>;
 }
 
 const accessLevelOptions: AccessLevelOption[] = [
     {
         value: "read-only",
-        label: "Read Only",
-        description: "Share a read-only snapshot for debugging or reference",
-        icon: Eye,
-    },
-    {
-        value: "copy",
-        label: "Copy of Conversation",
-        description: "Give a copy of this chat to teammates to continue working on their own",
-        icon: Copy,
+        label: "Viewer",
     },
     {
         value: "collaborate",
-        label: "Collaborate",
-        description: "Work together with teammates in real-time with full access",
-        icon: Users,
+        label: "Editor",
     },
 ];
 
@@ -55,14 +43,14 @@ const shareFormSchema = z.object({
         z.object({
             id: z.string(),
             email: z.string().email().nullable(),
-            accessLevel: z.enum(["read-only", "copy", "collaborate"]),
+            accessLevel: z.enum(["read-only", "collaborate"]),
         })
     ),
     pendingRemoves: z.array(z.string().email()),
     accessLevelChanges: z.array(
         z.object({
             email: z.string().email(),
-            newAccessLevel: z.enum(["read-only", "copy", "collaborate"]),
+            newAccessLevel: z.enum(["read-only", "collaborate"]),
         })
     ),
 });
@@ -308,7 +296,7 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                 <div className="flex-1 space-y-6 overflow-y-auto">
                     {/* Description + Add Button */}
                     <div className="flex items-start justify-between gap-6">
-                        <p className="text-foreground flex-1 text-sm">Users will be able to see the entire shared chat, including artifacts and conversation history up until the moment the chat was shared.</p>
+                        <p className="text-foreground flex-1 text-sm">Users will see a snapshot of the shared chat, including files and conversation history.</p>
                         <Button variant="outline" size="sm" onClick={handleAddRow} disabled={hasIncompleteRows || savingUser} className="shrink-0">
                             <Plus className="mr-2 h-4 w-4" />
                             Add
@@ -351,29 +339,16 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                                                     name={`viewers.${index}.accessLevel`}
                                                     render={({ field: accessField }) => {
                                                         const selectedOption = accessLevelOptions.find(opt => opt.value === accessField.value);
-                                                        const SelectedIcon = selectedOption?.icon;
                                                         return (
                                                             <Select value={accessField.value} onValueChange={accessField.onChange}>
                                                                 <SelectTrigger className="w-full">
-                                                                    <SelectValue>
-                                                                        <div className="flex items-center gap-2">
-                                                                            {SelectedIcon && <SelectedIcon className="text-muted-foreground h-4 w-4" />}
-                                                                            {selectedOption?.label}
-                                                                        </div>
-                                                                    </SelectValue>
+                                                                    <SelectValue>{selectedOption?.label}</SelectValue>
                                                                 </SelectTrigger>
-                                                                <SelectContent className="w-[280px]">
+                                                                <SelectContent>
                                                                     {accessLevelOptions.map(option => {
-                                                                        const Icon = option.icon;
                                                                         return (
                                                                             <SelectItem key={option.value} value={option.value}>
-                                                                                <div className="flex items-start gap-3 py-1">
-                                                                                    <Icon className="text-muted-foreground mt-0.5 h-5 w-5 shrink-0" />
-                                                                                    <div className="flex flex-col items-start">
-                                                                                        <div className="text-sm font-medium">{option.label}</div>
-                                                                                        <div className="text-muted-foreground mt-0.5 text-xs leading-tight">{option.description}</div>
-                                                                                    </div>
-                                                                                </div>
+                                                                                {option.label}
                                                                             </SelectItem>
                                                                         );
                                                                     })}
@@ -455,30 +430,17 @@ export function ShareDialogV2({ sessionId, sessionTitle, open, onOpenChange, onE
                                                     const change = accessLevelChanges.find(c => c.email === user.user_email);
                                                     const currentValue = change?.newAccessLevel || user.access_level;
                                                     const selectedOption = accessLevelOptions.find(opt => opt.value === currentValue);
-                                                    const SelectedIcon = selectedOption?.icon;
 
                                                     return (
                                                         <Select value={currentValue} onValueChange={value => handleAccessLevelChange(user.user_email, value as AccessLevel)}>
                                                             <SelectTrigger className="w-full">
-                                                                <SelectValue>
-                                                                    <div className="flex items-center gap-2">
-                                                                        {SelectedIcon && <SelectedIcon className="text-muted-foreground h-4 w-4" />}
-                                                                        {selectedOption?.label}
-                                                                    </div>
-                                                                </SelectValue>
+                                                                <SelectValue>{selectedOption?.label}</SelectValue>
                                                             </SelectTrigger>
-                                                            <SelectContent className="w-[280px]">
+                                                            <SelectContent>
                                                                 {accessLevelOptions.map(option => {
-                                                                    const Icon = option.icon;
                                                                     return (
                                                                         <SelectItem key={option.value} value={option.value}>
-                                                                            <div className="flex items-start gap-3 py-1">
-                                                                                <Icon className="text-muted-foreground mt-0.5 h-5 w-5 shrink-0" />
-                                                                                <div className="flex flex-col items-start">
-                                                                                    <div className="text-sm font-medium">{option.label}</div>
-                                                                                    <div className="text-muted-foreground mt-0.5 text-xs leading-tight">{option.description}</div>
-                                                                                </div>
-                                                                            </div>
+                                                                            {option.label}
                                                                         </SelectItem>
                                                                     );
                                                                 })}
