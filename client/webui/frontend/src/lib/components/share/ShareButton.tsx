@@ -11,10 +11,12 @@ import { useChatContext } from "@/lib/hooks";
 interface ShareButtonProps {
     sessionId: string;
     sessionTitle: string;
+    /** ISO timestamp of when the session was last updated (optional) */
+    sessionUpdatedTime?: string;
     className?: string;
 }
 
-export function ShareButton({ sessionId, sessionTitle, className }: ShareButtonProps) {
+export function ShareButton({ sessionId, sessionTitle, sessionUpdatedTime, className }: Readonly<ShareButtonProps>) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const { displayError, addNotification } = useChatContext();
 
@@ -28,6 +30,7 @@ export function ShareButton({ sessionId, sessionTitle, className }: ShareButtonP
             <ShareDialog
                 sessionId={sessionId}
                 sessionTitle={sessionTitle}
+                sessionUpdatedTime={sessionUpdatedTime}
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 onError={error => displayError({ title: error.title, error: error.message })}
