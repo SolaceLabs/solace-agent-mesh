@@ -606,8 +606,12 @@ async def run_class_tool_async(
     module = importlib.import_module(module_path)
     tool_class = getattr(module, class_name)
 
-    # Instantiate with tool_config
-    tool_instance = tool_class(tool_config=tool_config)
+    config_model = getattr(tool_class, "config_model", None)
+    if config_model and isinstance(tool_config, dict):
+        validated_config = config_model.model_validate(tool_config)
+        tool_instance = tool_class(tool_config=validated_config)
+    else:
+        tool_instance = tool_class(tool_config=tool_config)
 
     # Read injection metadata from the class instance
     ctx_facade_param_name = getattr(tool_instance, "ctx_facade_param_name", None)
@@ -680,8 +684,12 @@ def run_init(runner_args: Dict[str, Any]) -> Dict[str, Any]:
         module = importlib.import_module(module_path)
         tool_class = getattr(module, class_name)
 
-        # Instantiate and run init
-        tool_instance = tool_class(tool_config=tool_config)
+        config_model = getattr(tool_class, "config_model", None)
+        if config_model and isinstance(tool_config, dict):
+            validated_config = config_model.model_validate(tool_config)
+            tool_instance = tool_class(tool_config=validated_config)
+        else:
+            tool_instance = tool_class(tool_config=tool_config)
 
         async def _run_init():
             await tool_instance.init(component=None, tool_config=tool_config)
@@ -694,6 +702,8 @@ def run_init(runner_args: Dict[str, Any]) -> Dict[str, Any]:
                     if raw_schema is not None:
                         if hasattr(raw_schema, "model_dump"):
                             schema = raw_schema.model_dump(exclude_none=True)
+                        elif hasattr(raw_schema, "to_dict"):
+                            schema = raw_schema.to_dict()
                         elif isinstance(raw_schema, dict):
                             schema = raw_schema
                 except Exception as e:
