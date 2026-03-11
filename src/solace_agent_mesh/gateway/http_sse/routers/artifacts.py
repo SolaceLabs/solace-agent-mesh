@@ -100,10 +100,14 @@ def _resolve_storage_context(
     user_id: str,
     validate_session: Callable[[str, str], bool],
     project_service: ProjectService | None,
-    log_prefix: str
+    log_prefix: str,
 ) -> tuple[str, str, str]:
     """
     Resolve storage context from session or project parameters.
+
+    Note: For editors accessing shared sessions via the session validator,
+    the storage_user_id returned is the requesting user's ID. The session
+    validator (get_session_validator) handles editor access checks internally.
 
     Returns:
         tuple: (storage_user_id, storage_session_id, context_type)

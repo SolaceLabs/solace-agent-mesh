@@ -144,6 +144,8 @@ export interface MessageFE {
         authenticationAttempted?: boolean; // Track if auth button was clicked
         rejected?: boolean; // Track if reject button was clicked
     };
+    senderDisplayName?: string; // Display name of the sender (for collaborative sessions)
+    senderEmail?: string; // Email of the sender (for collaborative sessions)
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)
@@ -315,6 +317,7 @@ export interface NewChatConfig {
 
 export interface Session {
     id: string;
+    userId?: string;
     createdTime: string;
     updatedTime: string;
     name: string | null;

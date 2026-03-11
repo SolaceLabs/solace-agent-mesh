@@ -149,6 +149,7 @@ async def get_session(
     session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
+    user_email = user.get("email", "")
 
     try:
         if (
@@ -165,6 +166,18 @@ async def get_session(
         session_domain = session_service.get_session_details(
             db=db, session_id=request_dto.session_id, user_id=request_dto.user_id
         )
+
+        # If not found as owner, check editor access via sharing
+        if not session_domain and user_email:
+            owner_user_id = session_service.check_editor_access(db, session_id, user_email)
+            if owner_user_id:
+                session_domain = session_service.get_session_details_for_editor(
+                    db=db, session_id=session_id
+                )
+                log.info(
+                    "Editor %s (email: %s) accessing session %s owned by %s",
+                    user_id, user_email, session_id, owner_user_id
+                )
 
         if not session_domain:
             raise HTTPException(
@@ -212,8 +225,11 @@ async def save_task(
     """
     Save a complete task interaction (upsert).
     Creates a new task or updates an existing one.
+    Supports both session owners and editors with RESOURCE_EDITOR access.
     """
     user_id = user.get("id")
+    user_email = user.get("email", "")
+    user_display_name = user.get("display_name") or user.get("name") or user_email
     log.debug(
         "User %s attempting to save task %s for session %s",
         user_id,
@@ -231,8 +247,20 @@ async def save_task(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
         
-        # Resolve embeds in message_bubbles before saving
+        # Inject sender identity into user message bubbles
         message_bubbles = request.message_bubbles
+        if message_bubbles:
+            try:
+                bubbles = json.loads(message_bubbles)
+                for bubble in bubbles:
+                    if isinstance(bubble, dict) and bubble.get("type") == "user":
+                        bubble["sender_email"] = user_email
+                        bubble["sender_display_name"] = user_display_name
+                message_bubbles = json.dumps(bubbles)
+            except (json.JSONDecodeError, TypeError):
+                pass  # Don't fail if bubbles can't be parsed
+
+        # Resolve embeds in message_bubbles before saving
         if artifact_service and message_bubbles and '«' in message_bubbles:
             try:
                 # Parse the message bubbles JSON
@@ -353,17 +381,38 @@ async def save_task(
             existing_task = task_repo.find_by_id(db, request.task_id, user_id)
             is_update = existing_task is not None
 
-            # Save the task - pass strings directly
-            # Use the resolved message_bubbles if embeds were resolved, otherwise use the original
-            saved_task = session_service.save_task(
-                db=db,
-                task_id=request.task_id,
-                session_id=session_id,
-                user_id=user_id,
-                user_message=request.user_message,
-                message_bubbles=message_bubbles,  # Use resolved message_bubbles
-                task_metadata=request.task_metadata,  # Already a string
-            )
+            # Try saving as owner first
+            try:
+                saved_task = session_service.save_task(
+                    db=db,
+                    task_id=request.task_id,
+                    session_id=session_id,
+                    user_id=user_id,
+                    user_message=request.user_message,
+                    message_bubbles=message_bubbles,
+                    task_metadata=request.task_metadata,
+                )
+            except ValueError:
+                # Session not found for this user as owner - check editor access
+                saved_task = None
+
+            if saved_task is None and user_email:
+                owner_user_id = session_service.check_editor_access(db, session_id, user_email)
+                if owner_user_id:
+                    log.info(
+                        "Editor %s (email: %s) saving task %s for session %s (owner: %s)",
+                        user_id, user_email, request.task_id, session_id, owner_user_id
+                    )
+                    saved_task = session_service.save_task_as_editor(
+                        db=db,
+                        task_id=request.task_id,
+                        session_id=session_id,
+                        editor_user_id=user_id,
+                        owner_user_id=owner_user_id,
+                        user_message=request.user_message,
+                        message_bubbles=message_bubbles,
+                        task_metadata=request.task_metadata,
+                    )
             
             # Guard against None return from save_task
             if saved_task is None:
@@ -473,8 +522,10 @@ async def get_session_tasks(
     """
     Get all tasks for a session.
     Returns tasks in chronological order.
+    Supports both session owners and editors with RESOURCE_EDITOR access.
     """
     user_id = user.get("id")
+    user_email = user.get("email", "")
     log.info(
         "User %s attempting to fetch tasks for session_id: %s", user_id, session_id
     )
@@ -489,10 +540,31 @@ async def get_session_tasks(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-        # Get tasks from service
-        tasks = session_service.get_session_tasks(
-            db=db, session_id=session_id, user_id=user_id
-        )
+        # Try as owner first
+        tasks = None
+        try:
+            tasks = session_service.get_session_tasks(
+                db=db, session_id=session_id, user_id=user_id
+            )
+        except ValueError:
+            tasks = None
+
+        # If not found as owner, check editor access
+        if tasks is None and user_email:
+            owner_user_id = session_service.check_editor_access(db, session_id, user_email)
+            if owner_user_id:
+                tasks = session_service.get_session_tasks_for_editor(
+                    db=db, session_id=session_id, owner_user_id=owner_user_id
+                )
+                log.info(
+                    "Editor %s (email: %s) fetching tasks for session %s (owner: %s)",
+                    user_id, user_email, session_id, owner_user_id
+                )
+
+        if tasks is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
 
         log.info(
             "User %s authorized. Fetched %d tasks for session_id: %s",
@@ -517,11 +589,6 @@ async def get_session_tasks(
 
         return TaskListResponse(tasks=task_responses)
 
-    except ValueError as e:
-        log.warning("Validation error fetching tasks for session %s: %s", session_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
-        ) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -547,8 +614,10 @@ async def get_session_history(
     """
     Get session message history.
     Loads from chat_tasks and flattens message_bubbles for backward compatibility.
+    Supports both session owners and editors with RESOURCE_EDITOR access.
     """
     user_id = user.get("id")
+    user_email = user.get("email", "")
     log.info(
         "User %s attempting to fetch history for session_id: %s", user_id, session_id
     )
@@ -563,10 +632,31 @@ async def get_session_history(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-        # Use task-based message retrieval (returns list of dicts)
-        messages = session_service.get_session_messages_from_tasks(
-            db=db, session_id=session_id, user_id=user_id
-        )
+        # Try as owner first
+        messages = None
+        try:
+            messages = session_service.get_session_messages_from_tasks(
+                db=db, session_id=session_id, user_id=user_id
+            )
+        except ValueError:
+            messages = None
+
+        # If not found as owner, check editor access
+        if messages is None and user_email:
+            owner_user_id = session_service.check_editor_access(db, session_id, user_email)
+            if owner_user_id:
+                messages = session_service.get_session_messages_from_tasks_for_editor(
+                    db=db, session_id=session_id, owner_user_id=owner_user_id
+                )
+                log.info(
+                    "Editor %s (email: %s) fetching history for session %s (owner: %s)",
+                    user_id, user_email, session_id, owner_user_id
+                )
+
+        if messages is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
 
         log.info(
             "User %s authorized. Fetched %d messages for session_id: %s",
@@ -591,13 +681,6 @@ async def get_session_history(
 
         return camel_case_messages
 
-    except ValueError as e:
-        log.warning(
-            "Validation error fetching history for session %s: %s", session_id, e
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
-        ) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -644,6 +727,7 @@ async def get_session_unconsumed_events(
         - events_by_task: (only if include_events=true) dict mapping task_id to list of events
     """
     user_id = user.get("id")
+    user_email = user.get("email", "")
     log.info(
         "User %s checking for unconsumed events in session %s (include_events=%s)",
         user_id, session_id, include_events
@@ -659,10 +743,20 @@ async def get_session_unconsumed_events(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-        # Verify user owns this session
+        # Verify user owns this session or has editor access
         session_domain = session_service.get_session_details(
             db=db, session_id=session_id, user_id=user_id
         )
+        if not session_domain and user_email:
+            owner_user_id = session_service.check_editor_access(db, session_id, user_email)
+            if owner_user_id:
+                session_domain = session_service.get_session_details_for_editor(
+                    db=db, session_id=session_id
+                )
+                log.info(
+                    "Editor %s (email: %s) checking unconsumed events for session %s (owner: %s)",
+                    user_id, user_email, session_id, owner_user_id
+                )
         if not session_domain:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG

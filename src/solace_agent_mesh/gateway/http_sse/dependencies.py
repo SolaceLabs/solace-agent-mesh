@@ -649,9 +649,15 @@ def get_session_business_service(
 
 
 def get_session_validator(
+    request: Request = None,
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> Callable[[str, str], bool]:
     log.debug("get_session_validator called")
+
+    # Extract user email from request for editor access checks
+    user_email = None
+    if request and hasattr(request.state, "user") and request.state.user:
+        user_email = request.state.user.get("email", "")
 
     if SessionLocal:
         log.debug("Using database-backed session validation")
@@ -664,7 +670,24 @@ def get_session_validator(
                     session_domain = session_repository.find_user_session(
                         db, session_id, user_id
                     )
-                    return session_domain is not None
+                    if session_domain is not None:
+                        return True
+
+                    # Fallback: check if user has editor access via sharing
+                    if user_email:
+                        from .repository.share_repository import ShareRepository
+                        share_repo = ShareRepository()
+                        owner_user_id = share_repo.find_session_owner_for_editor(
+                            db, session_id, user_email
+                        )
+                        if owner_user_id:
+                            log.info(
+                                "Editor access granted for user %s (email: %s) to session %s (owner: %s)",
+                                user_id, user_email, session_id, owner_user_id
+                            )
+                            return True
+
+                    return False
                 finally:
                     db.close()
             except Exception:

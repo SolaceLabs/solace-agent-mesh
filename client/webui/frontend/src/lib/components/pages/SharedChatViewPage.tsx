@@ -9,8 +9,9 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { AlertCircle, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock, Info } from "lucide-react";
+import { AlertCircle, Bot, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock, Info } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger, CHAT_STYLES } from "@/lib/components/ui";
+import { ChatBubbleAvatar } from "@/lib/components/ui/chat/chat-bubble";
 import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { Header } from "@/lib/components/header";
@@ -177,6 +178,8 @@ export function SharedChatViewPage() {
             timestamp?: number;
             taskId: string;
             isLastInTask: boolean;
+            senderDisplayName?: string;
+            senderEmail?: string;
         }> = [];
 
         for (const task of session.tasks) {
@@ -250,6 +253,8 @@ export function SharedChatViewPage() {
                             timestamp: task.created_time,
                             taskId: taskId,
                             isLastInTask: index === bubbles.length - 1,
+                            senderDisplayName: bubble.sender_display_name,
+                            senderEmail: bubble.sender_email,
                         });
                     });
                 }
@@ -605,9 +610,27 @@ export function SharedChatViewPage() {
                                                     </div>
                                                 ) : (
                                                     messages.map((message, index) => {
-                                                        const variant = message.type === "user" ? "sent" : "received";
+                                                        // In shared views, all user messages are from the session owner - show as "received" (left-aligned)
+                                                        const variant = "received";
                                                         return (
                                                             <div key={index} className="mb-4 flex flex-col">
+                                                                {/* Sender label with avatar */}
+                                                                {message.type === "user" ? (
+                                                                    <div className="mb-1.5 flex items-center gap-2 self-start">
+                                                                        <ChatBubbleAvatar
+                                                                            fallback={(message.senderDisplayName || message.senderEmail || "User").charAt(0).toUpperCase()}
+                                                                            className="bg-secondary text-secondary-foreground h-8 w-8 text-sm"
+                                                                        />
+                                                                        <span className="text-muted-foreground text-xs font-medium">{message.senderDisplayName || message.senderEmail || "User"}</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="mb-1.5 flex items-center gap-2 self-start">
+                                                                        <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 items-center justify-center rounded-full">
+                                                                            <Bot className="h-4 w-4" />
+                                                                        </span>
+                                                                        <span className="text-muted-foreground text-xs font-medium">AI Assistant</span>
+                                                                    </div>
+                                                                )}
                                                                 <ChatBubble variant={variant}>
                                                                     <ChatBubbleMessage variant={variant}>{renderMessageContent(message)}</ChatBubbleMessage>
                                                                 </ChatBubble>

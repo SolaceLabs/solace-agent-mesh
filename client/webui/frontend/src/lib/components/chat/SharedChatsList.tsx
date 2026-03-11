@@ -5,6 +5,7 @@ import { UserSearch } from "lucide-react";
 
 import { listSharedWithMe } from "@/lib/api/shareApi";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { useChatContext } from "@/lib/hooks";
 import type { SharedWithMeItem } from "@/lib/types/share";
 
 const sharedChatButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--color-background-w100)"], {
@@ -33,6 +34,7 @@ interface SharedChatsListProps {
 
 export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
     const navigate = useNavigate();
+    const { handleSwitchSession } = useChatContext();
     const [sharedChats, setSharedChats] = useState<SharedWithMeItem[]>([]);
 
     const fetchSharedChats = useCallback(async () => {
@@ -59,22 +61,37 @@ export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
                 <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Shared with me</span>
             </div>
             <div>
-                {sharedChats.map(item => (
-                    <Tooltip key={item.share_id}>
-                        <TooltipTrigger asChild>
-                            <button onClick={() => navigate(`/shared-chat/${item.share_id}`)} className={sharedChatButtonStyles({ active: false })}>
-                                <UserSearch className="h-4 w-4 flex-shrink-0 text-[var(--color-secondary-text-w50)]" />
-                                <span className={sharedChatTextStyles({ active: false })}>{item.title}</span>
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                            <div className="text-xs">
-                                <div className="font-semibold">{item.title}</div>
-                                <div className="text-muted-foreground">from {item.owner_email}</div>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
-                ))}
+                {sharedChats.map(item => {
+                    const isEditor = item.access_level === "RESOURCE_EDITOR" && item.session_id;
+                    const handleClick = () => {
+                        if (isEditor && item.session_id) {
+                            // Use switchSession to load the session in ChatProvider, then navigate to /chat
+                            handleSwitchSession(item.session_id);
+                            navigate("/chat");
+                        } else {
+                            navigate(`/shared-chat/${item.share_id}`);
+                        }
+                    };
+                    return (
+                        <Tooltip key={item.share_id}>
+                            <TooltipTrigger asChild>
+                                <button onClick={handleClick} className={sharedChatButtonStyles({ active: false })}>
+                                    <UserSearch className="h-4 w-4 flex-shrink-0 text-[var(--color-secondary-text-w50)]" />
+                                    <span className={sharedChatTextStyles({ active: false })}>{item.title}</span>
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                                <div className="text-xs">
+                                    <div className="font-semibold">{item.title}</div>
+                                    <div className="text-muted-foreground">
+                                        from {item.owner_email}
+                                        {isEditor && " • Editor"}
+                                    </div>
+                                </div>
+                            </TooltipContent>
+                        </Tooltip>
+                    );
+                })}
             </div>
         </>
     );

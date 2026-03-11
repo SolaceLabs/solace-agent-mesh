@@ -186,6 +186,7 @@ class SharedWithMeItem(BaseModel):
     access_level: str
     shared_at: int  # epoch ms when the share was added
     share_url: str = ""
+    session_id: Optional[str] = None  # Original session ID (for RESOURCE_EDITOR access)
 
 
 class ForkSharedChatResponse(BaseModel):
