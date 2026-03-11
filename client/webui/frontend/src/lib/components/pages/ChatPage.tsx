@@ -7,6 +7,7 @@ import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
+import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, CollaborativeUserMessage, MessageAttribution } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
@@ -56,6 +57,8 @@ export function ChatPage() {
         closeSessionDeleteModal,
         confirmSessionDelete,
         currentTaskId,
+        isCollaborativeSession,
+        currentUserEmail,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -193,6 +196,24 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
+    // Build collaborative users list from message sender info for presence avatars
+    const collaborativeUsers = useMemo<CollaborativeUser[]>(() => {
+        if (!isCollaborativeSession) return [];
+        const userMap = new Map<string, CollaborativeUser>();
+        for (const msg of messages) {
+            if (msg.isUser && msg.senderEmail && !userMap.has(msg.senderEmail.toLowerCase())) {
+                userMap.set(msg.senderEmail.toLowerCase(), {
+                    id: msg.senderEmail.toLowerCase(),
+                    name: msg.senderDisplayName || msg.senderEmail,
+                    email: msg.senderEmail,
+                    role: "collaborator",
+                    isOnline: true, // We don't have real-time presence yet, assume online
+                });
+            }
+        }
+        return Array.from(userMap.values());
+    }, [isCollaborativeSession, messages]);
+
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -286,7 +307,7 @@ export function ChatPage() {
                     buttons={
                         sessionId
                             ? [
-                                  ...(isCollaborativeSession && collaborationInfo ? [<UserPresenceAvatars key="presence-avatars" users={collaborationInfo.collaborators} currentUserId={collaborationInfo.currentUserId} />] : []),
+                                  ...(isCollaborativeSession && collaborativeUsers.length > 0 ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />] : []),
                                   <ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />,
                               ]
                             : undefined
