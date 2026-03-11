@@ -101,12 +101,14 @@ async def create_share_link(
     share_service: ShareService = Depends(get_share_service)
 ):
     """
-    Create a public share link for a session.
+    Create a share link for a session.
+    
+    Authentication is always required to view shared links.
+    Public (not logged-in) access is not supported.
     
     Body:
     ```json
     {
-        "require_authentication": false,
         "allowed_domains": ["company.com", "partner.com"]
     }
     ```
@@ -114,6 +116,9 @@ async def create_share_link(
     Returns share link with URL.
     """
     try:
+        # Force require_authentication to True - public access not supported
+        request_body.require_authentication = True
+        
         base_url = get_base_url(request)
         share_link = share_service.create_share_link(
             db=db,
@@ -230,7 +235,7 @@ async def list_shared_with_me(
         
         # Fall back to user_id (e.g., sam_dev_user in dev mode)
         lookup_key = user_email or user_id
-        log.info(f"[shared-with-me] user_id={user_id}, user_email={user_email}, lookup_key={lookup_key}")
+        log.debug(f"[shared-with-me] user_id={user_id}, user_email={user_email}, lookup_key={lookup_key}")
         if not lookup_key:
             return []
         
@@ -240,7 +245,7 @@ async def list_shared_with_me(
             user_email=lookup_key,
             base_url=base_url
         )
-        log.info(f"[shared-with-me] Found {len(result)} shared chats for {lookup_key}")
+        log.debug(f"[shared-with-me] Found {len(result)} shared chats for {lookup_key}")
         return result
     
     except Exception as e:
@@ -323,13 +328,13 @@ async def view_shared_session(
     """
     View a shared session by share ID.
     
-    Access control:
-    - If require_authentication=False: Public access (no login required)
-    - If require_authentication=True: Must be authenticated
+    Authentication is always required. Access control:
+    - Must be authenticated (login required)
     - If allowed_domains is set: User's email domain must match
+    - If shared with specific users: Only those users can access
     
-    Returns 401 if authentication required but not provided.
-    Returns 403 if authenticated but domain doesn't match.
+    Returns 401 if not authenticated.
+    Returns 403 if authenticated but access denied.
     """
     try:
         session_view = await share_service.get_shared_session_view(
@@ -379,17 +384,21 @@ async def update_share_link(
     share_service: ShareService = Depends(get_share_service)
 ):
     """
-    Update share link settings including authentication requirements.
+    Update share link settings.
+    
+    Authentication is always required (cannot be disabled).
     
     Body:
     ```json
     {
-        "require_authentication": true,
         "allowed_domains": ["company.com"]
     }
     ```
     """
     try:
+        # Force require_authentication to True - public access not supported
+        request_body.require_authentication = True
+        
         base_url = get_base_url(request)
         updated_link = share_service.update_share_link(
             db=db,
@@ -497,16 +506,20 @@ async def get_shared_artifact_content(
                 detail="Share link not found"
             )
         
-        # Get shared user emails for user-specific access check
-        shared_user_emails = share_repo.find_share_user_emails(db, share_id)
+        # Owner always has access
+        is_owner = user_id and share_link.user_id == user_id
         
-        # Check access permissions
-        can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
-        if not can_access:
-            if reason == "authentication_required":
-                raise PermissionError("Authentication required to access this artifact")
-            else:
-                raise PermissionError("Access denied")
+        if not is_owner:
+            # Get shared user emails for user-specific access check
+            shared_user_emails = share_repo.find_share_user_emails(db, share_id)
+            
+            # Check access permissions
+            can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
+            if not can_access:
+                if reason == "authentication_required":
+                    raise PermissionError("Authentication required to access this artifact")
+                else:
+                    raise PermissionError("Access denied")
         
         # Get the session view to verify the artifact exists
         session_view = await share_service.get_shared_session_view(

@@ -340,19 +340,23 @@ class ShareService:
         if not share_link or share_link.is_deleted():
             raise ValueError("Share link not found")
         
-        # Get shared user emails for user-specific access check
-        shared_user_emails = self.repository.find_share_user_emails(db, share_id)
+        # Owner always has access
+        is_owner = user_id and share_link.user_id == user_id
         
-        # Check access permissions
-        can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
-        if not can_access:
-            if reason == "authentication_required":
-                raise PermissionError("Authentication required to view this shared session")
-            elif reason == "domain_mismatch":
-                allowed = ', '.join(share_link.get_allowed_domains_list())
-                raise PermissionError(f"Access restricted to users from: {allowed}")
-            else:
-                raise PermissionError("Access denied")
+        if not is_owner:
+            # Get shared user emails for user-specific access check
+            shared_user_emails = self.repository.find_share_user_emails(db, share_id)
+            
+            # Check access permissions
+            can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
+            if not can_access:
+                if reason == "authentication_required":
+                    raise PermissionError("Authentication required to view this shared session")
+                elif reason == "domain_mismatch":
+                    allowed = ', '.join(share_link.get_allowed_domains_list())
+                    raise PermissionError(f"Access restricted to users from: {allowed}")
+                else:
+                    raise PermissionError("Access denied")
         
         # Get session tasks (anonymized)
         from ..repository.chat_task_repository import ChatTaskRepository
@@ -443,7 +447,9 @@ class ShareService:
             access_type=share_link.get_access_type(),
             tasks=anonymized_tasks,
             artifacts=artifact_list,
-            task_events=task_events_data
+            task_events=task_events_data,
+            is_owner=is_owner,
+            session_id=share_link.session_id if is_owner else None
         )
     
     async def _load_task_events_for_session(

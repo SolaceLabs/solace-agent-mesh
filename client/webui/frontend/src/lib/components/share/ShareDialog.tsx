@@ -1,18 +1,18 @@
 /**
- * ShareDialog component - Modal for managing share links
+ * ShareDialog component - Manage access dialog for sharing chat sessions
  */
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Copy, Check, X, Loader2, Link, Users, Shield, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Copy, Check, X, Loader2, Plus, Users, Trash2, ExternalLink, Link2, MoreVertical } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Switch } from "../ui/switch";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ConfirmationDialog } from "../common/ConfirmationDialog";
 import { UserTypeahead } from "../common/UserTypeahead";
-import { createShareLink, getShareLinkForSession, updateShareLink, deleteShareLink, copyToClipboard, getShareUsers, addShareUsers, deleteShareUsers } from "../../api/shareApi";
+import { createShareLink, getShareLinkForSession, deleteShareLink, copyToClipboard, getShareUsers, addShareUsers, deleteShareUsers } from "../../api/shareApi";
 import { useConfigContext } from "../../hooks/useConfigContext";
 import type { ShareLink, SharedLinkUserInfo } from "../../types/share";
 
@@ -32,7 +32,6 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onErr
     const [shareLink, setShareLink] = useState<ShareLink | null>(null);
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
-    const [requireAuth, setRequireAuth] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     // People sharing state
@@ -42,22 +41,34 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onErr
     const [savingUser, setSavingUser] = useState(false);
     const [showAddUser, setShowAddUser] = useState(false);
 
-    // Load share link for the session
+    // Load share link for the session, auto-creating one if it doesn't exist
     const loadShareLink = useCallback(async () => {
         setLoading(true);
         try {
-            const link = await getShareLinkForSession(sessionId);
-            if (link) {
-                setShareLink(link);
-                setRequireAuth(link.require_authentication);
+            // Try to load existing share link
+            const existingLink = await getShareLinkForSession(sessionId);
+            if (existingLink) {
+                setShareLink(existingLink);
+                return;
             }
+
+            // No existing link — auto-create one
+            const newLink = await createShareLink(sessionId, {
+                require_authentication: true,
+            });
+            setShareLink(newLink);
+            // Auto-copy to clipboard on creation
+            await copyToClipboard(newLink.share_url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+            onSuccess?.("Share link created and copied!");
         } catch (error) {
-            console.error("Failed to load share link:", error);
-            onError?.({ title: "Failed to Load Share Link", message: error instanceof Error ? error.message : "Unknown error" });
+            console.error("Failed to load/create share link:", error);
+            onError?.({ title: "Failed to Share Chat", message: error instanceof Error ? error.message : "Unknown error" });
         } finally {
             setLoading(false);
         }
-    }, [sessionId, onError]);
+    }, [sessionId, onError, onSuccess]);
 
     // Load shared users for the share link
     const loadSharedUsers = useCallback(async () => {
@@ -78,7 +89,6 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onErr
     useEffect(() => {
         if (open) {
             setShareLink(null);
-            setRequireAuth(false);
             setCopied(false);
             setSharedUsers([]);
             setNewUserEmail(null);
@@ -94,35 +104,16 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onErr
         }
     }, [shareLink?.share_id, loadSharedUsers]);
 
-    const handleCreateShare = async () => {
-        setLoading(true);
-        try {
-            const link = await createShareLink(sessionId, {
-                require_authentication: requireAuth,
-            });
-            setShareLink(link);
-            // Auto-copy to clipboard
-            await copyToClipboard(link.share_url);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-            onSuccess?.("Share link created and copied!");
-        } catch (error) {
-            onError?.({ title: "Failed to Create Share Link", message: error instanceof Error ? error.message : "Unknown error" });
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const handleDeleteShare = async () => {
         if (!shareLink) return;
         setLoading(true);
         try {
             await deleteShareLink(shareLink.share_id);
             setShareLink(null);
-            setRequireAuth(false);
             setSharedUsers([]);
             setShowDeleteConfirm(false);
             onSuccess?.("Share link deleted");
+            onOpenChange(false);
         } catch (error) {
             onError?.({ title: "Failed to Delete Share Link", message: error instanceof Error ? error.message : "Unknown error" });
         } finally {
@@ -136,6 +127,7 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onErr
         if (success) {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+            onSuccess?.("Link copied to clipboard");
         }
     };
 
@@ -163,6 +155,7 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onErr
         try {
             await deleteShareUsers(shareLink.share_id, { user_emails: [email] });
             setSharedUsers(prev => prev.filter(user => user.user_email !== email));
+            onSuccess?.("User removed");
         } catch (error) {
             onError?.({ title: "Failed to Remove User", message: error instanceof Error ? error.message : "Unknown error" });
         } finally {
@@ -172,178 +165,186 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange, onErr
 
     const excludeEmails = useMemo(() => sharedUsers.map(u => u.user_email), [sharedUsers]);
 
-    // Determine access description
-    const getAccessDescription = () => {
-        if (!shareLink) return null;
-        if (sharedUsers.length > 0) {
-            return `Shared with ${sharedUsers.length} ${sharedUsers.length === 1 ? "person" : "people"}`;
-        }
-        if (requireAuth) {
-            return "Anyone with the link who is logged in";
-        }
-        return "Anyone with the link";
-    };
-
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[480px]" showCloseButton>
+                <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[600px]" showCloseButton>
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Link className="h-5 w-5" />
-                            Share Chat
+                        <DialogTitle className="text-lg">
+                            <span className="font-bold">Manage Access:</span> <span className="font-normal">{sessionTitle}</span>
                         </DialogTitle>
-                        <DialogDescription className="truncate">{sessionTitle}</DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-2">
-                        {/* Share Link Section */}
-                        {shareLink ? (
-                            <>
-                                {/* URL with Copy and Delete Buttons */}
-                                <div className="flex gap-2">
-                                    <Input value={shareLink.share_url} readOnly className="flex-1 text-sm" onClick={e => (e.target as HTMLInputElement).select()} />
-                                    <Button variant={copied ? "default" : "outline"} size="icon" onClick={handleCopyUrl} className={cn(copied && "bg-(--color-success-wMain) hover:bg-(--color-success-wMain)")} title="Copy link">
-                                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                                    </Button>
-                                    <Button variant="outline" size="icon" onClick={() => setShowDeleteConfirm(true)} className="text-destructive hover:text-destructive" title="Delete share link">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                    {shareLink ? (
+                        <div className="flex-1 space-y-5 overflow-y-auto">
+                            {/* Description */}
+                            <p className="text-muted-foreground text-sm">Users will be able to see the entire shared chat, including artifacts and conversation history up until the moment the chat was shared.</p>
 
-                                {/* Access Summary */}
-                                <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                                    <Shield className="h-4 w-4" />
-                                    <span>{getAccessDescription()}</span>
-                                </div>
-
-                                {/* People Section */}
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="flex items-center gap-2 text-sm font-medium">
-                                            <Users className="h-4 w-4" />
-                                            People with access
-                                        </Label>
-                                        {!showAddUser && (
-                                            <Button variant="ghost" size="sm" onClick={() => setShowAddUser(true)} disabled={savingUser}>
-                                                Add person
-                                            </Button>
-                                        )}
+                            {/* Share Link Section */}
+                            <div className="bg-muted/40 rounded p-4">
+                                <div className="mb-3 flex items-start justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Link2 className="h-4 w-4" />
+                                        <Label className="text-sm font-bold">Share Link</Label>
                                     </div>
-
-                                    {/* Add User Input */}
-                                    {showAddUser && (
-                                        <div className="flex items-center gap-2">
-                                            {identityServiceType !== null ? (
-                                                <div className="flex-1">
-                                                    <UserTypeahead
-                                                        id="add-user"
-                                                        onSelect={setNewUserEmail}
-                                                        onRemove={() => {
-                                                            setNewUserEmail(null);
-                                                            setShowAddUser(false);
-                                                        }}
-                                                        excludeEmails={excludeEmails}
-                                                        selectedEmail={newUserEmail}
-                                                        hideRoleBadge
-                                                        hideCloseButton
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <Input placeholder="Enter email address" value={newUserEmail || ""} onChange={e => setNewUserEmail(e.target.value)} className="flex-1" autoFocus />
-                                            )}
-                                            <Button size="sm" onClick={handleAddUser} disabled={!newUserEmail || savingUser}>
-                                                {savingUser ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                                <MoreVertical className="h-4 w-4" />
                                             </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    setNewUserEmail(null);
-                                                    setShowAddUser(false);
-                                                }}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    )}
-
-                                    {/* User List */}
-                                    {loadingUsers ? (
-                                        <div className="flex justify-center py-2">
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                        </div>
-                                    ) : sharedUsers.length > 0 ? (
-                                        <div className="max-h-32 space-y-1 overflow-y-auto">
-                                            {sharedUsers.map(user => (
-                                                <div key={user.user_email} className="group hover:bg-muted/50 flex items-center justify-between rounded px-2 py-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="bg-primary/10 text-primary flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium">{user.user_email.charAt(0).toUpperCase()}</div>
-                                                        <span className="text-sm">{user.user_email}</span>
-                                                    </div>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => handleRemoveUser(user.user_email)} disabled={savingUser}>
-                                                        <X className="h-3 w-3" />
-                                                    </Button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : !showAddUser ? (
-                                        <p className="text-muted-foreground py-2 text-center text-xs">No specific people added</p>
-                                    ) : null}
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => shareLink && window.open(shareLink.share_url, "_blank")}>
+                                                <ExternalLink className="mr-2 h-4 w-4" />
+                                                Preview Chat
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setShowDeleteConfirm(true)} className="text-destructive focus:text-destructive">
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                Remove Share Link
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
 
-                                {/* Require Login Toggle - only show when no specific users are added */}
-                                {/* When sharing with specific people, login is implicitly required */}
-                                {sharedUsers.length === 0 && (
-                                    <div className="flex items-center justify-between border-t pt-3">
-                                        <div>
-                                            <Label className="text-sm">Require login</Label>
-                                            <p className="text-muted-foreground text-xs">Viewers must be logged in</p>
-                                        </div>
-                                        <Switch
-                                            checked={requireAuth}
-                                            onCheckedChange={checked => {
-                                                setRequireAuth(checked);
-                                                // Auto-save when toggled
-                                                if (shareLink) {
-                                                    updateShareLink(shareLink.share_id, { require_authentication: checked }).then(setShareLink).catch(console.error);
-                                                }
+                                <div className="flex items-center gap-3">
+                                    <div className="relative min-w-0 flex-1">
+                                        <div className="bg-background truncate rounded border px-3 py-2 pr-10 font-mono text-xs">{shareLink.share_url}</div>
+                                        <Button variant="ghost" size="icon" className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2" onClick={handleCopyUrl}>
+                                            {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                    <div className="flex shrink-0 flex-col items-start">
+                                        <span className="text-muted-foreground text-xs">Created</span>
+                                        <span className="text-sm whitespace-nowrap">
+                                            {new Date(shareLink.created_time).toLocaleDateString("en-US", {
+                                                month: "2-digit",
+                                                day: "2-digit",
+                                                year: "numeric",
+                                            })}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <p className="text-muted-foreground mt-2 text-xs">Anyone with this link who is logged in can view the chat.</p>
+                            </div>
+
+                            {/* People Section */}
+                            <div>
+                                <div className="mb-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Users className="h-4 w-4" />
+                                        <Label className="text-sm font-bold">People with access</Label>
+                                    </div>
+                                    {!showAddUser && (
+                                        <Button variant="outline" size="sm" onClick={() => setShowAddUser(true)} disabled={savingUser} className="shrink-0">
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Add
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {/* Add User Input */}
+                                {showAddUser && (
+                                    <div className="mb-3 flex items-center gap-2">
+                                        {identityServiceType !== null ? (
+                                            <div className="min-w-0 flex-1">
+                                                <UserTypeahead
+                                                    id="add-user"
+                                                    onSelect={setNewUserEmail}
+                                                    onRemove={() => {
+                                                        setNewUserEmail(null);
+                                                        setShowAddUser(false);
+                                                    }}
+                                                    excludeEmails={excludeEmails}
+                                                    selectedEmail={newUserEmail}
+                                                    hideRoleBadge
+                                                    hideCloseButton
+                                                />
+                                            </div>
+                                        ) : (
+                                            <Input placeholder="Enter email address..." value={newUserEmail || ""} onChange={e => setNewUserEmail(e.target.value)} className="flex-1" autoFocus />
+                                        )}
+                                        <Button size="sm" onClick={handleAddUser} disabled={!newUserEmail || savingUser}>
+                                            {savingUser ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="shrink-0"
+                                            onClick={() => {
+                                                setNewUserEmail(null);
+                                                setShowAddUser(false);
                                             }}
-                                            disabled={loading}
-                                        />
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
                                     </div>
                                 )}
-                            </>
-                        ) : (
-                            /* Create Share Section */
-                            <div className="space-y-4 py-4 text-center">
-                                <div className="bg-muted/50 mx-auto flex h-16 w-16 items-center justify-center rounded-full">
-                                    <Link className="text-muted-foreground h-8 w-8" />
-                                </div>
-                                <p className="font-medium">Create a share link</p>
 
-                                <div className="flex items-center justify-center gap-2 text-sm">
-                                    <Switch checked={requireAuth} onCheckedChange={setRequireAuth} />
-                                    <Label className="cursor-pointer" onClick={() => setRequireAuth(!requireAuth)}>
-                                        Require login to view
-                                    </Label>
+                                {/* User Table */}
+                                <div className="rounded border">
+                                    {/* Table Header */}
+                                    <div className="bg-muted/30 flex items-center gap-4 border-b px-4 py-2">
+                                        <div className="min-w-0 flex-1">
+                                            <Label className="text-muted-foreground text-xs">Email</Label>
+                                        </div>
+                                        <div className="w-[100px] shrink-0">
+                                            <Label className="text-muted-foreground text-xs">Shared On</Label>
+                                        </div>
+                                        <div className="w-8 shrink-0" />
+                                    </div>
+
+                                    {/* User Rows */}
+                                    {loadingUsers ? (
+                                        <div className="flex justify-center py-6">
+                                            <div className="border-primary h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
+                                        </div>
+                                    ) : sharedUsers.length > 0 ? (
+                                        <div className="max-h-48 overflow-y-auto">
+                                            {sharedUsers.map(user => {
+                                                const sharedDate = new Date(user.added_at).toLocaleDateString("en-US", {
+                                                    month: "2-digit",
+                                                    day: "2-digit",
+                                                    year: "numeric",
+                                                });
+
+                                                return (
+                                                    <div key={user.user_email} className="flex items-center gap-4 border-b px-4 py-2.5 last:border-b-0">
+                                                        <div className="min-w-0 flex-1 truncate text-sm">{user.user_email}</div>
+                                                        <div className="text-muted-foreground w-[100px] shrink-0 text-sm">{sharedDate}</div>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleRemoveUser(user.user_email)} disabled={savingUser}>
+                                                                    <X className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Remove access</TooltipContent>
+                                                        </Tooltip>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="text-muted-foreground py-6 text-center text-xs">No specific people added. Anyone with the link who is logged in can access.</div>
+                                    )}
                                 </div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    ) : (
+                        /* Loading state while share link is being created */
+                        <div className="flex flex-col items-center justify-center gap-3 py-8">
+                            <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                            <p className="text-muted-foreground text-sm">Creating share link...</p>
+                        </div>
+                    )}
 
-                    <DialogFooter>
-                        {!shareLink ? (
-                            <Button onClick={handleCreateShare} disabled={loading} className="w-full">
-                                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Create Share Link
-                            </Button>
-                        ) : (
+                    {shareLink && (
+                        <DialogFooter>
                             <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
                                 Done
                             </Button>
-                        )}
-                    </DialogFooter>
+                        </DialogFooter>
+                    )}
                 </DialogContent>
             </Dialog>
 
