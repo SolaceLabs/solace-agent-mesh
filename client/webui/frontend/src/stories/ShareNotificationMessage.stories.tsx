@@ -3,7 +3,7 @@ import { ShareNotificationMessage } from "@/lib/components/chat/ShareNotificatio
 import { mockActiveCollaborativeSession } from "@/lib/mockData/collaborativeChat";
 
 const meta: Meta<typeof ShareNotificationMessage> = {
-    title: "Chat/Collaboration/ShareNotificationMessage",
+    title: "Chat/ShareNotificationMessage",
     component: ShareNotificationMessage,
     tags: ["autodocs"],
     parameters: {

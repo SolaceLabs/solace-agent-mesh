@@ -5,7 +5,6 @@
  * Shows active collaborators in a shared chat session
  */
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { UserAvatar } from "./UserAvatar";
 
@@ -36,16 +35,9 @@ export function UserPresenceAvatars({ users, currentUserId }: UserPresenceAvatar
         <div className="flex items-center">
             {/* Show all active users' avatars */}
             {activeUsers.map((user, index) => (
-                <Tooltip key={user.id}>
-                    <TooltipTrigger asChild>
-                        <div style={{ marginLeft: index > 0 ? "-8px" : "0" }}>
-                            <UserAvatar name={user.name} userIndex={index} avatarUrl={user.avatar} className="cursor-pointer" />
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <div className="text-sm font-medium">{user.name}</div>
-                    </TooltipContent>
-                </Tooltip>
+                <div key={user.id} style={{ marginLeft: index > 0 ? "-8px" : "0" }}>
+                    <UserAvatar name={user.name} userIndex={index} avatarUrl={user.avatar} className="cursor-pointer" showTooltip={true} />
+                </div>
             ))}
         </div>
     );

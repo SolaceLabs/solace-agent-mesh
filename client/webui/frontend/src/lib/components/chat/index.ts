@@ -15,7 +15,6 @@ export { MessageHoverButtons } from "./MessageHoverButtons";
 export { ShareNotification } from "./ShareNotification";
 export { UserPresenceAvatars } from "./UserPresenceAvatars";
 export { ShareNotificationMessage } from "./ShareNotificationMessage";
-export { CollaborationInfoCards } from "./CollaborationInfoCards";
 export { MessageAttribution } from "./MessageAttribution";
 export { CollaborativeUserMessage } from "./CollaborativeUserMessage";
 export * from "./file";

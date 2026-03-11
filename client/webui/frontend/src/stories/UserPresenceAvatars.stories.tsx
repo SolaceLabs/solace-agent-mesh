@@ -3,7 +3,7 @@ import { UserPresenceAvatars } from "@/lib/components/chat/UserPresenceAvatars";
 import { mockCollaborativeUsers } from "@/lib/mockData/collaborativeChat";
 
 const meta: Meta<typeof UserPresenceAvatars> = {
-    title: "Chat/Collaboration/UserPresenceAvatars",
+    title: "Chat/UserPresenceAvatars",
     component: UserPresenceAvatars,
     tags: ["autodocs"],
     parameters: {
@@ -15,19 +15,12 @@ export default meta;
 
 type Story = StoryObj<typeof UserPresenceAvatars>;
 
-export const TwoUsers: Story = {
+export const Default: Story = {
     args: {
         users: [
             { ...mockCollaborativeUsers.alice, isOnline: true },
             { ...mockCollaborativeUsers.bob, isOnline: true },
         ],
-    },
-};
-
-export const ExcludingCurrentUser: Story = {
-    args: {
-        users: [mockCollaborativeUsers.alice, mockCollaborativeUsers.bob, mockCollaborativeUsers.charlie],
-        currentUserId: mockCollaborativeUsers.bob.id,
     },
 };
 

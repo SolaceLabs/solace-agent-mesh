@@ -235,7 +235,7 @@ export const AgentDropdownFiltersWorkflows: Story = {
     },
 };
 
-// Mock messages for collaborative chat showing conversation between Alice (owner) and Bob (collaborator)
+// Mock messages for collaborative chat showing conversation between Alice, Bob, and Charlie (current user)
 const collaborativeMessages: MessageFE[] = [
     // Alice's messages before sharing (indices 0, 1, 2, 3)
     {
@@ -268,8 +268,9 @@ const collaborativeMessages: MessageFE[] = [
             },
         ],
     },
-    // Share notification will appear here at index 3
-    // Bob's messages after being added (indices 4, 5, 6, 7, 8, 9)
+    // Share event will eventually be a real message type from backend
+    // For now, showing with ShareNotification component at end of ChatMessageList
+    // Bob's messages after being added (indices 4, 5, 6, 7)
     {
         isUser: true,
         parts: [{ kind: "text", text: "Thanks for adding me! Does this handle different CSV delimiters like semicolons?" }],
@@ -278,17 +279,19 @@ const collaborativeMessages: MessageFE[] = [
         isUser: false,
         parts: [{ kind: "text", text: "Yes! The script uses Python's csv.Sniffer to automatically detect delimiters including semicolons, tabs, and pipes." }],
     },
+    // Charlie's message (current user - no attribution) (index 6)
     {
         isUser: true,
-        parts: [{ kind: "text", text: "That's a good point! We often get files with different formats from various sources." }],
+        parts: [{ kind: "text", text: "I just tested it with a semicolon-delimited file and it works perfectly!" }],
     },
     {
         isUser: false,
-        parts: [{ kind: "text", text: "Exactly! The auto-detection feature will handle all those cases seamlessly." }],
+        parts: [{ kind: "text", text: "Great to hear! The auto-detection is working as expected." }],
     },
+    // Alice responds (index 8)
     {
         isUser: true,
-        parts: [{ kind: "text", text: "Can we also add a summary statistics feature to the script?" }],
+        parts: [{ kind: "text", text: "Excellent! Can we also add summary statistics?" }],
     },
     {
         isUser: false,
