@@ -743,36 +743,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
         """
         pass
 
-    async def _start_model_listener(self):
-        """Start the model configuration listener."""
-        if not self.requires_llm:
-            log.info(
-                "%s LLM not required for this component. Skipping model listener setup.",
-                self.log_identifier,
-            )
-            return
-
-        # Try enterprise model listener
-        try:
-            from solace_agent_mesh_enterprise.services.dynamic_model_provider import (
-                start_model_listener,
-            )
-
-            litellm_instance = self.get_lite_llm_model()
-            await start_model_listener(litellm_instance, self)
-            log.info("%s Enterprise model listener started.", self.log_identifier)
-        except ImportError:
-            log.debug(
-                "%s Enterprise DynamicModelProvider not available.",
-                self.log_identifier,
-            )
-        except Exception as e:
-            log.warning(
-                "%s Enterprise model listener failed: %s",
-                self.log_identifier,
-                e,
-            )
-
     @abc.abstractmethod
     def _get_component_id(self) -> str:
         """
@@ -823,9 +793,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 # Trust Manager failure should not prevent component startup
                 # Set to None to disable trust manager for this session
                 self.trust_manager = None
-
-        if self._lazy_model_mode:
-            asyncio.ensure_future(self._start_model_listener())
 
     @abc.abstractmethod
     def _pre_async_cleanup(self) -> None:
