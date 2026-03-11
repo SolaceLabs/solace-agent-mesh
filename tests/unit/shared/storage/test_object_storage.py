@@ -26,6 +26,7 @@ def clean_env(monkeypatch):
         "AWS_SECRET_ACCESS_KEY",
         "GCS_PROJECT",
         "GOOGLE_APPLICATION_CREDENTIALS",
+        "GCS_CREDENTIALS_JSON",
         "AZURE_STORAGE_CONNECTION_STRING",
         "AZURE_STORAGE_ACCOUNT_NAME",
         "AZURE_STORAGE_ACCOUNT_KEY",
@@ -390,3 +391,254 @@ class TestFactory:
 
         client = create_storage_client(bucket_name="container", storage_type="azure")
         assert isinstance(client, AzureBlobStorageClient)
+
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.gcs")
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.service_account")
+    def test_gcs_factory_passes_credentials_json(self, mock_sa, _mock_gcs, monkeypatch):
+        mock_creds = MagicMock()
+        mock_sa.Credentials.from_service_account_info.return_value = mock_creds
+        monkeypatch.setenv("GCS_CREDENTIALS_JSON", '{"type": "service_account"}')
+
+        client = create_storage_client(bucket_name="b", storage_type="gcs")
+
+        mock_sa.Credentials.from_service_account_info.assert_called_once_with({"type": "service_account"})
+        assert client._credentials is mock_creds
+
+
+@pytest.fixture()
+def mock_gcs():
+    with patch("solace_agent_mesh.services.platform.storage.gcs_client.gcs") as mock:
+        mock_bucket = MagicMock()
+        mock_client_instance = MagicMock()
+        mock_client_instance.bucket.return_value = mock_bucket
+        mock.Client.return_value = mock_client_instance
+        yield mock_bucket
+
+
+@pytest.fixture()
+def gcs_client(mock_gcs):
+    from solace_agent_mesh.services.platform.storage.gcs_client import GcsStorageClient
+
+    return GcsStorageClient(bucket_name="test-bucket")
+
+
+@pytest.fixture()
+def gcs_client_with_creds(mock_gcs):
+    from solace_agent_mesh.services.platform.storage.gcs_client import GcsStorageClient
+
+    with patch("solace_agent_mesh.services.platform.storage.gcs_client.service_account") as mock_sa:
+        mock_creds = MagicMock()
+        mock_sa.Credentials.from_service_account_info.return_value = mock_creds
+        client = GcsStorageClient(
+            bucket_name="test-bucket",
+            credentials_json='{"type": "service_account"}',
+        )
+    return client
+
+
+class TestGcsInit:
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.gcs")
+    def test_no_credentials_uses_adc(self, mock_gcs_mod):
+        from solace_agent_mesh.services.platform.storage.gcs_client import GcsStorageClient
+
+        client = GcsStorageClient(bucket_name="b")
+        assert client._credentials is None
+        mock_gcs_mod.Client.assert_called_once_with()
+
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.gcs")
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.service_account")
+    def test_credentials_json_creates_credentials(self, mock_sa, mock_gcs_mod):
+        from solace_agent_mesh.services.platform.storage.gcs_client import GcsStorageClient
+
+        mock_creds = MagicMock()
+        mock_sa.Credentials.from_service_account_info.return_value = mock_creds
+
+        client = GcsStorageClient(
+            bucket_name="b",
+            credentials_json='{"type": "service_account", "project_id": "test"}',
+        )
+
+        mock_sa.Credentials.from_service_account_info.assert_called_once()
+        assert client._credentials is mock_creds
+
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.gcs")
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.service_account")
+    def test_credentials_path_creates_credentials(self, mock_sa, mock_gcs_mod):
+        from solace_agent_mesh.services.platform.storage.gcs_client import GcsStorageClient
+
+        mock_creds = MagicMock()
+        mock_sa.Credentials.from_service_account_file.return_value = mock_creds
+
+        client = GcsStorageClient(bucket_name="b", credentials_path="/path/to/creds.json")
+
+        mock_sa.Credentials.from_service_account_file.assert_called_once_with("/path/to/creds.json")
+        assert client._credentials is mock_creds
+
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.gcs")
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.service_account")
+    def test_credentials_json_takes_priority_over_path(self, mock_sa, mock_gcs_mod):
+        from solace_agent_mesh.services.platform.storage.gcs_client import GcsStorageClient
+
+        mock_creds = MagicMock()
+        mock_sa.Credentials.from_service_account_info.return_value = mock_creds
+
+        client = GcsStorageClient(
+            bucket_name="b",
+            credentials_json='{"type": "service_account"}',
+            credentials_path="/path/to/creds.json",
+        )
+
+        mock_sa.Credentials.from_service_account_info.assert_called_once()
+        mock_sa.Credentials.from_service_account_file.assert_not_called()
+        assert client._credentials is mock_creds
+
+    @patch("solace_agent_mesh.services.platform.storage.gcs_client.gcs")
+    def test_project_passed_to_client(self, mock_gcs_mod):
+        from solace_agent_mesh.services.platform.storage.gcs_client import GcsStorageClient
+
+        GcsStorageClient(bucket_name="b", project="my-project")
+        mock_gcs_mod.Client.assert_called_once_with(project="my-project")
+
+
+class TestGcsErrorTranslation:
+    def test_not_found_maps_to_storage_not_found(self, gcs_client, mock_gcs):
+        from google.api_core.exceptions import NotFound
+
+        mock_gcs.blob.return_value.download_as_bytes.side_effect = NotFound("not found")
+
+        with pytest.raises(StorageNotFoundError):
+            gcs_client.get_object("missing-key")
+
+    def test_forbidden_maps_to_storage_permission(self, gcs_client, mock_gcs):
+        from google.api_core.exceptions import Forbidden
+
+        mock_gcs.blob.return_value.upload_from_string.side_effect = Forbidden("denied")
+
+        with pytest.raises(StoragePermissionError):
+            gcs_client.put_object("key", b"data", "text/plain")
+
+    def test_connection_error_maps_to_storage_connection(self, gcs_client, mock_gcs):
+        mock_gcs.blob.return_value.download_as_bytes.side_effect = ConnectionError("timeout")
+
+        with pytest.raises(StorageConnectionError):
+            gcs_client.get_object("key")
+
+    def test_unknown_error_maps_to_base_storage_error(self, gcs_client, mock_gcs):
+        mock_gcs.blob.return_value.upload_from_string.side_effect = RuntimeError("boom")
+
+        with pytest.raises(StorageError) as exc_info:
+            gcs_client.put_object("key", b"data", "text/plain")
+
+        assert type(exc_info.value) is StorageError
+
+
+class TestGcsPutObject:
+    def test_returns_key(self, gcs_client, mock_gcs):
+        result = gcs_client.put_object("ns/file.zip", b"data", "application/zip")
+        assert result == "ns/file.zip"
+
+    def test_with_metadata_sets_blob_metadata(self, gcs_client, mock_gcs):
+        mock_blob = mock_gcs.blob.return_value
+        gcs_client.put_object("k", b"d", "text/plain", metadata={"env": "prod"})
+        assert mock_blob.metadata == {"env": "prod"}
+
+    def test_calls_upload_from_string(self, gcs_client, mock_gcs):
+        mock_blob = mock_gcs.blob.return_value
+        gcs_client.put_object("k", b"data", "image/png")
+        mock_blob.upload_from_string.assert_called_once_with(b"data", content_type="image/png")
+
+
+class TestGcsGetObject:
+    def test_returns_storage_object(self, gcs_client, mock_gcs):
+        mock_blob = mock_gcs.blob.return_value
+        mock_blob.download_as_bytes.return_value = b"file-bytes"
+        mock_blob.content_type = "image/png"
+        mock_blob.metadata = {"version": "1"}
+
+        result = gcs_client.get_object("img.png")
+
+        assert isinstance(result, StorageObject)
+        assert result.content == b"file-bytes"
+        assert result.content_type == "image/png"
+        assert result.metadata == {"version": "1"}
+
+    def test_defaults_content_type_when_none(self, gcs_client, mock_gcs):
+        mock_blob = mock_gcs.blob.return_value
+        mock_blob.download_as_bytes.return_value = b"data"
+        mock_blob.content_type = None
+        mock_blob.metadata = None
+
+        result = gcs_client.get_object("file.bin")
+        assert result.content_type == "application/octet-stream"
+        assert result.metadata == {}
+
+
+class TestGcsDeleteObject:
+    def test_delete_succeeds(self, gcs_client, mock_gcs):
+        gcs_client.delete_object("ns/file.zip")
+        mock_gcs.blob.return_value.delete.assert_called_once()
+
+    def test_delete_not_found_is_silent(self, gcs_client, mock_gcs):
+        from google.api_core.exceptions import NotFound
+
+        mock_gcs.blob.return_value.delete.side_effect = NotFound("gone")
+        gcs_client.delete_object("already-gone")
+
+
+class TestGcsDeletePrefix:
+    def test_returns_count(self, gcs_client, mock_gcs):
+        blob1 = MagicMock()
+        blob2 = MagicMock()
+        mock_gcs.list_blobs.return_value = [blob1, blob2]
+
+        assert gcs_client.delete_prefix("ns/") == 2
+
+    def test_empty_prefix_returns_zero(self, gcs_client, mock_gcs):
+        mock_gcs.list_blobs.return_value = []
+
+        assert gcs_client.delete_prefix("empty/") == 0
+        mock_gcs.delete_blobs.assert_not_called()
+
+
+class TestGcsListObjects:
+    def test_returns_blob_names(self, gcs_client, mock_gcs):
+        blob1, blob2 = MagicMock(), MagicMock()
+        blob1.name = "ns/a.txt"
+        blob2.name = "ns/b.txt"
+        mock_gcs.list_blobs.return_value = [blob1, blob2]
+
+        assert gcs_client.list_objects("ns/") == ["ns/a.txt", "ns/b.txt"]
+
+    def test_empty_returns_empty_list(self, gcs_client, mock_gcs):
+        mock_gcs.list_blobs.return_value = []
+
+        assert gcs_client.list_objects("empty/") == []
+
+
+class TestGcsPresignedUrl:
+    def test_no_credentials_raises_permission_error(self, gcs_client):
+        with pytest.raises(StoragePermissionError, match="credentials are required"):
+            gcs_client.generate_presigned_url("file.txt")
+
+    def test_with_credentials_returns_url(self, gcs_client_with_creds, mock_gcs):
+        mock_blob = mock_gcs.blob.return_value
+        mock_blob.generate_signed_url.return_value = "https://signed-url"
+
+        result = gcs_client_with_creds.generate_presigned_url("file.txt")
+        assert result == "https://signed-url"
+
+    def test_passes_correct_params(self, gcs_client_with_creds, mock_gcs):
+        mock_blob = mock_gcs.blob.return_value
+        mock_blob.generate_signed_url.return_value = "https://url"
+
+        gcs_client_with_creds.generate_presigned_url("key.zip", expires_in=600)
+
+        call_kwargs = mock_blob.generate_signed_url.call_args.kwargs
+        assert call_kwargs["version"] == "v4"
+        assert call_kwargs["method"] == "GET"
+
+
+class TestGcsPublicUrl:
+    def test_url_format(self, gcs_client):
+        url = gcs_client.get_public_url("ns/file.zip")
+        assert url == "https://storage.googleapis.com/test-bucket/ns/file.zip"
