@@ -15,6 +15,8 @@ export interface ChatState {
     sessionName: string | null;
     messages: MessageFE[];
     isResponding: boolean;
+    isCollaborativeSession: boolean;
+    currentUserEmail: string;
     currentTaskId: string | null;
     selectedAgentName: string;
     notifications: Notification[];

@@ -28,6 +28,10 @@ const defaultMockChatContext: DefaultMockContextType = {
     agentNameDisplayNameMap,
     selectedAgentName: transformedMockAgents[0]?.name || "",
 
+    // Collaborative session state
+    isCollaborativeSession: false,
+    currentUserEmail: "test@example.com",
+
     // Loading states
     isResponding: false,
     agentsLoading: false,
