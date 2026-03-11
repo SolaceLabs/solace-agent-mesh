@@ -4,11 +4,11 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock } from "lucide-react";
+import { ArrowLeft, Lock, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
-import { viewSharedSession, downloadSharedArtifact } from "@/lib/api/shareApi";
+import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
 import type { RAGSearchResult, ArtifactInfo } from "@/lib/types";
@@ -63,6 +63,8 @@ export function SharedSessionPage() {
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(true);
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "sources">("files");
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [isForking, setIsForking] = useState(false);
+    const [forkError, setForkError] = useState<string | null>(null);
 
     // Load shared session data
     const loadSharedSession = useCallback(async (id: string) => {
@@ -93,6 +95,28 @@ export function SharedSessionPage() {
         [shareId]
     );
 
+    // Fork shared chat into user's own sessions
+    const handleForkChat = useCallback(async () => {
+        if (!shareId || isForking) return;
+
+        setIsForking(true);
+        setForkError(null);
+        try {
+            await forkSharedChat(shareId);
+            // Navigate to the main chat view and trigger session refresh
+            navigate(`/chat`);
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("new-chat-session"));
+            }, 100);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to fork chat";
+            setForkError(message);
+            console.error("Failed to fork chat:", err);
+        } finally {
+            setIsForking(false);
+        }
+    }, [shareId, isForking, navigate]);
+
     useEffect(() => {
         if (shareId) {
             loadSharedSession(shareId);
@@ -101,14 +125,12 @@ export function SharedSessionPage() {
 
     const getAccessIcon = (accessType: string) => {
         switch (accessType) {
-            case "public":
-                return <Globe className="h-4 w-4" />;
             case "authenticated":
                 return <Lock className="h-4 w-4" />;
             case "domain-restricted":
                 return <Building2 className="h-4 w-4" />;
             default:
-                return null;
+                return <Lock className="h-4 w-4" />;
         }
     };
 
@@ -120,6 +142,8 @@ export function SharedSessionPage() {
                 return "Authenticated";
             case "domain-restricted":
                 return "Domain Restricted";
+            case "user-specific":
+                return "Shared with you";
             default:
                 return accessType;
         }
@@ -593,22 +617,38 @@ export function SharedSessionPage() {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-(--color-secondary-text-wMain)">
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span className="inline-flex cursor-pointer">
-                                        <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    You are a <span className="font-bold">viewer</span> of this chat
-                                </TooltipContent>
-                            </Tooltip>
-                            <span>Viewer</span>
-                            <div className="bg-border h-4 w-px" />
-                            <span>
-                                Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
-                            </span>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-sm text-(--color-secondary-text-wMain)">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-flex cursor-pointer">
+                                            <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        You are a <span className="font-bold">viewer</span> of this chat
+                                    </TooltipContent>
+                                </Tooltip>
+                                <span>Viewer</span>
+                                <div className="bg-border h-4 w-px" />
+                                <span>
+                                    Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {forkError && <span className="text-destructive text-sm">{forkError}</span>}
+                                {session?.is_owner && session?.session_id ? (
+                                    <Button variant="outline" size="sm" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)}>
+                                        <MessageSquare className="mr-2 h-4 w-4" />
+                                        Go to Chat
+                                    </Button>
+                                ) : (
+                                    <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
+                                        {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                        Fork & Continue
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </header>

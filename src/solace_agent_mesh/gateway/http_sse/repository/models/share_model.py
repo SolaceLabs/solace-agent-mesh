@@ -67,7 +67,7 @@ class SharedArtifactModel(Base):
 
 class CreateShareLinkRequest(BaseModel):
     """Pydantic model for creating a share link."""
-    require_authentication: bool = Field(default=False, description="Require login to view")
+    require_authentication: bool = Field(default=True, description="Require login to view (always True, public access not supported)")
     allowed_domains: Optional[List[str]] = Field(default=None, description="Allowed email domains")
 
 
@@ -131,6 +131,8 @@ class SharedSessionView(BaseModel):
     tasks: List[dict]  # Anonymized chat tasks
     artifacts: List[SharedArtifactInfo]  # Full artifact info for side panel
     task_events: Optional[dict] = None  # Task events for workflow visualization: {task_id: SharedTaskEvents}
+    is_owner: bool = False  # Whether the current viewer is the owner of the shared chat
+    session_id: Optional[str] = None  # Original session ID (only included for owner)
 
 
 # User-specific sharing models
@@ -174,3 +176,20 @@ class BatchDeleteShareUsersRequest(BaseModel):
 class BatchDeleteShareUsersResponse(BaseModel):
     """Response for batch removing users from a share."""
     deleted_count: int
+
+
+class SharedWithMeItem(BaseModel):
+    """Item representing a chat shared with the current user."""
+    share_id: str
+    title: str
+    owner_email: str
+    access_level: str
+    shared_at: int  # epoch ms when the share was added
+    share_url: str = ""
+
+
+class ForkSharedChatResponse(BaseModel):
+    """Response for forking a shared chat into the user's own sessions."""
+    session_id: str
+    session_name: str
+    message: str = "Chat forked successfully"
