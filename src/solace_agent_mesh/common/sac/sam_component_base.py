@@ -28,9 +28,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
     - Managing a dedicated asyncio event loop running in a separate thread.
     - Publishing A2A messages with built-in size validation.
     """
+
     adk_model_instance: LiteLlm | None = None
     requires_llm: bool = True
-
+    _component_id: str
 
     def __init__(self, info: dict[str, Any], **kwargs: Any):
         super().__init__(info, **kwargs)
@@ -70,9 +71,33 @@ class SamComponentBase(ComponentBase, abc.ABC):
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
 
-        self._lazy_model_mode = os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"
+        self._lazy_model_mode = (
+            os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"
+        )
 
         log.info("%s Initialized SamComponentBase", self.log_identifier)
+
+    def get_component_id(self) -> str:
+        """Returns the unique identifier for this component instance."""
+        if hasattr(self, "_component_id") and self._component_id:
+            return self._component_id
+
+        if not hasattr(self, "_component_id") or not self._component_id:
+            self._component_id = (
+                getattr(self, "agent_name", None)
+                or getattr(self, "gateway_id", None)
+                or getattr(self, "workflow_name", None)
+            )
+            if not self._component_id:
+                # Fall back to a generic identifier if specific ones are not available
+                self._component_id = f"component_{id(self)}"
+                log.warning(
+                    "%s Could not determine specific component identifier. Falling back to generic identifier: %s",
+                    self.log_identifier,
+                    self._component_id,
+                )
+
+        return self._component_id
 
     def add_timer(
         self,
@@ -743,6 +768,31 @@ class SamComponentBase(ComponentBase, abc.ABC):
         """
         pass
 
+    async def _start_model_listener(self):
+        """Start the model configuration listener."""
+        if not self.requires_llm:
+            log.info(
+                "%s LLM not required for this component. Skipping model listener setup.",
+                self.log_identifier,
+            )
+            return
+
+        # Try enterprise model listener
+        try:
+            from ...agent.adk.models.dynamic_model_provider import (
+                start_model_listener,
+            )
+
+            litellm_instance = self.get_lite_llm_model()
+            await start_model_listener(litellm_instance, self)
+            log.info("%s Enterprise model listener started.", self.log_identifier)
+        except Exception as e:
+            log.warning(
+                "%s Enterprise model listener failed: %s",
+                self.log_identifier,
+                e,
+            )
+
     @abc.abstractmethod
     def _get_component_id(self) -> str:
         """
@@ -793,6 +843,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 # Trust Manager failure should not prevent component startup
                 # Set to None to disable trust manager for this session
                 self.trust_manager = None
+
+        if self._lazy_model_mode:
+            asyncio.ensure_future(self._start_model_listener())
 
     @abc.abstractmethod
     def _pre_async_cleanup(self) -> None:
