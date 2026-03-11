@@ -7,11 +7,28 @@ import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, ShareNotification } from "@/lib/components/chat";
+import {
+    ChatInputArea,
+    ChatMessage,
+    ChatSessionDialog,
+    ChatSessionDeleteDialog,
+    ChatSidePanel,
+    LoadingMessageRow,
+    ProjectBadge,
+    SessionSidePanel,
+    ShareNotification,
+    UserPresenceAvatars,
+    ShareNotificationMessage,
+    CollaborationInfoCards,
+    CollaborativeUserMessage,
+    AgentMessageAttribution,
+} from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { ShareButton } from "@/lib/components/share/ShareButton";
 import { useLocation, useNavigate } from "react-router-dom";
+import { mockActiveCollaborativeSession, mockMessageAttributions } from "@/lib/mockData/collaborativeChat";
+import type { CollaborativeSessionInfo } from "@/lib/types/collaboration";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -58,6 +75,11 @@ export function ChatPage() {
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
+
+    // TODO: Replace with actual collaboration state from backend
+    // For now, using mock data to design the UI
+    const collaborationInfo: CollaborativeSessionInfo | null = mockActiveCollaborativeSession;
+    const isCollaborativeSession = collaborationInfo?.isSharedSession || false;
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -276,7 +298,14 @@ export function ChatPage() {
                             </div>
                         ) : null
                     }
-                    buttons={sessionId ? [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />] : undefined}
+                    buttons={
+                        sessionId
+                            ? [
+                                  ...(isCollaborativeSession && collaborationInfo ? [<UserPresenceAvatars key="presence-avatars" users={collaborationInfo.collaborators} currentUserId={collaborationInfo.currentUserId} />] : []),
+                                  <ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />,
+                              ]
+                            : undefined
+                    }
                 />
             </div>
             <div className="flex min-h-0 flex-1">
@@ -305,12 +334,51 @@ export function ChatPage() {
                                                     const messageKey = message.metadata?.messageId || `temp-${index}`;
                                                     const isLastMessage = index === messages.length - 1;
                                                     const shouldStream = isLastMessage && isResponding && !message.isUser;
-                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
+
+                                                    // Get user attribution for this message from mock data
+                                                    const attribution = mockMessageAttributions[index];
+                                                    const isCurrentUserMessage = attribution?.userId === collaborationInfo?.currentUserId;
+                                                    const shouldShowUserAttribution = isCollaborativeSession && message.isUser && !message.isStatusBubble && attribution && !isCurrentUserMessage;
+                                                    const shouldShowAgentAttribution = isCollaborativeSession && !message.isUser && !message.isStatusBubble;
+
+                                                    // Get agent name from agents list or use default
+                                                    const agentName = agents.length > 0 ? agents[0].name : "Agent";
+
+                                                    // Calculate user index for consistent color assignment
+                                                    const userIndex = attribution ? (collaborationInfo?.collaborators.findIndex(u => u.id === attribution.userId) ?? 0) : 0;
+
+                                                    return (
+                                                        <div key={messageKey}>
+                                                            {/* Render collaborative user message or regular message */}
+                                                            {shouldShowUserAttribution ? (
+                                                                <CollaborativeUserMessage message={message} userName={attribution.userName} timestamp={attribution.timestamp} userIndex={userIndex} />
+                                                            ) : shouldShowAgentAttribution ? (
+                                                                <>
+                                                                    {/* Show agent attribution in collaborative mode */}
+                                                                    <AgentMessageAttribution agentName={agentName} />
+                                                                    {/* Wrap agent message with left margin to align with agent name */}
+                                                                    <div className="ml-10">
+                                                                        <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
+                                                            )}
+
+                                                            {/* Show share notification and info cards after 3rd message (mock position) */}
+                                                            {isCollaborativeSession && index === 3 && collaborationInfo && (
+                                                                <>
+                                                                    <ShareNotificationMessage sharedBy={collaborationInfo.sharedByName!} sharedWith={collaborationInfo.sharedWithNames!} timestamp={collaborationInfo.sharedAt!} />
+                                                                    <CollaborationInfoCards />
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    );
                                                 })}
 
                                                 {/* TODO: Replace with actual sharing events from backend */}
                                                 {/* TEMPORARY: Mock sharing notification shown for all sessions for testing - appears as latest interaction */}
-                                                {sessionId && <ShareNotification sharedBy="Olive Operations" shareType="user-specific" sharedWith="Parminder Procurement" sharedAt={Date.now() - 3600000} />}
+                                                {sessionId && !isCollaborativeSession && <ShareNotification sharedBy="Olive Operations" shareType="user-specific" sharedWith="Parminder Procurement" sharedAt={Date.now() - 3600000} />}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
                                                 {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
