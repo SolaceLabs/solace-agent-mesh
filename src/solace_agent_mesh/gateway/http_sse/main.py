@@ -29,6 +29,8 @@ from .routers import (
     artifacts,
     auth,
     config,
+    document_conversion,
+    feature_flags,
     feedback,
     people,
     sse,
@@ -300,6 +302,7 @@ def _setup_routers() -> None:
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(version.router, prefix=api_prefix, tags=["Version"])
+    app.include_router(feature_flags.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
     app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
@@ -317,6 +320,11 @@ def _setup_routers() -> None:
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
+    app.include_router(
+        document_conversion.router,
+        prefix=f"{api_prefix}/document-conversion",
+        tags=["Document Conversion"],
+    )
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers
