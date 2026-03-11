@@ -9,7 +9,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttribu
                 "flex min-h-[80px] w-full min-w-0",
 
                 // Border & Background
-                "rounded-xs border border-(--secondary-w40) bg-transparent",
+                "rounded-xs border bg-transparent",
 
                 // Spacing
                 "px-3 py-2",

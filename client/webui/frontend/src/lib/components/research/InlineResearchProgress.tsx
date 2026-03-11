@@ -361,7 +361,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
             {/* Show completed state when research is done */}
             {isComplete ? (
                 <div>
-                    <div className="rounded-lg border border-(--secondary-w40) bg-(--background-w10) p-3">
+                    <div className="rounded-lg border bg-(--background-w10) p-3">
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 flex-1 items-start gap-3">
                                 {/* Checkmark Icon */}
@@ -485,7 +485,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
 
                     return (
                         <div key={stage.phase}>
-                            <div className="rounded-lg border border-(--secondary-w40) bg-(--background-w10) p-3">
+                            <div className="rounded-lg border bg-(--background-w10) p-3">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="flex min-w-0 flex-1 items-start gap-3">
                                         {/* Icon */}

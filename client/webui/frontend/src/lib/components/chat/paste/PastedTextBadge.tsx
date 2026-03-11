@@ -72,7 +72,7 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
             <TooltipTrigger asChild>
                 <div
                     className={`relative inline-flex max-w-[200px] cursor-pointer flex-col rounded-lg border bg-(--background-w10) shadow-sm transition-colors ${
-                        isConfigured ? "border-(--info-w10) hover:border-(--info-wMain)" : "border-(--secondary-w40) hover:border-(--primary-w20)"
+                        isConfigured ? "border-(--info-w10) hover:border-(--info-wMain)" : "hover:border-(--primary-w20)"
                     }`}
                     onClick={onClick}
                 >
@@ -84,7 +84,7 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                             e.stopPropagation();
                             onRemove();
                         }}
-                        className="absolute -top-2 -left-2 h-5 w-5 rounded-full border border-(--secondary-w40) bg-(--background-w10) p-0 shadow-sm hover:bg-(--secondary-w10)"
+                        className="absolute -top-2 -left-2 h-5 w-5 rounded-full border bg-(--background-w10) p-0 shadow-sm hover:bg-(--secondary-w10)"
                         tooltip="Remove pasted text"
                         tooltipSide="left"
                     >

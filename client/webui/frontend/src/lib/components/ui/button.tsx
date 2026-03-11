@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
-const commonTextStyles = "text-(--temporary-primary-wMain) enabled:hover:text-(--primary-w60)";
+const commonTextStyles = "text-(--temporary-primary-wMain)";
 const commonButtonStyles = commonTextStyles + " enabled:hover:bg-(--primary-w10)";
 
 const buttonVariants = cva(

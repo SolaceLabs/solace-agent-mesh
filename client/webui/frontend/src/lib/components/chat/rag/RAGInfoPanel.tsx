@@ -72,7 +72,7 @@ const SourceCard: React.FC<{
     const showScore = source.relevanceScore !== 1.0;
 
     return (
-        <div className="flex flex-col rounded border border-(--secondary-w40) bg-(--secondary-w10) p-3">
+        <div className="flex flex-col rounded border bg-(--secondary-w10) p-3">
             {/* Source Header */}
             <div className="mb-2 flex flex-shrink-0 items-center justify-between">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -118,7 +118,7 @@ const SourceCard: React.FC<{
 
             {/* Metadata (if available) */}
             {source.metadata && Object.keys(source.metadata).length > 0 && (
-                <div className="mt-2 flex-shrink-0 border-t border-(--secondary-w40) pt-2">
+                <div className="mt-2 flex-shrink-0 border-t pt-2">
                     <details className="text-xs">
                         <summary className="cursor-pointer text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)">Metadata</summary>
                         <div className="mt-1 space-y-1 pl-2">
@@ -331,7 +331,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                         {/* Title section showing research question or query */}
                         {panelTitle && (
-                            <div className="mb-4 border-b border-(--secondary-w40) pb-3">
+                            <div className="mb-4 border-b pb-3">
                                 <h2 className="text-base leading-tight font-semibold text-(--primary-text-wMain)">{panelTitle}</h2>
                             </div>
                         )}

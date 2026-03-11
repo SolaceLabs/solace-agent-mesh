@@ -34,7 +34,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language }) => {
 
     return (
         <div className="group relative">
-            <pre className="mb-4 max-w-full overflow-x-auto rounded-lg border border-(--secondary-w40) bg-transparent p-4 whitespace-pre-wrap">
+            <pre className="mb-4 max-w-full overflow-x-auto rounded-lg border bg-transparent p-4 whitespace-pre-wrap">
                 <code className={`bg-transparent p-0 text-sm break-words ${language ? `language-${language}` : ""}`}>{code}</code>
             </pre>
             <Button

@@ -67,7 +67,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
             }}
         >
             {/* Dotted Children Container */}
-            <div className="absolute inset-0 rounded border-1 border-dashed border-(--secondary-w40) bg-(--secondary-w10)" style={{ top: `${NODE_HEIGHTS.CONTAINER_HEADER / 2}px` }}>
+            <div className="absolute inset-0 rounded border-1 border-dashed bg-(--secondary-w10)" style={{ top: `${NODE_HEIGHTS.CONTAINER_HEADER / 2}px` }}>
                 {/* Top padding clears the header portion below the dotted border plus gap */}
                 <div className="px-3 pt-12 pb-4">
                     <div className="flex flex-col items-center gap-2">{renderChildren ? renderChildren(node.children) : null}</div>

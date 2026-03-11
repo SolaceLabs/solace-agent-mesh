@@ -28,7 +28,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({ checked = false, onCheckedCh
             disabled={disabled}
             onClick={handleClick}
             className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
-                checked ? "border-(--primary-wMain) bg-(--primary-wMain) text-(--primary-text-w10)" : "border-(--secondary-w40) bg-(--background-w10) hover:border-(--primary-wMain)"
+                checked ? "border-(--primary-wMain) bg-(--primary-wMain) text-(--primary-text-w10)" : "bg-(--background-w10) hover:border-(--primary-wMain)"
             } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${className} `}
         >
             {checked && <Check className="h-3 w-3" />}

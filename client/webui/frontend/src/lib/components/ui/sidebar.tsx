@@ -204,11 +204,7 @@ function Sidebar({
                 )}
                 {...props}
             >
-                <div
-                    data-sidebar="sidebar"
-                    data-slot="sidebar-inner"
-                    className="flex h-full w-full flex-col bg-(--background-w20) group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-(--secondary-w40) group-data-[variant=floating]:shadow-sm"
-                >
+                <div data-sidebar="sidebar" data-slot="sidebar-inner" className="flex h-full w-full flex-col bg-(--background-w20) group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm">
                     {children}
                 </div>
             </div>
@@ -485,7 +481,7 @@ function SidebarMenuSkeleton({
 }
 
 function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
-    return <ul data-slot="sidebar-menu-sub" data-sidebar="menu-sub" className={cn("mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-(--secondary-w40) px-2.5 py-0.5", "group-data-[collapsible=icon]:hidden", className)} {...props} />;
+    return <ul data-slot="sidebar-menu-sub" data-sidebar="menu-sub" className={cn("mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l px-2.5 py-0.5", "group-data-[collapsible=icon]:hidden", className)} {...props} />;
 }
 
 function SidebarMenuSubItem({ className, ...props }: React.ComponentProps<"li">) {

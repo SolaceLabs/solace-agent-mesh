@@ -39,41 +39,26 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_code]:text-sm [&_code]:font-mono [&_code]:font-semibold [&_code]:text-(--primary-text-wMain) [&_code]:break-words
 
     /* Blockquotes */
-    [&_blockquote]:border-l-4 [&_blockquote]:border-(--secondary-w40) [&_blockquote]:pl-4
+    [&_blockquote]:border-l-4 [&_blockquote]:pl-4
     [&_blockquote]:py-2 [&_blockquote]:mb-4 [&_blockquote]:italic
     [&_blockquote]:text-(--primary-text-wMain) [&_blockquote]:bg-transparent
     [&_blockquote:last-child]:mb-0
     
     /* Tables */
     [&_table]:w-full [&_table]:mb-4 [&_table]:border-collapse [&_table]:table-fixed [&_table]:max-w-full
-    [&_th]:border [&_th]:border-(--secondary-w40) [&_th]:px-3 [&_th]:py-2 [&_th]:break-words
+    [&_th]:border [&_th]:px-3 [&_th]:py-2 [&_th]:break-words
     [&_th]:bg-transparent [&_th]:font-semibold [&_th]:text-left
-    [&_td]:border [&_td]:border-(--secondary-w40) [&_td]:px-3 [&_td]:py-2 [&_td]:break-words
+    [&_td]:border [&_td]:px-3 [&_td]:py-2 [&_td]:break-words
     [&_tr:nth-child(even)]:bg-transparent
     [&_table:last-child]:mb-0
     
     /* Horizontal rules */
-    [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-(--secondary-w40) [&_hr]:my-6
+    [&_hr]:border-0 [&_hr]:border-t [&_hr]:my-6
     [&_hr:last-child]:mb-0
 
     /* Images */
     [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded [&_img]:my-2 [&_img]:object-contain
     [&_img:last-child]:mb-0
-
-    ${additionalClasses}
-  `
-        .trim()
-        .replace(/\s+/g, " ");
-};
-
-export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string => {
-    return `
-    /* Buttons - "important" overrides for flow controls */
-    [&>button]:bg-(--background-w10)
-    [&>button]:hover:bg-(--background-w20)
-    [&>button]:text-(--primary-text-wMain)
-    [&>button]:border!
-    [&>button]:border-(--secondary-w40)!
 
     ${additionalClasses}
   `

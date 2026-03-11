@@ -54,7 +54,7 @@ export const CONNECTOR_SIZES = {
  * Container children styling for dotted border containers
  * Used by Loop, Map, Workflow, and Agent nodes for their child content areas
  */
-export const CONTAINER_CHILDREN_CLASSES = "rounded border-1 border-dashed border-(--secondary-w40) bg-(--stateLayer-w10)";
+export const CONTAINER_CHILDREN_CLASSES = "rounded border-1 border-dashed bg-(--stateLayer-w10)";
 
 /**
  * Layout dimensions and sizing constants for activity nodes

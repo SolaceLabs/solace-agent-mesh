@@ -146,7 +146,7 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
         if (totalPages <= 1) return null;
 
         return (
-            <div className="mt-4 flex flex-shrink-0 justify-center border-t border-(--secondary-w40) bg-(--background-w10) pt-4 pb-2">
+            <div className="mt-4 flex flex-shrink-0 justify-center border-t bg-(--background-w10) pt-4 pb-2">
                 <Pagination>
                     <PaginationContent>
                         <PaginationItem>

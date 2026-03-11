@@ -11,7 +11,7 @@ function Input({ className, type, ...props }: ComponentProps<"input">) {
                 "flex h-9 w-full min-w-0",
 
                 // Border & Background
-                "rounded-xs border border-(--secondary-w40) bg-transparent",
+                "rounded-xs border bg-transparent",
 
                 // Spacing
                 "px-3 py-1",

@@ -150,7 +150,7 @@ function FileUpload({ name, accept, multiple = false, disabled = false, testid =
                 ))
             ) : (
                 <div
-                    className={`flex h-[140px] flex-col justify-center rounded-sm border-1 border-dashed transition-colors ${isDragging ? "border-(--brand-wMain) hover:border-solid" : "border-(--secondary-w40)"}`}
+                    className={`flex h-[140px] flex-col justify-center rounded-sm border-1 border-dashed transition-colors ${isDragging ? "border-(--brand-wMain) hover:border-solid" : ""}`}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
                     onDragOver={handleDragOver}

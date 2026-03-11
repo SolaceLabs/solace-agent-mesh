@@ -39,7 +39,7 @@ function SelectTrigger({
                 "flex w-fit items-center justify-between gap-2",
 
                 // Border & Background
-                "rounded-xs border border-(--secondary-w40) bg-transparent",
+                "rounded-xs border bg-transparent",
 
                 // Spacing
                 "px-3 py-2",

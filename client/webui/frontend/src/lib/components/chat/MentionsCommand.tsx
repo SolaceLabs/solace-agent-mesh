@@ -200,9 +200,9 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                     left: `${popupPosition.left}px`,
                 }}
             >
-                <div ref={popoverRef} className="flex flex-col rounded-lg border border-(--secondary-w40) bg-(--background-w10) shadow-lg" style={{ maxHeight: "300px" }}>
+                <div ref={popoverRef} className="flex flex-col rounded-lg border bg-(--background-w10) shadow-lg" style={{ maxHeight: "300px" }}>
                     {/* Search Display */}
-                    <div className="flex items-center gap-2 border-b border-(--secondary-w40) p-3">
+                    <div className="flex items-center gap-2 border-b p-3">
                         {showingRecent ? (
                             <>
                                 <Clock className="size-4 text-(--secondary-text-wMain)" />

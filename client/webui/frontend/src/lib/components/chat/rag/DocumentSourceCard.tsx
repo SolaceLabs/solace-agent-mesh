@@ -66,7 +66,7 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
 
     return (
         <>
-            <div className="overflow-hidden rounded-[4px] border border-(--secondary-w40) bg-(--background-w10)">
+            <div className="overflow-hidden rounded-[4px] border bg-(--background-w10)">
                 <AccordionItem value={`document-${sourceIndex}`} className="border-none">
                     <AccordionTrigger className="items-center gap-2 p-4 hover:no-underline [&>svg:last-child]:hidden [&[data-state=open]>svg:first-child]:rotate-90">
                         <ChevronRight className="h-4 w-4 shrink-0 self-center text-(--primary-wMain) transition-transform duration-200" />
@@ -81,7 +81,7 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
                             </span>
                         </div>
                     </AccordionTrigger>
-                    <AccordionContent className="border-t border-(--secondary-w40) px-4 pb-3">
+                    <AccordionContent className="border-t px-4 pb-3">
                         {isLoadingArtifact || !previewCheck ? (
                             <div className="flex items-center justify-center py-8 text-(--secondary-text-wMain)">
                                 <Loader2 className="h-5 w-5 animate-spin" />

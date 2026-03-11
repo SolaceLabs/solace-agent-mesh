@@ -611,7 +611,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
             </div>
             <div
                 ref={viewerRef}
-                className={`relative w-full flex-grow overflow-auto rounded border border-(--secondary-w40) bg-(--background-w10) ${interactionMode === "text" ? "select-text" : ""}`}
+                className={`relative w-full flex-grow overflow-auto rounded border bg-(--background-w10) ${interactionMode === "text" ? "select-text" : ""}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}

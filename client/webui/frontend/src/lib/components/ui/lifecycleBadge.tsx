@@ -19,7 +19,7 @@ export const LifecycleBadge = ({ className, children = "EXPERIMENTAL", variant =
     return (
         <span
             className={cn(
-                "inline-flex shrink-0 items-center justify-center rounded-sm border-solid border-(--secondary-w40) bg-transparent px-1 py-0.5 text-[10px] uppercase",
+                "inline-flex shrink-0 items-center justify-center rounded-sm border-solid bg-transparent px-1 py-0.5 text-[10px] uppercase",
                 isTransparent ? "border-2 text-(--secondary-text-wMain)" : "border border-(--secondary-text-wMain)",
                 className
             )}
