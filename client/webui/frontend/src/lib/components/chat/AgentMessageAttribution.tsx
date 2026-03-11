@@ -14,14 +14,14 @@ interface AgentMessageAttributionProps {
 
 export function AgentMessageAttribution({ agentName = "Agent" }: AgentMessageAttributionProps) {
     return (
-        <div className="flex items-center gap-2 pb-1">
+        <div className="flex items-center gap-2">
             {/* Agent icon - matches AgentNode styling */}
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10) dark:bg-(--color-accent-n2-w100)">
                 <Bot className="h-4 w-4 text-(--color-brand-wMain)" />
             </div>
 
             {/* Agent name */}
-            <span className="text-sm font-medium">{agentName}</span>
+            <span className="text-sm font-bold">{agentName}</span>
         </div>
     );
 }

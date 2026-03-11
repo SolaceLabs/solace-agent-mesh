@@ -36,7 +36,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
                     scrollBehavior: "smooth",
                 }}
             >
-                <div className="flex flex-col gap-6" style={CHAT_STYLES} ref={contentRef}>
+                <div className="flex flex-col gap-8" style={CHAT_STYLES} ref={contentRef}>
                     {children}
                 </div>
             </div>

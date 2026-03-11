@@ -37,7 +37,7 @@ export function MessageUserAttribution({ userName, timestamp, avatarUrl, userInd
     const avatarColorClass = accentColors[userIndex % accentColors.length];
 
     return (
-        <div className="flex items-center gap-2 pb-1">
+        <div className="flex items-center gap-2">
             {/* Avatar circle */}
             <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${avatarColorClass}`}>
                 {avatarUrl ? <img src={avatarUrl} alt={userName} className="h-full w-full rounded-full object-cover" /> : initials}
@@ -45,7 +45,7 @@ export function MessageUserAttribution({ userName, timestamp, avatarUrl, userInd
 
             {/* User name and timestamp */}
             <div className="flex items-baseline gap-2">
-                <span className="text-sm font-medium">{userName}</span>
+                <span className="text-sm font-bold">{userName}</span>
                 <span className="text-sm text-[var(--color-secondary-text-wMain)]">{formatCollaborativeTimestamp(timestamp)}</span>
             </div>
         </div>
