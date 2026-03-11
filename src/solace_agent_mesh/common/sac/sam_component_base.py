@@ -739,8 +739,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
     @abc.abstractmethod
     def _on_model_status_change(self, old_status: str, new_status: str):
         """Callback invoked by LiteLlm on any status transition.
-
-        Handles starting/stopping agent card publishing based on model readiness.
         """
         pass
 

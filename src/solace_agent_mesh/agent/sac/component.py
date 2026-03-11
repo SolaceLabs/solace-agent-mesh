@@ -4097,6 +4097,9 @@ class SamAgentComponent(SamComponentBase):
 
         Handles starting/stopping agent card publishing based on model readiness.
         """
+        if not self._lazy_model_mode:
+            return  # No action needed if not in lazy model mode
+        
         log.info(
             "%s Model status changed: %s -> %s",
             self.log_identifier,
