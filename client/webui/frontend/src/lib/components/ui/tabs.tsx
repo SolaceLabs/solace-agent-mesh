@@ -16,13 +16,13 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
         <TabsPrimitive.Trigger
             data-slot="tabs-trigger"
             data-testid={props.value}
-            aria-label={props.value}
             title={props.title}
             className={cn(
                 "inline-flex h-[calc(100%-1px)] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow,background-color] hover:bg-(--primary-w10) disabled:pointer-events-none disabled:text-(--secondary-text-w50) data-[state=active]:bg-(--secondary-w10) data-[state=active]:font-semibold data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
                 className
             )}
             {...props}
+            aria-label={props["aria-label"] || props.title || props.value}
         />
     );
 }
