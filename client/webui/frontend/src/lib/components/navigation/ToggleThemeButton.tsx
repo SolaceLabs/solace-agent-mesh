@@ -4,8 +4,9 @@ import { useThemeContext } from "@/lib/hooks";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
 export const ToggleThemeButton: React.FC = () => {
-    const { currentTheme, toggleTheme } = useThemeContext();
-    const label = `Toggle theme (currently ${currentTheme})`;
+    const { currentTheme, themes, toggleTheme } = useThemeContext();
+    const currentLabel = themes.find(t => t.id === currentTheme)?.label ?? currentTheme;
+    const label = `Toggle theme (${currentLabel})`;
 
     return (
         <Tooltip>

@@ -1,4 +1,4 @@
-import type { ThemePalette } from "./themePalette";
+import type { ThemePalette, ThemeDefinition } from "./themePalette";
 
 export const solaceDark: ThemePalette = {
     brand: {
@@ -175,4 +175,10 @@ export const solaceDark: ThemePalette = {
             wMain: "#E6EFF2",
         },
     },
+};
+
+export const solaceDarkTheme: ThemeDefinition = {
+    id: "dark",
+    label: "Solace Dark",
+    palette: solaceDark,
 };

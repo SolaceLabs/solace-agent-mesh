@@ -183,3 +183,9 @@ export type ThemePalette = {
         };
     };
 };
+
+export interface ThemeDefinition {
+    id: string;
+    label: string;
+    palette: ThemePalette;
+}
