@@ -62,7 +62,7 @@ export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
                 {sharedChats.map(item => (
                     <Tooltip key={item.share_id}>
                         <TooltipTrigger asChild>
-                            <button onClick={() => navigate(`/share/${item.share_id}`)} className={sharedChatButtonStyles({ active: false })}>
+                            <button onClick={() => navigate(`/shared-chat/${item.share_id}`)} className={sharedChatButtonStyles({ active: false })}>
                                 <UserSearch className="h-4 w-4 flex-shrink-0 text-[var(--color-secondary-text-w50)]" />
                                 <span className={sharedChatTextStyles({ active: false })}>{item.title}</span>
                             </button>
