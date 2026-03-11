@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2 } from "lucide-react";
+import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, PencilOff } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { viewSharedSession, downloadSharedArtifact } from "@/lib/api/shareApi";
@@ -594,11 +594,16 @@ export function SharedSessionPage() {
                 </header>
 
                 {/* Main content with resizable panels - always show side panel */}
-                <div className="min-h-0 flex-1">
+                <div className="relative min-h-0 flex-1 border-3 border-(--color-info-w30) bg-(--color-background-w20)">
+                    {/* Read-Only Indicator */}
+                    <div className="absolute top-0 left-1/2 z-10 flex h-8 -translate-x-1/2 items-center justify-center gap-2 rounded-br rounded-bl bg-(--color-info-w30) px-2">
+                        <PencilOff className="h-4 w-4 text-(--color-info-w100)" />
+                        <span className="text-xs text-(--color-info-w100)">Read-Only</span>
+                    </div>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
                         {/* Messages panel */}
                         <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-session-messages-panel">
-                            <main className="h-full overflow-y-auto p-6">
+                            <main className="h-full overflow-y-auto bg-(--color-background-w20) p-6">
                                 <div className="mx-auto max-w-3xl space-y-4">
                                     {messages.length === 0 ? (
                                         <div className="text-muted-foreground py-12 text-center">
@@ -635,11 +640,6 @@ export function SharedSessionPage() {
                         </ResizablePanel>
                     </ResizablePanelGroup>
                 </div>
-
-                {/* Footer */}
-                <footer className="text-muted-foreground border-t px-6 py-3 text-center text-sm">
-                    <p>This is a read-only view of a shared chat session.</p>
-                </footer>
             </div>
         </SharedChatProvider>
     );
