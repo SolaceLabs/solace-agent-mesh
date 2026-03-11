@@ -54,12 +54,10 @@ class ShareLink(BaseModel):
             has_shared_users: Whether this share has user-specific shares
         
         Returns:
-            "public", "authenticated", "domain-restricted", or "user-specific"
+            "authenticated", "domain-restricted", or "user-specific"
         """
         if has_shared_users:
             return "user-specific"
-        if not self.require_authentication:
-            return "public"
         if not self.allowed_domains:
             return "authenticated"
         return "domain-restricted"
@@ -117,6 +115,8 @@ class ShareLink(BaseModel):
         """
         Check if a user can access this share link.
         
+        Authentication is always required. Public (not logged-in) access is not supported.
+        
         Args:
             user_id: User ID (None if not authenticated)
             user_email: User email (None if not authenticated)
@@ -126,6 +126,10 @@ class ShareLink(BaseModel):
         Returns:
             Tuple of (can_access: bool, reason: str)
         """
+        # Authentication is always required
+        if user_id is None:
+            return (False, "authentication_required")
+        
         # Check user-specific sharing first
         if shared_user_emails is not None and len(shared_user_emails) > 0:
             # If there are shared users, only they can access (plus owner)
@@ -133,21 +137,11 @@ class ShareLink(BaseModel):
                 return (True, "user_specific")
             # If user is not in the shared list and there are shared users, deny access
             # (unless they're the owner, which is checked elsewhere)
-            if user_id is None:
-                return (False, "authentication_required")
             return (False, "not_shared_with_user")
         
-        # No shared users (or not queried) - fall back to base authentication settings
+        # No shared users - fall back to domain-based settings
         
-        # Public access - anyone can view
-        if not self.require_authentication:
-            return (True, "public")
-        
-        # Authentication required but user not logged in
-        if user_id is None:
-            return (False, "authentication_required")
-        
-        # No domain restriction - any authenticated user
+        # No domain restriction - any authenticated user can access
         if not self.allowed_domains:
             return (True, "authenticated")
         

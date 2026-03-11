@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, GitFork, Loader2 } from "lucide-react";
+import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, GitFork, Loader2, MessageSquare } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
@@ -125,25 +125,23 @@ export function SharedSessionPage() {
 
     const getAccessIcon = (accessType: string) => {
         switch (accessType) {
-            case "public":
-                return <Globe className="h-4 w-4" />;
             case "authenticated":
                 return <Lock className="h-4 w-4" />;
             case "domain-restricted":
                 return <Building2 className="h-4 w-4" />;
             default:
-                return null;
+                return <Lock className="h-4 w-4" />;
         }
     };
 
     const getAccessLabel = (accessType: string) => {
         switch (accessType) {
-            case "public":
-                return "";
             case "authenticated":
                 return "Authenticated";
             case "domain-restricted":
                 return "Domain Restricted";
+            case "user-specific":
+                return "Shared with you";
             default:
                 return accessType;
         }
@@ -636,10 +634,17 @@ export function SharedSessionPage() {
                             </span>
                             <div className="bg-border h-4 w-px" />
                             {forkError && <span className="text-destructive text-sm">{forkError}</span>}
-                            <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
-                                {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                Fork & Continue
-                            </Button>
+                            {session?.is_owner && session?.session_id ? (
+                                <Button variant="outline" size="sm" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)}>
+                                    <MessageSquare className="mr-2 h-4 w-4" />
+                                    Go to Chat
+                                </Button>
+                            ) : (
+                                <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
+                                    {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                    Fork & Continue
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </header>

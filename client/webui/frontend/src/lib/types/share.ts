@@ -69,6 +69,8 @@ export interface SharedSessionView {
     tasks: SharedTask[];
     artifacts: SharedArtifact[];
     task_events?: Record<string, SharedTaskEvents> | null;
+    is_owner?: boolean;
+    session_id?: string | null;
 }
 
 export interface SharedTask {
