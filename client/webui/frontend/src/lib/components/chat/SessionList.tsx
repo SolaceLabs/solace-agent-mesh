@@ -293,7 +293,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
     const handleViewSharedChat = useCallback(
         (item: SharedWithMeItem) => {
-            navigate(`/share/${item.share_id}`);
+            navigate(`/shared-chat/${item.share_id}`);
         },
         [navigate]
     );
