@@ -197,12 +197,7 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
                                     </TableHeader>
                                     <TableBody>
                                         {currentWorkflows.map(workflow => (
-                                            <TableRow
-                                                key={workflow.name}
-                                                onClick={() => handleSelectWorkflow(workflow)}
-                                                className="cursor-pointer hover:bg-(--secondary-w10)"
-                                                data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}
-                                            >
+                                            <TableRow key={workflow.name} onClick={() => handleSelectWorkflow(workflow)} data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}>
                                                 <TableCell>
                                                     <Button
                                                         testid={`workflow-name-${workflow.name}`}
