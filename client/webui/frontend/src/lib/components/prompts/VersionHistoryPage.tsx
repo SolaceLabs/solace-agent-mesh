@@ -303,7 +303,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                             {selectedVersion.promptText.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
                                                 if (part.match(/\{\{[^}]+\}\}/)) {
                                                     return (
-                                                        <span key={index} className="rounded bg-(--primary-w20) px-1 font-medium text-(--primary-wMain)">
+                                                        <span key={index} className="rounded bg-(--info-w20) px-1 font-medium text-(--info-wMain)">
                                                             {part}
                                                         </span>
                                                     );

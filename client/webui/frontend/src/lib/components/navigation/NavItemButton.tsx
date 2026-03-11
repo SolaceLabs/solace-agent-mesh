@@ -32,7 +32,7 @@ export const NavItemButton: React.FC<NavItemButtonProps> = ({ item, isActive, on
                     <span className={navTextStyles({ active: isHighlighted })}>{item.label}</span>
                 </>
             )}
-            {item.hasSubmenu && <span className="ml-auto text-(--nav-text)">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
+            {item.hasSubmenu && <span className="ml-auto text-(--darkSurface-text)">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
             {item.badge}
         </button>
     );

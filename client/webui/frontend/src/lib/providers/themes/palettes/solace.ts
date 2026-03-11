@@ -156,7 +156,7 @@ export const solace: ThemePalette = {
         w10: "#E6EBF1",
     },
 
-    nav: {
+    darkSurface: {
         bg: "#01374E",
         bgHover: "#014968",
         bgActive: "#021B2F",

@@ -7,6 +7,7 @@ import type { WorkflowConfig } from "@/lib/utils/agentUtils";
 import { getAgentSchemas } from "@/lib/utils/agentUtils";
 import type { AgentCardInfo } from "@/lib/types";
 import { Button } from "@/lib/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/lib/components/ui/tabs";
 import { JSONViewer, type JSONValue } from "@/lib/components/jsonViewer";
 import InputMappingViewer from "./InputMappingViewer";
 import { buildWorkflowNavigationUrl } from "./WorkflowVisualizationPage";
@@ -65,16 +66,6 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
             console.error("Failed to copy:", err);
         }
     }, [nodeConfig]);
-
-    // Handle switching to code view
-    const handleInspectCode = useCallback(() => {
-        setShowCodeView(true);
-    }, []);
-
-    // Handle switching to details view
-    const handleShowDetails = useCallback(() => {
-        setShowCodeView(false);
-    }, []);
 
     // Navigate to nested workflow in a new tab
     // When opening in a new tab, don't include parent path - the new tab should start fresh
@@ -254,24 +245,16 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                 </div>
                 <div className="flex items-center gap-2">
                     {/* View toggle */}
-                    <div className="flex overflow-hidden rounded-md border">
-                        <button
-                            onClick={handleShowDetails}
-                            className={`flex items-center justify-center px-3 py-1.5 ${!showCodeView ? "bg-(--brand-w10) text-(--primary-text-wMain)" : "bg-(--background-w10) text-(--secondary-text-wMain) hover:bg-(--background-w10)"}`}
-                            title="Details view"
-                        >
-                            <FileText className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={handleInspectCode}
-                            className={`flex items-center justify-center border-l border-(--secondary-w40) px-3 py-1.5 ${
-                                showCodeView ? "bg-(--brand-w10) text-(--primary-text-wMain)" : "bg-(--background-w10) text-(--secondary-text-wMain) hover:bg-(--background-w10)"
-                            }`}
-                            title="Code view"
-                        >
-                            <Code className="h-4 w-4" />
-                        </button>
-                    </div>
+                    <Tabs value={showCodeView ? "code" : "details"} onValueChange={v => setShowCodeView(v === "code")}>
+                        <TabsList className="bg-transparent p-0">
+                            <TabsTrigger value="details" title="Details view" className="rounded-l-md rounded-r-none border-r-0">
+                                <FileText className="h-4 w-4" />
+                            </TabsTrigger>
+                            <TabsTrigger value="code" title="Code view" className="rounded-l-none rounded-r-md">
+                                <Code className="h-4 w-4" />
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
                 </div>
             </div>
 

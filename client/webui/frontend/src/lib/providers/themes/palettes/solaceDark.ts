@@ -13,7 +13,7 @@ export const solaceDark: ThemePalette = {
     primary: {
         w100: "#66c7e5",
         w90: "#33b8e0",
-        wMain: "#33b8e0",
+        wMain: "#0087c2",
         w60: "#016489",
         w40: "#015470",
         w20: "#013a52",
@@ -156,11 +156,11 @@ export const solaceDark: ThemePalette = {
         w10: "#0a1621",
     },
 
-    nav: {
+    darkSurface: {
         bg: "#010f1e",
         bgHover: "#21435d",
         bgActive: "#021B2F",
-        text: "#FFFFFF",
+        text: "#CBD5E1",
         textMuted: "#B1B9C0",
         accent: "#00C895",
         accentLight: "#66DEBF",

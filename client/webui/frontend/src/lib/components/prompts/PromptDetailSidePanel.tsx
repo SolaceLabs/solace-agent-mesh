@@ -123,7 +123,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                         <div>
                             <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Chat Shortcut</h3>
                             <div>
-                                <span className="inline-block rounded bg-(--primary-w10) px-2 py-0.5 font-mono text-xs text-(--primary-wMain)">/{prompt.productionPrompt?.command || prompt.command}</span>
+                                <span className="inline-block rounded bg-(--primary-w10) px-2 py-0.5 font-mono text-xs text-(--info-wMain)">/{prompt.productionPrompt?.command || prompt.command}</span>
                             </div>
                         </div>
                     )}

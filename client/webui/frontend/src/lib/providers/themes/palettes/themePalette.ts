@@ -163,7 +163,7 @@ export type ThemePalette = {
         w5?: string;
     };
 
-    nav: {
+    darkSurface: {
         bg: string;
         bgHover: string;
         bgActive: string;

@@ -140,15 +140,15 @@ function paletteToCSSVariables(themePalette: ThemePalette): Record<string, strin
     if (themePalette.learning?.w20) variables["--learning-w20"] = themePalette.learning.w20;
     if (themePalette.learning?.w10) variables["--learning-w10"] = themePalette.learning.w10;
 
-    // Navigation colors
-    if (themePalette.nav?.bg) variables["--nav-bg"] = themePalette.nav.bg;
-    if (themePalette.nav?.bgHover) variables["--nav-bgHover"] = themePalette.nav.bgHover;
-    if (themePalette.nav?.bgActive) variables["--nav-bgActive"] = themePalette.nav.bgActive;
-    if (themePalette.nav?.text) variables["--nav-text"] = themePalette.nav.text;
-    if (themePalette.nav?.textMuted) variables["--nav-textMuted"] = themePalette.nav.textMuted;
-    if (themePalette.nav?.accent) variables["--nav-accent"] = themePalette.nav.accent;
-    if (themePalette.nav?.accentLight) variables["--nav-accentLight"] = themePalette.nav.accentLight;
-    if (themePalette.nav?.border) variables["--nav-border"] = themePalette.nav.border;
+    // Dark surface colors (nav sidebar, tooltips, toasts, etc.)
+    if (themePalette.darkSurface?.bg) variables["--darkSurface-bg"] = themePalette.darkSurface.bg;
+    if (themePalette.darkSurface?.bgHover) variables["--darkSurface-bgHover"] = themePalette.darkSurface.bgHover;
+    if (themePalette.darkSurface?.bgActive) variables["--darkSurface-bgActive"] = themePalette.darkSurface.bgActive;
+    if (themePalette.darkSurface?.text) variables["--darkSurface-text"] = themePalette.darkSurface.text;
+    if (themePalette.darkSurface?.textMuted) variables["--darkSurface-textMuted"] = themePalette.darkSurface.textMuted;
+    if (themePalette.darkSurface?.accent) variables["--darkSurface-accent"] = themePalette.darkSurface.accent;
+    if (themePalette.darkSurface?.accentLight) variables["--darkSurface-accentLight"] = themePalette.darkSurface.accentLight;
+    if (themePalette.darkSurface?.border) variables["--darkSurface-border"] = themePalette.darkSurface.border;
 
     // Temporary shim colors
     if (themePalette.temporary?.background?.w10) variables["--temporary-background-w10"] = themePalette.temporary.background.w10;

@@ -192,16 +192,16 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             <PanelRightIcon className="size-5" />
                         </Button>
                         <TabsList className="flex min-w-0 flex-1 bg-transparent p-0">
-                            <TabsTrigger value="files" title="Files" className="relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md px-2 data-[state=active]:z-10" onClick={() => setPreviewArtifact(null)}>
+                            <TabsTrigger value="files" title="Files" className="relative min-w-0 flex-1 rounded-none rounded-l-md px-2 data-[state=active]:z-10" onClick={() => setPreviewArtifact(null)}>
                                 <FileText className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
                             </TabsTrigger>
-                            <TabsTrigger value="activity" title="Activity" className={`relative min-w-0 flex-1 cursor-pointer rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}>
+                            <TabsTrigger value="activity" title="Activity" className={`relative min-w-0 flex-1 rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}>
                                 <Network className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Activity</span>
                             </TabsTrigger>
                             {hasSourcesInSession && (
-                                <TabsTrigger value="rag" title="Sources" className="relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md px-2 data-[state=active]:z-10">
+                                <TabsTrigger value="rag" title="Sources" className="relative min-w-0 flex-1 rounded-none rounded-r-md px-2 data-[state=active]:z-10">
                                     <Link2 className="h-4 w-4 shrink-0" />
                                     <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
                                 </TabsTrigger>

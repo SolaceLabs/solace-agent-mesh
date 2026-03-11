@@ -14,8 +14,8 @@ const buttonVariants = cva(
     {
         variants: {
             variant: {
-                default: "text-(--primary-w10) bg-(--primary-wMain) enabled:hover:text-(white) enabled:hover:bg-(--primary-w100)",
-                destructive: "text-(white) bg-(--error-wMain) enabled:hover:bg-(--error-w70)", //deprecated
+                default: "text-(--darkSurface-text) bg-(--primary-wMain) enabled:hover:bg-(--primary-w100)",
+                destructive: "text-(--darkSurface-text) bg-(--error-wMain) enabled:hover:bg-(--error-w70)", //deprecated
                 outline: commonButtonStyles + " border border-1 border-(--primary-wMain)",
                 secondary: commonButtonStyles,
                 ghost: commonButtonStyles,

@@ -274,10 +274,10 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 </div>
 
                 {/* Divider */}
-                <div className="border-t border-(--secondary-w40)" />
+                <div className="border-t" />
 
                 {/* Children content */}
-                <div className="bg-(--secondary-w20) px-4 py-4">
+                <div className="px-4 py-4">
                     <div className="flex flex-col items-center gap-2">
                         {/* Sequential children */}
                         {hasChildren &&

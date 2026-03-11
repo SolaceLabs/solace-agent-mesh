@@ -248,7 +248,7 @@ export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, classNam
             <div className={cn("relative flex-shrink-0", className)}>
                 <div className="relative h-[42px] w-[38px] border bg-(--secondary-w10)">
                     <div className="absolute top-[2px] right-[2px] bottom-[18px] left-[2px] flex items-center justify-center">{compactIcon ?? <File className="h-4 w-4 text-(--secondary-text-w50)" />}</div>
-                    <div className={cn("absolute right-0 bottom-0 left-0 z-[4] py-[2px] text-center text-[10px] font-bold text-(--primary-text-w10) select-none", typeColor)}>{displayExtension}</div>
+                    <div className={cn("absolute right-0 bottom-0 left-0 z-[4] py-[2px] text-center text-[10px] font-bold text-(--darkSurface-text) select-none", typeColor)}>{displayExtension}</div>
                 </div>
             </div>
         );
@@ -270,7 +270,7 @@ export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, classNam
                 </div>
 
                 {/* File type badge */}
-                <div className={cn("absolute right-[4px] bottom-[4px] z-[4] px-[4px] py-[2px] text-[10px] font-bold text-(--primary-text-w10) select-none", typeColor)}>{displayExtension}</div>
+                <div className={cn("absolute right-[4px] bottom-[4px] z-[4] px-[4px] py-[2px] text-[10px] font-bold text-(--darkSurface-text) select-none", typeColor)}>{displayExtension}</div>
             </div>
         </div>
     );

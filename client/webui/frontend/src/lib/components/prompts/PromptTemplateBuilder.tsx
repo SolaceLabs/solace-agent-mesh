@@ -323,7 +323,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                             {config.detected_variables && config.detected_variables.length > 0 && (
                                                 <div className="flex flex-wrap gap-2">
                                                     {config.detected_variables.map((variable, index) => (
-                                                        <span key={index} className="rounded bg-(--primary-w10) px-2 py-1 font-mono text-xs text-(--primary-wMain)">
+                                                        <span key={index} className="rounded bg-(--info-w10) px-2 py-1 font-mono text-xs text-(--info-wMain)">
                                                             {`{{${variable}}}`}
                                                         </span>
                                                     ))}
