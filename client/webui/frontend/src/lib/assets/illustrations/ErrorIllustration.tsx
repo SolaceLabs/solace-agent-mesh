@@ -1,15 +1,11 @@
-import { useThemeContext } from "@/lib/hooks/useThemeContext";
-
 interface ErrorIllustrationProps {
     width?: number;
     height?: number;
 }
 
 export function ErrorIllustration({ width = 24, height = 24 }: ErrorIllustrationProps) {
-    const { currentTheme } = useThemeContext();
-
-    const fill = currentTheme === "dark" ? "var(--background-wMain)" : "var(--background-w10)";
-    const errorFill = currentTheme === "dark" ? "var(--error-w100)" : "var(--error-w10)";
+    const fill = "var(--background-w10)";
+    const errorFill = "var(--error-w10)";
 
     return (
         <svg width={width} height={height} focusable="false" aria-hidden="true" viewBox="0 0 131 131" fill="none">

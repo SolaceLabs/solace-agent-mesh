@@ -1,13 +1,10 @@
-import { useThemeContext } from "@/lib/hooks/useThemeContext";
-
 interface NotFoundIllustrationProps {
     width?: number;
     height?: number;
 }
 
 export function NotFoundIllustration({ width = 24, height = 24 }: NotFoundIllustrationProps) {
-    const { currentTheme } = useThemeContext();
-    const fill = currentTheme === "dark" ? "var(--background-wMain)" : "var(--background-w10)";
+    const fill = "var(--background-w10)";
 
     return (
         <svg width={width} height={height} viewBox="0 0 130 130" fill="none" xmlns="http://www.w3.org/2000/svg">
