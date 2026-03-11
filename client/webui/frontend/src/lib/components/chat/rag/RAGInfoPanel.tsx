@@ -72,19 +72,13 @@ const SourceCard: React.FC<{
     const showScore = source.relevanceScore !== 1.0;
 
     return (
-        <div className="bg-muted/50 border-border/50 flex flex-col rounded border p-3">
+        <div className="flex flex-col rounded border border-(--secondary-w40) bg-(--secondary-w10) p-3">
             {/* Source Header */}
             <div className="mb-2 flex flex-shrink-0 items-center justify-between">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <FileText className="text-muted-foreground h-3 w-3 flex-shrink-0" />
+                    <FileText className="h-3 w-3 flex-shrink-0 text-(--secondary-text-wMain)" />
                     {sourceUrl ? (
-                        <a
-                            href={sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 truncate text-xs font-medium text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-w60)] hover:underline dark:text-[var(--color-primary-w60)] dark:hover:text-[var(--color-white)]"
-                            title={displayTitle}
-                        >
+                        <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 truncate text-xs font-medium text-(--primary-wMain) hover:text-(--primary-w60) hover:underline" title={displayTitle}>
                             <span className="truncate">{displayTitle}</span>
                             <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
                         </a>
@@ -103,11 +97,11 @@ const SourceCard: React.FC<{
             </div>
 
             {/* Content Preview - Fixed height when collapsed - Only show if we have real content */}
-            {hasRealContent && <div className={`text-muted-foreground overflow-hidden text-xs leading-relaxed break-words whitespace-pre-wrap ${isExpanded ? "" : "h-[72px]"}`}>{displayContent}</div>}
+            {hasRealContent && <div className={`overflow-hidden text-xs leading-relaxed break-words whitespace-pre-wrap text-(--secondary-text-wMain) ${isExpanded ? "" : "h-[72px]"}`}>{displayContent}</div>}
 
             {/* Expand/Collapse Button */}
             {shouldTruncate && (
-                <button onClick={() => setIsExpanded(!isExpanded)} className="text-primary mt-2 flex flex-shrink-0 items-center gap-1 text-xs hover:underline">
+                <button onClick={() => setIsExpanded(!isExpanded)} className="mt-2 flex flex-shrink-0 items-center gap-1 text-xs text-(--primary-wMain) hover:underline">
                     {isExpanded ? (
                         <>
                             <ChevronUp className="h-3 w-3" />
@@ -124,14 +118,14 @@ const SourceCard: React.FC<{
 
             {/* Metadata (if available) */}
             {source.metadata && Object.keys(source.metadata).length > 0 && (
-                <div className="border-border/50 mt-2 flex-shrink-0 border-t pt-2">
+                <div className="mt-2 flex-shrink-0 border-t border-(--secondary-w40) pt-2">
                     <details className="text-xs">
-                        <summary className="text-muted-foreground hover:text-foreground cursor-pointer">Metadata</summary>
+                        <summary className="cursor-pointer text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)">Metadata</summary>
                         <div className="mt-1 space-y-1 pl-2">
                             {Object.entries(source.metadata).map(([key, value]) => (
                                 <div key={key} className="flex gap-2">
                                     <span className="font-medium">{key}:</span>
-                                    <span className="text-muted-foreground">{typeof value === "object" ? JSON.stringify(value) : String(value)}</span>
+                                    <span className="text-(--secondary-text-wMain)">{typeof value === "object" ? JSON.stringify(value) : String(value)}</span>
                                 </div>
                             ))}
                         </div>
@@ -146,7 +140,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
     if (!enabled) {
         return (
             <div className="flex h-full items-center justify-center p-4">
-                <div className="text-muted-foreground text-center">
+                <div className="text-center text-(--secondary-text-wMain)">
                     <Link2 className="mx-auto mb-4 h-12 w-12 opacity-50" />
                     <div className="text-lg font-medium">RAG Sources</div>
                     <div className="mt-2 text-sm">RAG source visibility is disabled in settings</div>
@@ -158,7 +152,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
     if (!ragData || ragData.length === 0) {
         return (
             <div className="flex h-full items-center justify-center p-4">
-                <div className="text-muted-foreground text-center">
+                <div className="text-center text-(--secondary-text-wMain)">
                     <Search className="mx-auto mb-4 h-12 w-12 opacity-50" />
                     <div className="text-lg font-medium">Sources</div>
                     <div className="mt-2 text-sm">No sources available yet</div>
@@ -202,7 +196,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         const favicon = source.metadata?.favicon || (url ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : "");
 
         return (
-            <div className="hover:bg-muted/50 -mx-2 flex items-center gap-2 rounded px-2 py-1.5">
+            <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1.5 hover:bg-(--secondary-w10)">
                 {favicon && (
                     <img
                         src={favicon}
@@ -214,13 +208,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                     />
                 )}
                 {url ? (
-                    <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 truncate text-sm text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-w60)] hover:underline dark:text-[var(--color-primary-w60)] dark:hover:text-[var(--color-white)]"
-                        title={title}
-                    >
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 truncate text-sm text-(--primary-wMain) hover:text-(--primary-w60) hover:underline" title={title}>
                         <span className="truncate">{title}</span>
                         <ExternalLink className="h-3 w-3 flex-shrink-0" />
                     </a>
@@ -343,8 +331,8 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                         {/* Title section showing research question or query */}
                         {panelTitle && (
-                            <div className="border-border/50 mb-4 border-b pb-3">
-                                <h2 className="text-foreground text-base leading-tight font-semibold">{panelTitle}</h2>
+                            <div className="mb-4 border-b border-(--secondary-w40) pb-3">
+                                <h2 className="text-base leading-tight font-semibold text-(--primary-text-wMain)">{panelTitle}</h2>
                             </div>
                         )}
 
@@ -355,7 +343,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                 {fullyReadSources.length > 0 && (
                                     <div className="mb-4">
                                         <div className="mb-2">
-                                            <h3 className="text-muted-foreground text-sm font-semibold">
+                                            <h3 className="text-sm font-semibold text-(--secondary-text-wMain)">
                                                 {fullyReadSources.length} Fully Read Source{fullyReadSources.length !== 1 ? "s" : ""}
                                             </h3>
                                         </div>
@@ -371,10 +359,10 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                 {snippetSources.length > 0 && (
                                     <div>
                                         <div className="mb-2">
-                                            <h3 className="text-muted-foreground text-sm font-semibold">
+                                            <h3 className="text-sm font-semibold text-(--secondary-text-wMain)">
                                                 {snippetSources.length} Partially Read Source{snippetSources.length !== 1 ? "s" : ""}
                                             </h3>
-                                            <p className="text-muted-foreground mt-0.5 text-xs">Search result snippets</p>
+                                            <p className="mt-0.5 text-xs text-(--secondary-text-wMain)">Search result snippets</p>
                                         </div>
                                         <div className="space-y-1">
                                             {snippetSources.map((source, idx) => (
@@ -387,8 +375,8 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                         ) : (
                             <>
                                 <div className="mb-3">
-                                    <h3 className="text-muted-foreground text-sm font-semibold">{isDeepResearch && !hasAnyFetchedSources ? "Sources Explored So Far" : `${allUniqueSources.length} Sources`}</h3>
-                                    {isDeepResearch && !hasAnyFetchedSources && <p className="text-muted-foreground mt-0.5 text-xs">Research in progress...</p>}
+                                    <h3 className="text-sm font-semibold text-(--secondary-text-wMain)">{isDeepResearch && !hasAnyFetchedSources ? "Sources Explored So Far" : `${allUniqueSources.length} Sources`}</h3>
+                                    {isDeepResearch && !hasAnyFetchedSources && <p className="mt-0.5 text-xs text-(--secondary-text-wMain)">Research in progress...</p>}
                                 </div>
                                 <div className="space-y-1">
                                     {allUniqueSources.map((source, idx) => (
@@ -411,8 +399,8 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
 
                     <TabsContent value="activity" className="mt-0 min-h-0 flex-1 overflow-y-auto px-4 pb-4">
                         <div className="mb-3">
-                            <h3 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">Timeline of Research Activity</h3>
-                            <p className="text-muted-foreground mt-1 text-xs">
+                            <h3 className="text-sm font-semibold tracking-wide text-(--secondary-text-wMain) uppercase">Timeline of Research Activity</h3>
+                            <p className="mt-1 text-xs text-(--secondary-text-wMain)">
                                 {ragData.length} search{ragData.length !== 1 ? "es" : ""} performed
                             </p>
                         </div>
@@ -451,8 +439,8 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                             <div key={`${searchIdx}-${eventIdx}`} className="flex items-start gap-3 py-2">
                                                 {/* Icon */}
                                                 <div className="mt-0.5 flex-shrink-0">
-                                                    {event.type === "thinking" && <Brain className="text-muted-foreground h-4 w-4" />}
-                                                    {event.type === "search" && <Search className="text-muted-foreground h-4 w-4" />}
+                                                    {event.type === "thinking" && <Brain className="h-4 w-4 text-(--secondary-text-wMain)" />}
+                                                    {event.type === "search" && <Search className="h-4 w-4 text-(--secondary-text-wMain)" />}
                                                     {event.type === "read" &&
                                                         (() => {
                                                             // Web-only version - only web sources
@@ -470,7 +458,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                                                 );
                                                             } else {
                                                                 // Web source without favicon or unknown
-                                                                return <Globe className="text-muted-foreground h-4 w-4" />;
+                                                                return <Globe className="h-4 w-4 text-(--secondary-text-wMain)" />;
                                                             }
                                                         })()}
                                                 </div>
@@ -479,20 +467,15 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                                 <div className="min-w-0 flex-1">
                                                     {event.type === "search" && (
                                                         <div className="text-sm">
-                                                            <span className="text-muted-foreground">Searched for </span>
+                                                            <span className="text-(--secondary-text-wMain)">Searched for </span>
                                                             <span className="font-medium">{event.content}</span>
                                                         </div>
                                                     )}
                                                     {event.type === "read" && (
                                                         <div className="text-sm">
-                                                            <span className="text-muted-foreground">Read </span>
+                                                            <span className="text-(--secondary-text-wMain)">Read </span>
                                                             {event.url ? (
-                                                                <a
-                                                                    href={event.url}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="inline-flex items-center gap-1 font-medium text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-w60)] hover:underline dark:text-[var(--color-primary-w60)] dark:hover:text-[var(--color-white)]"
-                                                                >
+                                                                <a href={event.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-(--primary-wMain) hover:text-(--primary-w60) hover:underline">
                                                                     <span>{event.title || new URL(event.url).hostname}</span>
                                                                     <ExternalLink className="h-3 w-3 flex-shrink-0" />
                                                                 </a>
@@ -501,7 +484,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                                             )}
                                                         </div>
                                                     )}
-                                                    {event.type === "thinking" && <div className="text-muted-foreground text-sm">{event.content}</div>}
+                                                    {event.type === "thinking" && <div className="text-sm text-(--secondary-text-wMain)">{event.content}</div>}
                                                 </div>
                                             </div>
                                         ))}
@@ -513,8 +496,8 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
 
                     <TabsContent value="sources" className="mt-0 min-h-0 flex-1 overflow-y-auto px-4 pb-4">
                         <div className="mb-3">
-                            <h3 className="text-muted-foreground text-sm font-semibold">All Sources</h3>
-                            <p className="text-muted-foreground mt-1 text-xs">
+                            <h3 className="text-sm font-semibold text-(--secondary-text-wMain)">All Sources</h3>
+                            <p className="mt-1 text-xs text-(--secondary-text-wMain)">
                                 {totalSources} source{totalSources !== 1 ? "s" : ""} found across {ragData.length} search{ragData.length !== 1 ? "es" : ""}
                             </p>
                         </div>

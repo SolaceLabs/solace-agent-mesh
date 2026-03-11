@@ -155,4 +155,24 @@ export const solace: ThemePalette = {
         w20: "#CDD8E2",
         w10: "#E6EBF1",
     },
+
+    nav: {
+        bg: "#01374E",
+        bgHover: "#014968",
+        bgActive: "#021B2F",
+        text: "#FFFFFF",
+        textMuted: "#B1B9C0",
+        accent: "#00C895",
+        accentLight: "#66DEBF",
+        border: "#536574",
+    },
+
+    temporary: {
+        background: {
+            w10: "#FFFFFF",
+        },
+        primary: {
+            wMain: "#015B82",
+        },
+    },
 };

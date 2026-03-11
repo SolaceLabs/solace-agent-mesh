@@ -20,7 +20,7 @@ interface SidebarItemProps {
 
 const SidebarItem = ({ icon, label, active, onClick }: SidebarItemProps) => {
     return (
-        <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "dark:bg-accent bg-(--color-brand-w10)" : "text-muted-foreground hover:bg-accent/50")}>
+        <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "bg-(--secondary-w10) font-semibold" : "text-(--secondary-text-wMain) hover:bg-(--primary-w10)")}>
             {icon}
             <span>{label}</span>
         </button>
@@ -84,7 +84,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             <DialogTrigger asChild>
                                 <button
                                     type="button"
-                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-(--color-primary-w100) px-3 py-5 text-xs text-(--color-primary-text-w10) transition-colors hover:bg-(--color-primary-w90) hover:text-(--color-primary-text-w10)"
+                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-(--nav-bg) px-3 py-5 text-xs text-(--nav-text) transition-colors hover:bg-(--nav-bgHover) hover:text-(--nav-text)"
                                     aria-label="Open Settings"
                                 >
                                     <Settings className="h-6 w-6" />
@@ -108,7 +108,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                 </VisuallyHidden>
                 <div className="flex h-[80vh] overflow-hidden">
                     {/* Sidebar */}
-                    <div className="bg-muted/30 flex w-64 flex-col border-r">
+                    <div className="flex w-64 flex-col border-r">
                         <div className="flex h-15 items-center px-4 text-lg font-semibold">Settings</div>
 
                         <nav className="flex flex-1 flex-col">

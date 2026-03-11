@@ -13,7 +13,7 @@ export const ToggleThemeButton: React.FC = () => {
                 <button
                     type="button"
                     onClick={toggleTheme}
-                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-(--primary-w100) px-3 py-5 text-xs text-(--primary-text-w10) transition-colors hover:bg-(--primary-w90) hover:text-(--primary-text-w10) disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label={label}
                     title={label}
                 >

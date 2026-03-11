@@ -133,7 +133,7 @@ const meta = {
             return (
                 // Mimics the DialogContent container from FlowChartPanel.tsx
                 <div className="overflow-hidden p-4">
-                    <div className="bg-background flex h-[50vh-100px] w-[60vw] flex-col rounded-lg border shadow-lg">{storyResult}</div>
+                    <div className="flex h-[50vh-100px] w-[60vw] flex-col rounded-lg border bg-(--background-w10) shadow-lg">{storyResult}</div>
                 </div>
             );
         },

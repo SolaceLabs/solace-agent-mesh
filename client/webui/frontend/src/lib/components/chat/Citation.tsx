@@ -181,7 +181,7 @@ export function Citation({ citation, onClick, maxLength = DEFAULT_CITATION_MAX_L
     return (
         <button
             onClick={handleClick}
-            className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-0.5 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
+            className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-0.5 rounded-sm bg-(--secondary-w10) px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-(--secondary-text-wMain) transition-colors duration-150 hover:bg-(--secondary-w20)"
             title={tooltip}
             aria-label={`Citation: ${tooltip}`}
             type="button"
@@ -328,7 +328,7 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
         return (
             <button
                 onClick={handleClick}
-                className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
+                className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-(--secondary-w10) px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-(--secondary-text-wMain) transition-colors duration-150 hover:bg-(--secondary-w20)"
                 aria-label={`${uniqueCitations.length} document citations`}
                 type="button"
             >
@@ -353,7 +353,7 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                     onClick={handleClick}
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
-                    className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
+                    className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-(--secondary-w10) px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-(--secondary-text-wMain) transition-colors duration-150 hover:bg-(--secondary-w20)"
                     title={allCitationsTooltip}
                     aria-label={`Citation: ${allCitationsTooltip}`}
                     type="button"
@@ -409,23 +409,19 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                         };
 
                         return (
-                            <button key={`bundled-citation-${index}`} onClick={handleClick} className="hover:bg-accent group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors" type="button">
+                            <button key={`bundled-citation-${index}`} onClick={handleClick} className="group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-(--secondary-w40)" type="button">
                                 {favicon && (
-                                    <div className="relative mt-0.5 h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-white">
+                                    <div className="relative mt-0.5 h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-(--background-w10)">
                                         <img src={favicon} alt="" className="h-full w-full" />
-                                        <div className="border-border/10 absolute inset-0 rounded-full border" />
+                                        <div className="absolute inset-0 rounded-full border border-(--secondary-w20)" />
                                     </div>
                                 )}
                                 <div className="flex-1 overflow-hidden">
                                     <div className="flex items-center gap-1">
-                                        <span className="truncate text-sm font-medium text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]">
-                                            {displayText}
-                                        </span>
-                                        {hasClickableUrl && (
-                                            <ExternalLink className="h-3 w-3 flex-shrink-0 text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]" />
-                                        )}
+                                        <span className="truncate text-sm font-medium text-(--primary-wMain) group-hover:text-(--primary-w60)">{displayText}</span>
+                                        {hasClickableUrl && <ExternalLink className="h-3 w-3 flex-shrink-0 text-(--primary-wMain) group-hover:text-(--primary-w60)" />}
                                     </div>
-                                    {citation.source?.metadata?.title && <div className="text-muted-foreground mt-0.5 truncate text-xs">{citation.source.metadata.title}</div>}
+                                    {citation.source?.metadata?.title && <div className="mt-0.5 truncate text-xs text-(--secondary-text-wMain)">{citation.source.metadata.title}</div>}
                                 </div>
                             </button>
                         );

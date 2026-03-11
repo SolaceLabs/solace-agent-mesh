@@ -113,7 +113,7 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ is
                     </div>
                 </Form>
             ) : (
-                <p className="text-muted-foreground">No files selected.</p>
+                <p className="text-(--secondary-text-wMain)">No files selected.</p>
             )}
         </>
     );

@@ -290,8 +290,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                 <div className="space-y-2">
                     <MessageBanner variant="error" message={fileError} />
                     {validationErrors.length > 0 && (
-                        <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
-                            <ul className="list-inside list-disc space-y-1 text-sm text-red-800 dark:text-red-200">
+                        <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                            <ul className="list-inside list-disc space-y-1 text-sm text-red-800">
                                 {validationErrors.map((err, idx) => (
                                     <li key={idx}>{err}</li>
                                 ))}
@@ -327,12 +327,12 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
 
                         {/* Name Field - Editable when there's a conflict or was initially in conflict */}
                         <div className="space-y-1">
-                            <Label htmlFor="import-name" className="text-muted-foreground text-xs">
-                                Name{conflicts.hasNameConflict && <span className="text-destructive">*</span>}
+                            <Label htmlFor="import-name" className="text-xs text-(--secondary-text-wMain)">
+                                Name{conflicts.hasNameConflict && <span className="text-(--error-wMain)">*</span>}
                             </Label>
                             {initialNameConflict ? (
                                 <div className="space-y-2">
-                                    <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-(--color-error-w100)" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
+                                    <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-(--error-w100)" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
 
                                     {conflicts.hasNameConflict && !errors.name && <ErrorLabel message="Conflict: Already exists. Change name." />}
                                     {errors.name && <ErrorLabel message={errors.name.message} />}
@@ -344,30 +344,30 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
 
                         {/* Description - Always read-only */}
                         <div className="space-y-1">
-                            <Label className="text-muted-foreground text-xs">Description</Label>
-                            {importData.prompt.description ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p> : <p className="text-muted-foreground text-sm italic">No description</p>}
+                            <Label className="text-xs text-(--secondary-text-wMain)">Description</Label>
+                            {importData.prompt.description ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p> : <p className="text-sm text-(--secondary-text-wMain) italic">No description</p>}
                         </div>
 
                         {/* Tag - Always read-only */}
                         <div className="space-y-1">
-                            <Label className="text-muted-foreground text-xs">Tag</Label>
-                            {importData.prompt.category ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p> : <p className="text-muted-foreground text-sm italic">No tag</p>}
+                            <Label className="text-xs text-(--secondary-text-wMain)">Tag</Label>
+                            {importData.prompt.category ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p> : <p className="text-sm text-(--secondary-text-wMain) italic">No tag</p>}
                         </div>
 
                         {/* Chat Shortcut Field - Editable when there's a conflict or was initially in conflict */}
                         <div className="space-y-1">
-                            <Label htmlFor="import-command" className="text-muted-foreground text-xs">
-                                Chat Shortcut{conflicts.hasCommandConflict && <span className="text-destructive">*</span>}
+                            <Label htmlFor="import-command" className="text-xs text-(--secondary-text-wMain)">
+                                Chat Shortcut{conflicts.hasCommandConflict && <span className="text-(--error-wMain)">*</span>}
                             </Label>
                             {initialCommandConflict ? (
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-muted-foreground text-sm">/</span>
+                                        <span className="text-sm text-(--secondary-text-wMain)">/</span>
                                         <Input
                                             id="import-command"
                                             {...register("command")}
                                             placeholder="e.g., code-review"
-                                            className={`flex-1 ${errors.command || conflicts.hasCommandConflict ? "border-(--color-error-w100)" : ""}`}
+                                            className={`flex-1 ${errors.command || conflicts.hasCommandConflict ? "border-(--error-w100)" : ""}`}
                                             maxLength={PROMPT_FIELD_LIMITS.COMMAND_MAX}
                                         />
                                     </div>
@@ -377,14 +377,14 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                             ) : watchedCommand ? (
                                 <p className="font-mono text-sm break-all">{watchedCommand}</p>
                             ) : (
-                                <p className="text-muted-foreground text-sm italic">No chat shortcut</p>
+                                <p className="text-sm text-(--secondary-text-wMain) italic">No chat shortcut</p>
                             )}
                         </div>
 
                         {/* Original Author - Always read-only */}
                         <div className="space-y-1">
-                            <Label className="text-muted-foreground text-xs">Original Author</Label>
-                            {importData.prompt.metadata?.authorName ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p> : <p className="text-muted-foreground text-sm italic">No author</p>}
+                            <Label className="text-xs text-(--secondary-text-wMain)">Original Author</Label>
+                            {importData.prompt.metadata?.authorName ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p> : <p className="text-sm text-(--secondary-text-wMain) italic">No author</p>}
                         </div>
                     </div>
                 </div>

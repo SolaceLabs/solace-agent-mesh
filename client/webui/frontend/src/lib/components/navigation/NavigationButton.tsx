@@ -36,13 +36,15 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                     disabled={disabled}
                     className={cn(
                         "relative mx-auto flex w-full cursor-pointer flex-col items-center px-3 py-5 text-xs transition-colors",
-                        "border-l-4 text-white hover:text-(--color-brand-wMain)",
-                        isActive ? "border-(--color-brand-wMain)" : "border-[#010f1e]"
+                        "bg-(--nav-bg) hover:bg-(--nav-bgHover)",
+                        "text-(--nav-text) hover:bg-(--nav-bgHover) hover:text-(--nav-text)",
+                        "border-l-4 border-(--nav-bg)",
+                        isActive ? "border-l-4 border-(--nav-accent)" : ""
                     )}
                     aria-label={label}
                     aria-current={isActive ? "page" : undefined}
                 >
-                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--color-brand-wMain)")} />
+                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--nav-accent)")} />
                     <span className="text-center text-[13px] leading-tight">{label}</span>
                     {badge && <LifecycleBadge className="mt-1 text-[9px]">{badge}</LifecycleBadge>}
                 </button>

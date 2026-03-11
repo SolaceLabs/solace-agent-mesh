@@ -521,7 +521,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
             <div className="flex h-full flex-col overflow-auto p-4">
                 <div className="flex flex-grow flex-col items-center justify-center text-center">
                     <div className="mb-4 p-4 text-red-500">{fetchError instanceof Error ? fetchError.message : "Failed to load PDF."}</div>
-                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
+                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         Download PDF
                     </a>
                 </div>
@@ -534,7 +534,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
             <div className="flex h-full flex-col overflow-auto p-4">
                 <div className="flex flex-grow flex-col items-center justify-center text-center">
                     <div className="mb-4 p-4 text-red-500">{error}</div>
-                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
+                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         Download PDF
                     </a>
                 </div>
@@ -546,19 +546,19 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
                 <div className="flex flex-grow flex-col items-center justify-center text-center">
-                    <div className="p-4 text-gray-500">Loading PDF...</div>
+                    <div className="p-4 text-(--secondary-text-wMain)">Loading PDF...</div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="flex h-full flex-col bg-gray-100 p-4 dark:bg-gray-800">
+        <div className="flex h-full flex-col bg-(--secondary-w10) p-4">
             <div className="mb-2 flex items-center justify-center">
-                <div className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:bg-gray-700/80">
+                <div className="flex items-center gap-2 rounded-lg bg-(--background-w10)/80 px-3 py-1.5 shadow-sm backdrop-blur-sm">
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <button onClick={zoomOut} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
+                            <button onClick={zoomOut} className="rounded p-1 hover:bg-(--secondary-w20)">
                                 <ZoomOut className="h-4 w-4" />
                             </button>
                         </TooltipTrigger>
@@ -566,7 +566,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                     </Tooltip>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <button onClick={zoomIn} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
+                            <button onClick={zoomIn} className="rounded p-1 hover:bg-(--secondary-w20)">
                                 <ZoomIn className="h-4 w-4" />
                             </button>
                         </TooltipTrigger>
@@ -574,7 +574,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                     </Tooltip>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <button onClick={fitToPage} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
+                            <button onClick={fitToPage} className="rounded p-1 hover:bg-(--secondary-w20)">
                                 <ScanLine className="h-4 w-4" />
                             </button>
                         </TooltipTrigger>
@@ -582,13 +582,10 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                     </Tooltip>
                     {!disableInteractionModes && (
                         <>
-                            <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
+                            <div className="mx-1 h-4 w-px bg-(--secondary-w40)" />
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
-                                        className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                                    >
+                                    <button onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")} className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600" : "hover:bg-(--secondary-w20)"}`}>
                                         <Hand className="h-4 w-4" />
                                     </button>
                                 </TooltipTrigger>
@@ -596,10 +593,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                             </Tooltip>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
-                                        className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                                    >
+                                    <button onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")} className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600" : "hover:bg-(--secondary-w20)"}`}>
                                         <Scissors className="h-4 w-4" />
                                     </button>
                                 </TooltipTrigger>
@@ -607,15 +601,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                             </Tooltip>
                             {/* Show status indicator */}
                             {interactionMode === "snip" && snipStatus !== "idle" && (
-                                <div
-                                    className={`ml-2 rounded px-2 py-0.5 text-xs ${
-                                        snipStatus === "processing"
-                                            ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
-                                            : snipStatus === "success"
-                                              ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
-                                              : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
-                                    }`}
-                                >
+                                <div className={`ml-2 rounded px-2 py-0.5 text-xs ${snipStatus === "processing" ? "bg-blue-100 text-blue-600" : snipStatus === "success" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}>
                                     {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
                                 </div>
                             )}
@@ -625,7 +611,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
             </div>
             <div
                 ref={viewerRef}
-                className={`relative w-full flex-grow overflow-auto rounded border border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${interactionMode === "text" ? "select-text" : ""}`}
+                className={`relative w-full flex-grow overflow-auto rounded border border-(--secondary-w40) bg-(--background-w10) ${interactionMode === "text" ? "select-text" : ""}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -635,8 +621,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
             >
                 {/* Loading overlay while waiting for highlighting to complete */}
                 {isWaitingForHighlight && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Loading PDF...</div>
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-(--background-w10)">
+                        <div className="text-sm text-(--secondary-text-wMain)">Loading PDF...</div>
                     </div>
                 )}
 

@@ -146,7 +146,7 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
         if (totalPages <= 1) return null;
 
         return (
-            <div className="border-border bg-background mt-4 flex flex-shrink-0 justify-center border-t pt-4 pb-2">
+            <div className="mt-4 flex flex-shrink-0 justify-center border-t border-(--secondary-w40) bg-(--background-w10) pt-4 pb-2">
                 <Pagination>
                     <PaginationContent>
                         <PaginationItem>
@@ -197,7 +197,12 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
                                     </TableHeader>
                                     <TableBody>
                                         {currentWorkflows.map(workflow => (
-                                            <TableRow key={workflow.name} onClick={() => handleSelectWorkflow(workflow)} className="hover:bg-muted/50 cursor-pointer" data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}>
+                                            <TableRow
+                                                key={workflow.name}
+                                                onClick={() => handleSelectWorkflow(workflow)}
+                                                className="cursor-pointer hover:bg-(--secondary-w10)"
+                                                data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}
+                                            >
                                                 <TableCell>
                                                     <Button
                                                         testid={`workflow-name-${workflow.name}`}
@@ -211,10 +216,10 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
                                                         {workflow.displayName || workflow.name}
                                                     </Button>
                                                 </TableCell>
-                                                <TableCell className="text-muted-foreground">{workflow.version || "N/A"}</TableCell>
+                                                <TableCell className="text-(--secondary-text-wMain)">{workflow.version || "N/A"}</TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-2">
-                                                        <div className="h-2 w-2 rounded-full bg-[var(--color-success-wMain)]"></div>
+                                                        <div className="h-2 w-2 rounded-full bg-(--success-wMain)"></div>
                                                         <span>Running</span>
                                                     </div>
                                                 </TableCell>

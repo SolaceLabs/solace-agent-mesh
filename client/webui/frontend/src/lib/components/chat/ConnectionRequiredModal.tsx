@@ -30,11 +30,11 @@ export const ConnectionRequiredModal: React.FC<ConnectionRequiredModalProps> = (
                 </DialogHeader>
 
                 {/* Content */}
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
-                    <p className="text-sm text-blue-900 dark:text-blue-100">
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <p className="text-sm text-blue-900">
                         <strong>How to connect:</strong>
                     </p>
-                    <ol className="mt-2 list-inside list-decimal space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                    <ol className="mt-2 list-inside list-decimal space-y-1 text-sm text-blue-800">
                         <li>Go to the Connections panel</li>
                         <li>Click "Connect" next to {sourceName}</li>
                         <li>Authenticate with your account</li>

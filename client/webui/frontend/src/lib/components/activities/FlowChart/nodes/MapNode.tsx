@@ -68,7 +68,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                     }}
                 >
                     <div className="flex items-center gap-2 px-4 py-2">
-                        <Repeat2 className="h-4 w-4 text-(--color-accent-n0-wMain)" />
+                        <Repeat2 className="h-4 w-4 text-(--accent-n0-wMain)" />
                         <span className="text-sm font-semibold">{node.data.label || label}</span>
                     </div>
                 </div>
@@ -107,8 +107,8 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
             }}
         >
             <div className="flex items-center gap-2">
-                <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{node.data.label || label}</span>
+                <Repeat2 className="h-4 w-4 text-indigo-600" />
+                <span className="text-sm font-semibold text-indigo-900">{node.data.label || label}</span>
             </div>
         </div>
     );

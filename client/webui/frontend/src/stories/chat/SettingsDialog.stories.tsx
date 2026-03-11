@@ -65,7 +65,7 @@ export const Default = {
         const [activeItem, setActiveItem] = useState<string | null>(null);
 
         return (
-            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--color-primary-w100)", display: "flex", flexDirection: "column" }}>
+            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--nav-bg)", display: "flex", flexDirection: "column" }}>
                 <NavigationList items={[]} activeItem={activeItem} onItemClick={(itemId: string) => setActiveItem(itemId)} />
             </div>
         );
@@ -93,7 +93,7 @@ export const About = {
         const [activeItem, setActiveItem] = useState<string | null>(null);
 
         return (
-            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--color-primary-w100)", display: "flex", flexDirection: "column" }}>
+            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--nav-bg)", display: "flex", flexDirection: "column" }}>
                 <NavigationList items={[]} activeItem={activeItem} onItemClick={(itemId: string) => setActiveItem(itemId)} />
             </div>
         );
@@ -133,7 +133,7 @@ export const TextToSpeech = {
         const [activeItem, setActiveItem] = useState<string | null>(null);
 
         return (
-            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--color-primary-w100)", display: "flex", flexDirection: "column" }}>
+            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--nav-bg)", display: "flex", flexDirection: "column" }}>
                 <NavigationList items={[]} activeItem={activeItem} onItemClick={(itemId: string) => setActiveItem(itemId)} />
             </div>
         );
@@ -176,7 +176,7 @@ export const Logout = {
         const [activeItem, setActiveItem] = useState<string | null>(null);
 
         return (
-            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--color-primary-w100)", display: "flex", flexDirection: "column" }}>
+            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--nav-bg)", display: "flex", flexDirection: "column" }}>
                 <NavigationList items={[]} activeItem={activeItem} onItemClick={(itemId: string) => setActiveItem(itemId)} />
             </div>
         );
@@ -213,7 +213,7 @@ export const All = {
         const [activeItem, setActiveItem] = useState<string | null>(null);
 
         return (
-            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--color-primary-w100)", display: "flex", flexDirection: "column" }}>
+            <div style={{ width: "100px", height: "100%", backgroundColor: "var(--nav-bg)", display: "flex", flexDirection: "column" }}>
                 <NavigationList items={[]} activeItem={activeItem} onItemClick={(itemId: string) => setActiveItem(itemId)} />
             </div>
         );

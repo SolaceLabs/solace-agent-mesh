@@ -11,7 +11,7 @@ const meta = {
     },
     decorators: [
         Story => (
-            <div className="flex items-center justify-center bg-white p-8 dark:bg-gray-900">
+            <div className="flex items-center justify-center bg-white p-8">
                 <Story />
             </div>
         ),

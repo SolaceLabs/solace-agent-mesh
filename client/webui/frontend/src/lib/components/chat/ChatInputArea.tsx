@@ -719,7 +719,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     return (
         <div
-            className={`bg-card rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
+            className={`rounded-lg border bg-(--background-w10) p-4 shadow-sm ${isDragging ? "border-dotted border-(--primary-wMain) bg-(--background-w20)" : ""}`}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -747,9 +747,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
                 <div className="mb-2 overflow-hidden">
-                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
-                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                        <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
+                    <div className="inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm">
+                        <Quote className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
+                        <span className="min-w-0 flex-1 truncate text-(--secondary-text-wMain) italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
                             className="h-5 w-5 shrink-0"

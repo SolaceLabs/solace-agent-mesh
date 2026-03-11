@@ -35,17 +35,17 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
         return (
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    <Label className="text-muted-foreground text-sm font-medium">{label}</Label>
+                    <Label className="text-sm font-medium text-(--secondary-text-wMain)">{label}</Label>
                     {isHighlighted && showBadges && (
-                        <Badge variant="default" className="bg-primary text-primary-foreground text-xs">
+                        <Badge variant="default" className="bg-(--primary-wMain) text-xs text-(--primary-text-w10)">
                             Updated
                         </Badge>
                     )}
                 </div>
                 {isCommand ? (
-                    <div className="rounded p-3 text-sm">{isEmpty ? <span className="text-muted-foreground italic">No {label.toLowerCase()} yet</span> : <span className="text-primary font-mono">/{value}</span>}</div>
+                    <div className="rounded p-3 text-sm">{isEmpty ? <span className="text-(--secondary-text-wMain) italic">No {label.toLowerCase()} yet</span> : <span className="font-mono text-(--primary-wMain)">/{value}</span>}</div>
                 ) : (
-                    <div className="rounded p-3 text-sm">{isEmpty ? <span className="text-muted-foreground italic">No {label.toLowerCase()} yet</span> : value}</div>
+                    <div className="rounded p-3 text-sm">{isEmpty ? <span className="text-(--secondary-text-wMain) italic">No {label.toLowerCase()} yet</span> : value}</div>
                 )}
             </div>
         );
@@ -61,7 +61,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
             return parts.map((part, index) => {
                 if (part.match(/\{\{[^}]+\}\}/)) {
                     return (
-                        <span key={index} className="bg-primary/20 text-primary rounded px-1 font-medium">
+                        <span key={index} className="rounded bg-(--primary-w20) px-1 font-medium text-(--primary-wMain)">
                             {part}
                         </span>
                     );
@@ -74,12 +74,14 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
                     {isHighlighted && showBadges && (
-                        <Badge variant="default" className="bg-primary text-primary-foreground text-xs">
+                        <Badge variant="default" className="bg-(--primary-wMain) text-xs text-(--primary-text-w10)">
                             Updated
                         </Badge>
                     )}
                 </div>
-                <div className="min-h-[288px] w-full rounded-md px-3 py-2 font-mono text-sm whitespace-pre-wrap">{isEmpty ? <span className="text-muted-foreground italic">No prompt text yet</span> : highlightVariables(config.promptText!)}</div>
+                <div className="min-h-[288px] w-full rounded-md px-3 py-2 font-mono text-sm whitespace-pre-wrap">
+                    {isEmpty ? <span className="text-(--secondary-text-wMain) italic">No prompt text yet</span> : highlightVariables(config.promptText!)}
+                </div>
             </div>
         );
     };
@@ -88,14 +90,14 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
         const variables = config.detected_variables || [];
 
         if (variables.length === 0) {
-            return <div className="text-muted-foreground py-2 text-sm italic">No variables detected yet</div>;
+            return <div className="py-2 text-sm text-(--secondary-text-wMain) italic">No variables detected yet</div>;
         }
 
         return (
             <div className="py-2">
                 <div className="flex flex-wrap gap-2">
                     {variables.map((variable, index) => (
-                        <span key={index} className="bg-primary/10 text-primary rounded px-2 py-1 font-mono text-xs">
+                        <span key={index} className="rounded bg-(--primary-w10) px-2 py-1 font-mono text-xs text-(--primary-wMain)">
                             {`{{${variable}}}`}
                         </span>
                     ))}
@@ -109,8 +111,8 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
             {/* Header */}
             <div className="border-b px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
-                        <NotepadText className="text-muted-foreground h-4 w-4" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-(--secondary-w10)">
+                        <NotepadText className="h-4 w-4 text-(--secondary-text-wMain)" />
                     </div>
                     <div>
                         <h3 className="text-sm font-semibold">Preview</h3>
@@ -122,11 +124,11 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
             <div className="flex-1 space-y-4 overflow-y-auto px-4" style={{ paddingTop: "24px" }}>
                 {!hasContent ? (
                     <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-                        <div className="bg-muted mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-                            <NotepadText className="text-muted-foreground h-8 w-8" />
+                        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-(--secondary-w10)">
+                            <NotepadText className="h-8 w-8 text-(--secondary-text-wMain)" />
                         </div>
                         <h3 className="mb-2 text-lg font-semibold">No Template Yet</h3>
-                        <p className="text-muted-foreground max-w-sm text-sm">Start chatting with the AI assistant to create your template. The preview will update in real-time as you describe your task.</p>
+                        <p className="max-w-sm text-sm text-(--secondary-text-wMain)">Start chatting with the AI assistant to create your template. The preview will update in real-time as you describe your task.</p>
                     </div>
                 ) : (
                     <>
@@ -153,15 +155,15 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
                             <div className="space-y-3">
                                 {config.detected_variables && config.detected_variables.length > 0 ? (
                                     <>
-                                        <p className="text-muted-foreground text-sm leading-relaxed">
+                                        <p className="text-sm leading-relaxed text-(--secondary-text-wMain)">
                                             Variables are placeholder values that make your prompt flexible and reusable. Variables are enclosed in double brackets like{" "}
-                                            <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{"{{Variable Name}}"}</code>. You will be asked to fill in these variable values whenever you use this prompt. The prompt above has the
-                                            following variables:
+                                            <code className="rounded bg-(--secondary-w10) px-1.5 py-0.5 font-mono text-xs">{"{{Variable Name}}"}</code>. You will be asked to fill in these variable values whenever you use this prompt. The prompt above
+                                            has the following variables:
                                         </p>
                                         {renderVariables()}
                                     </>
                                 ) : (
-                                    <div className="text-muted-foreground bg-muted/50 rounded-lg p-3 text-sm italic">No variables detected yet</div>
+                                    <div className="rounded-lg bg-(--secondary-w10) p-3 text-sm text-(--secondary-text-wMain) italic">No variables detected yet</div>
                                 )}
                             </div>
                         </div>

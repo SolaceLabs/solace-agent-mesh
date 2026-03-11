@@ -11,7 +11,7 @@ function Input({ className, type, ...props }: ComponentProps<"input">) {
                 "flex h-9 w-full min-w-0",
 
                 // Border & Background
-                "border-input rounded-xs border bg-transparent",
+                "rounded-xs border border-(--secondary-w40) bg-transparent",
 
                 // Spacing
                 "px-3 py-1",
@@ -23,10 +23,10 @@ function Input({ className, type, ...props }: ComponentProps<"input">) {
                 "shadow-xs transition-[color,box-shadow] outline-none",
 
                 // Placeholder & Selection
-                "placeholder:text-placeholder",
+                "placeholder:text-(--secondary-wMain)",
 
                 // Focus State
-                "focus-visible:border-[var(--color-brand-wMain)]",
+                "focus-visible:border-(--brand-wMain)",
 
                 // Disabled State
                 "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
@@ -35,7 +35,7 @@ function Input({ className, type, ...props }: ComponentProps<"input">) {
                 "read-only:cursor-default read-only:opacity-80",
 
                 // Invalid/Error State
-                "aria-invalid:border-[var(--color-error-w100)]",
+                "aria-invalid:border-(--error-w100)",
 
                 className
             )}

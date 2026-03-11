@@ -40,11 +40,11 @@ const MappingValue: React.FC<{
 
     // Render based on value type
     if (value === null) {
-        return <span className="text-gray-400 dark:text-gray-500">null</span>;
+        return <span className="text-(--secondary-text-wMain)">null</span>;
     }
 
     if (value === undefined) {
-        return <span className="text-gray-400 dark:text-gray-500">undefined</span>;
+        return <span className="text-(--secondary-text-wMain)">undefined</span>;
     }
 
     if (typeof value === "string") {
@@ -62,7 +62,7 @@ const MappingValue: React.FC<{
 
         return (
             <span className="flex gap-1">
-                <span className="flex-1 font-mono text-(--color-error-w100)">"{value}"</span>
+                <span className="flex-1 font-mono text-(--error-wMain)">"{value}"</span>
                 {hasNodeRefs && onNavigateToNode && (
                     <Button variant="ghost" onClick={handleNavigate} onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])} onMouseLeave={() => onHighlightNodes?.([])} tooltip={`Navigate to ${nodeRefs[0]}`} className="bg-red-100">
                         <Search />
@@ -73,27 +73,27 @@ const MappingValue: React.FC<{
     }
 
     if (typeof value === "number") {
-        return <span className="font-mono text-(--color-info-w100)">{value}</span>;
+        return <span className="font-mono text-(--info-w100)">{value}</span>;
     }
 
     if (typeof value === "boolean") {
-        return <span className="font-mono text-(--color-brand-w100)">{value.toString()}</span>;
+        return <span className="font-mono text-(--brand-w100)">{value.toString()}</span>;
     }
 
     if (Array.isArray(value)) {
         if (value.length === 0) {
-            return <span className="text-gray-500">[]</span>;
+            return <span className="text-(--secondary-text-wMain)">[]</span>;
         }
         return (
             <div className="ml-3">
-                <span className="text-gray-500">[</span>
+                <span className="text-(--secondary-text-wMain)">[</span>
                 {value.map((item, index) => (
                     <div key={index} className="ml-3">
                         <MappingValue value={item} onHighlightNodes={onHighlightNodes} knownNodeIds={knownNodeIds} onNavigateToNode={onNavigateToNode} depth={depth + 1} />
-                        {index < value.length - 1 && <span className="text-gray-500">,</span>}
+                        {index < value.length - 1 && <span className="text-(--secondary-text-wMain)">,</span>}
                     </div>
                 ))}
-                <span className="text-gray-500">]</span>
+                <span className="text-(--secondary-text-wMain)">]</span>
             </div>
         );
     }
@@ -101,25 +101,25 @@ const MappingValue: React.FC<{
     if (typeof value === "object") {
         const entries = Object.entries(value as Record<string, unknown>);
         if (entries.length === 0) {
-            return <span className="text-gray-500">{"{}"}</span>;
+            return <span className="text-(--secondary-text-wMain)">{"{}"}</span>;
         }
         return (
             <div className="ml-3">
-                <span className="text-gray-500">{"{"}</span>
+                <span className="text-(--secondary-text-wMain)">{"{"}</span>
                 {entries.map(([key, val], index) => (
                     <div key={key} className="ml-3">
-                        <span className="text-gray-700 dark:text-gray-300">{key}</span>
-                        <span className="text-gray-500">: </span>
+                        <span className="text-(--primary-text-wMain)">{key}</span>
+                        <span className="text-(--secondary-text-wMain)">: </span>
                         <MappingValue value={val} onHighlightNodes={onHighlightNodes} knownNodeIds={knownNodeIds} onNavigateToNode={onNavigateToNode} depth={depth + 1} />
-                        {index < entries.length - 1 && <span className="text-gray-500">,</span>}
+                        {index < entries.length - 1 && <span className="text-(--secondary-text-wMain)">,</span>}
                     </div>
                 ))}
-                <span className="text-gray-500">{"}"}</span>
+                <span className="text-(--secondary-text-wMain)">{"}"}</span>
             </div>
         );
     }
 
-    return <span className="text-gray-500">{String(value)}</span>;
+    return <span className="text-(--secondary-text-wMain)">{String(value)}</span>;
 };
 
 /**
@@ -129,7 +129,7 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({ mapping, onHigh
     const entries = Object.entries(mapping);
 
     if (entries.length === 0) {
-        return <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">No input mapping defined</div>;
+        return <div className="rounded-lg border border-dashed p-4 text-center text-sm text-(--secondary-text-wMain)">No input mapping defined</div>;
     }
 
     // Helper to check if value has node references
@@ -150,7 +150,7 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({ mapping, onHigh
                     <div key={key} className="space-y-1">
                         <div className="font-mono text-sm">{key}</div>
                         <div className="flex items-center gap-2">
-                            <div className="bg-card-background flex-1 overflow-auto px-2.5 py-1 break-words dark:border">
+                            <div className="flex-1 overflow-auto bg-(--background-w20) px-2.5 py-1 break-words">
                                 <MappingValue value={value} onHighlightNodes={onHighlightNodes} knownNodeIds={knownNodeIds} onNavigateToNode={undefined} />
                             </div>
                             {hasNodeRefs && onNavigateToNode && (

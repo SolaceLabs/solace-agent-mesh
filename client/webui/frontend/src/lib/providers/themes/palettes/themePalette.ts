@@ -162,4 +162,24 @@ export type ThemePalette = {
         w10: string;
         w5?: string;
     };
+
+    nav: {
+        bg: string;
+        bgHover: string;
+        bgActive: string;
+        text: string;
+        textMuted: string;
+        accent: string;
+        accentLight: string;
+        border: string;
+    };
+
+    temporary?: {
+        background?: {
+            w10?: string;
+        };
+        primary?: {
+            wMain?: string;
+        };
+    };
 };

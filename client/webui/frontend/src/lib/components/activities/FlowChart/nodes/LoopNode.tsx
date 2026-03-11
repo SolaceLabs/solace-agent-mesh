@@ -67,16 +67,16 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
                     {/* Header row */}
                     <div className="flex items-center gap-4 px-4 py-2">
                         <div className="flex items-center gap-2">
-                            <RefreshCw className="h-4 w-4 text-(--color-accent-n0-wMain)" />
+                            <RefreshCw className="h-4 w-4 text-(--accent-n0-wMain)" />
                             <span className="text-sm font-semibold">{node.data.label || "Loop"}</span>
                         </div>
-                        {maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {maxIterations}</span>}
+                        {maxIterations && <span className="text-sm text-(--secondary-text-wMain)">max: {maxIterations}</span>}
                     </div>
 
                     {/* Condition display */}
                     {hasConditionRow && node.data.condition && (
                         <div className="px-4 pt-0 pb-3">
-                            <span className="text-secondary-foreground block truncate rounded bg-(--color-secondary-w10) px-2 py-1 text-sm dark:bg-(--color-secondary-w80)" title={node.data.condition}>
+                            <span className="block truncate rounded bg-(--secondary-w10) px-2 py-1 text-sm text-(--secondary-text-wMain)" title={node.data.condition}>
                                 while: {formatCondition(node.data.condition)}
                             </span>
                         </div>
@@ -97,7 +97,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
 
                             {/* Iteration Counter (if in progress and more iterations coming) */}
                             {node.data.status === "in-progress" && currentIteration > node.children.length && (
-                                <div className="mt-2 rounded bg-(--color-background-w10) px-2 py-1 text-[9px] font-medium text-gray-600 dark:bg-(--color-background-wMain) dark:text-gray-300">Processing iteration {currentIteration}...</div>
+                                <div className="mt-2 rounded bg-(--background-w10) px-2 py-1 text-[9px] font-medium text-(--secondary-text-wMain)">Processing iteration {currentIteration}...</div>
                             )}
                         </div>
                     </div>
@@ -117,10 +117,10 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
             }}
         >
             <div className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                <RefreshCw className="h-4 w-4 text-teal-600" />
                 <span className="text-sm font-semibold">Loop</span>
             </div>
-            {maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {maxIterations}</span>}
+            {maxIterations && <span className="text-sm text-(--secondary-text-wMain)">max: {maxIterations}</span>}
         </div>
     );
 };

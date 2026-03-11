@@ -34,11 +34,17 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language }) => {
 
     return (
         <div className="group relative">
-            <pre className="border-border mb-4 max-w-full overflow-x-auto rounded-lg border bg-transparent p-4 whitespace-pre-wrap">
+            <pre className="mb-4 max-w-full overflow-x-auto rounded-lg border border-(--secondary-w40) bg-transparent p-4 whitespace-pre-wrap">
                 <code className={`bg-transparent p-0 text-sm break-words ${language ? `language-${language}` : ""}`}>{code}</code>
             </pre>
-            <Button variant="ghost" size="icon" className="bg-background/80 hover:bg-background absolute top-2 right-2 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100" onClick={handleCopy} tooltip={isCopied ? "Copied!" : "Copy code"}>
-                {isCopied ? <Check className="h-4 w-4 text-[var(--color-success-wMain)]" /> : <Copy className="h-4 w-4" />}
+            <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 h-8 w-8 bg-(--background-w10)/80 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-(--background-w10)"
+                onClick={handleCopy}
+                tooltip={isCopied ? "Copied!" : "Copy code"}
+            >
+                {isCopied ? <Check className="h-4 w-4 text-(--success-wMain)" /> : <Copy className="h-4 w-4" />}
             </Button>
         </div>
     );

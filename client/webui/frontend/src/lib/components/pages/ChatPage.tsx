@@ -280,12 +280,12 @@ export function ChatPage() {
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
-                            <div className="bg-card-background flex h-full w-full flex-col">
+                            <div className="flex h-full w-full flex-col bg-(--background-w20)">
                                 <div className="flex min-h-0 flex-1 flex-col py-6">
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">
                                             <Spinner size="medium" variant="primary">
-                                                <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
+                                                <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading session...</p>
                                             </Spinner>
                                         </div>
                                     ) : (

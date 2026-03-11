@@ -19,9 +19,9 @@ export { getCleanDomain, getFaviconUrl } from "@/lib/utils";
  */
 export function FaviconImage({ domain, className = "" }: { domain: string; className?: string }) {
     return (
-        <div className={cn("relative h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-white", className)}>
+        <div className={cn("relative h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-(--background-w10)", className)}>
             <img src={getFaviconUrl(domain)} alt={domain} className="relative h-full w-full" />
-            <div className="absolute inset-0 rounded-full border border-gray-200/10 dark:border-transparent" />
+            <div className="absolute inset-0 rounded-full border border-(--secondary-w20)" />
         </div>
     );
 }
@@ -126,7 +126,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 onClick={onClick}
                                 onMouseEnter={handleMouseEnter}
                                 onMouseLeave={handleMouseLeave}
-                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-blue-600 no-underline transition-colors dark:text-blue-400"
+                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-blue-600 no-underline transition-colors"
                                 title={isLocalFile ? "Download unavailable for local files" : undefined}
                             >
                                 {label}
@@ -138,7 +138,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 rel="noopener noreferrer"
                                 onMouseEnter={handleMouseEnter}
                                 onMouseLeave={handleMouseLeave}
-                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
+                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
                             >
                                 <span className="truncate">{label}</span>
                                 <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-60" />
@@ -149,7 +149,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                         onClick={() => setIsOpen(!isOpen)}
                         onMouseEnter={handleMouseEnter}
                         onMouseLeave={handleMouseLeave}
-                        className="text-text-primary focus:ring-ring ml-0.5 rounded-full focus:ring-2 focus:outline-none"
+                        className="text-text-primary ml-0.5 rounded-full focus:ring-2 focus:ring-(--brand-wMain) focus:outline-none"
                         aria-label={`More details about ${label}`}
                     >
                         <VisuallyHidden>More details about {label}</VisuallyHidden>
@@ -181,7 +181,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                         <FaviconImage domain={domain} className="mr-2" />
                                     )}
                                     {isFile ? (
-                                        <button onClick={onClick} className="line-clamp-2 cursor-pointer overflow-hidden text-left text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3 dark:text-blue-400">
+                                        <button onClick={onClick} className="line-clamp-2 cursor-pointer overflow-hidden text-left text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3">
                                             {source.attribution || source.title || "File Source"}
                                         </button>
                                     ) : (
@@ -189,7 +189,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                             href={source.link}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="line-clamp-2 inline-flex cursor-pointer items-center gap-1 overflow-hidden text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3 dark:text-blue-400"
+                                            className="line-clamp-2 inline-flex cursor-pointer items-center gap-1 overflow-hidden text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3"
                                         >
                                             <span className="truncate">{source.attribution || domain}</span>
                                             <ExternalLink className="h-3 w-3 flex-shrink-0" />

@@ -24,7 +24,7 @@ export const ErrorDialog: React.FC<ErrorDialogProps> = ({ title, subtitle, error
                 </DialogHeader>
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-row items-center gap-2">
-                        <CircleX className="h-6 w-6 shrink-0 self-start text-(--color-error-wMain)" />
+                        <CircleX className="h-6 w-6 shrink-0 self-start text-(--error-wMain)" />
                         <div>{error}</div>
                     </div>
                     {errorDetails && <div>{errorDetails}</div>}

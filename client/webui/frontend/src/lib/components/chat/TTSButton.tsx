@@ -259,7 +259,7 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
             size="icon"
             onClick={handleClick}
             disabled={isLoading || !content}
-            className={cn("size-8 transition-colors", isSpeaking && "bg-blue-50 hover:bg-blue-100 dark:bg-blue-950 dark:hover:bg-blue-900", className)}
+            className={cn("size-8 transition-colors", isSpeaking && "bg-blue-50 hover:bg-blue-100", className)}
             tooltip={getTooltip()}
             aria-label={isSpeaking ? "Stop reading aloud" : "Read aloud"}
             aria-pressed={isSpeaking}

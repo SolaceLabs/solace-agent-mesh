@@ -9,7 +9,7 @@ export interface NavItemProps {
 }
 
 export const NavItem = ({ label, isActive, onClick, badge }: NavItemProps) => (
-    <button role="tab" aria-selected={isActive} onClick={onClick} className={`relative cursor-pointer px-4 py-3 font-medium ${isActive ? "border-b-2 border-(--color-brand-wMain) font-semibold" : ""}`}>
+    <button role="tab" aria-selected={isActive} onClick={onClick} className={`relative cursor-pointer px-4 py-3 font-medium ${isActive ? "border-b-2 border-(--brand-wMain) font-semibold" : ""}`}>
         <span className="flex items-center gap-2">
             {label}
             {badge && <LifecycleBadge variant="transparent">{badge}</LifecycleBadge>}

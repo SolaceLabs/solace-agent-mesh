@@ -112,11 +112,11 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     }
 
     if (error) {
-        return <div className="text-destructive text-xs">{error}</div>;
+        return <div className="text-xs text-(--error-wMain)">{error}</div>;
     }
 
     if (!content) {
-        return <div className="text-secondary-foreground text-xs">No content available</div>;
+        return <div className="text-xs text-(--secondary-text-wMain)">No content available</div>;
     }
 
     // Derive render type from filename and fetched mime type
@@ -125,7 +125,7 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
 
     // No supported render type - show message
     if (!renderType) {
-        return <div className="text-secondary-foreground text-xs">Preview not available for this file type</div>;
+        return <div className="text-xs text-(--secondary-text-wMain)">Preview not available for this file type</div>;
     }
 
     // Create a FileAttachment-like object for getFileContent
@@ -137,7 +137,7 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     const processedContent = getFileContent(fileAttachment);
 
     if (!processedContent) {
-        return <div className="text-secondary-foreground text-xs">No content available</div>;
+        return <div className="text-xs text-(--secondary-text-wMain)">No content available</div>;
     }
 
     return (
@@ -145,7 +145,7 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
             <div className={`overflow-y-auto ${renderType === "html" ? "h-[calc(50vh-100px)]" : "max-h-[calc(50vh-100px)]"}`}>
                 <ContentRenderer content={processedContent} rendererType={renderType} mime_type={effectiveMimeType} setRenderError={setError} />
             </div>
-            {isTruncated && <div className="mt-2 text-xs text-(--color-info-wMain)">Content truncated at first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters</div>}
+            {isTruncated && <div className="mt-2 text-xs text-(--info-wMain)">Content truncated at first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters</div>}
         </>
     );
 };
@@ -165,27 +165,27 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
     const getNodeIcon = () => {
         switch (nodeDetails.nodeType) {
             case "user":
-                return <User className="text-purple-500 dark:text-purple-400" size={20} />;
+                return <User className="text-purple-500" size={20} />;
             case "agent":
-                return <Bot className="text-(--color-brand-wMain)" size={20} />;
+                return <Bot className="text-(--brand-wMain)" size={20} />;
             case "llm":
-                return <Zap className="text-teal-500 dark:text-teal-400" size={20} />;
+                return <Zap className="text-teal-500" size={20} />;
             case "tool":
-                return <Wrench className="text-cyan-500 dark:text-cyan-400" size={20} />;
+                return <Wrench className="text-cyan-500" size={20} />;
             case "switch":
-                return <GitBranch className="text-purple-500 dark:text-purple-400" size={20} />;
+                return <GitBranch className="text-purple-500" size={20} />;
             case "loop":
-                return <RefreshCw className="text-teal-500 dark:text-teal-400" size={20} />;
+                return <RefreshCw className="text-teal-500" size={20} />;
             case "group":
-                return <Workflow className="text-purple-500 dark:text-purple-400" size={20} />;
+                return <Workflow className="text-purple-500" size={20} />;
             default:
-                return <Terminal className="text-secondary-foreground" size={20} />;
+                return <Terminal className="text-(--secondary-text-wMain)" size={20} />;
         }
     };
 
     const renderStepContent = (step: VisualizerStep | undefined, isRequest: boolean) => {
         if (!step) {
-            return <div className="text-secondary-foreground flex h-full items-center justify-center">{isRequest ? "No request data available" : "No result data available"}</div>;
+            return <div className="flex h-full items-center justify-center text-(--secondary-text-wMain)">{isRequest ? "No request data available" : "No result data available"}</div>;
         }
 
         // Format timestamp with milliseconds
@@ -202,7 +202,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         return (
             <div className="space-y-3">
                 {/* Timestamp */}
-                <div className="text-secondary-foreground font-mono text-xs">{formattedTimestamp}</div>
+                <div className="font-mono text-xs text-(--secondary-text-wMain)">{formattedTimestamp}</div>
 
                 {/* Step-specific content */}
                 {renderStepTypeContent(step)}
@@ -249,7 +249,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         <div>
             <h4 className="mb-2 text-sm font-semibold">User Input</h4>
             {step.data.text && (
-                <div className="prose prose-sm dark:prose-invert bg-muted/50 max-h-96 max-w-none overflow-y-auto rounded-md p-3">
+                <div className="prose prose-sm max-h-96 max-w-none overflow-y-auto rounded-md bg-(--secondary-w10) p-3">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
@@ -274,7 +274,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.instruction && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Instruction:</div>
-                            <div className="prose prose-sm dark:prose-invert max-w-none overflow-y-auto rounded-md border border-(--color-info-w100) bg-(--color-info-w10) p-3 dark:bg-(--color-info-w100)/50">
+                            <div className="prose prose-sm max-w-none overflow-y-auto rounded-md border border-(--info-w100) bg-(--info-w10) p-3">
                                 <MarkdownHTMLConverter>{data.instruction}</MarkdownHTMLConverter>
                             </div>
                         </div>
@@ -285,10 +285,10 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         <div>
                             <div className="mb-1 flex min-w-0 items-baseline gap-1 text-xs font-semibold">
                                 <span className="flex-shrink-0">Input:</span>
-                                <span className="text-muted-foreground min-w-0 truncate font-normal" title={data.inputArtifactRef.name}>
+                                <span className="min-w-0 truncate font-normal text-(--secondary-text-wMain)" title={data.inputArtifactRef.name}>
                                     {data.inputArtifactRef.name}
                                 </span>
-                                {data.inputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600 dark:text-purple-400">v{data.inputArtifactRef.version}</span>}
+                                {data.inputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600">v{data.inputArtifactRef.version}</span>}
                             </div>
 
                             <ArtifactContentViewer uri={data.inputArtifactRef.uri} name={data.inputArtifactRef.name} version={data.inputArtifactRef.version} />
@@ -299,7 +299,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.inputText && !data.inputArtifactRef && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Input:</div>
-                            <div className="prose prose-sm dark:prose-invert bg-muted/50 max-w-none overflow-y-auto rounded-md p-3">
+                            <div className="prose prose-sm max-w-none overflow-y-auto rounded-md bg-(--secondary-w10) p-3">
                                 <MarkdownHTMLConverter>{data.inputText}</MarkdownHTMLConverter>
                             </div>
                         </div>
@@ -326,7 +326,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     )}
 
                     {/* No input data available */}
-                    {!data.inputText && !data.inputArtifactRef && !data.instruction && <div className="text-secondary-foreground text-xs italic">No input data available</div>}
+                    {!data.inputText && !data.inputArtifactRef && !data.instruction && <div className="text-xs text-(--secondary-text-wMain) italic">No input data available</div>}
                 </div>
             </div>
         );
@@ -336,7 +336,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         <div>
             <h4 className="mb-2 text-sm font-semibold">Agent Response</h4>
             {step.data.text && (
-                <div className="prose prose-sm dark:prose-invert bg-muted/50 max-w-none overflow-y-auto rounded-md p-3">
+                <div className="prose prose-sm max-w-none overflow-y-auto rounded-md bg-(--secondary-w10) p-3">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
@@ -356,7 +356,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     </div>
                     <div>
                         <div className="mb-1 text-xs font-semibold">Prompt:</div>
-                        <pre className="bg-muted/50 max-h-80 overflow-auto rounded-md p-2 text-xs break-words whitespace-pre-wrap">{data.promptPreview}</pre>
+                        <pre className="max-h-80 overflow-auto rounded-md bg-(--secondary-w10) p-2 text-xs break-words whitespace-pre-wrap">{data.promptPreview}</pre>
                     </div>
                 </div>
             </div>
@@ -377,7 +377,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         </div>
                     )}
                     <div>
-                        <pre className="bg-muted/50 max-h-80 overflow-auto rounded-md p-2 text-xs break-words whitespace-pre-wrap">{data.response || data.responsePreview}</pre>
+                        <pre className="max-h-80 overflow-auto rounded-md bg-(--secondary-w10) p-2 text-xs break-words whitespace-pre-wrap">{data.response || data.responsePreview}</pre>
                     </div>
                     {data.isFinalResponse !== undefined && (
                         <div className="text-xs">
@@ -403,11 +403,9 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                             <div className="space-y-2">
                                 {data.decisions.map((decision: ToolDecision, index: number) => (
                                     <div key={index} className="rounded-md border p-2">
-                                        <div className="mb-1 text-xs font-semibold text-(--color-info-wMain)">
+                                        <div className="mb-1 text-xs font-semibold text-(--info-wMain)">
                                             {decision.toolName}
-                                            {decision.isPeerDelegation && (
-                                                <span className="ml-2 rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-700 dark:bg-purple-900 dark:text-purple-300">{decision.toolName.startsWith("workflow_") ? "Workflow" : "Peer Agent"}</span>
-                                            )}
+                                            {decision.isPeerDelegation && <span className="ml-2 rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-700">{decision.toolName.startsWith("workflow_") ? "Workflow" : "Peer Agent"}</span>}
                                         </div>
                                         {decision.toolArguments && Object.keys(decision.toolArguments).length > 0 && <div className="mt-1">{renderFormattedArguments(decision.toolArguments)}</div>}
                                     </div>
@@ -444,14 +442,14 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         const entries = Object.entries(args);
 
         if (entries.length === 0) {
-            return <div className="text-muted-foreground text-xs italic">No arguments</div>;
+            return <div className="text-xs text-(--secondary-text-wMain) italic">No arguments</div>;
         }
 
         return (
             <div className="space-y-3">
                 {entries.map(([key, value]) => (
                     <div key={key} className="overflow-hidden rounded-md border p-2">
-                        <div className="mb-1 text-xs font-semibold text-(--color-info-wMain)">{key}</div>
+                        <div className="mb-1 text-xs font-semibold text-(--info-wMain)">{key}</div>
                         <div className="max-h-60 overflow-auto text-xs">{renderArgumentValue(value)}</div>
                     </div>
                 ))}
@@ -462,10 +460,10 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
     const renderArgumentValue = (value: unknown): ReactNode => {
         // Handle null/undefined
         if (value === null) {
-            return <span className="text-secondary-foreground italic">null</span>;
+            return <span className="text-(--secondary-text-wMain) italic">null</span>;
         }
         if (value === undefined) {
-            return <span className="text-secondary-foreground italic">undefined</span>;
+            return <span className="text-(--secondary-text-wMain) italic">undefined</span>;
         }
 
         // Handle primitives
@@ -473,23 +471,23 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             return <span className="break-words whitespace-pre-wrap">{value}</span>;
         }
         if (typeof value === "number") {
-            return <span className="text-purple-600 dark:text-purple-400">{value}</span>;
+            return <span className="text-purple-600">{value}</span>;
         }
         if (typeof value === "boolean") {
-            return <span className="text-(--color-success-wMain)">{value.toString()}</span>;
+            return <span className="text-(--success-wMain)">{value.toString()}</span>;
         }
 
         // Handle arrays
         if (Array.isArray(value)) {
             if (value.length === 0) {
-                return <span className="text-secondary-foreground italic">[]</span>;
+                return <span className="text-(--secondary-text-wMain) italic">[]</span>;
             }
             // For simple arrays of primitives, show inline
             if (value.every(item => typeof item === "string" || typeof item === "number" || typeof item === "boolean")) {
                 return (
                     <div className="space-y-1">
                         {value.map((item, idx) => (
-                            <div key={idx} className="border-l-2 border-(--color-info-wMain) pl-2">
+                            <div key={idx} className="border-l-2 border-(--info-wMain) pl-2">
                                 {renderArgumentValue(item)}
                             </div>
                         ))}
@@ -532,7 +530,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         }
 
         // Fallback
-        return <span className="text-secondary-foreground">{String(value)}</span>;
+        return <span className="text-(--secondary-text-wMain)">{String(value)}</span>;
     };
 
     const renderToolResult = (step: VisualizerStep) => {
@@ -551,7 +549,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         {typeof data.resultData === "object" && data.resultData !== null ? (
                             renderFormattedArguments(data.resultData)
                         ) : (
-                            <div className="bg-muted/50 overflow-hidden rounded-md border p-2">
+                            <div className="overflow-hidden rounded-md border bg-(--secondary-w10) p-2">
                                 <div className="max-h-60 overflow-auto text-xs">{renderArgumentValue(data.resultData)}</div>
                             </div>
                         )}
@@ -576,14 +574,14 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         <span className="font-semibold">Workflow Node:</span> {data.nodeId}
                     </div>
                     {data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === "number" && (
-                        <div className="inline-block rounded bg-(--color-info-w10) px-2 py-1 text-xs text-(--color-info-wMain) dark:bg-(--color-info-w100)/50">Iteration #{data.iterationIndex}</div>
+                        <div className="inline-block rounded bg-(--info-w10) px-2 py-1 text-xs text-(--info-wMain)">Iteration #{data.iterationIndex}</div>
                     )}
                     {data.inputArtifactRef && (
                         <div className="mt-2">
                             <div className="mb-1 text-xs font-semibold">Input:</div>
-                            <div className="bg-muted/50 rounded-md border p-2">
+                            <div className="rounded-md border bg-(--secondary-w10) p-2">
                                 <div className="text-xs">
-                                    <div className="mb-1 font-semibold text-(--color-info-wMain)">Artifact Reference</div>
+                                    <div className="mb-1 font-semibold text-(--info-wMain)">Artifact Reference</div>
                                     <div className="space-y-1">
                                         <div className="flex min-w-0 gap-2">
                                             <span className="flex-shrink-0 font-semibold">name:</span>
@@ -594,7 +592,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                         {data.inputArtifactRef.version !== undefined && (
                                             <div className="flex gap-2">
                                                 <span className="flex-shrink-0 font-semibold">version:</span>
-                                                <span className="text-purple-600 dark:text-purple-400">{data.inputArtifactRef.version}</span>
+                                                <span className="text-purple-600">{data.inputArtifactRef.version}</span>
                                             </div>
                                         )}
                                     </div>
@@ -602,7 +600,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                             </div>
                         </div>
                     )}
-                    <div className="text-muted-foreground mt-2 text-xs italic">This agent was invoked by the workflow with the input specified above.</div>
+                    <div className="mt-2 text-xs text-(--secondary-text-wMain) italic">This agent was invoked by the workflow with the input specified above.</div>
                 </div>
             </div>
         );
@@ -628,13 +626,13 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                 <div className="mb-2 text-xs font-semibold">Cases:</div>
                                 <div className="space-y-2">
                                     {data.cases.map((caseItem, index) => (
-                                        <div key={index} className="bg-muted/50 rounded-md border p-2">
+                                        <div key={index} className="rounded-md border bg-(--secondary-w10) p-2">
                                             <div className="mb-1 flex items-center gap-2">
-                                                <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">Case {index + 1}</span>
-                                                <ArrowRight className="text-secondary-foreground h-3 w-3" />
-                                                <span className="text-xs font-medium text-(--color-info-wMain)">{caseItem.node}</span>
+                                                <span className="text-xs font-semibold text-purple-600">Case {index + 1}</span>
+                                                <ArrowRight className="h-3 w-3 text-(--secondary-text-wMain)" />
+                                                <span className="text-xs font-medium text-(--info-wMain)">{caseItem.node}</span>
                                             </div>
-                                            <code className="text-muted-foreground block text-xs break-all">{caseItem.condition}</code>
+                                            <code className="block text-xs break-all text-(--secondary-text-wMain)">{caseItem.condition}</code>
                                         </div>
                                     ))}
                                 </div>
@@ -643,11 +641,11 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
                         {/* Default branch */}
                         {data.defaultBranch && (
-                            <div className="rounded-md border border-(--color-warning-w100) p-2">
+                            <div className="rounded-md border border-(--warning-w100) p-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-semibold text-(--color-warning-wMain)">Default</span>
-                                    <ArrowRight className="text-secondary-foreground h-3 w-3" />
-                                    <span className="text-xs font-medium text-(--color-info-wMain)">{data.defaultBranch}</span>
+                                    <span className="text-xs font-semibold text-(--warning-wMain)">Default</span>
+                                    <ArrowRight className="h-3 w-3 text-(--secondary-text-wMain)" />
+                                    <span className="text-xs font-medium text-(--info-wMain)">{data.defaultBranch}</span>
                                 </div>
                             </div>
                         )}
@@ -668,7 +666,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         {data.condition && (
                             <div>
                                 <div className="mb-1 text-xs font-semibold">Condition:</div>
-                                <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.condition}</code>
+                                <code className="block rounded-md bg-(--secondary-w10) p-2 text-xs break-all">{data.condition}</code>
                             </div>
                         )}
                         {data.maxIterations !== undefined && (
@@ -705,11 +703,11 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     {data.condition && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Condition:</div>
-                            <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.condition}</code>
+                            <code className="block rounded-md bg-(--secondary-w10) p-2 text-xs break-all">{data.condition}</code>
                         </div>
                     )}
                     {data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === "number" && (
-                        <div className="inline-block rounded bg-(--color-info-w10) px-2 py-1 text-xs text-(--color-info-wMain) dark:bg-(--color-info-w100)/50">Iteration #{data.iterationIndex}</div>
+                        <div className="inline-block rounded bg-(--info-w10) px-2 py-1 text-xs text-(--info-wMain)">Iteration #{data.iterationIndex}</div>
                     )}
                 </div>
             </div>
@@ -730,36 +728,35 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                 <h4 className="mb-2 text-sm font-semibold">{isSwitch ? "Switch Result" : "Workflow Node Result"}</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
-                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-(--color-success-wMain)" : data.status === "failure" ? "text-destructive" : ""}>{data.status}</span>
+                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-(--success-wMain)" : data.status === "failure" ? "text-(--error-wMain)" : ""}>{data.status}</span>
                     </div>
 
                     {/* Switch node result - selected branch */}
                     {selectedBranch !== undefined && (
-                        <div className="mt-2 rounded-md border border-(--color-success-wMain) p-2">
+                        <div className="mt-2 rounded-md border border-(--success-wMain) p-2">
                             <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-(--color-success-wMain)" />
-                                <span className="text-xs font-semibold text-(--color-success-wMain)">Selected Branch:</span>
-                                <span className="text-xs font-bold text-(--color-success-wMain)">{selectedBranch}</span>
+                                <CheckCircle className="h-4 w-4 text-(--success-wMain)" />
+                                <span className="text-xs font-semibold text-(--success-wMain)">Selected Branch:</span>
+                                <span className="text-xs font-bold text-(--success-wMain)">{selectedBranch}</span>
                             </div>
-                            {selectedCaseIndex !== undefined && selectedCaseIndex !== null && <div className="mt-1 text-xs text-(--color-success-wMain)">Matched Case #{selectedCaseIndex + 1}</div>}
-                            {selectedCaseIndex === null && <div className="mt-1 text-xs text-(--color-warning-wMain)">(Default branch - no case matched)</div>}
+                            {selectedCaseIndex !== undefined && selectedCaseIndex !== null && <div className="mt-1 text-xs text-(--success-wMain)">Matched Case #{selectedCaseIndex + 1}</div>}
+                            {selectedCaseIndex === null && <div className="mt-1 text-xs text-(--warning-wMain)">(Default branch - no case matched)</div>}
                         </div>
                     )}
 
                     {data.conditionResult !== undefined && (
                         <div className="text-xs">
-                            <span className="font-semibold">Condition Result:</span>{" "}
-                            <span className={data.conditionResult ? "font-bold text-(--color-success-wMain)" : "font-bold text-(--color-warning-wMain)"}>{data.conditionResult ? "True" : "False"}</span>
+                            <span className="font-semibold">Condition Result:</span> <span className={data.conditionResult ? "font-bold text-(--success-wMain)" : "font-bold text-(--warning-wMain)"}>{data.conditionResult ? "True" : "False"}</span>
                         </div>
                     )}
                     {data.metadata?.condition && (
                         <div>
                             <div className="mb-1 text-xs font-semibold">Condition:</div>
-                            <code className="bg-muted/50 block rounded-md p-2 text-xs break-all">{data.metadata.condition}</code>
+                            <code className="block rounded-md bg-(--secondary-w10) p-2 text-xs break-all">{data.metadata.condition}</code>
                         </div>
                     )}
                     {data.errorMessage && (
-                        <div className="text-destructive text-xs">
+                        <div className="text-xs text-(--error-wMain)">
                             <span className="font-semibold">Error:</span> {data.errorMessage}
                         </div>
                     )}
@@ -799,7 +796,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                 <h4 className="mb-2 text-sm font-semibold">Workflow Result</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
-                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-(--color-success-wMain)" : "text-red-600 dark:text-red-400"}>{data.status}</span>
+                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-(--success-wMain)" : "text-red-600"}>{data.status}</span>
                     </div>
                     {data.workflowOutput && (
                         <div>
@@ -808,7 +805,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         </div>
                     )}
                     {data.errorMessage && (
-                        <div className="text-xs text-red-600 dark:text-red-400">
+                        <div className="text-xs text-red-600">
                             <span className="font-semibold">Error:</span> {data.errorMessage}
                         </div>
                     )}
@@ -829,10 +826,10 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             <div className="mt-4 border-t pt-4">
                 <div className="mb-2 flex min-w-0 items-baseline gap-1 text-xs font-semibold">
                     <span className="flex-shrink-0">Output Artifact:</span>
-                    <span className="text-secondary-foreground min-w-0 truncate font-normal" title={outputArtifactRef.name}>
+                    <span className="min-w-0 truncate font-normal text-(--secondary-text-wMain)" title={outputArtifactRef.name}>
                         {outputArtifactRef.name}
                     </span>
-                    {outputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600 dark:text-purple-400">v{outputArtifactRef.version}</span>}
+                    {outputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600">v{outputArtifactRef.version}</span>}
                 </div>
                 <div className="rounded-md border p-2">
                     <ArtifactContentViewer name={outputArtifactRef.name} version={outputArtifactRef.version} />
@@ -877,31 +874,29 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             <div className={asColumn ? "" : "mt-4 border-t pt-4"}>
                 <div className={`flex items-center gap-2 ${asColumn ? "mb-3 border-b pb-2" : "mb-3"}`}>
                     <div className={`${asColumn ? "h-2 w-2 rounded-full bg-indigo-500" : ""}`}></div>
-                    <FileText className={`h-4 w-4 text-indigo-500 dark:text-indigo-400 ${asColumn ? "hidden" : ""}`} />
-                    <h4 className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{asColumn ? "CREATED ARTIFACTS" : `Created Artifacts (${nodeDetails.createdArtifacts.length})`}</h4>
+                    <FileText className={`h-4 w-4 text-indigo-500 ${asColumn ? "hidden" : ""}`} />
+                    <h4 className="text-sm font-bold text-indigo-600">{asColumn ? "CREATED ARTIFACTS" : `Created Artifacts (${nodeDetails.createdArtifacts.length})`}</h4>
                 </div>
                 <div className="space-y-3">
                     {nodeDetails.createdArtifacts.map((artifact, index) => (
-                        <div key={`${artifact.filename}-${artifact.version ?? index}`} className="rounded-md border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-700 dark:bg-indigo-900/30">
+                        <div key={`${artifact.filename}-${artifact.version ?? index}`} className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
                             <div className="mb-1 flex items-center justify-between gap-2">
                                 <button
                                     onClick={() => handleArtifactClick(artifact.filename, artifact.version)}
-                                    className="min-w-0 cursor-pointer truncate text-sm font-semibold text-indigo-700 transition-colors hover:text-indigo-900 hover:underline dark:text-indigo-300 dark:hover:text-indigo-100"
+                                    className="min-w-0 cursor-pointer truncate text-sm font-semibold text-indigo-700 transition-colors hover:text-indigo-900 hover:underline"
                                     title={artifact.filename}
                                 >
                                     {artifact.filename}
                                 </button>
-                                <div className="flex flex-shrink-0 items-center">
-                                    {artifact.version !== undefined && <span className="rounded bg-indigo-200 px-1.5 py-0.5 text-xs text-indigo-700 dark:bg-indigo-800 dark:text-indigo-300">v{artifact.version}</span>}
-                                </div>
+                                <div className="flex flex-shrink-0 items-center">{artifact.version !== undefined && <span className="rounded bg-indigo-200 px-1.5 py-0.5 text-xs text-indigo-700">v{artifact.version}</span>}</div>
                             </div>
                             {artifact.description && <p className="mb-2 text-xs">{artifact.description}</p>}
                             {artifact.mimeType && (
-                                <div className="text-secondary-foreground text-xs">
+                                <div className="text-xs text-(--secondary-text-wMain)">
                                     <span className="font-medium">Type:</span> {artifact.mimeType}
                                 </div>
                             )}
-                            <div className="bg-card mt-2 rounded-lg p-2">
+                            <div className="mt-2 rounded-lg bg-(--background-w10) p-2">
                                 <ArtifactContentViewer name={artifact.filename} version={artifact.version} mimeType={artifact.mimeType} />
                             </div>
                         </div>
@@ -915,16 +910,16 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
     const renderMainContent = () => (
         <div className="flex flex-col">
             {/* Header */}
-            <div className="dark:bg-card flex flex-shrink-0 items-center gap-3 border-b p-4">
+            <div className="flex flex-shrink-0 items-center gap-3 border-b p-4">
                 {getNodeIcon()}
                 <div className="min-w-0 flex-1">
                     <h3 className="truncate text-base font-bold">{nodeDetails.label}</h3>
                     {nodeDetails.description ? (
-                        <p className="text-secondary-foreground truncate text-xs" title={nodeDetails.description}>
+                        <p className="truncate text-xs text-(--secondary-text-wMain)" title={nodeDetails.description}>
                             {nodeDetails.description}
                         </p>
                     ) : (
-                        <p className="text-secondary-foreground text-xs capitalize">{nodeDetails.nodeType} Node</p>
+                        <p className="text-xs text-(--secondary-text-wMain) capitalize">{nodeDetails.nodeType} Node</p>
                     )}
                 </div>
             </div>
@@ -933,16 +928,16 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             <div className="min-h-0 flex-1 overflow-hidden">
                 {hasRequestAndResult ? (
                     /* Split view for request and result (and optionally created artifacts) */
-                    <div className={`grid h-full grid-cols-1 ${hasCreatedArtifacts ? "lg:grid-cols-3" : "lg:grid-cols-2"} divide-y divide-gray-200 lg:divide-x lg:divide-y-0 dark:divide-gray-700`}>
+                    <div className={`grid h-full grid-cols-1 ${hasCreatedArtifacts ? "lg:grid-cols-3" : "lg:grid-cols-2"} divide-y divide-gray-200 lg:divide-x lg:divide-y-0`}>
                         {/* Request Column */}
                         <div className="max-h-[calc(85vh-140px)] overflow-y-auto p-4">
-                            <ColumnHeader label="REQUEST" color="(--color-info-wMain)" />
+                            <ColumnHeader label="REQUEST" color="(--info-wMain)" />
                             {renderStepContent(nodeDetails.requestStep, true)}
                         </div>
 
                         {/* Result Column */}
                         <div className="max-h-[calc(85vh-140px)] overflow-y-auto p-4">
-                            <ColumnHeader label="RESULT" color="(--color-success-wMain)" />
+                            <ColumnHeader label="RESULT" color="(--success-wMain)" />
                             {renderStepContent(nodeDetails.resultStep, false)}
                             {renderOutputArtifact()}
                         </div>
@@ -956,8 +951,8 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         {nodeDetails.requestStep && (
                             <div className="mb-4">
                                 <div className="mb-3 flex items-center gap-2 border-b pb-2">
-                                    <div className="h-2 w-2 rounded-full bg-(--color-info-wMain)"></div>
-                                    <h4 className="text-sm font-bold text-(--color-info-wMain)">REQUEST</h4>
+                                    <div className="h-2 w-2 rounded-full bg-(--info-wMain)"></div>
+                                    <h4 className="text-sm font-bold text-(--info-wMain)">REQUEST</h4>
                                 </div>
                                 {renderStepContent(nodeDetails.requestStep, true)}
                             </div>
@@ -965,15 +960,15 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         {nodeDetails.resultStep && (
                             <div>
                                 <div className="mb-3 flex items-center gap-2 border-b pb-2">
-                                    <div className="h-2 w-2 rounded-full bg-(--color-success-wMain)"></div>
-                                    <h4 className="text-sm font-bold text-(--color-success-wMain)">RESULT</h4>
+                                    <div className="h-2 w-2 rounded-full bg-(--success-wMain)"></div>
+                                    <h4 className="text-sm font-bold text-(--success-wMain)">RESULT</h4>
                                 </div>
                                 {renderStepContent(nodeDetails.resultStep, false)}
                                 {renderOutputArtifact()}
                                 {renderCreatedArtifacts()}
                             </div>
                         )}
-                        {!nodeDetails.requestStep && !nodeDetails.resultStep && <div className="text-muted-foreground flex h-32 items-center justify-center italic">No detailed information available for this node</div>}
+                        {!nodeDetails.requestStep && !nodeDetails.resultStep && <div className="flex h-32 items-center justify-center text-(--secondary-text-wMain) italic">No detailed information available for this node</div>}
                     </div>
                 )}
             </div>

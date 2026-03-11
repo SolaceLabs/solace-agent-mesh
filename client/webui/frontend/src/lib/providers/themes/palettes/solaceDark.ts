@@ -11,18 +11,18 @@ export const solaceDark: ThemePalette = {
     },
 
     primary: {
-        w100: "#0076a3",
-        w90: "#00719e",
-        wMain: "#016c9c",
-        w60: "#015890",
-        w40: "#014664",
-        w20: "#01364e",
+        w100: "#66c7e5",
+        w90: "#33b8e0",
+        wMain: "#33b8e0",
+        w60: "#016489",
+        w40: "#015470",
+        w20: "#013a52",
         w10: "#00293b",
 
         text: {
-            wMain: "#f5f5f5",
+            wMain: "#CBD5E1",
             w100: "#f5f5f5",
-            w10: "#273749",
+            w10: "#05172b",
         },
     },
 
@@ -32,7 +32,7 @@ export const solaceDark: ThemePalette = {
         w8040: "#0d111766",
         w100: "#f5f5f5",
         wMain: "#8790a0",
-        w40: "#6f8190",
+        w40: "#536574", // "#6f8190",
         w20: "#536574",
         w10: "#354e62",
 
@@ -48,6 +48,7 @@ export const solaceDark: ThemePalette = {
         w20: "#010f1e",
         w10: "#02172b",
     },
+
     info: {
         w100: "#8ec3dd",
         wMain: "#1893cd",
@@ -63,7 +64,7 @@ export const solaceDark: ThemePalette = {
         w70: "#b57273",
         w30: "#6a4146",
         w20: "#4e3034",
-        w10: "#3a2629",
+        w10: "#523539",
     },
 
     warning: {
@@ -85,8 +86,8 @@ export const solaceDark: ThemePalette = {
     },
 
     stateLayer: {
-        w10: "#ffffff1A",
-        w20: "#ffffff33",
+        w10: "#c5ced9",
+        w20: "#c5ced9",
     },
 
     accent: {
@@ -94,7 +95,7 @@ export const solaceDark: ThemePalette = {
             w100: "#b9c6eb",
             wMain: "#6987d3",
             w30: "#243b7a",
-            w10: "#0f1a34",
+            w10: "#1f3567",
         },
         n1: {
             w100: "#bcc3e2",
@@ -109,13 +110,13 @@ export const solaceDark: ThemePalette = {
             wMain: "#2f9698",
             w30: "#1f6667",
             w20: "#164a4b",
-            w10: "#0a1f21",
+            w10: "#143d42",
         },
         n3: {
             w100: "#cdc2d6",
             wMain: "#9d78be",
             w30: "#542f74",
-            w10: "#2d1641",
+            w10: "#4a2768",
         },
         n4: {
             w100: "#e5b8d9",
@@ -126,12 +127,12 @@ export const solaceDark: ThemePalette = {
             w100: "#f2b7ae",
             wMain: "#d96f5f",
             w30: "#6a2f27",
-            w60: "#b55346",
+            w60: "#8d3428",
         },
         n6: {
-            w100: "#f2d6a3",
-            wMain: "#e3a64a",
-            w30: "#6e4a16",
+            w100: "#e5ccaa",
+            wMain: "#d4a055",
+            w30: "#776132",
         },
         n7: {
             w100: "#cfeaf6",
@@ -139,19 +140,39 @@ export const solaceDark: ThemePalette = {
             w30: "#2f5e73",
         },
         n8: {
-            w100: "#d5dbe0",
-            wMain: "#86939e",
-            w30: "#5e6a74",
+            w100: "#b5bcc2",
+            wMain: "#99a6b1",
+            w30: "#748190",
         },
         n9: {
-            wMain: "#c84a57",
+            wMain: "#e06e7b",
         },
     },
     learning: {
         wMain: "#4a8fe0",
         w90: "#7fb1ea",
         w100: "#b6d1f5",
-        w20: "#172b52",
-        w10: "#0f1e3a",
+        w20: "#142d4b",
+        w10: "#0a1621",
+    },
+
+    nav: {
+        bg: "#010f1e",
+        bgHover: "#21435d",
+        bgActive: "#021B2F",
+        text: "#FFFFFF",
+        textMuted: "#B1B9C0",
+        accent: "#00C895",
+        accentLight: "#66DEBF",
+        border: "#536574",
+    },
+
+    temporary: {
+        background: {
+            w10: "#010f1e",
+        },
+        primary: {
+            wMain: "#E6EFF2",
+        },
     },
 };

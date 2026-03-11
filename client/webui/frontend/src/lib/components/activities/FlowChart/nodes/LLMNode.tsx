@@ -23,7 +23,7 @@ const LLMNode: FC<LLMNodeProps> = ({ node, isSelected, onClick }) => {
             }}
         >
             <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 flex-shrink-0 text-teal-600 dark:text-teal-400" />
+                <Sparkles className="h-4 w-4 flex-shrink-0 text-teal-600" />
                 <div className="truncate text-sm font-semibold">{node.data.label}</div>
             </div>
         </div>
