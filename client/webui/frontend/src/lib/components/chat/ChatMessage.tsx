@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 
-import { AlertCircle, Bot, Quote, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertCircle, Quote, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
-import { ChatBubbleAvatar } from "@/lib/components/ui/chat/chat-bubble";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext, useCitationClick } from "@/lib/hooks";
@@ -30,17 +29,8 @@ import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
+import { MessageAttribution } from "./MessageAttribution";
 
-/**
- * Renders a sender label with avatar for collaborative chat sessions.
- * Shows the sender's name/email for user messages and "AI Assistant" for agent messages.
- * Only rendered when isCollaborativeSession is true.
- */
-/**
- * Renders a sender label with avatar for collaborative chat sessions.
- * Shows the sender's name/email for user messages and "AI Assistant" for agent messages.
- * Only rendered when isCollaborativeSession is true.
- */
 /**
  * Returns true if a user message is from another user (not the current viewer).
  * Compares the sender email in the message with the current user's email.
@@ -56,41 +46,17 @@ function isOtherUserMessage(message: MessageFE, currentUserEmail: string): boole
     return false;
 }
 
-const CollaborativeSenderLabel: React.FC<{
-    message: MessageFE;
-    agentName?: string;
-    currentUserEmail?: string;
-}> = ({ message, agentName, currentUserEmail = "" }) => {
-    if (message.isUser) {
-        const isOtherUser = isOtherUserMessage(message, currentUserEmail);
-
-        // Other users' messages are left-aligned (like AI) with avatar
-        if (isOtherUser) {
-            const displayName = message.senderDisplayName || message.senderEmail || "User";
-            const initial = displayName.charAt(0).toUpperCase();
-            return (
-                <div className="mb-1.5 flex items-center gap-2 self-start">
-                    <ChatBubbleAvatar fallback={initial} className="bg-secondary text-secondary-foreground h-8 w-8 text-sm" />
-                    <span className="text-muted-foreground text-xs font-medium">{displayName}</span>
-                </div>
-            );
-        }
-
-        // Current user's messages - no avatar needed, they know who they are
-        return null;
-    }
-
-    // Agent message
-    const label = agentName || "AI Assistant";
-    return (
-        <div className="mb-1.5 flex items-center gap-2 self-start">
-            <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 items-center justify-center rounded-full">
-                <Bot className="h-4 w-4" />
-            </span>
-            <span className="text-muted-foreground text-xs font-medium">{label}</span>
-        </div>
-    );
-};
+/**
+ * Derives a stable user index from an email string for consistent avatar colors.
+ * Uses a simple hash to map emails to color indices.
+ */
+function getUserIndexFromEmail(email: string): number {
+    if (!email) return 0;
+    return email
+        .toLowerCase()
+        .split("")
+        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+}
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -739,8 +705,9 @@ const getChatBubble = (
         return null;
     }
 
-    // In collaborative sessions, other users' messages are left-aligned like AI messages
-    const variant = message.isUser && !isOtherUserMessage(message, currentUserEmail) ? "sent" : "received";
+    // In collaborative sessions, other users' messages use the "other-user" variant
+    const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
+    const variant = message.isUser && !isOtherUser ? "sent" : isOtherUser ? "other-user" : "received";
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
@@ -1076,8 +1043,22 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     return (
         <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
-            {/* Show sender label for collaborative sessions */}
-            {isCollaborativeSession && <CollaborativeSenderLabel message={message} agentName={agentDisplayName} currentUserEmail={currentUserEmail} />}
+            {/* Show attribution for collaborative sessions: other users and agent messages */}
+            {isCollaborativeSession &&
+                (() => {
+                    if (message.isUser) {
+                        // Only show attribution for other users' messages (current user doesn't need it)
+                        if (isOtherUserMessage(message, currentUserEmail)) {
+                            const displayName = message.senderDisplayName || message.senderEmail || "User";
+                            const userIndex = getUserIndexFromEmail(message.senderEmail || "");
+                            return <MessageAttribution type="user" name={displayName} userIndex={userIndex} />;
+                        }
+                        return null;
+                    }
+                    // Agent message
+                    const agentLabel = agentDisplayName || "AI Assistant";
+                    return <MessageAttribution type="agent" name={agentLabel} />;
+                })()}
             {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
             {isDeepResearchComplete &&
                 hasRagSources &&
