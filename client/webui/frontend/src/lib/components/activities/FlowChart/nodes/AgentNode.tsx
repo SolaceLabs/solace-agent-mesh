@@ -240,10 +240,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
     return (
         <div className={`flex flex-col ${opacityClass} ${haloClass}`}>
             {/* Solid Container with Header and Content */}
-            <div
-                className={`rounded border border-(--secondary-w40) bg-(--background-w10) shadow transition-all duration-200 hover:shadow-md ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-                style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px` }}
-            >
+            <div className={`rounded border bg-(--background-w10) shadow transition-all duration-200 hover:shadow-md ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`} style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px` }}>
                 {/* Header */}
                 <div
                     className="group flex cursor-pointer items-center justify-between gap-4 px-4 py-2"
