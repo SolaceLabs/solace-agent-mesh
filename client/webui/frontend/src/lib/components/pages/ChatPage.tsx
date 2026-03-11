@@ -7,7 +7,7 @@ import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, ShareNotification } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -307,6 +307,10 @@ export function ChatPage() {
                                                     const shouldStream = isLastMessage && isResponding && !message.isUser;
                                                     return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
                                                 })}
+
+                                                {/* TODO: Replace with actual sharing events from backend */}
+                                                {/* TEMPORARY: Mock sharing notification shown for all sessions for testing - appears as latest interaction */}
+                                                {sessionId && <ShareNotification sharedBy="Olive Operations" shareType="user-specific" sharedWith="Parminder Procurement" sharedAt={Date.now() - 3600000} />}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
                                                 {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}

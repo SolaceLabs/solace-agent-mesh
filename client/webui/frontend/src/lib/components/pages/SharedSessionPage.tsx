@@ -616,42 +616,66 @@ export function SharedSessionPage() {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-(--color-secondary-text-wMain)">
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span className="inline-flex cursor-pointer">
-                                        <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    You are a <span className="font-bold">viewer</span> of this chat
-                                </TooltipContent>
-                            </Tooltip>
-                            <span>Viewer</span>
-                            <div className="bg-border h-4 w-px" />
-                            <span>
-                                Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
-                            </span>
-                            <div className="bg-border h-4 w-px" />
-                            {forkError && <span className="text-destructive text-sm">{forkError}</span>}
-                            {session?.is_owner && session?.session_id ? (
-                                <Button variant="outline" size="sm" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)}>
-                                    <MessageSquare className="mr-2 h-4 w-4" />
-                                    Go to Chat
-                                </Button>
-                            ) : (
-                                <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
-                                    {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                    Fork & Continue
-                                </Button>
-                            )}
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-sm text-(--color-secondary-text-wMain)">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-flex cursor-pointer">
+                                            <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>You are {session?.is_owner ? "the owner" : "a viewer"} of this chat</TooltipContent>
+                                </Tooltip>
+                                <span>{session?.is_owner ? "Owner" : "Viewer"}</span>
+                                {!session?.is_owner && (
+                                    <>
+                                        <div className="bg-border h-4 w-px" />
+                                        <span>
+                                            Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {forkError && <span className="text-destructive text-sm">{forkError}</span>}
+                                {session?.is_owner && session?.session_id ? (
+                                    <Button variant="outline" size="sm" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)}>
+                                        <MessageSquare className="mr-2 h-4 w-4" />
+                                        Go to Chat
+                                    </Button>
+                                ) : (
+                                    <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
+                                        {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                        Fork & Continue
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </header>
 
                 {/* Main content with resizable panels - always show side panel */}
                 <div className="relative min-h-0 flex-1">
-                    {/* Read-Only Indicator */}
+                    {/* Floating Fork/Continue Button */}
+                    {!session?.is_owner && (
+                        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center pb-10">
+                            <div className="pointer-events-auto flex flex-col items-center gap-2">
+                                {forkError && <div className="bg-destructive/10 text-destructive rounded-md border border-(--color-error-wMain) px-3 py-1.5 text-sm">{forkError}</div>}
+                                <Button variant="outline" onClick={handleForkChat} disabled={isForking} size="lg" className="shadow-lg">
+                                    {isForking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <MessageSquare className="mr-2 h-5 w-5" />}
+                                    Continue in New Chat
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                    {session?.is_owner && session?.session_id && (
+                        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center pb-10">
+                            <Button variant="default" size="lg" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)} className="pointer-events-auto shadow-lg">
+                                <MessageSquare className="mr-2 h-5 w-5" />
+                                Go to Chat
+                            </Button>
+                        </div>
+                    )}
 
                     <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
                         {/* Messages panel */}
