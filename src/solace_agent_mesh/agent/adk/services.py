@@ -537,6 +537,22 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 for k, v in config.items()
                 if k not in ["type", "bucket_name", "artifact_scope"]
             }
+
+            project = config.get("project") or os.environ.get("GCS_PROJECT")
+            if project:
+                gcs_args.setdefault("project", project)
+
+            credentials_json = os.environ.get("GCS_CREDENTIALS_JSON")
+            if credentials_json and "credentials" not in gcs_args:
+                import json
+
+                from google.oauth2 import service_account
+
+                info = json.loads(credentials_json)
+                gcs_args["credentials"] = (
+                    service_account.Credentials.from_service_account_info(info)
+                )
+
             concrete_service = GcsArtifactService(bucket_name=bucket_name, **gcs_args)
         except ImportError:
             log.error(
