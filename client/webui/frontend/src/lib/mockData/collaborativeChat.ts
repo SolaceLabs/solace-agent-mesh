@@ -150,7 +150,7 @@ export function formatRelativeTime(timestamp: number): string {
 /**
  * Mock message user attributions
  * Maps message index to user info for collaborative chat demo
- * This simulates a conversation where Alice and Bob take turns messaging
+ * This simulates a conversation where Alice, Bob, and Charlie (current user) take turns messaging
  */
 export const mockMessageAttributions: Record<number, { userId: string; userName: string; timestamp: number }> = {
     // Alice's first message (before sharing)
@@ -172,16 +172,16 @@ export const mockMessageAttributions: Record<number, { userId: string; userName:
         userName: mockCollaborativeUsers.bob.name,
         timestamp: Date.now() - 2 * 60 * 60 * 1000, // 2 hours ago
     },
-    // Alice responds to Bob
+    // Charlie's message (current user - index 6, no attribution will show)
     6: {
+        userId: mockCollaborativeUsers.charlie.id,
+        userName: mockCollaborativeUsers.charlie.name,
+        timestamp: Date.now() - 1.5 * 60 * 60 * 1000, // 1.5 hours ago
+    },
+    // Alice responds
+    8: {
         userId: mockCollaborativeUsers.alice.id,
         userName: mockCollaborativeUsers.alice.name,
         timestamp: Date.now() - 1 * 60 * 60 * 1000, // 1 hour ago
-    },
-    // Bob's follow-up
-    8: {
-        userId: mockCollaborativeUsers.bob.id,
-        userName: mockCollaborativeUsers.bob.name,
-        timestamp: Date.now() - 30 * 60 * 1000, // 30 minutes ago
     },
 };

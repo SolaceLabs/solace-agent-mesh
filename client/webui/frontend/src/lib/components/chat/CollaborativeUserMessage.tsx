@@ -9,7 +9,7 @@ import { ChatBubble, ChatBubbleMessage } from "@/lib/components/ui";
 import { MessageHoverButtons } from "./MessageHoverButtons";
 import { MarkdownWrapper } from "@/lib/components";
 import type { MessageFE, TextPart } from "@/lib/types";
-import { MessageUserAttribution } from "./MessageUserAttribution";
+import { MessageAttribution } from "./MessageAttribution";
 
 interface CollaborativeUserMessageProps {
     readonly message: MessageFE;
@@ -25,7 +25,7 @@ export function CollaborativeUserMessage({ message, userName, timestamp, userInd
 
     return (
         <div className="flex flex-col items-start gap-1">
-            <MessageUserAttribution userName={userName} timestamp={timestamp} userIndex={userIndex} />
+            <MessageAttribution type="user" name={userName} timestamp={timestamp} userIndex={userIndex} />
             <div className="ml-10 flex max-w-[70%] flex-col gap-1">
                 <ChatBubble variant="other-user">
                     <ChatBubbleMessage variant="other-user">

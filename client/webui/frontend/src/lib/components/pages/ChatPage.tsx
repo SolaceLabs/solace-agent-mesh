@@ -7,22 +7,7 @@ import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
-import {
-    ChatInputArea,
-    ChatMessage,
-    ChatSessionDialog,
-    ChatSessionDeleteDialog,
-    ChatSidePanel,
-    LoadingMessageRow,
-    ProjectBadge,
-    SessionSidePanel,
-    ShareNotification,
-    UserPresenceAvatars,
-    ShareNotificationMessage,
-    CollaborationInfoCards,
-    CollaborativeUserMessage,
-    AgentMessageAttribution,
-} from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, CollaborativeUserMessage, MessageAttribution } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { ShareButton } from "@/lib/components/share/ShareButton";
@@ -355,7 +340,7 @@ export function ChatPage() {
                                                             ) : shouldShowAgentAttribution ? (
                                                                 <>
                                                                     {/* Show agent attribution in collaborative mode */}
-                                                                    <AgentMessageAttribution agentName={agentName} />
+                                                                    <MessageAttribution type="agent" name={agentName} />
                                                                     {/* Wrap agent message with left margin to align with agent name */}
                                                                     <div className="ml-10">
                                                                         <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
@@ -364,21 +349,11 @@ export function ChatPage() {
                                                             ) : (
                                                                 <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
                                                             )}
-
-                                                            {/* Show share notification and info cards after 3rd message (mock position) */}
-                                                            {isCollaborativeSession && index === 3 && collaborationInfo && (
-                                                                <>
-                                                                    <ShareNotificationMessage sharedBy={collaborationInfo.sharedByName!} sharedWith={collaborationInfo.sharedWithNames!} timestamp={collaborationInfo.sharedAt!} />
-                                                                    <CollaborationInfoCards />
-                                                                </>
-                                                            )}
                                                         </div>
                                                     );
                                                 })}
 
-                                                {/* TODO: Replace with actual sharing events from backend */}
-                                                {/* TEMPORARY: Mock sharing notification shown for all sessions for testing - appears as latest interaction */}
-                                                {sessionId && !isCollaborativeSession && <ShareNotification sharedBy="Olive Operations" shareType="user-specific" sharedWith="Parminder Procurement" sharedAt={Date.now() - 3600000} />}
+                                                {/* TODO: Share notifications will come from backend as part of message history */}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
                                                 {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
