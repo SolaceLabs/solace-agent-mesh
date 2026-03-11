@@ -70,8 +70,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
 
-        self._lazy_model_mode = os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"
-
+        self._lazy_model_mode = (
+            os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"
+        )
         log.info("%s Initialized SamComponentBase", self.log_identifier)
 
     def add_timer(
