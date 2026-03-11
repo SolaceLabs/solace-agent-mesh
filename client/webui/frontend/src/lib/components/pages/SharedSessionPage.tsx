@@ -4,8 +4,9 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, PencilOff } from "lucide-react";
-import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage } from "@/lib/components/ui";
+import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock } from "lucide-react";
+import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { viewSharedSession, downloadSharedArtifact } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
@@ -59,7 +60,7 @@ export function SharedSessionPage() {
     const [session, setSession] = useState<SharedSessionView | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(false);
+    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(true);
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "sources">("files");
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
@@ -114,7 +115,7 @@ export function SharedSessionPage() {
     const getAccessLabel = (accessType: string) => {
         switch (accessType) {
             case "public":
-                return "Public";
+                return "";
             case "authenticated":
                 return "Authenticated";
             case "domain-restricted":
@@ -482,7 +483,7 @@ export function SharedSessionPage() {
                             }
                         }
                         return (
-                            <p key={idx} className="whitespace-pre-wrap">
+                            <p key={idx} className={CHAT_BUBBLE_MESSAGE_STYLES.paragraph}>
                                 {text}
                             </p>
                         );
@@ -575,13 +576,15 @@ export function SharedSessionPage() {
                             <div>
                                 <h1 className="text-lg font-semibold">{session.title}</h1>
                                 <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                                    {getAccessIcon(session.access_type)}
-                                    <span>{getAccessLabel(session.access_type)}</span>
-                                    <span>•</span>
-                                    <span>Shared on {new Date(session.created_time).toLocaleDateString()}</span>
+                                    {session.access_type !== "public" && (
+                                        <>
+                                            {getAccessIcon(session.access_type)}
+                                            <span>{getAccessLabel(session.access_type)}</span>
+                                        </>
+                                    )}
                                     {hasArtifacts && (
                                         <>
-                                            <span>•</span>
+                                            {session.access_type !== "public" && <span>•</span>}
                                             <span>
                                                 {session.artifacts.length} file{session.artifacts.length !== 1 ? "s" : ""}
                                             </span>
@@ -590,20 +593,34 @@ export function SharedSessionPage() {
                                 </div>
                             </div>
                         </div>
+                        <div className="flex items-center gap-2 text-sm text-(--color-secondary-text-wMain)">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="inline-flex cursor-pointer">
+                                        <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    You are a <span className="font-bold">viewer</span> of this chat
+                                </TooltipContent>
+                            </Tooltip>
+                            <span>Viewer</span>
+                            <div className="bg-border h-4 w-px" />
+                            <span>
+                                Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
+                            </span>
+                        </div>
                     </div>
                 </header>
 
                 {/* Main content with resizable panels - always show side panel */}
-                <div className="relative min-h-0 flex-1 border-3 border-(--color-info-w30) bg-(--color-background-w20)">
+                <div className="relative min-h-0 flex-1">
                     {/* Read-Only Indicator */}
-                    <div className="absolute top-0 left-1/2 z-10 flex h-8 -translate-x-1/2 items-center justify-center gap-2 rounded-br rounded-bl bg-(--color-info-w30) px-2">
-                        <PencilOff className="h-4 w-4 text-(--color-info-w100)" />
-                        <span className="text-xs text-(--color-info-w100)">Read-Only</span>
-                    </div>
+
                     <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
                         {/* Messages panel */}
                         <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-session-messages-panel">
-                            <main className="h-full overflow-y-auto bg-(--color-background-w20) p-6">
+                            <main className="h-full overflow-y-auto p-6">
                                 <div className="mx-auto max-w-3xl space-y-4">
                                     {messages.length === 0 ? (
                                         <div className="text-muted-foreground py-12 text-center">
