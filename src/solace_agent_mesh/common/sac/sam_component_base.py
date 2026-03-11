@@ -845,7 +845,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 self.trust_manager = None
 
         if self._lazy_model_mode:
-            asyncio.ensure_future(self._start_model_listener())
+            asyncio.create_task(self._start_model_listener())
 
     @abc.abstractmethod
     def _pre_async_cleanup(self) -> None:
