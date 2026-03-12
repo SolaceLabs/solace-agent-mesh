@@ -37,6 +37,9 @@ const accessLevelOptions: AccessLevelOption[] = [
     },
 ];
 
+// Shared styling for table header labels
+const TABLE_HEADER_LABEL_CLASS = "text-sm text-secondary-foreground";
+
 // Form schema
 const shareFormSchema = z.object({
     viewers: z.array(
@@ -222,13 +225,13 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
             setPublicLinkCopied(true);
             setTimeout(() => setPublicLinkCopied(false), 2000);
             setShowPublicLink(true);
-            onSuccess?.("Public link copied to clipboard");
+            onSuccess?.("Link copied to clipboard");
         }
     };
 
     const handleDeletePublicLink = () => {
         setShowPublicLink(false);
-        onSuccess?.("Public link removed");
+        onSuccess?.("Link removed");
     };
 
     const handleDiscard = () => {
@@ -311,10 +314,10 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                             {/* Headers for add rows only */}
                             <div className="mb-1 flex items-end gap-4">
                                 <div className="min-w-0 flex-1">
-                                    <Label className="text-sm text-(--color-secondary-text-wMain)">Email</Label>
+                                    <Label className={TABLE_HEADER_LABEL_CLASS}>Email</Label>
                                 </div>
                                 <div className="w-full shrink-0 sm:w-[200px]">
-                                    <Label className="text-sm text-(--color-secondary-text-wMain)">Access Level</Label>
+                                    <Label className={TABLE_HEADER_LABEL_CLASS}>Access Level</Label>
                                 </div>
                                 <div className="w-8 shrink-0" /> {/* Space for X button */}
                             </div>
@@ -376,13 +379,13 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                         {/* Table Header */}
                         <div className="bg-muted/30 flex items-center gap-4 border-b px-4 py-2">
                             <div className="min-w-0 flex-1">
-                                <Label className="text-sm text-(--color-secondary-text-wMain)">Email</Label>
+                                <Label className={TABLE_HEADER_LABEL_CLASS}>Email</Label>
                             </div>
                             <div className="w-full shrink-0 sm:w-[200px]">
-                                <Label className="text-sm text-(--color-secondary-text-wMain)">Shared On</Label>
+                                <Label className={TABLE_HEADER_LABEL_CLASS}>Shared On</Label>
                             </div>
                             <div className="w-full shrink-0 sm:w-[200px]">
-                                <Label className="text-sm text-(--color-secondary-text-wMain)">Access Level</Label>
+                                <Label className={TABLE_HEADER_LABEL_CLASS}>Access Level</Label>
                             </div>
                             <div className="w-8 shrink-0" /> {/* Space for action buttons */}
                         </div>
@@ -465,13 +468,10 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuItem onClick={() => shareLink && window.open(shareLink.share_url, "_blank")}>
-                                                        <ExternalLink className="mr-2 h-4 w-4" />
                                                         Preview Chat
+                                                        <ExternalLink className="mr-2 h-4 w-4" />
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => handleRemoveUser(user.user_email)} className="text-destructive focus:text-destructive">
-                                                        <Trash2 className="mr-2 h-4 w-4" />
-                                                        Remove Access
-                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleRemoveUser(user.user_email)}>Remove Access</DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </div>
@@ -483,14 +483,14 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
 
                     {/* Public Link Section - only shown if public link exists */}
                     {showPublicLink && shareLink && (
-                        <div className="rounded bg-(--color-background-w20) p-4">
+                        <div className="bg-muted rounded p-4">
                             <div className="mb-4 flex items-start justify-between">
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <Link2 className="h-4 w-4" />
-                                        <Label className="text-sm font-bold">Public Link</Label>
+                                        <Label className="text-sm font-bold">Sharing Link</Label>
                                     </div>
-                                    <p className="text-muted-foreground mt-1 text-sm">Anyone with this link can view the chat in a read-only mode.</p>
+                                    <p className="text-muted-foreground mt-1 text-sm">Anyone in your organization with this link can view the chat in a read-only mode.</p>
                                 </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -550,7 +550,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                     {!showPublicLink && (
                         <Button variant="ghost" size="sm" onClick={handleCopyPublicLink}>
                             <Link2 className="mr-2 h-4 w-4" />
-                            Copy Public Link
+                            Copy Sharing Link
                         </Button>
                     )}
                     <div className="flex-1" />
