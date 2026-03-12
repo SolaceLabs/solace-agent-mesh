@@ -1960,6 +1960,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const session: Session | null = sessionData?.data;
                 setSessionName(session?.name ?? "N/A");
 
+                // Reset shared editors flag before detection
+                setHasSharedEditors(false);
+
                 // Detect collaborative session: session owner differs from current user
                 // Use currentUserEmail from /auth/me as fallback when userInfo is not available (dev mode)
                 // Note: compare with user ID, not email (session.userId stores the user ID like "sam_dev_user")
@@ -1973,6 +1976,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     console.log(`${log_prefix} Collaborative session detected (owner: ${sessionOwnerId}, ownerName: ${session?.ownerDisplayName}, current user: ${currentUserId})`);
                 } else {
                     setIsCollaborativeSession(false);
+                    setHasSharedEditors(false); // Reset immediately, async check below may set to true
                     setSessionOwnerName(null);
                     setSessionOwnerEmail(null);
                     // Check if the owner has shared with editors (for showing collaborative UI elements)
