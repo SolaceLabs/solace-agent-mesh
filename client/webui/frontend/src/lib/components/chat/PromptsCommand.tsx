@@ -5,12 +5,13 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, NotepadText, Plus, Sparkles } from "lucide-react";
+import { Search, NotepadText, Plus, Sparkles, Loader2 } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
 import { api } from "@/lib/api";
 import { executeAgentCommand } from "@/lib/api/agent-assistant";
+import { useChatContext } from "@/lib/hooks";
 
 export type ChatCommand = "create-template";
 
@@ -50,6 +51,7 @@ interface PromptsCommandProps {
 
 export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand, onBackspaceClose }) => {
     const navigate = useNavigate();
+    const { addNotification } = useChatContext();
     const [searchValue, setSearchValue] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
@@ -57,6 +59,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
     const [selectedGroup, setSelectedGroup] = useState<PromptGroup | null>(null);
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [isKeyboardMode, setIsKeyboardMode] = useState(false);
+    const [isExecutingCommand, setIsExecutingCommand] = useState(false);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
@@ -193,8 +196,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
     // Handle agent command execution
     const handleAgentCommandSelect = useCallback(
         async (agentCmd: AgentCommand) => {
-            onClose();
-            setSearchValue("");
+            setIsExecutingCommand(true);
 
             try {
                 console.log("[PromptsCommand] Executing agent command:", agentCmd.query);
@@ -204,7 +206,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
 
                 if (!response.success) {
                     console.error("[PromptsCommand] Agent command failed:", response.error);
-                    alert(`Failed to execute command: ${response.error || "Unknown error"}`);
+                    addNotification(response.error || "Failed to execute command", "warning");
                     return;
                 }
 
@@ -213,23 +215,29 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                 // Handle the response action
                 if (response.data?.action === "navigate_to_project") {
                     console.log("[PromptsCommand] Navigating to projects page");
-                    navigate("/projects");
+
                     // Show success message
+                    addNotification(response.message || "Project created successfully", "success");
+
+                    // Navigate to projects page
                     setTimeout(() => {
-                        alert(`✓ ${response.message}`);
-                    }, 200);
+                        navigate("/projects");
+                    }, 100);
                 } else {
                     // No specific navigation action, just show the response
-                    alert(response.message);
+                    addNotification(response.message || "Command executed successfully", "success");
                 }
-
-                textAreaRef.current?.focus();
             } catch (error) {
                 console.error("[PromptsCommand] Error executing agent command:", error);
-                alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+                addNotification(error instanceof Error ? error.message : "An unexpected error occurred", "warning");
+            } finally {
+                setIsExecutingCommand(false);
+                onClose();
+                setSearchValue("");
+                textAreaRef.current?.focus();
             }
         },
-        [onClose, navigate, textAreaRef]
+        [navigate, textAreaRef, onClose, addNotification]
     );
 
     // Handle item selection (agent command, reserved command, or prompt)
@@ -322,7 +330,18 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
             <div ref={backdropRef} className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
 
             <div data-testid="promptCommand" className="fixed top-1/3 left-1/2 z-50 w-full max-w-[672px] -translate-x-1/2 px-4">
-                <div ref={popoverRef} className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg" style={{ maxHeight: "60vh" }}>
+                <div ref={popoverRef} className="relative flex flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg" style={{ maxHeight: "60vh" }}>
+                    {/* Loading Overlay */}
+                    {isExecutingCommand && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-lg bg-[var(--background)]/95 backdrop-blur-sm">
+                            <div className="flex items-center gap-3">
+                                <Loader2 className="size-6 animate-spin text-purple-600 dark:text-purple-400" />
+                                <span className="text-sm font-medium">Executing command...</span>
+                            </div>
+                            <span className="text-muted-foreground text-xs">AI assistant is processing your request</span>
+                        </div>
+                    )}
+
                     {/* Search Input */}
                     <div className="flex items-center gap-2 border-b border-[var(--border)] p-3">
                         <Search className="size-4 text-[var(--muted-foreground)]" />

@@ -30,6 +30,8 @@ export interface ActionContext {
     setTheme?: (theme: "light" | "dark") => void;
     /** Start a new chat session with a prompt */
     startNewChatWithPrompt?: (data: { promptText: string; groupId: string; groupName: string }) => void;
+    /** Show a toast notification */
+    addNotification?: (message: string, type?: "success" | "info" | "warning") => void;
     /** Any additional context needed by specific action types */
     [key: string]: unknown;
 }

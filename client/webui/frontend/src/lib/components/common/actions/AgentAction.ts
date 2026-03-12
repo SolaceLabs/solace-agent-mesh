@@ -25,7 +25,7 @@ export class AgentAction implements ExecutableAction {
     }
 
     async execute(context: ActionContext): Promise<void> {
-        const { navigate } = context;
+        const { navigate, addNotification } = context;
 
         console.log("[AgentAction] Executing command:", this.command);
 
@@ -38,32 +38,38 @@ export class AgentAction implements ExecutableAction {
 
             if (!response.success) {
                 console.error("[AgentAction] Agent command failed:", response.error);
-                alert(`Failed to execute command: ${response.error || "Unknown error"}`);
+                if (addNotification) {
+                    addNotification(response.error || "Failed to execute command", "warning");
+                }
                 return;
             }
-
-            // Show success feedback
-            console.log("[AgentAction] Command succeeded:", response.message);
 
             // Handle the response action
             if (response.data?.action === "navigate_to_project") {
                 console.log("[AgentAction] Navigating to projects page");
-                if (navigate) {
-                    // Navigate to projects page so user can see the newly created project
-                    navigate("/projects");
-                }
+
                 // Show success message
-                // TODO: Replace with toast notification when available
-                setTimeout(() => {
-                    alert(`✓ ${response.message}`);
-                }, 200);
+                if (addNotification) {
+                    addNotification(response.message || "Project created successfully", "success");
+                }
+
+                // Navigate to projects page
+                if (navigate) {
+                    setTimeout(() => {
+                        navigate("/projects");
+                    }, 100);
+                }
             } else {
                 // No specific navigation action, just show the response
-                alert(response.message);
+                if (addNotification) {
+                    addNotification(response.message || "Command executed successfully", "success");
+                }
             }
         } catch (error) {
             console.error("[AgentAction] Error calling agent:", error);
-            alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+            if (addNotification) {
+                addNotification(error instanceof Error ? error.message : "An unexpected error occurred", "warning");
+            }
         }
     }
 }

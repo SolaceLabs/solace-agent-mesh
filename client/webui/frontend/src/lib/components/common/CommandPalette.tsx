@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent } from "@/lib/components/ui/dialog";
 import { Input } from "@/lib/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Command, Search, MessageSquare, Sparkles } from "lucide-react";
+import { Command, Search, MessageSquare, Sparkles, Loader2 } from "lucide-react";
 import { ActionRegistry, DynamicNavigationLoader, initializeActions, isExecutableAction, createChatAction, createAgentAction } from "./actions";
 import type { ExecutableAction } from "./actions";
 import { useProjectContext } from "@/lib/providers/ProjectProvider";
@@ -41,11 +41,13 @@ export function CommandPalette() {
     const navigate = useNavigate();
     const { projects } = useProjectContext();
     const { toggleTheme, setTheme } = useThemeContext();
-    const { startNewChatWithPrompt } = useChatContext();
+    const { startNewChatWithPrompt, addNotification } = useChatContext();
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [actions, setActions] = useState<ExecutableAction[]>([]);
+    const [isExecutingCommand, setIsExecutingCommand] = useState(false);
+    const [executingCommandLabel, setExecutingCommandLabel] = useState("");
 
     // Initialize actions on mount
     useEffect(() => {
@@ -145,11 +147,18 @@ export function CommandPalette() {
         async (action: ExecutableAction) => {
             if (isExecutableAction(action)) {
                 try {
+                    // Show loading state for agent actions
+                    if (action.category === "agent") {
+                        setIsExecutingCommand(true);
+                        setExecutingCommandLabel(action.label);
+                    }
+
                     const result = action.execute({
                         navigate,
                         toggleTheme,
                         setTheme,
                         startNewChatWithPrompt,
+                        addNotification,
                     });
 
                     // Handle async actions (like AgentAction)
@@ -160,10 +169,14 @@ export function CommandPalette() {
                     setIsOpen(false);
                 } catch (error) {
                     console.error("Error executing action:", error);
+                    addNotification("Failed to execute command", "warning");
+                } finally {
+                    setIsExecutingCommand(false);
+                    setExecutingCommandLabel("");
                 }
             }
         },
-        [navigate, toggleTheme, setTheme, startNewChatWithPrompt]
+        [navigate, toggleTheme, setTheme, startNewChatWithPrompt, addNotification]
     );
 
     // Handle keyboard shortcuts
@@ -213,7 +226,18 @@ export function CommandPalette() {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogContent className="max-w-2xl p-0" showCloseButton={false}>
-                <div className="flex flex-col">
+                <div className="relative flex flex-col">
+                    {/* Loading Overlay */}
+                    {isExecutingCommand && (
+                        <div className="bg-background/95 absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-lg backdrop-blur-sm">
+                            <div className="flex items-center gap-3">
+                                <Loader2 className="size-6 animate-spin text-purple-600 dark:text-purple-400" />
+                                <span className="text-sm font-medium">{executingCommandLabel}</span>
+                            </div>
+                            <span className="text-muted-foreground text-xs">Executing via AI assistant...</span>
+                        </div>
+                    )}
+
                     {/* Search Input */}
                     <div className="flex items-center border-b px-4 py-3">
                         <Search className="mr-2 size-4 shrink-0 opacity-50" />
