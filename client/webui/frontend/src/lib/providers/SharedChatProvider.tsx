@@ -166,6 +166,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             messages: [],
             isResponding: false,
             isCollaborativeSession: true, // Shared chat sessions are always collaborative
+            hasSharedEditors: false,
             currentUserEmail: "", // Not available in shared view context
             sessionOwnerName: null,
             sessionOwnerEmail: null,

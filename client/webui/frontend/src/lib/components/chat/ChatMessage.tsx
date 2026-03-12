@@ -879,7 +879,7 @@ const getChatBubble = (
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean; isStreaming?: boolean }> = ({ message, isLastWithTaskId, isStreaming }) => {
     const chatContext = useChatContext();
-    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, currentUserEmail, agentNameDisplayNameMap } = chatContext;
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, hasSharedEditors, currentUserEmail, agentNameDisplayNameMap } = chatContext;
 
     // Determine if this is another user's message (for uploaded files alignment)
     const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
@@ -1048,8 +1048,9 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     })();
 
     // Determine if attribution is shown (for ml-10 margin on content)
-    // Attribution shows for: other-user messages (any session) + agent messages (collaborative only)
-    const hasAttribution = (message.isUser && isOtherUser) || (isCollaborativeSession && !message.isUser && !message.isStatusBubble);
+    // Attribution shows for: other-user messages (any session) + agent messages (collaborative or shared-with-editors)
+    const showAgentAttribution = (isCollaborativeSession || hasSharedEditors) && !message.isUser && !message.isStatusBubble;
+    const hasAttribution = (message.isUser && isOtherUser) || showAgentAttribution;
 
     return (
         <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
@@ -1059,12 +1060,12 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                     // Show attribution for other users' messages (collaborative or forked sessions)
                     const displayName = message.senderDisplayName || message.senderEmail || "User";
                     const userIndex = getUserIndexFromEmail(message.senderEmail || "");
-                    return <MessageAttribution type="user" name={displayName} userIndex={userIndex} />;
+                    return <MessageAttribution type="user" name={displayName} userIndex={userIndex} timestamp={message.createdTime} />;
                 }
-                if (isCollaborativeSession && !message.isUser) {
-                    // Show agent attribution only in collaborative sessions
+                if (showAgentAttribution) {
+                    // Show agent attribution in collaborative sessions or sessions shared with editors
                     const agentLabel = agentDisplayName || "AI Assistant";
-                    return <MessageAttribution type="agent" name={agentLabel} />;
+                    return <MessageAttribution type="agent" name={agentLabel} timestamp={message.createdTime} />;
                 }
                 return null;
             })()}

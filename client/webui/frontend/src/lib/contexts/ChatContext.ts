@@ -16,6 +16,7 @@ export interface ChatState {
     messages: MessageFE[];
     isResponding: boolean;
     isCollaborativeSession: boolean;
+    hasSharedEditors: boolean;
     currentUserEmail: string;
     sessionOwnerName: string | null;
     sessionOwnerEmail: string | null;

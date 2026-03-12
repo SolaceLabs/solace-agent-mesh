@@ -296,6 +296,53 @@ class ShareRepository:
         db.refresh(model)
         return SharedLinkUser.model_validate(model)
 
+    def update_share_user_access(
+        self,
+        db: DBSession,
+        share_id: str,
+        user_email: str,
+        new_access_level: str
+    ) -> Optional[SharedLinkUser]:
+        """
+        Update a user's access level, preserving the original share event.
+        
+        On the first access-level change, copies the current access_level and
+        added_at into original_access_level and original_added_at so both the
+        original "gave access" and the "changed access" events are available.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_email: Email of user to update
+            new_access_level: New access level
+        
+        Returns:
+            Updated SharedLinkUser entity, or None if not found
+        """
+        model = db.query(SharedLinkUserModel).filter(
+            and_(
+                SharedLinkUserModel.share_id == share_id,
+                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
+            )
+        ).first()
+
+        if not model:
+            return None
+
+        # Preserve the very first access level and timestamp (only if not already set)
+        if model.original_access_level is None:
+            model.original_access_level = model.access_level
+        if model.original_added_at is None:
+            model.original_added_at = model.added_at
+
+        # Update to the new values
+        model.access_level = new_access_level
+        model.added_at = now_epoch_ms()
+
+        db.flush()
+        db.refresh(model)
+        return SharedLinkUser.model_validate(model)
+
     def find_share_users(self, db: DBSession, share_id: str) -> List[SharedLinkUser]:
         """
         Find all users with access to a share link.

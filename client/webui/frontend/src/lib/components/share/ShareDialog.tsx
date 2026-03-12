@@ -181,20 +181,12 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                 accessLevelChanges: [],
             });
 
-            // Auto-generate link if none exists
-            loadShareLink().then(async link => {
+            // Load existing share link (if any) - don't auto-create
+            // Link is created on-demand when user clicks "Copy Link" or adds users
+            loadShareLink().then(link => {
                 if (link) {
                     setIsNewlyCreatedLink(false);
-                } else {
-                    try {
-                        const newLink = await createShareLink(sessionId, {
-                            require_authentication: true,
-                        });
-                        setShareLink(newLink);
-                        setIsNewlyCreatedLink(true);
-                    } catch (error) {
-                        onError?.({ title: "Failed to Create Share Link", message: error instanceof Error ? error.message : "Unknown error" });
-                    }
+                    setShowPublicLink(true); // Show the link section if a link already exists
                 }
             });
         }
@@ -248,6 +240,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                     require_authentication: false, // Public link = no auth required
                 });
                 setShareLink(newLink);
+                setIsNewlyCreatedLink(true);
 
                 // Copy to clipboard
                 const success = await copyToClipboard(newLink.share_url);
@@ -273,7 +266,17 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         }
     };
 
-    const handleDeletePublicLink = () => {
+    const handleDeletePublicLink = async () => {
+        // Actually delete the link from the backend
+        if (shareLink?.share_id) {
+            try {
+                await deleteShareLink(shareLink.share_id);
+                setShareLink(null);
+                setIsNewlyCreatedLink(false);
+            } catch (error) {
+                console.error("Failed to delete share link:", error);
+            }
+        }
         setShowPublicLink(false);
         onSuccess?.("Link removed");
     };
@@ -294,11 +297,13 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     };
 
     const handleDiscard = async () => {
-        // If the link was newly created (auto-generated) and user discards,
-        // delete the link since they decided not to share
+        // If the link was newly created and user discards, delete it
         if (isNewlyCreatedLink && shareLink?.share_id) {
             try {
                 await deleteShareLink(shareLink.share_id);
+                setShareLink(null);
+                setIsNewlyCreatedLink(false);
+                setShowPublicLink(false);
                 onSuccess?.("Share link removed");
             } catch (error) {
                 console.error("Failed to delete share link on discard:", error);
@@ -309,14 +314,25 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     };
 
     const onSubmit = async (data: ShareFormData) => {
-        if (!shareLink?.share_id) return;
-
         setSavingUser(true);
         try {
+            // Create share link on-demand if it doesn't exist yet
+            let activeShareLink = shareLink;
+            if (!activeShareLink?.share_id) {
+                const newLink = await createShareLink(sessionId, { require_authentication: true });
+                setShareLink(newLink);
+                setIsNewlyCreatedLink(false); // It's being saved, so it's no longer "newly created"
+                activeShareLink = newLink;
+            }
+            if (!activeShareLink?.share_id) {
+                onError?.({ title: "Failed to Save", message: "Could not create share link" });
+                return;
+            }
+
             const emailsToAdd = data.viewers.filter(v => v.email !== null).map(v => ({ email: v.email as string, accessLevel: v.accessLevel }));
 
             if (emailsToAdd.length > 0) {
-                await addShareUsers(shareLink.share_id, {
+                await addShareUsers(activeShareLink.share_id, {
                     shares: emailsToAdd.map(item => ({
                         user_email: item.email,
                         access_level: toBackendAccessLevel(item.accessLevel),
@@ -327,15 +343,13 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
             }
 
             if (data.pendingRemoves.length > 0) {
-                await deleteShareUsers(shareLink.share_id, { user_emails: data.pendingRemoves });
+                await deleteShareUsers(activeShareLink.share_id, { user_emails: data.pendingRemoves });
                 const userText = data.pendingRemoves.length === 1 ? "user" : "users";
                 onSuccess?.(`${data.pendingRemoves.length} ${userText} removed`);
             }
 
-            // Update access levels by re-adding users with new access level
-            // The backend add_share_users handles upsert (updates if already exists)
             if (data.accessLevelChanges.length > 0) {
-                await addShareUsers(shareLink.share_id, {
+                await addShareUsers(activeShareLink.share_id, {
                     shares: data.accessLevelChanges.map(change => ({
                         user_email: change.email,
                         access_level: toBackendAccessLevel(change.newAccessLevel),
@@ -346,7 +360,6 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
 
             reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
             await loadSharedUsers();
-            // Notify ChatPage to refresh share notifications
             window.dispatchEvent(new CustomEvent("share-updated", { detail: { sessionId } }));
             onOpenChange(false);
         } catch (error) {
@@ -366,7 +379,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         return sharedUsers.filter(user => !pendingRemoves.includes(user.user_email)).sort((a, b) => a.user_email.localeCompare(b.user_email));
     }, [sharedUsers, pendingRemoves]);
 
-    const hasChanges = viewers.filter(v => v.email !== null).length > 0 || pendingRemoves.length > 0 || accessLevelChanges.length > 0 || isNewlyCreatedLink;
+    const hasChanges = viewers.filter(v => v.email !== null).length > 0 || pendingRemoves.length > 0 || accessLevelChanges.length > 0 || isNewlyCreatedLink || showPublicLink;
     const hasIncompleteRows = viewers.some(v => v.email === null);
 
     return (

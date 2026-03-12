@@ -5,7 +5,7 @@
  * Appears in the message stream at the point where sharing occurred
  */
 
-import { Eye, Pencil } from "lucide-react";
+import { ArrowRight, Eye, Pencil } from "lucide-react";
 import { formatCollaborativeTimestamp } from "@/lib/mockData/collaborativeChat";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
@@ -35,6 +35,20 @@ export type ShareNotificationMessageProps =
           /** Name of the user who created the link */
           sharedBy: string;
           /** Timestamp of when the link was created */
+          timestamp: number;
+      }
+    | {
+          /** Variant: access level was changed for specific users */
+          variant: "role-changed";
+          /** Name of the person who changed the role (defaults to "You") */
+          sharedBy?: string;
+          /** Names of users whose role was changed */
+          sharedWith: string[];
+          /** Previous access level */
+          fromAccessLevel: "viewer" | "editor";
+          /** New access level */
+          toAccessLevel: "viewer" | "editor";
+          /** Timestamp of when the change occurred */
           timestamp: number;
       };
 
@@ -103,6 +117,34 @@ export function ShareNotificationMessage(props: ShareNotificationMessageProps) {
                                 </Tooltip>
                             </>
                         )}
+                    </span>
+                </p>
+            </div>
+        );
+    } else if (props.variant === "role-changed") {
+        const { sharedBy = "You", sharedWith, fromAccessLevel, toAccessLevel } = props;
+        const FromIcon = fromAccessLevel === "viewer" ? Eye : Pencil;
+        const ToIcon = toAccessLevel === "viewer" ? Eye : Pencil;
+        const fromText = fromAccessLevel === "viewer" ? "Viewer" : "Editor";
+        const toText = toAccessLevel === "viewer" ? "Viewer" : "Editor";
+
+        const recipientsText = formatRecipients(sharedWith);
+
+        return (
+            <div className="flex flex-col items-center gap-1 py-4">
+                <p className="text-secondary-foreground text-sm">{formatCollaborativeTimestamp(timestamp)}</p>
+                <p className="text-foreground flex flex-wrap items-center justify-center gap-1.5 text-sm">
+                    <span>
+                        {sharedBy} changed {recipientsText}&apos;s access from
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                        <FromIcon className="h-3.5 w-3.5" />
+                        <span className="font-bold">{fromText}</span>
+                    </span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                    <span className="inline-flex items-center gap-1">
+                        <ToIcon className="h-3.5 w-3.5" />
+                        <span className="font-bold">{toText}</span>
                     </span>
                 </p>
             </div>

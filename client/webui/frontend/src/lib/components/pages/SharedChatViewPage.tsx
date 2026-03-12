@@ -462,7 +462,7 @@ export function SharedChatViewPage() {
         ) : (
             <Button key="save-as-my-chat" variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
                 {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                Save as My Chat
+                Create Personal Copy
             </Button>
         ),
     ].filter(Boolean) as React.ReactNode[];
@@ -525,7 +525,7 @@ export function SharedChatViewPage() {
                                                 {!(session?.is_owner && session?.session_id) && (
                                                     <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
                                                         {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                        Save as My Chat
+                                                        Create Personal Copy
                                                     </Button>
                                                 )}
                                             </div>

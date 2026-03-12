@@ -19,6 +19,8 @@ class SharedLinkUser(BaseModel):
     access_level: str = "RESOURCE_VIEWER"
     added_at: int
     added_by_user_id: str
+    original_access_level: Optional[str] = None
+    original_added_at: Optional[int] = None
 
 
 class ShareLink(BaseModel):
