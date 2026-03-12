@@ -580,6 +580,8 @@ class ShareRepository:
         Returns:
             List of dicts with share link details and access info
         """
+        from .models.session_model import SessionModel
+        
         results = db.query(
             SharedLinkModel.share_id,
             SharedLinkModel.session_id,
@@ -588,9 +590,16 @@ class ShareRepository:
             SharedLinkModel.created_time,
             SharedLinkUserModel.access_level,
             SharedLinkUserModel.added_at,
+            SessionModel.name.label("session_name"),  # Current session name
         ).join(
             SharedLinkUserModel,
             SharedLinkModel.share_id == SharedLinkUserModel.share_id
+        ).outerjoin(
+            SessionModel,
+            and_(
+                SessionModel.id == SharedLinkModel.session_id,
+                SessionModel.deleted_at.is_(None)
+            )
         ).filter(
             and_(
                 SharedLinkUserModel.user_email == user_email.lower().strip(),
@@ -604,7 +613,8 @@ class ShareRepository:
             {
                 "share_id": r.share_id,
                 "session_id": r.session_id,
-                "title": r.title or "Untitled",
+                # For editors: show current session name; for viewers: show share link title (snapshot)
+                "title": (r.session_name if r.access_level == "RESOURCE_EDITOR" else r.title) or r.title or "Untitled",
                 "owner_email": r.user_id,
                 "created_time": r.created_time,
                 "access_level": r.access_level,
