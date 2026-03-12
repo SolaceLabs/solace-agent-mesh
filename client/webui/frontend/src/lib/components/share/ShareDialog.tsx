@@ -346,6 +346,8 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
 
             reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
             await loadSharedUsers();
+            // Notify ChatPage to refresh share notifications
+            window.dispatchEvent(new CustomEvent("share-updated", { detail: { sessionId } }));
             onOpenChange(false);
         } catch (error) {
             onError?.({ title: "Failed to Save Changes", message: error instanceof Error ? error.message : "Unknown error" });

@@ -1,26 +1,22 @@
 /**
- * SharedSessionPage - Public view of a shared chat session
+ * SharedSessionPage - Public view of a shared chat session (standalone, outside AppLayout)
+ *
+ * Uses the full ChatMessage component for pixel-perfect rendering parity with ChatPage.
  */
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Lock, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, UserLock, Info } from "lucide-react";
-import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
-import { MessageAttribution } from "@/lib/components/chat/MessageAttribution";
-import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
+import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
-import type { RAGSearchResult, ArtifactInfo } from "@/lib/types";
+import type { MessageFE, RAGSearchResult, ArtifactInfo, ArtifactPart, PartFE } from "@/lib/types";
 import { ArtifactPanel } from "@/lib/components/chat/artifact/ArtifactPanel";
 import { SharedWorkflowPanel } from "@/lib/components/share/SharedWorkflowPanel";
-import { FileMessage, ArtifactMessage } from "@/lib/components/chat/file";
-import { TextWithCitations } from "@/lib/components/chat/Citation";
-import { parseCitations } from "@/lib/utils/citations";
+import { ChatMessage } from "@/lib/components/chat";
 import { RAGInfoPanel } from "@/lib/components/chat/rag/RAGInfoPanel";
-import { Sources } from "@/lib/components/web/Sources";
 import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
-import { MarkdownWrapper } from "@/lib/components";
 import { downloadBlob } from "@/lib/utils/download";
 
 /**
@@ -38,22 +34,6 @@ function convertToArtifactInfo(artifact: SharedArtifact): ArtifactInfo {
         source: artifact.source ?? undefined,
     };
 }
-
-interface FileInfo {
-    name: string;
-    mimeType?: string;
-}
-
-interface ArtifactRef {
-    name: string;
-    status?: string;
-}
-
-// Part types for preserving render order
-type MessagePart = { kind: "text"; text: string } | { kind: "file"; file: FileInfo } | { kind: "artifact"; artifact: ArtifactRef };
-
-// Regex to match __EMBED_SIGNAL_xxx__ placeholders
-const EMBED_SIGNAL_REGEX = /__EMBED_SIGNAL_[a-f0-9]+__/g;
 
 export function SharedSessionPage() {
     const { shareId } = useParams<{ shareId: string }>();
@@ -125,15 +105,17 @@ export function SharedSessionPage() {
                 return <Lock className="h-4 w-4" />;
             case "domain-restricted":
                 return <Building2 className="h-4 w-4" />;
+            case "user-specific":
+                return <UserLock className="h-4 w-4" />;
             default:
-                return <Lock className="h-4 w-4" />;
+                return null;
         }
     };
 
     const getAccessLabel = (accessType: string) => {
         switch (accessType) {
             case "public":
-                return "";
+                return "Public";
             case "authenticated":
                 return "Authenticated";
             case "domain-restricted":
@@ -154,7 +136,6 @@ export function SharedSessionPage() {
         for (const task of session.tasks) {
             const taskId = task.workflow_task_id || task.id;
 
-            // Extract RAG data from task_metadata
             let taskMetadata = task.task_metadata;
             if (typeof taskMetadata === "string") {
                 try {
@@ -183,183 +164,118 @@ export function SharedSessionPage() {
         return session.artifacts.map(convertToArtifactInfo);
     }, [session?.artifacts]);
 
-    // Parse message bubbles from tasks - preserving part order for proper rendering
-    const messages = useMemo(() => {
+    // Parse message bubbles from tasks into MessageFE format for ChatMessage rendering
+    const messages: MessageFE[] = useMemo(() => {
         if (!session) return [];
-
-        const result: Array<{
-            type: string;
-            parts: MessagePart[]; // Preserve original part order
-            timestamp?: number;
-            taskId: string;
-            isLastInTask: boolean;
-            senderDisplayName?: string;
-            senderEmail?: string;
-        }> = [];
+        const result: MessageFE[] = [];
 
         for (const task of session.tasks) {
             try {
-                // Use workflow_task_id for workflow lookup (A2A task ID), fallback to id
                 const taskId = task.workflow_task_id || task.id;
-
                 const bubbles = typeof task.message_bubbles === "string" ? JSON.parse(task.message_bubbles) : task.message_bubbles;
 
-                if (Array.isArray(bubbles)) {
-                    (bubbles as MessageBubble[]).forEach((bubble: MessageBubble, index: number) => {
-                        const parts: MessagePart[] = [];
+                if (!Array.isArray(bubbles)) continue;
 
-                        // First, add uploadedFiles for user messages (they appear before text)
-                        if (bubble.uploadedFiles && Array.isArray(bubble.uploadedFiles)) {
-                            for (const f of bubble.uploadedFiles) {
-                                const fileObj = f as { name?: string; filename?: string; mimeType?: string; mime_type?: string };
+                (bubbles as MessageBubble[]).forEach((bubble: MessageBubble) => {
+                    const parts: PartFE[] = [];
+                    const isUser = bubble.type === "user";
+
+                    // Convert uploadedFiles to File-like objects for the uploadedFiles field
+                    const uploadedFiles: File[] = [];
+                    if (bubble.uploadedFiles && Array.isArray(bubble.uploadedFiles)) {
+                        for (const f of bubble.uploadedFiles) {
+                            const fileObj = f as { name?: string; filename?: string; mimeType?: string; mime_type?: string; type?: string };
+                            const fileName = fileObj.name || fileObj.filename || "Attached file";
+                            const fileType = fileObj.mimeType || fileObj.mime_type || fileObj.type || "";
+                            uploadedFiles.push(new File([], fileName, { type: fileType }));
+                        }
+                    }
+
+                    // Process parts array - keep text as-is (let ChatMessage handle embed signals)
+                    if (bubble.parts && Array.isArray(bubble.parts)) {
+                        for (const part of bubble.parts) {
+                            const partObj = part as {
+                                kind?: string;
+                                text?: string;
+                                file?: { name?: string; filename?: string; mimeType?: string; mime_type?: string };
+                                artifact?: { name?: string; filename?: string; status?: string };
+                            };
+                            if (partObj.kind === "text" && partObj.text) {
+                                parts.push({ kind: "text", text: partObj.text });
+                            } else if (partObj.kind === "file" && partObj.file) {
                                 parts.push({
                                     kind: "file",
                                     file: {
-                                        name: fileObj.name || fileObj.filename || "Attached file",
-                                        mimeType: fileObj.mimeType || fileObj.mime_type,
+                                        name: partObj.file.name || partObj.file.filename || "Attached file",
+                                        mimeType: partObj.file.mimeType || partObj.file.mime_type,
+                                        uri: "",
                                     },
                                 });
+                            } else if (partObj.kind === "artifact") {
+                                const artifactData = partObj.artifact || partObj;
+                                const artifactName = (artifactData as { name?: string; filename?: string }).name || (artifactData as { name?: string; filename?: string }).filename || "Artifact";
+                                const fullArtifact = convertedArtifacts.find(a => a.filename === artifactName);
+                                parts.push({
+                                    kind: "artifact",
+                                    status: ((artifactData as { status?: string }).status as ArtifactPart["status"]) || "completed",
+                                    name: artifactName,
+                                    file: fullArtifact
+                                        ? {
+                                              name: fullArtifact.filename,
+                                              mime_type: fullArtifact.mime_type,
+                                          }
+                                        : { name: artifactName },
+                                } as ArtifactPart);
                             }
                         }
+                    } else if (bubble.text) {
+                        parts.push({ kind: "text", text: bubble.text });
+                    }
 
-                        // Process parts array to preserve order
-                        if (bubble.parts && Array.isArray(bubble.parts)) {
-                            for (const part of bubble.parts) {
-                                const partObj = part as { kind?: string; text?: string; file?: { name?: string; filename?: string; mimeType?: string; mime_type?: string }; artifact?: { name?: string; filename?: string; status?: string } };
-                                if (partObj.kind === "text" && partObj.text) {
-                                    // Remove __EMBED_SIGNAL_xxx__ placeholders from text
-                                    const cleanedText = partObj.text.replace(EMBED_SIGNAL_REGEX, "").trim();
-                                    if (cleanedText) {
-                                        parts.push({ kind: "text", text: cleanedText });
-                                    }
-                                } else if (partObj.kind === "file" && partObj.file) {
-                                    parts.push({
-                                        kind: "file",
-                                        file: {
-                                            name: partObj.file.name || "Attached file",
-                                            mimeType: partObj.file.mimeType,
-                                        },
-                                    });
-                                } else if (partObj.kind === "artifact") {
-                                    // Handle both formats:
-                                    // 1. Nested: { kind: "artifact", artifact: { name, status } }
-                                    // 2. Flat: { kind: "artifact", name, status, file: { name, mime_type, uri } }
-                                    const artifactData = partObj.artifact || partObj;
-                                    const artifactName = (artifactData as { name?: string; filename?: string }).name || (artifactData as { name?: string; filename?: string }).filename || (partObj.file as { name?: string })?.name || "Artifact";
-                                    parts.push({
-                                        kind: "artifact",
-                                        artifact: {
-                                            name: artifactName,
-                                            status: (artifactData as { status?: string }).status || "completed",
-                                        },
-                                    });
-                                }
-                            }
-                        } else if (bubble.text) {
-                            // Fallback: use bubble.text if no parts array
-                            const cleanedText = bubble.text.replace(EMBED_SIGNAL_REGEX, "").trim();
-                            if (cleanedText) {
-                                parts.push({ kind: "text", text: cleanedText });
-                            }
-                        }
-
-                        result.push({
-                            type: bubble.type || "agent",
-                            parts: parts,
-                            timestamp: task.created_time,
-                            taskId: taskId,
-                            isLastInTask: index === bubbles.length - 1,
-                            senderDisplayName: bubble.sender_display_name,
-                            senderEmail: bubble.sender_email,
-                        });
+                    result.push({
+                        taskId,
+                        createdTime: task.created_time,
+                        role: isUser ? "user" : "agent",
+                        isUser,
+                        isComplete: true,
+                        isError: bubble.isError || false,
+                        displayHtml: bubble.displayHtml,
+                        contextQuote: bubble.contextQuote,
+                        contextQuoteSourceId: bubble.contextQuoteSourceId,
+                        senderDisplayName: bubble.sender_display_name,
+                        senderEmail: bubble.sender_email,
+                        uploadedFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+                        parts,
+                        metadata: {
+                            messageId: bubble.id,
+                            sessionId: task.session_id,
+                        },
                     });
-                }
+                });
             } catch (e) {
                 console.error("Failed to parse message bubbles:", e);
             }
         }
         return result;
-    }, [session]);
+    }, [session, convertedArtifacts]);
+
+    // Compute which message is last per task (for workflow button display)
+    const lastMessageIndexByTaskId = useMemo(() => {
+        const map = new Map<string, number>();
+        messages.forEach((message, index) => {
+            if (message.taskId) {
+                map.set(message.taskId, index);
+            }
+        });
+        return map;
+    }, [messages]);
 
     // Check if there are any RAG sources to show
     const hasRagSources = ragData.length > 0;
-
-    // Check if there are artifacts to show
-    const hasArtifacts = session && session.artifacts && session.artifacts.length > 0;
+    const hasArtifacts = session?.artifacts && session.artifacts.length > 0;
 
     const toggleSidePanel = () => {
         setIsSidePanelCollapsed(!isSidePanelCollapsed);
-    };
-
-    const handleViewWorkflow = (taskId: string) => {
-        setSelectedTaskId(taskId);
-        setActiveSidePanelTab("workflow");
-        setIsSidePanelCollapsed(false);
-    };
-
-    if (loading) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <Spinner size="large" variant="primary">
-                    <p className="text-muted-foreground mt-4 text-sm">Loading shared session...</p>
-                </Spinner>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
-                <AlertCircle className="text-destructive h-16 w-16" />
-                <h1 className="text-2xl font-semibold">Unable to View Session</h1>
-                <p className="text-muted-foreground max-w-md text-center">{error}</p>
-                <Button variant="outline" onClick={() => navigate("/")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Go to Home
-                </Button>
-            </div>
-        );
-    }
-
-    if (!session) {
-        return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
-                <AlertCircle className="text-muted-foreground h-16 w-16" />
-                <h1 className="text-2xl font-semibold">Session Not Found</h1>
-                <p className="text-muted-foreground">This shared session may have been deleted or the link is invalid.</p>
-                <Button variant="outline" onClick={() => navigate("/")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Go to Home
-                </Button>
-            </div>
-        );
-    }
-
-    // Get RAG data for a specific task (for citation rendering)
-    const getTaskRagData = (taskId: string): RAGSearchResult | undefined => {
-        const taskRagEntries = ragData.filter(r => r.taskId === taskId);
-        if (taskRagEntries.length === 0) return undefined;
-
-        // Aggregate all sources from all matching RAG entries
-        const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
-
-        // Deduplicate sources by citationId (keep the first occurrence)
-        const seenCitationIds = new Set<string>();
-        const uniqueSources = allSources.filter(source => {
-            const citationId = source.citationId;
-            if (!citationId || seenCitationIds.has(citationId)) {
-                return false;
-            }
-            seenCitationIds.add(citationId);
-            return true;
-        });
-
-        // Return the last entry as base with aggregated sources
-        const lastEntry = taskRagEntries[taskRagEntries.length - 1];
-        return {
-            ...lastEntry,
-            sources: uniqueSources,
-        };
     };
 
     // Render side panel content
@@ -418,171 +334,123 @@ export function SharedSessionPage() {
         }
 
         return (
-            <div className="bg-background flex h-full flex-col border-l">
-                <div className="m-1 min-h-0 flex-1">
-                    <Tabs value={activeSidePanelTab} onValueChange={value => setActiveSidePanelTab(value as "files" | "workflow" | "sources")} className="flex h-full flex-col">
-                        <div className="@container flex gap-2 p-2">
-                            <Button variant="ghost" onClick={toggleSidePanel} className="shrink-0 p-1" tooltip="Collapse Panel">
-                                <PanelRightIcon className="size-5" />
-                            </Button>
-                            <TabsList className="flex min-w-0 flex-1 bg-transparent p-0">
-                                <TabsTrigger
-                                    value="files"
-                                    title="Files"
-                                    className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 px-2 data-[state=active]:z-10"
-                                >
-                                    <FileText className="h-4 w-4 shrink-0" />
-                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="workflow"
-                                    title="Workflow"
-                                    className={`border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border px-2 data-[state=active]:z-10 ${hasRagSources ? "border-r-0" : "rounded-r-md"}`}
-                                >
-                                    <Network className="h-4 w-4 shrink-0" />
-                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Workflow</span>
-                                </TabsTrigger>
-                                {hasRagSources && (
-                                    <TabsTrigger
-                                        value="sources"
-                                        title="Sources"
-                                        className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border px-2 data-[state=active]:z-10"
-                                    >
-                                        <Link2 className="h-4 w-4 shrink-0" />
-                                        <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
-                                    </TabsTrigger>
-                                )}
-                            </TabsList>
-                        </div>
-                        <div className="min-h-0 flex-1">
-                            <TabsContent value="files" className="m-0 h-full">
-                                <div className="h-full">
-                                    <ArtifactPanel readOnly={true} onDownloadOverride={handleSharedArtifactDownload} />
-                                </div>
-                            </TabsContent>
-                            <TabsContent value="workflow" className="m-0 h-full">
-                                <div className="h-full">
-                                    <SharedWorkflowPanel taskEvents={session.task_events} selectedTaskId={selectedTaskId} onTaskSelect={setSelectedTaskId} />
-                                </div>
-                            </TabsContent>
+            <div className="m-1 min-h-0 flex-1">
+                <Tabs value={activeSidePanelTab} onValueChange={value => setActiveSidePanelTab(value as "files" | "workflow" | "sources")} className="flex h-full flex-col">
+                    <div className="@container flex gap-2 p-2">
+                        <Button variant="ghost" onClick={toggleSidePanel} className="shrink-0 p-1" tooltip="Collapse Panel">
+                            <PanelRightIcon className="size-5" />
+                        </Button>
+                        <TabsList className="flex min-w-0 flex-1 bg-transparent p-0">
+                            <TabsTrigger
+                                value="files"
+                                title="Files"
+                                className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 px-2 data-[state=active]:z-10"
+                            >
+                                <FileText className="h-4 w-4 shrink-0" />
+                                <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="workflow"
+                                title="Workflow"
+                                className={`border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border px-2 data-[state=active]:z-10 ${hasRagSources ? "border-r-0" : "rounded-r-md"}`}
+                            >
+                                <Network className="h-4 w-4 shrink-0" />
+                                <span className="ml-1.5 hidden truncate @[240px]:inline">Workflow</span>
+                            </TabsTrigger>
                             {hasRagSources && (
-                                <TabsContent value="sources" className="m-0 h-full">
-                                    <div className="h-full">
-                                        <RAGInfoPanel ragData={ragData} enabled={true} />
-                                    </div>
-                                </TabsContent>
+                                <TabsTrigger value="sources" title="Sources" className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border px-2 data-[state=active]:z-10">
+                                    <Link2 className="h-4 w-4 shrink-0" />
+                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
+                                </TabsTrigger>
                             )}
-                        </div>
-                    </Tabs>
-                </div>
+                        </TabsList>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                        <TabsContent value="files" className="m-0 h-full">
+                            <div className="h-full">
+                                <ArtifactPanel readOnly={true} onDownloadOverride={handleSharedArtifactDownload} />
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="workflow" className="m-0 h-full">
+                            <div className="h-full">
+                                <SharedWorkflowPanel taskEvents={session?.task_events} selectedTaskId={selectedTaskId} onTaskSelect={setSelectedTaskId} />
+                            </div>
+                        </TabsContent>
+                        {hasRagSources && (
+                            <TabsContent value="sources" className="m-0 h-full">
+                                <div className="h-full">
+                                    <RAGInfoPanel ragData={ragData} enabled={true} />
+                                </div>
+                            </TabsContent>
+                        )}
+                    </div>
+                </Tabs>
             </div>
         );
     };
 
-    // Handle citation click - open sources panel
-    const handleCitationClick = () => {
-        if (hasRagSources) {
-            setActiveSidePanelTab("sources");
-            setIsSidePanelCollapsed(false);
-        }
-    };
-
-    // Render message content with citation support - preserving part order
-    const renderMessageContent = (message: { type: string; parts: MessagePart[]; taskId: string }) => {
-        // Get RAG data for this task (for citations in agent messages)
-        const taskRagData = message.type !== "user" ? getTaskRagData(message.taskId) : undefined;
-
+    // Loading state
+    if (loading) {
         return (
-            <>
-                {message.parts.map((part, idx) => {
-                    if (part.kind === "text") {
-                        const text = part.text;
-                        if (!text || !text.trim()) return null;
-
-                        // For agent messages, check for citations
-                        if (message.type !== "user" && taskRagData) {
-                            const citations = parseCitations(text, taskRagData);
-                            if (citations.length > 0) {
-                                return <TextWithCitations key={idx} text={text} citations={citations} onCitationClick={handleCitationClick} />;
-                            }
-                        }
-                        return <MarkdownWrapper key={idx} content={text} />;
-                    }
-
-                    if (part.kind === "file") {
-                        return (
-                            <div key={idx} className="my-2">
-                                <FileMessage filename={part.file.name} mimeType={part.file.mimeType} readOnly />
-                            </div>
-                        );
-                    }
-
-                    if (part.kind === "artifact") {
-                        // Find the full artifact info from the session artifacts
-                        const fullArtifact = convertedArtifacts.find(a => a.filename === part.artifact.name);
-                        if (fullArtifact) {
-                            return (
-                                <div key={idx} className="my-2">
-                                    <ArtifactMessage
-                                        status="completed"
-                                        name={fullArtifact.filename}
-                                        fileAttachment={{
-                                            name: fullArtifact.filename,
-                                            mime_type: fullArtifact.mime_type,
-                                        }}
-                                    />
-                                </div>
-                            );
-                        }
-                        // Fallback if artifact not found in session artifacts
-                        return (
-                            <div key={idx} className="my-2">
-                                <ArtifactMessage
-                                    status="completed"
-                                    name={part.artifact.name}
-                                    fileAttachment={{
-                                        name: part.artifact.name,
-                                    }}
-                                />
-                            </div>
-                        );
-                    }
-
-                    return null;
-                })}
-            </>
+            <div className="flex h-screen items-center justify-center">
+                <Spinner size="large" variant="primary">
+                    <p className="text-muted-foreground mt-4 text-sm">Loading shared session...</p>
+                </Spinner>
+            </div>
         );
-    };
+    }
 
-    // Get sources element for a specific task (for stacked favicons display)
-    const getSourcesElement = (taskId: string) => {
-        const taskRagEntries = ragData.filter(r => r.taskId === taskId);
-        if (taskRagEntries.length === 0) return null;
+    // Error state
+    if (error) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
+                <AlertCircle className="text-destructive h-16 w-16" />
+                <h1 className="text-2xl font-semibold">Unable to View Shared Session</h1>
+                <p className="text-muted-foreground max-w-md text-center">{error}</p>
+                <Button variant="outline" onClick={() => navigate("/")}>
+                    Go Home
+                </Button>
+            </div>
+        );
+    }
 
-        // Aggregate all sources from all matching RAG entries
-        const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
-        if (allSources.length === 0) return null;
-
-        // Filter sources - for web search, include all web sources
-        const sourcesToShow = allSources.filter(source => {
-            const sourceType = source.sourceType || "web";
-            // For images: include if they have a source link
-            if (sourceType === "image") {
-                return source.sourceUrl || source.metadata?.link;
-            }
-            return true;
-        });
-
-        if (sourcesToShow.length === 0) return null;
-
-        return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={false} onDeepResearchClick={handleCitationClick} />;
-    };
+    // Not found state
+    if (!session) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
+                <AlertCircle className="text-muted-foreground h-16 w-16" />
+                <h1 className="text-2xl font-semibold">Shared Session Not Found</h1>
+                <p className="text-muted-foreground">This shared session may have been deleted or the link is invalid.</p>
+                <Button variant="outline" onClick={() => navigate("/")}>
+                    Go Home
+                </Button>
+            </div>
+        );
+    }
 
     // Get session ID for the provider
     const sessionIdForProvider = session.tasks[0]?.session_id || session.share_id;
 
     return (
-        <SharedChatProvider artifacts={convertedArtifacts} ragData={ragData} sessionId={sessionIdForProvider} shareId={shareId || ""}>
+        <SharedChatProvider
+            artifacts={convertedArtifacts}
+            ragData={ragData}
+            sessionId={sessionIdForProvider}
+            shareId={shareId || ""}
+            onOpenSidePanelTab={tab => {
+                if (tab === "activity") {
+                    setActiveSidePanelTab("workflow");
+                    setIsSidePanelCollapsed(false);
+                } else if (tab === "rag") {
+                    setActiveSidePanelTab("sources");
+                    setIsSidePanelCollapsed(false);
+                } else if (tab === "files") {
+                    setActiveSidePanelTab("files");
+                    setIsSidePanelCollapsed(false);
+                }
+            }}
+            onSetTaskIdInSidePanel={setSelectedTaskId}
+        >
             <div className="flex h-screen flex-col">
                 {/* Header */}
                 <header className="border-b px-6 py-4">
@@ -653,10 +521,8 @@ export function SharedSessionPage() {
                     </div>
                 </header>
 
-                {/* Main content with resizable panels - always show side panel */}
+                {/* Main content with resizable panels */}
                 <div className="relative min-h-0 flex-1">
-                    {/* Read-Only Indicator */}
-
                     <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
                         {/* Messages panel */}
                         <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-session-messages-panel">
@@ -668,28 +534,10 @@ export function SharedSessionPage() {
                                         </div>
                                     ) : (
                                         messages.map((message, index) => {
-                                            // In shared views, all user messages are from the session owner - show as "received" (left-aligned)
-                                            const variant = "received";
+                                            const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                             return (
-                                                <div key={index} className="mb-4 flex flex-col">
-                                                    {/* Sender attribution using shared MessageAttribution component */}
-                                                    {message.type === "user" ? (
-                                                        <MessageAttribution type="user" name={message.senderDisplayName || message.senderEmail || "User"} userIndex={0} timestamp={message.timestamp} />
-                                                    ) : (
-                                                        <MessageAttribution type="agent" name="AI Assistant" />
-                                                    )}
-                                                    <div className="ml-10">
-                                                        <ChatBubble variant={variant}>
-                                                            <ChatBubbleMessage variant={variant}>{renderMessageContent(message)}</ChatBubbleMessage>
-                                                        </ChatBubble>
-                                                    </div>
-                                                    {/* Show workflow button and sources outside the bubble for the last AI message in each task */}
-                                                    {message.type !== "user" && message.isLastInTask && (
-                                                        <div className="mt-1 flex items-center justify-start gap-2">
-                                                            <ViewWorkflowButton onClick={() => handleViewWorkflow(message.taskId)} />
-                                                            {getSourcesElement(message.taskId)}
-                                                        </div>
-                                                    )}
+                                                <div key={message.metadata?.messageId || `msg-${index}`}>
+                                                    <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} />
                                                 </div>
                                             );
                                         })
@@ -703,7 +551,7 @@ export function SharedSessionPage() {
                                             <span className="text-muted-foreground text-sm">This is a shared chat. Fork it to continue the conversation.</span>
                                             <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
                                                 {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                Create Personal Copy
+                                                Save as My Chat
                                             </Button>
                                         </div>
                                     </div>

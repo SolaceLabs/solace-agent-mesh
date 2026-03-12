@@ -519,6 +519,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 return {
                     taskId: task.taskId,
+                    createdTime: task.createdTime,
                     role: bubble.type === "user" ? "user" : "agent",
                     parts: processedParts,
                     isUser: bubble.type === "user",

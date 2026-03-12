@@ -5,28 +5,24 @@
  * inside the main app layout with sidebar and navigation visible. It provides a
  * read-only view of a shared chat with the option to fork or navigate to the
  * original chat (if owner).
+ *
+ * Uses the full ChatMessage component for pixel-perfect rendering parity with ChatPage.
  */
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AlertCircle, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock, Info } from "lucide-react";
-import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger, CHAT_STYLES } from "@/lib/components/ui";
-import { MessageAttribution } from "@/lib/components/chat/MessageAttribution";
-import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
+import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, Tooltip, TooltipContent, TooltipTrigger, CHAT_STYLES } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
-import type { RAGSearchResult, ArtifactInfo } from "@/lib/types";
+import type { MessageFE, RAGSearchResult, ArtifactInfo, ArtifactPart, PartFE } from "@/lib/types";
 import { ArtifactPanel } from "@/lib/components/chat/artifact/ArtifactPanel";
 import { SharedWorkflowPanel } from "@/lib/components/share/SharedWorkflowPanel";
-import { FileMessage, ArtifactMessage } from "@/lib/components/chat/file";
-import { TextWithCitations } from "@/lib/components/chat/Citation";
-import { parseCitations } from "@/lib/utils/citations";
+import { ChatMessage } from "@/lib/components/chat";
 import { RAGInfoPanel } from "@/lib/components/chat/rag/RAGInfoPanel";
-import { Sources } from "@/lib/components/web/Sources";
 import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
-import { MarkdownWrapper } from "@/lib/components";
 import { downloadBlob } from "@/lib/utils/download";
 
 /**
@@ -44,22 +40,6 @@ function convertToArtifactInfo(artifact: SharedArtifact): ArtifactInfo {
         source: artifact.source ?? undefined,
     };
 }
-
-interface FileInfo {
-    name: string;
-    mimeType?: string;
-}
-
-interface ArtifactRef {
-    name: string;
-    status?: string;
-}
-
-// Part types for preserving render order
-type MessagePart = { kind: "text"; text: string } | { kind: "file"; file: FileInfo } | { kind: "artifact"; artifact: ArtifactRef };
-
-// Regex to match __EMBED_SIGNAL_xxx__ placeholders
-const EMBED_SIGNAL_REGEX = /__EMBED_SIGNAL_[a-f0-9]+__/g;
 
 export function SharedChatViewPage() {
     const { shareId } = useParams<{ shareId: string }>();
@@ -108,7 +88,6 @@ export function SharedChatViewPage() {
         setIsForking(true);
         try {
             await forkSharedChat(shareId);
-            // Navigate to the main chat view and trigger session refresh
             navigate(`/chat`);
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent("new-chat-session"));
@@ -135,7 +114,6 @@ export function SharedChatViewPage() {
         for (const task of session.tasks) {
             const taskId = task.workflow_task_id || task.id;
 
-            // Extract RAG data from task_metadata
             let taskMetadata = task.task_metadata;
             if (typeof taskMetadata === "string") {
                 try {
@@ -164,230 +142,119 @@ export function SharedChatViewPage() {
         return session.artifacts.map(convertToArtifactInfo);
     }, [session?.artifacts]);
 
-    // Parse message bubbles from tasks - preserving part order for proper rendering
-    const messages = useMemo(() => {
+    // Parse message bubbles from tasks into MessageFE format for ChatMessage rendering
+    const messages: MessageFE[] = useMemo(() => {
         if (!session) return [];
-
-        const result: Array<{
-            type: string;
-            parts: MessagePart[];
-            timestamp?: number;
-            taskId: string;
-            isLastInTask: boolean;
-            senderDisplayName?: string;
-            senderEmail?: string;
-        }> = [];
+        const result: MessageFE[] = [];
 
         for (const task of session.tasks) {
             try {
                 const taskId = task.workflow_task_id || task.id;
-
                 const bubbles = typeof task.message_bubbles === "string" ? JSON.parse(task.message_bubbles) : task.message_bubbles;
 
-                if (Array.isArray(bubbles)) {
-                    (bubbles as MessageBubble[]).forEach((bubble: MessageBubble, index: number) => {
-                        const parts: MessagePart[] = [];
+                if (!Array.isArray(bubbles)) continue;
 
-                        // First, add uploadedFiles for user messages (they appear before text)
-                        if (bubble.uploadedFiles && Array.isArray(bubble.uploadedFiles)) {
-                            for (const f of bubble.uploadedFiles) {
-                                const fileObj = f as { name?: string; filename?: string; mimeType?: string; mime_type?: string };
+                (bubbles as MessageBubble[]).forEach((bubble: MessageBubble) => {
+                    const parts: PartFE[] = [];
+                    const isUser = bubble.type === "user";
+
+                    // Convert uploadedFiles to File-like objects for the uploadedFiles field
+                    // (ChatMessage renders these as file upload badges via getUploadedFiles)
+                    const uploadedFiles: File[] = [];
+                    if (bubble.uploadedFiles && Array.isArray(bubble.uploadedFiles)) {
+                        for (const f of bubble.uploadedFiles) {
+                            const fileObj = f as { name?: string; filename?: string; mimeType?: string; mime_type?: string; type?: string };
+                            const fileName = fileObj.name || fileObj.filename || "Attached file";
+                            const fileType = fileObj.mimeType || fileObj.mime_type || fileObj.type || "";
+                            // Create a minimal File-like object with name and type properties
+                            uploadedFiles.push(new File([], fileName, { type: fileType }));
+                        }
+                    }
+
+                    // Process parts array - keep text as-is (let ChatMessage handle embed signals)
+                    if (bubble.parts && Array.isArray(bubble.parts)) {
+                        for (const part of bubble.parts) {
+                            const partObj = part as {
+                                kind?: string;
+                                text?: string;
+                                file?: { name?: string; filename?: string; mimeType?: string; mime_type?: string };
+                                artifact?: { name?: string; filename?: string; status?: string };
+                            };
+                            if (partObj.kind === "text" && partObj.text) {
+                                parts.push({ kind: "text", text: partObj.text });
+                            } else if (partObj.kind === "file" && partObj.file) {
                                 parts.push({
                                     kind: "file",
                                     file: {
-                                        name: fileObj.name || fileObj.filename || "Attached file",
-                                        mimeType: fileObj.mimeType || fileObj.mime_type,
+                                        name: partObj.file.name || partObj.file.filename || "Attached file",
+                                        mimeType: partObj.file.mimeType || partObj.file.mime_type,
+                                        uri: "", // Required by A2A FilePart type
                                     },
                                 });
+                            } else if (partObj.kind === "artifact") {
+                                const artifactData = partObj.artifact || partObj;
+                                const artifactName = (artifactData as { name?: string; filename?: string }).name || (artifactData as { name?: string; filename?: string }).filename || "Artifact";
+                                const fullArtifact = convertedArtifacts.find(a => a.filename === artifactName);
+                                parts.push({
+                                    kind: "artifact",
+                                    status: ((artifactData as { status?: string }).status as ArtifactPart["status"]) || "completed",
+                                    name: artifactName,
+                                    file: fullArtifact
+                                        ? {
+                                              name: fullArtifact.filename,
+                                              mime_type: fullArtifact.mime_type,
+                                          }
+                                        : { name: artifactName },
+                                } as ArtifactPart);
                             }
                         }
+                    } else if (bubble.text) {
+                        parts.push({ kind: "text", text: bubble.text });
+                    }
 
-                        // Process parts array to preserve order
-                        if (bubble.parts && Array.isArray(bubble.parts)) {
-                            for (const part of bubble.parts) {
-                                const partObj = part as {
-                                    kind?: string;
-                                    text?: string;
-                                    file?: { name?: string; filename?: string; mimeType?: string; mime_type?: string };
-                                    artifact?: { name?: string; filename?: string; status?: string };
-                                };
-                                if (partObj.kind === "text" && partObj.text) {
-                                    const cleanedText = partObj.text.replace(EMBED_SIGNAL_REGEX, "").trim();
-                                    if (cleanedText) {
-                                        parts.push({ kind: "text", text: cleanedText });
-                                    }
-                                } else if (partObj.kind === "file" && partObj.file) {
-                                    parts.push({
-                                        kind: "file",
-                                        file: {
-                                            name: partObj.file.name || "Attached file",
-                                            mimeType: partObj.file.mimeType,
-                                        },
-                                    });
-                                } else if (partObj.kind === "artifact") {
-                                    const artifactData = partObj.artifact || partObj;
-                                    const artifactName = (artifactData as { name?: string; filename?: string }).name || (artifactData as { name?: string; filename?: string }).filename || (partObj.file as { name?: string })?.name || "Artifact";
-                                    parts.push({
-                                        kind: "artifact",
-                                        artifact: {
-                                            name: artifactName,
-                                            status: (artifactData as { status?: string }).status || "completed",
-                                        },
-                                    });
-                                }
-                            }
-                        } else if (bubble.text) {
-                            const cleanedText = bubble.text.replace(EMBED_SIGNAL_REGEX, "").trim();
-                            if (cleanedText) {
-                                parts.push({ kind: "text", text: cleanedText });
-                            }
-                        }
-
-                        result.push({
-                            type: bubble.type || "agent",
-                            parts: parts,
-                            timestamp: task.created_time,
-                            taskId: taskId,
-                            isLastInTask: index === bubbles.length - 1,
-                            senderDisplayName: bubble.sender_display_name,
-                            senderEmail: bubble.sender_email,
-                        });
+                    result.push({
+                        taskId,
+                        createdTime: task.created_time,
+                        role: isUser ? "user" : "agent",
+                        isUser,
+                        isComplete: true, // All shared messages are historical/complete
+                        isError: bubble.isError || false,
+                        displayHtml: bubble.displayHtml,
+                        contextQuote: bubble.contextQuote,
+                        contextQuoteSourceId: bubble.contextQuoteSourceId,
+                        senderDisplayName: bubble.sender_display_name,
+                        senderEmail: bubble.sender_email,
+                        uploadedFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+                        parts,
+                        metadata: {
+                            messageId: bubble.id,
+                            sessionId: task.session_id,
+                        },
                     });
-                }
+                });
             } catch (e) {
                 console.error("Failed to parse message bubbles:", e);
             }
         }
         return result;
-    }, [session]);
+    }, [session, convertedArtifacts]);
+
+    // Compute which message is last per task (for workflow button display)
+    const lastMessageIndexByTaskId = useMemo(() => {
+        const map = new Map<string, number>();
+        messages.forEach((message, index) => {
+            if (message.taskId) {
+                map.set(message.taskId, index);
+            }
+        });
+        return map;
+    }, [messages]);
 
     // Check if there are any RAG sources to show
     const hasRagSources = ragData.length > 0;
 
     const toggleSidePanel = () => {
         setIsSidePanelCollapsed(!isSidePanelCollapsed);
-    };
-
-    const handleViewWorkflow = (taskId: string) => {
-        setSelectedTaskId(taskId);
-        setActiveSidePanelTab("workflow");
-        setIsSidePanelCollapsed(false);
-    };
-
-    // Get RAG data for a specific task (for citation rendering)
-    const getTaskRagData = (taskId: string): RAGSearchResult | undefined => {
-        const taskRagEntries = ragData.filter(r => r.taskId === taskId);
-        if (taskRagEntries.length === 0) return undefined;
-
-        const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
-
-        const seenCitationIds = new Set<string>();
-        const uniqueSources = allSources.filter(source => {
-            const citationId = source.citationId;
-            if (!citationId || seenCitationIds.has(citationId)) {
-                return false;
-            }
-            seenCitationIds.add(citationId);
-            return true;
-        });
-
-        const lastEntry = taskRagEntries[taskRagEntries.length - 1];
-        return {
-            ...lastEntry,
-            sources: uniqueSources,
-        };
-    };
-
-    // Handle citation click - open sources panel
-    const handleCitationClick = () => {
-        if (hasRagSources) {
-            setActiveSidePanelTab("sources");
-            setIsSidePanelCollapsed(false);
-        }
-    };
-
-    // Render message content with citation support - preserving part order
-    const renderMessageContent = (message: { type: string; parts: MessagePart[]; taskId: string }) => {
-        const taskRagData = message.type !== "user" ? getTaskRagData(message.taskId) : undefined;
-
-        return (
-            <>
-                {message.parts.map((part, idx) => {
-                    if (part.kind === "text") {
-                        const text = part.text;
-                        if (!text || !text.trim()) return null;
-
-                        if (message.type !== "user" && taskRagData) {
-                            const citations = parseCitations(text, taskRagData);
-                            if (citations.length > 0) {
-                                return <TextWithCitations key={idx} text={text} citations={citations} onCitationClick={handleCitationClick} />;
-                            }
-                        }
-                        return <MarkdownWrapper key={idx} content={text} />;
-                    }
-
-                    if (part.kind === "file") {
-                        return (
-                            <div key={idx} className="my-2">
-                                <FileMessage filename={part.file.name} mimeType={part.file.mimeType} readOnly />
-                            </div>
-                        );
-                    }
-
-                    if (part.kind === "artifact") {
-                        const fullArtifact = convertedArtifacts.find(a => a.filename === part.artifact.name);
-                        if (fullArtifact) {
-                            return (
-                                <div key={idx} className="my-2">
-                                    <ArtifactMessage
-                                        status="completed"
-                                        name={fullArtifact.filename}
-                                        fileAttachment={{
-                                            name: fullArtifact.filename,
-                                            mime_type: fullArtifact.mime_type,
-                                        }}
-                                    />
-                                </div>
-                            );
-                        }
-                        return (
-                            <div key={idx} className="my-2">
-                                <ArtifactMessage
-                                    status="completed"
-                                    name={part.artifact.name}
-                                    fileAttachment={{
-                                        name: part.artifact.name,
-                                    }}
-                                />
-                            </div>
-                        );
-                    }
-
-                    return null;
-                })}
-            </>
-        );
-    };
-
-    // Get sources element for a specific task (for stacked favicons display)
-    const getSourcesElement = (taskId: string) => {
-        const taskRagEntries = ragData.filter(r => r.taskId === taskId);
-        if (taskRagEntries.length === 0) return null;
-
-        const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
-        if (allSources.length === 0) return null;
-
-        const sourcesToShow = allSources.filter(source => {
-            const sourceType = source.sourceType || "web";
-            if (sourceType === "image") {
-                return source.sourceUrl || source.metadata?.link;
-            }
-            return true;
-        });
-
-        if (sourcesToShow.length === 0) return null;
-
-        return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={false} onDeepResearchClick={handleCitationClick} />;
     };
 
     // Render side panel content
@@ -549,7 +416,7 @@ export function SharedChatViewPage() {
     // Get session ID for the provider
     const sessionIdForProvider = session.tasks[0]?.session_id || session.share_id;
 
-    // Header buttons: Fork & Continue or Go to Chat (if owner)
+    // Header buttons
     const headerButtons = [
         <div key="shared-info" className="flex items-center gap-2 text-sm text-(--color-secondary-text-wMain)">
             <Tooltip>
@@ -590,13 +457,32 @@ export function SharedChatViewPage() {
         ) : (
             <Button key="save-as-my-chat" variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
                 {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                Create Personal Copy
+                Save as My Chat
             </Button>
         ),
     ].filter(Boolean) as React.ReactNode[];
 
     return (
-        <SharedChatProvider artifacts={convertedArtifacts} ragData={ragData} sessionId={sessionIdForProvider} shareId={shareId || ""}>
+        <SharedChatProvider
+            artifacts={convertedArtifacts}
+            ragData={ragData}
+            sessionId={sessionIdForProvider}
+            shareId={shareId || ""}
+            onOpenSidePanelTab={tab => {
+                // Map ChatMessage's tab names to shared page's tab names
+                if (tab === "activity") {
+                    setActiveSidePanelTab("workflow");
+                    setIsSidePanelCollapsed(false);
+                } else if (tab === "rag") {
+                    setActiveSidePanelTab("sources");
+                    setIsSidePanelCollapsed(false);
+                } else if (tab === "files") {
+                    setActiveSidePanelTab("files");
+                    setIsSidePanelCollapsed(false);
+                }
+            }}
+            onSetTaskIdInSidePanel={setSelectedTaskId}
+        >
             <div className="relative flex h-screen w-full flex-col overflow-hidden">
                 <Header title={session.title} buttons={headerButtons} />
 
@@ -615,27 +501,10 @@ export function SharedChatViewPage() {
                                                     </div>
                                                 ) : (
                                                     messages.map((message, index) => {
-                                                        // In shared views, all user messages are from the session owner - show as "received" (left-aligned)
-                                                        const variant = "received";
+                                                        const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                         return (
-                                                            <div key={index} className="mb-4 flex flex-col">
-                                                                {/* Sender attribution using shared MessageAttribution component */}
-                                                                {message.type === "user" ? (
-                                                                    <MessageAttribution type="user" name={message.senderDisplayName || message.senderEmail || "User"} userIndex={0} timestamp={message.timestamp} />
-                                                                ) : (
-                                                                    <MessageAttribution type="agent" name="AI Assistant" />
-                                                                )}
-                                                                <div className="ml-10">
-                                                                    <ChatBubble variant={variant}>
-                                                                        <ChatBubbleMessage variant={variant}>{renderMessageContent(message)}</ChatBubbleMessage>
-                                                                    </ChatBubble>
-                                                                </div>
-                                                                {message.type !== "user" && message.isLastInTask && (
-                                                                    <div className="mt-1 flex items-center justify-start gap-2">
-                                                                        <ViewWorkflowButton onClick={() => handleViewWorkflow(message.taskId)} />
-                                                                        {getSourcesElement(message.taskId)}
-                                                                    </div>
-                                                                )}
+                                                            <div key={message.metadata?.messageId || `msg-${index}`}>
+                                                                <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} />
                                                             </div>
                                                         );
                                                     })
@@ -651,7 +520,7 @@ export function SharedChatViewPage() {
                                                 {!(session?.is_owner && session?.session_id) && (
                                                     <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
                                                         {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                        Create Personal Copy
+                                                        Save as My Chat
                                                     </Button>
                                                 )}
                                             </div>
