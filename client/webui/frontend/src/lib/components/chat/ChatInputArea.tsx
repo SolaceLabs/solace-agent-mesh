@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { MessageBanner } from "@/lib/components/common";
+import { MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useUIMode } from "@/lib/hooks";
 import type { AgentCardInfo, Person } from "@/lib/types";
@@ -55,7 +55,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const navigate = useNavigate();
     const location = useLocation();
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt, builderMode, inputAreaLeftSlot } = useChatContext();
-    const { handleAgentSelection } = useAgentSelection();
+    const { handleAgentSelection, switchConfirmOpen, setSwitchConfirmOpen, confirmAgentSwitch, cancelAgentSwitch } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
     const { isOnboardMode } = useUIMode();
@@ -1080,6 +1080,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     </Button>
                 )}
             </div>
+
+            <ConfirmationDialog
+                open={switchConfirmOpen}
+                onOpenChange={setSwitchConfirmOpen}
+                title="Switch Agent"
+                description="Switching agents will start a new chat and clear the current chat history and files. Are you sure you want to proceed?"
+                actionLabels={{ confirm: "Switch Agent" }}
+                onConfirm={confirmAgentSwitch}
+                onCancel={cancelAgentSwitch}
+            />
         </div>
     );
 };

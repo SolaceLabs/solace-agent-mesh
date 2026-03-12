@@ -54,6 +54,7 @@ export function ChatPage() {
         closeSessionDeleteModal,
         confirmSessionDelete,
         currentTaskId,
+        selectedAgentName,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -320,7 +321,7 @@ export function ChatPage() {
                                             </Spinner>
                                         </div>
                                     ) : isWelcomeState && !isResponding ? (
-                                        <ChatWelcomeScreen agents={agents} />
+                                        <ChatWelcomeScreen agents={agents} selectedAgentName={selectedAgentName} />
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
@@ -359,6 +360,8 @@ export function ChatPage() {
                                                     <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
                                                 </Spinner>
                                             </div>
+                                        ) : isWelcomeState && !isResponding ? (
+                                            <ChatWelcomeScreen agents={agents} selectedAgentName={selectedAgentName} />
                                         ) : (
                                             <>
                                                 <ChatMessageList className="text-base" ref={chatMessageListRef}>

@@ -35,5 +35,18 @@ export {
 } from "./workflowVisualization";
 export type { WorkflowPanelView, NodeProps, WorkflowVisualNodeType } from "./workflowVisualization";
 // Note: LayoutNode, Edge, LayoutResult types not exported here to avoid conflicts with activities
+// Export agent visualization components
+export {
+    AgentDiagram,
+    AgentNodeRenderer,
+    AgentNodeDetailPanel,
+    AgentHeaderNode,
+    ToolNode,
+    SkillNode,
+    ToolsetGroupNode,
+    processAgentConfig,
+    AGENT_LAYOUT_CONSTANTS,
+} from "./agentVisualization";
+export type { AgentLayoutNode, AgentLayoutResult, AgentDiagramConfig, AgentVisualNodeType, AgentNodeProps } from "./agentVisualization";
 export * from "./jsonViewer";
 export * from "./projects";

@@ -53,6 +53,17 @@ export interface AgentInfo extends AgentCard {
     tools?: AgentSkill[];
 }
 
+export interface WelcomeSuggestion {
+    label: string;
+    prompt: string;
+    auto_send?: boolean;
+}
+
+export interface AgentWelcomeConfig {
+    welcome_message?: string;
+    suggestions?: WelcomeSuggestion[];
+}
+
 /**
  * A UI-specific interface that extends the official A2A AgentCard with additional
  * properties needed for rendering, like a displayName.
@@ -62,6 +73,7 @@ export interface AgentCardInfo extends AgentInfo {
     peerAgents?: string[];
     tools?: AgentSkill[];
     isWorkflow?: boolean;
+    welcome?: AgentWelcomeConfig;
 }
 
 // This is a UI-specific type for managing artifacts in the side panel.
