@@ -71,6 +71,7 @@ export function ChatPage() {
         sessionOwnerEmail,
         handleSwitchSession,
         handleNewSession,
+        selectedAgentName,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -578,7 +579,7 @@ export function ChatPage() {
                                             </Spinner>
                                         </div>
                                     ) : isWelcomeState && !isResponding ? (
-                                        <ChatWelcomeScreen agents={agents} />
+                                        <ChatWelcomeScreen agents={agents} selectedAgentName={selectedAgentName} />
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
@@ -652,9 +653,6 @@ export function ChatPage() {
                             </div>
                         </ResizablePanel>
                     </ResizablePanelGroup>
-                </div>
-            </div>
-            <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
             {sessionId && <ShareDialog sessionId={sessionId} sessionTitle={sessionName || "New Chat"} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />}
         </div>
     );
