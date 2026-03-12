@@ -67,7 +67,10 @@ const getTokenExpMs = (token: string | null): number | null => {
     try {
         const payload = token.split(".")[1];
         if (!payload) return null;
-        const decoded = JSON.parse(atob(payload));
+        // Convert base64url → standard base64 before decoding.
+        // JWTs use base64url encoding which replaces + with - and / with _.
+        const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+        const decoded = JSON.parse(atob(base64));
         if (typeof decoded.exp === "number") {
             return decoded.exp * 1000; // seconds → ms
         }

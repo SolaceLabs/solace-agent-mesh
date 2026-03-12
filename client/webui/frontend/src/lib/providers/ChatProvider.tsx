@@ -2225,11 +2225,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Track whether we've already attempted an SSE token refresh for the
     // current task to avoid infinite retry loops.
     const sseRefreshAttempted = useRef(false);
+    // Track the task ID that the refresh guard applies to, so we only reset
+    // the guard when a genuinely *new* task starts (not on reconnect bumps).
+    const sseRefreshTaskId = useRef<string | null>(null);
 
-    // Reset the flag whenever a new task starts
+    // Reconnect counter — incrementing this triggers the EventSource useEffect
+    // to tear down and rebuild the connection without changing currentTaskId.
+    const [sseReconnectKey, setSseReconnectKey] = useState(0);
+
+    // Reset the refresh-attempted flag only when a genuinely new task starts
     useEffect(() => {
-        if (currentTaskId) {
+        if (currentTaskId && currentTaskId !== sseRefreshTaskId.current) {
             sseRefreshAttempted.current = false;
+            sseRefreshTaskId.current = currentTaskId;
         }
     }, [currentTaskId]);
 
@@ -2245,11 +2253,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             void refreshToken().then(newToken => {
                 if (newToken && currentTaskId) {
                     console.log("[ChatProvider] Token refreshed, reconnecting SSE for task", currentTaskId);
-                    // Re-setting the same taskId triggers the useEffect that
-                    // creates a new EventSource with the fresh token from getApiBearerToken().
-                    setCurrentTaskId(null);
-                    // Use a microtask to ensure the null is processed first
-                    queueMicrotask(() => setCurrentTaskId(currentTaskId));
+                    // Bump the reconnect key to trigger the EventSource useEffect
+                    // without changing currentTaskId. This avoids the React 18
+                    // batching issue with null → restore tricks.
+                    setSseReconnectKey(k => k + 1);
                 } else {
                     // Refresh failed — fall through to normal error handling
                     console.warn("[ChatProvider] Token refresh failed during SSE error");
@@ -2885,7 +2892,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         } else {
             closeCurrentEventSource();
         }
-    }, [currentTaskId, closeCurrentEventSource]);
+    }, [currentTaskId, closeCurrentEventSource, sseReconnectKey]);
 
     const contextValue: ChatContextValue = {
         ragData,

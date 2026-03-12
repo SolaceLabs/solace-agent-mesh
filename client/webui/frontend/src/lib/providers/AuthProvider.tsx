@@ -37,11 +37,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 if (isMounted) {
                     setUserInfo(userData);
                     setIsAuthenticated(true);
-                }
 
-                // Start proactive token refresh timer so tokens are refreshed
-                // before they expire, preventing 401 storms on SSE connections.
-                scheduleProactiveRefresh();
+                    // Start proactive token refresh timer so tokens are refreshed
+                    // before they expire, preventing 401 storms on SSE connections.
+                    scheduleProactiveRefresh();
+                }
 
                 console.log("Fetching CSRF token for authenticated requests...");
                 await fetchCsrfToken();
