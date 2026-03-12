@@ -59,6 +59,20 @@ export class AgentAction implements ExecutableAction {
                         navigate("/projects");
                     }, 100);
                 }
+            } else if (response.data?.action === "navigate_to_prompts") {
+                console.log("[AgentAction] Navigating to prompts page");
+
+                // Show success message
+                if (addNotification) {
+                    addNotification(response.message || "Prompt template created successfully", "success");
+                }
+
+                // Navigate to prompts library
+                if (navigate) {
+                    setTimeout(() => {
+                        navigate("/prompts");
+                    }, 100);
+                }
             } else {
                 // No specific navigation action, just show the response
                 if (addNotification) {

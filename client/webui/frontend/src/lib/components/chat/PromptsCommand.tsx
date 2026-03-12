@@ -86,7 +86,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
 
     // Detect if query is a command that should be handled by the agent
     const isAgentCommand = useCallback((query: string): boolean => {
-        const commandPatterns = [/^(create|make|new|start)\s+(a\s+)?project/i, /^(add|create)\s+.*\s+(project|folder)/i];
+        const commandPatterns = [/^(create|make|new|start)\s+(a\s+)?project/i, /^(add|create)\s+.*\s+(project|folder)/i, /^(create|make|build|new)\s+(a\s+)?(prompt|template)/i, /^(add|create)\s+.*\s+(prompt|template)/i];
         return commandPatterns.some(pattern => pattern.test(query));
     }, []);
 
@@ -222,6 +222,16 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                     // Navigate to projects page
                     setTimeout(() => {
                         navigate("/projects");
+                    }, 100);
+                } else if (response.data?.action === "navigate_to_prompts") {
+                    console.log("[PromptsCommand] Navigating to prompts page");
+
+                    // Show success message
+                    addNotification(response.message || "Prompt template created successfully", "success");
+
+                    // Navigate to prompts library
+                    setTimeout(() => {
+                        navigate("/prompts");
                     }, 100);
                 } else {
                     // No specific navigation action, just show the response

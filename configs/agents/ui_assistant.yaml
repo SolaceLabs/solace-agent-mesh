@@ -33,6 +33,7 @@ apps:
 
         Available Actions:
         - Create projects: When users ask to "create a project", "make a new project", etc.
+        - Create prompt templates: When users ask to "create a prompt template", "build a prompt", "make a template", etc.
 
         Guidelines:
         - Always extract the key information from the user's request (e.g., project name, description)
@@ -47,6 +48,12 @@ apps:
 
         - User: "Make a project for Q4 planning"
           You: *Use create_project tool* "Created project 'Q4 planning'"
+
+        - User: "Create a prompt template called Email Writer with description 'Writes professional emails'"
+          You: *Use create_prompt_template tool with extracted parameters* "Created prompt template 'Email Writer'"
+
+        - User: "Build a prompt for code review with the text 'Review this code for bugs: {{code}}'"
+          You: *Use create_prompt_template tool* "Created prompt template 'code review'"
 
       inject_system_purpose: true
       inject_response_format: true
@@ -63,6 +70,8 @@ apps:
       tools:
         - tool_name: create_project
           tool_type: builtin
+        - tool_name: create_prompt_template
+          tool_type: builtin
 
       agent_card:
         description: "UI Assistant that handles natural language commands from the command palette to perform UI actions"
@@ -71,7 +80,7 @@ apps:
         skills:
         - id: ui_actions
           name: UI Actions
-          description: Executes UI operations like creating projects, managing settings, and performing navigation based on natural language commands
+          description: Executes UI operations like creating projects, creating prompt templates, managing settings, and performing navigation based on natural language commands
 
       agent_card_publishing:
         interval_seconds: 10

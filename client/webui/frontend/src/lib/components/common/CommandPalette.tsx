@@ -102,7 +102,7 @@ export function CommandPalette() {
 
     // Detect if query is a command that should be handled by the agent
     const isAgentCommand = (query: string): boolean => {
-        const commandPatterns = [/^(create|make|new|start)\s+(a\s+)?project/i, /^(add|create)\s+.*\s+(project|folder)/i];
+        const commandPatterns = [/^(create|make|new|start)\s+(a\s+)?project/i, /^(add|create)\s+.*\s+(project|folder)/i, /^(create|make|build|new)\s+(a\s+)?(prompt|template)/i, /^(add|create)\s+.*\s+(prompt|template)/i];
         return commandPatterns.some(pattern => pattern.test(query));
     };
 
