@@ -1703,6 +1703,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         e,
                     )
 
+        tasks_to_await: list[asyncio.Task] = []
         if (
             self._visualization_processor_task
             and not self._visualization_processor_task.done()
@@ -1711,6 +1712,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Cancelling visualization processor task...", self.log_identifier
             )
             self._visualization_processor_task.cancel()
+            tasks_to_await.append(self._visualization_processor_task)
 
         if (
             self._task_logger_processor_task
@@ -1718,6 +1720,30 @@ class WebUIBackendComponent(BaseGatewayComponent):
         ):
             log.info("%s Cancelling task logger processor task...", self.log_identifier)
             self._task_logger_processor_task.cancel()
+            tasks_to_await.append(self._task_logger_processor_task)
+
+        # Wait for cancelled tasks to finish before clearing shared dicts to
+        # avoid RuntimeError from mutating dicts while the processor loop is
+        # still iterating over them.
+        if tasks_to_await and self.fastapi_event_loop and self.fastapi_event_loop.is_running():
+            async def _await_tasks():
+                for t in tasks_to_await:
+                    try:
+                        await t
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    _await_tasks(), self.fastapi_event_loop
+                )
+                future.result(timeout=5)
+            except Exception as e:
+                log.warning(
+                    "%s Timed out or failed waiting for processor tasks to finish: %s",
+                    self.log_identifier,
+                    e,
+                )
 
         if self._visualization_internal_app:
             log.info(
