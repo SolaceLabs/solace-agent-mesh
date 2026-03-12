@@ -53,6 +53,7 @@ const clearTokens = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("sam_access_token");
     localStorage.removeItem("refresh_token");
+    cancelProactiveRefresh();
 };
 
 // Shared promise to deduplicate concurrent refresh attempts.
@@ -63,6 +64,7 @@ let pendingRefresh: Promise<string | null> | null = null;
 // Refresh tokens ~5 minutes before they expire to avoid 401 storms,
 // especially for long-lived SSE connections that can't retry easily.
 const PROACTIVE_REFRESH_MARGIN_MS = 5 * 60 * 1000; // 5 minutes
+const MIN_PROACTIVE_REFRESH_DELAY_MS = 30 * 1000; // 30 seconds — prevents tight loops with short-TTL tokens
 let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Decode the `exp` claim from a JWT without verifying the signature. */
@@ -106,9 +108,15 @@ const scheduleProactiveRefresh = () => {
     const delay = earliestExp - now - PROACTIVE_REFRESH_MARGIN_MS;
 
     if (delay <= 0) {
-        // Already within the refresh margin — refresh immediately
-        console.debug("[api/client] Token near expiry, refreshing proactively now");
-        void refreshToken();
+        // Already within the refresh margin — schedule with minimum delay floor
+        // to prevent tight loops when tokens have very short TTLs or clock skew.
+        const floorDelay = MIN_PROACTIVE_REFRESH_DELAY_MS;
+        console.debug(`[api/client] Token near expiry, scheduling proactive refresh in ${floorDelay / 1000}s`);
+        proactiveRefreshTimer = setTimeout(() => {
+            proactiveRefreshTimer = null;
+            console.debug("[api/client] Proactive token refresh triggered (near-expiry)");
+            void refreshToken();
+        }, floorDelay);
         return;
     }
 

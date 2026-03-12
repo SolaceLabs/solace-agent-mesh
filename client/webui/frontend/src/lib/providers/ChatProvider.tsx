@@ -2241,6 +2241,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
     }, [currentTaskId]);
 
+    /** Clean up SSE-related state after a connection failure. */
+    const cleanupSseFailure = useCallback(
+        (title: string, message: string) => {
+            setError({ title, error: message });
+            setIsResponding(false);
+            setCurrentTaskId(null);
+            latestStatusText.current = null;
+            setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
+        },
+        [setError]
+    );
+
     const handleSseError = useCallback(() => {
         // If we haven't tried refreshing the token yet for this SSE connection,
         // attempt a refresh and reconnect instead of immediately failing.
@@ -2262,23 +2274,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         // batching issue with null → restore tricks.
                         setSseReconnectKey(k => k + 1);
                     } else {
-                        // Refresh failed — fall through to normal error handling
                         console.warn("[ChatProvider] Token refresh failed during SSE error");
-                        setError({ title: "Connection Failed", error: "Session expired. Please log in again." });
-                        setIsResponding(false);
-                        setCurrentTaskId(null);
-                        latestStatusText.current = null;
-                        setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
+                        cleanupSseFailure("Connection Failed", "Session expired. Please log in again.");
                     }
                 })
                 .catch(err => {
                     console.error("[ChatProvider] Unexpected error during SSE token refresh:", err);
-                    // Clean up state so the UI doesn't appear stuck in "responding" mode
-                    setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
-                    setIsResponding(false);
-                    setCurrentTaskId(null);
-                    latestStatusText.current = null;
-                    setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
+                    cleanupSseFailure("Connection Failed", "Connection lost. Please try again.");
                 });
             return;
         }
@@ -2295,7 +2297,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-    }, [closeCurrentEventSource, isResponding, setError, currentTaskId]);
+    }, [closeCurrentEventSource, isResponding, setError, currentTaskId, cleanupSseFailure]);
 
     const cleanupUploadedFiles = useCallback(async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
         if (uploadedFiles.length === 0) {

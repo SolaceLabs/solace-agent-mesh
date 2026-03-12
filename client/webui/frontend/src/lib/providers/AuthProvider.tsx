@@ -40,6 +40,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
                     // Start proactive token refresh timer so tokens are refreshed
                     // before they expire, preventing 401 storms on SSE connections.
+                    // Note: setTokens() also calls scheduleProactiveRefresh() internally,
+                    // but this call is needed for page reload where tokens are already in
+                    // localStorage and setTokens() is never called. The call is idempotent
+                    // (clears and re-schedules the same timer).
                     scheduleProactiveRefresh();
                 }
 
