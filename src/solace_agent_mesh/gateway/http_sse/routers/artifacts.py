@@ -104,9 +104,8 @@ def _resolve_storage_context(
     """
     Resolve storage context from session or project parameters.
 
-    Note: For editors accessing shared sessions via the session validator,
-    the storage_user_id returned is the requesting user's ID. The session
-    validator (get_session_validator) handles editor access checks internally.
+    For editors accessing shared sessions, the storage_user_id is resolved
+    to the session owner's ID so artifacts are loaded from the correct storage.
 
     Returns:
         tuple: (storage_user_id, storage_session_id, context_type)
@@ -122,7 +121,34 @@ def _resolve_storage_context(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Session not found or access denied.",
             )
-        return user_id, session_id, "session"
+        
+        # Check if this is an editor accessing a shared session
+        # If so, use the owner's user_id for artifact storage
+        storage_user_id = user_id
+        try:
+            from ..dependencies import SessionLocal
+            if SessionLocal:
+                from ..repository.session_repository import SessionRepository
+                db = SessionLocal()
+                try:
+                    session_repo = SessionRepository()
+                    session = session_repo.find_user_session(db, session_id, user_id)
+                    if not session:
+                        # User is not the owner - they're an editor
+                        # Find the owner's user_id via session lookup without user filter
+                        session_by_id = session_repo.find_session_by_id(db, session_id)
+                        if session_by_id:
+                            storage_user_id = session_by_id.user_id
+                            log.debug(
+                                "%s Editor %s using owner %s for artifact storage",
+                                log_prefix, user_id, storage_user_id
+                            )
+                finally:
+                    db.close()
+        except Exception as e:
+            log.debug("%s Failed to resolve editor storage context: %s", log_prefix, e)
+        
+        return storage_user_id, session_id, "session"
 
     # Priority 2: Project context (only if persistence is enabled)
     elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon } from "lucide-react";
+import { PanelLeftIcon, Loader2, Copy } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -12,6 +12,7 @@ import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog,
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { ShareButton } from "@/lib/components/share/ShareButton";
+import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 
 // Constants for sidepanel behavior
@@ -57,10 +58,33 @@ export function ChatPage() {
         currentTaskId,
         isCollaborativeSession,
         currentUserEmail,
+        handleSwitchSession,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
+    const [isForkingChat, setIsForkingChat] = useState(false);
+
+    // Fork collaborative chat into user's own session
+    const handleForkCollaborativeChat = useCallback(async () => {
+        if (!sessionId || isForkingChat) return;
+        setIsForkingChat(true);
+        try {
+            // Use the sessions API to create a copy
+            const response = await api.webui.post(`/api/v1/sessions/${sessionId}/fork`);
+            const newSessionId = response?.session_id || response?.data?.session_id;
+            if (newSessionId) {
+                // Refresh the session list to show the new forked session
+                window.dispatchEvent(new CustomEvent("new-chat-session"));
+                handleSwitchSession(newSessionId);
+                navigate("/chat");
+            }
+        } catch (error) {
+            console.error("Failed to fork chat:", error);
+        } finally {
+            setIsForkingChat(false);
+        }
+    }, [sessionId, isForkingChat, handleSwitchSession, navigate]);
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -301,7 +325,15 @@ export function ChatPage() {
                         sessionId
                             ? [
                                   ...(isCollaborativeSession && collaborativeUsers.length > 0 ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />] : []),
-                                  <ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />,
+                                  // For editors: show "Save as My Chat" (fork) button instead of Share
+                                  ...(isCollaborativeSession
+                                      ? [
+                                            <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Create your own copy of this conversation">
+                                                {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />}
+                                                Save as My Chat
+                                            </Button>,
+                                        ]
+                                      : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />]),
                               ]
                             : undefined
                     }

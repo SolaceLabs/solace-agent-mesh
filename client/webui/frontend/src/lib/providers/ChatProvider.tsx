@@ -57,14 +57,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [isCollaborativeSession, setIsCollaborativeSession] = useState<boolean>(false);
     const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+    const currentUserIdFromAuth = useRef<string>("");
 
-    // Fetch current user email on mount (works in both dev and production mode)
+    // Fetch current user info on mount (works in both dev and production mode)
     useEffect(() => {
         api.webui
             .get("/api/v1/auth/me")
-            .then((data: { email?: string }) => {
+            .then((data: { id?: string; email?: string }) => {
                 if (data?.email) {
                     setCurrentUserEmail(data.email);
+                }
+                if (data?.id) {
+                    currentUserIdFromAuth.current = data.id;
                 }
             })
             .catch(() => {
@@ -821,13 +825,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setMessages(allMessages);
             }
 
-            // Secondary collaborative session detection: check if any loaded messages have sender info
-            // This handles the case where auth is disabled but the backend injected sender info
-            const hasSenderInfo = allMessages.some(m => m.isUser && (m.senderDisplayName || m.senderEmail));
-            if (hasSenderInfo) {
-                setIsCollaborativeSession(true);
-                console.debug("[loadSessionTasks] Collaborative session detected from sender info in messages");
-            }
+            // Secondary collaborative session detection is no longer needed.
+            // The primary detection in switchSession uses currentUserIdFromAuth
+            // which correctly identifies the session owner vs current user.
+            // Keeping sender info in messages for UI display purposes only.
         },
         [deserializeTaskToMessages, setRagData, backgroundTasksEnabled, serializeMessageBubble, saveTaskToBackend]
     );
@@ -1953,13 +1954,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setSessionName(session?.name ?? "N/A");
 
                 // Detect collaborative session: session owner differs from current user
-                const currentUserId = typeof userInfo?.username === "string" ? userInfo.username : null;
+                // Use currentUserEmail from /auth/me as fallback when userInfo is not available (dev mode)
+                // Note: compare with user ID, not email (session.userId stores the user ID like "sam_dev_user")
+                const currentUserId = typeof userInfo?.username === "string" ? userInfo.username : currentUserIdFromAuth.current || null;
                 const sessionOwnerId = session?.userId;
                 if (currentUserId && sessionOwnerId && currentUserId !== sessionOwnerId) {
                     setIsCollaborativeSession(true);
                     console.log(`${log_prefix} Collaborative session detected (owner: ${sessionOwnerId}, current user: ${currentUserId})`);
                 } else {
-                    // Will be re-evaluated after loading tasks if sender info is present in bubbles
                     setIsCollaborativeSession(false);
                 }
 

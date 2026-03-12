@@ -428,6 +428,51 @@ class ShareRepository:
         
         return count > 0
 
+    def update_user_snapshot_time(self, db: DBSession, share_id: str, user_email: str, new_time: int) -> bool:
+        """
+        Update the added_at (snapshot time) for a shared user.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_email: Email of the user to update
+            new_time: New snapshot time in epoch milliseconds
+        
+        Returns:
+            True if updated, False if user not found
+        """
+        result = db.query(SharedLinkUserModel).filter(
+            and_(
+                SharedLinkUserModel.share_id == share_id,
+                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
+            )
+        ).update({"added_at": new_time})
+        return result > 0
+
+    def find_share_user_by_email(self, db: DBSession, share_id: str, user_email: str) -> Optional[SharedLinkUser]:
+        """
+        Find a specific shared user by email for a share link.
+        
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_email: Email of the user to find
+        
+        Returns:
+            SharedLinkUser entity or None if not found
+        """
+        model = db.query(SharedLinkUserModel).filter(
+            and_(
+                SharedLinkUserModel.share_id == share_id,
+                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
+            )
+        ).first()
+        
+        if not model:
+            return None
+        
+        return SharedLinkUser.model_validate(model)
+
     def check_user_editor_access_to_session(self, db: DBSession, session_id: str, user_email: str) -> bool:
         """
         Check if a user has RESOURCE_EDITOR access to a session via sharing.
