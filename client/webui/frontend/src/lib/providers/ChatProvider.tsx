@@ -2250,23 +2250,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             console.log("[ChatProvider] SSE error — attempting token refresh before reconnect");
             closeCurrentEventSource();
 
-            void refreshToken().then(newToken => {
-                if (newToken && currentTaskId) {
-                    console.log("[ChatProvider] Token refreshed, reconnecting SSE for task", currentTaskId);
-                    // Bump the reconnect key to trigger the EventSource useEffect
-                    // without changing currentTaskId. This avoids the React 18
-                    // batching issue with null → restore tricks.
-                    setSseReconnectKey(k => k + 1);
-                } else {
-                    // Refresh failed — fall through to normal error handling
-                    console.warn("[ChatProvider] Token refresh failed during SSE error");
-                    setError({ title: "Connection Failed", error: "Session expired. Please log in again." });
-                    setIsResponding(false);
-                    setCurrentTaskId(null);
-                    latestStatusText.current = null;
-                    setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-                }
-            });
+            void refreshToken()
+                .then(newToken => {
+                    if (newToken && currentTaskId) {
+                        console.log("[ChatProvider] Token refreshed, reconnecting SSE for task", currentTaskId);
+                        // Bump the reconnect key to trigger the EventSource useEffect
+                        // without changing currentTaskId. This avoids the React 18
+                        // batching issue with null → restore tricks.
+                        setSseReconnectKey(k => k + 1);
+                    } else {
+                        // Refresh failed — fall through to normal error handling
+                        console.warn("[ChatProvider] Token refresh failed during SSE error");
+                        setError({ title: "Connection Failed", error: "Session expired. Please log in again." });
+                        setIsResponding(false);
+                        setCurrentTaskId(null);
+                        latestStatusText.current = null;
+                        setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
+                    }
+                })
+                .catch(err => {
+                    console.error("[ChatProvider] Unexpected error during SSE token refresh:", err);
+                });
             return;
         }
 
