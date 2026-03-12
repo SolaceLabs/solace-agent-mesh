@@ -44,11 +44,9 @@ const setTokens = (accessToken: string, samAccessToken: string, refreshToken: st
         localStorage.removeItem("sam_access_token");
     }
     // Schedule proactive refresh whenever tokens are set (login, callback, refresh).
-    // This is safe to call here because scheduleProactiveRefresh is defined below
-    // and hoisted as a function expression assigned to a module-level const.
-    // Uses setTimeout(0) to defer until after the current call stack completes,
-    // ensuring the tokens are fully written to localStorage first.
-    setTimeout(scheduleProactiveRefresh, 0);
+    // All const declarations in this module are initialized before any runtime calls
+    // to setTokens(), so scheduleProactiveRefresh is safe to reference here.
+    scheduleProactiveRefresh();
 };
 
 const clearTokens = () => {
@@ -155,9 +153,8 @@ const refreshToken = async () => {
 
         if (response.ok) {
             const data = await response.json();
+            // setTokens() internally calls scheduleProactiveRefresh()
             setTokens(data.access_token, data.sam_access_token, data.refresh_token);
-            // Re-schedule the next proactive refresh based on new token expiry
-            scheduleProactiveRefresh();
             return getApiBearerToken();
         }
 
