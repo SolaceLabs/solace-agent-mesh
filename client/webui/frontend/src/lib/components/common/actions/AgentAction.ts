@@ -30,57 +30,41 @@ export class AgentAction implements ExecutableAction {
         console.log("[AgentAction] Executing command:", this.command);
 
         try {
-            // Try to call UIAssistant agent directly
+            // Call UIAssistant agent directly
             console.log("[AgentAction] Calling UIAssistant agent API...");
             const response = await executeAgentCommand(this.command);
 
             console.log("[AgentAction] Agent response:", response);
 
-            if (response.success) {
-                // Handle the response action
-                if (response.data?.action === "navigate_to_project" && response.data.project_id) {
-                    console.log("[AgentAction] Navigating to project:", response.data.project_id);
-                    if (navigate) {
-                        navigate(`/projects/${response.data.project_id}`);
-                    }
-                    return;
-                }
-
-                // If successful but no navigation action, start chat to show the conversation
-                console.log("[AgentAction] Action succeeded but no navigation, starting chat to show response");
-                this.startChatSession(context);
+            if (!response.success) {
+                console.error("[AgentAction] Agent command failed:", response.error);
+                alert(`Failed to execute command: ${response.error || "Unknown error"}`);
                 return;
             }
 
-            // Agent call failed, fall back to chat
-            console.log("[AgentAction] Agent call failed, falling back to chat:", response.error);
-            this.startChatSession(context);
+            // Show success feedback
+            console.log("[AgentAction] Command succeeded:", response.message);
+
+            // Handle the response action
+            if (response.data?.action === "navigate_to_project") {
+                console.log("[AgentAction] Navigating to projects page");
+                if (navigate) {
+                    // Navigate to projects page so user can see the newly created project
+                    navigate("/projects");
+                }
+                // Show success message
+                // TODO: Replace with toast notification when available
+                setTimeout(() => {
+                    alert(`✓ ${response.message}`);
+                }, 200);
+            } else {
+                // No specific navigation action, just show the response
+                alert(response.message);
+            }
         } catch (error) {
-            // If agent doesn't exist or error occurred, fall back to chat
-            console.log("[AgentAction] Error calling agent, falling back to chat:", error);
-            this.startChatSession(context);
+            console.error("[AgentAction] Error calling agent:", error);
+            alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
-    }
-
-    private startChatSession(context: ActionContext): void {
-        const { navigate, startNewChatWithPrompt } = context;
-
-        if (!startNewChatWithPrompt) {
-            console.error("[AgentAction] startNewChatWithPrompt function not provided in context");
-            return;
-        }
-
-        // Navigate to chat page
-        if (navigate) {
-            navigate("/chat");
-        }
-
-        // Start new chat with the command directed to UIAssistant
-        startNewChatWithPrompt({
-            promptText: this.command,
-            groupId: "agent-command-auto-submit",
-            groupName: "Agent Command",
-        });
     }
 }
 

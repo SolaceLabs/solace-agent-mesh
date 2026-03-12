@@ -5,11 +5,6 @@
 
 import { api } from "@/lib/api";
 
-export interface AgentAssistantRequest {
-    query: string;
-    user_id?: string;
-}
-
 export interface AgentAssistantResponse {
     success: boolean;
     message: string;
@@ -24,38 +19,122 @@ export interface AgentAssistantResponse {
 
 /**
  * Send a natural language query to the UI Assistant agent
- * The agent will interpret the query and perform the appropriate UI action
+ * Creates a temporary session, sends the command, waits for response, and cleans up
  */
 export const executeAgentCommand = async (query: string): Promise<AgentAssistantResponse> => {
+    let sessionId: string | null = null;
+
     try {
-        // Call the agent via the chat endpoint
-        // We'll use the UIAssistant agent specifically
-        const response = await api.webui.post("/api/v1/chat", {
-            message: query,
+        console.log("[executeAgentCommand] Creating temporary session for UIAssistant");
+
+        // Create a new temporary session for UIAssistant
+        const sessionResponse = await api.webui.post("/api/v1/sessions", {
             agent_name: "UIAssistant",
-            stream: false,
         });
 
-        // Parse the agent's response
-        const agentMessage = response.message || response.content || "";
+        sessionId = sessionResponse.id;
+        console.log("[executeAgentCommand] Created session:", sessionId);
 
-        // Try to extract structured data from the response if available
-        let actionData = null;
-        if (response.tool_results && response.tool_results.length > 0) {
-            // Get data from the first tool result
-            const toolResult = response.tool_results[0];
-            if (toolResult.data) {
-                actionData = toolResult.data;
+        // Subscribe to SSE stream to receive agent responses
+        const sseUrl = `/api/v1/sessions/${sessionId}/stream`;
+        const fullSseUrl = api.webui.getFullUrl(sseUrl);
+
+        const result = await new Promise<AgentAssistantResponse>((resolve, reject) => {
+            let eventSource: EventSource | null = null;
+            let responseMessage = "";
+            let responseData: Record<string, unknown> | null = null;
+            let hasError = false;
+
+            eventSource = new EventSource(fullSseUrl);
+
+            const timeout = setTimeout(() => {
+                eventSource?.close();
+                reject(new Error("Agent command execution timed out"));
+            }, 30000); // 30 second timeout
+
+            eventSource.onmessage = event => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log("[executeAgentCommand] SSE event:", data);
+
+                    // Handle agent response content
+                    if (data.type === "content" && data.content) {
+                        responseMessage += data.content;
+                    }
+
+                    // Handle tool results
+                    if (data.type === "tool_result" && data.tool_result?.data) {
+                        responseData = data.tool_result.data;
+                    }
+
+                    // Handle completion
+                    if (data.type === "done" || data.type === "complete") {
+                        clearTimeout(timeout);
+                        eventSource?.close();
+
+                        resolve({
+                            success: !hasError,
+                            message: responseMessage || "Command executed successfully",
+                            data: responseData || undefined,
+                        });
+                    }
+
+                    // Handle errors
+                    if (data.type === "error") {
+                        hasError = true;
+                        responseMessage = data.error || "An error occurred";
+                    }
+                } catch (parseError) {
+                    console.error("[executeAgentCommand] Error parsing SSE event:", parseError);
+                }
+            };
+
+            eventSource.onerror = error => {
+                console.error("[executeAgentCommand] SSE error:", error);
+                clearTimeout(timeout);
+                eventSource?.close();
+                reject(new Error("Connection to agent failed"));
+            };
+
+            // Send the command message after a short delay to ensure SSE is connected
+            setTimeout(async () => {
+                try {
+                    console.log("[executeAgentCommand] Sending message:", query);
+                    await api.webui.post(`/api/v1/sessions/${sessionId}/messages`, {
+                        content: query,
+                        role: "user",
+                    });
+                } catch (sendError) {
+                    clearTimeout(timeout);
+                    eventSource?.close();
+                    reject(sendError);
+                }
+            }, 100);
+        });
+
+        // Clean up session after successful execution
+        if (sessionId) {
+            try {
+                await api.webui.delete(`/api/v1/sessions/${sessionId}`);
+                console.log("[executeAgentCommand] Cleaned up session:", sessionId);
+            } catch (cleanupError) {
+                console.warn("[executeAgentCommand] Failed to cleanup session:", cleanupError);
             }
         }
 
-        return {
-            success: true,
-            message: agentMessage,
-            data: actionData,
-        };
+        return result;
     } catch (error) {
-        console.error("Agent command execution failed:", error);
+        console.error("[executeAgentCommand] Error:", error);
+
+        // Clean up session on error
+        if (sessionId) {
+            try {
+                await api.webui.delete(`/api/v1/sessions/${sessionId}`);
+            } catch (cleanupError) {
+                console.warn("[executeAgentCommand] Failed to cleanup session:", cleanupError);
+            }
+        }
+
         return {
             success: false,
             message: "Failed to execute command",

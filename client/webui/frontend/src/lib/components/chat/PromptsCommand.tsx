@@ -4,14 +4,13 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, NotepadText, Plus, Sparkles } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
 import { api } from "@/lib/api";
-import { useAgentSelection, useChatContext } from "@/lib/hooks";
+import { executeAgentCommand } from "@/lib/api/agent-assistant";
 
 export type ChatCommand = "create-template";
 
@@ -51,8 +50,6 @@ interface PromptsCommandProps {
 
 export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand, onBackspaceClose }) => {
     const navigate = useNavigate();
-    const { handleAgentSelection } = useAgentSelection();
-    const { handleSubmit } = useChatContext();
     const [searchValue, setSearchValue] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
@@ -198,23 +195,41 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         async (agentCmd: AgentCommand) => {
             onClose();
             setSearchValue("");
-            textAreaRef.current?.focus();
 
             try {
-                // Select UIAssistant agent for this command
-                await handleAgentSelection("UIAssistant");
+                console.log("[PromptsCommand] Executing agent command:", agentCmd.query);
 
-                // Wait a bit for agent selection to propagate
-                await new Promise(resolve => setTimeout(resolve, 100));
+                // Call UIAssistant agent directly
+                const response = await executeAgentCommand(agentCmd.query);
 
-                // Submit the command directly
-                const fakeEvent = new Event("submit") as unknown as FormEvent;
-                await handleSubmit(fakeEvent, [], agentCmd.query, null, null, null, null);
+                if (!response.success) {
+                    console.error("[PromptsCommand] Agent command failed:", response.error);
+                    alert(`Failed to execute command: ${response.error || "Unknown error"}`);
+                    return;
+                }
+
+                console.log("[PromptsCommand] Command succeeded:", response.message);
+
+                // Handle the response action
+                if (response.data?.action === "navigate_to_project") {
+                    console.log("[PromptsCommand] Navigating to projects page");
+                    navigate("/projects");
+                    // Show success message
+                    setTimeout(() => {
+                        alert(`✓ ${response.message}`);
+                    }, 200);
+                } else {
+                    // No specific navigation action, just show the response
+                    alert(response.message);
+                }
+
+                textAreaRef.current?.focus();
             } catch (error) {
-                console.error("Error executing agent command:", error);
+                console.error("[PromptsCommand] Error executing agent command:", error);
+                alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [onClose, textAreaRef, handleAgentSelection, handleSubmit]
+        [onClose, navigate, textAreaRef]
     );
 
     // Handle item selection (agent command, reserved command, or prompt)
