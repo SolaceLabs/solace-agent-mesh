@@ -54,7 +54,8 @@
         "storybook": "storybook dev -p 6006",
         "test:storybook": "vitest --project=storybook",
         "test:unit": "vitest --project=unit",
-        "ci:storybook": "CI=true vitest --project=unit --project=storybook"
+        "ci:storybook": "CI=true vitest --project=unit --project=storybook",
+        "ci:storybook:coverage": "CI=true vitest --project=unit --project=storybook --coverage"
     },
     "lint-staged": {
         "*.{js,jsx,ts,tsx}": [
