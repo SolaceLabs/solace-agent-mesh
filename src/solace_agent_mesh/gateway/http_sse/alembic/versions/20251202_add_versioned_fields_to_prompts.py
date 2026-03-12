@@ -49,7 +49,7 @@ def upgrade() -> None:
     dialect_name = connection.dialect.name
 
     if dialect_name == 'sqlite':
-        # SQLite (use subqueries)
+        # SQLite: Use subqueries (doesn't support UPDATE...FROM)
         connection.execute(sa.text("""
             UPDATE prompts
             SET name = (SELECT name FROM prompt_groups WHERE id = prompts.group_id),
@@ -58,8 +58,8 @@ def upgrade() -> None:
                 command = (SELECT command FROM prompt_groups WHERE id = prompts.group_id)
             WHERE group_id IS NOT NULL
         """))
-    else:
-        # PostgreSQL and MySQL
+    elif dialect_name == 'postgresql':
+        # PostgreSQL: Use UPDATE...FROM syntax
         connection.execute(sa.text("""
             UPDATE prompts
             SET name = pg.name,
@@ -68,6 +68,16 @@ def upgrade() -> None:
                 command = pg.command
             FROM prompt_groups pg
             WHERE prompts.group_id = pg.id
+        """))
+    else:
+        # MySQL/MariaDB: Use INNER JOIN syntax
+        connection.execute(sa.text("""
+            UPDATE prompts
+            INNER JOIN prompt_groups pg ON prompts.group_id = pg.id
+            SET prompts.name = pg.name,
+                prompts.description = pg.description,
+                prompts.category = pg.category,
+                prompts.command = pg.command
         """))
 
 
