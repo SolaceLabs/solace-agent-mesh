@@ -108,69 +108,74 @@ export const executeAgentCommand = async (query: string): Promise<AgentAssistant
 };
 
 /**
- * Wait for task completion and extract the agent's response
+ * Wait for task completion by polling the task status endpoint
  */
 async function waitForTaskCompletion(taskId: string, sessionId: string | null): Promise<AgentAssistantResponse> {
-    return new Promise((resolve, reject) => {
-        let responseMessage = "";
-        let responseData: Record<string, unknown> | null = null;
-        let hasError = false;
+    const maxAttempts = 60; // 30 seconds with 500ms intervals
+    const pollInterval = 500;
 
-        // Connect to task status stream
-        const sseUrl = `/api/v1/tasks/${taskId}/status/stream`;
-        const fullSseUrl = api.webui.getFullUrl(sseUrl);
-        const eventSource = new EventSource(fullSseUrl);
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            const statusData = await api.webui.get(`/api/v1/tasks/${taskId}/status`);
+            console.log("[waitForTaskCompletion] Poll attempt", attempt, "Status:", statusData);
 
-        const timeout = setTimeout(() => {
-            eventSource.close();
-            reject(new Error("Agent command execution timed out"));
-        }, 30000);
+            const task = statusData?.task;
 
-        eventSource.onmessage = event => {
-            try {
-                const data = JSON.parse(event.data);
-                console.log("[waitForTaskCompletion] SSE event:", data);
+            if (!task) {
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+                continue;
+            }
 
-                // Extract content from status updates
-                if (data.result?.status?.content) {
-                    responseMessage += data.result.status.content;
+            // Check if task is complete
+            if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
+                console.log("[waitForTaskCompletion] Task finished with status:", task.status);
+
+                // Extract response data
+                let responseMessage = "";
+                let responseData: Record<string, unknown> | null = null;
+
+                // Extract content from task result
+                if (task.result_summary) {
+                    responseMessage = task.result_summary;
                 }
 
-                // Extract tool results
-                if (data.result?.status?.tool_results) {
-                    for (const toolResult of data.result.status.tool_results) {
+                // Extract tool results if available
+                if (task.tool_results && Array.isArray(task.tool_results)) {
+                    for (const toolResult of task.tool_results) {
                         if (toolResult.data) {
                             responseData = toolResult.data;
+                            // Use tool result message if available
+                            if (toolResult.message && !responseMessage) {
+                                responseMessage = toolResult.message;
+                            }
                         }
                     }
                 }
 
-                // Check for completion
-                if (data.result?.kind === "completed" || data.result?.kind === "failed") {
-                    clearTimeout(timeout);
-                    eventSource.close();
-
-                    if (data.result.kind === "failed") {
-                        hasError = true;
-                    }
-
-                    resolve({
-                        success: !hasError,
-                        message: responseMessage || "Command executed successfully",
-                        data: responseData || undefined,
-                        sessionId: sessionId || undefined,
-                    });
+                // Extract from output content if available
+                if (!responseMessage && task.output?.content) {
+                    responseMessage = task.output.content;
                 }
-            } catch (parseError) {
-                console.error("[waitForTaskCompletion] Error parsing SSE event:", parseError);
-            }
-        };
 
-        eventSource.onerror = error => {
-            console.error("[waitForTaskCompletion] SSE error:", error);
-            clearTimeout(timeout);
-            eventSource.close();
-            reject(new Error("Connection to agent failed"));
-        };
-    });
+                return {
+                    success: task.status === "completed",
+                    message: responseMessage || "Command executed successfully",
+                    data: responseData || undefined,
+                    sessionId: sessionId || undefined,
+                };
+            }
+
+            // Task still running, wait and poll again
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        } catch (error) {
+            console.error("[waitForTaskCompletion] Error polling task status:", error);
+            // Continue polling unless it's the last attempt
+            if (attempt === maxAttempts - 1) {
+                throw error;
+            }
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+    }
+
+    throw new Error("Task execution timed out");
 }
