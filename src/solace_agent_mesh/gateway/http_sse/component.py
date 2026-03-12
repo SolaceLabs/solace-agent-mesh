@@ -961,26 +961,34 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     "debug_type": event_details["debug_type"],
                                 }
 
-                                viz_msg = {
-                                    "event": "a2a_message",
-                                    "data": json.dumps(sse_event_payload),
-                                }
-                                log.debug(
-                                    "%s Attempting to put message on SSE queue for stream %s. Queue size: %d",
-                                    log_id_prefix,
-                                    stream_id,
-                                    sse_queue_for_stream.qsize(),
-                                )
-                                self._put_viz_msg_to_stream(
-                                    stream_id, sse_queue_for_stream, viz_msg, log_id_prefix
-                                )
-                                log.debug(
-                                    "%s [VIZ_DATA_SENT] Stream %s: Topic: %s, Direction: %s",
-                                    log_id_prefix,
-                                    stream_id,
-                                    topic,
-                                    event_details["direction"],
-                                )
+                                try:
+                                    viz_msg = {
+                                        "event": "a2a_message",
+                                        "data": json.dumps(sse_event_payload),
+                                    }
+                                    log.debug(
+                                        "%s Attempting to put message on SSE queue for stream %s. Queue size: %d",
+                                        log_id_prefix,
+                                        stream_id,
+                                        sse_queue_for_stream.qsize(),
+                                    )
+                                    self._put_viz_msg_to_stream(
+                                        stream_id, sse_queue_for_stream, viz_msg, log_id_prefix
+                                    )
+                                    log.debug(
+                                        "%s [VIZ_DATA_SENT] Stream %s: Topic: %s, Direction: %s",
+                                        log_id_prefix,
+                                        stream_id,
+                                        topic,
+                                        event_details["direction"],
+                                    )
+                                except Exception as send_err:
+                                    log.error(
+                                        "%s Failed to serialize/send viz message for stream %s: %s",
+                                        log_id_prefix,
+                                        stream_id,
+                                        send_err,
+                                    )
                             else:
                                 pass
                 finally:
