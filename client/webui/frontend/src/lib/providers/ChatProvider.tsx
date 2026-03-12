@@ -2668,6 +2668,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         };
     }, [sessionId]);
 
+    // Listen for switch-to-session events (e.g., after forking a shared chat)
+    useEffect(() => {
+        const handleSwitchToSession = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.sessionId) {
+                console.log(`[ChatProvider] Switching to forked session: ${detail.sessionId}`);
+                handleSwitchSession(detail.sessionId);
+            }
+        };
+        window.addEventListener("switch-to-session", handleSwitchToSession);
+        return () => {
+            window.removeEventListener("switch-to-session", handleSwitchToSession);
+        };
+    }, [handleSwitchSession]);
+
     useEffect(() => {
         const handleSessionUpdated = async (event: Event) => {
             const customEvent = event as CustomEvent;

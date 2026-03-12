@@ -1048,26 +1048,26 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     })();
 
     // Determine if attribution is shown (for ml-10 margin on content)
-    const hasAttribution = isCollaborativeSession && ((message.isUser && isOtherUser) || (!message.isUser && !message.isStatusBubble));
+    // Attribution shows for: other-user messages (any session) + agent messages (collaborative only)
+    const hasAttribution = (message.isUser && isOtherUser) || (isCollaborativeSession && !message.isUser && !message.isStatusBubble);
 
     return (
         <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
-            {/* Show attribution for collaborative sessions: other users and agent messages */}
-            {isCollaborativeSession &&
-                (() => {
-                    if (message.isUser) {
-                        // Only show attribution for other users' messages (current user doesn't need it)
-                        if (isOtherUserMessage(message, currentUserEmail)) {
-                            const displayName = message.senderDisplayName || message.senderEmail || "User";
-                            const userIndex = getUserIndexFromEmail(message.senderEmail || "");
-                            return <MessageAttribution type="user" name={displayName} userIndex={userIndex} />;
-                        }
-                        return null;
-                    }
-                    // Agent message
+            {/* Show attribution for collaborative sessions and forked sessions with other users' messages */}
+            {(() => {
+                if (message.isUser && isOtherUserMessage(message, currentUserEmail)) {
+                    // Show attribution for other users' messages (collaborative or forked sessions)
+                    const displayName = message.senderDisplayName || message.senderEmail || "User";
+                    const userIndex = getUserIndexFromEmail(message.senderEmail || "");
+                    return <MessageAttribution type="user" name={displayName} userIndex={userIndex} />;
+                }
+                if (isCollaborativeSession && !message.isUser) {
+                    // Show agent attribution only in collaborative sessions
                     const agentLabel = agentDisplayName || "AI Assistant";
                     return <MessageAttribution type="agent" name={agentLabel} />;
-                })()}
+                }
+                return null;
+            })()}
             <div className={hasAttribution ? "ml-10" : ""}>
                 {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
                 {isDeepResearchComplete &&
