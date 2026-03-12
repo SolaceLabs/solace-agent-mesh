@@ -40,12 +40,18 @@ export function UserPresenceAvatars({ users, currentUserId }: UserPresenceAvatar
 
     return (
         <div className="flex items-center">
-            {/* Show visible users' avatars */}
-            {visibleUsers.map((user, index) => (
-                <div key={user.id} style={{ marginLeft: index > 0 ? "-8px" : "0" }}>
-                    <UserAvatar name={user.name} userIndex={index} avatarUrl={user.avatar} className="cursor-pointer" showTooltip={true} />
-                </div>
-            ))}
+            {/* Show visible users' avatars - use email hash for consistent colors with chat messages */}
+            {visibleUsers.map((user, index) => {
+                const emailHash = (user.email || user.name || "")
+                    .toLowerCase()
+                    .split("")
+                    .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+                return (
+                    <div key={user.id} style={{ marginLeft: index > 0 ? "-8px" : "0" }}>
+                        <UserAvatar name={user.name} userIndex={emailHash} avatarUrl={user.avatar} className="cursor-pointer" showTooltip={true} />
+                    </div>
+                );
+            })}
 
             {/* Show overflow indicator if there are more users */}
             {hasOverflow && (
@@ -56,12 +62,18 @@ export function UserPresenceAvatars({ users, currentUserId }: UserPresenceAvatar
                         </div>
                     </TooltipTrigger>
                     <TooltipContent className="flex flex-col gap-2 p-3">
-                        {overflowUsers.map((user, index) => (
-                            <div key={user.id} className="flex items-center gap-2">
-                                <UserAvatar name={user.name} userIndex={maxVisible + index} avatarUrl={user.avatar} />
-                                <span className="text-sm">{user.name}</span>
-                            </div>
-                        ))}
+                        {overflowUsers.map(user => {
+                            const overflowHash = (user.email || user.name || "")
+                                .toLowerCase()
+                                .split("")
+                                .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+                            return (
+                                <div key={user.id} className="flex items-center gap-2">
+                                    <UserAvatar name={user.name} userIndex={overflowHash} avatarUrl={user.avatar} />
+                                    <span className="text-sm">{user.name}</span>
+                                </div>
+                            );
+                        })}
                     </TooltipContent>
                 </Tooltip>
             )}
