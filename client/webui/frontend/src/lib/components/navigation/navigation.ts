@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText, Search } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -75,6 +75,15 @@ export const topNavigationItems: NavigationItem[] = [
 ];
 
 export const bottomNavigationItems: NavigationItem[] = [
+    {
+        id: "search",
+        label: "Search",
+        icon: Search,
+        onClick: () => {
+            // Trigger command palette open event
+            window.dispatchEvent(new Event("open-command-palette"));
+        },
+    },
     {
         id: "theme-toggle",
         label: "Theme",

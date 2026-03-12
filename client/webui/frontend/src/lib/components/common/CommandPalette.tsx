@@ -179,7 +179,7 @@ export function CommandPalette() {
         [navigate, toggleTheme, setTheme, startNewChatWithPrompt, addNotification]
     );
 
-    // Handle keyboard shortcuts
+    // Handle keyboard shortcuts and programmatic open events
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             // Cmd+K (Mac) or Ctrl+K (PC)
@@ -214,8 +214,17 @@ export function CommandPalette() {
             }
         };
 
+        const handleOpenCommandPalette = () => {
+            setIsOpen(true);
+        };
+
         window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
+        window.addEventListener("open-command-palette", handleOpenCommandPalette);
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("open-command-palette", handleOpenCommandPalette);
+        };
     }, [isOpen, filteredActions, agentAction, askAction, selectedIndex, handleActionSelect]);
 
     // Update selected index when filtered results change
