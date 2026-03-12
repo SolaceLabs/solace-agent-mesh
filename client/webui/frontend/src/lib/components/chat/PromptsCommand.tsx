@@ -4,12 +4,14 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, NotepadText, Plus } from "lucide-react";
+import { Search, NotepadText, Plus, Sparkles } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
 import { api } from "@/lib/api";
+import { useAgentSelection, useChatContext } from "@/lib/hooks";
 
 export type ChatCommand = "create-template";
 
@@ -18,6 +20,14 @@ interface ReservedCommand {
     name: string;
     description: string;
     icon: typeof NotepadText;
+}
+
+interface AgentCommand {
+    type: "agent";
+    query: string;
+    name: string;
+    description: string;
+    icon: typeof Sparkles;
 }
 
 const RESERVED_COMMANDS: ReservedCommand[] = [
@@ -41,6 +51,8 @@ interface PromptsCommandProps {
 
 export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand, onBackspaceClose }) => {
     const navigate = useNavigate();
+    const { handleAgentSelection } = useAgentSelection();
+    const { handleSubmit } = useChatContext();
     const [searchValue, setSearchValue] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
@@ -72,6 +84,25 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         fetchPromptGroups();
     }, [isOpen]);
 
+    // Detect if query is a command that should be handled by the agent
+    const isAgentCommand = useCallback((query: string): boolean => {
+        const commandPatterns = [/^(create|make|new|start)\s+(a\s+)?project/i, /^(add|create)\s+.*\s+(project|folder)/i];
+        return commandPatterns.some(pattern => pattern.test(query));
+    }, []);
+
+    // Create agent command if search matches command pattern
+    const agentCommand = useMemo((): AgentCommand | null => {
+        if (!searchValue || !isAgentCommand(searchValue)) return null;
+
+        return {
+            type: "agent",
+            query: searchValue,
+            name: searchValue,
+            description: "Execute this command with AI assistant",
+            icon: Sparkles,
+        };
+    }, [searchValue, isAgentCommand]);
+
     // Reserved commands - always shown (not filtered), only check availability
     const availableReservedCommands = useMemo(() => {
         // Only show create-template if there are user messages in the session
@@ -92,10 +123,15 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         return promptGroups.filter(group => group.name.toLowerCase().includes(search) || group.description?.toLowerCase().includes(search) || group.command?.toLowerCase().includes(search) || group.category?.toLowerCase().includes(search));
     }, [promptGroups, searchValue]);
 
-    // Combine prompts and reserved commands for display (reserved at bottom)
+    // Combine prompts, agent commands, and reserved commands for display
     const allItems = useMemo(() => {
-        return [...filteredGroups, ...availableReservedCommands];
-    }, [filteredGroups, availableReservedCommands]);
+        const items: Array<PromptGroup | ReservedCommand | AgentCommand> = [...filteredGroups];
+        if (agentCommand) {
+            items.push(agentCommand);
+        }
+        items.push(...availableReservedCommands);
+        return items;
+    }, [filteredGroups, agentCommand, availableReservedCommands]);
 
     // Format session history for context
     const formatSessionHistory = useCallback((messages: MessageFE[]): string => {
@@ -157,16 +193,42 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         [onPromptSelect, onClose]
     );
 
-    // Handle item selection (reserved command or prompt)
+    // Handle agent command execution
+    const handleAgentCommandSelect = useCallback(
+        async (agentCmd: AgentCommand) => {
+            onClose();
+            setSearchValue("");
+            textAreaRef.current?.focus();
+
+            try {
+                // Select UIAssistant agent for this command
+                await handleAgentSelection("UIAssistant");
+
+                // Wait a bit for agent selection to propagate
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Submit the command directly
+                const fakeEvent = new Event("submit") as unknown as FormEvent;
+                await handleSubmit(fakeEvent, [], agentCmd.query, null, null, null, null);
+            } catch (error) {
+                console.error("Error executing agent command:", error);
+            }
+        },
+        [onClose, textAreaRef, handleAgentSelection, handleSubmit]
+    );
+
+    // Handle item selection (agent command, reserved command, or prompt)
     const handleSelect = useCallback(
-        (item: ReservedCommand | PromptGroup) => {
-            if ("command" in item && RESERVED_COMMANDS.some(cmd => cmd.command === item.command)) {
+        (item: ReservedCommand | PromptGroup | AgentCommand) => {
+            if ("type" in item && item.type === "agent") {
+                handleAgentCommandSelect(item as AgentCommand);
+            } else if ("command" in item && RESERVED_COMMANDS.some(cmd => cmd.command === item.command)) {
                 handleReservedCommandSelect(item as ReservedCommand);
             } else {
                 handlePromptSelect(item as PromptGroup);
             }
         },
-        [handleReservedCommandSelect, handlePromptSelect]
+        [handleAgentCommandSelect, handleReservedCommandSelect, handlePromptSelect]
     );
 
     // Handle variable dialog completion
@@ -309,12 +371,42 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                                     );
                                 })}
 
+                                {/* Agent Command - AI-powered action */}
+                                {agentCommand && (
+                                    <>
+                                        {filteredGroups.length > 0 && <div className="my-2 border-t border-[var(--border)]" />}
+                                        <button
+                                            id={`prompt-item-${filteredGroups.length}`}
+                                            onClick={() => handleAgentCommandSelect(agentCommand)}
+                                            onMouseEnter={() => {
+                                                setIsKeyboardMode(false);
+                                                setActiveIndex(filteredGroups.length);
+                                            }}
+                                            className={`w-full rounded-md p-3 text-left transition-all ${
+                                                filteredGroups.length === activeIndex
+                                                    ? "border-2 border-purple-500/60 bg-purple-500/20 shadow-md dark:border-purple-400/60 dark:bg-purple-400/25 dark:shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+                                                    : "border-2 border-dashed border-purple-500/60 bg-purple-500/10 hover:border-solid hover:bg-purple-500/20 hover:shadow-md dark:border-purple-400/60 dark:bg-purple-400/15 dark:hover:bg-purple-400/25 dark:hover:shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+                                            }`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-0.5 flex size-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-600 shadow-sm dark:bg-purple-500">
+                                                    <Sparkles className="size-4 text-white drop-shadow-sm" strokeWidth={2.5} />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="text-sm font-semibold">{agentCommand.name}</div>
+                                                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">{agentCommand.description}</p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </>
+                                )}
+
                                 {/* Reserved Commands - Always visible at bottom */}
                                 {availableReservedCommands.length > 0 && (
                                     <>
-                                        {filteredGroups.length > 0 && <div className="my-2 border-t border-[var(--border)]" />}
+                                        {(filteredGroups.length > 0 || agentCommand) && <div className="my-2 border-t border-[var(--border)]" />}
                                         {availableReservedCommands.map((cmd, index) => {
-                                            const actualIndex = filteredGroups.length + index;
+                                            const actualIndex = filteredGroups.length + (agentCommand ? 1 : 0) + index;
                                             const Icon = cmd.icon;
                                             return (
                                                 <button

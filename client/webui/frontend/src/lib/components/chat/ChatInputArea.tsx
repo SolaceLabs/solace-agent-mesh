@@ -143,7 +143,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Mark this prompt as processed
             processedPendingPromptRef.current = groupId;
 
-            const shouldAutoSubmit = groupId === "command-palette-auto-submit";
+            const shouldAutoSubmit = groupId === "command-palette-auto-submit" || groupId === "agent-command-auto-submit";
+            const isAgentCommand = groupId === "agent-command-auto-submit";
+
+            console.log("[ChatInputArea] Processing pending prompt:", { groupId, promptText, shouldAutoSubmit, isAgentCommand });
 
             // Clear the pending prompt to prevent duplicate submissions
             clearPendingPrompt();
@@ -167,6 +170,15 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 if (shouldAutoSubmit) {
                     // Auto-submit for command palette - submit directly without setting input
                     setTimeout(async () => {
+                        // If this is an agent command, select UIAssistant agent first
+                        if (isAgentCommand) {
+                            console.log("[ChatInputArea] Selecting UIAssistant agent for command");
+                            await handleAgentSelection("UIAssistant");
+                            // Wait for agent selection to propagate
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                        }
+
+                        console.log("[ChatInputArea] Auto-submitting prompt");
                         const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], promptText, null, null, null, null);
                         scrollToBottom?.();

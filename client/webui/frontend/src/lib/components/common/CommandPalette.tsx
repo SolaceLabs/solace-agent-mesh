@@ -142,15 +142,21 @@ export function CommandPalette() {
     }, [isOpen]);
 
     const handleActionSelect = useCallback(
-        (action: ExecutableAction) => {
+        async (action: ExecutableAction) => {
             if (isExecutableAction(action)) {
                 try {
-                    action.execute({
+                    const result = action.execute({
                         navigate,
                         toggleTheme,
                         setTheme,
                         startNewChatWithPrompt,
                     });
+
+                    // Handle async actions (like AgentAction)
+                    if (result instanceof Promise) {
+                        await result;
+                    }
+
                     setIsOpen(false);
                 } catch (error) {
                     console.error("Error executing action:", error);
