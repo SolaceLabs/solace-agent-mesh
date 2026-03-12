@@ -7,6 +7,7 @@
 
 import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { UserAvatar } from "./UserAvatar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
 interface UserPresenceAvatarsProps {
     /** List of users currently in the session */
@@ -31,21 +32,39 @@ export function UserPresenceAvatars({ users, currentUserId }: UserPresenceAvatar
     // Get all active users to display
     const activeUsers = displayUsers.filter(u => u.isOnline);
 
+    // Limit to 5 visible avatars, show overflow for the rest
+    const maxVisible = 5;
+    const visibleUsers = activeUsers.slice(0, maxVisible);
+    const overflowUsers = activeUsers.slice(maxVisible);
+    const hasOverflow = overflowUsers.length > 0;
+
     return (
         <div className="flex items-center">
-            {/* Show all active users' avatars */}
-            {activeUsers.map((user, index) => {
-                // Use email-based hash for consistent colors with chat message avatars
-                const emailHash = (user.email || user.name || "")
-                    .toLowerCase()
-                    .split("")
-                    .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-                return (
-                    <div key={user.id} style={{ marginLeft: index > 0 ? "-8px" : "0" }}>
-                        <UserAvatar name={user.name} userIndex={emailHash} avatarUrl={user.avatar} className="cursor-pointer" showTooltip={true} />
-                    </div>
-                );
-            })}
+            {/* Show visible users' avatars */}
+            {visibleUsers.map((user, index) => (
+                <div key={user.id} style={{ marginLeft: index > 0 ? "-8px" : "0" }}>
+                    <UserAvatar name={user.name} userIndex={index} avatarUrl={user.avatar} className="cursor-pointer" showTooltip={true} />
+                </div>
+            ))}
+
+            {/* Show overflow indicator if there are more users */}
+            {hasOverflow && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div className="bg-muted text-muted-foreground ring-background flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-xs font-semibold ring-2" style={{ marginLeft: "-8px" }}>
+                            +{overflowUsers.length}
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="flex flex-col gap-2 p-3">
+                        {overflowUsers.map((user, index) => (
+                            <div key={user.id} className="flex items-center gap-2">
+                                <UserAvatar name={user.name} userIndex={maxVisible + index} avatarUrl={user.avatar} />
+                                <span className="text-sm">{user.name}</span>
+                            </div>
+                        ))}
+                    </TooltipContent>
+                </Tooltip>
+            )}
         </div>
     );
 }

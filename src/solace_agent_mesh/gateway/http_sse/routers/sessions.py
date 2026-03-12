@@ -39,6 +39,87 @@ router = APIRouter()
 SESSION_NOT_FOUND_MSG = "Session not found."
 
 
+def _inject_owner_identity_into_tasks(tasks, owner_user_id: str) -> None:
+    """
+    Inject owner identity into user message bubbles that don't have sender_email.
+    
+    When an editor loads a collaborative session, the owner's old messages
+    (sent before sharing was set up) won't have sender_email/sender_display_name.
+    This function scans all task bubbles to find the owner's identity from any
+    bubble that already has it, then backfills into bubbles that don't.
+    
+    Mutates the task objects' message_bubbles in place.
+    """
+    # First pass: find the owner's email and display name from existing bubbles
+    owner_email = None
+    owner_display_name = None
+    
+    for task in tasks:
+        try:
+            bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            for bubble in bubbles:
+                if isinstance(bubble, dict) and bubble.get("type") == "user":
+                    email = bubble.get("sender_email")
+                    name = bubble.get("sender_display_name")
+                    if email and name:
+                        # Check if this is the owner's bubble (user_id on the task matches owner)
+                        if task.user_id == owner_user_id:
+                            owner_email = email
+                            owner_display_name = name
+                            break
+            if owner_email:
+                break
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+    
+    # Use owner_user_id as fallback display name if no identity found in bubbles
+    if not owner_display_name:
+        owner_display_name = owner_user_id
+    if not owner_email:
+        owner_email = owner_user_id
+    
+    # Second pass: inject owner identity into user bubbles without sender_email
+    for task in tasks:
+        if task.user_id != owner_user_id:
+            continue  # Only backfill owner's tasks
+        try:
+            bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            modified = False
+            for bubble in bubbles:
+                if isinstance(bubble, dict) and bubble.get("type") == "user":
+                    if not bubble.get("sender_email"):
+                        bubble["sender_email"] = owner_email
+                        bubble["sender_display_name"] = owner_display_name
+                        modified = True
+            if modified:
+                task.message_bubbles = json.dumps(bubbles)
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+
+
+def _get_owner_info_from_tasks(tasks, owner_user_id: str) -> tuple:
+    """
+    Extract owner's display name and email from task bubbles.
+    
+    Returns:
+        Tuple of (owner_display_name, owner_email) or (None, None) if not found.
+    """
+    for task in tasks:
+        if task.user_id != owner_user_id:
+            continue
+        try:
+            bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            for bubble in bubbles:
+                if isinstance(bubble, dict) and bubble.get("type") == "user":
+                    email = bubble.get("sender_email")
+                    name = bubble.get("sender_display_name")
+                    if email and name:
+                        return (name, email)
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+    return (None, None)
+
+
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
     project_id: Optional[str] = Query(default=None, alias="project_id"),
@@ -168,6 +249,8 @@ async def get_session(
         )
 
         # If not found as owner, check editor access via sharing
+        owner_display_name = None
+        owner_email_value = None
         if not session_domain and user_email:
             owner_user_id = session_service.check_editor_access(db, session_id, user_email)
             if owner_user_id:
@@ -178,6 +261,19 @@ async def get_session(
                     "Editor %s (email: %s) accessing session %s owned by %s",
                     user_id, user_email, session_id, owner_user_id
                 )
+                # Look up owner's display name and email from task bubbles
+                if session_domain:
+                    try:
+                        from ..repository.chat_task_repository import ChatTaskRepository
+                        task_repo = ChatTaskRepository()
+                        tasks = task_repo.find_by_session_all_users(db, session_id)
+                        name, email = _get_owner_info_from_tasks(tasks, owner_user_id)
+                        owner_display_name = name or owner_user_id
+                        owner_email_value = email or owner_user_id
+                    except Exception as e:
+                        log.warning("Failed to look up owner info for session %s: %s", session_id, e)
+                        owner_display_name = owner_user_id
+                        owner_email_value = owner_user_id
 
         if not session_domain:
             raise HTTPException(
@@ -192,6 +288,8 @@ async def get_session(
             name=session_domain.name,
             agent_id=session_domain.agent_id,
             project_id=session_domain.project_id,
+            owner_display_name=owner_display_name,
+            owner_email=owner_email_value,
             created_time=session_domain.created_time,
             updated_time=session_domain.updated_time,
         )
@@ -550,9 +648,12 @@ async def get_session_tasks(
             tasks = None
 
         # If not found as owner, check editor access
+        is_editor = False
+        owner_user_id = None
         if tasks is None and user_email:
             owner_user_id = session_service.check_editor_access(db, session_id, user_email)
             if owner_user_id:
+                is_editor = True
                 tasks = session_service.get_session_tasks_for_editor(
                     db=db, session_id=session_id, owner_user_id=owner_user_id
                 )
@@ -572,6 +673,11 @@ async def get_session_tasks(
             len(tasks),
             session_id,
         )
+
+        # For editors: inject owner identity into user bubbles that don't have sender_email
+        # This ensures the owner's old messages (sent before sharing) are properly attributed
+        if is_editor and owner_user_id:
+            _inject_owner_identity_into_tasks(tasks, owner_user_id)
 
         # Convert to response DTOs
         task_responses = []

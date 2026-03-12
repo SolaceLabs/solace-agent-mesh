@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon, Loader2, Copy } from "lucide-react";
+import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -8,7 +8,7 @@ import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, use
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, CollaborativeUserMessage, MessageAttribution } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, MessageAttribution, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { api } from "@/lib/api";
@@ -60,6 +60,8 @@ export function ChatPage() {
         currentTaskId,
         isCollaborativeSession,
         currentUserEmail,
+        sessionOwnerName,
+        sessionOwnerEmail,
         handleSwitchSession,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
@@ -224,6 +226,20 @@ export function ChatPage() {
     const collaborativeUsers = useMemo<CollaborativeUser[]>(() => {
         if (!isCollaborativeSession) return [];
         const userMap = new Map<string, CollaborativeUser>();
+
+        // Always include the session owner (from backend-provided info)
+        // This ensures the owner appears even if their old messages don't have senderEmail
+        if (sessionOwnerEmail) {
+            userMap.set(sessionOwnerEmail.toLowerCase(), {
+                id: sessionOwnerEmail.toLowerCase(),
+                name: sessionOwnerName || sessionOwnerEmail,
+                email: sessionOwnerEmail,
+                role: "collaborator",
+                isOnline: true,
+            });
+        }
+
+        // Add users from message sender info (may update owner entry with better name)
         for (const msg of messages) {
             if (msg.isUser && msg.senderEmail && !userMap.has(msg.senderEmail.toLowerCase())) {
                 userMap.set(msg.senderEmail.toLowerCase(), {
@@ -231,12 +247,12 @@ export function ChatPage() {
                     name: msg.senderDisplayName || msg.senderEmail,
                     email: msg.senderEmail,
                     role: "collaborator",
-                    isOnline: true, // We don't have real-time presence yet, assume online
+                    isOnline: true,
                 });
             }
         }
         return Array.from(userMap.values());
-    }, [isCollaborativeSession, messages]);
+    }, [isCollaborativeSession, messages, sessionOwnerEmail, sessionOwnerName]);
 
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
@@ -332,11 +348,11 @@ export function ChatPage() {
                         sessionId
                             ? [
                                   ...(isCollaborativeSession && collaborativeUsers.length > 0 ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />] : []),
-                                  // For editors: show "Save as My Chat" (fork) button instead of Share
+                                  // For editors: show "Create Personal Copy" (fork) button instead of Share
                                   ...(isCollaborativeSession
                                       ? [
-                                            <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Create your own copy of this conversation">
-                                                {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />}
+                                            <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
+                                                {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
                                                 Save as My Chat
                                             </Button>,
                                         ]
@@ -367,29 +383,51 @@ export function ChatPage() {
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
+                                                {/* Show share notification at the start of collaborative sessions */}
+                                                {isCollaborativeSession && messages.length > 0 && <ShareNotificationMessage sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} timestamp={Date.now()} />}
                                                 {messages.map((message, index) => {
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                     const messageKey = message.metadata?.messageId || `temp-${index}`;
                                                     const isLastMessage = index === messages.length - 1;
                                                     const shouldStream = isLastMessage && isResponding && !message.isUser;
 
-                                                    // Get user attribution for this message from mock data
-                                                    const attribution = mockMessageAttributions[index];
-                                                    const isCurrentUserMessage = attribution?.userId === collaborationInfo?.currentUserId;
-                                                    const shouldShowUserAttribution = isCollaborativeSession && message.isUser && !message.isStatusBubble && attribution && !isCurrentUserMessage;
+                                                    // Determine if we should show collaborative attribution
+                                                    // Show "other user" styling for messages from a different sender:
+                                                    // - In collaborative sessions: messages without senderEmail (owner's old messages) or with different senderEmail
+                                                    // - In forked sessions: messages with senderEmail that differs from current user (preserved from original owner)
+                                                    const hasOtherSenderEmail = message.senderEmail && currentUserEmail && message.senderEmail.toLowerCase() !== currentUserEmail.toLowerCase();
+                                                    const isOtherUserMessage =
+                                                        message.isUser && !message.isStatusBubble && ((isCollaborativeSession && (!message.senderEmail || hasOtherSenderEmail)) || (!isCollaborativeSession && hasOtherSenderEmail));
                                                     const shouldShowAgentAttribution = isCollaborativeSession && !message.isUser && !message.isStatusBubble;
 
                                                     // Get agent name from agents list or use default
                                                     const agentName = agents.length > 0 ? agents[0].name : "Agent";
 
-                                                    // Calculate user index for consistent color assignment
-                                                    const userIndex = attribution ? (collaborationInfo?.collaborators.findIndex(u => u.id === attribution.userId) ?? 0) : 0;
+                                                    // Calculate user index matching UserPresenceAvatars (sequential index in filtered list)
+                                                    // UserPresenceAvatars filters out currentUser and uses sequential index
+                                                    const senderEmail = message.senderEmail || sessionOwnerEmail || collaborativeUsers.find(u => u.email?.toLowerCase() !== currentUserEmail?.toLowerCase())?.email;
+                                                    const displayUsers = collaborativeUsers.filter(u => u.id?.toLowerCase() !== currentUserEmail?.toLowerCase());
+                                                    const userIndex = isOtherUserMessage
+                                                        ? Math.max(
+                                                              0,
+                                                              displayUsers.findIndex(u => u.email?.toLowerCase() === senderEmail?.toLowerCase())
+                                                          )
+                                                        : 0;
+
+                                                    // For display name, use message sender info or fall back to session owner info from backend
+                                                    const otherUserName =
+                                                        message.senderDisplayName || message.senderEmail || sessionOwnerName || collaborativeUsers.find(u => u.email?.toLowerCase() !== currentUserEmail?.toLowerCase())?.name || "User";
 
                                                     return (
                                                         <div key={messageKey}>
-                                                            {/* Render collaborative user message or regular message */}
-                                                            {shouldShowUserAttribution ? (
-                                                                <CollaborativeUserMessage message={message} userName={attribution.userName} timestamp={attribution.timestamp} userIndex={userIndex} />
+                                                            {/* Render other-user message with attribution, or agent with attribution, or regular */}
+                                                            {isOtherUserMessage ? (
+                                                                <>
+                                                                    <MessageAttribution type="user" name={otherUserName} timestamp={Date.now()} userIndex={userIndex} />
+                                                                    <div className="ml-10">
+                                                                        <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
+                                                                    </div>
+                                                                </>
                                                             ) : shouldShowAgentAttribution ? (
                                                                 <>
                                                                     {/* Show agent attribution in collaborative mode */}

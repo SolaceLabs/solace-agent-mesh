@@ -8,6 +8,7 @@
 import { Bot } from "lucide-react";
 import { formatCollaborativeTimestamp } from "@/lib/mockData/collaborativeChat";
 import { UserAvatar } from "./UserAvatar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
 interface MessageAttributionProps {
     /** Type of attribution - user or agent */
@@ -20,6 +21,22 @@ interface MessageAttributionProps {
     readonly timestamp?: number;
     /** Optional avatar URL (for user type only) */
     readonly avatarUrl?: string;
+}
+
+/**
+ * Format timestamp as full date and time for tooltip (YYYY-MM-DD HH:MM AM/PM)
+ */
+function formatFullDateTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const time = date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+    });
+    return `${year}-${month}-${day} ${time}`;
 }
 
 export function MessageAttribution({ type, name, userIndex = 0, timestamp, avatarUrl }: MessageAttributionProps) {
@@ -37,7 +54,14 @@ export function MessageAttribution({ type, name, userIndex = 0, timestamp, avata
             {/* Name and optional timestamp */}
             <div className="flex items-baseline gap-2">
                 <span className="text-sm font-bold">{name}</span>
-                {type === "user" && timestamp !== undefined && <span className="text-sm text-[var(--color-secondary-text-wMain)]">{formatCollaborativeTimestamp(timestamp)}</span>}
+                {timestamp !== undefined && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="text-secondary-foreground cursor-default text-sm">{formatCollaborativeTimestamp(timestamp)}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{formatFullDateTime(timestamp)}</TooltipContent>
+                    </Tooltip>
+                )}
             </div>
         </div>
     );
