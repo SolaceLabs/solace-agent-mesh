@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Settings, LogOut, User } from "lucide-react";
+import { Settings, LogOut, User, Search } from "lucide-react";
 
 import { NavigationButton } from "@/lib/components/navigation";
 import type { NavigationItem } from "@/lib/types";
@@ -25,10 +25,15 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
     const { userInfo, logout } = useAuthContext();
     const userName = typeof userInfo?.username === "string" ? userInfo.username : "Guest";
 
+    const handleSearchClick = () => {
+        window.dispatchEvent(new Event("open-command-palette"));
+    };
+
     const handleSettingsClick = () => {
         setMenuOpen(false);
         setSettingsDialogOpen(true);
     };
+
     const handleLogoutClick = async () => {
         setMenuOpen(false);
         await logout();
@@ -51,16 +56,37 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
 
             {/* Bottom items */}
             <ul className="space-y-1">
+                {/* Search Button - Icon only */}
+                <li className="my-2 flex justify-center">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="button"
+                                onClick={handleSearchClick}
+                                className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
+                                aria-label="Search"
+                            >
+                                <Search className="h-6 w-6" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">Search (⌘K)</TooltipContent>
+                    </Tooltip>
+                </li>
+
+                {/* Other bottom items (excluding search which is handled above) */}
                 {bottomItems &&
                     bottomItems.length > 0 &&
-                    bottomItems.map(item => (
-                        <li key={item.id} className="my-4">
-                            <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
-                        </li>
-                    ))}
+                    bottomItems
+                        .filter(item => item.id !== "search")
+                        .map(item => (
+                            <li key={item.id} className="my-4">
+                                <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
+                            </li>
+                        ))}
+
                 {/* User or Settings */}
                 {logoutEnabled ? (
-                    <li className="my-4 flex justify-center">
+                    <li className="my-2 flex justify-center">
                         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -104,7 +130,7 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                         </Popover>
                     </li>
                 ) : (
-                    <li className="my-4 flex justify-center">
+                    <li className="my-2 flex justify-center">
                         <SettingsDialog iconOnly={true} />
                     </li>
                 )}
