@@ -124,6 +124,7 @@ export type PartFE = Part | ArtifactPart;
  */
 export interface MessageFE {
     taskId?: string; // The ID of the task that generated this message
+    createdTime?: number; // Epoch ms timestamp from the task that generated this message (for timeline ordering)
     role?: "user" | "agent";
     isStatusBubble?: boolean; // Added to indicate a temporary status message
     isUser: boolean; // True if the message is from the user, false if from the agent/system

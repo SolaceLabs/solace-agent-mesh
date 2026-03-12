@@ -11,6 +11,7 @@ import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
+import { getShareLinkForSession, getShareUsers } from "@/lib/api/shareApi";
 import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
@@ -68,6 +69,21 @@ export function ChatPage() {
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const [isForkingChat, setIsForkingChat] = useState(false);
+    // Share notification data: each entry represents a share action (user added at a specific time)
+    const [shareNotifications, setShareNotifications] = useState<Array<{ names: string[]; timestamp: number; accessLevel: "viewer" | "editor" }>>([]);
+    const [shareVersion, setShareVersion] = useState(0);
+
+    // Listen for share-updated events from ShareDialog to refresh notifications
+    useEffect(() => {
+        const handleShareUpdated = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.sessionId === sessionId) {
+                setShareVersion(v => v + 1);
+            }
+        };
+        window.addEventListener("share-updated", handleShareUpdated);
+        return () => window.removeEventListener("share-updated", handleShareUpdated);
+    }, [sessionId]);
 
     // Fork collaborative chat into user's own session
     const handleForkCollaborativeChat = useCallback(async () => {
@@ -104,6 +120,48 @@ export function ChatPage() {
     // We use a Map to track task ID -> session ID relationships, plus a version counter to trigger re-renders
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
+
+    // Fetch share link info and share users for the current session (to show share notifications for owner)
+    useEffect(() => {
+        if (!sessionId || isCollaborativeSession) {
+            setShareNotifications([]);
+            return;
+        }
+        // Only fetch for owner's sessions (non-collaborative)
+        getShareLinkForSession(sessionId)
+            .then(async link => {
+                if (link) {
+                    try {
+                        const usersResponse = await getShareUsers(link.share_id);
+                        const users = usersResponse.users || [];
+                        if (users.length === 0) {
+                            setShareNotifications([]);
+                            return;
+                        }
+                        // Group users by added_at timestamp AND access_level
+                        const groupKey = (ts: number, level: string) => `${ts}:${level}`;
+                        const groupMap = new Map<string, { timestamp: number; names: string[]; accessLevel: "viewer" | "editor" }>();
+                        for (const user of users) {
+                            const key = groupKey(user.added_at, user.access_level);
+                            const level = user.access_level === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                            if (!groupMap.has(key)) {
+                                groupMap.set(key, { timestamp: user.added_at, names: [], accessLevel: level });
+                            }
+                            groupMap.get(key)!.names.push(user.user_email);
+                        }
+                        const notifications = Array.from(groupMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+                        setShareNotifications(notifications);
+                    } catch {
+                        setShareNotifications([]);
+                    }
+                } else {
+                    setShareNotifications([]);
+                }
+            })
+            .catch(() => {
+                setShareNotifications([]);
+            });
+    }, [sessionId, isCollaborativeSession, shareVersion]);
 
     // When a new task starts, remember which session it belongs to
     // Don't rely on currentTaskId changes during session switches
@@ -254,6 +312,34 @@ export function ChatPage() {
         return Array.from(userMap.values());
     }, [isCollaborativeSession, messages, sessionOwnerEmail, sessionOwnerName]);
 
+    // Compute where each share notification should be inserted in the message list.
+    // Each notification goes AFTER the last message whose createdTime <= notification.timestamp.
+    const shareNotificationInsertions = useMemo(() => {
+        if (shareNotifications.length === 0 || isCollaborativeSession || messages.length === 0) {
+            return [];
+        }
+
+        return shareNotifications.map(notification => {
+            // Find the last message with createdTime <= notification.timestamp
+            let insertAfterIndex = -1;
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const msg = messages[i];
+                if (msg.createdTime && msg.createdTime <= notification.timestamp) {
+                    insertAfterIndex = i;
+                    break;
+                }
+            }
+            // If no message has createdTime <= notification.timestamp, place after last message
+            if (insertAfterIndex === -1) {
+                insertAfterIndex = messages.length - 1;
+            }
+            return {
+                ...notification,
+                insertAfterIndex,
+            };
+        });
+    }, [shareNotifications, isCollaborativeSession, messages]);
+
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -383,23 +469,34 @@ export function ChatPage() {
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                                {/* Show share notification at the start of collaborative sessions */}
-                                                {isCollaborativeSession && messages.length > 0 && <ShareNotificationMessage sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} timestamp={Date.now()} />}
+                                                {/* Show share notification for editor at the start */}
+                                                {isCollaborativeSession && messages.length > 0 && <ShareNotificationMessage variant="shared-with-users" sharedWith={["you"]} accessLevel="editor" timestamp={Date.now()} />}
                                                 {messages.map((message, index) => {
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                     const messageKey = message.metadata?.messageId || `temp-${index}`;
                                                     const isLastMessage = index === messages.length - 1;
                                                     const shouldStream = isLastMessage && isResponding && !message.isUser;
 
+                                                    // Check if any share notifications should appear AFTER this message
+                                                    const notificationsAfterThis = shareNotificationInsertions.filter(n => n.insertAfterIndex === index);
+
                                                     return (
                                                         <div key={messageKey}>
                                                             {/* ChatMessage handles collaborative attribution internally */}
                                                             <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
+                                                            {/* Render share notifications that belong after this message */}
+                                                            {notificationsAfterThis.map((notification, nIdx) => (
+                                                                <ShareNotificationMessage
+                                                                    key={`share-notif-${notification.timestamp}-${nIdx}`}
+                                                                    variant="shared-with-users"
+                                                                    sharedWith={notification.names}
+                                                                    accessLevel={notification.accessLevel}
+                                                                    timestamp={notification.timestamp}
+                                                                />
+                                                            ))}
                                                         </div>
                                                     );
                                                 })}
-
-                                                {/* TODO: Share notifications will come from backend as part of message history */}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
                                                 {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}

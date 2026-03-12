@@ -23,13 +23,17 @@ interface SharedChatProviderProps {
     sessionId?: string;
     /** Share ID for fetching artifact content */
     shareId: string;
+    /** Callback when ChatMessage wants to open a side panel tab (e.g., "activity" for workflow, "rag" for sources) */
+    onOpenSidePanelTab?: (tab: string) => void;
+    /** Callback when ChatMessage wants to set the task ID in the side panel (for workflow view) */
+    onSetTaskIdInSidePanel?: (taskId: string | null) => void;
 }
 
 /**
  * A minimal ChatContext provider for shared/read-only sessions.
  * Provides read-only access to artifacts and disables all write operations.
  */
-export function SharedChatProvider({ children, artifacts: initialArtifacts, ragData = [], sessionId = "", shareId }: SharedChatProviderProps) {
+export function SharedChatProvider({ children, artifacts: initialArtifacts, ragData = [], sessionId = "", shareId, onOpenSidePanelTab, onSetTaskIdInSidePanel }: SharedChatProviderProps) {
     // State for artifacts and preview
     // Mark all artifacts as needing embed resolution so ArtifactMessage will fetch content
     const [artifacts, setArtifactsState] = useState<ArtifactInfo[]>(() => initialArtifacts.map(a => ({ ...a, needsEmbedResolution: true })));
@@ -45,6 +49,21 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
     const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
     const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
     const [expandedDocumentFilename, setExpandedDocumentFilename] = useState<string | null>(null);
+
+    // Side panel state for ChatMessage integration
+    const [taskIdInSidePanel, setTaskIdInSidePanelState] = useState<string | null>(null);
+
+    // Sync taskIdInSidePanel changes to parent callback
+    const setTaskIdInSidePanel = useCallback(
+        (value: React.SetStateAction<string | null>) => {
+            setTaskIdInSidePanelState(prev => {
+                const newValue = typeof value === "function" ? value(prev) : value;
+                onSetTaskIdInSidePanel?.(newValue);
+                return newValue;
+            });
+        },
+        [onSetTaskIdInSidePanel]
+    );
 
     // Refs
     const latestStatusText = useRef<string | null>(null);
@@ -169,7 +188,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             artifactsLoading: false,
             artifactsRefetch: async () => {},
             setArtifacts: () => {},
-            taskIdInSidePanel: null,
+            taskIdInSidePanel,
 
             // RAG State
             ragData,
@@ -208,7 +227,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             setSessionId: () => {},
             setSessionName: () => {},
             setMessages: () => {},
-            setTaskIdInSidePanel: () => {},
+            setTaskIdInSidePanel,
             handleNewSession: async () => {},
             startNewChatWithPrompt: () => {},
             clearPendingPrompt: () => {},
@@ -222,7 +241,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             // Side Panel Control Actions
             setIsSidePanelCollapsed: () => {},
             setActiveSidePanelTab: () => {},
-            openSidePanelTab: () => {},
+            openSidePanelTab: onOpenSidePanelTab || (() => {}),
 
             // Delete Modal Actions - No-ops for shared sessions
             openDeleteModal: () => {},
