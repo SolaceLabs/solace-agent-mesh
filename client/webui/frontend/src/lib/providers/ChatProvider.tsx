@@ -57,6 +57,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [isCollaborativeSession, setIsCollaborativeSession] = useState<boolean>(false);
     const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+    const [sessionOwnerName, setSessionOwnerName] = useState<string | null>(null);
+    const [sessionOwnerEmail, setSessionOwnerEmail] = useState<string | null>(null);
     const currentUserIdFromAuth = useRef<string>("");
 
     // Fetch current user info on mount (works in both dev and production mode)
@@ -1836,6 +1838,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Reset collaborative session flag - new sessions are always owned by the current user
             setIsCollaborativeSession(false);
+            setSessionOwnerName(null);
+            setSessionOwnerEmail(null);
 
             // Clear project context when starting a new chat outside of a project
             if (activeProject && !preserveProjectContext) {
@@ -1960,9 +1964,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const sessionOwnerId = session?.userId;
                 if (currentUserId && sessionOwnerId && currentUserId !== sessionOwnerId) {
                     setIsCollaborativeSession(true);
-                    console.log(`${log_prefix} Collaborative session detected (owner: ${sessionOwnerId}, current user: ${currentUserId})`);
+                    // Store owner info from session response (populated by backend for editors)
+                    setSessionOwnerName(session?.ownerDisplayName || sessionOwnerId);
+                    setSessionOwnerEmail(session?.ownerEmail || sessionOwnerId);
+                    console.log(`${log_prefix} Collaborative session detected (owner: ${sessionOwnerId}, ownerName: ${session?.ownerDisplayName}, current user: ${currentUserId})`);
                 } else {
                     setIsCollaborativeSession(false);
+                    setSessionOwnerName(null);
+                    setSessionOwnerEmail(null);
                 }
 
                 // Activate or deactivate project context based on session's project
@@ -2906,6 +2915,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isResponding,
         isCollaborativeSession,
         currentUserEmail,
+        sessionOwnerName,
+        sessionOwnerEmail,
         currentTaskId,
         isCancelling,
         latestStatusText,

@@ -323,6 +323,8 @@ export interface Session {
     projectId?: string | null;
     projectName?: string | null;
     hasRunningBackgroundTask?: boolean;
+    ownerDisplayName?: string | null;
+    ownerEmail?: string | null;
 }
 
 // RAG (Retrieval-Augmented Generation) Types

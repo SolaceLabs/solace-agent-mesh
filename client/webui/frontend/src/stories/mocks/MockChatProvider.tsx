@@ -31,6 +31,8 @@ const defaultMockChatContext: DefaultMockContextType = {
     // Collaborative session state
     isCollaborativeSession: false,
     currentUserEmail: "test@example.com",
+    sessionOwnerName: null,
+    sessionOwnerEmail: null,
 
     // Loading states
     isResponding: false,

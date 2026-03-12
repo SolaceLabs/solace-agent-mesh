@@ -364,7 +364,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         return sharedUsers.filter(user => !pendingRemoves.includes(user.user_email)).sort((a, b) => a.user_email.localeCompare(b.user_email));
     }, [sharedUsers, pendingRemoves]);
 
-    const hasChanges = viewers.filter(v => v.email !== null).length > 0 || pendingRemoves.length > 0 || accessLevelChanges.length > 0;
+    const hasChanges = viewers.filter(v => v.email !== null).length > 0 || pendingRemoves.length > 0 || accessLevelChanges.length > 0 || isNewlyCreatedLink;
     const hasIncompleteRows = viewers.some(v => v.email === null);
 
     return (
