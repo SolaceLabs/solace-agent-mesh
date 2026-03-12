@@ -15,18 +15,45 @@ export default meta;
 
 type Story = StoryObj<typeof ShareNotificationMessage>;
 
-export const Default: Story = {
+export const SharedWithUsersAsEditor: Story = {
     args: {
-        sharedBy: mockActiveCollaborativeSession.sharedByName!,
+        variant: "shared-with-users",
         sharedWith: mockActiveCollaborativeSession.sharedWithNames!,
+        accessLevel: "editor",
         timestamp: mockActiveCollaborativeSession.sharedAt!,
     },
 };
 
-export const MultipleUsers: Story = {
+export const SharedWithUsersAsViewer: Story = {
     args: {
-        sharedBy: "Olive Operations",
+        variant: "shared-with-users",
+        sharedWith: mockActiveCollaborativeSession.sharedWithNames!,
+        accessLevel: "viewer",
+        timestamp: mockActiveCollaborativeSession.sharedAt!,
+    },
+};
+
+export const SharedWithMultipleUsersAsEditor: Story = {
+    args: {
+        variant: "shared-with-users",
         sharedWith: ["Parminder Procurement", "Charlie Chang", "David Developer"],
+        accessLevel: "editor",
         timestamp: Date.now() - 2 * 60 * 60 * 1000,
+    },
+};
+
+export const SharedWithManyUsers: Story = {
+    args: {
+        variant: "shared-with-users",
+        sharedWith: ["Parminder Procurement", "Charlie Chang", "David Developer", "Emily Engineer", "Frank Finance", "Grace Governance"],
+        accessLevel: "viewer",
+        timestamp: Date.now() - 3 * 60 * 60 * 1000,
+    },
+};
+
+export const CreatedSharingLink: Story = {
+    args: {
+        variant: "created-link",
+        timestamp: Date.now() - 1 * 60 * 60 * 1000,
     },
 };
