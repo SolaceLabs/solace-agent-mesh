@@ -225,7 +225,7 @@ export function CommandPalette() {
 
                     {/* Actions List */}
                     <div className="max-h-[400px] overflow-y-auto p-2">
-                        {filteredActions.length === 0 && !askAction ? (
+                        {filteredActions.length === 0 && !askAction && !agentAction ? (
                             <div className="text-muted-foreground py-6 text-center text-sm">No actions found</div>
                         ) : (
                             <div className="space-y-1">
