@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 // Note: may be able to remove this workaround with next version of uuid
 const v4 = () => uuidv4({});
 
-import { api } from "@/lib/api";
+import { api, refreshToken } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useAuthContext } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
@@ -2222,7 +2222,47 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         /* console.log for SSE open */
     }, []);
 
+    // Track whether we've already attempted an SSE token refresh for the
+    // current task to avoid infinite retry loops.
+    const sseRefreshAttempted = useRef(false);
+
+    // Reset the flag whenever a new task starts
+    useEffect(() => {
+        if (currentTaskId) {
+            sseRefreshAttempted.current = false;
+        }
+    }, [currentTaskId]);
+
     const handleSseError = useCallback(() => {
+        // If we haven't tried refreshing the token yet for this SSE connection,
+        // attempt a refresh and reconnect instead of immediately failing.
+        // This handles the case where the token expired during a long-lived SSE stream.
+        if (!sseRefreshAttempted.current && currentTaskId && isResponding && !isFinalizing.current && !isCancellingRef.current) {
+            sseRefreshAttempted.current = true;
+            console.log("[ChatProvider] SSE error — attempting token refresh before reconnect");
+            closeCurrentEventSource();
+
+            void refreshToken().then(newToken => {
+                if (newToken && currentTaskId) {
+                    console.log("[ChatProvider] Token refreshed, reconnecting SSE for task", currentTaskId);
+                    // Re-setting the same taskId triggers the useEffect that
+                    // creates a new EventSource with the fresh token from getApiBearerToken().
+                    setCurrentTaskId(null);
+                    // Use a microtask to ensure the null is processed first
+                    queueMicrotask(() => setCurrentTaskId(currentTaskId));
+                } else {
+                    // Refresh failed — fall through to normal error handling
+                    console.warn("[ChatProvider] Token refresh failed during SSE error");
+                    setError({ title: "Connection Failed", error: "Session expired. Please log in again." });
+                    setIsResponding(false);
+                    setCurrentTaskId(null);
+                    latestStatusText.current = null;
+                    setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
+                }
+            });
+            return;
+        }
+
         if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
             setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
         }
@@ -2235,7 +2275,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-    }, [closeCurrentEventSource, isResponding, setError]);
+    }, [closeCurrentEventSource, isResponding, setError, currentTaskId]);
 
     const cleanupUploadedFiles = useCallback(async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
         if (uploadedFiles.length === 0) {

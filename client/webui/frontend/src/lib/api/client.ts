@@ -1,4 +1,4 @@
-import { getApiBearerToken } from "@/lib/utils/api";
+import { getApiBearerToken, getSamAccessToken } from "@/lib/utils/api";
 
 interface RequestOptions {
     headers?: HeadersInit;
@@ -55,6 +55,72 @@ const clearTokens = () => {
 // Multiple simultaneous 401s will all await the same refresh call.
 let pendingRefresh: Promise<string | null> | null = null;
 
+// --- Proactive token refresh ---
+// Refresh tokens ~5 minutes before they expire to avoid 401 storms,
+// especially for long-lived SSE connections that can't retry easily.
+const PROACTIVE_REFRESH_MARGIN_MS = 5 * 60 * 1000; // 5 minutes
+let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Decode the `exp` claim from a JWT without verifying the signature. */
+const getTokenExpMs = (token: string | null): number | null => {
+    if (!token) return null;
+    try {
+        const payload = token.split(".")[1];
+        if (!payload) return null;
+        const decoded = JSON.parse(atob(payload));
+        if (typeof decoded.exp === "number") {
+            return decoded.exp * 1000; // seconds → ms
+        }
+    } catch {
+        // Not a JWT or malformed — ignore
+    }
+    return null;
+};
+
+/**
+ * Schedule a proactive token refresh based on the earliest expiring token.
+ * Called after every successful token set (login, callback, refresh).
+ */
+const scheduleProactiveRefresh = () => {
+    if (proactiveRefreshTimer) {
+        clearTimeout(proactiveRefreshTimer);
+        proactiveRefreshTimer = null;
+    }
+
+    // Check both token types and pick the earliest expiration
+    const samExp = getTokenExpMs(getSamAccessToken());
+    const accessExp = getTokenExpMs(localStorage.getItem("access_token"));
+    const expirations = [samExp, accessExp].filter((e): e is number => e !== null);
+
+    if (expirations.length === 0) return;
+
+    const earliestExp = Math.min(...expirations);
+    const now = Date.now();
+    const delay = earliestExp - now - PROACTIVE_REFRESH_MARGIN_MS;
+
+    if (delay <= 0) {
+        // Already within the refresh margin — refresh immediately
+        console.debug("[api/client] Token near expiry, refreshing proactively now");
+        void refreshToken();
+        return;
+    }
+
+    console.debug(`[api/client] Scheduling proactive token refresh in ${Math.round(delay / 1000)}s`);
+    proactiveRefreshTimer = setTimeout(() => {
+        proactiveRefreshTimer = null;
+        console.debug("[api/client] Proactive token refresh triggered");
+        void refreshToken();
+    }, delay);
+};
+
+/** Cancel any pending proactive refresh (e.g. on logout). */
+const cancelProactiveRefresh = () => {
+    if (proactiveRefreshTimer) {
+        clearTimeout(proactiveRefreshTimer);
+        proactiveRefreshTimer = null;
+    }
+};
+
 const refreshToken = async () => {
     // Check abort conditions before joining any in-flight refresh, so a logout
     // initiated mid-refresh doesn't let new callers receive a fresh token.
@@ -81,6 +147,8 @@ const refreshToken = async () => {
         if (response.ok) {
             const data = await response.json();
             setTokens(data.access_token, data.sam_access_token, data.refresh_token);
+            // Re-schedule the next proactive refresh based on new token expiry
+            scheduleProactiveRefresh();
             return getApiBearerToken();
         }
 
@@ -253,4 +321,4 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
-export { getErrorFromResponse };
+export { getErrorFromResponse, refreshToken, scheduleProactiveRefresh, cancelProactiveRefresh };

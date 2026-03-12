@@ -1,6 +1,6 @@
 import React, { useState, useEffect, type ReactNode } from "react";
 
-import { api } from "@/lib/api";
+import { api, scheduleProactiveRefresh, cancelProactiveRefresh } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
 import { EmptyState } from "../components";
@@ -39,6 +39,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     setIsAuthenticated(true);
                 }
 
+                // Start proactive token refresh timer so tokens are refreshed
+                // before they expire, preventing 401 storms on SSE connections.
+                scheduleProactiveRefresh();
+
                 console.log("Fetching CSRF token for authenticated requests...");
                 await fetchCsrfToken();
             } catch (authError) {
@@ -66,6 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return () => {
             isMounted = false;
             window.removeEventListener("storage", handleStorageChange);
+            cancelProactiveRefresh();
         };
     }, [configUseAuthorization, configAuthLoginUrl, fetchCsrfToken]);
 
@@ -78,6 +83,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (configUseAuthorization) {
                 // Set flag to prevent automatic token refresh during logout
                 sessionStorage.setItem("logout_in_progress", "true");
+
+                // Cancel proactive refresh timer before logout
+                cancelProactiveRefresh();
 
                 // Call logout while we have an access token
                 await api.webui.post("/api/v1/auth/logout");
