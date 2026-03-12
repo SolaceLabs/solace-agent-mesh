@@ -28,5 +28,6 @@ export const AgentAttribution: Story = {
     args: {
         type: "agent",
         name: "OrchestratorAgent",
+        timestamp: Date.now() - 5 * 60 * 1000,
     },
 };
