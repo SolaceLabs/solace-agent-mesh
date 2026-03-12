@@ -12,7 +12,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { AlertCircle, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock, Info } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger, CHAT_STYLES } from "@/lib/components/ui";
 import { MessageAttribution } from "@/lib/components/chat/MessageAttribution";
-import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { Header } from "@/lib/components/header";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
@@ -27,6 +26,7 @@ import { parseCitations } from "@/lib/utils/citations";
 import { RAGInfoPanel } from "@/lib/components/chat/rag/RAGInfoPanel";
 import { Sources } from "@/lib/components/web/Sources";
 import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
+import { MarkdownWrapper } from "@/lib/components";
 import { downloadBlob } from "@/lib/utils/download";
 
 /**
@@ -323,11 +323,7 @@ export function SharedChatViewPage() {
                                 return <TextWithCitations key={idx} text={text} citations={citations} onCitationClick={handleCitationClick} />;
                             }
                         }
-                        return (
-                            <p key={idx} className={CHAT_BUBBLE_MESSAGE_STYLES.paragraph}>
-                                {text}
-                            </p>
-                        );
+                        return <MarkdownWrapper key={idx} content={text} />;
                     }
 
                     if (part.kind === "file") {
