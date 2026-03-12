@@ -2252,8 +2252,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             void refreshToken()
                 .then(newToken => {
-                    if (newToken && currentTaskId) {
-                        console.log("[ChatProvider] Token refreshed, reconnecting SSE for task", currentTaskId);
+                    // Use the ref instead of the closed-over currentTaskId to avoid
+                    // stale closure issues if the task changed during the async refresh.
+                    const taskId = sseRefreshTaskId.current;
+                    if (newToken && taskId) {
+                        console.log("[ChatProvider] Token refreshed, reconnecting SSE for task", taskId);
                         // Bump the reconnect key to trigger the EventSource useEffect
                         // without changing currentTaskId. This avoids the React 18
                         // batching issue with null → restore tricks.
@@ -2270,6 +2273,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 })
                 .catch(err => {
                     console.error("[ChatProvider] Unexpected error during SSE token refresh:", err);
+                    // Clean up state so the UI doesn't appear stuck in "responding" mode
+                    setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
+                    setIsResponding(false);
+                    setCurrentTaskId(null);
+                    latestStatusText.current = null;
+                    setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
                 });
             return;
         }
