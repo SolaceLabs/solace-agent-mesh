@@ -4,12 +4,12 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, GitFork, Loader2, MessageSquare } from "lucide-react";
+import { ArrowLeft, Bot, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, GitFork, Loader2, MessageSquare, RefreshCw } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { ChatBubbleAvatar } from "@/lib/components/ui/chat/chat-bubble";
 import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
-import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
+import { viewSharedSession, downloadSharedArtifact, forkSharedChat, updateShareSnapshot } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
 import type { RAGSearchResult, ArtifactInfo } from "@/lib/types";
@@ -66,6 +66,7 @@ export function SharedSessionPage() {
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [isForking, setIsForking] = useState(false);
     const [forkError, setForkError] = useState<string | null>(null);
+    const [isUpdatingSnapshot, setIsUpdatingSnapshot] = useState(false);
 
     // Load shared session data
     const loadSharedSession = useCallback(async (id: string) => {
@@ -117,6 +118,22 @@ export function SharedSessionPage() {
             setIsForking(false);
         }
     }, [shareId, isForking, navigate]);
+
+    // Update snapshot to include newer messages
+    const handleUpdateSnapshot = useCallback(async () => {
+        if (!shareId || isUpdatingSnapshot) return;
+
+        setIsUpdatingSnapshot(true);
+        try {
+            await updateShareSnapshot(shareId);
+            // Reload the session to get updated tasks
+            await loadSharedSession(shareId);
+        } catch (err) {
+            console.error("Failed to update snapshot:", err);
+        } finally {
+            setIsUpdatingSnapshot(false);
+        }
+    }, [shareId, isUpdatingSnapshot, loadSharedSession]);
 
     useEffect(() => {
         if (shareId) {
@@ -629,20 +646,42 @@ export function SharedSessionPage() {
                                             <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
                                         </span>
                                     </TooltipTrigger>
-                                    <TooltipContent>You are {session?.is_owner ? "the owner" : "a viewer"} of this chat</TooltipContent>
+                                    <TooltipContent>
+                                        You are a <span className="font-bold">viewer</span> of this chat
+                                    </TooltipContent>
                                 </Tooltip>
-                                <span>{session?.is_owner ? "Owner" : "Viewer"}</span>
-                                {!session?.is_owner && (
-                                    <>
-                                        <div className="bg-border h-4 w-px" />
-                                        <span>
-                                            Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
+                                <span>Viewer</span>
+                                <div className="bg-border h-4 w-px" />
+                                {session.snapshot_time ? (
+                                    <span>
+                                        Snapshot from{" "}
+                                        <span className="font-bold">
+                                            {(() => {
+                                                const d = new Date(session.snapshot_time);
+                                                return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+                                            })()}
                                         </span>
-                                    </>
+                                    </span>
+                                ) : (
+                                    <span>
+                                        Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on{" "}
+                                        <span className="font-bold">
+                                            {(() => {
+                                                const d = new Date(session.created_time);
+                                                return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+                                            })()}
+                                        </span>
+                                    </span>
                                 )}
                             </div>
                             {!session?.is_owner && (
                                 <div className="flex items-center gap-2">
+                                    {session.snapshot_time && (
+                                        <Button variant="outline" size="sm" onClick={handleUpdateSnapshot} disabled={isUpdatingSnapshot}>
+                                            {isUpdatingSnapshot ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                            Update Snapshot
+                                        </Button>
+                                    )}
                                     {forkError && <span className="text-destructive text-sm">{forkError}</span>}
                                     <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
                                         {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
@@ -656,26 +695,7 @@ export function SharedSessionPage() {
 
                 {/* Main content with resizable panels - always show side panel */}
                 <div className="relative min-h-0 flex-1">
-                    {/* Floating Fork/Continue Button */}
-                    {!session?.is_owner && (
-                        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center pb-10">
-                            <div className="pointer-events-auto flex flex-col items-center gap-2">
-                                {forkError && <div className="bg-destructive/10 text-destructive rounded-md border border-(--color-error-wMain) px-3 py-1.5 text-sm">{forkError}</div>}
-                                <Button variant="outline" onClick={handleForkChat} disabled={isForking} size="lg" className="shadow-lg">
-                                    {isForking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <MessageSquare className="mr-2 h-5 w-5" />}
-                                    Continue in New Chat
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                    {session?.is_owner && session?.session_id && (
-                        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center pb-10">
-                            <Button variant="default" size="lg" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)} className="pointer-events-auto shadow-lg">
-                                <MessageSquare className="mr-2 h-5 w-5" />
-                                Go to Chat
-                            </Button>
-                        </div>
-                    )}
+                    {/* Read-Only Indicator */}
 
                     <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
                         {/* Messages panel */}

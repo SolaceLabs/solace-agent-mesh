@@ -34,11 +34,18 @@ export function UserPresenceAvatars({ users, currentUserId }: UserPresenceAvatar
     return (
         <div className="flex items-center">
             {/* Show all active users' avatars */}
-            {activeUsers.map((user, index) => (
-                <div key={user.id} style={{ marginLeft: index > 0 ? "-8px" : "0" }}>
-                    <UserAvatar name={user.name} userIndex={index} avatarUrl={user.avatar} className="cursor-pointer" showTooltip={true} />
-                </div>
-            ))}
+            {activeUsers.map((user, index) => {
+                // Use email-based hash for consistent colors with chat message avatars
+                const emailHash = (user.email || user.name || "")
+                    .toLowerCase()
+                    .split("")
+                    .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+                return (
+                    <div key={user.id} style={{ marginLeft: index > 0 ? "-8px" : "0" }}>
+                        <UserAvatar name={user.name} userIndex={emailHash} avatarUrl={user.avatar} className="cursor-pointer" showTooltip={true} />
+                    </div>
+                );
+            })}
         </div>
     );
 }

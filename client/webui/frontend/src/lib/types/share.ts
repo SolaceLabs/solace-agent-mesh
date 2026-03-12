@@ -71,6 +71,7 @@ export interface SharedSessionView {
     task_events?: Record<string, SharedTaskEvents> | null;
     is_owner?: boolean;
     session_id?: string | null;
+    snapshot_time?: number | null;
 }
 
 export interface SharedTask {

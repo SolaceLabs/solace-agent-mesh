@@ -9,13 +9,13 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { AlertCircle, Bot, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock, Info } from "lucide-react";
+import { AlertCircle, Bot, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock, Info, RefreshCw } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger, CHAT_STYLES } from "@/lib/components/ui";
 import { ChatBubbleAvatar } from "@/lib/components/ui/chat/chat-bubble";
 import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { Header } from "@/lib/components/header";
-import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
+import { viewSharedSession, downloadSharedArtifact, forkSharedChat, updateShareSnapshot } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
 import type { RAGSearchResult, ArtifactInfo } from "@/lib/types";
@@ -72,6 +72,7 @@ export function SharedChatViewPage() {
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [isForking, setIsForking] = useState(false);
     const [forkError, setForkError] = useState<string | null>(null);
+    const [isUpdatingSnapshot, setIsUpdatingSnapshot] = useState(false);
 
     // Load shared session data
     const loadSharedSession = useCallback(async (id: string) => {
@@ -123,6 +124,22 @@ export function SharedChatViewPage() {
             setIsForking(false);
         }
     }, [shareId, isForking, navigate]);
+
+    // Update snapshot to include newer messages
+    const handleUpdateSnapshot = useCallback(async () => {
+        if (!shareId || isUpdatingSnapshot) return;
+
+        setIsUpdatingSnapshot(true);
+        try {
+            await updateShareSnapshot(shareId);
+            // Reload the session to get updated tasks
+            await loadSharedSession(shareId);
+        } catch (err) {
+            console.error("Failed to update snapshot:", err);
+        } finally {
+            setIsUpdatingSnapshot(false);
+        }
+    }, [shareId, isUpdatingSnapshot, loadSharedSession]);
 
     useEffect(() => {
         if (shareId) {
@@ -567,11 +584,35 @@ export function SharedChatViewPage() {
                     </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                    Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
+                    Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on{" "}
+                    <span className="font-bold">
+                        {(() => {
+                            const d = new Date(session.created_time);
+                            return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+                        })()}
+                    </span>
                 </TooltipContent>
             </Tooltip>
             <span className="text-muted-foreground text-xs">Viewer</span>
+            {session.snapshot_time && (
+                <>
+                    <div className="bg-border h-4 w-px" />
+                    <span className="text-muted-foreground text-xs">
+                        Snapshot from{" "}
+                        {(() => {
+                            const d = new Date(session.snapshot_time);
+                            return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+                        })()}
+                    </span>
+                </>
+            )}
         </div>,
+        session.snapshot_time && !session?.is_owner ? (
+            <Button key="update-snapshot" variant="outline" size="sm" onClick={handleUpdateSnapshot} disabled={isUpdatingSnapshot}>
+                {isUpdatingSnapshot ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Update Snapshot
+            </Button>
+        ) : null,
         forkError ? (
             <span key="fork-error" className="text-destructive text-sm">
                 {forkError}
