@@ -1840,11 +1840,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             // Priority order for agent selection:
+            // 0. In onboard mode, prefer the agent with a welcome config (the intro agent)
             // 1. URL parameter agent (?agent=AgentName)
             // 2. Project's default agent (if in project context)
             // 3. OrchestratorAgent (fallback)
             // 4. First available agent
             let selectedAgent = agents[0];
+
+            // In onboard mode, select the Manager agent (the dedicated intro agent)
+            const isOnboard = window.location.hash?.includes("mode=onboard");
+            if (isOnboard) {
+                const managerAgent = agents.find(agent => agent.name === "Manager");
+                if (managerAgent) {
+                    selectedAgent = managerAgent;
+                }
+            }
 
             // Check URL parameter first
             const urlParams = new URLSearchParams(window.location.search);
@@ -1861,8 +1871,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
             }
 
-            // If no URL agent found, follow existing priority order
-            if (!urlAgent) {
+            // If no URL agent found and not already set by onboard mode, follow existing priority order
+            if (!urlAgent && !isOnboard) {
                 if (activeProject?.defaultAgentId) {
                     const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
                     if (projectDefaultAgent) {
@@ -1879,7 +1889,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setSelectedAgentName(selectedAgent.name);
 
-            const displayedText = configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
+            const displayedText = selectedAgent.welcome?.welcome_message || configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
             setMessages([
                 {
                     parts: [{ kind: "text", text: displayedText }],
