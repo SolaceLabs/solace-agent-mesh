@@ -6,7 +6,7 @@ import { AlertCircle, Quote, ThumbsDown, ThumbsUp } from "lucide-react";
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
-import { useChatContext, useCitationClick } from "@/lib/hooks";
+import { useChatContext, useCitationClick, useUIMode } from "@/lib/hooks";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
@@ -27,6 +27,7 @@ import { decodeBase64Content } from "./preview/previewUtils";
 import { downloadFile } from "@/lib/utils/download";
 import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
+import { UserInputMessage } from "./hil";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
 
@@ -42,6 +43,7 @@ const MessageActions: React.FC<{
     textContentOverride?: string;
 }> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick, sourcesElement, textContentOverride }) => {
     const { configCollectFeedback, submittedFeedback, handleFeedbackSubmit, addNotification } = useChatContext();
+    const { isOnboardMode } = useUIMode();
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
 
@@ -66,6 +68,10 @@ const MessageActions: React.FC<{
     };
 
     const shouldShowFeedback = showFeedbackActions && configCollectFeedback;
+
+    if (isOnboardMode) {
+        return sourcesElement ? <div className="mt-3"><div className="flex items-center justify-start">{sourcesElement}</div></div> : null;
+    }
 
     if (!showWorkflowButton && !shouldShowFeedback && !sourcesElement) {
         return null;
@@ -614,6 +620,10 @@ const getChatBubble = (
 
     if (message.authenticationLink) {
         return <AuthenticationMessage message={message} />;
+    }
+
+    if (message.userInputRequest) {
+        return <UserInputMessage message={message} />;
     }
 
     // Check for deep research progress data

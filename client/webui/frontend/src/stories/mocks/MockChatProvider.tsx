@@ -115,6 +115,8 @@ const defaultMockChatContext: DefaultMockContextType = {
 
     // RAG Panel State
     setExpandedDocumentFilename: () => {},
+    builderMode: false,
+    setBuilderMode: () => {},
 };
 
 interface MockChatProviderProps {

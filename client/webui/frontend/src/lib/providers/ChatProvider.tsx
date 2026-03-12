@@ -36,6 +36,7 @@ import type {
     Project,
     StoredTaskData,
     RAGSearchResult,
+    A2UISurface,
 } from "@/lib/types";
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
@@ -134,7 +135,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "activity" | "rag">("files");
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<string>("files");
+
+    // Builder Mode
+    const [builderMode, setBuilderMode] = useState<boolean>(false);
 
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
@@ -352,6 +356,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             displayHtml: message.displayHtml,
             contextQuote: message.contextQuote,
             contextQuoteSourceId: message.contextQuoteSourceId,
+            // Persist HIL state so the summary banner survives page reloads.
+            ...(message.userInputRequest ? { userInputRequest: message.userInputRequest } : {}),
         };
     }, []);
 
@@ -508,6 +514,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
                     contextQuote: bubble.contextQuote, // Restore context quote for user messages
                     contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
+                    // Restore HIL state (responded summary banner).
+                    ...(bubble.userInputRequest ? { userInputRequest: bubble.userInputRequest } : {}),
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -811,7 +819,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
     const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
 
-    const openSidePanelTab = useCallback((tab: "files" | "activity" | "rag") => {
+    const openSidePanelTab = useCallback((tab: string) => {
         setIsSidePanelCollapsed(false);
         setActiveSidePanelTab(tab);
 
@@ -906,6 +914,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // This handles cases where the task fails before streaming any status updates
                     if (result.status?.state === "failed" && result.status?.message) {
                         messageToProcess = result.status.message;
+                    } else if (result.status?.message?.parts?.some((p: any) => p.kind === "file")) {
+                        // The gateway resolves artifact_return embeds into file parts
+                        // interleaved with text at their original positions. Use the full
+                        // parts array so artifacts appear inline where the LLM placed them.
+                        messageToProcess = result.status.message;
                     } else {
                         // For successful tasks, content has already been streamed via status_updates
                         messageToProcess = undefined;
@@ -960,7 +973,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     if (status === "cancelled") {
                                         setMessages(prev => {
                                             const newMessages = [...prev];
-                                            const agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+                                            const agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && !m.userInputRequest && m.taskId === currentTaskIdFromResult);
                                             if (agentMessageIndex !== -1) {
                                                 const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
                                                 // Remove the artifact part for this filename
@@ -1052,7 +1065,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                     setMessages(prev => {
                                         const newMessages = [...prev];
-                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && !m.userInputRequest && m.taskId === currentTaskIdFromResult);
 
                                         if (agentMessageIndex === -1) {
                                             const newAgentMessage: MessageFE = {
@@ -1172,6 +1185,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             metadata: { messageId: `auth-${v4()}` },
                                         };
                                         setMessages(prev => [...prev, authMessage]);
+                                    }
+                                    break;
+                                }
+                                case "user_input_request": {
+                                    const requestId = data?.request_id;
+                                    const surface = data?.surface;
+                                    if (requestId && surface) {
+                                        const hilMessage: MessageFE = {
+                                            role: "agent",
+                                            taskId: currentTaskIdFromResult,
+                                            parts: [{ kind: "text", text: "" }],
+                                            userInputRequest: {
+                                                requestId: String(requestId),
+                                                expiresAt: typeof data?.expires_at === "string" ? data.expires_at : "",
+                                                source: data?.source === "tool_approval" ? "tool_approval" : "ask_user_question",
+                                                surface: surface as A2UISurface,
+                                                taskId: currentTaskIdFromResult ?? "",
+                                                agentName: selectedAgentName ?? "",
+                                            },
+                                            isUser: false,
+                                            isComplete: false,
+                                            metadata: { messageId: `hil-${requestId}` },
+                                        };
+                                        setMessages(prev => [...prev, hilMessage]);
                                     }
                                     break;
                                 }
@@ -1430,7 +1467,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // For progress updates, always update the same message (don't replace, just update the data)
                 // The InlineResearchProgress component will handle showing all stages
-                if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                if (isProgressUpdate && lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: newContentParts,
@@ -1441,11 +1478,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         },
                     };
                     newMessages[newMessages.length - 1] = updatedMessage;
-                } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
-                    // Regular append for non-progress updates
+                } else if (lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                    // When the final response includes file parts, the gateway has
+                    // resolved artifact_return embeds and interleaved them at the
+                    // correct text positions. Replace the streamed parts with the
+                    // authoritative final parts to preserve that ordering.
+                    // For non-final events, append as usual.
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
-                        parts: [...lastMessage.parts, ...newContentParts],
+                        parts: isFinalEvent && hasNewFiles ? newContentParts : [...lastMessage.parts, ...newContentParts],
                         isComplete: isFinalEvent || hasNewFiles,
                         isError: isTaskFailed || lastMessage.isError,
                         metadata: {
@@ -2714,11 +2755,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             // Priority order for agent selection:
+            // 0. In onboard mode, prefer the agent with a welcome config (the intro agent)
             // 1. URL parameter agent (?agent=AgentName)
             // 2. Project's default agent (if in project context)
             // 3. OrchestratorAgent (fallback)
             // 4. First available agent
             let selectedAgent = agents[0];
+
+            // In onboard mode, select the Manager agent (the dedicated intro agent)
+            const isOnboard = window.location.hash?.includes("mode=onboard");
+            if (isOnboard) {
+                const managerAgent = agents.find(agent => agent.name === "Manager");
+                if (managerAgent) {
+                    selectedAgent = managerAgent;
+                }
+            }
 
             // Check URL parameter first
             const urlParams = new URLSearchParams(window.location.search);
@@ -2735,8 +2786,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
             }
 
-            // If no URL agent found, follow existing priority order
-            if (!urlAgent) {
+            // If no URL agent found and not already set by onboard mode, follow existing priority order
+            if (!urlAgent && !isOnboard) {
                 if (activeProject?.defaultAgentId) {
                     const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
                     if (projectDefaultAgent) {
@@ -2753,7 +2804,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setSelectedAgentName(selectedAgent.name);
 
-            const displayedText = configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
+            const displayedText = selectedAgent.welcome?.welcome_message || configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
             setMessages([
                 {
                     parts: [{ kind: "text", text: displayedText }],
@@ -2929,6 +2980,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         pendingPrompt,
         startNewChatWithPrompt,
         clearPendingPrompt,
+
+        /** Builder Mode */
+        builderMode,
+        setBuilderMode,
+        inputAreaLeftSlot: undefined,
 
         /** Background Task Monitoring */
         backgroundTasks,

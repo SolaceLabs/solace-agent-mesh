@@ -5,6 +5,7 @@ export { ChatSessionDeleteDialog } from "./ChatSessionDeleteDialog";
 export { ChatSessionDialog } from "./ChatSessionDialog";
 export { ChatSessions } from "./ChatSessions";
 export { ChatSidePanel } from "./ChatSidePanel";
+export { ChatWelcomeScreen } from "./ChatWelcomeScreen";
 export { LoadingMessageRow } from "./LoadingMessageRow";
 export { SessionSidePanel } from "./SessionSidePanel";
 export { MoveSessionDialog } from "./MoveSessionDialog";

@@ -65,6 +65,8 @@ interface WorkflowDiagramProps {
     currentWorkflowName?: string;
     /** Parent workflow path (for breadcrumb navigation) */
     parentPath?: string[];
+    /** Additional CSS class for the root container (e.g. to override background) */
+    className?: string;
 }
 
 /**
@@ -84,6 +86,7 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     onContentSizeChange,
     currentWorkflowName,
     parentPath,
+    className,
 }) => {
     const internalCanvasRef = useRef<PanZoomCanvasRef>(null);
     const canvasRef = externalCanvasRef || internalCanvasRef;
@@ -254,7 +257,7 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     }, [onNodeSelect]);
 
     return (
-        <div className="bg-card-background relative h-full w-full" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onClick={handleBackgroundClick}>
+        <div className={`${className ?? "bg-card-background"} relative h-full w-full`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onClick={handleBackgroundClick}>
             <PanZoomCanvas ref={canvasRef} initialScale={1} minScale={0.25} maxScale={2} sidePanelWidth={sidePanelWidth} onUserInteraction={handleUserInteraction} onTransformChange={onTransformChange}>
                 <div
                     ref={containerRef}
