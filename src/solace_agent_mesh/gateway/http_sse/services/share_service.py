@@ -966,13 +966,43 @@ class ShareService:
         if not new_session:
             raise ValueError("Failed to create new session for fork")
         
-        # Copy chat tasks to the new session
+        # Copy chat tasks to the new session with forked context metadata
         from ..repository.entities.chat_task import ChatTask
         from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+        import json as json_mod
+        
+        original_session_id = share_link.session_id
+        original_owner_id = share_link.user_id
         
         for original_task in original_tasks:
             new_task_id = str(uuid.uuid4())
             now_ms = now_epoch_ms()
+            
+            # Add forked context info to task metadata so the A2A orchestrator
+            # can find the original conversation history
+            new_metadata = None
+            if original_task.task_metadata:
+                try:
+                    meta = json_mod.loads(original_task.task_metadata)
+                    meta["task_id"] = new_task_id
+                    meta["forked_from"] = original_task.id
+                    meta["forked_from_session_id"] = original_session_id
+                    meta["forked_from_owner_id"] = original_owner_id
+                    meta.pop("status", None)
+                    new_metadata = json_mod.dumps(meta)
+                except (json_mod.JSONDecodeError, TypeError):
+                    new_metadata = json_mod.dumps({
+                        "task_id": new_task_id,
+                        "forked_from": original_task.id,
+                        "forked_from_session_id": original_session_id,
+                        "forked_from_owner_id": original_owner_id,
+                    })
+            else:
+                new_metadata = json_mod.dumps({
+                    "task_id": new_task_id,
+                    "forked_from_session_id": original_session_id,
+                    "forked_from_owner_id": original_owner_id,
+                })
             
             new_task = ChatTask(
                 id=new_task_id,
@@ -980,7 +1010,7 @@ class ShareService:
                 user_id=user_id,
                 user_message=original_task.user_message,
                 message_bubbles=original_task.message_bubbles,
-                task_metadata=original_task.task_metadata,
+                task_metadata=new_metadata,
                 created_time=now_ms,
                 updated_time=now_ms,
             )

@@ -463,7 +463,9 @@ export function ChatPage() {
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
                                                 {/* Show share notification for editor at the start */}
-                                                {isCollaborativeSession && messages.length > 0 && <ShareNotificationMessage variant="shared-with-users" sharedWith={["you"]} accessLevel="editor" timestamp={Date.now()} />}
+                                                {isCollaborativeSession && messages.length > 0 && (
+                                                    <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={Date.now()} />
+                                                )}
                                                 {messages.map((message, index) => {
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                     const messageKey = message.metadata?.messageId || `temp-${index}`;

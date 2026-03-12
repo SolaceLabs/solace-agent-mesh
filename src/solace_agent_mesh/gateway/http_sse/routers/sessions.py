@@ -1317,18 +1317,30 @@ async def fork_session(
             now_ms = now_epoch_ms()
             
             # Update task_metadata to use new task ID and mark as forked
+            # Include original session context info so the A2A orchestrator can find conversation history
             new_metadata = None
             if original_task.task_metadata:
                 try:
                     meta = json_mod.loads(original_task.task_metadata)
                     meta["task_id"] = new_task_id
                     meta["forked_from"] = original_task.id
+                    meta["forked_from_session_id"] = session_id
+                    meta["forked_from_owner_id"] = owner_user_id
                     meta.pop("status", None)  # Clear status
                     new_metadata = json_mod.dumps(meta)
                 except (json_mod.JSONDecodeError, TypeError):
-                    new_metadata = json_mod.dumps({"task_id": new_task_id, "forked_from": original_task.id})
+                    new_metadata = json_mod.dumps({
+                        "task_id": new_task_id,
+                        "forked_from": original_task.id,
+                        "forked_from_session_id": session_id,
+                        "forked_from_owner_id": owner_user_id,
+                    })
             else:
-                new_metadata = json_mod.dumps({"task_id": new_task_id})
+                new_metadata = json_mod.dumps({
+                    "task_id": new_task_id,
+                    "forked_from_session_id": session_id,
+                    "forked_from_owner_id": owner_user_id,
+                })
             
             new_task = ChatTask(
                 id=new_task_id,

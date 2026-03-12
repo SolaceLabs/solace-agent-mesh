@@ -81,11 +81,15 @@ export function SharedSessionPage() {
 
         setIsForking(true);
         try {
-            await forkSharedChat(shareId);
-            navigate(`/chat`);
+            const result = await forkSharedChat(shareId);
+            const newSessionId = result?.session_id;
+            navigate("/chat");
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent("new-chat-session"));
-            }, 100);
+                if (newSessionId) {
+                    window.dispatchEvent(new CustomEvent("switch-to-session", { detail: { sessionId: newSessionId } }));
+                }
+            }, 200);
         } catch (err) {
             console.error("Failed to fork chat:", err);
         } finally {

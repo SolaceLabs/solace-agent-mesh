@@ -724,6 +724,43 @@ async def _submit_task(
             except Exception as e:
                 log.debug("%sFailed to check editor access for A2A context: %s", log_prefix, e)
 
+        # Initialize additional_metadata early so fork detection can add to it
+        additional_metadata = {}
+        if payload.params and payload.params.message and payload.params.message.metadata:
+            msg_metadata = payload.params.message.metadata
+            if msg_metadata.get("backgroundExecutionEnabled"):
+                additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
+            if msg_metadata.get("maxExecutionTimeMs"):
+                additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
+
+        # For forked sessions: pass fork metadata so the agent can clone the ADK session
+        # on first message. The forked session uses its OWN session_id (true isolation).
+        if not is_collaborative_editor and session_id and SessionLocal is not None:
+            try:
+                from ..repository.chat_task_repository import ChatTaskRepository
+                import json as json_mod_fork
+                db_fork = SessionLocal()
+                try:
+                    task_repo = ChatTaskRepository()
+                    tasks = task_repo.find_by_session(db_fork, session_id, client_id)
+                    if tasks and tasks[0].task_metadata:
+                        meta = json_mod_fork.loads(tasks[0].task_metadata)
+                        forked_session_id = meta.get("forked_from_session_id")
+                        forked_owner_id = meta.get("forked_from_owner_id")
+                        if forked_session_id and forked_owner_id:
+                            # Pass fork source info as metadata so the agent can clone
+                            # the ADK session on first message
+                            additional_metadata["fork_source_session_id"] = forked_session_id
+                            additional_metadata["fork_source_user_id"] = forked_owner_id
+                            log.info(
+                                "%sForked session detected - passing clone metadata: source_session=%s, source_user=%s",
+                                log_prefix, forked_session_id, forked_owner_id
+                            )
+                finally:
+                    db_fork.close()
+            except Exception as e:
+                log.debug("%sFailed to check forked session context: %s", log_prefix, e)
+
         # For collaborative sessions, prefix user messages with sender identity
         # so the AI can distinguish between different users in the conversation
         if is_collaborative_editor and a2a_parts:
@@ -742,17 +779,16 @@ async def _submit_task(
         external_req_ctx = {
             "app_name_for_artifacts": component.gateway_id,
             "user_id_for_artifacts": client_id,
-            "a2a_session_id": session_id,  # This may have been updated by persistence layer
+            "a2a_session_id": session_id,
             "user_id_for_a2a": a2a_client_id,
             "target_agent_name": agent_name,
         }
 
         # Extract additional metadata from the message (e.g., background execution settings)
-        # This metadata will be passed through to the A2A message for the task logger
-        additional_metadata = {}
+        # Note: additional_metadata was already initialized earlier (before fork detection)
         if payload.params and payload.params.message and payload.params.message.metadata:
             msg_metadata = payload.params.message.metadata
-            # Pass through background execution settings
+            # Pass through background execution settings (may already be set from early init)
             if msg_metadata.get("backgroundExecutionEnabled"):
                 additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
             if msg_metadata.get("maxExecutionTimeMs"):
