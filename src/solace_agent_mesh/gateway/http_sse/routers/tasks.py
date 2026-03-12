@@ -696,11 +696,54 @@ async def _submit_task(
         # Use the helper to get the unwrapped parts from the modified message (with project context if applied).
         a2a_parts = a2a.get_parts_from_message(modified_message)
 
+        # For collaborative sessions: if the user is an editor (not the owner),
+        # use the owner's client_id for user_id_for_a2a so the orchestrator
+        # sees the same session context/history as the owner.
+        # Also prefix the message with the sender's identity so the AI knows who is talking.
+        a2a_client_id = client_id
+        is_collaborative_editor = False
+        if session_id and SessionLocal is not None:
+            try:
+                from ..repository.share_repository import ShareRepository
+                db_check = SessionLocal()
+                try:
+                    share_repo = ShareRepository()
+                    user_email = user_identity.get("email", "") if user_identity else ""
+                    owner_user_id = share_repo.find_session_owner_for_editor(
+                        db_check, session_id, user_email
+                    )
+                    if owner_user_id:
+                        a2a_client_id = owner_user_id
+                        is_collaborative_editor = True
+                        log.info(
+                            "%sEditor %s using owner's client_id %s for A2A session context",
+                            log_prefix, client_id, owner_user_id
+                        )
+                finally:
+                    db_check.close()
+            except Exception as e:
+                log.debug("%sFailed to check editor access for A2A context: %s", log_prefix, e)
+
+        # For collaborative sessions, prefix user messages with sender identity
+        # so the AI can distinguish between different users in the conversation
+        if is_collaborative_editor and a2a_parts:
+            sender_name = user_identity.get("name", "") if user_identity else ""
+            sender_email = user_identity.get("email", "") if user_identity else ""
+            sender_label = sender_name or sender_email or client_id
+            for i, part in enumerate(a2a_parts):
+                # Only prefix TextPart content, skip file parts and timestamp headers
+                if hasattr(part, 'root') and hasattr(part.root, 'text'):
+                    text = part.root.text
+                    # Don't prefix the timestamp header (starts with "Request received by gateway")
+                    if text and not text.startswith("Request received by gateway"):
+                        a2a_parts[i] = a2a.create_text_part(text=f"[{sender_label}]: {text}")
+                        log.debug("%sPrefixed message with sender identity: %s", log_prefix, sender_label)
+
         external_req_ctx = {
             "app_name_for_artifacts": component.gateway_id,
             "user_id_for_artifacts": client_id,
             "a2a_session_id": session_id,  # This may have been updated by persistence layer
-            "user_id_for_a2a": client_id,
+            "user_id_for_a2a": a2a_client_id,
             "target_agent_name": agent_name,
         }
 

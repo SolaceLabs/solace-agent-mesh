@@ -55,6 +55,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
+    const [isCollaborativeSession, setIsCollaborativeSession] = useState<boolean>(false);
+    const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+
+    // Fetch current user email on mount (works in both dev and production mode)
+    useEffect(() => {
+        api.webui
+            .get("/api/v1/auth/me")
+            .then((data: { email?: string }) => {
+                if (data?.email) {
+                    setCurrentUserEmail(data.email);
+                }
+            })
+            .catch(() => {
+                // Silently fail - currentUserEmail will remain empty
+            });
+    }, []);
 
     // RAG State
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
@@ -508,6 +524,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
                     contextQuote: bubble.contextQuote, // Restore context quote for user messages
                     contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
+                    senderDisplayName: bubble.sender_display_name, // Preserve sender identity for collaborative sessions
+                    senderEmail: bubble.sender_email, // Preserve sender email for collaborative sessions
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -801,6 +819,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             } else {
                 // No tasks with buffered events - just set all messages at once
                 setMessages(allMessages);
+            }
+
+            // Secondary collaborative session detection: check if any loaded messages have sender info
+            // This handles the case where auth is disabled but the backend injected sender info
+            const hasSenderInfo = allMessages.some(m => m.isUser && (m.senderDisplayName || m.senderEmail));
+            if (hasSenderInfo) {
+                setIsCollaborativeSession(true);
+                console.debug("[loadSessionTasks] Collaborative session detected from sender info in messages");
             }
         },
         [deserializeTaskToMessages, setRagData, backgroundTasksEnabled, serializeMessageBubble, saveTaskToBackend]
@@ -1807,6 +1833,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Clear session name - will be set when first message is sent
             setSessionName(null);
 
+            // Reset collaborative session flag - new sessions are always owned by the current user
+            setIsCollaborativeSession(false);
+
             // Clear project context when starting a new chat outside of a project
             if (activeProject && !preserveProjectContext) {
                 setActiveProject(null);
@@ -1922,6 +1951,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const sessionData = await api.webui.get(`/api/v1/sessions/${newSessionId}`);
                 const session: Session | null = sessionData?.data;
                 setSessionName(session?.name ?? "N/A");
+
+                // Detect collaborative session: session owner differs from current user
+                const currentUserId = typeof userInfo?.username === "string" ? userInfo.username : null;
+                const sessionOwnerId = session?.userId;
+                if (currentUserId && sessionOwnerId && currentUserId !== sessionOwnerId) {
+                    setIsCollaborativeSession(true);
+                    console.log(`${log_prefix} Collaborative session detected (owner: ${sessionOwnerId}, current user: ${currentUserId})`);
+                } else {
+                    // Will be re-evaluated after loading tasks if sender info is present in bubbles
+                    setIsCollaborativeSession(false);
+                }
 
                 // Activate or deactivate project context based on session's project
                 // Set flag to prevent handleNewSession from being triggered by this project change
@@ -2862,6 +2902,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         messages,
         setMessages,
         isResponding,
+        isCollaborativeSession,
+        currentUserEmail,
         currentTaskId,
         isCancelling,
         latestStatusText,

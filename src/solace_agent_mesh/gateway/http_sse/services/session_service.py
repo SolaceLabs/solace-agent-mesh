@@ -10,6 +10,7 @@ from ..repository import (
 )
 from ..repository.chat_task_repository import ChatTaskRepository
 from ..repository.task_repository import TaskRepository
+from ..repository.share_repository import ShareRepository
 from ..repository.entities import ChatTask
 from solace_agent_mesh.shared.utils.enums import SenderType
 from solace_agent_mesh.shared.utils.types import SessionId, UserId
@@ -597,9 +598,29 @@ class SessionService:
         if not session:
             raise ValueError(f"Session {session_id} not found for user {user_id}")
 
-        # Load tasks
+        # Load tasks - for collaborative sessions (with shared editors),
+        # load ALL users' tasks so the owner can see editor messages too
         task_repo = ChatTaskRepository()
-        tasks = task_repo.find_by_session(db, session_id, user_id)
+        try:
+            from ..repository.models.share_model import SharedLinkModel, SharedLinkUserModel
+            from sqlalchemy import and_, func
+            editor_count = db.query(func.count(SharedLinkUserModel.id)).join(
+                SharedLinkModel, SharedLinkModel.share_id == SharedLinkUserModel.share_id
+            ).filter(
+                and_(
+                    SharedLinkModel.session_id == session_id,
+                    SharedLinkModel.deleted_at.is_(None),
+                    SharedLinkUserModel.access_level == 'RESOURCE_EDITOR'
+                )
+            ).scalar()
+            is_collaborative = editor_count and editor_count > 0
+        except Exception:
+            is_collaborative = False
+        
+        if is_collaborative:
+            tasks = task_repo.find_by_session_all_users(db, session_id)
+        else:
+            tasks = task_repo.find_by_session(db, session_id, user_id)
         
         # Note: Deduplication logic was removed because the root cause of duplicate
         # artifact markers has been fixed in task_logger_service.py. The fix ensures
@@ -667,6 +688,186 @@ class SessionService:
                 messages.append(message)
         
         return messages
+
+    def check_editor_access(
+        self, db: DbSession, session_id: str, user_email: str
+    ) -> Optional[str]:
+        """
+        Check if a user has RESOURCE_EDITOR access to a session via sharing.
+        
+        Args:
+            db: Database session
+            session_id: Session ID to check
+            user_email: Email of the requesting user
+            
+        Returns:
+            Owner's user_id if editor access exists, None otherwise
+        """
+        share_repo = ShareRepository()
+        return share_repo.find_session_owner_for_editor(db, session_id, user_email)
+
+    def get_session_details_for_editor(
+        self, db: DbSession, session_id: SessionId
+    ) -> Session | None:
+        """
+        Get session details without user ownership check.
+        Used when editor access has already been verified.
+        
+        Args:
+            db: Database session
+            session_id: Session ID
+            
+        Returns:
+            Session entity or None
+        """
+        if not self._is_valid_session_id(session_id):
+            return None
+
+        session_repository = self._get_repositories(db)
+        return session_repository.find_session_by_id(db, session_id)
+
+    def get_session_tasks_for_editor(
+        self,
+        db: DbSession,
+        session_id: str,
+        owner_user_id: str
+    ) -> List[ChatTask]:
+        """
+        Get all tasks for a shared session.
+        Uses the owner's user_id for session validation, then fetches
+        all tasks for the session (which may include tasks from multiple users).
+        
+        Args:
+            db: Database session
+            session_id: Session ID
+            owner_user_id: Owner's user ID (for session validation)
+            
+        Returns:
+            List of ChatTask entities in chronological order
+            
+        Raises:
+            ValueError: If session not found
+        """
+        session_repository = self._get_repositories(db)
+        session = session_repository.find_user_session(db, session_id, owner_user_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        # Load all tasks for the session regardless of who created them
+        task_repo = ChatTaskRepository()
+        tasks = task_repo.find_by_session_all_users(db, session_id)
+        return tasks
+
+    def get_session_messages_from_tasks_for_editor(
+        self,
+        db: DbSession,
+        session_id: str,
+        owner_user_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Get session messages for a shared session by flattening task message_bubbles.
+        
+        Args:
+            db: Database session
+            session_id: Session ID
+            owner_user_id: Owner's user ID
+            
+        Returns:
+            List of message dictionaries flattened from tasks
+        """
+        tasks = self.get_session_tasks_for_editor(db, session_id, owner_user_id)
+        
+        messages = []
+        for task in tasks:
+            import json
+            message_bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            
+            for bubble in message_bubbles:
+                bubble_type = bubble.get("type", "agent")
+                sender_type = "user" if bubble_type == "user" else "agent"
+                
+                if bubble_type == "user":
+                    sender_name = task.user_id
+                else:
+                    sender_name = "agent"
+                    if task.task_metadata:
+                        task_metadata = json.loads(task.task_metadata) if isinstance(task.task_metadata, str) else task.task_metadata
+                        sender_name = task_metadata.get("agent_name", "agent")
+                
+                message = {
+                    "id": bubble.get("id", str(uuid.uuid4())),
+                    "session_id": session_id,
+                    "message": bubble.get("text", ""),
+                    "sender_type": sender_type,
+                    "sender_name": sender_name,
+                    "message_type": "text",
+                    "created_time": task.created_time
+                }
+                messages.append(message)
+        
+        return messages
+
+    def save_task_as_editor(
+        self,
+        db: DbSession,
+        task_id: str,
+        session_id: str,
+        editor_user_id: str,
+        owner_user_id: str,
+        user_message: Optional[str],
+        message_bubbles: str,
+        task_metadata: Optional[str] = None
+    ) -> ChatTask:
+        """
+        Save a task as an editor of a shared session.
+        
+        The session is validated using the owner's user_id, but the chat_task
+        record uses the editor's user_id to track who sent the message.
+        
+        Args:
+            db: Database session
+            task_id: A2A task ID
+            session_id: Session ID
+            editor_user_id: Editor's user ID (goes into chat_task.user_id)
+            owner_user_id: Owner's user ID (used for session lookup)
+            user_message: Original user input text
+            message_bubbles: Array of all message bubbles
+            task_metadata: Task-level metadata
+            
+        Returns:
+            Saved ChatTask entity
+            
+        Raises:
+            ValueError: If session not found or validation fails
+        """
+        # Validate session exists using owner's user_id
+        session_repository = self._get_repositories(db)
+        session = session_repository.find_user_session(db, session_id, owner_user_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found for owner {owner_user_id}")
+
+        # Create task entity with editor's user_id
+        task = ChatTask(
+            id=task_id,
+            session_id=session_id,
+            user_id=editor_user_id,
+            user_message=user_message,
+            message_bubbles=message_bubbles,
+            task_metadata=task_metadata,
+            created_time=now_epoch_ms(),
+            updated_time=None
+        )
+
+        # Save via repository
+        task_repo = ChatTaskRepository()
+        saved_task = task_repo.save(db, task)
+
+        # Update session activity
+        session.mark_activity()
+        session_repository.save(db, session)
+        
+        log.info(f"Editor {editor_user_id} saved task {task_id} for session {session_id} (owner: {owner_user_id})")
+        return saved_task
 
     def _is_valid_session_id(self, session_id: SessionId) -> bool:
         return (

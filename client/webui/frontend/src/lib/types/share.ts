@@ -167,6 +167,7 @@ export interface SharedWithMeItem {
     access_level: string;
     shared_at: number; // epoch ms
     share_url: string;
+    session_id?: string | null; // Original session ID (for RESOURCE_EDITOR access)
 }
 
 export interface ForkSharedChatResponse {

@@ -293,9 +293,14 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
     const handleViewSharedChat = useCallback(
         (item: SharedWithMeItem) => {
-            navigate(`/share/${item.share_id}`);
+            // For editors with session_id, navigate directly to the chat page
+            if (item.access_level === "RESOURCE_EDITOR" && item.session_id) {
+                handleSwitchSession(item.session_id);
+            } else {
+                navigate(`/shared-chat/${item.share_id}`);
+            }
         },
-        [navigate]
+        [navigate, handleSwitchSession]
     );
 
     useEffect(() => {
@@ -676,55 +681,63 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                             Shared with me
                         </div>
                         <ul>
-                            {sharedWithMe.map(item => (
-                                <li key={item.share_id} className="group my-2">
-                                    <div className="hover:bg-muted/50 flex items-center gap-2 rounded-sm px-2 py-2">
-                                        <button onClick={() => handleViewSharedChat(item)} className="min-w-0 flex-1 cursor-pointer text-left">
-                                            <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                                <span className="truncate font-semibold">{item.title}</span>
-                                                <span className="text-muted-foreground truncate text-xs">
-                                                    from {item.owner_email} • {formatTimestamp(String(item.shared_at))}
-                                                </span>
+                            {sharedWithMe.map(item => {
+                                const isEditor = item.access_level === "RESOURCE_EDITOR" && item.session_id;
+                                return (
+                                    <li key={item.share_id} className="group my-2">
+                                        <div className="hover:bg-muted/50 flex items-center gap-2 rounded-sm px-2 py-2">
+                                            <button onClick={() => handleViewSharedChat(item)} className="min-w-0 flex-1 cursor-pointer text-left">
+                                                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate font-semibold">{item.title}</span>
+                                                        {isEditor && <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">Editor</span>}
+                                                    </div>
+                                                    <span className="text-muted-foreground truncate text-xs">
+                                                        from {item.owner_email} • {formatTimestamp(String(item.shared_at))}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                            <div className="flex flex-shrink-0 items-center gap-1">
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0"
+                                                            onClick={e => {
+                                                                e.stopPropagation();
+                                                                handleViewSharedChat(item);
+                                                            }}
+                                                        >
+                                                            <ExternalLink size={16} />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>{isEditor ? "Edit shared chat" : "View shared chat"}</TooltipContent>
+                                                </Tooltip>
+                                                {!isEditor && (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 w-8 p-0"
+                                                                disabled={forkingShareId === item.share_id}
+                                                                onClick={e => {
+                                                                    e.stopPropagation();
+                                                                    handleForkChat(item);
+                                                                }}
+                                                            >
+                                                                {forkingShareId === item.share_id ? <Loader2 size={16} className="animate-spin" /> : <GitFork size={16} />}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>Fork to my chats</TooltipContent>
+                                                    </Tooltip>
+                                                )}
                                             </div>
-                                        </button>
-                                        <div className="flex flex-shrink-0 items-center gap-1">
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 w-8 p-0"
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleViewSharedChat(item);
-                                                        }}
-                                                    >
-                                                        <ExternalLink size={16} />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>View shared chat</TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 w-8 p-0"
-                                                        disabled={forkingShareId === item.share_id}
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleForkChat(item);
-                                                        }}
-                                                    >
-                                                        {forkingShareId === item.share_id ? <Loader2 size={16} className="animate-spin" /> : <GitFork size={16} />}
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Fork to my chats</TooltipContent>
-                                            </Tooltip>
                                         </div>
-                                    </div>
-                                </li>
-                            ))}
+                                    </li>
+                                );
+                            })}
                         </ul>
                     </div>
                 )}

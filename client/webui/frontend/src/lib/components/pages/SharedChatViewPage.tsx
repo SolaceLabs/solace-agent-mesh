@@ -1,14 +1,20 @@
 /**
- * SharedSessionPage - Public view of a shared chat session
+ * SharedChatViewPage - In-app view of a shared chat session (inside AppLayout)
+ *
+ * Unlike SharedSessionPage (standalone, outside AppLayout), this component renders
+ * inside the main app layout with sidebar and navigation visible. It provides a
+ * read-only view of a shared chat with the option to fork or navigate to the
+ * original chat (if owner).
  */
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, Lock, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, Loader2, MessageSquare, UserLock } from "lucide-react";
-import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { AlertCircle, Bot, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock, Info } from "lucide-react";
+import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger, CHAT_STYLES } from "@/lib/components/ui";
 import { ChatBubbleAvatar } from "@/lib/components/ui/chat/chat-bubble";
 import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
+import { Header } from "@/lib/components/header";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
@@ -55,7 +61,7 @@ type MessagePart = { kind: "text"; text: string } | { kind: "file"; file: FileIn
 // Regex to match __EMBED_SIGNAL_xxx__ placeholders
 const EMBED_SIGNAL_REGEX = /__EMBED_SIGNAL_[a-f0-9]+__/g;
 
-export function SharedSessionPage() {
+export function SharedChatViewPage() {
     const { shareId } = useParams<{ shareId: string }>();
     const navigate = useNavigate();
     const [session, setSession] = useState<SharedSessionView | null>(null);
@@ -124,32 +130,6 @@ export function SharedSessionPage() {
         }
     }, [shareId, loadSharedSession]);
 
-    const getAccessIcon = (accessType: string) => {
-        switch (accessType) {
-            case "authenticated":
-                return <Lock className="h-4 w-4" />;
-            case "domain-restricted":
-                return <Building2 className="h-4 w-4" />;
-            default:
-                return <Lock className="h-4 w-4" />;
-        }
-    };
-
-    const getAccessLabel = (accessType: string) => {
-        switch (accessType) {
-            case "public":
-                return "";
-            case "authenticated":
-                return "Authenticated";
-            case "domain-restricted":
-                return "Domain Restricted";
-            case "user-specific":
-                return "Shared with you";
-            default:
-                return accessType;
-        }
-    };
-
     // Extract RAG data from all tasks
     const ragData = useMemo(() => {
         if (!session) return [];
@@ -194,7 +174,7 @@ export function SharedSessionPage() {
 
         const result: Array<{
             type: string;
-            parts: MessagePart[]; // Preserve original part order
+            parts: MessagePart[];
             timestamp?: number;
             taskId: string;
             isLastInTask: boolean;
@@ -204,7 +184,6 @@ export function SharedSessionPage() {
 
         for (const task of session.tasks) {
             try {
-                // Use workflow_task_id for workflow lookup (A2A task ID), fallback to id
                 const taskId = task.workflow_task_id || task.id;
 
                 const bubbles = typeof task.message_bubbles === "string" ? JSON.parse(task.message_bubbles) : task.message_bubbles;
@@ -230,9 +209,13 @@ export function SharedSessionPage() {
                         // Process parts array to preserve order
                         if (bubble.parts && Array.isArray(bubble.parts)) {
                             for (const part of bubble.parts) {
-                                const partObj = part as { kind?: string; text?: string; file?: { name?: string; filename?: string; mimeType?: string; mime_type?: string }; artifact?: { name?: string; filename?: string; status?: string } };
+                                const partObj = part as {
+                                    kind?: string;
+                                    text?: string;
+                                    file?: { name?: string; filename?: string; mimeType?: string; mime_type?: string };
+                                    artifact?: { name?: string; filename?: string; status?: string };
+                                };
                                 if (partObj.kind === "text" && partObj.text) {
-                                    // Remove __EMBED_SIGNAL_xxx__ placeholders from text
                                     const cleanedText = partObj.text.replace(EMBED_SIGNAL_REGEX, "").trim();
                                     if (cleanedText) {
                                         parts.push({ kind: "text", text: cleanedText });
@@ -246,9 +229,6 @@ export function SharedSessionPage() {
                                         },
                                     });
                                 } else if (partObj.kind === "artifact") {
-                                    // Handle both formats:
-                                    // 1. Nested: { kind: "artifact", artifact: { name, status } }
-                                    // 2. Flat: { kind: "artifact", name, status, file: { name, mime_type, uri } }
                                     const artifactData = partObj.artifact || partObj;
                                     const artifactName = (artifactData as { name?: string; filename?: string }).name || (artifactData as { name?: string; filename?: string }).filename || (partObj.file as { name?: string })?.name || "Artifact";
                                     parts.push({
@@ -261,7 +241,6 @@ export function SharedSessionPage() {
                                 }
                             }
                         } else if (bubble.text) {
-                            // Fallback: use bubble.text if no parts array
                             const cleanedText = bubble.text.replace(EMBED_SIGNAL_REGEX, "").trim();
                             if (cleanedText) {
                                 parts.push({ kind: "text", text: cleanedText });
@@ -289,9 +268,6 @@ export function SharedSessionPage() {
     // Check if there are any RAG sources to show
     const hasRagSources = ragData.length > 0;
 
-    // Check if there are artifacts to show
-    const hasArtifacts = session && session.artifacts && session.artifacts.length > 0;
-
     const toggleSidePanel = () => {
         setIsSidePanelCollapsed(!isSidePanelCollapsed);
     };
@@ -302,53 +278,13 @@ export function SharedSessionPage() {
         setIsSidePanelCollapsed(false);
     };
 
-    if (loading) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <Spinner size="large" variant="primary">
-                    <p className="text-muted-foreground mt-4 text-sm">Loading shared session...</p>
-                </Spinner>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
-                <AlertCircle className="text-destructive h-16 w-16" />
-                <h1 className="text-2xl font-semibold">Unable to View Session</h1>
-                <p className="text-muted-foreground max-w-md text-center">{error}</p>
-                <Button variant="outline" onClick={() => navigate("/")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Go to Home
-                </Button>
-            </div>
-        );
-    }
-
-    if (!session) {
-        return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
-                <AlertCircle className="text-muted-foreground h-16 w-16" />
-                <h1 className="text-2xl font-semibold">Session Not Found</h1>
-                <p className="text-muted-foreground">This shared session may have been deleted or the link is invalid.</p>
-                <Button variant="outline" onClick={() => navigate("/")}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Go to Home
-                </Button>
-            </div>
-        );
-    }
-
     // Get RAG data for a specific task (for citation rendering)
     const getTaskRagData = (taskId: string): RAGSearchResult | undefined => {
         const taskRagEntries = ragData.filter(r => r.taskId === taskId);
         if (taskRagEntries.length === 0) return undefined;
 
-        // Aggregate all sources from all matching RAG entries
         const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
 
-        // Deduplicate sources by citationId (keep the first occurrence)
         const seenCitationIds = new Set<string>();
         const uniqueSources = allSources.filter(source => {
             const citationId = source.citationId;
@@ -359,12 +295,107 @@ export function SharedSessionPage() {
             return true;
         });
 
-        // Return the last entry as base with aggregated sources
         const lastEntry = taskRagEntries[taskRagEntries.length - 1];
         return {
             ...lastEntry,
             sources: uniqueSources,
         };
+    };
+
+    // Handle citation click - open sources panel
+    const handleCitationClick = () => {
+        if (hasRagSources) {
+            setActiveSidePanelTab("sources");
+            setIsSidePanelCollapsed(false);
+        }
+    };
+
+    // Render message content with citation support - preserving part order
+    const renderMessageContent = (message: { type: string; parts: MessagePart[]; taskId: string }) => {
+        const taskRagData = message.type !== "user" ? getTaskRagData(message.taskId) : undefined;
+
+        return (
+            <>
+                {message.parts.map((part, idx) => {
+                    if (part.kind === "text") {
+                        const text = part.text;
+                        if (!text || !text.trim()) return null;
+
+                        if (message.type !== "user" && taskRagData) {
+                            const citations = parseCitations(text, taskRagData);
+                            if (citations.length > 0) {
+                                return <TextWithCitations key={idx} text={text} citations={citations} onCitationClick={handleCitationClick} />;
+                            }
+                        }
+                        return (
+                            <p key={idx} className={CHAT_BUBBLE_MESSAGE_STYLES.paragraph}>
+                                {text}
+                            </p>
+                        );
+                    }
+
+                    if (part.kind === "file") {
+                        return (
+                            <div key={idx} className="my-2">
+                                <FileMessage filename={part.file.name} mimeType={part.file.mimeType} readOnly />
+                            </div>
+                        );
+                    }
+
+                    if (part.kind === "artifact") {
+                        const fullArtifact = convertedArtifacts.find(a => a.filename === part.artifact.name);
+                        if (fullArtifact) {
+                            return (
+                                <div key={idx} className="my-2">
+                                    <ArtifactMessage
+                                        status="completed"
+                                        name={fullArtifact.filename}
+                                        fileAttachment={{
+                                            name: fullArtifact.filename,
+                                            mime_type: fullArtifact.mime_type,
+                                        }}
+                                    />
+                                </div>
+                            );
+                        }
+                        return (
+                            <div key={idx} className="my-2">
+                                <ArtifactMessage
+                                    status="completed"
+                                    name={part.artifact.name}
+                                    fileAttachment={{
+                                        name: part.artifact.name,
+                                    }}
+                                />
+                            </div>
+                        );
+                    }
+
+                    return null;
+                })}
+            </>
+        );
+    };
+
+    // Get sources element for a specific task (for stacked favicons display)
+    const getSourcesElement = (taskId: string) => {
+        const taskRagEntries = ragData.filter(r => r.taskId === taskId);
+        if (taskRagEntries.length === 0) return null;
+
+        const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
+        if (allSources.length === 0) return null;
+
+        const sourcesToShow = allSources.filter(source => {
+            const sourceType = source.sourceType || "web";
+            if (sourceType === "image") {
+                return source.sourceUrl || source.metadata?.link;
+            }
+            return true;
+        });
+
+        if (sourcesToShow.length === 0) return null;
+
+        return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={false} onDeepResearchClick={handleCitationClick} />;
     };
 
     // Render side panel content
@@ -467,7 +498,7 @@ export function SharedSessionPage() {
                             </TabsContent>
                             <TabsContent value="workflow" className="m-0 h-full">
                                 <div className="h-full">
-                                    <SharedWorkflowPanel taskEvents={session.task_events} selectedTaskId={selectedTaskId} onTaskSelect={setSelectedTaskId} />
+                                    <SharedWorkflowPanel taskEvents={session?.task_events} selectedTaskId={selectedTaskId} onTaskSelect={setSelectedTaskId} />
                                 </div>
                             </TabsContent>
                             {hasRagSources && (
@@ -484,245 +515,163 @@ export function SharedSessionPage() {
         );
     };
 
-    // Handle citation click - open sources panel
-    const handleCitationClick = () => {
-        if (hasRagSources) {
-            setActiveSidePanelTab("sources");
-            setIsSidePanelCollapsed(false);
-        }
-    };
-
-    // Render message content with citation support - preserving part order
-    const renderMessageContent = (message: { type: string; parts: MessagePart[]; taskId: string }) => {
-        // Get RAG data for this task (for citations in agent messages)
-        const taskRagData = message.type !== "user" ? getTaskRagData(message.taskId) : undefined;
-
+    // Loading state
+    if (loading) {
         return (
-            <>
-                {message.parts.map((part, idx) => {
-                    if (part.kind === "text") {
-                        const text = part.text;
-                        if (!text || !text.trim()) return null;
-
-                        // For agent messages, check for citations
-                        if (message.type !== "user" && taskRagData) {
-                            const citations = parseCitations(text, taskRagData);
-                            if (citations.length > 0) {
-                                return <TextWithCitations key={idx} text={text} citations={citations} onCitationClick={handleCitationClick} />;
-                            }
-                        }
-                        return (
-                            <p key={idx} className={CHAT_BUBBLE_MESSAGE_STYLES.paragraph}>
-                                {text}
-                            </p>
-                        );
-                    }
-
-                    if (part.kind === "file") {
-                        return (
-                            <div key={idx} className="my-2">
-                                <FileMessage filename={part.file.name} mimeType={part.file.mimeType} readOnly />
-                            </div>
-                        );
-                    }
-
-                    if (part.kind === "artifact") {
-                        // Find the full artifact info from the session artifacts
-                        const fullArtifact = convertedArtifacts.find(a => a.filename === part.artifact.name);
-                        if (fullArtifact) {
-                            return (
-                                <div key={idx} className="my-2">
-                                    <ArtifactMessage
-                                        status="completed"
-                                        name={fullArtifact.filename}
-                                        fileAttachment={{
-                                            name: fullArtifact.filename,
-                                            mime_type: fullArtifact.mime_type,
-                                        }}
-                                    />
-                                </div>
-                            );
-                        }
-                        // Fallback if artifact not found in session artifacts
-                        return (
-                            <div key={idx} className="my-2">
-                                <ArtifactMessage
-                                    status="completed"
-                                    name={part.artifact.name}
-                                    fileAttachment={{
-                                        name: part.artifact.name,
-                                    }}
-                                />
-                            </div>
-                        );
-                    }
-
-                    return null;
-                })}
-            </>
+            <div className="flex h-screen items-center justify-center">
+                <Spinner size="large" variant="primary">
+                    <p className="text-muted-foreground mt-4 text-sm">Loading shared chat...</p>
+                </Spinner>
+            </div>
         );
-    };
+    }
 
-    // Get sources element for a specific task (for stacked favicons display)
-    const getSourcesElement = (taskId: string) => {
-        const taskRagEntries = ragData.filter(r => r.taskId === taskId);
-        if (taskRagEntries.length === 0) return null;
+    // Error state
+    if (error) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
+                <AlertCircle className="text-destructive h-16 w-16" />
+                <h1 className="text-2xl font-semibold">Unable to View Shared Chat</h1>
+                <p className="text-muted-foreground max-w-md text-center">{error}</p>
+                <Button variant="outline" onClick={() => navigate("/chat")}>
+                    Go to Chat
+                </Button>
+            </div>
+        );
+    }
 
-        // Aggregate all sources from all matching RAG entries
-        const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
-        if (allSources.length === 0) return null;
-
-        // Filter sources - for web search, include all web sources
-        const sourcesToShow = allSources.filter(source => {
-            const sourceType = source.sourceType || "web";
-            // For images: include if they have a source link
-            if (sourceType === "image") {
-                return source.sourceUrl || source.metadata?.link;
-            }
-            return true;
-        });
-
-        if (sourcesToShow.length === 0) return null;
-
-        return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={false} onDeepResearchClick={handleCitationClick} />;
-    };
+    // Not found state
+    if (!session) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
+                <AlertCircle className="text-muted-foreground h-16 w-16" />
+                <h1 className="text-2xl font-semibold">Shared Chat Not Found</h1>
+                <p className="text-muted-foreground">This shared chat may have been deleted or the link is invalid.</p>
+                <Button variant="outline" onClick={() => navigate("/chat")}>
+                    Go to Chat
+                </Button>
+            </div>
+        );
+    }
 
     // Get session ID for the provider
     const sessionIdForProvider = session.tasks[0]?.session_id || session.share_id;
 
+    // Header buttons: Fork & Continue or Go to Chat (if owner)
+    const headerButtons = [
+        <div key="shared-info" className="flex items-center gap-2 text-sm text-(--color-secondary-text-wMain)">
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="inline-flex cursor-pointer">
+                        <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                    Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
+                </TooltipContent>
+            </Tooltip>
+            <span className="text-muted-foreground text-xs">Viewer</span>
+        </div>,
+        forkError ? (
+            <span key="fork-error" className="text-destructive text-sm">
+                {forkError}
+            </span>
+        ) : null,
+        session?.is_owner && session?.session_id ? (
+            <Button key="go-to-chat" variant="outline" size="sm" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)}>
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Go to Chat
+            </Button>
+        ) : (
+            <Button key="fork-chat" variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
+                {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                Fork & Continue
+            </Button>
+        ),
+    ].filter(Boolean) as React.ReactNode[];
+
     return (
         <SharedChatProvider artifacts={convertedArtifacts} ragData={ragData} sessionId={sessionIdForProvider} shareId={shareId || ""}>
-            <div className="flex h-screen flex-col">
-                {/* Header */}
-                <header className="border-b px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-                                <ArrowLeft className="mr-2 h-4 w-4" />
-                                Back
-                            </Button>
-                            <div className="h-6 border-r" />
-                            <div>
-                                <h1 className="text-lg font-semibold">{session.title}</h1>
-                                <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                                    {session.access_type !== "public" && (
-                                        <>
-                                            {getAccessIcon(session.access_type)}
-                                            <span>{getAccessLabel(session.access_type)}</span>
-                                        </>
-                                    )}
-                                    {hasArtifacts && (
-                                        <>
-                                            {session.access_type !== "public" && <span>•</span>}
-                                            <span>
-                                                {session.artifacts.length} file{session.artifacts.length !== 1 ? "s" : ""}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 text-sm text-(--color-secondary-text-wMain)">
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <span className="inline-flex cursor-pointer">
-                                            <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
-                                        </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>You are {session?.is_owner ? "the owner" : "a viewer"} of this chat</TooltipContent>
-                                </Tooltip>
-                                <span>{session?.is_owner ? "Owner" : "Viewer"}</span>
-                                {!session?.is_owner && (
-                                    <>
-                                        <div className="bg-border h-4 w-px" />
-                                        <span>
-                                            Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
-                                        </span>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </header>
+            <div className="relative flex h-screen w-full flex-col overflow-hidden">
+                <Header title={session.title} buttons={headerButtons} />
 
-                {/* Main content with resizable panels - always show side panel */}
-                <div className="relative min-h-0 flex-1">
-                    {/* Floating Fork/Continue Button */}
-                    {!session?.is_owner && (
-                        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center pb-10">
-                            <div className="pointer-events-auto flex flex-col items-center gap-2">
-                                {forkError && <div className="bg-destructive/10 text-destructive rounded-md border border-(--color-error-wMain) px-3 py-1.5 text-sm">{forkError}</div>}
-                                <Button variant="outline" onClick={handleForkChat} disabled={isForking} size="lg" className="shadow-lg">
-                                    {isForking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <MessageSquare className="mr-2 h-5 w-5" />}
-                                    Continue in New Chat
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                    {session?.is_owner && session?.session_id && (
-                        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center pb-10">
-                            <Button variant="default" size="lg" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)} className="pointer-events-auto shadow-lg">
-                                <MessageSquare className="mr-2 h-5 w-5" />
-                                Go to Chat
-                            </Button>
-                        </div>
-                    )}
+                <div className="flex min-h-0 flex-1">
+                    <div className="min-h-0 flex-1 overflow-x-auto">
+                        <ResizablePanelGroup direction="horizontal" autoSaveId="shared-chat-view-side-panel" className="h-full">
+                            {/* Messages panel */}
+                            <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-chat-view-messages-panel">
+                                <div className="flex h-full w-full flex-col">
+                                    <div className="flex min-h-0 flex-1 flex-col py-6">
+                                        <main className="h-full overflow-y-auto px-6">
+                                            <div className="mx-auto max-w-3xl space-y-4">
+                                                {messages.length === 0 ? (
+                                                    <div className="text-muted-foreground py-12 text-center">
+                                                        <p>No messages in this shared chat.</p>
+                                                    </div>
+                                                ) : (
+                                                    messages.map((message, index) => {
+                                                        // In shared views, all user messages are from the session owner - show as "received" (left-aligned)
+                                                        const variant = "received";
+                                                        return (
+                                                            <div key={index} className="mb-4 flex flex-col">
+                                                                {/* Sender label with avatar */}
+                                                                {message.type === "user" ? (
+                                                                    <div className="mb-1.5 flex items-center gap-2 self-start">
+                                                                        <ChatBubbleAvatar
+                                                                            fallback={(message.senderDisplayName || message.senderEmail || "User").charAt(0).toUpperCase()}
+                                                                            className="bg-secondary text-secondary-foreground h-8 w-8 text-sm"
+                                                                        />
+                                                                        <span className="text-muted-foreground text-xs font-medium">{message.senderDisplayName || message.senderEmail || "User"}</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="mb-1.5 flex items-center gap-2 self-start">
+                                                                        <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 items-center justify-center rounded-full">
+                                                                            <Bot className="h-4 w-4" />
+                                                                        </span>
+                                                                        <span className="text-muted-foreground text-xs font-medium">AI Assistant</span>
+                                                                    </div>
+                                                                )}
+                                                                <ChatBubble variant={variant}>
+                                                                    <ChatBubbleMessage variant={variant}>{renderMessageContent(message)}</ChatBubbleMessage>
+                                                                </ChatBubble>
+                                                                {message.type !== "user" && message.isLastInTask && (
+                                                                    <div className="mt-1 flex items-center justify-start gap-2">
+                                                                        <ViewWorkflowButton onClick={() => handleViewWorkflow(message.taskId)} />
+                                                                        {getSourcesElement(message.taskId)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </main>
 
-                    <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
-                        {/* Messages panel */}
-                        <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-session-messages-panel">
-                            <main className="h-full overflow-y-auto p-6">
-                                <div className="mx-auto max-w-3xl space-y-4">
-                                    {messages.length === 0 ? (
-                                        <div className="text-muted-foreground py-12 text-center">
-                                            <p>No messages in this session.</p>
+                                        {/* Read-only banner instead of ChatInputArea */}
+                                        <div style={CHAT_STYLES}>
+                                            <div className="bg-muted/50 border-border mx-auto flex max-w-3xl items-center gap-3 rounded-lg border px-4 py-3">
+                                                <Info className="text-muted-foreground h-5 w-5 flex-shrink-0" />
+                                                <span className="text-muted-foreground text-sm">This is a shared chat. Fork it to continue the conversation.</span>
+                                                {!(session?.is_owner && session?.session_id) && (
+                                                    <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
+                                                        {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                                        Fork & Continue
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
-                                    ) : (
-                                        messages.map((message, index) => {
-                                            // In shared views, all user messages are from the session owner - show as "received" (left-aligned)
-                                            const variant = "received";
-                                            return (
-                                                <div key={index} className="mb-4 flex flex-col">
-                                                    {/* Sender label with avatar */}
-                                                    {message.type === "user" ? (
-                                                        <div className="mb-1.5 flex items-center gap-2 self-start">
-                                                            <ChatBubbleAvatar fallback={(message.senderDisplayName || message.senderEmail || "User").charAt(0).toUpperCase()} className="bg-secondary text-secondary-foreground h-8 w-8 text-sm" />
-                                                            <span className="text-muted-foreground text-xs font-medium">{message.senderDisplayName || message.senderEmail || "User"}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="mb-1.5 flex items-center gap-2 self-start">
-                                                            <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 items-center justify-center rounded-full">
-                                                                <Bot className="h-4 w-4" />
-                                                            </span>
-                                                            <span className="text-muted-foreground text-xs font-medium">AI Assistant</span>
-                                                        </div>
-                                                    )}
-                                                    <ChatBubble variant={variant}>
-                                                        <ChatBubbleMessage variant={variant}>{renderMessageContent(message)}</ChatBubbleMessage>
-                                                    </ChatBubble>
-                                                    {/* Show workflow button and sources outside the bubble for the last AI message in each task */}
-                                                    {message.type !== "user" && message.isLastInTask && (
-                                                        <div className="mt-1 flex items-center justify-start gap-2">
-                                                            <ViewWorkflowButton onClick={() => handleViewWorkflow(message.taskId)} />
-                                                            {getSourcesElement(message.taskId)}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })
-                                    )}
+                                    </div>
                                 </div>
-                            </main>
-                        </ResizablePanel>
+                            </ResizablePanel>
 
-                        <ResizableHandle />
+                            <ResizableHandle />
 
-                        {/* Side panel - always visible */}
-                        <ResizablePanel defaultSize={isSidePanelCollapsed ? 4 : 30} minSize={isSidePanelCollapsed ? 4 : 20} maxSize={isSidePanelCollapsed ? 4 : 50} id="shared-session-side-panel">
-                            {renderSidePanel()}
-                        </ResizablePanel>
-                    </ResizablePanelGroup>
+                            {/* Side panel - always visible */}
+                            <ResizablePanel defaultSize={isSidePanelCollapsed ? 4 : 30} minSize={isSidePanelCollapsed ? 4 : 20} maxSize={isSidePanelCollapsed ? 4 : 50} id="shared-chat-view-side-panel">
+                                {renderSidePanel()}
+                            </ResizablePanel>
+                        </ResizablePanelGroup>
+                    </div>
                 </div>
             </div>
         </SharedChatProvider>

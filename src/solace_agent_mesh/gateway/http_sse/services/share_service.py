@@ -881,7 +881,8 @@ class ShareService:
                 owner_email=s["owner_email"],
                 access_level=s["access_level"],
                 shared_at=s["shared_at"],
-                share_url=build_share_url(s["share_id"], base_url)
+                share_url=build_share_url(s["share_id"], base_url),
+                session_id=s.get("session_id") if s.get("access_level") == "RESOURCE_EDITOR" else None,
             )
             for s in shares
         ]

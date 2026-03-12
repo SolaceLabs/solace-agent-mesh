@@ -58,7 +58,7 @@ const chatBubbleMessageVariants = cva("", {
         variant: {
             received: "rounded-r-lg rounded-tl-lg",
             sent: "rounded-l-lg rounded-tr-lg justify-end bg-[var(--message-background)] p-4",
-            "other-user": "rounded-r-lg rounded-bl-lg bg-[var(--color-secondary-w20)] p-4",
+            "other-user": "rounded-r-lg rounded-bl-lg bg-[var(--other-user-message-background)] p-4",
         },
         layout: {
             default: "",

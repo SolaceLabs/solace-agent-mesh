@@ -29,6 +29,34 @@ import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
+import { MessageAttribution } from "./MessageAttribution";
+
+/**
+ * Returns true if a user message is from another user (not the current viewer).
+ * Compares the sender email in the message with the current user's email.
+ */
+function isOtherUserMessage(message: MessageFE, currentUserEmail: string): boolean {
+    if (!message.isUser) return false;
+    if (!message.senderEmail) return false;
+    // If we have the current user's email, compare it
+    if (currentUserEmail) {
+        return message.senderEmail.toLowerCase() !== currentUserEmail.toLowerCase();
+    }
+    // Fallback: if no current user email available, can't determine
+    return false;
+}
+
+/**
+ * Derives a stable user index from an email string for consistent avatar colors.
+ * Uses a simple hash to map emails to color indices.
+ */
+function getUserIndexFromEmail(email: string): number {
+    if (!email) return 0;
+    return email
+        .toLowerCase()
+        .split("")
+        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+}
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -606,7 +634,7 @@ const getChatBubble = (
     reportContentOverride?: string,
     highlightedText?: string | null
 ): React.ReactNode => {
-    const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel, ragData, currentUserEmail } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -677,7 +705,9 @@ const getChatBubble = (
         return null;
     }
 
-    const variant = message.isUser ? "sent" : "received";
+    // In collaborative sessions, other users' messages use the "other-user" variant
+    const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
+    const variant = message.isUser && !isOtherUser ? "sent" : isOtherUser ? "other-user" : "received";
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
@@ -836,8 +866,8 @@ const getChatBubble = (
                 </div>
             ) : null}
 
-            {/* Show hover buttons below bubble for user messages */}
-            {message.isUser && (
+            {/* Show hover buttons below bubble for current user's messages only */}
+            {message.isUser && !isOtherUserMessage(message, currentUserEmail) && (
                 <div className="flex justify-end">
                     <MessageHoverButtons message={message} />
                 </div>
@@ -847,7 +877,7 @@ const getChatBubble = (
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean; isStreaming?: boolean }> = ({ message, isLastWithTaskId, isStreaming }) => {
     const chatContext = useChatContext();
-    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId } = chatContext;
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, currentUserEmail, agentNameDisplayNameMap } = chatContext;
 
     // State to track deep research report content for message actions functionality
     const [reportContent, setReportContent] = useState<string | null>(null);
@@ -998,8 +1028,37 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         }
     };
 
+    // Resolve agent display name for collaborative sessions
+    const agentDisplayName = (() => {
+        if (!isCollaborativeSession || message.isUser) return undefined;
+        const { selectedAgentName } = chatContext;
+        if (selectedAgentName && agentNameDisplayNameMap[selectedAgentName]) {
+            return agentNameDisplayNameMap[selectedAgentName];
+        }
+        if (selectedAgentName) {
+            return selectedAgentName;
+        }
+        return undefined;
+    })();
+
     return (
         <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
+            {/* Show attribution for collaborative sessions: other users and agent messages */}
+            {isCollaborativeSession &&
+                (() => {
+                    if (message.isUser) {
+                        // Only show attribution for other users' messages (current user doesn't need it)
+                        if (isOtherUserMessage(message, currentUserEmail)) {
+                            const displayName = message.senderDisplayName || message.senderEmail || "User";
+                            const userIndex = getUserIndexFromEmail(message.senderEmail || "");
+                            return <MessageAttribution type="user" name={displayName} userIndex={userIndex} />;
+                        }
+                        return null;
+                    }
+                    // Agent message
+                    const agentLabel = agentDisplayName || "AI Assistant";
+                    return <MessageAttribution type="agent" name={agentLabel} />;
+                })()}
             {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
             {isDeepResearchComplete &&
                 hasRagSources &&

@@ -37,6 +37,7 @@ export const customThemeMapping: ThemeMappings = {
         "ring-offset": "brand.wMain",
         "accent-background": "background.w20",
         "message-background": "secondary.w20",
+        "other-user-message-background": "secondary.w10",
 
         // Sidebar colors
         sidebar: "background.w20",
@@ -74,6 +75,7 @@ export const customThemeMapping: ThemeMappings = {
         "ring-offset": "brand.w60",
         "accent-background": "primary.w90",
         "message-background": "secondary.w70",
+        "other-user-message-background": "secondary.w80",
 
         // Chart colors (darker variants)
         "chart-1": "brand.w100",

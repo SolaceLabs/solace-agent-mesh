@@ -428,6 +428,54 @@ class ShareRepository:
         
         return count > 0
 
+    def check_user_editor_access_to_session(self, db: DBSession, session_id: str, user_email: str) -> bool:
+        """
+        Check if a user has RESOURCE_EDITOR access to a session via sharing.
+        
+        Args:
+            db: Database session
+            session_id: Session ID to check access for
+            user_email: Email of the user to check
+        
+        Returns:
+            True if user has editor access, False otherwise
+        """
+        count = db.query(func.count(SharedLinkUserModel.id)).join(
+            SharedLinkModel, SharedLinkModel.share_id == SharedLinkUserModel.share_id
+        ).filter(
+            and_(
+                SharedLinkModel.session_id == session_id,
+                SharedLinkModel.deleted_at.is_(None),
+                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip(),
+                SharedLinkUserModel.access_level == 'RESOURCE_EDITOR'
+            )
+        ).scalar()
+        return count > 0
+
+    def find_session_owner_for_editor(self, db: DBSession, session_id: str, user_email: str) -> Optional[str]:
+        """
+        Get the owner user_id of a session where the given user has editor access.
+        
+        Args:
+            db: Database session
+            session_id: Session ID
+            user_email: Email of the editor user
+        
+        Returns:
+            Owner's user_id if editor access exists, None otherwise
+        """
+        result = db.query(SharedLinkModel.user_id).join(
+            SharedLinkUserModel, SharedLinkModel.share_id == SharedLinkUserModel.share_id
+        ).filter(
+            and_(
+                SharedLinkModel.session_id == session_id,
+                SharedLinkModel.deleted_at.is_(None),
+                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip(),
+                SharedLinkUserModel.access_level == 'RESOURCE_EDITOR'
+            )
+        ).first()
+        return result[0] if result else None
+
     def find_shares_for_user_email(self, db: DBSession, user_email: str) -> List[dict]:
         """
         Find all share links that have been shared with a specific user email.

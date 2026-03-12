@@ -26,6 +26,23 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/auth/me")
+async def get_current_user_info(request: FastAPIRequest):
+    """
+    Returns the current authenticated user's info.
+    Works in both dev mode (returns dev user) and production (returns OAuth user).
+    """
+    user = getattr(request.state, "user", None)
+    if not user:
+        return {"id": None, "email": None, "name": None, "authenticated": False}
+    return {
+        "id": user.get("id"),
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "authenticated": user.get("authenticated", False),
+    }
+
+
 @router.get("/auth/login")
 async def initiate_login(
     request: FastAPIRequest, config: dict = Depends(get_api_config)

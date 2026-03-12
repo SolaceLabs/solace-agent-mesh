@@ -7,13 +7,12 @@ import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
+import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, CollaborativeUserMessage, MessageAttribution } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { ShareButton } from "@/lib/components/share/ShareButton";
 import { useLocation, useNavigate } from "react-router-dom";
-import { mockActiveCollaborativeSession, mockMessageAttributions } from "@/lib/mockData/collaborativeChat";
-import type { CollaborativeSessionInfo } from "@/lib/types/collaboration";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -56,15 +55,12 @@ export function ChatPage() {
         closeSessionDeleteModal,
         confirmSessionDelete,
         currentTaskId,
+        isCollaborativeSession,
+        currentUserEmail,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
-
-    // TODO: Replace with actual collaboration state from backend
-    // For now, only enable collaboration mode for specific session IDs (for testing)
-    const collaborationInfo: CollaborativeSessionInfo | null = sessionId === "mock-collaborative-session" ? mockActiveCollaborativeSession : null;
-    const isCollaborativeSession = collaborationInfo?.isSharedSession || false;
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -193,6 +189,24 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
+    // Build collaborative users list from message sender info for presence avatars
+    const collaborativeUsers = useMemo<CollaborativeUser[]>(() => {
+        if (!isCollaborativeSession) return [];
+        const userMap = new Map<string, CollaborativeUser>();
+        for (const msg of messages) {
+            if (msg.isUser && msg.senderEmail && !userMap.has(msg.senderEmail.toLowerCase())) {
+                userMap.set(msg.senderEmail.toLowerCase(), {
+                    id: msg.senderEmail.toLowerCase(),
+                    name: msg.senderDisplayName || msg.senderEmail,
+                    email: msg.senderEmail,
+                    role: "collaborator",
+                    isOnline: true, // We don't have real-time presence yet, assume online
+                });
+            }
+        }
+        return Array.from(userMap.values());
+    }, [isCollaborativeSession, messages]);
+
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -286,7 +300,7 @@ export function ChatPage() {
                     buttons={
                         sessionId
                             ? [
-                                  ...(isCollaborativeSession && collaborationInfo ? [<UserPresenceAvatars key="presence-avatars" users={collaborationInfo.collaborators} currentUserId={collaborationInfo.currentUserId} />] : []),
+                                  ...(isCollaborativeSession && collaborativeUsers.length > 0 ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />] : []),
                                   <ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />,
                               ]
                             : undefined
@@ -320,23 +334,21 @@ export function ChatPage() {
                                                     const isLastMessage = index === messages.length - 1;
                                                     const shouldStream = isLastMessage && isResponding && !message.isUser;
 
-                                                    // Get user attribution for this message from mock data
-                                                    const attribution = mockMessageAttributions[index];
-                                                    const isCurrentUserMessage = attribution?.userId === collaborationInfo?.currentUserId;
-                                                    const shouldShowUserAttribution = isCollaborativeSession && message.isUser && !message.isStatusBubble && attribution && !isCurrentUserMessage;
+                                                    // Determine if we should show collaborative attribution
+                                                    const isOtherUserMessage = isCollaborativeSession && message.isUser && !message.isStatusBubble && message.senderEmail && message.senderEmail.toLowerCase() !== currentUserEmail?.toLowerCase();
                                                     const shouldShowAgentAttribution = isCollaborativeSession && !message.isUser && !message.isStatusBubble;
 
                                                     // Get agent name from agents list or use default
                                                     const agentName = agents.length > 0 ? agents[0].name : "Agent";
 
-                                                    // Calculate user index for consistent color assignment
-                                                    const userIndex = attribution ? (collaborationInfo?.collaborators.findIndex(u => u.id === attribution.userId) ?? 0) : 0;
+                                                    // Calculate user index for consistent color assignment based on sender email
+                                                    const userIndex = isOtherUserMessage ? (collaborativeUsers.findIndex(u => u.email?.toLowerCase() === message.senderEmail?.toLowerCase()) ?? 0) : 0;
 
                                                     return (
                                                         <div key={messageKey}>
                                                             {/* Render collaborative user message or regular message */}
-                                                            {shouldShowUserAttribution ? (
-                                                                <CollaborativeUserMessage message={message} userName={attribution.userName} timestamp={attribution.timestamp} userIndex={userIndex} />
+                                                            {isOtherUserMessage ? (
+                                                                <CollaborativeUserMessage message={message} userName={message.senderDisplayName || message.senderEmail || "User"} timestamp={Date.now()} userIndex={userIndex} />
                                                             ) : shouldShowAgentAttribution ? (
                                                                 <>
                                                                     {/* Show agent attribution in collaborative mode */}
