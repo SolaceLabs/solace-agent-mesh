@@ -133,6 +133,7 @@ class SharedSessionView(BaseModel):
     task_events: Optional[dict] = None  # Task events for workflow visualization: {task_id: SharedTaskEvents}
     is_owner: bool = False  # Whether the current viewer is the owner of the shared chat
     session_id: Optional[str] = None  # Original session ID (only included for owner)
+    snapshot_time: Optional[int] = None  # Epoch ms - when the snapshot was taken (for viewers)
 
 
 # User-specific sharing models

@@ -4,9 +4,10 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, Lock, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, Loader2, MessageSquare, UserLock } from "lucide-react";
+import { ArrowLeft, Lock, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, UserLock, Info } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
-import { ChatBubbleAvatar } from "@/lib/components/ui/chat/chat-bubble";
+import { MessageAttribution } from "@/lib/components/chat/MessageAttribution";
+import { getUserColorIndex } from "@/lib/components/chat/UserAvatar";
 import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
@@ -65,7 +66,6 @@ export function SharedSessionPage() {
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "sources">("files");
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [isForking, setIsForking] = useState(false);
-    const [forkError, setForkError] = useState<string | null>(null);
 
     // Load shared session data
     const loadSharedSession = useCallback(async (id: string) => {
@@ -101,17 +101,13 @@ export function SharedSessionPage() {
         if (!shareId || isForking) return;
 
         setIsForking(true);
-        setForkError(null);
         try {
             await forkSharedChat(shareId);
-            // Navigate to the main chat view and trigger session refresh
             navigate(`/chat`);
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent("new-chat-session"));
             }, 100);
         } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to fork chat";
-            setForkError(message);
             console.error("Failed to fork chat:", err);
         } finally {
             setIsForking(false);
@@ -630,16 +626,32 @@ export function SharedSessionPage() {
                                             <UserLock className="h-4 w-4 text-(--color-secondary-wMain)" />
                                         </span>
                                     </TooltipTrigger>
-                                    <TooltipContent>You are {session?.is_owner ? "the owner" : "a viewer"} of this chat</TooltipContent>
+                                    <TooltipContent>
+                                        You are a <span className="font-bold">viewer</span> of this chat
+                                    </TooltipContent>
                                 </Tooltip>
-                                <span>{session?.is_owner ? "Owner" : "Viewer"}</span>
-                                {!session?.is_owner && (
-                                    <>
-                                        <div className="bg-border h-4 w-px" />
-                                        <span>
-                                            Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on <span className="font-bold">{new Date(session.created_time * 1000).toLocaleDateString()}</span>
+                                <span>Viewer</span>
+                                <div className="bg-border h-4 w-px" />
+                                {session.snapshot_time ? (
+                                    <span>
+                                        Snapshot from{" "}
+                                        <span className="font-bold">
+                                            {(() => {
+                                                const d = new Date(session.snapshot_time);
+                                                return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+                                            })()}
                                         </span>
-                                    </>
+                                    </span>
+                                ) : (
+                                    <span>
+                                        Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on{" "}
+                                        <span className="font-bold">
+                                            {(() => {
+                                                const d = new Date(session.created_time);
+                                                return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+                                            })()}
+                                        </span>
+                                    </span>
                                 )}
                             </div>
                         </div>
@@ -648,26 +660,7 @@ export function SharedSessionPage() {
 
                 {/* Main content with resizable panels - always show side panel */}
                 <div className="relative min-h-0 flex-1">
-                    {/* Floating Fork/Continue Button */}
-                    {!session?.is_owner && (
-                        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center pb-10">
-                            <div className="pointer-events-auto flex flex-col items-center gap-2">
-                                {forkError && <div className="bg-destructive/10 text-destructive rounded-md border border-(--color-error-wMain) px-3 py-1.5 text-sm">{forkError}</div>}
-                                <Button variant="outline" onClick={handleForkChat} disabled={isForking} size="lg" className="shadow-lg">
-                                    {isForking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <MessageSquare className="mr-2 h-5 w-5" />}
-                                    Continue in New Chat
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                    {session?.is_owner && session?.session_id && (
-                        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center pb-10">
-                            <Button variant="default" size="lg" onClick={() => navigate(`/chat?sessionId=${session.session_id}`)} className="pointer-events-auto shadow-lg">
-                                <MessageSquare className="mr-2 h-5 w-5" />
-                                Go to Chat
-                            </Button>
-                        </div>
-                    )}
+                    {/* Read-Only Indicator */}
 
                     <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
                         {/* Messages panel */}
@@ -684,23 +677,22 @@ export function SharedSessionPage() {
                                             const variant = "received";
                                             return (
                                                 <div key={index} className="mb-4 flex flex-col">
-                                                    {/* Sender label with avatar */}
+                                                    {/* Sender attribution using shared MessageAttribution component */}
                                                     {message.type === "user" ? (
-                                                        <div className="mb-1.5 flex items-center gap-2 self-start">
-                                                            <ChatBubbleAvatar fallback={(message.senderDisplayName || message.senderEmail || "User").charAt(0).toUpperCase()} className="bg-secondary text-secondary-foreground h-8 w-8 text-sm" />
-                                                            <span className="text-muted-foreground text-xs font-medium">{message.senderDisplayName || message.senderEmail || "User"}</span>
-                                                        </div>
+                                                        <MessageAttribution
+                                                            type="user"
+                                                            name={message.senderDisplayName || message.senderEmail || "User"}
+                                                            userIndex={getUserColorIndex(message.senderEmail || message.senderDisplayName || "User")}
+                                                            timestamp={message.timestamp}
+                                                        />
                                                     ) : (
-                                                        <div className="mb-1.5 flex items-center gap-2 self-start">
-                                                            <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 items-center justify-center rounded-full">
-                                                                <Bot className="h-4 w-4" />
-                                                            </span>
-                                                            <span className="text-muted-foreground text-xs font-medium">AI Assistant</span>
-                                                        </div>
+                                                        <MessageAttribution type="agent" name="AI Assistant" />
                                                     )}
-                                                    <ChatBubble variant={variant}>
-                                                        <ChatBubbleMessage variant={variant}>{renderMessageContent(message)}</ChatBubbleMessage>
-                                                    </ChatBubble>
+                                                    <div className="ml-10">
+                                                        <ChatBubble variant={variant}>
+                                                            <ChatBubbleMessage variant={variant}>{renderMessageContent(message)}</ChatBubbleMessage>
+                                                        </ChatBubble>
+                                                    </div>
                                                     {/* Show workflow button and sources outside the bubble for the last AI message in each task */}
                                                     {message.type !== "user" && message.isLastInTask && (
                                                         <div className="mt-1 flex items-center justify-start gap-2">
@@ -713,6 +705,19 @@ export function SharedSessionPage() {
                                         })
                                     )}
                                 </div>
+                                {/* Fork banner at the bottom */}
+                                {!session?.is_owner && (
+                                    <div className="mx-auto mt-6 max-w-3xl">
+                                        <div className="bg-muted/50 border-border flex items-center gap-3 rounded-lg border px-4 py-3">
+                                            <Info className="text-muted-foreground h-5 w-5 flex-shrink-0" />
+                                            <span className="text-muted-foreground text-sm">This is a shared chat. Fork it to continue the conversation.</span>
+                                            <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
+                                                {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                                Create Personal Copy
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </main>
                         </ResizablePanel>
 

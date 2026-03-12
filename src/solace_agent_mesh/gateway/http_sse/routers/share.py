@@ -256,6 +256,59 @@ async def list_shared_with_me(
         )
 
 
+class UpdateSnapshotRequest(BaseModel):
+    """Optional request body for update-snapshot endpoint."""
+    user_email: Optional[str] = None  # If provided (by owner), update that user's snapshot
+
+
+@router.post("/{share_id}/update-snapshot")
+async def update_snapshot(
+    share_id: str,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+    db: DBSession = Depends(get_db),
+    body: Optional[UpdateSnapshotRequest] = None,
+):
+    """
+    Update the snapshot timestamp for a share.
+    
+    - If called by a viewer (no body or no user_email in body): updates the current user's snapshot.
+    - If called by the owner with a user_email in body: updates that specific user's snapshot.
+    
+    This refreshes the viewer's snapshot to include newer messages.
+    Only applicable for RESOURCE_VIEWER users.
+    """
+    from ..repository.share_repository import ShareRepository
+    from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+    share_repo = ShareRepository()
+    
+    # Determine target email
+    target_email = None
+    if body and body.user_email:
+        # Owner is updating a specific user's snapshot
+        share_link = share_repo.find_by_share_id(db, share_id)
+        if not share_link or share_link.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can update another user's snapshot")
+        target_email = body.user_email
+    else:
+        # Viewer updating their own snapshot
+        if hasattr(request.state, 'user') and request.state.user:
+            target_email = request.state.user.get("email")
+        
+        if not target_email:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email required")
+    
+    new_time = now_epoch_ms()
+    updated = share_repo.update_user_snapshot_time(db, share_id, target_email, new_time)
+    
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share user not found")
+    
+    db.commit()
+    
+    return {"snapshot_time": new_time}
+
+
 @router.post("/{share_id}/fork", response_model=ForkSharedChatResponse)
 async def fork_shared_chat(
     share_id: str,
@@ -337,11 +390,24 @@ async def view_shared_session(
     Returns 403 if authenticated but access denied.
     """
     try:
+        # Determine snapshot_time for viewers (not owner, not editor)
+        snapshot_time = None
+        if user_email:
+            from ..repository.share_repository import ShareRepository
+            share_repo = ShareRepository()
+            share_link = share_repo.find_by_share_id(db, share_id)
+            if share_link and not (user_id and share_link.user_id == user_id):
+                # Not the owner - check if they're a shared user
+                shared_user = share_repo.find_share_user_by_email(db, share_id, user_email)
+                if shared_user and shared_user.access_level == "RESOURCE_VIEWER":
+                    snapshot_time = shared_user.added_at
+        
         session_view = await share_service.get_shared_session_view(
             db=db,
             share_id=share_id,
             user_id=user_id,
-            user_email=user_email
+            user_email=user_email,
+            snapshot_time=snapshot_time
         )
         
         return session_view

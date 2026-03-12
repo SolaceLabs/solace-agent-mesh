@@ -319,7 +319,8 @@ class ShareService:
         db: DBSession,
         share_id: str,
         user_id: Optional[str] = None,
-        user_email: Optional[str] = None
+        user_email: Optional[str] = None,
+        snapshot_time: Optional[int] = None
     ) -> SharedSessionView:
         """
         Get public view of a shared session.
@@ -329,6 +330,7 @@ class ShareService:
             share_id: Share ID
             user_id: Optional user ID (if authenticated)
             user_email: Optional user email (if authenticated)
+            snapshot_time: Optional epoch ms cutoff - only include tasks created at or before this time (for viewers)
         
         Returns:
             SharedSessionView with anonymized data and full artifact info
@@ -364,6 +366,10 @@ class ShareService:
         task_repo = ChatTaskRepository()
         session_repo = SessionRepository()
         tasks = task_repo.find_by_session(db, share_link.session_id, share_link.user_id)
+        
+        # Filter tasks by snapshot_time if set (for viewers)
+        if snapshot_time is not None:
+            tasks = [t for t in tasks if t.created_time <= snapshot_time]
         
         # Get the session to check for project_id
         session = session_repo.find_user_session(db, share_link.session_id, share_link.user_id)
@@ -449,7 +455,8 @@ class ShareService:
             artifacts=artifact_list,
             task_events=task_events_data,
             is_owner=is_owner,
-            session_id=share_link.session_id if is_owner else None
+            session_id=share_link.session_id if is_owner else None,
+            snapshot_time=snapshot_time
         )
     
     async def _load_task_events_for_session(
@@ -753,10 +760,18 @@ class ShareService:
             if not email:
                 continue
             
-            # Skip if already shared
+            # If already shared, update access level if different
             if self.repository.check_user_has_access(db, share_id, email):
-                log.info(f"User {email} already has access to share {share_id}")
-                continue
+                # Update access level if it changed
+                existing_users = self.repository.find_share_users(db, share_id)
+                existing_user = next((u for u in existing_users if u.user_email.lower() == email.lower()), None)
+                if existing_user and existing_user.access_level != access_level:
+                    # Delete and re-add with new access level
+                    self.repository.delete_share_user(db, share_id, email)
+                    log.info(f"Updating access level for {email} on share {share_id}: {existing_user.access_level} -> {access_level}")
+                else:
+                    log.info(f"User {email} already has access to share {share_id} with same level")
+                    continue
             
             try:
                 shared_user = self.repository.add_share_user(

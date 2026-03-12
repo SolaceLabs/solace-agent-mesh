@@ -303,6 +303,32 @@ export async function listSharedWithMe(): Promise<SharedWithMeItem[]> {
 }
 
 /**
+ * Update the snapshot timestamp for a share.
+ * - Without userEmail: updates the current user's own snapshot (viewer use case).
+ * - With userEmail: owner updates a specific user's snapshot.
+ */
+export async function updateShareSnapshot(shareId: string, userEmail?: string): Promise<{ snapshot_time: number }> {
+    const options: RequestInit = {
+        method: "POST",
+        credentials: "include",
+    };
+
+    if (userEmail) {
+        options.headers = { "Content-Type": "application/json" };
+        options.body = JSON.stringify({ user_email: userEmail });
+    }
+
+    const response = await fetch(`${API_BASE}/share/${shareId}/update-snapshot`, options);
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Failed to update snapshot" }));
+        throw new Error(error.detail || "Failed to update snapshot");
+    }
+
+    return response.json();
+}
+
+/**
  * Fork a shared chat into the user's own sessions
  */
 export async function forkSharedChat(shareId: string): Promise<ForkSharedChatResponse> {

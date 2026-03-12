@@ -29,7 +29,6 @@ import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
-import { MessageAttribution } from "./MessageAttribution";
 
 /**
  * Returns true if a user message is from another user (not the current viewer).
@@ -50,13 +49,6 @@ function isOtherUserMessage(message: MessageFE, currentUserEmail: string): boole
  * Derives a stable user index from an email string for consistent avatar colors.
  * Uses a simple hash to map emails to color indices.
  */
-function getUserIndexFromEmail(email: string): number {
-    if (!email) return 0;
-    return email
-        .toLowerCase()
-        .split("")
-        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-}
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -587,10 +579,10 @@ const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; cla
     return <div className={`mt-1 space-y-1 ${message.isUser ? "ml-auto" : "mr-auto"} ${className}`}>{children}</div>;
 });
 
-const getUploadedFiles = (message: MessageFE) => {
+const getUploadedFiles = (message: MessageFE, alignRight: boolean = true) => {
     if (message.uploadedFiles && message.uploadedFiles.length > 0) {
         return (
-            <MessageWrapper message={message} className="flex flex-wrap justify-end gap-2">
+            <MessageWrapper message={message} className={`flex flex-wrap gap-2 ${alignRight ? "justify-end" : "justify-start"}`}>
                 {message.uploadedFiles.map((file, fileIdx) => (
                     <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} mimeType={file.type} />
                 ))}
@@ -708,6 +700,8 @@ const getChatBubble = (
     // In collaborative sessions, other users' messages use the "other-user" variant
     const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
     const variant = message.isUser && !isOtherUser ? "sent" : isOtherUser ? "other-user" : "received";
+    // For alignment: current user's messages are right-aligned, other users' and agent messages are left-aligned
+    const isRightAligned = message.isUser && !isOtherUser;
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
@@ -811,7 +805,7 @@ const getChatBubble = (
                         // If this is the last part and it's empty, still render actions if needed
                         if (isLastPart && (showWorkflowButton || showFeedbackActions)) {
                             return (
-                                <div key={`part-${index}`} className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
+                                <div key={`part-${index}`} className={`flex ${isRightAligned ? "justify-end pr-4" : "justify-start pl-4"}`}>
                                     <MessageActions
                                         message={message}
                                         showWorkflowButton={!!showWorkflowButton}
@@ -854,7 +848,7 @@ const getChatBubble = (
 
             {/* Show actions after artifacts if the last part is an artifact */}
             {lastPartKind === "artifact" || lastPartKind === "file" ? (
-                <div className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
+                <div className={`flex ${isRightAligned ? "justify-end pr-4" : "justify-start pl-4"}`}>
                     <MessageActions
                         message={message}
                         showWorkflowButton={!!showWorkflowButton}
@@ -877,7 +871,11 @@ const getChatBubble = (
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean; isStreaming?: boolean }> = ({ message, isLastWithTaskId, isStreaming }) => {
     const chatContext = useChatContext();
-    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, currentUserEmail, agentNameDisplayNameMap } = chatContext;
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, currentUserEmail } = chatContext;
+
+    // Determine if this is another user's message (for alignment)
+    const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
+    const isRightAligned = message.isUser && !isOtherUser;
 
     // State to track deep research report content for message actions functionality
     const [reportContent, setReportContent] = useState<string | null>(null);
@@ -1028,37 +1026,11 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         }
     };
 
-    // Resolve agent display name for collaborative sessions
-    const agentDisplayName = (() => {
-        if (!isCollaborativeSession || message.isUser) return undefined;
-        const { selectedAgentName } = chatContext;
-        if (selectedAgentName && agentNameDisplayNameMap[selectedAgentName]) {
-            return agentNameDisplayNameMap[selectedAgentName];
-        }
-        if (selectedAgentName) {
-            return selectedAgentName;
-        }
-        return undefined;
-    })();
-
     return (
         <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
             {/* Show attribution for collaborative sessions: other users and agent messages */}
-            {isCollaborativeSession &&
-                (() => {
-                    if (message.isUser) {
-                        // Only show attribution for other users' messages (current user doesn't need it)
-                        if (isOtherUserMessage(message, currentUserEmail)) {
-                            const displayName = message.senderDisplayName || message.senderEmail || "User";
-                            const userIndex = getUserIndexFromEmail(message.senderEmail || "");
-                            return <MessageAttribution type="user" name={displayName} userIndex={userIndex} />;
-                        }
-                        return null;
-                    }
-                    // Agent message
-                    const agentLabel = agentDisplayName || "AI Assistant";
-                    return <MessageAttribution type="agent" name={agentLabel} />;
-                })()}
+            {/* Note: Collaborative attribution (user/agent labels) is handled by ChatPage.tsx
+                to avoid duplication. ChatPage wraps messages with MessageAttribution/CollaborativeUserMessage. */}
             {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
             {isDeepResearchComplete &&
                 hasRagSources &&
@@ -1167,7 +1139,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                     return null;
                 })()}
 
-            {getUploadedFiles(message)}
+            {getUploadedFiles(message, isRightAligned)}
         </div>
     );
 };

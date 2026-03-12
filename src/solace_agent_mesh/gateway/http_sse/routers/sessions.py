@@ -39,6 +39,87 @@ router = APIRouter()
 SESSION_NOT_FOUND_MSG = "Session not found."
 
 
+def _inject_owner_identity_into_tasks(tasks, owner_user_id: str) -> None:
+    """
+    Inject owner identity into user message bubbles that don't have sender_email.
+    
+    When an editor loads a collaborative session, the owner's old messages
+    (sent before sharing was set up) won't have sender_email/sender_display_name.
+    This function scans all task bubbles to find the owner's identity from any
+    bubble that already has it, then backfills into bubbles that don't.
+    
+    Mutates the task objects' message_bubbles in place.
+    """
+    # First pass: find the owner's email and display name from existing bubbles
+    owner_email = None
+    owner_display_name = None
+    
+    for task in tasks:
+        try:
+            bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            for bubble in bubbles:
+                if isinstance(bubble, dict) and bubble.get("type") == "user":
+                    email = bubble.get("sender_email")
+                    name = bubble.get("sender_display_name")
+                    if email and name:
+                        # Check if this is the owner's bubble (user_id on the task matches owner)
+                        if task.user_id == owner_user_id:
+                            owner_email = email
+                            owner_display_name = name
+                            break
+            if owner_email:
+                break
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+    
+    # Use owner_user_id as fallback display name if no identity found in bubbles
+    if not owner_display_name:
+        owner_display_name = owner_user_id
+    if not owner_email:
+        owner_email = owner_user_id
+    
+    # Second pass: inject owner identity into user bubbles without sender_email
+    for task in tasks:
+        if task.user_id != owner_user_id:
+            continue  # Only backfill owner's tasks
+        try:
+            bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            modified = False
+            for bubble in bubbles:
+                if isinstance(bubble, dict) and bubble.get("type") == "user":
+                    if not bubble.get("sender_email"):
+                        bubble["sender_email"] = owner_email
+                        bubble["sender_display_name"] = owner_display_name
+                        modified = True
+            if modified:
+                task.message_bubbles = json.dumps(bubbles)
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+
+
+def _get_owner_info_from_tasks(tasks, owner_user_id: str) -> tuple:
+    """
+    Extract owner's display name and email from task bubbles.
+    
+    Returns:
+        Tuple of (owner_display_name, owner_email) or (None, None) if not found.
+    """
+    for task in tasks:
+        if task.user_id != owner_user_id:
+            continue
+        try:
+            bubbles = json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles
+            for bubble in bubbles:
+                if isinstance(bubble, dict) and bubble.get("type") == "user":
+                    email = bubble.get("sender_email")
+                    name = bubble.get("sender_display_name")
+                    if email and name:
+                        return (name, email)
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+    return (None, None)
+
+
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
     project_id: Optional[str] = Query(default=None, alias="project_id"),
@@ -168,6 +249,8 @@ async def get_session(
         )
 
         # If not found as owner, check editor access via sharing
+        owner_display_name = None
+        owner_email_value = None
         if not session_domain and user_email:
             owner_user_id = session_service.check_editor_access(db, session_id, user_email)
             if owner_user_id:
@@ -178,6 +261,19 @@ async def get_session(
                     "Editor %s (email: %s) accessing session %s owned by %s",
                     user_id, user_email, session_id, owner_user_id
                 )
+                # Look up owner's display name and email from task bubbles
+                if session_domain:
+                    try:
+                        from ..repository.chat_task_repository import ChatTaskRepository
+                        task_repo = ChatTaskRepository()
+                        tasks = task_repo.find_by_session_all_users(db, session_id)
+                        name, email = _get_owner_info_from_tasks(tasks, owner_user_id)
+                        owner_display_name = name or owner_user_id
+                        owner_email_value = email or owner_user_id
+                    except Exception as e:
+                        log.warning("Failed to look up owner info for session %s: %s", session_id, e)
+                        owner_display_name = owner_user_id
+                        owner_email_value = owner_user_id
 
         if not session_domain:
             raise HTTPException(
@@ -192,6 +288,8 @@ async def get_session(
             name=session_domain.name,
             agent_id=session_domain.agent_id,
             project_id=session_domain.project_id,
+            owner_display_name=owner_display_name,
+            owner_email=owner_email_value,
             created_time=session_domain.created_time,
             updated_time=session_domain.updated_time,
         )
@@ -550,9 +648,12 @@ async def get_session_tasks(
             tasks = None
 
         # If not found as owner, check editor access
+        is_editor = False
+        owner_user_id = None
         if tasks is None and user_email:
             owner_user_id = session_service.check_editor_access(db, session_id, user_email)
             if owner_user_id:
+                is_editor = True
                 tasks = session_service.get_session_tasks_for_editor(
                     db=db, session_id=session_id, owner_user_id=owner_user_id
                 )
@@ -572,6 +673,11 @@ async def get_session_tasks(
             len(tasks),
             session_id,
         )
+
+        # For editors: inject owner identity into user bubbles that don't have sender_email
+        # This ensures the owner's old messages (sent before sharing) are properly attributed
+        if is_editor and owner_user_id:
+            _inject_owner_identity_into_tasks(tasks, owner_user_id)
 
         # Convert to response DTOs
         task_responses = []
@@ -1144,4 +1250,132 @@ async def trigger_title_generation(
         ) from e
 
 
+@router.post("/sessions/{session_id}/fork", status_code=status.HTTP_201_CREATED)
+async def fork_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+    component = Depends(get_sac_component),
+):
+    """
+    Fork a session into the user's own sessions.
+    Creates a new session with copies of all chat tasks from the source session.
+    Works for both session owners and editors with RESOURCE_EDITOR access.
+    """
+    import uuid as uuid_mod
+    user_id = user.get("id")
+    user_email = user.get("email", "")
+    
+    try:
+        # Check if user is the owner
+        session = session_service.get_session_details(db, session_id, user_id)
+        owner_user_id = user_id
+        
+        if not session:
+            # Check if user is an editor
+            owner_user_id = session_service.check_editor_access(db, session_id, user_email)
+            if not owner_user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="No access to this session"
+                )
+            session = session_service.get_session_details_for_editor(db, session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found"
+            )
+        
+        # Get all tasks from the source session
+        from ..repository.chat_task_repository import ChatTaskRepository
+        task_repo = ChatTaskRepository()
+        original_tasks = task_repo.find_by_session_all_users(db, session_id)
+        
+        # Create a new session for the forking user
+        fork_title = f"{session.name or 'Untitled'} (copy)"
+        new_session = session_service.create_session(
+            db=db,
+            user_id=user_id,
+            name=fork_title,
+        )
+        
+        if not new_session:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create new session"
+            )
+        
+        # Copy chat tasks to the new session
+        from ..repository.entities.chat_task import ChatTask
+        from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+        
+        import json as json_mod
+        for original_task in original_tasks:
+            new_task_id = str(uuid_mod.uuid4())
+            now_ms = now_epoch_ms()
+            
+            # Update task_metadata to use new task ID and mark as forked
+            new_metadata = None
+            if original_task.task_metadata:
+                try:
+                    meta = json_mod.loads(original_task.task_metadata)
+                    meta["task_id"] = new_task_id
+                    meta["forked_from"] = original_task.id
+                    meta.pop("status", None)  # Clear status
+                    new_metadata = json_mod.dumps(meta)
+                except (json_mod.JSONDecodeError, TypeError):
+                    new_metadata = json_mod.dumps({"task_id": new_task_id, "forked_from": original_task.id})
+            else:
+                new_metadata = json_mod.dumps({"task_id": new_task_id})
+            
+            new_task = ChatTask(
+                id=new_task_id,
+                session_id=new_session.id,
+                user_id=user_id,
+                user_message=original_task.user_message,
+                message_bubbles=original_task.message_bubbles,
+                task_metadata=new_metadata,
+                created_time=now_ms,
+                updated_time=now_ms,
+            )
+            task_repo.save(db, new_task)
+        
+        db.commit()
+        
+        # Copy artifacts from source session to forked session
+        artifacts_copied = 0
+        try:
+            from ..utils.artifact_copy_utils import copy_session_artifacts
+            artifacts_copied = await copy_session_artifacts(
+                source_user_id=owner_user_id,
+                source_session_id=session_id,
+                target_user_id=user_id,
+                target_session_id=new_session.id,
+                component=component,
+                log_prefix=f"[ForkSession {session_id} -> {new_session.id}] ",
+            )
+        except Exception as e:
+            log.warning("Failed to copy artifacts during fork: %s", e)
+        
+        log.info(
+            "User %s forked session %s into new session %s with %d tasks and %d artifacts",
+            user_id, session_id, new_session.id, len(original_tasks), artifacts_copied
+        )
+        
+        return {
+            "session_id": new_session.id,
+            "session_name": fork_title,
+            "message": f"Session forked successfully with {len(original_tasks)} messages and {artifacts_copied} artifacts"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error forking session %s: %s", session_id, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fork session"
+        ) from e
 
