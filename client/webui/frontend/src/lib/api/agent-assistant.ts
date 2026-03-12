@@ -4,6 +4,7 @@
  */
 
 import { api } from "@/lib/api";
+import { v4 as uuidv4 } from "uuid";
 
 export interface AgentAssistantResponse {
     success: boolean;
@@ -15,104 +16,77 @@ export interface AgentAssistantResponse {
         [key: string]: unknown;
     };
     error?: string;
+    sessionId?: string;
+}
+
+interface Message {
+    role: string;
+    parts: Array<{ kind: string; text: string }>;
+    messageId: string;
+    kind: string;
+    contextId?: string | null;
+    metadata: {
+        agent_name: string;
+    };
+}
+
+interface SendStreamingMessageRequest {
+    jsonrpc: string;
+    id: string;
+    method: string;
+    params: {
+        message: Message;
+    };
 }
 
 /**
  * Send a natural language query to the UI Assistant agent
- * Creates a temporary session, sends the command, waits for response, and cleans up
+ * Uses the /message:stream endpoint to execute commands and receive responses
  */
 export const executeAgentCommand = async (query: string): Promise<AgentAssistantResponse> => {
-    let sessionId: string | null = null;
-
     try {
-        console.log("[executeAgentCommand] Creating temporary session for UIAssistant");
+        console.log("[executeAgentCommand] Executing command via UIAssistant:", query);
 
-        // Create a new temporary session for UIAssistant
-        const sessionResponse = await api.webui.post("/api/v1/sessions", {
-            agent_name: "UIAssistant",
-        });
+        // Build the A2A message
+        const a2aMessage: Message = {
+            role: "user",
+            parts: [{ kind: "text", text: query }],
+            messageId: `msg-${uuidv4()}`,
+            kind: "message",
+            contextId: null, // null/empty creates new session
+            metadata: {
+                agent_name: "UIAssistant",
+            },
+        };
 
-        sessionId = sessionResponse.id;
-        console.log("[executeAgentCommand] Created session:", sessionId);
+        // Build the JSON-RPC request
+        const sendMessageRequest: SendStreamingMessageRequest = {
+            jsonrpc: "2.0",
+            id: `req-${uuidv4()}`,
+            method: "message/stream",
+            params: {
+                message: a2aMessage,
+            },
+        };
 
-        // Subscribe to SSE stream to receive agent responses
-        const sseUrl = `/api/v1/sessions/${sessionId}/stream`;
-        const fullSseUrl = api.webui.getFullUrl(sseUrl);
+        console.log("[executeAgentCommand] Sending request to /api/v1/message:stream");
 
-        const result = await new Promise<AgentAssistantResponse>((resolve, reject) => {
-            let eventSource: EventSource | null = null;
-            let responseMessage = "";
-            let responseData: Record<string, unknown> | null = null;
-            let hasError = false;
+        // Send the request
+        const result = await api.webui.post("/api/v1/message:stream", sendMessageRequest);
 
-            eventSource = new EventSource(fullSseUrl);
+        const task = result?.result;
+        const sessionId = task?.contextId;
 
-            const timeout = setTimeout(() => {
-                eventSource?.close();
-                reject(new Error("Agent command execution timed out"));
-            }, 30000); // 30 second timeout
+        if (!task?.id) {
+            throw new Error("Backend did not return a valid task ID");
+        }
 
-            eventSource.onmessage = event => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log("[executeAgentCommand] SSE event:", data);
+        console.log("[executeAgentCommand] Task created:", task.id, "Session:", sessionId);
 
-                    // Handle agent response content
-                    if (data.type === "content" && data.content) {
-                        responseMessage += data.content;
-                    }
+        // Wait for task completion and collect results
+        const response = await waitForTaskCompletion(task.id, sessionId);
 
-                    // Handle tool results
-                    if (data.type === "tool_result" && data.tool_result?.data) {
-                        responseData = data.tool_result.data;
-                    }
-
-                    // Handle completion
-                    if (data.type === "done" || data.type === "complete") {
-                        clearTimeout(timeout);
-                        eventSource?.close();
-
-                        resolve({
-                            success: !hasError,
-                            message: responseMessage || "Command executed successfully",
-                            data: responseData || undefined,
-                        });
-                    }
-
-                    // Handle errors
-                    if (data.type === "error") {
-                        hasError = true;
-                        responseMessage = data.error || "An error occurred";
-                    }
-                } catch (parseError) {
-                    console.error("[executeAgentCommand] Error parsing SSE event:", parseError);
-                }
-            };
-
-            eventSource.onerror = error => {
-                console.error("[executeAgentCommand] SSE error:", error);
-                clearTimeout(timeout);
-                eventSource?.close();
-                reject(new Error("Connection to agent failed"));
-            };
-
-            // Send the command message after a short delay to ensure SSE is connected
-            setTimeout(async () => {
-                try {
-                    console.log("[executeAgentCommand] Sending message:", query);
-                    await api.webui.post(`/api/v1/sessions/${sessionId}/messages`, {
-                        content: query,
-                        role: "user",
-                    });
-                } catch (sendError) {
-                    clearTimeout(timeout);
-                    eventSource?.close();
-                    reject(sendError);
-                }
-            }, 100);
-        });
-
-        // Clean up session after successful execution
+        // Clean up session after execution
         if (sessionId) {
             try {
                 await api.webui.delete(`/api/v1/sessions/${sessionId}`);
@@ -122,19 +96,9 @@ export const executeAgentCommand = async (query: string): Promise<AgentAssistant
             }
         }
 
-        return result;
+        return response;
     } catch (error) {
         console.error("[executeAgentCommand] Error:", error);
-
-        // Clean up session on error
-        if (sessionId) {
-            try {
-                await api.webui.delete(`/api/v1/sessions/${sessionId}`);
-            } catch (cleanupError) {
-                console.warn("[executeAgentCommand] Failed to cleanup session:", cleanupError);
-            }
-        }
-
         return {
             success: false,
             message: "Failed to execute command",
@@ -142,3 +106,71 @@ export const executeAgentCommand = async (query: string): Promise<AgentAssistant
         };
     }
 };
+
+/**
+ * Wait for task completion and extract the agent's response
+ */
+async function waitForTaskCompletion(taskId: string, sessionId: string | null): Promise<AgentAssistantResponse> {
+    return new Promise((resolve, reject) => {
+        let responseMessage = "";
+        let responseData: Record<string, unknown> | null = null;
+        let hasError = false;
+
+        // Connect to task status stream
+        const sseUrl = `/api/v1/tasks/${taskId}/status/stream`;
+        const fullSseUrl = api.webui.getFullUrl(sseUrl);
+        const eventSource = new EventSource(fullSseUrl);
+
+        const timeout = setTimeout(() => {
+            eventSource.close();
+            reject(new Error("Agent command execution timed out"));
+        }, 30000);
+
+        eventSource.onmessage = event => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log("[waitForTaskCompletion] SSE event:", data);
+
+                // Extract content from status updates
+                if (data.result?.status?.content) {
+                    responseMessage += data.result.status.content;
+                }
+
+                // Extract tool results
+                if (data.result?.status?.tool_results) {
+                    for (const toolResult of data.result.status.tool_results) {
+                        if (toolResult.data) {
+                            responseData = toolResult.data;
+                        }
+                    }
+                }
+
+                // Check for completion
+                if (data.result?.kind === "completed" || data.result?.kind === "failed") {
+                    clearTimeout(timeout);
+                    eventSource.close();
+
+                    if (data.result.kind === "failed") {
+                        hasError = true;
+                    }
+
+                    resolve({
+                        success: !hasError,
+                        message: responseMessage || "Command executed successfully",
+                        data: responseData || undefined,
+                        sessionId: sessionId || undefined,
+                    });
+                }
+            } catch (parseError) {
+                console.error("[waitForTaskCompletion] Error parsing SSE event:", parseError);
+            }
+        };
+
+        eventSource.onerror = error => {
+            console.error("[waitForTaskCompletion] SSE error:", error);
+            clearTimeout(timeout);
+            eventSource.close();
+            reject(new Error("Connection to agent failed"));
+        };
+    });
+}
