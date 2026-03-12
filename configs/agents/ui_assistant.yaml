@@ -52,8 +52,8 @@ apps:
         - User: "Create a prompt template called Email Writer with description 'Writes professional emails'"
           You: *Use create_prompt_template tool with extracted parameters* "Created prompt template 'Email Writer'"
 
-        - User: "Build a prompt for code review with the text 'Review this code for bugs: {{code}}'"
-          You: *Use create_prompt_template tool* "Created prompt template 'code review'"
+        - User: "Build a prompt for code review"
+          You: *Use create_prompt_template tool with name and basic prompt text* "Created prompt template 'code review'"
 
       inject_system_purpose: true
       inject_response_format: true
