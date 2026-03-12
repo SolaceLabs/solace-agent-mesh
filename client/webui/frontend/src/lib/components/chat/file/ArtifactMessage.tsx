@@ -5,7 +5,7 @@ import { Spinner } from "@/lib/components/ui/spinner";
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment, MessageFE } from "@/lib/types";
-import { downloadFile, getErrorMessage, parseArtifactUri } from "@/lib/utils";
+import { downloadFile, getErrorMessage, getSourceProjectName, parseArtifactUri } from "@/lib/utils";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 
 import { MessageBanner } from "../../common";
@@ -491,6 +491,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             isDeleted={isDeleted}
             version={version}
             source={artifact?.source}
+            sourceProjectName={getSourceProjectName(artifact, activeProject)}
         />
     );
 };
