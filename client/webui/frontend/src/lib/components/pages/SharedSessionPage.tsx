@@ -555,7 +555,7 @@ export function SharedSessionPage() {
                                             <span className="text-muted-foreground text-sm">This is a shared chat. Fork it to continue the conversation.</span>
                                             <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
                                                 {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                Save as My Chat
+                                                Create Personal Copy
                                             </Button>
                                         </div>
                                     </div>

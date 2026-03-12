@@ -56,6 +56,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [isCollaborativeSession, setIsCollaborativeSession] = useState<boolean>(false);
+    const [hasSharedEditors, setHasSharedEditors] = useState<boolean>(false);
     const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
     const [sessionOwnerName, setSessionOwnerName] = useState<string | null>(null);
     const [sessionOwnerEmail, setSessionOwnerEmail] = useState<string | null>(null);
@@ -1839,6 +1840,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Reset collaborative session flag - new sessions are always owned by the current user
             setIsCollaborativeSession(false);
+            setHasSharedEditors(false);
             setSessionOwnerName(null);
             setSessionOwnerEmail(null);
 
@@ -1973,6 +1975,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setIsCollaborativeSession(false);
                     setSessionOwnerName(null);
                     setSessionOwnerEmail(null);
+                    // Check if the owner has shared with editors (for showing collaborative UI elements)
+                    try {
+                        const { getShareLinkForSession, getShareUsers } = await import("@/lib/api/shareApi");
+                        const link = await getShareLinkForSession(newSessionId);
+                        if (link) {
+                            const usersResponse = await getShareUsers(link.share_id);
+                            const hasEditors = (usersResponse.users || []).some(u => u.access_level === "RESOURCE_EDITOR");
+                            setHasSharedEditors(hasEditors);
+                        } else {
+                            setHasSharedEditors(false);
+                        }
+                    } catch {
+                        setHasSharedEditors(false);
+                    }
                 }
 
                 // Activate or deactivate project context based on session's project
@@ -2683,6 +2699,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         };
     }, [handleSwitchSession]);
 
+    // Listen for share-updated events to refresh hasSharedEditors flag
+    useEffect(() => {
+        const handleShareUpdated = async (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.sessionId === sessionId && !isCollaborativeSession) {
+                try {
+                    const { getShareLinkForSession, getShareUsers } = await import("@/lib/api/shareApi");
+                    const link = await getShareLinkForSession(sessionId);
+                    if (link) {
+                        const usersResponse = await getShareUsers(link.share_id);
+                        const hasEditors = (usersResponse.users || []).some(u => u.access_level === "RESOURCE_EDITOR");
+                        setHasSharedEditors(hasEditors);
+                    } else {
+                        setHasSharedEditors(false);
+                    }
+                } catch {
+                    // Silently fail
+                }
+            }
+        };
+        window.addEventListener("share-updated", handleShareUpdated);
+        return () => window.removeEventListener("share-updated", handleShareUpdated);
+    }, [sessionId, isCollaborativeSession]);
+
     useEffect(() => {
         const handleSessionUpdated = async (event: Event) => {
             const customEvent = event as CustomEvent;
@@ -2930,6 +2970,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setMessages,
         isResponding,
         isCollaborativeSession,
+        hasSharedEditors,
         currentUserEmail,
         sessionOwnerName,
         sessionOwnerEmail,

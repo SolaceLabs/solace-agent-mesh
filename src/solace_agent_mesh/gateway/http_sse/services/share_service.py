@@ -717,7 +717,9 @@ class ShareService:
                 SharedLinkUserInfo(
                     user_email=u.user_email,
                     access_level=u.access_level,
-                    added_at=u.added_at
+                    added_at=u.added_at,
+                    original_access_level=u.original_access_level,
+                    original_added_at=u.original_added_at,
                 )
                 for u in shared_users
             ]
@@ -763,32 +765,46 @@ class ShareService:
             # If already shared, update access level if different
             if self.repository.check_user_has_access(db, share_id, email):
                 # Update access level if it changed
-                existing_users = self.repository.find_share_users(db, share_id)
-                existing_user = next((u for u in existing_users if u.user_email.lower() == email.lower()), None)
+                existing_user = self.repository.find_share_user_by_email(db, share_id, email)
                 if existing_user and existing_user.access_level != access_level:
-                    # Delete and re-add with new access level
-                    self.repository.delete_share_user(db, share_id, email)
+                    # Update in-place, preserving original share event
+                    updated_user = self.repository.update_share_user_access(
+                        db=db,
+                        share_id=share_id,
+                        user_email=email,
+                        new_access_level=access_level
+                    )
+                    if updated_user:
+                        added_users.append(SharedLinkUserInfo(
+                            user_email=updated_user.user_email,
+                            access_level=updated_user.access_level,
+                            added_at=updated_user.added_at,
+                            original_access_level=updated_user.original_access_level,
+                            original_added_at=updated_user.original_added_at,
+                        ))
                     log.info(f"Updating access level for {email} on share {share_id}: {existing_user.access_level} -> {access_level}")
                 else:
                     log.info(f"User {email} already has access to share {share_id} with same level")
                     continue
-            
-            try:
-                shared_user = self.repository.add_share_user(
-                    db=db,
-                    share_id=share_id,
-                    user_email=email,
-                    added_by_user_id=user_id,
-                    access_level=access_level
-                )
-                added_users.append(SharedLinkUserInfo(
-                    user_email=shared_user.user_email,
-                    access_level=shared_user.access_level,
-                    added_at=shared_user.added_at
-                ))
-                log.info(f"Added user {email} to share {share_id}")
-            except Exception as e:
-                log.error(f"Failed to add user {email} to share {share_id}: {e}")
+            else:
+                try:
+                    shared_user = self.repository.add_share_user(
+                        db=db,
+                        share_id=share_id,
+                        user_email=email,
+                        added_by_user_id=user_id,
+                        access_level=access_level
+                    )
+                    added_users.append(SharedLinkUserInfo(
+                        user_email=shared_user.user_email,
+                        access_level=shared_user.access_level,
+                        added_at=shared_user.added_at,
+                        original_access_level=shared_user.original_access_level,
+                        original_added_at=shared_user.original_added_at,
+                    ))
+                    log.info(f"Added user {email} to share {share_id}")
+                except Exception as e:
+                    log.error(f"Failed to add user {email} to share {share_id}: {e}")
         
         db.commit()
         

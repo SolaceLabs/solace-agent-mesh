@@ -42,6 +42,8 @@ class SharedLinkUserModel(Base):
     access_level = Column(String(50), nullable=False, default="RESOURCE_VIEWER")
     added_at = Column(BigInteger, nullable=False)
     added_by_user_id = Column(String(255), nullable=False)
+    original_access_level = Column(String(50), nullable=True)
+    original_added_at = Column(BigInteger, nullable=True)
 
     # Ensure a user can only be added once per share
     __table_args__ = (
@@ -143,6 +145,8 @@ class SharedLinkUserInfo(BaseModel):
     user_email: str
     access_level: str
     added_at: int
+    original_access_level: Optional[str] = None
+    original_added_at: Optional[int] = None
 
 
 class ShareUsersResponse(BaseModel):

@@ -68,7 +68,13 @@ export function ChatPage() {
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const [isForkingChat, setIsForkingChat] = useState(false);
     // Share notification data: each entry represents a share action (user added at a specific time)
-    const [shareNotifications, setShareNotifications] = useState<Array<{ names: string[]; timestamp: number; accessLevel: "viewer" | "editor" }>>([]);
+    const [shareNotifications, setShareNotifications] = useState<
+        Array<
+            | { variant: "shared-with-users"; names: string[]; timestamp: number; accessLevel: "viewer" | "editor" }
+            | { variant: "role-changed"; names: string[]; timestamp: number; fromAccessLevel: "viewer" | "editor"; toAccessLevel: "viewer" | "editor" }
+        >
+    >([]);
+    const [sharedEditorUsers, setSharedEditorUsers] = useState<CollaborativeUser[]>([]);
     const [shareVersion, setShareVersion] = useState(0);
 
     // Listen for share-updated events from ShareDialog to refresh notifications
@@ -131,19 +137,72 @@ export function ChatPage() {
                             setShareNotifications([]);
                             return;
                         }
-                        // Group users by added_at timestamp AND access_level
-                        const groupKey = (ts: number, level: string) => `${ts}:${level}`;
-                        const groupMap = new Map<string, { timestamp: number; names: string[]; accessLevel: "viewer" | "editor" }>();
+                        // Build notifications: for each user, emit the original share event
+                        // and, if access was changed, a separate role-changed event.
+                        type ShareNotif =
+                            | { variant: "shared-with-users"; names: string[]; timestamp: number; accessLevel: "viewer" | "editor" }
+                            | { variant: "role-changed"; names: string[]; timestamp: number; fromAccessLevel: "viewer" | "editor"; toAccessLevel: "viewer" | "editor" };
+
+                        const toDisplayName = (email: string) => {
+                            const emailName = email.split("@")[0] || email;
+                            return emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+                        };
+
+                        // Group original share events by (timestamp, accessLevel)
+                        const origGroupKey = (ts: number, level: string) => `orig:${ts}:${level}`;
+                        const origGroupMap = new Map<string, ShareNotif & { variant: "shared-with-users" }>();
+
+                        // Group role-changed events by (timestamp, from, to)
+                        const changeGroupKey = (ts: number, from: string, to: string) => `change:${ts}:${from}:${to}`;
+                        const changeGroupMap = new Map<string, ShareNotif & { variant: "role-changed" }>();
+
                         for (const user of users) {
-                            const key = groupKey(user.added_at, user.access_level);
-                            const level = user.access_level === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
-                            if (!groupMap.has(key)) {
-                                groupMap.set(key, { timestamp: user.added_at, names: [], accessLevel: level });
+                            const displayName = toDisplayName(user.user_email);
+
+                            if (user.original_access_level && user.original_added_at) {
+                                // User had their access changed — emit original share event
+                                const origLevel = user.original_access_level === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                                const oKey = origGroupKey(user.original_added_at, user.original_access_level);
+                                if (!origGroupMap.has(oKey)) {
+                                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.original_added_at, names: [], accessLevel: origLevel });
+                                }
+                                origGroupMap.get(oKey)!.names.push(displayName);
+
+                                // Emit role-changed event at the current added_at time
+                                const newLevel = user.access_level === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                                const cKey = changeGroupKey(user.added_at, user.original_access_level, user.access_level);
+                                if (!changeGroupMap.has(cKey)) {
+                                    changeGroupMap.set(cKey, { variant: "role-changed", timestamp: user.added_at, names: [], fromAccessLevel: origLevel, toAccessLevel: newLevel });
+                                }
+                                changeGroupMap.get(cKey)!.names.push(displayName);
+                            } else {
+                                // Normal share — no access change history
+                                const level = user.access_level === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                                const oKey = origGroupKey(user.added_at, user.access_level);
+                                if (!origGroupMap.has(oKey)) {
+                                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.added_at, names: [], accessLevel: level });
+                                }
+                                origGroupMap.get(oKey)!.names.push(displayName);
                             }
-                            groupMap.get(key)!.names.push(user.user_email);
                         }
-                        const notifications = Array.from(groupMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+
+                        const notifications: ShareNotif[] = [...Array.from(origGroupMap.values()), ...Array.from(changeGroupMap.values())].sort((a, b) => a.timestamp - b.timestamp);
                         setShareNotifications(notifications);
+                        // Build editor users list for presence avatars (owner's view)
+                        const editorUsers: CollaborativeUser[] = users
+                            .filter(u => u.access_level === "RESOURCE_EDITOR")
+                            .map(u => {
+                                const emailName = u.user_email.split("@")[0] || u.user_email;
+                                const name = emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+                                return {
+                                    id: u.user_email.toLowerCase(),
+                                    name,
+                                    email: u.user_email,
+                                    role: "collaborator" as const,
+                                    isOnline: true,
+                                };
+                            });
+                        setSharedEditorUsers(editorUsers);
                     } catch {
                         setShareNotifications([]);
                     }
@@ -426,7 +485,12 @@ export function ChatPage() {
                     buttons={
                         sessionId
                             ? [
-                                  ...(isCollaborativeSession && collaborativeUsers.length > 0 ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />] : []),
+                                  // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
+                                  ...(isCollaborativeSession && collaborativeUsers.length > 0
+                                      ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />]
+                                      : sharedEditorUsers.length > 0
+                                        ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
+                                        : []),
                                   // For editors: show "Create Personal Copy" (fork) button instead of Share
                                   ...(isCollaborativeSession
                                       ? [
@@ -480,15 +544,26 @@ export function ChatPage() {
                                                             {/* ChatMessage handles collaborative attribution internally */}
                                                             <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
                                                             {/* Render share notifications that belong after this message */}
-                                                            {notificationsAfterThis.map((notification, nIdx) => (
-                                                                <ShareNotificationMessage
-                                                                    key={`share-notif-${notification.timestamp}-${nIdx}`}
-                                                                    variant="shared-with-users"
-                                                                    sharedWith={notification.names}
-                                                                    accessLevel={notification.accessLevel}
-                                                                    timestamp={notification.timestamp}
-                                                                />
-                                                            ))}
+                                                            {notificationsAfterThis.map((notification, nIdx) =>
+                                                                notification.variant === "role-changed" ? (
+                                                                    <ShareNotificationMessage
+                                                                        key={`share-notif-${notification.timestamp}-${nIdx}`}
+                                                                        variant="role-changed"
+                                                                        sharedWith={notification.names}
+                                                                        fromAccessLevel={notification.fromAccessLevel}
+                                                                        toAccessLevel={notification.toAccessLevel}
+                                                                        timestamp={notification.timestamp}
+                                                                    />
+                                                                ) : (
+                                                                    <ShareNotificationMessage
+                                                                        key={`share-notif-${notification.timestamp}-${nIdx}`}
+                                                                        variant="shared-with-users"
+                                                                        sharedWith={notification.names}
+                                                                        accessLevel={notification.accessLevel}
+                                                                        timestamp={notification.timestamp}
+                                                                    />
+                                                                )
+                                                            )}
                                                         </div>
                                                     );
                                                 })}

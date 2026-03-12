@@ -129,6 +129,8 @@ export interface SharedLinkUserInfo {
     user_email: string;
     access_level: string;
     added_at: number;
+    original_access_level?: string | null;
+    original_added_at?: number | null;
 }
 
 export interface ShareUsersResponse {
