@@ -589,7 +589,7 @@ async def list_artifacts(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
-        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
 
         artifact_info_list = await get_artifact_info_list(
@@ -975,6 +975,8 @@ async def get_specific_artifact_version(
             },
         )
 
+    except HTTPException:
+        raise
     except FileNotFoundError:
         log.warning("%s Artifact version not found by service.", log_prefix)
         raise HTTPException(
@@ -1089,6 +1091,8 @@ async def get_artifact_by_uri(
             },
         )
 
+    except HTTPException:
+        raise
     except (ValueError, IndexError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid artifact URI: {e}")
     except Exception as e:
