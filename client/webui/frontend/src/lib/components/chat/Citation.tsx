@@ -211,28 +211,10 @@ interface BundledCitationsProps {
 }
 
 export function BundledCitations({ citations, onCitationClick }: BundledCitationsProps) {
-    const [isDark, setIsDark] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const showTimeout = 150;
     const hideTimeout = 150;
-
-    // Detect dark mode
-    React.useEffect(() => {
-        const checkDarkMode = () => {
-            setIsDark(document.documentElement.classList.contains("dark"));
-        };
-
-        checkDarkMode();
-
-        const observer = new MutationObserver(checkDarkMode);
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ["class"],
-        });
-
-        return () => observer.disconnect();
-    }, []);
 
     // Cleanup timeout on unmount
     React.useEffect(() => {
@@ -369,13 +351,13 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                 onMouseLeave={handleContentMouseLeave}
                 className="z-[999] max-h-[400px] w-[320px] max-w-[calc(100vw-2rem)] cursor-default overflow-y-auto rounded-lg border p-3 shadow-xl"
                 style={{
-                    backgroundColor: isDark ? "#1f2937" : "#ffffff",
-                    borderColor: isDark ? "#4b5563" : "#d1d5db",
-                    color: isDark ? "#f3f4f6" : "#111827",
+                    backgroundColor: "var(--background-w10)",
+                    borderColor: "var(--secondary-w40)",
+                    color: "var(--primary-text-wMain)",
                 }}
             >
                 <div className="cursor-default space-y-2">
-                    <div className="mb-3 border-b pb-2" style={{ borderColor: isDark ? "#4b5563" : "#e5e7eb" }}>
+                    <div className="mb-3 border-b pb-2" style={{ borderColor: "var(--secondary-w40)" }}>
                         <h3 className="text-sm font-semibold">All Sources · {uniqueCitations.length}</h3>
                     </div>
                     {uniqueCitations.map((citation, index) => {

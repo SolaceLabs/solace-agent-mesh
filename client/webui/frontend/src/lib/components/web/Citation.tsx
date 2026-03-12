@@ -49,28 +49,9 @@ interface SourceHovercardProps {
 function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, isFile = false, isLocalFile = false, children }: SourceHovercardProps) {
     const domain = getCleanDomain(source.link || "");
     const [isOpen, setIsOpen] = useState(false);
-    const [isDark, setIsDark] = useState(false);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const showTimeout = 150;
     const hideTimeout = 150;
-
-    // Detect dark mode
-    useEffect(() => {
-        const checkDarkMode = () => {
-            setIsDark(document.documentElement.classList.contains("dark"));
-        };
-
-        checkDarkMode();
-
-        // Watch for theme changes
-        const observer = new MutationObserver(checkDarkMode);
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ["class"],
-        });
-
-        return () => observer.disconnect();
-    }, []);
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -162,9 +143,9 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                         onMouseLeave={handleContentMouseLeave}
                         className="z-[999] w-[300px] max-w-[calc(100vw-2rem)] rounded-xl border p-3 shadow-lg"
                         style={{
-                            backgroundColor: isDark ? "#1f2937" : "#ffffff",
-                            borderColor: isDark ? "#4b5563" : "#d1d5db",
-                            color: isDark ? "#f3f4f6" : "#111827",
+                            backgroundColor: "var(--background-w10)",
+                            borderColor: "var(--secondary-w40)",
+                            color: "var(--primary-text-wMain)",
                         }}
                     >
                         {children}

@@ -59,7 +59,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     source,
 }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
-    const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
 
     useEffect(() => {
         if (expandedContent) {
@@ -72,20 +71,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
             return () => clearTimeout(timer);
         }
     }, [expandedContent]);
-
-    // Track dark mode changes
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            setIsDarkMode(document.documentElement.classList.contains("dark"));
-        });
-
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ["class"],
-        });
-
-        return () => observer.disconnect();
-    }, []);
 
     // Validate required props
     if (!filename || typeof filename !== "string") {
@@ -169,13 +154,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         }
     };
 
-    // Define shadow and background colors based on theme
-    // Light mode: background-w10, shadow using secondary-w8040
-    // Dark mode: background-wMain, shadow using primary-w90 (darker shadows)
-    const backgroundColor = isDarkMode ? "var(--background-wMain)" : "var(--background-w10)";
-    const restingShadow = isDarkMode ? "0px 1px 4px 0px var(--primary-w90)" : "0px 1px 4px 0px var(--secondary-w8040)";
-    const hoverShadow = isDarkMode ? "0px 2px 8px 0px var(--primary-w90)" : "0px 2px 8px 0px var(--secondary-w8040)";
-
     // Determine if this artifact is clickable
     const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
     // Show shadow for all artifacts in chat context (not deleted), but only enable hover for clickable ones
@@ -185,18 +163,18 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         <div
             className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
             style={{
-                backgroundColor,
-                boxShadow: showShadow ? restingShadow : undefined,
+                backgroundColor: "var(--background-w10)",
+                boxShadow: showShadow ? "0px 1px 4px 0px var(--secondary-w8040)" : undefined,
                 borderRadius: context === "list" ? undefined : "4px",
             }}
             onMouseEnter={e => {
                 if (isClickable) {
-                    e.currentTarget.style.boxShadow = hoverShadow;
+                    e.currentTarget.style.boxShadow = "0px 2px 8px 0px var(--secondary-w8040)";
                 }
             }}
             onMouseLeave={e => {
                 if (isClickable) {
-                    e.currentTarget.style.boxShadow = restingShadow;
+                    e.currentTarget.style.boxShadow = "0px 1px 4px 0px var(--secondary-w8040)";
                 }
             }}
             onClick={isDeleted ? undefined : handleBarClick}
