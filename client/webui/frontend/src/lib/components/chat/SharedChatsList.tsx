@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { UserSearch } from "lucide-react";
+import { Share2 } from "lucide-react";
 
 import { listSharedWithMe } from "@/lib/api/shareApi";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -21,7 +21,7 @@ const sharedChatButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", 
 const sharedChatTextStyles = cva(["block", "truncate", "text-sm"], {
     variants: {
         active: {
-            true: "text-(--color-primary-text-w10)",
+            true: "text-(--color-primary-text-w10) font-bold",
             false: "text-(--color-secondary-text-w50)",
         },
     },
@@ -30,6 +30,44 @@ const sharedChatTextStyles = cva(["block", "truncate", "text-sm"], {
 
 interface SharedChatsListProps {
     maxItems?: number;
+}
+
+interface SharedChatItemProps {
+    item: SharedWithMeItem;
+    onClick: () => void;
+}
+
+function SharedChatItem({ item, onClick }: SharedChatItemProps) {
+    const textRef = useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+
+    useEffect(() => {
+        const element = textRef.current;
+        if (element) {
+            setIsTruncated(element.scrollWidth > element.clientWidth);
+        }
+    }, [item.title]);
+
+    const button = (
+        <button onClick={onClick} className={sharedChatButtonStyles({ active: false })}>
+            <span ref={textRef} className={sharedChatTextStyles({ active: false })}>
+                {item.title}
+            </span>
+        </button>
+    );
+
+    if (!isTruncated) {
+        return button;
+    }
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipContent side="right">
+                <p>{item.title}</p>
+            </TooltipContent>
+        </Tooltip>
+    );
 }
 
 export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
@@ -56,9 +94,10 @@ export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
 
     return (
         <>
-            <div className="my-4 border-t border-[var(--color-secondary-w70)]" />
-            <div className="mb-2 flex items-center justify-between pr-4 pl-6">
-                <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Shared with me</span>
+            <div className="my-4 border-t border-(--color-secondary-w70)" />
+            <div className="mb-2 flex items-center gap-2 pr-4 pl-6">
+                <Share2 className="h-4 w-4 text-(--color-secondary-wMain)" />
+                <span className="text-sm font-bold text-(--color-primary-text-w10)">Shared with Me</span>
             </div>
             <div>
                 {sharedChats.map(item => {
@@ -72,25 +111,8 @@ export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
                             navigate(`/shared-chat/${item.share_id}`);
                         }
                     };
-                    return (
-                        <Tooltip key={item.share_id}>
-                            <TooltipTrigger asChild>
-                                <button onClick={handleClick} className={sharedChatButtonStyles({ active: false })}>
-                                    <UserSearch className="h-4 w-4 flex-shrink-0 text-[var(--color-secondary-text-w50)]" />
-                                    <span className={sharedChatTextStyles({ active: false })}>{item.title}</span>
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right">
-                                <div className="text-xs">
-                                    <div className="font-semibold">{item.title}</div>
-                                    <div className="text-muted-foreground">
-                                        from {item.owner_email}
-                                        {isEditor && " • Editor"}
-                                    </div>
-                                </div>
-                            </TooltipContent>
-                        </Tooltip>
-                    );
+
+                    return <SharedChatItem key={item.share_id} item={item} onClick={handleClick} />;
                 })}
             </div>
         </>

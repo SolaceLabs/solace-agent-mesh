@@ -69,7 +69,7 @@ const meta = {
     },
     decorators: [
         Story => (
-            <div style={{ width: "300px", padding: "16px", backgroundColor: "var(--background)" }}>
+            <div style={{ width: "300px", backgroundColor: "var(--background)" }}>
                 <Story />
             </div>
         ),
@@ -202,4 +202,38 @@ export const Interactive: Story = {
             firstChat.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
         }
     },
+};
+
+/**
+ * In Session Panel Context - Shows how it appears in the full session sidebar
+ * with user's own sessions above the shared chats section
+ */
+export const InSessionPanel: Story = {
+    decorators: [
+        Story => (
+            <div className="bg-sidebar flex h-[600px] w-[300px] flex-col">
+                {/* Mock user's own sessions */}
+                <div className="px-6 pt-4 pb-2">
+                    <span className="text-sidebar-foreground text-sm font-bold">Your Chats</span>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {/* Mock session items */}
+                    <div className="flex flex-col">
+                        <button className="text-sidebar-foreground hover:bg-sidebar-accent bg-sidebar-accent flex h-10 w-full cursor-pointer items-center gap-2 border-none pr-4 pl-6 text-left text-sm">
+                            <span className="truncate">Current Chat Session</span>
+                        </button>
+                        <button className="text-sidebar-foreground hover:bg-sidebar-accent flex h-10 w-full cursor-pointer items-center gap-2 border-none pr-4 pl-6 text-left text-sm">
+                            <span className="truncate">API Documentation Review</span>
+                        </button>
+                        <button className="text-sidebar-foreground hover:bg-sidebar-accent flex h-10 w-full cursor-pointer items-center gap-2 border-none pr-4 pl-6 text-left text-sm">
+                            <span className="truncate">Bug Fix Planning</span>
+                        </button>
+                    </div>
+
+                    {/* Shared chats section */}
+                    <Story />
+                </div>
+            </div>
+        ),
+    ],
 };
