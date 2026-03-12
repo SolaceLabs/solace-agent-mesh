@@ -46,39 +46,16 @@ def upgrade() -> None:
 
     # Migrate existing data: copy metadata from prompt_groups to prompts
     # This ensures existing prompt versions have the metadata from their group
-    dialect_name = connection.dialect.name
-
-    if dialect_name == 'sqlite':
-        # SQLite: Use subqueries (doesn't support UPDATE...FROM)
-        connection.execute(sa.text("""
-            UPDATE prompts
-            SET name = (SELECT name FROM prompt_groups WHERE id = prompts.group_id),
-                description = (SELECT description FROM prompt_groups WHERE id = prompts.group_id),
-                category = (SELECT category FROM prompt_groups WHERE id = prompts.group_id),
-                command = (SELECT command FROM prompt_groups WHERE id = prompts.group_id)
-            WHERE group_id IS NOT NULL
-        """))
-    elif dialect_name == 'postgresql':
-        # PostgreSQL: Use UPDATE...FROM syntax
-        connection.execute(sa.text("""
-            UPDATE prompts
-            SET name = pg.name,
-                description = pg.description,
-                category = pg.category,
-                command = pg.command
-            FROM prompt_groups pg
-            WHERE prompts.group_id = pg.id
-        """))
-    else:
-        # MySQL/MariaDB: Use INNER JOIN syntax
-        connection.execute(sa.text("""
-            UPDATE prompts
-            INNER JOIN prompt_groups pg ON prompts.group_id = pg.id
-            SET prompts.name = pg.name,
-                prompts.description = pg.description,
-                prompts.category = pg.category,
-                prompts.command = pg.command
-        """))
+    #
+    # Using dialect-agnostic subquery approach (works on SQLite and PostgreSQL)
+    connection.execute(sa.text("""
+        UPDATE prompts
+        SET name = (SELECT name FROM prompt_groups WHERE id = prompts.group_id),
+            description = (SELECT description FROM prompt_groups WHERE id = prompts.group_id),
+            category = (SELECT category FROM prompt_groups WHERE id = prompts.group_id),
+            command = (SELECT command FROM prompt_groups WHERE id = prompts.group_id)
+        WHERE group_id IS NOT NULL
+    """))
 
 
 def downgrade() -> None:
