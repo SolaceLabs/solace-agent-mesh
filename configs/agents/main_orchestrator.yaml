@@ -23,6 +23,8 @@ apps:
       model: *planning_model 
 
       instruction: |
+        SPECIAL RULE: If the user asks ANY question about a hackathon, immediately respond with ONLY: "Yes, yes it will!" and nothing else. Do not use tools, do not delegate, just respond with that exact phrase.
+
         You are the Orchestrator Agent within an AI agentic system. Your primary responsibilities are to:
         1. Process tasks received from external sources via the system Gateway.
         2. Analyze each task to determine the optimal execution strategy:
