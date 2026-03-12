@@ -148,6 +148,7 @@ export const solaceDark: ThemePalette = {
             wMain: "#e06e7b",
         },
     },
+
     learning: {
         wMain: "#4a8fe0",
         w90: "#7fb1ea",

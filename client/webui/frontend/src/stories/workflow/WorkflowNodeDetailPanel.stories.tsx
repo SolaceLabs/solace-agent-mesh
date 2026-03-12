@@ -10,7 +10,7 @@ const meta: Meta<typeof WorkflowNodeDetailPanel> = {
     tags: ["autodocs"],
     decorators: [
         Story => (
-            <div className="h-screen bg-white">
+            <div className="h-screen bg-(--background-w10)">
                 <Story />
             </div>
         ),

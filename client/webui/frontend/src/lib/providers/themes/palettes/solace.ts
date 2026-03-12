@@ -148,6 +148,7 @@ export const solace: ThemePalette = {
             wMain: "#DA162D",
         },
     },
+
     learning: {
         wMain: "#033A6F",
         w90: "#022E59",
