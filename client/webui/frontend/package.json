@@ -54,7 +54,8 @@
         "storybook": "storybook dev -p 6006",
         "test:storybook": "vitest --project=storybook",
         "test:unit": "vitest --project=unit",
-        "ci:storybook": "CI=true vitest --project=unit --project=storybook"
+        "ci:storybook": "CI=true vitest --project=unit --project=storybook",
+        "ci:storybook:coverage": "CI=true vitest --project=unit --project=storybook --coverage"
     },
     "lint-staged": {
         "*.{js,jsx,ts,tsx}": [
@@ -98,6 +99,7 @@
         "react-hook-form": "^7.65.0",
         "react-intersection-observer": "^9.16.0",
         "react-json-view-lite": "^2.4.1",
+        "react-pdf": "9.2.1",
         "react-resizable-panels": "^3.0.3",
         "react-router-dom": "7.12.0",
         "tailwind-merge": "^3.3.0",
@@ -129,6 +131,7 @@
         "@types/node": "^22.15.29",
         "@types/react": "19.0.0",
         "@types/react-dom": "19.0.0",
+        "@types/react-pdf": "7.0.0",
         "@vitejs/plugin-react": "^4.4.1",
         "@vitest/browser-playwright": "^4.0.8",
         "@vitest/coverage-v8": "^4.0.8",
