@@ -343,12 +343,12 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                 <div ref={popoverRef} className="relative flex flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg" style={{ maxHeight: "60vh" }}>
                     {/* Loading Overlay */}
                     {isExecutingCommand && (
-                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-lg bg-[var(--background)]/95 backdrop-blur-sm">
-                            <div className="flex items-center gap-3">
-                                <Loader2 className="size-6 animate-spin text-purple-600 dark:text-purple-400" />
-                                <span className="text-sm font-medium">Executing command...</span>
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 rounded-lg bg-[var(--background)]/95 px-8 py-6 backdrop-blur-sm">
+                            <Loader2 className="size-8 animate-spin text-purple-600 dark:text-purple-400" />
+                            <div className="flex flex-col items-center gap-2 text-center">
+                                <span className="text-sm leading-relaxed font-medium">Executing command...</span>
+                                <span className="text-muted-foreground text-xs">AI assistant is processing your request</span>
                             </div>
-                            <span className="text-muted-foreground text-xs">AI assistant is processing your request</span>
                         </div>
                     )}
 

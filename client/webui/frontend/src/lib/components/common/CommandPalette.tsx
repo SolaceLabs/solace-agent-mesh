@@ -229,12 +229,12 @@ export function CommandPalette() {
                 <div className="relative flex flex-col">
                     {/* Loading Overlay */}
                     {isExecutingCommand && (
-                        <div className="bg-background/95 absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-lg backdrop-blur-sm">
-                            <div className="flex items-center gap-3">
-                                <Loader2 className="size-6 animate-spin text-purple-600 dark:text-purple-400" />
-                                <span className="text-sm font-medium">{executingCommandLabel}</span>
+                        <div className="bg-background/95 absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 rounded-lg px-8 py-6 backdrop-blur-sm">
+                            <Loader2 className="size-8 animate-spin text-purple-600 dark:text-purple-400" />
+                            <div className="flex flex-col items-center gap-2 text-center">
+                                <span className="max-w-md text-sm leading-relaxed font-medium">{executingCommandLabel}</span>
+                                <span className="text-muted-foreground text-xs">Executing via AI assistant...</span>
                             </div>
-                            <span className="text-muted-foreground text-xs">Executing via AI assistant...</span>
                         </div>
                     )}
 
