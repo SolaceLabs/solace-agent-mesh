@@ -19,6 +19,8 @@ class SessionResponse(BaseTimestampResponse):
     project_id: str | None = Field(default=None, alias="projectId")
     project_name: str | None = Field(default=None, alias="projectName")
     has_running_background_task: bool = Field(default=False, alias="hasRunningBackgroundTask")
+    owner_display_name: str | None = Field(default=None, alias="ownerDisplayName")
+    owner_email: str | None = Field(default=None, alias="ownerEmail")
     created_time: int = Field(alias="createdTime")
     updated_time: int | None = Field(default=None, alias="updatedTime")
 

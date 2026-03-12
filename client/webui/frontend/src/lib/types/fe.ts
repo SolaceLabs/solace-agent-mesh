@@ -124,6 +124,7 @@ export type PartFE = Part | ArtifactPart;
  */
 export interface MessageFE {
     taskId?: string; // The ID of the task that generated this message
+    createdTime?: number; // Epoch ms timestamp from the task that generated this message (for timeline ordering)
     role?: "user" | "agent";
     isStatusBubble?: boolean; // Added to indicate a temporary status message
     isUser: boolean; // True if the message is from the user, false if from the agent/system
@@ -144,6 +145,8 @@ export interface MessageFE {
         authenticationAttempted?: boolean; // Track if auth button was clicked
         rejected?: boolean; // Track if reject button was clicked
     };
+    senderDisplayName?: string; // Display name of the sender (for collaborative sessions)
+    senderEmail?: string; // Email of the sender (for collaborative sessions)
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)
@@ -315,12 +318,15 @@ export interface NewChatConfig {
 
 export interface Session {
     id: string;
+    userId?: string;
     createdTime: string;
     updatedTime: string;
     name: string | null;
     projectId?: string | null;
     projectName?: string | null;
     hasRunningBackgroundTask?: boolean;
+    ownerDisplayName?: string | null;
+    ownerEmail?: string | null;
 }
 
 // RAG (Retrieval-Augmented Generation) Types

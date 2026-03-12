@@ -696,20 +696,99 @@ async def _submit_task(
         # Use the helper to get the unwrapped parts from the modified message (with project context if applied).
         a2a_parts = a2a.get_parts_from_message(modified_message)
 
+        # For collaborative sessions: if the user is an editor (not the owner),
+        # use the owner's client_id for user_id_for_a2a so the orchestrator
+        # sees the same session context/history as the owner.
+        # Also prefix the message with the sender's identity so the AI knows who is talking.
+        a2a_client_id = client_id
+        is_collaborative_editor = False
+        if session_id and SessionLocal is not None:
+            try:
+                from ..repository.share_repository import ShareRepository
+                db_check = SessionLocal()
+                try:
+                    share_repo = ShareRepository()
+                    user_email = user_identity.get("email", "") if user_identity else ""
+                    owner_user_id = share_repo.find_session_owner_for_editor(
+                        db_check, session_id, user_email
+                    )
+                    if owner_user_id:
+                        a2a_client_id = owner_user_id
+                        is_collaborative_editor = True
+                        log.info(
+                            "%sEditor %s using owner's client_id %s for A2A session context",
+                            log_prefix, client_id, owner_user_id
+                        )
+                finally:
+                    db_check.close()
+            except Exception as e:
+                log.debug("%sFailed to check editor access for A2A context: %s", log_prefix, e)
+
+        # Initialize additional_metadata early so fork detection can add to it
+        additional_metadata = {}
+        if payload.params and payload.params.message and payload.params.message.metadata:
+            msg_metadata = payload.params.message.metadata
+            if msg_metadata.get("backgroundExecutionEnabled"):
+                additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
+            if msg_metadata.get("maxExecutionTimeMs"):
+                additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
+
+        # For forked sessions: pass fork metadata so the agent can clone the ADK session
+        # on first message. The forked session uses its OWN session_id (true isolation).
+        if not is_collaborative_editor and session_id and SessionLocal is not None:
+            try:
+                from ..repository.chat_task_repository import ChatTaskRepository
+                import json as json_mod_fork
+                db_fork = SessionLocal()
+                try:
+                    task_repo = ChatTaskRepository()
+                    tasks = task_repo.find_by_session(db_fork, session_id, client_id)
+                    if tasks and tasks[0].task_metadata:
+                        meta = json_mod_fork.loads(tasks[0].task_metadata)
+                        forked_session_id = meta.get("forked_from_session_id")
+                        forked_owner_id = meta.get("forked_from_owner_id")
+                        if forked_session_id and forked_owner_id:
+                            # Pass fork source info as metadata so the agent can clone
+                            # the ADK session on first message
+                            additional_metadata["fork_source_session_id"] = forked_session_id
+                            additional_metadata["fork_source_user_id"] = forked_owner_id
+                            log.info(
+                                "%sForked session detected - passing clone metadata: source_session=%s, source_user=%s",
+                                log_prefix, forked_session_id, forked_owner_id
+                            )
+                finally:
+                    db_fork.close()
+            except Exception as e:
+                log.debug("%sFailed to check forked session context: %s", log_prefix, e)
+
+        # For collaborative sessions, prefix user messages with sender identity
+        # so the AI can distinguish between different users in the conversation
+        if is_collaborative_editor and a2a_parts:
+            sender_name = user_identity.get("name", "") if user_identity else ""
+            sender_email = user_identity.get("email", "") if user_identity else ""
+            sender_label = sender_name or sender_email or client_id
+            for i, part in enumerate(a2a_parts):
+                # Only prefix TextPart content, skip file parts and timestamp headers
+                if hasattr(part, 'root') and hasattr(part.root, 'text'):
+                    text = part.root.text
+                    # Don't prefix the timestamp header (starts with "Request received by gateway")
+                    if text and not text.startswith("Request received by gateway"):
+                        a2a_parts[i] = a2a.create_text_part(text=f"[{sender_label}]: {text}")
+                        log.debug("%sPrefixed message with sender identity: %s", log_prefix, sender_label)
+
         external_req_ctx = {
             "app_name_for_artifacts": component.gateway_id,
             "user_id_for_artifacts": client_id,
-            "a2a_session_id": session_id,  # This may have been updated by persistence layer
-            "user_id_for_a2a": client_id,
+            "a2a_session_id": session_id,
+            "user_id_for_a2a": a2a_client_id,
             "target_agent_name": agent_name,
         }
 
         # Extract additional metadata from the message (e.g., background execution settings)
-        # This metadata will be passed through to the A2A message for the task logger
-        additional_metadata = {}
+        # Note: additional_metadata was already initialized earlier (before fork detection)
         if payload.params and payload.params.message and payload.params.message.metadata:
             msg_metadata = payload.params.message.metadata
-            # Pass through background execution settings
+            # Pass through background execution settings (may already be set from early init)
             if msg_metadata.get("backgroundExecutionEnabled"):
                 additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
             if msg_metadata.get("maxExecutionTimeMs"):

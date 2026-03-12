@@ -34,6 +34,7 @@ from .routers import (
     feedback,
     people,
     sse,
+    share,
     speech,
     version,
     visualization,
@@ -320,6 +321,7 @@ def _setup_routers() -> None:
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
+    app.include_router(share.router, prefix=api_prefix, tags=["Share"])
     app.include_router(
         document_conversion.router,
         prefix=f"{api_prefix}/document-conversion",
