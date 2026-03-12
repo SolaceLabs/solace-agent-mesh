@@ -57,7 +57,7 @@ export function MessageAttribution({ type, name, userIndex = 0, timestamp, avata
                 {timestamp !== undefined && (
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <span className="cursor-default text-sm text-[var(--color-secondary-text-wMain)]">{formatCollaborativeTimestamp(timestamp)}</span>
+                            <span className="text-secondary-foreground cursor-default text-sm">{formatCollaborativeTimestamp(timestamp)}</span>
                         </TooltipTrigger>
                         <TooltipContent>{formatFullDateTime(timestamp)}</TooltipContent>
                     </Tooltip>
