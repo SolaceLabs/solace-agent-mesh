@@ -22,18 +22,6 @@ export const USER_AVATAR_COLORS = [
     "bg-[var(--color-accent-n9-wMain)] text-white",
 ];
 
-/**
- * Compute a consistent color index from an email or name string.
- * Uses a simple character code sum hash to ensure the same user
- * always gets the same avatar color across all views.
- */
-export function getUserColorIndex(emailOrName: string): number {
-    return emailOrName
-        .toLowerCase()
-        .split("")
-        .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-}
-
 interface UserAvatarProps {
     readonly name: string;
     readonly userIndex: number;

@@ -7,7 +7,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Bot, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, GitFork, Loader2, MessageSquare, RefreshCw, Info } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, ChatBubble, ChatBubbleMessage, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { MessageAttribution } from "@/lib/components/chat/MessageAttribution";
-import { getUserColorIndex } from "@/lib/components/chat/UserAvatar";
 import { CHAT_BUBBLE_MESSAGE_STYLES } from "@/lib/components/ui/chat/chat-bubble-styles";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
@@ -678,12 +677,7 @@ export function SharedSessionPage() {
                                                 <div key={index} className="mb-4 flex flex-col">
                                                     {/* Sender attribution using shared MessageAttribution component */}
                                                     {message.type === "user" ? (
-                                                        <MessageAttribution
-                                                            type="user"
-                                                            name={message.senderDisplayName || message.senderEmail || "User"}
-                                                            userIndex={getUserColorIndex(message.senderEmail || message.senderDisplayName || "User")}
-                                                            timestamp={message.timestamp}
-                                                        />
+                                                        <MessageAttribution type="user" name={message.senderDisplayName || message.senderEmail || "User"} userIndex={0} timestamp={message.timestamp} />
                                                     ) : (
                                                         <MessageAttribution type="agent" name="AI Assistant" />
                                                     )}
