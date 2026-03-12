@@ -131,6 +131,7 @@ export function ChatPage() {
     useEffect(() => {
         if (!sessionId || isCollaborativeSession) {
             setShareNotifications([]);
+            setSharedEditorUsers([]);
             return;
         }
         // Only fetch for owner's sessions (non-collaborative)
@@ -215,10 +216,12 @@ export function ChatPage() {
                     }
                 } else {
                     setShareNotifications([]);
+                    setSharedEditorUsers([]);
                 }
             })
             .catch(() => {
                 setShareNotifications([]);
+                setSharedEditorUsers([]);
             });
     }, [sessionId, isCollaborativeSession, shareVersion]);
 
