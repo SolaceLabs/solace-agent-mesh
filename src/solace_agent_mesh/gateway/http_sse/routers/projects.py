@@ -32,6 +32,7 @@ from ..services.project_service import ProjectService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 from ....common.a2a.types import ArtifactInfo
+from ....common.utils.mime_helpers import resolve_mime_type
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -435,12 +436,13 @@ async def add_project_artifacts(
 
         # Classify files by type (using MIME type)
         for file in files:
-            if project_service._should_convert_file(file.content_type, file.filename):
+            mime_type = resolve_mime_type(file.filename, file.content_type)
+            if project_service._should_convert_file(mime_type, file.filename):
                 # Find version from results
                 file_result = next((r for r in results if r.get('data_filename') == file.filename), None)
                 if file_result:
-                    needs_conversion.append((file.filename, file_result['data_version'], file.content_type))
-            elif project_service._is_text_file(file.content_type, file.filename):
+                    needs_conversion.append((file.filename, file_result['data_version'], mime_type))
+            elif project_service._is_text_file(mime_type, file.filename):
                 file_result = next((r for r in results if r.get('data_filename') == file.filename), None)
                 if file_result:
                     is_text_based.append((file.filename, file_result['data_version']))

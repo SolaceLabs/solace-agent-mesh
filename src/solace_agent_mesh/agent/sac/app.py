@@ -348,6 +348,13 @@ class SamAgentAppConfig(SamConfigBase):
         default={"type": "memory"},
         description="Configuration for ADK Memory Service (defaults to memory).",
     )
+    auto_summarization: Dict[str, Any] = Field(
+        default={
+            "enabled": False,
+            "compaction_percentage": 0.25
+        },
+        description="Configuration for automatic conversation history summarization to prevent token limit errors.",
+    )
     credential_service: Optional[CredentialServiceConfig] = Field(
         default=None,
         description="Configuration for ADK Credential Service (optional).",
@@ -553,7 +560,9 @@ class SamAgentApp(SamAppBase):
         component_definition = {
             "name": f"{agent_name}_host",
             "component_class": SamAgentComponent,
-            "component_config": {},
+            "component_config": {
+                "component_name": f"{agent_name}_host",
+            },
             "subscriptions": generated_subs,
         }
         if broker_request_response:

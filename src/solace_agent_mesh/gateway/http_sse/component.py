@@ -10,16 +10,21 @@ import re
 import threading
 import uuid
 from datetime import datetime, timezone
+from importlib.resources import files as pkg_files
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, UploadFile
 from fastapi import Request as FastAPIRequest
+from openfeature import api as openfeature_api
 from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
 
 from ...common.agent_registry import AgentRegistry
+from ...common.features.checker import FeatureChecker
+from ...common.features.provider import SamFeatureProvider
+from ...common.features.registry import FeatureRegistry
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
@@ -120,6 +125,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.fastapi_https_port = self.get_config("fastapi_https_port", 8443)
             self.session_secret_key = self.get_config("session_secret_key")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
+            self.cors_allowed_origin_regex = self.get_config("cors_allowed_origin_regex", "")
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
@@ -253,6 +259,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
+        # Per-stream cumulative drop counters used to throttle WARNING log spam during bursts.
+        # Keyed by stream_id; cleaned up in cleanup() when all streams are cleared.
+        self._viz_stream_drop_counts: dict[str, int] = {}
         self._visualization_processor_task: asyncio.Task | None = None
 
         self._task_logger_internal_app: SACApp | None = None
@@ -348,6 +357,34 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 exc_info=True
             )
             raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
+
+    def _init_feature_checker(self) -> None:
+        """Initialise the FeatureChecker and register the OpenFeature provider."""
+        registry = FeatureRegistry()
+
+        features_yaml = str(
+            pkg_files("solace_agent_mesh.common.features").joinpath("features.yaml")
+        )
+        registry.load_from_yaml(features_yaml)
+
+        self.feature_checker = FeatureChecker(registry=registry)
+
+        openfeature_api.set_provider(SamFeatureProvider(self.feature_checker))
+
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise import (
+                _register_enterprise_feature_flags,
+            )
+            _register_enterprise_feature_flags()
+            log.debug("%s Enterprise feature flags registered.", self.log_identifier)
+        except ImportError:
+            log.debug("%s Enterprise feature flags not available.", self.log_identifier)
+
+        log.info(
+            "%s Feature checker initialised (%d flags).",
+            self.log_identifier,
+            len(registry.keys()),
+        )
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
@@ -727,6 +764,56 @@ class WebUIBackendComponent(BaseGatewayComponent):
             return dependencies.SessionLocal.kw.get("bind")
         return None
 
+    def _put_viz_msg_to_stream(
+        self,
+        stream_id: str,
+        queue: asyncio.Queue,
+        msg: dict,
+        log_id_prefix: str,
+    ) -> None:
+        """
+        Put a visualization message onto a per-stream SSE queue.
+
+        Uses an oldest-first eviction strategy: when the queue is full the
+        oldest item is discarded and the new (most-recent) item is inserted.
+        This keeps the client's view as fresh as possible during bursts.
+
+        A WARNING is emitted once every 10 evictions per stream so that
+        operators are alerted without being flooded during sustained bursts.
+        """
+        try:
+            queue.put_nowait(msg)
+        except asyncio.QueueFull:
+            # Evict the oldest item to make room for the newest one.
+            try:
+                queue.get_nowait()
+                queue.task_done()
+            except (asyncio.QueueEmpty, ValueError):
+                pass
+            try:
+                queue.put_nowait(msg)
+            except asyncio.QueueFull:
+                pass  # Extremely unlikely race; silently drop.
+
+            drop_count = self._viz_stream_drop_counts.get(stream_id, 0) + 1
+            self._viz_stream_drop_counts[stream_id] = drop_count
+            # Warn on the 1st eviction and every 10th thereafter to avoid log spam.
+            if drop_count == 1 or drop_count % 10 == 0:
+                log.warning(
+                    "%s SSE viz queue full for stream %s — oldest message evicted "
+                    "(total evictions: %d). Consider increasing sse_max_queue_size.",
+                    log_id_prefix,
+                    stream_id,
+                    drop_count,
+                )
+            else:
+                log.debug(
+                    "%s SSE viz queue full for stream %s — oldest message evicted (eviction #%d).",
+                    log_id_prefix,
+                    stream_id,
+                    drop_count,
+                )
+
     async def _visualization_message_processor_loop(self) -> None:
         """
         Asynchronously consumes messages from the _visualization_message_queue,
@@ -875,17 +962,18 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 }
 
                                 try:
+                                    viz_msg = {
+                                        "event": "a2a_message",
+                                        "data": json.dumps(sse_event_payload),
+                                    }
                                     log.debug(
                                         "%s Attempting to put message on SSE queue for stream %s. Queue size: %d",
                                         log_id_prefix,
                                         stream_id,
                                         sse_queue_for_stream.qsize(),
                                     )
-                                    sse_queue_for_stream.put_nowait(
-                                        {
-                                            "event": "a2a_message",
-                                            "data": json.dumps(sse_event_payload),
-                                        }
+                                    self._put_viz_msg_to_stream(
+                                        stream_id, sse_queue_for_stream, viz_msg, log_id_prefix
                                     )
                                     log.debug(
                                         "%s [VIZ_DATA_SENT] Stream %s: Topic: %s, Direction: %s",
@@ -894,38 +982,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                         topic,
                                         event_details["direction"],
                                     )
-                                except asyncio.QueueFull:
-                                    # Check if this is a background task
-                                    is_background = False
-                                    if task_id_for_context and self.database_url:
-                                        try:
-                                            from .repository.task_repository import TaskRepository
-                                            db = dependencies.SessionLocal()
-                                            try:
-                                                repo = TaskRepository()
-                                                task = repo.find_by_id(db, task_id_for_context)
-                                                is_background = task and task.background_execution_enabled
-                                            finally:
-                                                db.close()
-                                        except Exception:
-                                            pass
-                                    
-                                    if is_background:
-                                        log.debug(
-                                            "%s SSE queue full for stream %s. Dropping visualization message for background task %s.",
-                                            log_id_prefix,
-                                            stream_id,
-                                            task_id_for_context,
-                                        )
-                                    else:
-                                        log.warning(
-                                            "%s SSE queue full for stream %s. Visualization message dropped.",
-                                            log_id_prefix,
-                                            stream_id,
-                                        )
                                 except Exception as send_err:
                                     log.error(
-                                        "%s Error sending formatted message to SSE queue for stream %s: %s",
+                                        "%s Failed to serialize/send viz message for stream %s: %s",
                                         log_id_prefix,
                                         stream_id,
                                         send_err,
@@ -1332,6 +1391,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             setup_dependencies(self)
 
+            self._init_feature_checker()
+
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
             session_factory = dependencies.SessionLocal if self.database_url else None
@@ -1642,6 +1703,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         e,
                     )
 
+        tasks_to_await: list[asyncio.Task] = []
         if (
             self._visualization_processor_task
             and not self._visualization_processor_task.done()
@@ -1650,6 +1712,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Cancelling visualization processor task...", self.log_identifier
             )
             self._visualization_processor_task.cancel()
+            tasks_to_await.append(self._visualization_processor_task)
 
         if (
             self._task_logger_processor_task
@@ -1657,6 +1720,30 @@ class WebUIBackendComponent(BaseGatewayComponent):
         ):
             log.info("%s Cancelling task logger processor task...", self.log_identifier)
             self._task_logger_processor_task.cancel()
+            tasks_to_await.append(self._task_logger_processor_task)
+
+        # Wait for cancelled tasks to finish before clearing shared dicts to
+        # avoid RuntimeError from mutating dicts while the processor loop is
+        # still iterating over them.
+        if tasks_to_await and self.fastapi_event_loop and self.fastapi_event_loop.is_running():
+            async def _await_tasks():
+                for t in tasks_to_await:
+                    try:
+                        await t
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    _await_tasks(), self.fastapi_event_loop
+                )
+                future.result(timeout=5)
+            except Exception as e:
+                log.warning(
+                    "%s Timed out or failed waiting for processor tasks to finish: %s",
+                    self.log_identifier,
+                    e,
+                )
 
         if self._visualization_internal_app:
             log.info(
@@ -1684,6 +1771,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         self._active_visualization_streams.clear()
         self._global_visualization_subscriptions.clear()
+        self._viz_stream_drop_counts.clear()
         self._cleanup_visualization_locks()
         log.info("%s Visualization resources cleaned up.", self.log_identifier)
 
@@ -2091,6 +2179,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     def get_cors_origins(self) -> list[str]:
         return self.cors_allowed_origins
+
+    def get_cors_origin_regex(self) -> str:
+        return self.cors_allowed_origin_regex
 
     def get_shared_artifact_service(self) -> BaseArtifactService | None:
         return self.shared_artifact_service
