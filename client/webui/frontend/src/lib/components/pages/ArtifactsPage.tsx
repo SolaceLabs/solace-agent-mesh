@@ -115,7 +115,7 @@ interface ArtifactGridCardProps {
     binaryArtifactPreviewEnabled: boolean;
 }
 
-function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected, binaryArtifactPreviewEnabled }: ArtifactGridCardProps) {
+const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected, binaryArtifactPreviewEnabled }: ArtifactGridCardProps) {
     const [contentPreview, setContentPreview] = useState<string | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
     const [documentContent, setDocumentContent] = useState<string | null>(null);
@@ -277,7 +277,7 @@ function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToCha
             isMounted = false;
             abortController.abort();
         };
-    }, [artifact, canAttemptDocumentThumbnail, isVisible]);
+    }, [artifact.sessionId, artifact.filename, artifact.mime_type, canAttemptDocumentThumbnail, isVisible]);
 
     // Handle document thumbnail error - fall back to icon
     const handleDocumentThumbnailError = useCallback(() => {
@@ -457,7 +457,7 @@ function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToCha
             </div>
         </Card>
     );
-}
+});
 
 /**
  * Standalone preview panel for artifacts page
@@ -570,9 +570,12 @@ const StandalonePreviewPanel = memo(function StandalonePreviewPanel({ artifact, 
                     versionCache.current.set(latestVersion, file);
                     setFileContent(file);
 
-                    // Pre-fetch all other versions in the background so switching is instant
-                    for (const version of sortedVersions) {
-                        if (version === latestVersion) continue;
+                    // Pre-fetch adjacent versions (latest ± 1) in the background so switching is instant.
+                    // We intentionally limit pre-fetching to avoid firing N-1 parallel requests
+                    // when an artifact has many versions.
+                    const latestIdx = sortedVersions.indexOf(latestVersion);
+                    const adjacentVersions = [sortedVersions[latestIdx - 1], sortedVersions[latestIdx + 1]].filter((v): v is number => v !== undefined && v !== latestVersion);
+                    for (const version of adjacentVersions) {
                         getArtifactContent({ filename: artifact.filename, sessionId, projectId, version })
                             .then(({ content: c, mimeType: mt }) => {
                                 if (!isMounted) return;
@@ -782,31 +785,35 @@ export function ArtifactsPage() {
 
     // Filter and sort artifacts by project, search query, and sort options
     const filteredArtifacts = useMemo(() => {
-        let filtered = artifacts;
+        // Single-pass filter combining project and search criteria to avoid intermediate arrays
+        const trimmedQuery = searchQuery.trim().toLowerCase();
 
-        // Filter by project
-        if (selectedProject !== "all") {
-            if (selectedProject === "(No Project)") {
-                filtered = filtered.filter(artifact => !artifact.projectName);
-            } else {
-                filtered = filtered.filter(artifact => artifact.projectName === selectedProject);
+        const filtered = artifacts.filter(artifact => {
+            // Project filter
+            if (selectedProject !== "all") {
+                if (selectedProject === "(No Project)") {
+                    if (artifact.projectName) return false;
+                } else {
+                    if (artifact.projectName !== selectedProject) return false;
+                }
             }
-        }
 
-        // Filter by search query
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase().trim();
-            filtered = filtered.filter(artifact => {
+            // Search filter
+            if (trimmedQuery) {
                 const filename = artifact.filename.toLowerCase();
                 const mimeType = artifact.mime_type.toLowerCase();
                 const sessionName = artifact.sessionName?.toLowerCase() || "";
                 const projectName = artifact.projectName?.toLowerCase() || "";
-                return filename.includes(query) || mimeType.includes(query) || sessionName.includes(query) || projectName.includes(query);
-            });
-        }
+                if (!(filename.includes(trimmedQuery) || mimeType.includes(trimmedQuery) || sessionName.includes(trimmedQuery) || projectName.includes(trimmedQuery))) {
+                    return false;
+                }
+            }
 
-        // Sort artifacts
-        const sorted = [...filtered].sort((a, b) => {
+            return true;
+        });
+
+        // Sort artifacts (sort in-place since filter() already created a new array)
+        filtered.sort((a, b) => {
             let comparison = 0;
 
             switch (sortBy) {
@@ -838,7 +845,7 @@ export function ArtifactsPage() {
             return sortDirection === "asc" ? comparison : -comparison;
         });
 
-        return sorted;
+        return filtered;
     }, [artifacts, selectedProject, searchQuery, sortBy, sortDirection]);
 
     // Toggle sort direction or change sort field
