@@ -111,8 +111,17 @@ def _run_enterprise_migrations(database_url: str) -> None:
 
 
 def _setup_database(database_url: str) -> None:
-    """Initialize database and run migrations."""
+    """
+    Initialize database and run migrations.
+
+    Args:
+        database_url: Database connection string.
+    """
+    from . import dependencies
+
+    dependencies.init_database(database_url)
     log.info("[Platform Service] Initializing database and running migrations...")
+    _run_community_migrations(database_url)
     _run_enterprise_migrations(database_url)
     log.info("[Platform Service] Database initialization complete")
 

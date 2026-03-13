@@ -1,18 +1,13 @@
 from alembic import context
 from sqlalchemy import engine_from_config, pool
-from sqlalchemy.ext.declarative import declarative_base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Create a placeholder Base for future community platform models
-# When community models are added, import them here to ensure they are registered
-Base = declarative_base()
-
-# Import all models here to ensure they are registered with the Base
-# Example:
-# from solace_agent_mesh.services.platform.models.example_model import ExampleModel
+# Import Base and all models to register them with the metadata
+from solace_agent_mesh.services.platform.models.base import Base
+from solace_agent_mesh.services.platform.models.model_configuration import ModelConfiguration  # noqa: F401
 
 target_metadata = Base.metadata
 

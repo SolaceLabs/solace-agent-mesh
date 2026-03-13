@@ -4,12 +4,12 @@ Database utilities for repositories and data access.
 Provides:
 - Base repository classes (PaginatedRepository, ValidationMixin)
 - Database exception handlers
-- Database helpers (SimpleJSON type)
+- Database helpers (SimpleJSON, OptimizedUUID types)
 """
 
 from .base_repository import PaginatedRepository, ValidationMixin
 from .database_exceptions import DatabaseExceptionHandler, DatabaseErrorDecorator
-from .database_helpers import SimpleJSON
+from .database_helpers import SimpleJSON, OptimizedUUID
 
 __all__ = [
     "PaginatedRepository",
@@ -17,4 +17,5 @@ __all__ = [
     "DatabaseExceptionHandler",
     "DatabaseErrorDecorator",
     "SimpleJSON",
+    "OptimizedUUID",
 ]
