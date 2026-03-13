@@ -64,6 +64,19 @@
     animation: halo-pulse 2s ease-in-out infinite;
 }
 
+.scrollbar-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.scrollbar-subtle:hover {
+    scrollbar-color: var(--secondary-w70) transparent;
+}
+
+.overlay-backdrop {
+    background-color: rgb(0 0 0 / 0.5);
+}
+
 @layer base {
     * {
         border-color: var(--secondary-w40);

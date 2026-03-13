@@ -82,7 +82,7 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
                                         />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100">
                                             <div className="absolute right-0 bottom-0 left-0 p-2">
-                                                <p className="line-clamp-2 text-xs font-medium text-white">{image.title || "View image"}</p>
+                                                <p className="line-clamp-2 text-xs font-medium text-(--darkSurface-text)">{image.title || "View image"}</p>
                                             </div>
                                         </div>
                                     </>
@@ -103,14 +103,14 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={handleCloseModal}>
                     {/* Previous button */}
                     {selectedImageIndex > 0 && (
-                        <button onClick={handlePrevious} className="absolute left-4 z-10 text-white transition-colors hover:text-(--secondary-w40)" aria-label="Previous image">
+                        <button onClick={handlePrevious} className="absolute left-4 z-10 text-(--darkSurface-text) transition-colors hover:text-(--secondary-w40)" aria-label="Previous image">
                             <ChevronLeft className="h-12 w-12" />
                         </button>
                     )}
 
                     {/* Next button */}
                     {selectedImageIndex < images.length - 1 && (
-                        <button onClick={handleNext} className="absolute right-4 z-10 text-white transition-colors hover:text-(--secondary-w40)" aria-label="Next image">
+                        <button onClick={handleNext} className="absolute right-4 z-10 text-(--darkSurface-text) transition-colors hover:text-(--secondary-w40)" aria-label="Next image">
                             <ChevronRight className="h-12 w-12" />
                         </button>
                     )}

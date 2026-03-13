@@ -11,7 +11,7 @@ export const LoadingBlocker: React.FC<LoadingBlockerProps> = ({ isLoading, messa
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/50">
+        <div className="overlay-backdrop fixed inset-0 z-50 flex flex-col items-center justify-center">
             <Loader2 className="size-8 animate-spin text-(--brand-wMain)" />
             {message && <p className="mt-4 text-sm text-(--secondary-text-wMain)">{message}</p>}
         </div>

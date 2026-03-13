@@ -13,3 +13,4 @@ export * from "./url";
 export * from "./sourceUrlHelpers";
 export * from "./mentionUtils";
 export * from "./agentUtils";
+export * from "./lruCache";

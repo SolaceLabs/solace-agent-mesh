@@ -162,7 +162,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                         <FaviconImage domain={domain} className="mr-2" />
                                     )}
                                     {isFile ? (
-                                        <button onClick={onClick} className="line-clamp-2 cursor-pointer overflow-hidden text-left text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3">
+                                        <button onClick={onClick} className="line-clamp-2 cursor-pointer overflow-hidden text-left text-sm font-bold text-(--info-wMain) hover:underline md:line-clamp-3">
                                             {source.attribution || source.title || "File Source"}
                                         </button>
                                     ) : (
@@ -170,7 +170,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                             href={source.link}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="line-clamp-2 inline-flex cursor-pointer items-center gap-1 overflow-hidden text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3"
+                                            className="line-clamp-2 inline-flex cursor-pointer items-center gap-1 overflow-hidden text-sm font-bold text-(--info-wMain) hover:underline md:line-clamp-3"
                                         >
                                             <span className="truncate">{source.attribution || domain}</span>
                                             <ExternalLink className="h-3 w-3 flex-shrink-0" />

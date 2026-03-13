@@ -64,7 +64,7 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({ group, onSubmit,
     }, [onClose]);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg border bg-(--background-w10) shadow-lg">
                 {/* Header - Fixed */}
                 <div className="flex-shrink-0 p-6 pb-4">
