@@ -6,7 +6,7 @@ export { ErrorDialog } from "./ErrorDialog";
 export { ErrorLabel } from "./ErrorLabel";
 export { FileUpload } from "./FileUpload";
 export { Footer } from "./Footer";
-export { GridCard } from "./GridCard";
+export { GridCard, GRID_CARD_DIMENSIONS } from "./GridCard";
 export { LoadingBlocker } from "./LoadingBlocker";
 export { MarkdownHTMLConverter } from "./MarkdownHTMLConverter";
 export * from "./MarkdownWrapper";

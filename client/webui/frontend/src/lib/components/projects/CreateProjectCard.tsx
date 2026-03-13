@@ -2,7 +2,7 @@ import React from "react";
 import { Plus } from "lucide-react";
 
 import { CardContent } from "@/lib/components/ui";
-import { GridCard } from "../common/GridCard";
+import { GridCard, GRID_CARD_DIMENSIONS } from "../common/GridCard";
 
 interface CreateProjectCardProps {
     onClick: () => void;
@@ -10,7 +10,7 @@ interface CreateProjectCardProps {
 
 export const CreateProjectCard: React.FC<CreateProjectCardProps> = ({ onClick }) => {
     return (
-        <GridCard className="border border-dashed border-[var(--color-primary-wMain)]" onClick={onClick} data-testid="createProjectCard">
+        <GridCard className={`${GRID_CARD_DIMENSIONS.project} border border-dashed border-[var(--color-primary-wMain)]`} onClick={onClick} data-testid="createProjectCard">
             <CardContent className="flex h-full items-center justify-center">
                 <div className="text-center">
                     <div className="mb-4 flex justify-center">

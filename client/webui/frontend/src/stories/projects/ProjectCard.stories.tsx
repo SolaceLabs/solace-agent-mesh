@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen } from "storybook/test";
 import { ProjectCard } from "@/lib";
 import { weatherProject, emptyProject, projectWithLongDescription, projectWithManyArtifacts } from "../data/projects";
+import { ownerWithProjectSharingEnabled, viewerWithProjectSharingEnabled } from "../data/parameters";
 
 const meta = {
     title: "Pages/Projects/ProjectCard",
@@ -70,6 +71,54 @@ export const EmptyProject: Story = {
     },
     play: async () => {
         expect(await screen.findByText(emptyProject.name)).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: "More options" })).toBeInTheDocument();
+    },
+};
+
+// ============================================================================
+// Sharing States
+// ============================================================================
+
+export const OwnerWithSharingEnabled: Story = {
+    args: {
+        project: weatherProject,
+        onClick: () => alert("Card clicked"),
+        onDelete: () => alert("Delete clicked"),
+        onExport: () => alert("Export clicked"),
+        onShare: () => alert("Share clicked"),
+    },
+    parameters: ownerWithProjectSharingEnabled(weatherProject.userId),
+    play: async () => {
+        expect(await screen.findByText(weatherProject.name)).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: "More options" })).toBeInTheDocument();
+    },
+};
+
+export const ViewerWithSharingEnabled: Story = {
+    args: {
+        project: weatherProject,
+        onClick: () => alert("Card clicked"),
+        onShare: () => alert("Share clicked"),
+    },
+    parameters: viewerWithProjectSharingEnabled(),
+    play: async () => {
+        expect(await screen.findByText(weatherProject.name)).toBeInTheDocument();
+        // Viewer should NOT see menu button
+        expect(screen.queryByRole("button", { name: "More options" })).not.toBeInTheDocument();
+    },
+};
+
+export const OwnerWithoutSharing: Story = {
+    args: {
+        project: weatherProject,
+        onClick: () => alert("Card clicked"),
+        onDelete: () => alert("Delete clicked"),
+        onExport: () => alert("Export clicked"),
+        // No onShare prop - sharing disabled
+    },
+    parameters: ownerWithProjectSharingEnabled(weatherProject.userId),
+    play: async () => {
+        expect(await screen.findByText(weatherProject.name)).toBeInTheDocument();
         expect(await screen.findByRole("button", { name: "More options" })).toBeInTheDocument();
     },
 };
