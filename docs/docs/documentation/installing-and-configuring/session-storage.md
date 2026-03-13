@@ -256,6 +256,33 @@ Connection string format:
 postgresql://[user[:password]@][host][:port]/[dbname][?param1=value1&...]
 ```
 
+#### MySQL/MariaDB (Production)
+
+MySQL and MariaDB are popular open-source databases suitable for production.
+
+```yaml
+session_service:
+  type: "sql"
+  database_url: "mysql+pymysql://user:password@host:3306/webui_db"
+```
+
+```bash
+export WEB_UI_GATEWAY_DATABASE_URL="mysql+pymysql://webui_user:secure_pass@db.example.com:3306/webui_db"
+```
+
+Advantages:
+- Open-source and widely available
+- Strong community support
+- Cloud-managed options available
+- ACID compliance (with InnoDB)
+
+Connection string format:
+```
+mysql+pymysql://[user[:password]@][host][:port]/[database]
+```
+
+Agent Mesh uses `pymysql` as the Python driver.
+
 ## Configuring Agent Session Storage
 
 Agents use the ADK (Agent Development Kit) session configuration system. Each agent can be configured independently with its own database.
