@@ -197,6 +197,7 @@ class DynamicModelProvider:
         topic = self.get_bootstrap_request_topic()
         payload = {
             "component_id": component_id,
+            "component_type": self._component._get_component_type(),
             "reply_to": self.get_bootstrap_response_topic(),
         }
         self._component.publish_a2a_message(
