@@ -1,6 +1,6 @@
 import { ConfigContext, type ConfigContextValue } from "@/lib/contexts/ConfigContext";
 import { api } from "@/lib/api";
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { OpenFeature, OpenFeatureProvider } from "@openfeature/react-sdk";
 import { SamFeatureProvider } from "@/lib/providers/openfeature";
 
@@ -40,10 +40,12 @@ export const MockConfigProvider: React.FC<MockConfigProviderProps> = ({ children
         [mockValues]
     );
 
-    // Initialize OpenFeature with flags from configFeatureEnablement so
-    // components using useBooleanFlagValue() resolve correctly in tests.
     const featureFlags = contextValue.configFeatureEnablement ?? {};
-    OpenFeature.setProvider(new SamFeatureProvider(featureFlags));
+    const prevFlagsRef = useRef<Record<string, boolean> | undefined>(undefined);
+    if (prevFlagsRef.current !== featureFlags) {
+        OpenFeature.setProvider(new SamFeatureProvider(featureFlags));
+        prevFlagsRef.current = featureFlags;
+    }
 
     api.configure(contextValue.webuiServerUrl, contextValue.platformServerUrl);
 
