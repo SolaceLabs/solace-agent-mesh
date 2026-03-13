@@ -293,12 +293,118 @@ class PostgreSQLProvider(DatabaseProvider):
         return self._async_engines[agent_name]
 
 
+class MySQLProvider(DatabaseProvider):
+    """A database provider that uses testcontainers MySQL."""
+
+    def __init__(self):
+        self._sync_engines: dict[str, sa.Engine] = {}
+        self._async_engines: dict[str, AsyncEngine] = {}
+        self._container = None
+        self._host = None
+        self._port = None
+        self._user = None
+        self._password = None
+        self._default_db = None
+
+    def setup(self, agent_names: list[str], **kwargs):
+        from testcontainers.mysql import MySqlContainer
+
+        self._container = MySqlContainer("mysql:8")
+        self._container.start()
+
+        self._host = self._container.get_container_host_ip()
+        self._port = self._container.get_exposed_port(3306)
+        self._user = self._container.username
+        self._password = self._container.password
+        self._default_db = self._container.dbname
+
+        gateway_url = f"mysql+pymysql://{self._user}:{self._password}@{self._host}:{self._port}/{self._default_db}"
+        gateway_async_url = f"mysql+aiomysql://{self._user}:{self._password}@{self._host}:{self._port}/{self._default_db}"
+
+        self._sync_engines["gateway"] = sa.create_engine(gateway_url, pool_pre_ping=True)
+        self._async_engines["gateway"] = create_async_engine(gateway_async_url)
+        Base.metadata.create_all(self._sync_engines["gateway"])
+
+        for name in agent_names:
+            agent_db_name = f"agent_{name.lower()}"
+            self._create_database(agent_db_name)
+            agent_url = f"mysql+pymysql://{self._user}:{self._password}@{self._host}:{self._port}/{agent_db_name}"
+            agent_async_url = f"mysql+aiomysql://{self._user}:{self._password}@{self._host}:{self._port}/{agent_db_name}"
+            self._sync_engines[name] = sa.create_engine(agent_url, pool_pre_ping=True)
+            self._async_engines[name] = create_async_engine(agent_async_url)
+            Base.metadata.create_all(self._sync_engines[name])
+
+    def _create_database(self, db_name: str):
+        """Create a new database in the MySQL container using root credentials."""
+        import pymysql
+
+        conn = pymysql.connect(
+            host=self._host,
+            port=int(self._port),
+            user="root",
+            password=self._container.root_password,
+        )
+        conn.autocommit = True
+        with conn.cursor() as cursor:
+            cursor.execute(
+                f"CREATE DATABASE IF NOT EXISTS `{db_name}` "
+                "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+            )
+            cursor.execute(
+                f"GRANT ALL PRIVILEGES ON `{db_name}`.* TO '{self._user}'@'%'"
+            )
+        conn.close()
+
+    def get_gateway_url_with_credentials(self) -> str:
+        return (
+            f"mysql+pymysql://{self._user}:{self._password}"
+            f"@{self._host}:{self._port}/{self._default_db}"
+        )
+
+    def teardown(self):
+        if hasattr(self, "_webui_factory"):
+            self._webui_factory.teardown()
+
+        for engine in self._sync_engines.values():
+            engine.dispose()
+
+        import asyncio
+
+        async def dispose_async():
+            for engine in self._async_engines.values():
+                await engine.dispose()
+
+        asyncio.run(dispose_async())
+
+        if self._container:
+            self._container.stop()
+
+    @property
+    def provider_type(self) -> str:
+        return "mysql"
+
+    def get_sync_gateway_engine(self) -> sa.Engine:
+        return self._sync_engines["gateway"]
+
+    def get_sync_agent_engine(self, agent_name: str) -> sa.Engine:
+        if agent_name not in self._sync_engines:
+            raise ValueError(f"Agent database for '{agent_name}' not initialized.")
+        return self._sync_engines[agent_name]
+
+    def get_async_gateway_engine(self) -> AsyncEngine:
+        return self._async_engines["gateway"]
+
+    def get_async_agent_engine(self, agent_name: str) -> AsyncEngine:
+        return self._async_engines[agent_name]
+
+
 class DatabaseProviderFactory:
     """Factory for creating database providers based on configuration."""
 
     PROVIDERS = {
         "sqlite": SqliteProvider,
         "postgresql": PostgreSQLProvider,
+        "mysql": MySQLProvider,
     }
 
     @classmethod

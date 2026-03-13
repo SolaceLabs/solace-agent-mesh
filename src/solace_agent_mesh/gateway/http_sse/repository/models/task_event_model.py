@@ -2,7 +2,7 @@
 Task Event SQLAlchemy model.
 """
 
-from sqlalchemy import JSON, BigInteger, Column, ForeignKey, String, Text
+from sqlalchemy import JSON, BigInteger, Column, ForeignKey, Index, String, Text
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -20,6 +20,11 @@ class TaskEventModel(Base):
     topic = Column(Text, nullable=False)
     direction = Column(String(50), nullable=False)
     payload = Column(JSON, nullable=False)
+
+    __table_args__ = (
+        # Added by migration 20251015_session_idx
+        Index("ix_task_events_task_created", "task_id", "created_time"),
+    )
 
     # Relationship to task
     task = relationship("TaskModel", back_populates="events")

@@ -194,9 +194,9 @@ def _clean_main_database(engine):
         db_url = str(connection.engine.url)
         if db_url.startswith("sqlite"):
             connection.execute(text("PRAGMA foreign_keys=OFF"))
-        elif db_url.startswith("postgresql"):
-            # PostgreSQL handles FK constraints differently - no need to disable
-            pass
+        elif db_url.startswith("mysql"):
+            connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+        # PostgreSQL handles FK ordering naturally via sorted_tables - no action needed
 
         # Delete from all tables except alembic_version
         for table in reversed(metadata.sorted_tables):
@@ -207,6 +207,8 @@ def _clean_main_database(engine):
         # Re-enable foreign key constraints
         if db_url.startswith("sqlite"):
             connection.execute(text("PRAGMA foreign_keys=ON"))
+        elif db_url.startswith("mysql"):
+            connection.execute(text("SET FOREIGN_KEY_CHECKS=1"))
 
 
 @pytest.fixture(scope="session")
@@ -216,19 +218,19 @@ def test_agents_list() -> list[str]:
 
 
 # Parameterized database provider fixtures
-@pytest.fixture(scope="session", params=["sqlite", "postgresql"])
+@pytest.fixture(scope="session", params=["sqlite", "postgresql", "mysql"])
 def db_provider_type(request):
     """Parameterized fixture for database provider type.
 
     To run against multiple databases, use:
-    pytest --db-provider=sqlite,postgresql
+    pytest --db-provider=sqlite,postgresql,mysql
 
     Or override this fixture in specific test files.
     """
     return request.param
 
 
-@pytest.fixture(scope="session", params=["sqlite", "postgresql"])
+@pytest.fixture(scope="session", params=["sqlite", "postgresql", "mysql"])
 def multi_db_provider_type(request):
     """Parameterized fixture that runs tests against all database types."""
     return request.param

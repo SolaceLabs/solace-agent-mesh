@@ -6,10 +6,12 @@ Create Date: 2025-09-16 16:30:00.000000
 
 """
 
+import time
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision: str = "f6e7d8c9b0a1"
@@ -20,8 +22,6 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Convert datetime columns to epoch milliseconds and rename columns."""
-    from sqlalchemy import inspect
-    import time
 
     bind = op.get_bind()
     inspector = inspect(bind)
@@ -41,10 +41,10 @@ def _upgrade_sqlite(current_time_ms: int) -> None:
     # 1. Create new sessions table with epoch timestamp columns
     op.create_table(
         'sessions_new',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('name', sa.String(), nullable=True),
-        sa.Column('user_id', sa.String(), nullable=False),
-        sa.Column('agent_id', sa.String(), nullable=True),
+        sa.Column('id', sa.String(255), nullable=False),
+        sa.Column('name', sa.String(255), nullable=True),
+        sa.Column('user_id', sa.String(255), nullable=False),
+        sa.Column('agent_id', sa.String(255), nullable=True),
         sa.Column('created_time', sa.BigInteger(), nullable=False),
         sa.Column('updated_time', sa.BigInteger(), nullable=False),
         sa.PrimaryKeyConstraint('id')
@@ -70,11 +70,11 @@ def _upgrade_sqlite(current_time_ms: int) -> None:
     # 4. Create new chat_messages table with epoch timestamp column
     op.create_table(
         'chat_messages_new',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('session_id', sa.String(), nullable=False),
+        sa.Column('id', sa.String(255), nullable=False),
+        sa.Column('session_id', sa.String(255), nullable=False),
         sa.Column('message', sa.Text(), nullable=False),
-        sa.Column('sender_type', sa.String(), nullable=True),
-        sa.Column('sender_name', sa.String(), nullable=True),
+        sa.Column('sender_type', sa.String(255), nullable=True),
+        sa.Column('sender_name', sa.String(255), nullable=True),
         sa.Column('created_time', sa.BigInteger(), nullable=False),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['session_id'], ['sessions.id'], ondelete='CASCADE')
@@ -151,8 +151,8 @@ def _upgrade_standard_sql(current_time_ms: int) -> None:
     """)
 
     # Make new columns NOT NULL
-    op.alter_column("sessions", "created_time", nullable=False)
-    op.alter_column("sessions", "updated_time", nullable=False)
+    op.alter_column("sessions", "created_time", existing_type=sa.BigInteger(), nullable=False)
+    op.alter_column("sessions", "updated_time", existing_type=sa.BigInteger(), nullable=False)
 
     # Drop old columns
     op.drop_column("sessions", "created_at")
@@ -181,7 +181,7 @@ def _upgrade_standard_sql(current_time_ms: int) -> None:
         WHERE created_time IS NULL
     """)
 
-    op.alter_column("chat_messages", "created_time", nullable=False)
+    op.alter_column("chat_messages", "created_time", existing_type=sa.BigInteger(), nullable=False)
     op.drop_column("chat_messages", "created_at")
 
     # Add indexes - this will be called after either upgrade path
@@ -276,10 +276,10 @@ def _downgrade_sqlite() -> None:
     # 1. Create sessions table with original datetime columns
     op.create_table(
         'sessions_old',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('name', sa.String(), nullable=True),
-        sa.Column('user_id', sa.String(), nullable=False),
-        sa.Column('agent_id', sa.String(), nullable=True),
+        sa.Column('id', sa.String(255), nullable=False),
+        sa.Column('name', sa.String(255), nullable=True),
+        sa.Column('user_id', sa.String(255), nullable=False),
+        sa.Column('agent_id', sa.String(255), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.Column('updated_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id')
@@ -305,11 +305,11 @@ def _downgrade_sqlite() -> None:
     # 4. Create chat_messages table with original datetime column
     op.create_table(
         'chat_messages_old',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('session_id', sa.String(), nullable=False),
+        sa.Column('id', sa.String(255), nullable=False),
+        sa.Column('session_id', sa.String(255), nullable=False),
         sa.Column('message', sa.Text(), nullable=False),
-        sa.Column('sender_type', sa.String(), nullable=True),
-        sa.Column('sender_name', sa.String(), nullable=True),
+        sa.Column('sender_type', sa.String(255), nullable=True),
+        sa.Column('sender_name', sa.String(255), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['session_id'], ['sessions.id'], ondelete='CASCADE')

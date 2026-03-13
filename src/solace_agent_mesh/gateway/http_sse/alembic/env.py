@@ -7,19 +7,8 @@ config = context.config
 
 # add your model's MetaData object here
 # for 'autogenerate' support
+import solace_agent_mesh.gateway.http_sse.repository.models
 from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
-
-# Import all models here to ensure they are registered with the Base
-from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
-from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import (
-    TaskEventModel,
-)
-from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import (
-    FeedbackModel,
-)
-from solace_agent_mesh.gateway.http_sse.repository.models.document_conversion_cache_model import (
-    DocumentConversionCacheModel,
-)
 
 target_metadata = Base.metadata
 

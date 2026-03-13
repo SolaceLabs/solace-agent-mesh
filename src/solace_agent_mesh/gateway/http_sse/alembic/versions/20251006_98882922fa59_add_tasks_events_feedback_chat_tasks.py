@@ -8,9 +8,9 @@ Create Date: 2025-10-06 09:57:54.735496
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
+from sqlalchemy import inspect as sa_inspect
 
 # revision identifiers, used by Alembic.
 revision: str = "98882922fa59"
@@ -25,11 +25,11 @@ def upgrade() -> None:
     # Create feedback table
     op.create_table(
         "feedback",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("task_id", sa.String(), nullable=False),
-        sa.Column("user_id", sa.String(), nullable=False),
-        sa.Column("rating", sa.String(), nullable=False),
+        sa.Column("id", sa.String(255), nullable=False),
+        sa.Column("session_id", sa.String(255), nullable=False),
+        sa.Column("task_id", sa.String(255), nullable=False),
+        sa.Column("user_id", sa.String(255), nullable=False),
+        sa.Column("rating", sa.String(255), nullable=False),
         sa.Column("comment", sa.Text(), nullable=True),
         sa.Column("created_time", sa.BigInteger(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
@@ -43,11 +43,11 @@ def upgrade() -> None:
     # Create tasks table
     op.create_table(
         "tasks",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("user_id", sa.String(), nullable=False),
+        sa.Column("id", sa.String(255), nullable=False),
+        sa.Column("user_id", sa.String(255), nullable=False),
         sa.Column("start_time", sa.BigInteger(), nullable=False),
         sa.Column("end_time", sa.BigInteger(), nullable=True),
-        sa.Column("status", sa.String(), nullable=True),
+        sa.Column("status", sa.String(255), nullable=True),
         sa.Column("initial_request_text", sa.Text(), nullable=True),
         sa.Column("total_input_tokens", sa.Integer(), nullable=True),
         sa.Column("total_output_tokens", sa.Integer(), nullable=True),
@@ -55,21 +55,28 @@ def upgrade() -> None:
         sa.Column("token_usage_details", sa.JSON(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_tasks_initial_request_text"),
-        "tasks",
-        ["initial_request_text"],
-        unique=False,
-    )
+    bind = op.get_bind()
+    if bind.dialect.name == "mysql":
+        # MySQL cannot index a TEXT column without a prefix length
+        bind.execute(sa.text(
+            "CREATE INDEX ix_tasks_initial_request_text ON tasks (initial_request_text(255))"
+        ))
+    else:
+        op.create_index(
+            op.f("ix_tasks_initial_request_text"),
+            "tasks",
+            ["initial_request_text"],
+            unique=False,
+        )
     op.create_index(op.f("ix_tasks_user_id"), "tasks", ["user_id"], unique=False)
     op.create_index("ix_tasks_start_time", "tasks", ["start_time"], unique=False)
 
     # Create task_events table
     op.create_table(
         "task_events",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("task_id", sa.String(), nullable=True),
-        sa.Column("user_id", sa.String(), nullable=True),
+        sa.Column("id", sa.String(255), nullable=False),
+        sa.Column("task_id", sa.String(255), nullable=True),
+        sa.Column("user_id", sa.String(255), nullable=True),
         sa.Column("created_time", sa.BigInteger(), nullable=False),
         sa.Column("topic", sa.Text(), nullable=False),
         sa.Column("direction", sa.String(length=50), nullable=False),
@@ -87,9 +94,9 @@ def upgrade() -> None:
     # Create chat_tasks table
     op.create_table(
         "chat_tasks",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("user_id", sa.String(), nullable=False),
+        sa.Column("id", sa.String(255), nullable=False),
+        sa.Column("session_id", sa.String(255), nullable=False),
+        sa.Column("user_id", sa.String(255), nullable=False),
         sa.Column("user_message", sa.Text(), nullable=True),
         sa.Column("message_bubbles", sa.Text(), nullable=False),
         sa.Column("task_metadata", sa.Text(), nullable=True),
@@ -102,18 +109,28 @@ def upgrade() -> None:
     op.create_index("ix_chat_tasks_user_id", "chat_tasks", ["user_id"])
     op.create_index("ix_chat_tasks_created_time", "chat_tasks", ["created_time"])
 
-    # Drop old indexes from sessions and chat_messages tables
-    op.drop_index(op.f("ix_chat_messages_created_time"), table_name="chat_messages")
-    op.drop_index(op.f("ix_chat_messages_session_id"), table_name="chat_messages")
-    op.drop_index(
-        op.f("ix_chat_messages_session_id_created_time"), table_name="chat_messages"
-    )
+    # Drop old indexes from sessions table
     op.drop_index(op.f("ix_sessions_agent_id"), table_name="sessions")
     op.drop_index(op.f("ix_sessions_updated_time"), table_name="sessions")
     op.drop_index(op.f("ix_sessions_user_id"), table_name="sessions")
     op.drop_index(op.f("ix_sessions_user_id_updated_time"), table_name="sessions")
 
-    # Drop the chat_messages table - replaced by chat_tasks
+    # Drop the chat_messages table - replaced by chat_tasks.
+    # MySQL cannot drop indexes that back a FK constraint, so drop the FK first.
+    # drop_table then implicitly removes all remaining indexes on the table.
+    bind = op.get_bind()
+    if bind.dialect.name == "mysql":
+        fks = sa_inspect(bind).get_foreign_keys("chat_messages")
+        for fk in fks:
+            if fk.get("constrained_columns") == ["session_id"]:
+                op.drop_constraint(fk["name"], "chat_messages", type_="foreignkey")
+                break
+    else:
+        op.drop_index(op.f("ix_chat_messages_created_time"), table_name="chat_messages")
+        op.drop_index(op.f("ix_chat_messages_session_id"), table_name="chat_messages")
+        op.drop_index(
+            op.f("ix_chat_messages_session_id_created_time"), table_name="chat_messages"
+        )
     op.drop_table("chat_messages")
 
 
@@ -123,8 +140,8 @@ def downgrade() -> None:
     # Recreate chat_messages table
     op.create_table(
         "chat_messages",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("session_id", sa.String(), nullable=False),
+        sa.Column("id", sa.String(255), nullable=False),
+        sa.Column("session_id", sa.String(255), nullable=False),
         sa.Column("message", sa.Text(), nullable=False),
         sa.Column("created_time", sa.BigInteger(), nullable=False),
         sa.Column("sender_type", sa.String(length=50), nullable=True),

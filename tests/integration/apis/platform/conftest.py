@@ -42,13 +42,10 @@ def _patch_mock_component_config(factory):
     log.info("Patched mock_component.get_config for Platform Service.")
 
 
-@pytest.fixture(scope="session")
-def platform_db_provider_type():
-    """Database provider type for Platform Service tests.
-
-    Returns SQLite by default - can be parameterized for multi-db testing.
-    """
-    return "sqlite"
+@pytest.fixture(scope="session", params=["sqlite", "postgresql", "mysql"])
+def platform_db_provider_type(request):
+    """Parameterized fixture for Platform Service database provider type."""
+    return request.param
 
 
 @pytest.fixture(scope="session")
@@ -186,6 +183,8 @@ def _clean_platform_database(engine):
         db_url = str(connection.engine.url)
         if db_url.startswith("sqlite"):
             connection.execute(text("PRAGMA foreign_keys=OFF"))
+        elif db_url.startswith("mysql"):
+            connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
 
         for table in reversed(metadata.sorted_tables):
             if table.name == "alembic_version":
@@ -194,6 +193,8 @@ def _clean_platform_database(engine):
 
         if db_url.startswith("sqlite"):
             connection.execute(text("PRAGMA foreign_keys=ON"))
+        elif db_url.startswith("mysql"):
+            connection.execute(text("SET FOREIGN_KEY_CHECKS=1"))
 
 
 @pytest.fixture

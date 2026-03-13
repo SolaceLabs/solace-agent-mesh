@@ -2,7 +2,7 @@
 ChatTask SQLAlchemy model.
 """
 
-from sqlalchemy import BigInteger, Column, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Column, ForeignKey, Index, String, Text
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -26,6 +26,10 @@ class ChatTaskModel(Base):
     task_metadata = Column(Text, nullable=True)
     created_time = Column(BigInteger, nullable=False, index=True)
     updated_time = Column(BigInteger, nullable=True)
+
+    __table_args__ = (
+        Index("ix_chat_tasks_session_user_created", "session_id", "user_id", "created_time"),
+    )
 
     # Relationship to session
     session = relationship("SessionModel", back_populates="chat_tasks")

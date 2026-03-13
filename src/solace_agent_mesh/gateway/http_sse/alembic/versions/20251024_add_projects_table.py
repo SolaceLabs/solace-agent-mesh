@@ -6,8 +6,9 @@ Create Date: 2025-10-24 10:00:00.000000
 
 """
 from typing import Sequence, Union
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
@@ -29,9 +30,9 @@ def upgrade() -> None:
     # as those were removed in the squashed migration
     if 'projects' not in existing_tables:
         op.create_table('projects',
-            sa.Column('id', sa.String(), nullable=False),
-            sa.Column('name', sa.String(), nullable=False),
-            sa.Column('user_id', sa.String(), nullable=False),
+            sa.Column('id', sa.String(255), nullable=False),
+            sa.Column('name', sa.String(255), nullable=False),
+            sa.Column('user_id', sa.String(255), nullable=False),
             sa.Column('description', sa.Text(), nullable=True),
             sa.Column('system_prompt', sa.Text(), nullable=True),
             sa.Column('created_at', sa.BigInteger(), nullable=False),
@@ -46,13 +47,13 @@ def upgrade() -> None:
             # SQLite doesn't support ALTER TABLE ADD CONSTRAINT, recreate table
             op.create_table(
                 'sessions_new',
-                sa.Column('id', sa.String(), nullable=False),
-                sa.Column('name', sa.String(), nullable=True),
-                sa.Column('user_id', sa.String(), nullable=False),
-                sa.Column('agent_id', sa.String(), nullable=True),
+                sa.Column('id', sa.String(255), nullable=False),
+                sa.Column('name', sa.String(255), nullable=True),
+                sa.Column('user_id', sa.String(255), nullable=False),
+                sa.Column('agent_id', sa.String(255), nullable=True),
                 sa.Column('created_time', sa.BigInteger(), nullable=False),
                 sa.Column('updated_time', sa.BigInteger(), nullable=False),
-                sa.Column('project_id', sa.String(), nullable=True),
+                sa.Column('project_id', sa.String(255), nullable=True),
                 sa.ForeignKeyConstraint(['project_id'], ['projects.id']),
                 sa.PrimaryKeyConstraint('id')
             )
@@ -75,7 +76,7 @@ def upgrade() -> None:
             op.create_index('ix_sessions_project_id', 'sessions', ['project_id'])
         else:
             # PostgreSQL, MySQL - standard ALTER TABLE
-            op.add_column('sessions', sa.Column('project_id', sa.String(), nullable=True))
+            op.add_column('sessions', sa.Column('project_id', sa.String(255), nullable=True))
             op.create_index('ix_sessions_project_id', 'sessions', ['project_id'])
             op.create_foreign_key(
                 'fk_sessions_project_id',
@@ -99,10 +100,10 @@ def downgrade() -> None:
             # SQLite doesn't support ALTER TABLE DROP CONSTRAINT, recreate table
             op.create_table(
                 'sessions_old',
-                sa.Column('id', sa.String(), nullable=False),
-                sa.Column('name', sa.String(), nullable=True),
-                sa.Column('user_id', sa.String(), nullable=False),
-                sa.Column('agent_id', sa.String(), nullable=True),
+                sa.Column('id', sa.String(255), nullable=False),
+                sa.Column('name', sa.String(255), nullable=True),
+                sa.Column('user_id', sa.String(255), nullable=False),
+                sa.Column('agent_id', sa.String(255), nullable=True),
                 sa.Column('created_time', sa.BigInteger(), nullable=False),
                 sa.Column('updated_time', sa.BigInteger(), nullable=False),
                 sa.PrimaryKeyConstraint('id')

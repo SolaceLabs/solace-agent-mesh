@@ -51,8 +51,8 @@ class TestDataValidation:
     ):
         """Test boundary conditions for data limits"""
 
-        # Test very long user_id
-        long_user_id = "user_" + "x" * 1000
+        # Test long user_id (within VARCHAR(255) schema limit)
+        long_user_id = "user_" + "x" * 245
         session = gateway_adapter.create_session(
             user_id=long_user_id, agent_name="TestAgent"
         )

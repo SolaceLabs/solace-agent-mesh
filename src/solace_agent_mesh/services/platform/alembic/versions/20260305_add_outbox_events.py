@@ -7,10 +7,10 @@ Create Date: 2026-03-05
 """
 
 from typing import Sequence, Union
-from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql, mysql
 
+import sqlalchemy as sa
+from alembic import op
+from sqlalchemy.dialects import mysql, postgresql
 
 revision: str = "20260305_outbox_events"
 down_revision: Union[str, None] = None

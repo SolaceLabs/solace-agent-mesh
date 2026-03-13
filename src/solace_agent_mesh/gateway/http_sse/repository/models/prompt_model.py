@@ -3,7 +3,7 @@ Prompt SQLAlchemy models for prompt library feature.
 """
 
 from enum import Enum
-from sqlalchemy import BigInteger, Column, String, Text, Integer, Boolean, ForeignKey, UniqueConstraint, Index, Enum as SQLEnum
+from sqlalchemy import BigInteger, Column, String, Text, Integer, Boolean, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
@@ -149,13 +149,17 @@ class PromptGroupUserModel(Base):
     id = Column(String, primary_key=True)
     prompt_group_id = Column(String, ForeignKey("prompt_groups.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(String, nullable=False)
-    role = Column(SQLEnum(PromptGroupRole), nullable=False, default=PromptGroupRole.VIEWER)
+    # Stored as plain String to match migration — validation happens at the application layer
+    role = Column(String, nullable=False, default=PromptGroupRole.VIEWER.value)
     added_at = Column(BigInteger, nullable=False)  # Epoch timestamp in milliseconds
     added_by_user_id = Column(String, nullable=False)  # User who granted access
-    
-    # Ensure a user can only be added once per prompt group
+
     __table_args__ = (
         UniqueConstraint('prompt_group_id', 'user_id', name='uq_prompt_group_user'),
+        Index("ix_prompt_group_users_prompt_group_id", "prompt_group_id"),
+        Index("ix_prompt_group_users_user_id", "user_id"),
+        Index("ix_prompt_group_users_user_prompt", "user_id", "prompt_group_id"),
+        Index("ix_prompt_group_users_user_role", "user_id", "role"),
     )
     
     # Relationships

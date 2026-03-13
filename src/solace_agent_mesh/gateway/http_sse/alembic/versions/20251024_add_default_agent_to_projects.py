@@ -5,9 +5,8 @@ Revises: soft_del_search_001
 Create Date: 2025-01-24 01:13:00.000000
 
 """
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'default_agent_001'
@@ -18,7 +17,7 @@ depends_on = None
 
 def upgrade():
     """Add default_agent_id column to projects table."""
-    op.add_column('projects', sa.Column('default_agent_id', sa.String(), nullable=True))
+    op.add_column('projects', sa.Column('default_agent_id', sa.String(255), nullable=True))
 
 
 def downgrade():

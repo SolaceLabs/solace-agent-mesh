@@ -105,6 +105,7 @@ test = [
     "aiosqlite",
     "psycopg2-binary",
     "asyncpg",
+    "aiomysql",
 ]
 
 [tool.hatch.envs.hatch-test]
@@ -126,6 +127,8 @@ dependencies = [
     "aiosqlite",
     "psycopg2-binary",
     "asyncpg",
+    "PyMySQL",
+    "aiomysql",
     "bm25s==0.2.14",
     "pypdf==6.8.0",
     "python-pptx==1.0.2",

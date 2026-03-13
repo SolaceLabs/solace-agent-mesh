@@ -2,7 +2,7 @@
 Session SQLAlchemy model and Pydantic models for strongly-typed operations.
 """
 
-from sqlalchemy import BigInteger, Column, String, ForeignKey
+from sqlalchemy import BigInteger, Column, Index, String, ForeignKey, text
 from pydantic import BaseModel
 from sqlalchemy.orm import relationship
 
@@ -26,6 +26,14 @@ class SessionModel(Base):
     )
     deleted_at = Column(BigInteger, nullable=True)
     deleted_by = Column(String, nullable=True)
+
+    __table_args__ = (
+        Index("ix_sessions_user_id", "user_id"),
+        Index("ix_sessions_user_updated", "user_id", text("updated_time DESC")),
+        Index("ix_sessions_project_id", "project_id"),
+        Index("ix_sessions_deleted_at", "deleted_at"),
+        Index("ix_sessions_user_deleted", "user_id", "deleted_at"),
+    )
 
     # Relationship to chat tasks
     chat_tasks = relationship(
