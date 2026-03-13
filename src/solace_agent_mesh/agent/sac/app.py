@@ -560,7 +560,9 @@ class SamAgentApp(SamAppBase):
         component_definition = {
             "name": f"{agent_name}_host",
             "component_class": SamAgentComponent,
-            "component_config": {},
+            "component_config": {
+                "component_name": f"{agent_name}_host",
+            },
             "subscriptions": generated_subs,
         }
         if broker_request_response:

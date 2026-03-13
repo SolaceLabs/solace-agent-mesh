@@ -337,6 +337,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
 
         # Extract and validate call depth
         call_depth = message.get_user_properties().get("callDepth", 0)
+        try:
+            call_depth = int(call_depth)
+        except (TypeError, ValueError):
+            log.warning(
+                "%s Invalid callDepth value '%s'; defaulting to 0.",
+                component.log_identifier,
+                call_depth,
+            )
+            call_depth = 0
         max_call_depth = component.get_config("max_call_depth", 10)
         if call_depth > max_call_depth:
             error_msg = (
