@@ -22,7 +22,7 @@ export const solace: ThemePalette = {
         text: {
             wMain: "#273749",
             w100: "#000000",
-            w10: "#FFFFFF",
+            w10: "#CCCCCC",
         },
     },
 
@@ -161,7 +161,7 @@ export const solace: ThemePalette = {
         bg: "#03223B", // background-wMain
         bgHover: "#021B2F", // background-w100
         bgActive: "#021B2F", // background-w100
-        text: "#FFFFFF", // primiary-text-wMain
+        text: "#CCCCCC", // primiary-text-w10
         textMuted: "#B1B9C0", // secondary-text-w50
         brandMain: "#00C895", // brand-wMain
         brandAccent: "#66DEBF", // brand-w60

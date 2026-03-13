@@ -39,12 +39,12 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                         "bg-(--darkSurface-bg) hover:bg-(--darkSurface-bgHover)",
                         "text-(--darkSurface-text) hover:bg-(--darkSurface-bgHover) hover:text-(--darkSurface-text)",
                         "border-l-4 border-(--darkSurface-bg)",
-                        isActive ? "border-l-4 border-(--darkSurface-accent) bg-(--darkSurface-bgHover)/50" : ""
+                        isActive ? "border-l-4 border-(--darkSurface-brandMain) bg-(--darkSurface-bgHover)/50" : ""
                     )}
                     aria-label={label}
                     aria-current={isActive ? "page" : undefined}
                 >
-                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--darkSurface-accent)")} />
+                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--darkSurface-brandMain)")} />
                     <span className="text-center text-[13px] leading-tight">{label}</span>
                     {badge && <LifecycleBadge className="mt-1 text-[9px]">{badge}</LifecycleBadge>}
                 </button>

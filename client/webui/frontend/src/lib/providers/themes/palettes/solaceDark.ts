@@ -162,7 +162,7 @@ export const solaceDark: ThemePalette = {
         bg: "#02172b",
         bgHover: "#021B2F",
         bgActive: "#021B2F",
-        text: "#FFFFFF",
+        text: "#CCCCCC",
         textMuted: "#B1B9C0",
         brandMain: "#00C895",
         brandAccent: "#66DEBF",
