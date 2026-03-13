@@ -2694,18 +2694,6 @@ def sanitize_tool_names_callback(
             tool_name = part.function_call.name
             function_call_id = part.function_call.id or ""
 
-            # Normalize hyphens to underscores in tool names.
-            if "-" in tool_name:
-                normalized_name = tool_name.replace("-", "_")
-                log.info(
-                    "%s Normalizing hyphenated tool name: '%s' -> '%s'",
-                    log_identifier,
-                    tool_name,
-                    normalized_name,
-                )
-                part.function_call.name = normalized_name
-                tool_name = normalized_name
-
             # Check for placeholder patterns (tool names starting with $)
             # This catches $FUNCTION_NAME, $ARTIFACT_TOOL, $TOOL_NAME, etc.
             is_placeholder = tool_name.startswith('$')
