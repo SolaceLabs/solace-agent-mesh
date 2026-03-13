@@ -1042,8 +1042,8 @@ async def init_prompt_builder_chat(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
     """Initialize the prompt template builder chat"""
-    model_config = component.get_config("model", {})
-    assistant = PromptBuilderAssistant(db=db, model_config=model_config)
+    llm = component.get_lite_llm_model()
+    assistant = PromptBuilderAssistant(llm=llm, db=db)
     greeting = assistant.get_initial_greeting()
     return {
         "message": greeting.message,
@@ -1071,10 +1071,10 @@ async def prompt_builder_chat(
     """
     try:
         # Get model configuration from component
-        model_config = component.get_config("model", {})
-        
+
+        llm = component.get_lite_llm_model()
         # Initialize the assistant with database session and model config
-        assistant = PromptBuilderAssistant(db=db, model_config=model_config)
+        assistant = PromptBuilderAssistant(llm=llm, db=db)
         
         # Process the message using real LLM with conflict checking
         response = await assistant.process_message(

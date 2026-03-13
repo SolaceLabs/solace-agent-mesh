@@ -484,37 +484,37 @@ class TestGetModelForPhase:
     
     def test_fallback_to_host_component_string_model(self):
         """Test fallback to host_component model config when canonical_model is None (string config)."""
+        mock_model = MagicMock()
         mock_host_component = MagicMock()
-        mock_host_component.get_config.return_value = "gpt-4-turbo"
-        
+        mock_host_component.get_lite_llm_model.return_value = mock_model
+
         mock_agent = MagicMock()
         mock_agent.canonical_model = None
         mock_agent.host_component = mock_host_component
-        
+
         tool_context = self._create_mock_tool_context(agent=mock_agent)
-        
-        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
-            mock_lite_llm.return_value = MagicMock()
-            result = _get_model_for_phase("query_generation", tool_context, None)
-            
-            mock_lite_llm.assert_called_once_with(model="gpt-4-turbo")
-    
+
+        result = _get_model_for_phase("query_generation", tool_context, None)
+
+        mock_host_component.get_lite_llm_model.assert_called_once()
+        assert result == mock_model
+
     def test_fallback_to_host_component_dict_model(self):
         """Test fallback to host_component model config when canonical_model is None (dict config)."""
+        mock_model = MagicMock()
         mock_host_component = MagicMock()
-        mock_host_component.get_config.return_value = {"model": "gpt-4-turbo", "temperature": 0.5}
-        
+        mock_host_component.get_lite_llm_model.return_value = mock_model
+
         mock_agent = MagicMock()
         mock_agent.canonical_model = None
         mock_agent.host_component = mock_host_component
-        
+
         tool_context = self._create_mock_tool_context(agent=mock_agent)
-        
-        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
-            mock_lite_llm.return_value = MagicMock()
-            result = _get_model_for_phase("query_generation", tool_context, None)
-            
-            mock_lite_llm.assert_called_once_with(model="gpt-4-turbo", temperature=0.5)
+
+        result = _get_model_for_phase("query_generation", tool_context, None)
+
+        mock_host_component.get_lite_llm_model.assert_called_once()
+        assert result == mock_model
     
     def test_raises_value_error_when_no_model_available(self):
         """Test that ValueError is raised when no default model is available."""
