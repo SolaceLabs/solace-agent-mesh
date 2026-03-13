@@ -1,6 +1,6 @@
 {
     "name": "@SolaceLabs/solace-agent-mesh-ui",
-    "version": "1.62.4",
+    "version": "1.63.1",
     "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
     "author": "SolaceLabs <solacelabs@solace.com>",
     "license": "Apache-2.0",
@@ -54,7 +54,8 @@
         "storybook": "storybook dev -p 6006",
         "test:storybook": "vitest --project=storybook",
         "test:unit": "vitest --project=unit",
-        "ci:storybook": "CI=true vitest --project=unit --project=storybook"
+        "ci:storybook": "CI=true vitest --project=unit --project=storybook",
+        "ci:storybook:coverage": "CI=true vitest --project=unit --project=storybook --coverage"
     },
     "lint-staged": {
         "*.{js,jsx,ts,tsx}": [
@@ -85,7 +86,7 @@
         "@use-gesture/react": "^10.3.1",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "dompurify": "^3.2.6",
+        "dompurify": "^3.3.2",
         "html-react-parser": "^5.2.5",
         "js-yaml": "^4.1.0",
         "json-edit-react": "^1.27.2",
@@ -171,7 +172,8 @@
     },
     "overrides": {
         "cross-spawn": "^7.0.6",
-        "minimatch": "^10.2.1"
+        "minimatch": "^10.2.1",
+        "lodash-es": "^4.17.23"
     },
     "msw": {
         "workerDirectory": [
