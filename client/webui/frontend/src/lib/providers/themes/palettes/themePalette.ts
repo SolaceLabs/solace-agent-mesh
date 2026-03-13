@@ -175,16 +175,6 @@ export type ThemePalette = {
     };
 
     temporary: {
-        darkSurface: {
-            bg: string;
-            bgHover: string;
-            bgActive: string;
-            text: string;
-            textMuted: string;
-            brandMain: string;
-            brandAccent: string;
-            border: string;
-        };
         primary: {
             wMain: string;
         };

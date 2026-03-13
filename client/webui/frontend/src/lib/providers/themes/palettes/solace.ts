@@ -162,23 +162,13 @@ export const solace: ThemePalette = {
         bgHover: "#021B2F", // background-w100
         bgActive: "#021B2F", // background-w100
         text: "#FFFFFF", // primiary-text-wMain
-        textMuted: "#647481", // secondary-text-wMain
+        textMuted: "#B1B9C0", // secondary-text-w50
         brandMain: "#00C895", // brand-wMain
         brandAccent: "#66DEBF", // brand-w60
         border: "#536574", // secondary-w70
     },
 
     temporary: {
-        darkSurface: {
-            bg: "#03223B", // background-wMain
-            bgHover: "#021B2F", // background-w100
-            bgActive: "#021B2F", // background-w100
-            text: "#FFFFFF", // primiary-text-wMain
-            textMuted: "#647481", // secondary-text-wMain
-            brandMain: "#00C895", // brand-wMain
-            brandAccent: "#66DEBF", // brand-w60
-            border: "#536574", // secondary-w70
-        },
         primary: {
             wMain: "#015B82",
         },
