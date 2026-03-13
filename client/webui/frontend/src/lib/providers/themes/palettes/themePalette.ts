@@ -169,12 +169,22 @@ export type ThemePalette = {
         bgActive: string;
         text: string;
         textMuted: string;
-        accent: string;
-        accentLight: string;
+        brandMain: string;
+        brandAccent: string;
         border: string;
     };
 
     temporary: {
+        darkSurface: {
+            bg: string;
+            bgHover: string;
+            bgActive: string;
+            text: string;
+            textMuted: string;
+            brandMain: string;
+            brandAccent: string;
+            border: string;
+        };
         primary: {
             wMain: string;
         };

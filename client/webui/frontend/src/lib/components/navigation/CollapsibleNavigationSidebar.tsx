@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useChatContext, useSessionStorage } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
@@ -343,9 +343,9 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                             <div className="border-t border-(--secondary-w70)" />
                             <div className="mb-2 flex items-center justify-between pt-4 pr-6 pl-6">
                                 <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
-                                <Button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} variant="ghost" className="px-2">
+                                <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm text-[#679DB4] hover:text-[#E6EFF2]">
                                     View All
-                                </Button>
+                                </button>
                             </div>
                             <div className="scrollbar-subtle min-h-[120px] flex-1 overflow-y-auto">
                                 <RecentChatsList maxItems={MAX_RECENT_CHATS} />

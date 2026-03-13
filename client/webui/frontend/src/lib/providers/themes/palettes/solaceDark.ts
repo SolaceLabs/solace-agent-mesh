@@ -158,17 +158,27 @@ export const solaceDark: ThemePalette = {
     },
 
     darkSurface: {
-        bg: "#010f1e",
-        bgHover: "#21435d",
-        bgActive: "#021B2F",
-        text: "#CBD5E1",
-        textMuted: "#B1B9C0",
-        accent: "#00C895",
-        accentLight: "#66DEBF",
-        border: "#536574",
+        bg: "#03223B", // background-wMain
+        bgHover: "#021B2F", // background-w100
+        bgActive: "#021B2F", // background-w100
+        text: "#FFFFFF", // primiary-text-wMain
+        textMuted: "#647481", // secondary-text-wMain
+        brandMain: "#00C895", // brand-wMain
+        brandAccent: "#66DEBF", // brand-w60
+        border: "#536574", // secondary-w70
     },
 
     temporary: {
+        darkSurface: {
+            bg: "#03223B", // background-wMain
+            bgHover: "#021B2F", // background-w100
+            bgActive: "#021B2F", // background-w100
+            text: "#FFFFFF", // primiary-text-wMain
+            textMuted: "#647481", // secondary-text-wMain
+            brandMain: "#00C895", // brand-wMain
+            brandAccent: "#66DEBF", // brand-w60
+            border: "#536574", // secondary-w70
+        },
         primary: {
             wMain: "#E6EFF2",
         },

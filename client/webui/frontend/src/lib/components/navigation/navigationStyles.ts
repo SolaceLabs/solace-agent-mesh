@@ -38,7 +38,7 @@ export const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify
 export const iconStyles = cva(["size-6"], {
     variants: {
         active: {
-            true: "text-(--darkSurface-accentLight)",
+            true: "text-(--brand-w60)",
             false: "text-(--darkSurface-textMuted)",
         },
         muted: {
