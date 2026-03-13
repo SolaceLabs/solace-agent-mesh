@@ -23,18 +23,18 @@ export const ConnectionRequiredModal: React.FC<ConnectionRequiredModalProps> = (
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <AlertCircle className="h-5 w-5 text-amber-500" />
+                        <AlertCircle className="h-5 w-5 text-(--warning-wMain)" />
                         Connection Required
                     </DialogTitle>
                     <DialogDescription>You need to connect your {sourceName} account before using it in deep research.</DialogDescription>
                 </DialogHeader>
 
                 {/* Content */}
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <p className="text-sm text-blue-900">
+                <div className="rounded-lg border border-(--info-w100) bg-(--info-w10) p-4">
+                    <p className="text-sm text-(--info-wMain)">
                         <strong>How to connect:</strong>
                     </p>
-                    <ol className="mt-2 list-inside list-decimal space-y-1 text-sm text-blue-800">
+                    <ol className="mt-2 list-inside list-decimal space-y-1 text-sm text-(--info-wMain)">
                         <li>Go to the Connections panel</li>
                         <li>Click "Connect" next to {sourceName}</li>
                         <li>Authenticate with your account</li>

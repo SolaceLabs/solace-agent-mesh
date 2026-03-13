@@ -76,7 +76,7 @@
     }
 
     body {
-        background-color: var(--temporary-background-w10);
+        background-color: var(--background-w10);
         color: var(--primary-text-wMain);
         font-family: "Rubik", sans-serif;
         font-size: 14px;

@@ -158,7 +158,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     // Collapsed state - narrow vertical panel with icons
     if (isSidePanelCollapsed) {
         return (
-            <div className="flex h-full w-full flex-col items-center border-l bg-(--temporary-background-w10) py-4">
+            <div className="flex h-full w-full flex-col items-center border-l bg-(--background-w10) py-4">
                 <Button data-testid="expandPanel" variant="ghost" size="sm" onClick={toggleCollapsed} className="h-10 w-10 p-0" tooltip="Expand Panel">
                     <PanelRightIcon className="size-5" />
                 </Button>
@@ -184,7 +184,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
     // Expanded state - full panel with tabs
     return (
-        <div className="flex h-full flex-col border-l bg-(--temporary-background-w10)">
+        <div className="flex h-full flex-col border-l bg-(--background-w10)">
             <div className="m-1 min-h-0 flex-1">
                 <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "activity" | "rag")} className="flex h-full flex-col">
                     <div className="@container flex gap-2 p-2">

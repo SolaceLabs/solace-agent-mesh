@@ -10,7 +10,7 @@ function ThemeWrapper({ theme, children }: { theme: string; children: React.Reac
         localStorage.setItem("sam-theme", theme);
 
         // Also sync background colour
-        document.body.style.backgroundColor = "var(--temporary-background-w10)";
+        document.body.style.backgroundColor = "var(--background-w10)";
     }, [theme]);
 
     return <>{children}</>;

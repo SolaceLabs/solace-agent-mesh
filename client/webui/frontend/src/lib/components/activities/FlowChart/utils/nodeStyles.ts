@@ -6,16 +6,16 @@ export const ACTIVITY_NODE_BASE_STYLES = {
     /** Rectangular node style - used by Agent nodes
      * Figma Card: rounded (4px), shadow, 16px padding
      */
-    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded border bg-(--background-w10) px-4 py-2 shadow transition-all duration-200 ease-in-out hover:shadow-md",
+    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded bg-(--background-w10) px-4 py-2 shadow transition-all duration-200 ease-in-out hover:shadow-md",
 
     /** Rectangular compact style - used by Tool/LLM nodes */
-    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-center rounded border bg-(--background-w10) px-3 py-2 shadow transition-all duration-200 hover:shadow-md",
+    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-center rounded bg-(--background-w10) px-3 py-2 shadow transition-all duration-200 hover:shadow-md",
 
     /** Pill-shaped node style - used by Start/End/Join nodes */
-    PILL: "flex items-center justify-center gap-2 rounded-full border bg-(--primary-w10) px-4 py-2 shadow-sm",
+    PILL: "flex items-center justify-center gap-2 rounded-full bg-(--primary-w10) px-4 py-2 shadow-sm",
 
     /** Container header style - used by Loop/Map expanded header */
-    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded border bg-(--background-w10) shadow transition-all duration-200 hover:shadow-md",
+    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded bg-(--background-w10) shadow transition-all duration-200 hover:shadow-md",
 } as const;
 
 /**

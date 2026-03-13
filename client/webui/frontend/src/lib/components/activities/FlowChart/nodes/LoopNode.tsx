@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT, CONTAINER_CHILDREN_CLASSES } from "../utils/nodeStyles";
+import { NODE_COLORS } from "@/lib/constants";
 import AgentNode from "./AgentNode";
 
 interface LoopNodeProps {
@@ -117,7 +118,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
             }}
         >
             <div className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 text-teal-600" />
+                <RefreshCw className={`h-4 w-4 ${NODE_COLORS.loop}`} />
                 <span className="text-sm font-semibold">Loop</span>
             </div>
             {maxIterations && <span className="text-sm text-(--secondary-text-wMain)">max: {maxIterations}</span>}

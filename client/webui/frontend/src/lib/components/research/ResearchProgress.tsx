@@ -63,7 +63,7 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
                     <CardTitle className="flex items-center gap-2 text-lg">
                         {isComplete ? (
                             <>
-                                <CheckCircle className="h-5 w-5 text-green-500" />
+                                <CheckCircle className="h-5 w-5 text-(--success-wMain)" />
                                 <span>Research Complete</span>
                             </>
                         ) : (
@@ -103,10 +103,10 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
                             <div
                                 key={phase}
                                 className={`flex flex-col items-center gap-1 rounded-lg p-2 transition-colors ${
-                                    isActive ? "border border-(--primary-wMain) bg-(--primary-w10)" : isComplete ? "border border-green-500/30 bg-green-500/10" : "bg-(--secondary-w10)"
+                                    isActive ? "border border-(--primary-wMain) bg-(--primary-w10)" : isComplete ? "border border-(--success-w100) bg-(--success-w10)" : "bg-(--secondary-w10)"
                                 }`}
                             >
-                                <Icon className={`h-4 w-4 ${isActive ? "animate-pulse text-(--primary-wMain)" : isComplete ? "text-green-600" : "text-(--secondary-text-wMain)"}`} />
+                                <Icon className={`h-4 w-4 ${isActive ? "animate-pulse text-(--primary-wMain)" : isComplete ? "text-(--success-wMain)" : "text-(--secondary-text-wMain)"}`} />
                                 <span className="text-center text-xs capitalize">{phase}</span>
                             </div>
                         );

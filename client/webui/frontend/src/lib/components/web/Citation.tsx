@@ -107,7 +107,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 onClick={onClick}
                                 onMouseEnter={handleMouseEnter}
                                 onMouseLeave={handleMouseLeave}
-                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-blue-600 no-underline transition-colors"
+                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-(--info-wMain) no-underline transition-colors"
                                 title={isLocalFile ? "Download unavailable for local files" : undefined}
                             >
                                 {label}

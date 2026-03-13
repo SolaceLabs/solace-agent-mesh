@@ -125,7 +125,7 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
                             <div className="flex items-center justify-between">
                                 <div className="flex-1">
                                     {selectedImage.title && (
-                                        <a href={selectedImage.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline">
+                                        <a href={selectedImage.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-(--info-wMain) hover:text-(--info-w100) hover:underline">
                                             {selectedImage.title}
                                             <ExternalLink className="h-3 w-3" />
                                         </a>

@@ -365,7 +365,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 flex-1 items-start gap-3">
                                 {/* Checkmark Icon */}
-                                <div className="mt-0.5 flex-shrink-0 text-green-600">
+                                <div className="mt-0.5 flex-shrink-0 text-(--success-wMain)">
                                     <CheckCircle className="h-5 w-5" />
                                 </div>
 
@@ -376,7 +376,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                                     {/* Progress bar - full */}
                                     <div className={`mt-2 ${showSpacing ? "mb-4" : ""}`}>
                                         <div className="h-1 overflow-hidden rounded-full bg-(--secondary-w20)">
-                                            <div className="h-full bg-green-600 transition-all duration-300 ease-out" style={{ width: "100%" }} />
+                                            <div className="h-full bg-(--success-wMain) transition-all duration-300 ease-out" style={{ width: "100%" }} />
                                         </div>
                                     </div>
                                 </div>

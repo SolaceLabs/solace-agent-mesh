@@ -29,7 +29,7 @@ export const solaceDark: ThemePalette = {
     secondary: {
         w70: "#536574",
         w80: "#354e62",
-        w8040: "#0d111766",
+        w8040: "#00000066",
         w100: "#f5f5f5",
         wMain: "#8790a0",
         w40: "#536574",
@@ -45,7 +45,7 @@ export const solaceDark: ThemePalette = {
     background: {
         w100: "#f5f5f5",
         wMain: "#03223B",
-        w20: "#010f1e",
+        w20: "#071e36",
         w10: "#02172b",
     },
 
@@ -169,9 +169,6 @@ export const solaceDark: ThemePalette = {
     },
 
     temporary: {
-        background: {
-            w10: "#010f1e",
-        },
         primary: {
             wMain: "#E6EFF2",
         },

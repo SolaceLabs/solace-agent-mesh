@@ -1,4 +1,5 @@
 import { type ReactNode, useState, useEffect } from "react";
+import { cn } from "@/lib";
 import { ArrowRight, Bot, CheckCircle, FileText, GitBranch, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
@@ -6,6 +7,7 @@ import { type JSONValue, JSONViewer, MarkdownHTMLConverter } from "@/lib/compone
 import { getRenderType, getFileContent, decodeBase64Content, encodeBase64Content, ContentRenderer } from "@/lib/components/chat/preview";
 import type { VisualizerStep, ToolDecision, FileAttachment } from "@/lib/types";
 import { parseArtifactUri, getArtifactContent } from "@/lib/utils";
+import { NODE_COLORS, NODE_ACCENT_COLOR, ARTIFACT_CARD_STYLES, PEER_BADGE_STYLES } from "@/lib/constants";
 
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 
@@ -165,19 +167,19 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
     const getNodeIcon = () => {
         switch (nodeDetails.nodeType) {
             case "user":
-                return <User className="text-purple-500" size={20} />;
+                return <User className={NODE_COLORS.user} size={20} />;
             case "agent":
                 return <Bot className="text-(--brand-wMain)" size={20} />;
             case "llm":
-                return <Zap className="text-teal-500" size={20} />;
+                return <Zap className={NODE_COLORS.llm} size={20} />;
             case "tool":
-                return <Wrench className="text-cyan-500" size={20} />;
+                return <Wrench className={NODE_COLORS.tool} size={20} />;
             case "switch":
-                return <GitBranch className="text-purple-500" size={20} />;
+                return <GitBranch className={NODE_COLORS.switch} size={20} />;
             case "loop":
-                return <RefreshCw className="text-teal-500" size={20} />;
+                return <RefreshCw className={NODE_COLORS.loop} size={20} />;
             case "group":
-                return <Workflow className="text-purple-500" size={20} />;
+                return <Workflow className={NODE_COLORS.group} size={20} />;
             default:
                 return <Terminal className="text-(--secondary-text-wMain)" size={20} />;
         }
@@ -288,7 +290,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                 <span className="min-w-0 truncate font-normal text-(--secondary-text-wMain)" title={data.inputArtifactRef.name}>
                                     {data.inputArtifactRef.name}
                                 </span>
-                                {data.inputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600">v{data.inputArtifactRef.version}</span>}
+                                {data.inputArtifactRef.version !== undefined && <span className={cn("ml-1 shrink-0", NODE_ACCENT_COLOR)}>v{data.inputArtifactRef.version}</span>}
                             </div>
 
                             <ArtifactContentViewer uri={data.inputArtifactRef.uri} name={data.inputArtifactRef.name} version={data.inputArtifactRef.version} />
@@ -405,7 +407,9 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                     <div key={index} className="rounded-md border p-2">
                                         <div className="mb-1 text-xs font-semibold text-(--info-wMain)">
                                             {decision.toolName}
-                                            {decision.isPeerDelegation && <span className="ml-2 rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-700">{decision.toolName.startsWith("workflow_") ? "Workflow" : "Peer Agent"}</span>}
+                                            {decision.isPeerDelegation && (
+                                                <span className={cn("ml-2 rounded px-1.5 py-0.5 text-xs", PEER_BADGE_STYLES.bg, PEER_BADGE_STYLES.text)}>{decision.toolName.startsWith("workflow_") ? "Workflow" : "Peer Agent"}</span>
+                                            )}
                                         </div>
                                         {decision.toolArguments && Object.keys(decision.toolArguments).length > 0 && <div className="mt-1">{renderFormattedArguments(decision.toolArguments)}</div>}
                                     </div>
@@ -471,7 +475,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             return <span className="break-words whitespace-pre-wrap">{value}</span>;
         }
         if (typeof value === "number") {
-            return <span className="text-purple-600">{value}</span>;
+            return <span className={NODE_ACCENT_COLOR}>{value}</span>;
         }
         if (typeof value === "boolean") {
             return <span className="text-(--success-wMain)">{value.toString()}</span>;
@@ -592,7 +596,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                         {data.inputArtifactRef.version !== undefined && (
                                             <div className="flex gap-2">
                                                 <span className="flex-shrink-0 font-semibold">version:</span>
-                                                <span className="text-purple-600">{data.inputArtifactRef.version}</span>
+                                                <span className={NODE_ACCENT_COLOR}>{data.inputArtifactRef.version}</span>
                                             </div>
                                         )}
                                     </div>
@@ -628,7 +632,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                                     {data.cases.map((caseItem, index) => (
                                         <div key={index} className="rounded-md border bg-(--secondary-w10) p-2">
                                             <div className="mb-1 flex items-center gap-2">
-                                                <span className="text-xs font-semibold text-purple-600">Case {index + 1}</span>
+                                                <span className={cn("text-xs font-semibold", NODE_ACCENT_COLOR)}>Case {index + 1}</span>
                                                 <ArrowRight className="h-3 w-3 text-(--secondary-text-wMain)" />
                                                 <span className="text-xs font-medium text-(--info-wMain)">{caseItem.node}</span>
                                             </div>
@@ -641,9 +645,9 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
                         {/* Default branch */}
                         {data.defaultBranch && (
-                            <div className="rounded-md border border-(--warning-w100) p-2">
+                            <div className="rounded-md border border-(--accent-n6-w100) p-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-semibold text-(--warning-wMain)">Default</span>
+                                    <span className="text-xs font-semibold text-(--accent-n6-wMain)">Default</span>
                                     <ArrowRight className="h-3 w-3 text-(--secondary-text-wMain)" />
                                     <span className="text-xs font-medium text-(--info-wMain)">{data.defaultBranch}</span>
                                 </div>
@@ -796,7 +800,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                 <h4 className="mb-2 text-sm font-semibold">Workflow Result</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
-                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-(--success-wMain)" : "text-red-600"}>{data.status}</span>
+                        <span className="font-semibold">Status:</span> <span className={data.status === "success" ? "text-(--success-wMain)" : "text-(--error-wMain)"}>{data.status}</span>
                     </div>
                     {data.workflowOutput && (
                         <div>
@@ -805,7 +809,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                         </div>
                     )}
                     {data.errorMessage && (
-                        <div className="text-xs text-red-600">
+                        <div className="text-xs text-(--error-wMain)">
                             <span className="font-semibold">Error:</span> {data.errorMessage}
                         </div>
                     )}
@@ -829,7 +833,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
                     <span className="min-w-0 truncate font-normal text-(--secondary-text-wMain)" title={outputArtifactRef.name}>
                         {outputArtifactRef.name}
                     </span>
-                    {outputArtifactRef.version !== undefined && <span className="ml-1 flex-shrink-0 text-purple-600">v{outputArtifactRef.version}</span>}
+                    {outputArtifactRef.version !== undefined && <span className={cn("ml-1 shrink-0", NODE_ACCENT_COLOR)}>v{outputArtifactRef.version}</span>}
                 </div>
                 <div className="rounded-md border p-2">
                     <ArtifactContentViewer name={outputArtifactRef.name} version={outputArtifactRef.version} />
@@ -873,22 +877,24 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         return (
             <div className={asColumn ? "" : "mt-4 border-t pt-4"}>
                 <div className={`flex items-center gap-2 ${asColumn ? "mb-3 border-b pb-2" : "mb-3"}`}>
-                    <div className={`${asColumn ? "h-2 w-2 rounded-full bg-indigo-500" : ""}`}></div>
-                    <FileText className={`h-4 w-4 text-indigo-500 ${asColumn ? "hidden" : ""}`} />
-                    <h4 className="text-sm font-bold text-indigo-600">{asColumn ? "CREATED ARTIFACTS" : `Created Artifacts (${nodeDetails.createdArtifacts.length})`}</h4>
+                    <div className={cn(asColumn && "h-2 w-2 rounded-full bg-(--accent-n1-wMain)")}></div>
+                    <FileText className={cn("h-4 w-4", NODE_COLORS.artifact, asColumn && "hidden")} />
+                    <h4 className={cn("text-sm font-bold", ARTIFACT_CARD_STYLES.text)}>{asColumn ? "CREATED ARTIFACTS" : `Created Artifacts (${nodeDetails.createdArtifacts.length})`}</h4>
                 </div>
                 <div className="space-y-3">
                     {nodeDetails.createdArtifacts.map((artifact, index) => (
-                        <div key={`${artifact.filename}-${artifact.version ?? index}`} className="rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                        <div key={`${artifact.filename}-${artifact.version ?? index}`} className={cn("rounded-md border p-3", ARTIFACT_CARD_STYLES.border, ARTIFACT_CARD_STYLES.bg)}>
                             <div className="mb-1 flex items-center justify-between gap-2">
                                 <button
                                     onClick={() => handleArtifactClick(artifact.filename, artifact.version)}
-                                    className="min-w-0 cursor-pointer truncate text-sm font-semibold text-indigo-700 transition-colors hover:text-indigo-900 hover:underline"
+                                    className={cn("min-w-0 cursor-pointer truncate text-sm font-semibold transition-colors", ARTIFACT_CARD_STYLES.text, ARTIFACT_CARD_STYLES.textHover)}
                                     title={artifact.filename}
                                 >
                                     {artifact.filename}
                                 </button>
-                                <div className="flex flex-shrink-0 items-center">{artifact.version !== undefined && <span className="rounded bg-indigo-200 px-1.5 py-0.5 text-xs text-indigo-700">v{artifact.version}</span>}</div>
+                                <div className="flex flex-shrink-0 items-center">
+                                    {artifact.version !== undefined && <span className={cn("rounded px-1.5 py-0.5 text-xs", ARTIFACT_CARD_STYLES.badgeBg, ARTIFACT_CARD_STYLES.text)}>v{artifact.version}</span>}
+                                </div>
                             </div>
                             {artifact.description && <p className="mb-2 text-xs">{artifact.description}</p>}
                             {artifact.mimeType && (

@@ -231,10 +231,10 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                                 placeholder="e.g., Code Review Template"
                                                 value={config.name || ""}
                                                 onChange={e => updateConfig({ name: e.target.value })}
-                                                className={`placeholder:text-(--secondary-text-w50) ${validationErrors.name ? "border-red-500" : ""}`}
+                                                className={`placeholder:text-(--secondary-text-w50) ${validationErrors.name ? "border-(--error-w100)" : ""}`}
                                             />
                                             {validationErrors.name && (
-                                                <p className="flex items-center gap-1 text-sm text-red-600">
+                                                <p className="flex items-center gap-1 text-sm text-(--error-wMain)">
                                                     <AlertCircle className="h-3 w-3" />
                                                     {validationErrors.name}
                                                 </p>
@@ -284,7 +284,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                                     placeholder="e.g., code-review"
                                                     value={config.command || ""}
                                                     onChange={e => updateConfig({ command: e.target.value })}
-                                                    className={`placeholder:text-(--secondary-text-w50) ${validationErrors.command ? "border-red-500" : ""}`}
+                                                    className={`placeholder:text-(--secondary-text-w50) ${validationErrors.command ? "border-(--error-w100)" : ""}`}
                                                 />
                                             </div>
                                             <p className="text-xs text-(--secondary-text-wMain)">Quick access shortcut for chat (letters, numbers, hyphens, underscores only)</p>
@@ -305,10 +305,10 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                             value={config.promptText || ""}
                                             onChange={e => updateConfig({ promptText: e.target.value })}
                                             rows={12}
-                                            className={`placeholder:text-(--secondary-text-w50) ${validationErrors.promptText ? "border-red-500" : ""}`}
+                                            className={`placeholder:text-(--secondary-text-w50) ${validationErrors.promptText ? "border-(--error-w100)" : ""}`}
                                         />
                                         {validationErrors.promptText && (
-                                            <p className="flex items-center gap-1 text-sm text-red-600">
+                                            <p className="flex items-center gap-1 text-sm text-(--error-wMain)">
                                                 <AlertCircle className="h-3 w-3" />
                                                 {validationErrors.promptText}
                                             </p>

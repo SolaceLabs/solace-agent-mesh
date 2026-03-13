@@ -339,7 +339,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                 </p>
             )}
             {data.errorMessage && (
-                <p className="mt-1 text-red-600">
+                <p className="mt-1 text-(--error-wMain)">
                     <strong>Error:</strong> {data.errorMessage}
                 </p>
             )}
@@ -380,7 +380,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                 </div>
             )}
             {data.errorMessage && (
-                <p className="text-red-600">
+                <p className="text-(--error-wMain)">
                     <strong>Error:</strong> {data.errorMessage}
                 </p>
             )}
@@ -463,7 +463,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
             )}
             {step.type === "TASK_COMPLETED" && !step.data.finalMessage && <div className="pl-1 text-sm text-(--secondary-text-wMain) italic">Task completed successfully.</div>}
             {step.data.errorDetails && (
-                <div className="mt-1 rounded-md bg-red-50 p-2 pl-1 text-sm text-red-700">
+                <div className="mt-1 rounded-md bg-(--error-w10) p-2 pl-1 text-sm text-(--error-wMain)">
                     <p>
                         <strong>Error:</strong> {step.data.errorDetails.message}
                     </p>

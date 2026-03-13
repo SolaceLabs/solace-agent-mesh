@@ -174,12 +174,9 @@ export type ThemePalette = {
         border: string;
     };
 
-    temporary?: {
-        background?: {
-            w10?: string;
-        };
-        primary?: {
-            wMain?: string;
+    temporary: {
+        primary: {
+            wMain: string;
         };
     };
 };

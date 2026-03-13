@@ -64,7 +64,7 @@ const MappingValue: React.FC<{
             <span className="flex gap-1">
                 <span className="flex-1 font-mono text-(--error-wMain)">"{value}"</span>
                 {hasNodeRefs && onNavigateToNode && (
-                    <Button variant="ghost" onClick={handleNavigate} onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])} onMouseLeave={() => onHighlightNodes?.([])} tooltip={`Navigate to ${nodeRefs[0]}`} className="bg-red-100">
+                    <Button variant="ghost" onClick={handleNavigate} onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])} onMouseLeave={() => onHighlightNodes?.([])} tooltip={`Navigate to ${nodeRefs[0]}`} className="bg-(--error-w10)">
                         <Search />
                     </Button>
                 )}

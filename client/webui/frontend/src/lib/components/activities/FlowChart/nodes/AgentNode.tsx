@@ -169,7 +169,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />
 
                 {/* Parallel branches below */}
-                <div className="rounded-md border-2 border-indigo-200 bg-(--background-w10) p-4">
+                <div className={`rounded-md border-2 border-(--secondary-w40) bg-(--background-w20) p-4`}>
                     <div className="grid gap-4" style={{ gridAutoFlow: "column", gridAutoColumns: "1fr" }}>
                         {node.parallelBranches!.map((branch, branchIndex) => (
                             <div key={branchIndex} className="flex flex-col items-center">
@@ -240,7 +240,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
     return (
         <div className={`flex flex-col ${opacityClass} ${haloClass}`}>
             {/* Solid Container with Header and Content */}
-            <div className={`rounded border bg-(--background-w10) shadow transition-all duration-200 hover:shadow-md ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`} style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px` }}>
+            <div className={`rounded bg-(--background-w10) shadow transition-all duration-200 hover:shadow-md ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`} style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px` }}>
                 {/* Header */}
                 <div
                     className="group flex cursor-pointer items-center justify-between gap-4 px-4 py-2"
@@ -274,7 +274,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 <div className="border-t" />
 
                 {/* Children content */}
-                <div className="px-4 py-4">
+                <div className="bg-(--secondary-w20) p-4">
                     <div className="flex flex-col items-center gap-2">
                         {/* Sequential children */}
                         {hasChildren &&

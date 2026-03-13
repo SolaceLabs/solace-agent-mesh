@@ -520,8 +520,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
                 <div className="flex flex-grow flex-col items-center justify-center text-center">
-                    <div className="mb-4 p-4 text-red-500">{fetchError instanceof Error ? fetchError.message : "Failed to load PDF."}</div>
-                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <div className="mb-4 p-4 text-(--error-wMain)">{fetchError instanceof Error ? fetchError.message : "Failed to load PDF."}</div>
+                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-(--info-wMain) hover:underline">
                         Download PDF
                     </a>
                 </div>
@@ -533,8 +533,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
                 <div className="flex flex-grow flex-col items-center justify-center text-center">
-                    <div className="mb-4 p-4 text-red-500">{error}</div>
-                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <div className="mb-4 p-4 text-(--error-wMain)">{error}</div>
+                    <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-(--info-wMain) hover:underline">
                         Download PDF
                     </a>
                 </div>
@@ -585,7 +585,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                             <div className="mx-1 h-4 w-px bg-(--secondary-w40)" />
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")} className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600" : "hover:bg-(--secondary-w20)"}`}>
+                                    <button onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")} className={`rounded p-1 ${interactionMode === "pan" ? "bg-(--info-w10) text-(--info-wMain)" : "hover:bg-(--secondary-w20)"}`}>
                                         <Hand className="h-4 w-4" />
                                     </button>
                                 </TooltipTrigger>
@@ -593,7 +593,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                             </Tooltip>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")} className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600" : "hover:bg-(--secondary-w20)"}`}>
+                                    <button onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")} className={`rounded p-1 ${interactionMode === "snip" ? "bg-(--info-w10) text-(--info-wMain)" : "hover:bg-(--secondary-w20)"}`}>
                                         <Scissors className="h-4 w-4" />
                                     </button>
                                 </TooltipTrigger>
@@ -601,7 +601,9 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                             </Tooltip>
                             {/* Show status indicator */}
                             {interactionMode === "snip" && snipStatus !== "idle" && (
-                                <div className={`ml-2 rounded px-2 py-0.5 text-xs ${snipStatus === "processing" ? "bg-blue-100 text-blue-600" : snipStatus === "success" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}>
+                                <div
+                                    className={`ml-2 rounded px-2 py-0.5 text-xs ${snipStatus === "processing" ? "bg-(--info-w10) text-(--info-wMain)" : snipStatus === "success" ? "bg-(--success-w10) text-(--success-wMain)" : "bg-(--error-w10) text-(--error-wMain)"}`}
+                                >
                                     {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
                                 </div>
                             )}
@@ -635,7 +637,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename, initialPage, c
                     onLoadSuccess={onDocumentLoadSuccess}
                     onLoadError={onDocumentLoadError}
                     loading={<div className="p-4 text-center">Loading PDF...</div>}
-                    error={<div className="p-4 text-center text-red-500">Failed to load PDF.</div>}
+                    error={<div className="p-4 text-center text-(--error-wMain)">Failed to load PDF.</div>}
                 >
                     <div ref={documentContainerRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
                         {numPages &&

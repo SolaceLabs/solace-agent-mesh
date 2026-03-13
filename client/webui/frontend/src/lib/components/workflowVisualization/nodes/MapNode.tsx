@@ -2,6 +2,7 @@ import type { FC, ReactNode, MouseEvent } from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
+import { NODE_COLORS } from "@/lib/constants";
 
 const { NODE_HEIGHTS } = LAYOUT_CONSTANTS;
 
@@ -44,8 +45,8 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
                 }}
             >
                 <div className="flex items-center gap-2">
-                    <Repeat2 className="h-4 w-4 text-indigo-600" />
-                    <span className="text-sm font-semibold text-indigo-900">Map</span>
+                    <Repeat2 className={`h-4 w-4 ${NODE_COLORS.map}`} />
+                    <span className={`text-sm font-semibold ${NODE_COLORS.mapLabel}`}>Map</span>
                 </div>
 
                 {canHaveChildren && (

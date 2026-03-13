@@ -169,9 +169,6 @@ export const solace: ThemePalette = {
     },
 
     temporary: {
-        background: {
-            w10: "#FFFFFF",
-        },
         primary: {
             wMain: "#015B82",
         },

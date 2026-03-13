@@ -290,8 +290,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                 <div className="space-y-2">
                     <MessageBanner variant="error" message={fileError} />
                     {validationErrors.length > 0 && (
-                        <div className="rounded-md border border-red-200 bg-red-50 p-3">
-                            <ul className="list-inside list-disc space-y-1 text-sm text-red-800">
+                        <div className="rounded-md border border-(--error-w100) bg-(--error-w10) p-3">
+                            <ul className="list-inside list-disc space-y-1 text-sm text-(--error-wMain)">
                                 {validationErrors.map((err, idx) => (
                                     <li key={idx}>{err}</li>
                                 ))}

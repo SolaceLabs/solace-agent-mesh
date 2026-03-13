@@ -2,6 +2,7 @@ import type { FC, ReactNode, MouseEvent } from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
+import { NODE_COLORS } from "@/lib/constants";
 
 const { NODE_HEIGHTS } = LAYOUT_CONSTANTS;
 
@@ -53,7 +54,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
                 }}
             >
                 <div className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-teal-600" />
+                    <RefreshCw className={`h-4 w-4 ${NODE_COLORS.loop}`} />
                     <span className="text-sm font-semibold">Loop</span>
                 </div>
 
