@@ -214,7 +214,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         id: prisma_scan
         continue-on-error: true
-        uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@update-prisma
+        uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@main
         with:
           image_registry: ${{ steps.login-ecr.outputs.registry }}
           image_repo: ${{ github.event.repository.name }}
