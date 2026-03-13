@@ -1,4 +1,6 @@
 import { api, getErrorFromResponse } from "../api";
+import type { ArtifactInfo } from "../types";
+import type { Project } from "../types/projects";
 
 /**
  * Returns the identifier if it is a usable, non-sentinel value, or undefined otherwise.
@@ -134,4 +136,15 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
         console.error("Invalid artifact URI:", e);
         return null;
     }
+};
+
+/**
+ * Resolves the display name for an artifact's source project badge.
+ * Returns the active project's name if IDs match, "Project" as a
+ * fallback for legacy artifacts, or undefined if not project-sourced.
+ */
+export const getSourceProjectName = (artifact: ArtifactInfo | undefined, activeProject: Project | null): string | undefined => {
+    if (artifact?.sourceProjectId === activeProject?.id) return activeProject?.name;
+    if (artifact?.source === "project" && !artifact?.sourceProjectId) return "Project";
+    return undefined;
 };

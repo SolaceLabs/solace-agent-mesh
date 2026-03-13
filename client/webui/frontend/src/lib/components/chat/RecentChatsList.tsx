@@ -133,7 +133,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
 
     if (sessions.length === 0) {
         return (
-            <div className="text-muted-foreground flex flex-col items-center justify-center py-4 text-xs">
+            <div className="text-muted-foreground flex h-full flex-col items-center pt-[25%] text-xs">
                 <MessageCircle className="mb-2 h-6 w-6" />
                 No recent chats
             </div>
