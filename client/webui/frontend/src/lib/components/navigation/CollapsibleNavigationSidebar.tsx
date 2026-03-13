@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useChatContext, useSessionStorage } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
@@ -199,7 +199,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     };
 
     return (
-        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--background-wMain)", isCollapsed ? "w-16" : "w-64")}>
+        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg)", isCollapsed ? "w-16" : "w-64")}>
             {isCollapsed ? (
                 <>
                     <div className="relative flex min-h-[80px] w-full items-center justify-center overflow-visible border-b border-(--secondary-w70) py-3">
@@ -208,8 +208,8 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         {!hideCollapseButton && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={handleToggle} className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--background-wMain) p-0.5 shadow-md hover:bg-(--background-w100)">
-                                        <ChevronRight className="size-4 text-(--primary-text-w10)" />
+                                    <button onClick={handleToggle} className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
+                                        <ChevronRight className="size-4 text-(--darkSurface-text)" />
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="right">Expand Navigation</TooltipContent>
@@ -287,7 +287,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         {!hideCollapseButton && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={handleToggle} className="flex h-8 w-8 cursor-pointer items-center justify-center p-1 text-(--primary-text-w10) hover:bg-(--background-w100)">
+                                    <button onClick={handleToggle} className="flex h-8 w-8 cursor-pointer items-center justify-center p-1 text-(--darkSurface-text) hover:bg-(--darkSurface-bgHover)">
                                         <ChevronLeft className="size-6" />
                                     </button>
                                 </TooltipTrigger>
@@ -342,10 +342,10 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         <div className="flex min-h-0 flex-1 flex-col">
                             <div className="border-t border-(--secondary-w70)" />
                             <div className="mb-2 flex items-center justify-between pt-4 pr-6 pl-6">
-                                <span className="text-sm font-bold text-(--secondary-text-wMain)">Recent Chats</span>
-                                <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm text-(--primary-w60) hover:text-(--primary-text-w10)">
+                                <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
+                                <Button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} variant="ghost" className="px-2">
                                     View All
-                                </button>
+                                </Button>
                             </div>
                             <div className="scrollbar-subtle min-h-[120px] flex-1 overflow-y-auto">
                                 <RecentChatsList maxItems={MAX_RECENT_CHATS} />

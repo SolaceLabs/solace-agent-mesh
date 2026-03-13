@@ -9,10 +9,10 @@ import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
 
-const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--background-w100)"], {
+const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
         active: {
-            true: "bg-(--background-w100)",
+            true: "bg-(--darkSurface-bgActive)",
             false: "",
         },
     },
@@ -22,8 +22,8 @@ const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "it
 const sessionTextStyles = cva(["block", "truncate", "text-sm", "transition-opacity", "duration-300"], {
     variants: {
         active: {
-            true: "text-(--primary-text-w10)",
-            false: "text-(--secondary-text-w50)",
+            true: "text-(--darkSurface-text)",
+            false: "text-(--darkSurface-textMuted)",
         },
         animation: {
             pulseGenerate: "animate-pulse-slow",
