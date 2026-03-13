@@ -11,8 +11,9 @@ import logging
 
 log = logging.getLogger(__name__)
 
-BOOTSTRAP_REQUEST_TOPIC = "{namespace}agents/{id}/bootstrap"
-MODEL_CONFIG_UPDATE_TOPIC = "{namespace}agents/{id}/configuration"
+BOOTSTRAP_REQUEST_TOPIC = "{namespace}model/{id}/bootstrap"
+BOOTSTRAP_RESPONSE_TOPIC = "{namespace}model/{id}/bootstrap/response"
+MODEL_CONFIG_UPDATE_TOPIC = "{namespace}configuration/model/{name}"
 
 
 # SAC Component Info for ModelConfigReceiverComponent
@@ -121,9 +122,10 @@ class ModelConfigReceiverComponent(ComponentBase):
 
 class DynamicModelProvider:
 
-    def __init__(self, component: SamComponentBase, litellm_instance: LiteLlm):
+    def __init__(self, component: SamComponentBase, litellm_instance: LiteLlm, model_id: str):
         self._component = component
         self._litellm_instance = litellm_instance
+        self._model_id = model_id
 
         # Internal SAC flow for subscribing to model config updates
         self._internal_app = None
@@ -161,6 +163,18 @@ class DynamicModelProvider:
             namespace=self._component.namespace,
             id=self._component.get_component_id(),
         )
+
+    def get_bootstrap_response_topic(self) -> str:
+        """
+        Get the A2A topic to listen for model configuration request responses.
+
+        Returns:
+            The topic string to listen for model config request responses on.
+        """
+        return BOOTSTRAP_RESPONSE_TOPIC.format(
+            namespace=self._component.namespace,
+            id=self._component.get_component_id(),
+        )
     
     def get_model_config_update_topic(self) -> str:
         """
@@ -183,7 +197,7 @@ class DynamicModelProvider:
         topic = self.get_bootstrap_request_topic()
         payload = {
             "component_id": component_id,
-            "reply_to": self.get_model_config_update_topic()
+            "reply_to": self.get_bootstrap_response_topic(),
         }
         self._component.publish_a2a_message(
             payload=payload,
@@ -223,16 +237,20 @@ class DynamicModelProvider:
 
             # Subscribe to the model config update topic
             config_update_topic = self.get_model_config_update_topic()
+            config_bootstrap_topic = self.get_bootstrap_response_topic()
             component_id = self._component.get_component_id()
 
             broker_input_cfg = {
                 "component_module": "broker_input",
                 "component_name": f"{component_id}_model_config_broker_input",
-                "broker_queue_name": f"{self._component.namespace.strip('/')}/q/model_config/{component_id}",
+                "broker_queue_name": f"{self._component.namespace}q/model_config/{component_id}",
                 "create_queue_on_start": True,
                 "component_config": {
                     **main_broker_config,
-                    "broker_subscriptions": [{"topic": config_update_topic}],
+                    "broker_subscriptions": [
+                        {"topic": config_update_topic},
+                        {"topic": config_bootstrap_topic}
+                        ],
                 },
             }
 
@@ -348,7 +366,7 @@ class DynamicModelProvider:
         self._broker_input = None
 
 
-async def start_model_listener(litellm_instance: LiteLlm, component: SamComponentBase):
+async def start_model_listener(litellm_instance: LiteLlm, component: SamComponentBase, model_provider_id: str):
     """
     Start a model configuration listener for the given LiteLlm instance.
 
@@ -358,8 +376,9 @@ async def start_model_listener(litellm_instance: LiteLlm, component: SamComponen
     Args:
         litellm_instance: The LiteLlm instance to configure when model arrives.
         component: The SamAgentComponent for context (namespace, agent_name, etc.)
+        model_provider_id: The identifier for the model provider
     """
-    log.info("Starting model configuration listener for component %s", component.get_component_id())
-    model_config_provider = DynamicModelProvider(component, litellm_instance)
+    log.info("Starting model '%s' listener for component %s", model_provider_id, component.get_component_id())
+    model_config_provider = DynamicModelProvider(component, litellm_instance, model_provider_id)
     await model_config_provider.listen_for_model_config_change()
     return model_config_provider

@@ -13,6 +13,7 @@ from typing import Any, Optional, Union
 from google.adk.models import BaseLlm
 from solace_ai_connector.components.component_base import ComponentBase
 from ...agent.adk.models.lite_llm import LiteLlm
+from ...agent.adk.models.dynamic_model_provider import start_model_listener
 from ..exceptions import ComponentInitializationError, MessageSizeExceededError
 from ..utils.message_utils import validate_message_size
 
@@ -770,21 +771,17 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
     async def _start_model_listener(self):
         """Start the model configuration listener."""
-        if not self.requires_llm:
+        if not self.model_provider:
             log.info(
-                "%s LLM not required for this component. Skipping model listener setup.",
+                "%s LLM Model Provider not configured. Skipping model listener setup.",
                 self.log_identifier,
             )
             return
 
         # Try enterprise model listener
         try:
-            from ...agent.adk.models.dynamic_model_provider import (
-                start_model_listener,
-            )
-
             litellm_instance = self.get_lite_llm_model()
-            await start_model_listener(litellm_instance, self)
+            await start_model_listener(litellm_instance, self, self.model_provider)
             log.info("%s Enterprise model listener started.", self.log_identifier)
         except Exception as e:
             log.warning(
@@ -844,7 +841,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 # Set to None to disable trust manager for this session
                 self.trust_manager = None
 
-        if self._lazy_model_mode:
+        if self._lazy_model_mode and self.model_provider:
             asyncio.create_task(self._start_model_listener())
 
     @abc.abstractmethod
