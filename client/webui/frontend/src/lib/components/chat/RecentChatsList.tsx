@@ -5,6 +5,7 @@ import { MessageCircle } from "lucide-react";
 
 import { useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
+import { useBooleanFlagValue } from "@openfeature/react-sdk";
 import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
@@ -42,7 +43,8 @@ interface SessionNameProps {
 }
 
 function SessionName({ session, respondingSessionId, isActive, hasRunningBackgroundTask }: SessionNameProps) {
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const { persistenceEnabled } = useConfigContext();
+    const autoTitleGenerationEnabled = useBooleanFlagValue("auto_title_generation", false) && persistenceEnabled;
 
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {

@@ -59,7 +59,9 @@ class TestGetFeatureFlagsEndpoint:
 
     def test_no_env_override_by_default(self, api_client: TestClient, monkeypatch):
         """Without env vars set, has_env_override is False for every flag."""
-        monkeypatch.delenv("SAM_FEATURE_MENTIONS", raising=False)
+        response = api_client.get("/api/v1/config/features")
+        for flag in response.json():
+            monkeypatch.delenv(f"SAM_FEATURE_{flag['key'].upper()}", raising=False)
         response = api_client.get("/api/v1/config/features")
         for flag in response.json():
             assert flag["has_env_override"] is False
