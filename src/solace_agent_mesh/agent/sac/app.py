@@ -303,6 +303,12 @@ class SamAgentAppConfig(SamConfigBase):
         default=None,
         description="ADK model name (string) or BaseLlm config dict. "
     )
+    model_provider: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Optional dynamic model provider configuration. this will overwrite the 'model' field if provided. "
+        )
+    )
     agent_identity: Optional[AgentIdentityConfig] = Field(
         default_factory=lambda: AgentIdentityConfig(key_mode="auto"),
         description="Configuration for agent identity and key management.",
@@ -493,6 +499,10 @@ class SamAgentAppConfig(SamConfigBase):
         if self.model is None and not (os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"):
             raise ValueError(
                 "Missing required field: 'model'. Provide a model config"
+            )
+        if (os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true") and (not self.model_provider and not self.model):
+            raise ValueError(
+                "Invalid configuration: 'model_provider' or 'model' must be provided."
             )
         return self
 
