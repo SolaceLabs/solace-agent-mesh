@@ -30,7 +30,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
     """
 
     adk_model_instance: LiteLlm | None = None
-    requires_llm: bool = True
     _component_id: str
 
     def __init__(self, info: dict[str, Any], **kwargs: Any):
@@ -71,6 +70,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
 
+        model_provider_config = self.get_config("model_provider") or []
+        self.model_provider = model_provider_config[0] if model_provider_config and isinstance(model_provider_config, list) else None
+        
         self._lazy_model_mode = (
             os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"
         )
@@ -710,7 +712,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
     def _initialize_model(self) -> Union[str, BaseLlm]:
         model_config = self.get_config("model")
         adk_model_instance: Union[str, BaseLlm]
-        if model_config is None and self._lazy_model_mode:
+        if self.model_provider and self._lazy_model_mode:
             # Lazy model mode: create LiteLlm with placeholder
             adk_model_instance = LiteLlm(
                 model=None,
@@ -751,9 +753,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
     def get_lite_llm_model(self) -> Optional[BaseLlm]:
         """Returns a LiteLlm model instance."""
         if not self.adk_model_instance:
-            if not self.requires_llm:
+            if not self.model_provider and not self.get_config("model"):
                 log.warning(
-                    "%s LLM not required for this component. Returning None.",
+                    "%s No LLM provider configured for this component. Returning None.",
                     self.log_identifier,
                 )
                 return None

@@ -92,7 +92,6 @@ class BaseGatewayComponent(SamComponentBase):
     Initializes shared services and manages the core lifecycle for processing
     A2A messages and interacting with an external communication platform.
     """
-    requires_llm: bool = False
 
     _RESOLVE_EMBEDS_IN_FINAL_RESPONSE = False
 

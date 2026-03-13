@@ -87,7 +87,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
     """
     Hosts the FastAPI backend, manages messaging via SAC, and bridges threads.
     """
-    requires_llm: bool = True
 
     def __init__(self, **kwargs):
         """
