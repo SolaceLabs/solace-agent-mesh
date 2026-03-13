@@ -60,9 +60,19 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove versioned metadata fields from prompts table."""
-    
-    with op.batch_alter_table('prompts', schema=None) as batch_op:
-        batch_op.drop_column('command')
-        batch_op.drop_column('category')
-        batch_op.drop_column('description')
-        batch_op.drop_column('name')
+
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    existing_columns = {col['name'] for col in inspector.get_columns('prompts')}
+
+    # Only drop columns that exist (idempotency for partial downgrade failures)
+    columns_to_drop = ['command', 'category', 'description', 'name']
+    columns_needing_removal = [
+        col_name for col_name in columns_to_drop
+        if col_name in existing_columns
+    ]
+
+    if columns_needing_removal:
+        with op.batch_alter_table('prompts', schema=None) as batch_op:
+            for col_name in columns_needing_removal:
+                batch_op.drop_column(col_name)
