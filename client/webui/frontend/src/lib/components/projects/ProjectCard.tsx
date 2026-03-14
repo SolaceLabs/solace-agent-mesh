@@ -107,7 +107,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
             </CardHeader>
 
             <CardContent className="flex flex-1 flex-col justify-between gap-4">
-                <div>{project.description ? <CardDescription className="line-clamp-2">{project.description}</CardDescription> : <div />}</div>
+                <div>{project.description ? <CardDescription className="line-clamp-3">{project.description}</CardDescription> : <div />}</div>
 
                 <div className="flex items-center justify-between">
                     <div className="text-secondary-foreground max-w-[200px] truncate">By {project.userId}</div>
