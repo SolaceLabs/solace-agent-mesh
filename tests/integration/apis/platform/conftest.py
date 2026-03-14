@@ -45,6 +45,9 @@ def _patch_mock_component_config(factory):
 @pytest.fixture(scope="session", params=["sqlite", "postgresql", "mysql"])
 def platform_db_provider_type(request):
     """Parameterized fixture for Platform Service database provider type."""
+    db_type = request.config.getoption("--db-type", default=None)
+    if db_type and request.param != db_type:
+        pytest.skip(f"Skipping {request.param} (--db-type={db_type})")
     return request.param
 
 

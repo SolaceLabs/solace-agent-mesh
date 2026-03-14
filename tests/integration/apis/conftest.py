@@ -222,17 +222,21 @@ def test_agents_list() -> list[str]:
 def db_provider_type(request):
     """Parameterized fixture for database provider type.
 
-    To run against multiple databases, use:
-    pytest --db-provider=sqlite,postgresql,mysql
-
+    Pass --db-type=<type> to restrict to a single database (used in CI for parallel jobs).
     Or override this fixture in specific test files.
     """
+    db_type = request.config.getoption("--db-type", default=None)
+    if db_type and request.param != db_type:
+        pytest.skip(f"Skipping {request.param} (--db-type={db_type})")
     return request.param
 
 
 @pytest.fixture(scope="session", params=["sqlite", "postgresql", "mysql"])
 def multi_db_provider_type(request):
     """Parameterized fixture that runs tests against all database types."""
+    db_type = request.config.getoption("--db-type", default=None)
+    if db_type and request.param != db_type:
+        pytest.skip(f"Skipping {request.param} (--db-type={db_type})")
     return request.param
 
 

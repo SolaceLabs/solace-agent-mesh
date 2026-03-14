@@ -3,6 +3,15 @@ import inspect
 import socket
 import pytest
 import time
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--db-type",
+        action="store",
+        default=None,
+        help="Restrict integration tests to a single database type: sqlite, postgresql, or mysql",
+    )
 import subprocess
 import sys
 import tempfile

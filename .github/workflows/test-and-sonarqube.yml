@@ -66,7 +66,7 @@ jobs:
   # PYTHON TESTS (Matrix)
   # ----------------------------------------------------
   test-python-matrix:
-    name: Test Python ${{ matrix.python-version }}
+    name: Test Python ${{ matrix.python-version }} / ${{ matrix.db-type }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -74,6 +74,10 @@ jobs:
         python-version:
           - ${{ inputs.min-python-version }}
           - ${{ inputs.max-python-version }}
+        db-type:
+          - sqlite
+          - postgresql
+          - mysql
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -103,23 +107,24 @@ jobs:
       - name: Run Tests with Hatch
         continue-on-error: true
         run: |
-          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}.xml
+          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --db-type=${{ matrix.db-type }} --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}-${{ matrix.db-type }}.xml
 
       - name: Upload Test Results
         uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
         if: always()
         with:
-          check_name: Unit Tests on Python ${{ matrix.python-version }}
-          report_paths: junit-${{ matrix.python-version }}.xml
+          check_name: Tests - Python ${{ matrix.python-version }} / ${{ matrix.db-type }}
+          report_paths: junit-${{ matrix.python-version }}-${{ matrix.db-type }}.xml
           include_passed: true
 
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: matrix.db-type == 'sqlite'
         with:
           name: python-coverage-${{ matrix.python-version }}
           path: |
             coverage.xml
-            junit-${{ matrix.python-version }}.xml
+            junit-${{ matrix.python-version }}-${{ matrix.db-type }}.xml
           retention-days: 1
 
   # ----------------------------------------------------
