@@ -119,12 +119,10 @@ jobs:
 
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: matrix.db-type == 'sqlite'
+        if: matrix.db-type == 'sqlite' && matrix.python-version == inputs.max-python-version
         with:
-          name: python-coverage-${{ matrix.python-version }}
-          path: |
-            coverage.xml
-            junit-${{ matrix.python-version }}-${{ matrix.db-type }}.xml
+          name: python-coverage-${{ inputs.max-python-version }}
+          path: coverage.xml
           retention-days: 1
 
   # ----------------------------------------------------
