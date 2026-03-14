@@ -5,7 +5,7 @@ import type { ComponentProps } from "react";
 // Shared card dimensions for consistency
 export const GRID_CARD_DIMENSIONS = {
     project: "h-[200px] w-[380px]",
-    prompt: "h-[220px] w-[380px]",
+    prompt: "h-[200px] w-[380px]",
 } as const;
 
 interface GridCardProps extends ComponentProps<typeof Card> {

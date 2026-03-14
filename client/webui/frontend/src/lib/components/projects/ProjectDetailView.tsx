@@ -9,6 +9,7 @@ import { useProjectContext } from "@/lib/providers";
 import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext, useSessionStorage } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
+import { formatTimestamp } from "@/lib/utils/format";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
@@ -231,7 +232,8 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
             </div>
 
             {/* Footer */}
-            <Footer>
+            <Footer className="justify-between">
+                <div className="text-muted-foreground text-sm">Created on {formatTimestamp(project.createdAt, "date")}</div>
                 <Button variant="outline" data-testid="closeButton" title="Close" onClick={onBack}>
                     Close
                 </Button>

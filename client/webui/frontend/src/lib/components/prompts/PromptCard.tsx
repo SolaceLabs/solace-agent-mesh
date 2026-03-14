@@ -2,7 +2,7 @@ import React, { useState } from "react";
 
 import { Pencil, Trash2, NotepadText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
 
-import { GridCard } from "@/lib/components/common";
+import { GridCard, GRID_CARD_DIMENSIONS } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { useConfigContext } from "@/lib/hooks";
@@ -70,7 +70,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
     };
 
     return (
-        <GridCard data-testid={prompt.id} isSelected={isSelected} onClick={onPromptClick}>
+        <GridCard data-testid={prompt.id} isSelected={isSelected} onClick={onPromptClick} className={GRID_CARD_DIMENSIONS.prompt}>
             <div className="flex h-full w-full flex-col">
                 <div className="flex items-center justify-between px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
