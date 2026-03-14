@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { FileText, FolderOpen, MoreHorizontal, Download, Trash2, Share2, Eye, UserIcon } from "lucide-react";
 
 import { GridCard, GRID_CARD_DIMENSIONS } from "@/lib/components/common";
-import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
+import { CardContent, CardDescription, CardHeader, CardTitle, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
 import { useIsProjectOwner } from "@/lib/hooks";
@@ -110,18 +110,20 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                 <div>{project.description ? <CardDescription className="line-clamp-2">{project.description}</CardDescription> : <div />}</div>
 
                 <div className="flex items-center justify-between">
-                    <div className="text-secondary-foreground max-w-[200px] truncate text-sm">By {project.userId}</div>
-                    <div className="flex items-center gap-2">
+                    <div className="text-secondary-foreground max-w-[200px] truncate">By {project.userId}</div>
+                    <div className="flex items-center gap-4">
                         {project.artifactCount !== undefined && project.artifactCount !== null && (
-                            <Badge variant="default" className="flex h-6 items-center gap-1">
-                                <FileText className="h-3.5 w-3.5" />
-                                <span>Files: {project.artifactCount}</span>
-                            </Badge>
+                            <div className="text-secondary-foreground flex items-center gap-1">
+                                <FileText className="h-4 w-4 text-(--color-secondary-wMain)" />
+                                <span>
+                                    {project.artifactCount} {project.artifactCount === 1 ? "file" : "files"}
+                                </span>
+                            </div>
                         )}
                         {onShare && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <span className="cursor-default">{isOwner ? <UserIcon className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</span>
+                                    <span className="text-secondary-foreground cursor-default">{isOwner ? <UserIcon className="h-6 w-6" /> : <Eye className="h-6 w-6" />}</span>
                                 </TooltipTrigger>
                                 <TooltipContent side="top">{isOwner ? "You are the owner of this project" : "You are a viewer of this project"}</TooltipContent>
                             </Tooltip>
