@@ -63,10 +63,10 @@ jobs:
           script-path: workflows-repo/.github/scripts/validate_dependencies.py
 
   # ----------------------------------------------------
-  # PYTHON TESTS (Matrix)
+  # PYTHON TESTS — no DB dependency (unit, scenarios, etc.)
   # ----------------------------------------------------
-  test-python-matrix:
-    name: Test Python ${{ matrix.python-version }} / ${{ matrix.db-type }}
+  test-no-db:
+    name: Test Python ${{ matrix.python-version }} (no-db)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -74,10 +74,6 @@ jobs:
         python-version:
           - ${{ inputs.min-python-version }}
           - ${{ inputs.max-python-version }}
-        db-type:
-          - sqlite
-          - postgresql
-          - mysql
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -104,27 +100,79 @@ jobs:
       - name: Create Hatch Environment
         run: hatch -v env create hatch-test.py${{ matrix.python-version }}
 
-      - name: Run Tests with Hatch
-        continue-on-error: true
+      - name: Run Tests (no DB)
         run: |
-          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --db-type=${{ matrix.db-type }} --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}-${{ matrix.db-type }}.xml
+          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --ignore=tests/integration/apis --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}-no-db.xml
 
       - name: Upload Test Results
         uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
         if: always()
         with:
-          check_name: Tests - Python ${{ matrix.python-version }} / ${{ matrix.db-type }}
-          report_paths: junit-${{ matrix.python-version }}-${{ matrix.db-type }}.xml
+          check_name: Tests - Python ${{ matrix.python-version }} (no-db)
+          report_paths: junit-${{ matrix.python-version }}-no-db.xml
           include_passed: true
+          fail_on_failure: true
 
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always() && matrix.db-type == 'sqlite' && hashFiles('coverage.xml') != ''
+        if: always() && hashFiles('coverage.xml') != ''
         with:
           name: python-coverage
           path: coverage.xml
           retention-days: 1
           overwrite: true
+
+  # ----------------------------------------------------
+  # DB TESTS — integration/apis only, one job per DB type
+  # ----------------------------------------------------
+  test-db:
+    name: Test DB (${{ matrix.db-type }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db-type:
+          - sqlite
+          - postgresql
+          - mysql
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          repository: SolaceDev/solace-public-workflows
+          path: workflows-repo
+
+      - name: Setup Python ${{ inputs.max-python-version }}
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: ${{ inputs.max-python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
+
+      - name: Install Hatch
+        run: uv tool install hatch
+
+      - name: Create Hatch Environment
+        run: hatch -v env create hatch-test.py${{ inputs.max-python-version }}
+
+      - name: Run DB Tests
+        run: |
+          hatch -v run hatch-test.py${{ inputs.max-python-version }}:pytest tests/integration/apis/ --db-type=${{ matrix.db-type }} --junitxml=junit-db-${{ matrix.db-type }}.xml
+
+      - name: Upload Test Results
+        uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
+        if: always()
+        with:
+          check_name: Tests - DB (${{ matrix.db-type }})
+          report_paths: junit-db-${{ matrix.db-type }}.xml
+          include_passed: true
+          fail_on_failure: true
 
   # ----------------------------------------------------
   # UI TESTS WITH COVERAGE
@@ -264,7 +312,7 @@ jobs:
   sonarqube-analysis:
     name: SonarQube Analysis
     runs-on: ubuntu-latest
-    needs: [validate-dependencies, test-python-matrix, test-ui]
+    needs: [validate-dependencies, test-no-db, test-db, test-ui]
     if: ${{ !github.event.repository.fork }}
     steps:
       - name: Checkout
