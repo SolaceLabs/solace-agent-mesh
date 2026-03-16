@@ -110,7 +110,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                 <div>{project.description ? <CardDescription className="line-clamp-3">{project.description}</CardDescription> : <div />}</div>
 
                 <div className="flex items-center justify-between">
-                    <div className="text-secondary-foreground max-w-[200px] truncate">By {project.userId}</div>
+                    <div className="text-secondary-foreground max-w-[200px] truncate">{project.userId}</div>
                     <div className="flex items-center gap-4">
                         {project.artifactCount !== undefined && project.artifactCount !== null && (
                             <div className="text-secondary-foreground flex items-center gap-1">
