@@ -102,7 +102,7 @@ jobs:
 
       - name: Run Tests (no DB)
         run: |
-          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --ignore=tests/integration/apis --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}-no-db.xml
+          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --ignore=tests/integration/apis --ignore=tests/migrations --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}-no-db.xml
 
       - name: Upload Test Results
         uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
@@ -163,7 +163,7 @@ jobs:
 
       - name: Run DB Tests
         run: |
-          hatch -v run hatch-test.py${{ inputs.max-python-version }}:pytest tests/integration/apis/ --db-type=${{ matrix.db-type }} --junitxml=junit-db-${{ matrix.db-type }}.xml
+          hatch -v run hatch-test.py${{ inputs.max-python-version }}:pytest tests/integration/apis/ tests/migrations/ --db-type=${{ matrix.db-type }} --junitxml=junit-db-${{ matrix.db-type }}.xml
 
       - name: Upload Test Results
         uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2

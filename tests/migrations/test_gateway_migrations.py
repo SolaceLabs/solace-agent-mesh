@@ -28,6 +28,9 @@ from sqlalchemy import create_engine, text
 )
 def db_url(request, pg_gateway_url, mysql_gateway_url, tmp_path):
     """Gateway tree: sqlite uses a fresh file; PG/MySQL use the gateway database."""
+    db_type = request.config.getoption("--db-type", default=None)
+    if db_type and request.param != db_type:
+        pytest.skip(f"Skipping {request.param} (--db-type={db_type})")
     if request.param == "sqlite":
         yield f"sqlite:///{tmp_path / 'gateway_migration.db'}"
     elif request.param == "postgresql":
