@@ -6,14 +6,19 @@ Hosts the FastAPI REST API server for platform configuration management.
 import logging
 import threading
 import json
+from importlib.resources import files as pkg_files
 from typing import Any, Dict
 
 import uvicorn
+from openfeature import api as openfeature_api
 from solace_ai_connector.common.message import Message as SolaceMessage
 
 from solace_agent_mesh.common.middleware import MiddlewareRegistry
 from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
+from solace_agent_mesh.common.features.checker import FeatureChecker
+from solace_agent_mesh.common.features.provider import SamFeatureProvider
+from solace_agent_mesh.common.features.registry import FeatureRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.common import a2a
 from solace_agent_mesh.common.constants import (
@@ -257,8 +262,12 @@ class PlatformServiceComponent(SamComponentBase):
             # Import FastAPI app and setup function
             from .api.main import app as fastapi_app_instance
             from .api.main import setup_dependencies
+            from solace_agent_mesh.common.features import init_features
 
             self.fastapi_app = fastapi_app_instance
+
+            # Initialize features before setup_dependencies so routers can use feature flags
+            self.feature_checker = init_features(log_identifier=self.log_identifier)
 
             setup_dependencies(self)
 
@@ -266,25 +275,30 @@ class PlatformServiceComponent(SamComponentBase):
             @self.fastapi_app.on_event("startup")
             async def start_background_tasks():
                 # Seed model configurations (community responsibility, after migrations)
-                try:
-                    from solace_agent_mesh.services.platform.services import seed_model_configurations
-                    from .api import dependencies
-
-                    log.info("%s Seeding model configurations...", self.log_identifier)
-                    db_session = dependencies.PlatformSessionLocal()
+                # Only seed if the model_config_ui feature flag is enabled
+                from openfeature import api as openfeature_api
+                if openfeature_api.get_client().get_boolean_value("model_config_ui", False):
                     try:
-                        models_config = self.connector_models
-                        seed_model_configurations(db_session, models_config)
-                        log.info("%s Model configurations seeded successfully", self.log_identifier)
-                    finally:
-                        db_session.close()
-                except Exception as e:
-                    log.error(
-                        "%s Failed to seed model configurations: %s",
-                        self.log_identifier,
-                        e,
-                        exc_info=True
-                    )
+                        from solace_agent_mesh.services.platform.services import seed_model_configurations
+                        from .api import dependencies
+
+                        log.info("%s Seeding model configurations...", self.log_identifier)
+                        db_session = dependencies.PlatformSessionLocal()
+                        try:
+                            models_config = self.connector_models
+                            seed_model_configurations(db_session, models_config)
+                            log.info("%s Model configurations seeded successfully", self.log_identifier)
+                        finally:
+                            db_session.close()
+                    except Exception as e:
+                        log.error(
+                            "%s Failed to seed model configurations: %s",
+                            self.log_identifier,
+                            e,
+                            exc_info=True
+                        )
+                else:
+                    log.info("%s Model configurations seeding skipped (feature flag disabled)", self.log_identifier)
 
                 # Start enterprise background tasks
                 try:

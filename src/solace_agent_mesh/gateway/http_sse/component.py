@@ -360,31 +360,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     def _init_feature_checker(self) -> None:
         """Initialise the FeatureChecker and register the OpenFeature provider."""
-        registry = FeatureRegistry()
+        from solace_agent_mesh.common.features import init_features
 
-        features_yaml = str(
-            pkg_files("solace_agent_mesh.common.features").joinpath("features.yaml")
-        )
-        registry.load_from_yaml(features_yaml)
-
-        self.feature_checker = FeatureChecker(registry=registry)
-
-        openfeature_api.set_provider(SamFeatureProvider(self.feature_checker))
-
-        try:
-            from solace_agent_mesh_enterprise.init_enterprise import (
-                _register_enterprise_feature_flags,
-            )
-            _register_enterprise_feature_flags()
-            log.debug("%s Enterprise feature flags registered.", self.log_identifier)
-        except ImportError:
-            log.debug("%s Enterprise feature flags not available.", self.log_identifier)
-
-        log.info(
-            "%s Feature checker initialised (%d flags).",
-            self.log_identifier,
-            len(registry.keys()),
-        )
+        self.feature_checker = init_features(log_identifier=self.log_identifier)
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
