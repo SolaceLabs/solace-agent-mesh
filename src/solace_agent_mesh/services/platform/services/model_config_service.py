@@ -46,7 +46,7 @@ class ModelConfigService:
 
     def get_by_alias(self, alias: str) -> Optional[ModelConfigurationResponse]:
         """
-        Retrieve a model configuration by alias (case-insensitive).
+        Retrieve a model configuration by alias (case-sensitive exact match).
 
         Args:
             alias: Model alias to look up
@@ -55,7 +55,7 @@ class ModelConfigService:
             ModelConfigurationResponse if found, None otherwise
         """
         db_config = self.db.query(ModelConfiguration).filter(
-            func.lower(ModelConfiguration.alias) == alias.lower()
+            ModelConfiguration.alias == alias
         ).first()
 
         if not db_config:
@@ -80,7 +80,7 @@ class ModelConfigService:
             and auth config secrets filtered out
         """
         # Redact secrets from auth config based on auth type
-        redact_auth_config(db_model.model_auth_config)
+        redacted_auth_config = redact_auth_config(db_model.model_auth_config)
 
         return ModelConfigurationResponse(
             id=db_model.id,
@@ -89,6 +89,7 @@ class ModelConfigService:
             model_name=db_model.model_name,
             api_base=db_model.api_base,
             auth_type=db_model.model_auth_type,
+            auth_config=redacted_auth_config or {},
             model_params=db_model.model_params or {},
             description=db_model.description,
             created_by=db_model.created_by,

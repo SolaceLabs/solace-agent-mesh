@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Generator
 
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
@@ -174,32 +174,19 @@ def get_gateway_registry():
     return platform_component_instance.get_gateway_registry()
 
 
-def get_model_config_service() -> Generator[ModelConfigService, None, None]:
+def get_model_config_service(db: Session = Depends(get_platform_db)) -> ModelConfigService:
     """
     FastAPI dependency for ModelConfigService.
 
     Provides a service instance for model configuration business logic.
-    Database session is automatically closed after the request completes.
+    Database session lifecycle is managed by get_platform_db().
 
-    Yields:
+    Args:
+        db: Database session from get_platform_db dependency
+
+    Returns:
         ModelConfigService instance for accessing model configurations.
-
-    Raises:
-        HTTPException: 503 if database is not initialized.
     """
     from solace_agent_mesh.services.platform.services import ModelConfigService
 
-    if PlatformSessionLocal is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database not initialized.",
-        )
-    db = PlatformSessionLocal()
-    try:
-        yield ModelConfigService(db=db)
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+    return ModelConfigService(db=db)

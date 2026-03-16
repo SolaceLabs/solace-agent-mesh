@@ -26,6 +26,9 @@ class ModelConfigurationResponse(CamelCaseModel):
     auth_type: Literal["apikey", "oauth2", "none"] = Field(
         ..., description="Type of authentication configured (apikey, oauth2, or none)"
     )
+    auth_config: Dict[str, Any] = Field(
+        default_factory=dict, description="Authentication configuration (secrets redacted)"
+    )
     model_params: Dict[str, Any] = Field(
         default_factory=dict, description="Model-specific parameters"
     )

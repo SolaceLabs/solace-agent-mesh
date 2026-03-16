@@ -51,7 +51,7 @@ def _infer_provider(api_base: str, model_name: str = "") -> str:
             return "anthropic"
         elif ".openai.azure.com" in hostname:
             return "azure_openai"
-        elif "bedrock" in hostname or ".amazonaws.com" in hostname and "bedrock" in path:
+        elif ("bedrock" in hostname) or (".amazonaws.com" in hostname and "bedrock" in path):
             return "bedrock"
         elif "aiplatform.googleapis.com" in hostname or "vertex.googleapis.com" in hostname:
             return "vertex_ai"
@@ -184,6 +184,8 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
 
                 api_base = config_data.get("api_base")
                 auth_type, model_auth_config = _extract_auth_type_and_config(config_data)
+                # Add type field to auth config for redaction logic
+                model_auth_config["type"] = auth_type
                 model_params = _extract_model_params(config_data)
             elif isinstance(config_data, str):
                 # String alias like "gemini-2.5-flash"
@@ -227,8 +229,8 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
             log.debug(f"[Model Seed] Seeded model configuration: {alias}")
 
         except Exception as e:
-            log.error(f"[Model Seed] Failed to seed model '{alias}': {e}")
-            raise
+            log.error(f"[Model Seed] Failed to seed model '{alias}': {e}", exc_info=True)
+            # Continue with next model instead of failing the entire seeding process
 
     if count > 0:
         db.commit()
@@ -278,6 +280,8 @@ def _seed_from_env_vars(db: Session) -> int:
             if api_key:
                 auth_type = "apikey"
                 model_auth_config = {"api_key": api_key}
+            # Add type field to auth config for redaction logic
+            model_auth_config["type"] = auth_type
 
             provider = _infer_provider(api_base, model_name)
 
@@ -301,8 +305,8 @@ def _seed_from_env_vars(db: Session) -> int:
             log.info(f"[Model Seed] Seeded model configuration from env vars: {alias}")
 
         except Exception as e:
-            log.error(f"[Model Seed] Failed to seed model '{alias}' from env vars: {e}")
-            raise
+            log.error(f"[Model Seed] Failed to seed model '{alias}' from env vars: {e}", exc_info=True)
+            # Continue with next model instead of failing the entire seeding process
 
     if count > 0:
         db.commit()
