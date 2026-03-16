@@ -1,0 +1,388 @@
+# Development roles with permissive access for testing
+# This configuration provides full access for development and testing environments
+# DO NOT use this configuration in production environments
+
+roles:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # SFDC CASE EVENT INTEGRATION ROLE
+  # ═══════════════════════════════════════════════════════════════════════════════
+  SfdcCaseEventSystem:
+    description: >
+      SFDC case event gateway system identity role.
+      Used by sfdc-case-event-gateway to delegate new case creation events
+      to SupportCaseAdvisorWorkflow for AI-powered advisory generation.
+    scopes:
+      # Agent delegation scopes
+      - "agent:SupportCaseAdvisorWorkflow:delegate"
+      - "agent:SupportCaseAdvisor:delegate"
+      - "agent:SupportAgent:delegate"
+      - "agent:JiraConfluenceServiceAgent:delegate"
+      # Tool scopes required for workflow node output artifacts
+      - "tool:artifact:*"           # Required for apply_embed_and_create_artifact
+      - "tool:salesforce:*"         # Required for SupportAgent MCP tools
+
+  base-role:
+    description: "Base role with scopes for all users."
+    scopes:
+      - "monitor/*"            # All monitoring capabilities
+      - "admin/*"              # All administrative functions
+      - "session:*"            # All session management
+      - "gateway:*"            # All gateway operations
+      - "project:share"        # Project sharing capability
+
+      - "tool:data:*"               # Data manipulation tools
+      - "tool:artifact:*"           # Artifact management tools
+      - "tool:audio:*"             # Audio processing tools
+      - "tool:image:*"             # Audio processing tools
+      - "tool:general:*"             # Audio processing tools
+      - "tool:test:*"             # Audio processing tools
+      - "tool:web:*"             # Audio processing tools
+      - "tool:litellm:create_key"
+      - "tool:litellm:check_my_spend"
+      - "tool:litellm:increase_budget"
+      - "tool:litellm:check_budget_reset_date"
+      
+      - "agent:CustomerDocuments:delegate"
+      - "agent:ImageEditingAgent:delegate"
+      - "agent:Litellm:delegate"
+      - "agent:MarkitdownAgent:delegate"
+      - "agent:MermaidAgent:delegate"
+      - "agent:MultiModalAgent:delegate"
+      - "agent:OrchestratorAgent:delegate"
+      #- "agent:SupportTicketAgent:delegate"
+      - "agent:SupportAgent:delegate"
+      - "agent:WebAgent:delegate"
+      - "agent:PlaywrightAgent:delegate"
+      - "agent:ResearchAgent:delegate"
+      - "agent:ContentUtilityAgent:delegate"
+      # SFDC Case Event Integration
+      - "agent:SupportCaseAdvisorWorkflow:delegate"
+      - "agent:SupportCaseAdvisor:delegate"
+
+  SolaceBambooHR:
+    description: "Solace BambooHR integration role"
+    inherits:
+      - base-role
+    scopes:
+      - "tool:employee:*"           # All BambooHR operations
+      - "agent:Employee:delegate"
+      
+  SolaceAtlassianCloud(Jira):
+    description: "Solace Atlassian Cloud (Jira) integration role"
+    inherits:
+      - base-role
+    scopes:
+      - "agent:JiraConfluenceAgent:delegate"
+
+  SolaceAIGroup:
+    description: "AI Group role with scopes for AI-related operations."
+    scopes:
+      - "tool:litellm:check_key_spend"
+      - "tool:litellm:increase_budget"
+      - "tool:litellm:check_budget_reset_date"
+      - "agent:S3HostingAgent:delegate"
+      - "agent:HealthMonitorAgent:delegate"
+      - "feedback:read:all"
+      - "tasks:read:all"
+
+  CelebrateAgentAdmin:
+    description: "Full access to all celebrate agent capabilities including destructive operations."
+    inherits:
+      - CelebrateAgentCeremonyHost  # Has all ceremony host + user capabilities
+    scopes:
+      # Admin-Only Functions (destructive / cross-org)
+      - "tool:celebrateagent:import_historical_celebrations"
+      - "tool:celebrateagent:delete_celebrations"
+      - "tool:celebrateagent:admin_search_celebrations"
+      - "tool:celebrateagent:edit_celebration"
+      - "tool:celebrateagent:admin_ceremony_operations"
+
+  CelebrateAgentCeremonyHost:
+    description: "Ceremony host access - can manage ceremony groups and generate ceremony reports. For EMs, team leads, and directors who host sprint ceremonies."
+    inherits:
+      - CelebrateAgentUser  # Has all standard user capabilities
+    scopes:
+      # Ceremony Group Management
+      - "tool:celebrateagent:manage_ceremony_groups"
+      - "tool:celebrateagent:create_celebration_group"
+      - "tool:celebrateagent:update_celebration_group"
+      - "tool:celebrateagent:deactivate_celebration_group"
+      # Ceremony Report Workflow
+      - "tool:celebrateagent:prepare_ceremony_report"
+      - "tool:celebrateagent:finalize_ceremony_report"
+      - "tool:celebrateagent:get_ceremony_details"
+      - "tool:celebrateagent:get_ceremony_history"
+      - "tool:celebrateagent:delete_ceremony_preview"
+
+  CelebrateAgentUser:
+    description: "Standard user access to celebrate agent - can create and view celebrations."
+    scopes:
+      - "agent:CelebrateAgent:delegate"
+      # Core Celebration Functions
+      - "tool:celebrateagent:preview_celebration"
+      - "tool:celebrateagent:create_celebration"
+      - "tool:celebrateagent:get_celebration_details"
+      - "tool:celebrateagent:get_recent_celebrations"
+      # Statistics (read-only)
+      - "tool:celebrateagent:get_celebration_statistics"
+      # Privacy Preferences (own settings)
+      - "tool:celebrateagent:get_celebration_preference"
+      - "tool:celebrateagent:set_celebration_preference"
+      # Ceremony Groups (read-only)
+      - "tool:celebrateagent:list_celebration_groups"
+
+  SolaceSalesforceAI:
+    description: "Salesforce integration role with access to Salesforce agent and tools."
+    inherits:
+      - base-role
+    scopes:
+      - "tool:salesforce:*"            # All Salesforce tools
+      - "tool:gong:*"                  # All Gong tools (for child agent)
+      - "tool:commonroom:*"            # All Common Room tools (for child agent)
+      - "agent:SalesforceAgent:delegate"
+      - "agent:GongAgent:delegate"     # Gong is a child agent of Salesforce
+      - "agent:CommonRoomAgent:delegate"  # Common Room is a child agent of Salesforce
+
+  Common Room:
+    description: "Common Room integration role with access to Common Room agent and tools."
+    inherits:
+      - base-role
+    scopes:
+      - "tool:commonroom:*"            # All Common Room tools
+      - "agent:CommonRoomAgent:delegate"
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # PRODUCT KNOWLEDGE AGENT ROLES
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Three-Tier Authorization Model (mirrors LCA pattern):
+  # - Tier 1 (Product Teams / Users): Can manage their own products
+  # - Tier 2 (Compliance Officers): Read-only cross-org access for auditing
+  # - Tier 3 (Admins): Full access including destructive ops + wildcard
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  ProductKnowledgeAgentUser:
+    description: "Tier 1 - Product team member who can register, update, and manage their own products."
+    scopes:
+      - "agent:ProductKnowledgeAgent:delegate"
+      # Product Management (own products)
+      - "tool:productknowledge:create_product"
+      - "tool:productknowledge:get_product"
+      - "tool:productknowledge:update_product"
+      - "tool:productknowledge:list_products"
+      - "tool:productknowledge:search_products"
+      # License Assessment (own products)
+      - "tool:productknowledge:create_license_assessment"
+      - "tool:productknowledge:get_current_license_assessment"
+      - "tool:productknowledge:list_license_assessments"
+      - "tool:productknowledge:update_license_assessment"
+      - "tool:productknowledge:get_license_assessment_guide"
+      # Reporting (read-only)
+      - "tool:productknowledge:get_products_needing_review"
+      - "tool:productknowledge:get_products_by_policy"
+      # Feature Management (own products)
+      - "tool:productknowledge:create_feature"
+      - "tool:productknowledge:list_features"
+      - "tool:productknowledge:set_product_feature_support"
+      - "tool:productknowledge:list_product_features"
+      - "tool:productknowledge:compare_product_features"
+      # Dependency Management (own products)
+      - "tool:productknowledge:add_product_dependency"
+      - "tool:productknowledge:list_product_dependencies"
+      - "tool:productknowledge:list_dependent_products"
+      - "tool:productknowledge:remove_product_dependency"
+      - "tool:productknowledge:get_dependency_graph"
+      - "tool:productknowledge:get_impact_analysis"
+      - "tool:productknowledge:check_circular_dependencies"
+      # Resource Management (own products)
+      - "tool:productknowledge:add_product_resource"
+      - "tool:productknowledge:list_product_resources"
+      - "tool:productknowledge:update_product_resource"
+      - "tool:productknowledge:remove_product_resource"
+      # External Identifiers (own products)
+      - "tool:productknowledge:add_external_identifier"
+      - "tool:productknowledge:list_external_identifiers"
+      - "tool:productknowledge:find_product_by_external_id"
+      - "tool:productknowledge:update_external_identifier"
+      - "tool:productknowledge:remove_external_identifier"
+      - "tool:productknowledge:get_external_identifier_summary"
+      # FOSSA Policy Assignment (own products)
+      - "tool:productknowledge:record_fossa_policy_assignment"
+      - "tool:productknowledge:get_fossa_policy_assignments"
+      # Component-Level License Attributes (own products)
+      - "tool:productknowledge:add_component_attribute"
+      - "tool:productknowledge:list_component_attributes"
+      - "tool:productknowledge:remove_component_attribute"
+      - "tool:productknowledge:get_component_compliance_summary"
+      - "tool:productknowledge:get_component_attribute_types"
+      # Schema & Data Format (read-only)
+      - "tool:productknowledge:get_product_schema"
+      # FOSSA MCP Discovery (read-only - helps during product registration)
+      - "tool:mcp__sc-fossa-mcp-server__fossa_list_projects"
+      - "tool:mcp__sc-fossa-mcp-server__fossa_get_policies"
+
+  ProductKnowledgeComplianceOfficer:
+    description: "Tier 2 - Read-only cross-org access to all product knowledge for compliance review and auditing."
+    scopes:
+      - "agent:ProductKnowledgeAgent:delegate"
+      - "compliance_officer"  # Internal authorization scope for read-only access to all products
+      # Read-only Product Access
+      - "tool:productknowledge:get_product"
+      - "tool:productknowledge:list_products"
+      - "tool:productknowledge:search_products"
+      # Read-only Assessment Access
+      - "tool:productknowledge:get_current_license_assessment"
+      - "tool:productknowledge:list_license_assessments"
+      - "tool:productknowledge:get_license_assessment_guide"
+      # Reporting Tools
+      - "tool:productknowledge:get_products_needing_review"
+      - "tool:productknowledge:get_products_by_policy"
+      # Read-only Feature Access
+      - "tool:productknowledge:list_features"
+      - "tool:productknowledge:list_product_features"
+      - "tool:productknowledge:compare_product_features"
+      # Read-only Dependency Access
+      - "tool:productknowledge:list_product_dependencies"
+      - "tool:productknowledge:list_dependent_products"
+      - "tool:productknowledge:get_dependency_graph"
+      - "tool:productknowledge:get_impact_analysis"
+      - "tool:productknowledge:check_circular_dependencies"
+      # Read-only Resource Access
+      - "tool:productknowledge:list_product_resources"
+      # Read-only External Identifiers Access
+      - "tool:productknowledge:list_external_identifiers"
+      - "tool:productknowledge:find_product_by_external_id"
+      - "tool:productknowledge:get_external_identifier_summary"
+      # Read-only FOSSA Policy Assignments
+      - "tool:productknowledge:get_fossa_policy_assignments"
+      # Read-only Component Attributes Access
+      - "tool:productknowledge:list_component_attributes"
+      - "tool:productknowledge:get_component_compliance_summary"
+      - "tool:productknowledge:get_component_attribute_types"
+      # Schema & Data Format (read-only)
+      - "tool:productknowledge:get_product_schema"
+      # FOSSA MCP Discovery (read-only)
+      - "tool:mcp__sc-fossa-mcp-server__fossa_list_projects"
+      - "tool:mcp__sc-fossa-mcp-server__fossa_get_policies"
+
+  ProductKnowledgeAgentAdmin:
+    description: "Tier 3 - Full administrative access to all product knowledge agent capabilities."
+    inherits:
+      - ProductKnowledgeAgentUser          # All Tier 1 write capabilities
+      - ProductKnowledgeComplianceOfficer  # All Tier 2 cross-org read capabilities
+    scopes:
+      - "product_knowledge_admin"  # Internal authorization scope for viewing all products
+      # Admin-Only Functions (destructive / cross-org)
+      - "tool:productknowledge:delete_product"
+      - "tool:productknowledge:admin_delete_product"
+      - "tool:productknowledge:admin_update_product"
+      - "tool:productknowledge:admin_update_license_assessment"
+      - "tool:productknowledge:list_deleted_products"
+      - "tool:productknowledge:restore_product"
+      - "tool:productknowledge:admin_restore_product"
+      # Import/Export (Admin)
+      - "tool:productknowledge:export_product_data"
+      - "tool:productknowledge:import_product_data"
+      - "tool:productknowledge:validate_import_file"
+      # Wildcard for future tools (same pattern as LCA Admin)
+      - "tool:productknowledge:*"
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # LICENSE COMPLIANCE AGENT ROLES
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Two-Tier Authorization Model:
+  # - Tier 1 (Product Teams): Can act on their own products within policy bounds
+  # - Tier 2 (LCC): Can make cross-product, policy-level decisions
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  LicenseComplianceAgentUser:
+    description: "Tier 1 - Product team member who can view and act on their product's compliance alerts."
+    scopes:
+      - "agent:LicenseComplianceAgent:delegate"
+      # ─── Analysis Tools (Read) ───
+      - "tool:licensecomplianceagent:get_fossa_alert_details"
+      - "tool:licensecomplianceagent:get_product_context_for_analysis"
+      - "tool:licensecomplianceagent:list_pka_products"
+      - "tool:licensecomplianceagent:get_policy_content"
+      - "tool:licensecomplianceagent:get_alert_analysis"
+      - "tool:licensecomplianceagent:list_alert_analyses"
+      - "tool:licensecomplianceagent:search_remediation_patterns"
+      # ─── Batch Analysis Tools ───
+      - "tool:licensecomplianceagent:parse_fossa_url"
+      - "tool:licensecomplianceagent:analyze_fossa_alerts_batch"
+      # ─── FOSSA Policy Recommendation ───
+      - "tool:licensecomplianceagent:recommend_fossa_policy"
+      # Record FOSSA Policy Assignment: Save LCA recommendation to PKA
+      - "tool:licensecomplianceagent:record_fossa_policy_assignment"
+      # ─── Component-Level License Attributes ───
+      # Record component attributes (Q6/Q8/Q10 at component granularity)
+      - "tool:licensecomplianceagent:record_component_attributes"
+      # Get compliance summary with risk indicators
+      - "tool:licensecomplianceagent:get_component_compliance_summary"
+      # ─── Tier 1 Action Tools ───
+      # Propose Remediation: Create remediation proposal for LCC review (Upgrade/Replace/Remove)
+      - "tool:licensecomplianceagent:propose_remediation"
+      # Provide Context: Gap-fill PKA data with deployment/usage/business context
+      - "tool:licensecomplianceagent:provide_product_context"
+      # Request Exception: Ask LCC for Yellow/Red license exception
+      - "tool:licensecomplianceagent:request_exception"
+      # Escalate: Policy unclear, need LCC guidance
+      - "tool:licensecomplianceagent:escalate_to_committee"
+      # ─── Workflow Support Tools ───
+      - "tool:licensecomplianceagent:save_alert_analysis"
+      - "tool:licensecomplianceagent:record_agent_action"
+      - "tool:licensecomplianceagent:update_analysis_with_jira"
+      - "tool:licensecomplianceagent:send_slack_alert_notification"
+      # ─── FOSSA MCP Server (read-only discovery + analysis) ───
+      - "tool:mcp__sc-fossa-mcp-server__fossa_issues_for_project"
+      - "tool:mcp__sc-fossa-mcp-server__fossa_get_policies"
+      - "tool:mcp__sc-fossa-mcp-server__fossa_list_projects"
+      - "tool:mcp__sc-fossa-mcp-server__fossa_get_project_dependencies"
+      - "tool:mcp__sc-fossa-mcp-server__fossa_get_issue_exceptions"
+
+  LicenseComplianceCommitteeMember:
+    description: "Tier 2 - License Compliance Committee member who can make cross-product compliance decisions."
+    inherits:
+      - LicenseComplianceAgentUser  # Has all Tier 1 capabilities
+    scopes:
+      # ─── Internal Scope for Programmatic Checks ───
+      - "lcc_member"  # Used in tool code to verify LCC membership
+      # ─── Tier 2 Exception Management Tools ───
+      # Grant Exception: Approve exception for one product
+      - "tool:licensecomplianceagent:grant_product_exception"
+      # Deny Exception: Reject exception request
+      - "tool:licensecomplianceagent:deny_exception"
+      # Request Info: Need more context before deciding
+      - "tool:licensecomplianceagent:request_more_info"
+      # ─── Tier 2 Remediation Approval Tools ───
+      # Approve Remediation: Approve a proposed remediation plan
+      - "tool:licensecomplianceagent:approve_remediation"
+      # Reject Remediation: Reject a proposed remediation plan
+      - "tool:licensecomplianceagent:reject_remediation"
+      # ─── Tier 2 Policy Management Tools ───
+      # Update Policy List: Add license to Green/Yellow/Red list
+      - "tool:licensecomplianceagent:update_policy_list"
+      # Approve Pattern: Add to remediation patterns KB
+      - "tool:licensecomplianceagent:approve_pattern"
+      # ─── Tier 2 Dashboard/Reporting ───
+      - "tool:licensecomplianceagent:list_pending_escalations"
+      - "tool:licensecomplianceagent:list_expiring_exceptions"
+      - "tool:licensecomplianceagent:list_pending_policy_changes"
+      # ─── Notification Tools ───
+      - "tool:licensecomplianceagent:send_slack_escalation_notification"
+
+  LicenseComplianceAgentAdmin:
+    description: "Full administrative access to License Compliance Agent - can manage all aspects."
+    inherits:
+      - LicenseComplianceCommitteeMember
+    scopes:
+      - "lca_admin"  # Internal admin scope for programmatic checks
+      - "tool:licensecomplianceagent:*"  # All LCA tools (wildcard)
+      # ─── Disposition Rule Management (Admin-only) ───
+      - "tool:licensecomplianceagent:list_disposition_rules"
+      - "tool:licensecomplianceagent:get_disposition_rule"
+      - "tool:licensecomplianceagent:create_disposition_rule"
+      - "tool:licensecomplianceagent:update_disposition_rule"
+      - "tool:licensecomplianceagent:deactivate_disposition_rule"
+      # FOSSA MCP server tools (all - inherited tools + admin extras)
+      - "tool:mcp__sc-fossa-mcp-server__fossa_get_teams"
+      - "tool:mcp__sc-fossa-mcp-server__fossa_get_project_revisions"

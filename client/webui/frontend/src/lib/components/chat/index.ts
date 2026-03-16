@@ -1,4 +1,6 @@
 export { AudioRecorder } from "./AudioRecorder";
+export { ChatArea } from "./ChatArea";
+export type { ChatAreaProps } from "./ChatArea";
 export { ChatInputArea } from "./ChatInputArea";
 export { ChatMessage } from "./ChatMessage";
 export { ChatSessionDeleteDialog } from "./ChatSessionDeleteDialog";
@@ -21,5 +23,6 @@ export { ShareNotificationMessage } from "./ShareNotificationMessage";
 export { MessageAttribution } from "./MessageAttribution";
 export { CollaborativeUserMessage } from "./CollaborativeUserMessage";
 export { InlineProgressUpdates } from "./InlineProgressUpdates";
+export * from "./artifact";
 export * from "./file";
 export * from "./selection";

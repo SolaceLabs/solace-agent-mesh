@@ -8,6 +8,7 @@ const PEER_AGENT_TOPOLOGY_EXTENSION_URI = "https://solace.com/a2a/extensions/pee
 const TOOL_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools";
 const AGENT_TYPE_EXTENSION_URI = "https://solace.com/a2a/extensions/agent-type";
 const WELCOME_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/welcome";
+const INTERNAL_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/internal";
 
 /**
  * Transforms a raw A2A AgentCard into a UI-friendly AgentCardInfo object,
@@ -18,6 +19,7 @@ export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
     let peerAgents: string[] | undefined;
     let tools: AgentSkill[] | undefined;
     let isWorkflow = false;
+    let isInternal = false;
     let welcome: AgentWelcomeConfig | undefined;
 
     if (card.capabilities?.extensions) {
@@ -41,6 +43,11 @@ export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
             isWorkflow = true;
         }
 
+        const internalExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === INTERNAL_EXTENSION_URI);
+        if (internalExtension?.params?.internal === true) {
+            isInternal = true;
+        }
+
         const welcomeExtension = card.capabilities.extensions.find((ext: AgentExtension) => ext.uri === WELCOME_EXTENSION_URI);
         if (welcomeExtension?.params) {
             welcome = {
@@ -59,6 +66,7 @@ export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
         displayName: displayName,
         peerAgents: peerAgents || [],
         isWorkflow,
+        isInternal,
         welcome,
     };
 };

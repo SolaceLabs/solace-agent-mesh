@@ -17,10 +17,7 @@ const SkillNode: FC<AgentNodeProps> = ({ node, isSelected, onClick }) => {
                 width: `${node.width}px`,
                 height: `${node.height}px`,
             }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
+            onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
         >
             <div className="flex items-center gap-2 overflow-hidden">
                 <Sparkles className="h-4 w-4 flex-shrink-0 text-(--color-info-wMain)" />
