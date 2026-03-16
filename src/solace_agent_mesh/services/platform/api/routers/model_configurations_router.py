@@ -5,12 +5,12 @@ All sensitive authentication information (API keys, OAuth secrets) is filtered
 from responses to ensure data security through the ModelConfigService business
 logic layer.
 
-Feature flag: model_config_ui
-  When disabled, all endpoints return 501 Not Implemented.
+Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
+  Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
 import logging
-from openfeature import api as openfeature_api
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from solace_agent_mesh.services.platform.services import ModelConfigService
@@ -24,7 +24,8 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_MODEL_CONFIG_UI_FLAG = "model_config_ui"
+# Feature flag controlled by environment variable
+_MODEL_CONFIG_UI_ENABLED = os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true"
 
 
 def _require_model_config_ui_enabled() -> bool:
@@ -36,13 +37,12 @@ def _require_model_config_ui_enabled() -> bool:
     Raises:
         HTTPException: 501 Not Implemented if feature is disabled.
     """
-    is_enabled = openfeature_api.get_client().get_boolean_value(_MODEL_CONFIG_UI_FLAG, False)
-    if not is_enabled:
+    if not _MODEL_CONFIG_UI_ENABLED:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Model configuration feature is not enabled",
         )
-    return is_enabled
+    return True
 
 
 @router.get(

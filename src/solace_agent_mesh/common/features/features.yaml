@@ -56,12 +56,3 @@ features:
     description: >
       Run long-running agent tasks in the background and receive results
       when they complete.
-
-  - key: model_config_ui
-    name: Model Configuration UI
-    release_phase: experimental
-    default_enabled: false
-    jira_epic: DATAGO-109787
-    description: >
-      Enable model configuration endpoints and UI. When disabled, model
-      configuration management features are unavailable.

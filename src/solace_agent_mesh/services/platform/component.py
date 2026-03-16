@@ -262,12 +262,7 @@ class PlatformServiceComponent(SamComponentBase):
             # Import FastAPI app and setup function
             from .api.main import app as fastapi_app_instance
             from .api.main import setup_dependencies
-            from solace_agent_mesh.common.features import init_features
-
             self.fastapi_app = fastapi_app_instance
-
-            # Initialize features before setup_dependencies so routers can use feature flags
-            self.feature_checker = init_features(log_identifier=self.log_identifier)
 
             setup_dependencies(self)
 
@@ -276,8 +271,8 @@ class PlatformServiceComponent(SamComponentBase):
             async def start_background_tasks():
                 # Seed model configurations (community responsibility, after migrations)
                 # Only seed if the model_config_ui feature flag is enabled
-                from openfeature import api as openfeature_api
-                if openfeature_api.get_client().get_boolean_value("model_config_ui", False):
+                import os
+                if os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true":
                     try:
                         from solace_agent_mesh.services.platform.services import seed_model_configurations
                         from .api import dependencies
