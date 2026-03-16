@@ -1,0 +1,127 @@
+name: Test Release
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump_type:
+        type: choice
+        required: true
+        description: "Version bump type for PyPI package & Git tag"
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+      version:
+        type: string
+        required: false
+        description: "Exact version to release (e.g., 1.13.2). Overrides 'version_bump_type' input if provided."
+        default: ""
+      skip_security_checks:
+        type: boolean
+        required: false
+        description: "Skip security checks"
+        default: false
+      skip_pypi_publish:
+        type: boolean
+        required: false
+        description: "Skips the PyPI publish step, but still bumps and commits the version"
+        default: false
+
+  push:
+    branches:
+      - test-rm-ws
+
+permissions:
+  id-token: write
+  checks: write
+  contents: write
+  pull-requests: write
+  actions: read
+  statuses: write
+
+env:
+  VAULT_ROLE: cicd-workflows-secret-read-role
+  VAULT_SECRET_PATH: jwt-github
+  VAULT_AWS_ROLE: cicd-workflows-secret-read-role
+  AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+
+jobs:
+  # Gate: only admins can bypass security checks
+  check_skip_permission:
+    name: Validate Skip Permission
+    runs-on: ubuntu-latest
+    if: ${{ fromJSON(github.event.inputs.skip_security_checks) }}
+    steps:
+      - name: Check actor is repository admin
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PERMISSION=$(gh api repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission --jq '.permission')
+          if [ "$PERMISSION" != "admin" ]; then
+            echo "::error::Only repository admins can use skip_security_checks. '${{ github.actor }}' has permission: $PERMISSION"
+            exit 1
+          fi
+          echo "Permission check passed: ${{ github.actor }} is a repository admin"
+
+  # FOSSA scan on the triggering SHA - runs after permission check, in parallel with other security checks
+  fossa_scan:
+    name: FOSSA Scan
+    needs: [check_skip_permission]
+    if: |
+      always() &&
+      needs.check_skip_permission.result != 'failure' &&
+      !fromJSON(github.event.inputs.skip_security_checks)
+    uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
+    with:
+      git_ref: ${{ github.sha }}
+      use_vault: false
+      config_file: ".github/workflow-config.json"
+      setup_actions: '["setup-uv"]'
+      custom_setup_script: "uv pip compile pyproject.toml --extra all --no-header -o requirements.txt"
+    secrets:
+      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+
+  # Other security checks (SonarQube, WhiteSource) - runs after permission check, in parallel with FOSSA
+  other_security_checks:
+    name: Security Checks
+    needs: [check_skip_permission]
+    if: |
+      always() &&
+      needs.check_skip_permission.result != 'failure' &&
+      !fromJSON(github.event.inputs.skip_security_checks)
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
+    with:
+      sonarqube_hotspot_check: true
+      fossa_check: false
+    secrets:
+      SONARQUBE_PROJECT_KEY: ${{ github.event.repository.owner }}_${{ github.event.repository.name }}
+      SONARQUBE_PROJECT_MAIN_BRANCH: "main"
+      SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+      SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+
+  # Release to PyPI using Trusted Publishing - only if all security checks pass
+  release:
+    name: Release to PyPI
+    needs: [check_skip_permission, fossa_scan, other_security_checks]
+    if: |
+      always() &&
+      needs.check_skip_permission.result != 'failure' &&
+      (fromJSON(github.event.inputs.skip_security_checks) ||
+       (needs.fossa_scan.result == 'success' && needs.other_security_checks.result == 'success'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.COMMIT_KEY }}
+
+      - name: Would Release to PyPI?
+        run: |
+          echo "Would release to PyPI? ${{ needs.check_skip_permission.result != 'failure' && (fromJSON(github.event.inputs.skip_security_checks) || (needs.fossa_scan.result == 'success' && needs.other_security_checks.result == 'success')) }}"
