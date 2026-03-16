@@ -28,13 +28,13 @@ class ProjectUserModel(Base):
 
     __tablename__ = "project_users"
 
-    id = Column(String, primary_key=True)
-    project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(String, nullable=False)
+    id = Column(String(255), primary_key=True)
+    project_id = Column(String(255), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(255), nullable=False)
     # Stored as plain String to match migration — validation happens at the application layer
-    role = Column(String, nullable=False, default=ProjectRole.VIEWER.value)
+    role = Column(String(255), nullable=False, default=ProjectRole.VIEWER.value)
     added_at = Column(BigInteger, nullable=False)  # Epoch timestamp in milliseconds
-    added_by_user_id = Column(String, nullable=False)  # User who granted access
+    added_by_user_id = Column(String(255), nullable=False)  # User who granted access
 
     __table_args__ = (
         UniqueConstraint('project_id', 'user_id', name='uq_project_user'),

@@ -12,11 +12,11 @@ class FeedbackModel(Base):
 
     __tablename__ = "feedback"
 
-    id = Column(String, primary_key=True)
-    session_id = Column(String, nullable=False)
-    task_id = Column(String, nullable=False)
-    user_id = Column(String, nullable=False)
-    rating = Column(String, nullable=False)  # e.g., 'up', 'down'
+    id = Column(String(255), primary_key=True)
+    session_id = Column(String(255), nullable=False)
+    task_id = Column(String(255), nullable=False)
+    user_id = Column(String(255), nullable=False)
+    rating = Column(String(255), nullable=False)  # e.g., 'up', 'down'
     comment = Column(Text, nullable=True)
     created_time = Column(BigInteger, nullable=False)
 

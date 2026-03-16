@@ -15,17 +15,17 @@ class SessionModel(Base):
 
     __tablename__ = "sessions"
 
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=True)
-    user_id = Column(String, nullable=False)
-    agent_id = Column(String, nullable=True)
-    project_id = Column(String, ForeignKey("projects.id"), nullable=True)
+    id = Column(String(255), primary_key=True)
+    name = Column(String(255), nullable=True)
+    user_id = Column(String(255), nullable=False)
+    agent_id = Column(String(255), nullable=True)
+    project_id = Column(String(255), ForeignKey("projects.id"), nullable=True)
     created_time = Column(BigInteger, nullable=False, default=now_epoch_ms)
     updated_time = Column(
         BigInteger, nullable=False, default=now_epoch_ms, onupdate=now_epoch_ms
     )
     deleted_at = Column(BigInteger, nullable=True)
-    deleted_by = Column(String, nullable=True)
+    deleted_by = Column(String(255), nullable=True)
 
     __table_args__ = (
         Index("ix_sessions_user_id", "user_id"),

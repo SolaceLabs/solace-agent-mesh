@@ -14,16 +14,16 @@ class ProjectModel(Base):
 
     __tablename__ = "projects"
 
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    user_id = Column(String, nullable=False)
+    id = Column(String(255), primary_key=True)
+    name = Column(String(255), nullable=False)
+    user_id = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
-    default_agent_id = Column(String, nullable=True)
+    default_agent_id = Column(String(255), nullable=True)
     created_at = Column(BigInteger, nullable=False)
     updated_at = Column(BigInteger, nullable=True)
     deleted_at = Column(BigInteger, nullable=True)
-    deleted_by = Column(String, nullable=True)
+    deleted_by = Column(String(255), nullable=True)
 
     __table_args__ = (
         Index("ix_projects_deleted_at", "deleted_at"),

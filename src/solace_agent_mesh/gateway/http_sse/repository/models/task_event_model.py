@@ -13,9 +13,9 @@ class TaskEventModel(Base):
 
     __tablename__ = "task_events"
 
-    id = Column(String, primary_key=True)
-    task_id = Column(String, ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
-    user_id = Column(String, nullable=True, index=True)
+    id = Column(String(255), primary_key=True)
+    task_id = Column(String(255), ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    user_id = Column(String(255), nullable=True, index=True)
     created_time = Column(BigInteger, nullable=False)
     topic = Column(Text, nullable=False)
     direction = Column(String(50), nullable=False)

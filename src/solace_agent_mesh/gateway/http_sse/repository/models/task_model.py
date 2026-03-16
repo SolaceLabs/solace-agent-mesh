@@ -13,12 +13,12 @@ class TaskModel(Base):
 
     __tablename__ = "tasks"
 
-    id = Column(String, primary_key=True)
-    user_id = Column(String, nullable=False, index=True)
-    parent_task_id = Column(String, nullable=True, index=True)
+    id = Column(String(255), primary_key=True)
+    user_id = Column(String(255), nullable=False, index=True)
+    parent_task_id = Column(String(255), nullable=True, index=True)
     start_time = Column(BigInteger, nullable=False)
     end_time = Column(BigInteger, nullable=True)
-    status = Column(String, nullable=True)
+    status = Column(String(255), nullable=True)
     # ix_tasks_initial_request_text was dropped by migration 20251015_session_idx
     initial_request_text = Column(Text, nullable=True)
 
@@ -35,7 +35,7 @@ class TaskModel(Base):
     max_execution_time_ms = Column(BigInteger, nullable=True)
 
     # SSE event buffer state columns — indexes use idx_ prefix from migration 20260207_sse_event_buffer
-    session_id = Column(String, nullable=True)
+    session_id = Column(String(255), nullable=True)
     events_buffered = Column(Boolean, nullable=True, default=False)
     events_consumed = Column(Boolean, nullable=True, default=False)
 

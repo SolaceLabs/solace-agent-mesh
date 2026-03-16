@@ -28,23 +28,23 @@ class PromptGroupModel(Base):
     )
     
     # Primary key - String type (not UUID)
-    id = Column(String, primary_key=True)
-    
+    id = Column(String(255), primary_key=True)
+
     # Core fields
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)
     category = Column(String(100), nullable=True, index=True)
     # Note: unique=False here because uniqueness is enforced by composite index above
     command = Column(String(50), nullable=True, index=True)
-    
+
     # Ownership
-    user_id = Column(String, nullable=False, index=True)
+    user_id = Column(String(255), nullable=False, index=True)
     author_name = Column(String(255), nullable=True)
-    
+
     # Production prompt reference
     production_prompt_id = Column(
-        String, 
-        ForeignKey("prompts.id", ondelete="SET NULL"), 
+        String(255),
+        ForeignKey("prompts.id", ondelete="SET NULL"),
         nullable=True
     )
     
@@ -91,27 +91,27 @@ class PromptModel(Base):
     __tablename__ = "prompts"
     
     # Primary key - String type (not UUID)
-    id = Column(String, primary_key=True)
-    
+    id = Column(String(255), primary_key=True)
+
     # Content
     prompt_text = Column(Text, nullable=False)
-    
+
     # Versioned metadata fields (copied from group at version creation time)
     name = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
     category = Column(String(100), nullable=True)
     command = Column(String(50), nullable=True)
-    
+
     # Group relationship
     group_id = Column(
-        String,
+        String(255),
         ForeignKey("prompt_groups.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
-    
+
     # Ownership
-    user_id = Column(String, nullable=False, index=True)
+    user_id = Column(String(255), nullable=False, index=True)
     
     # Versioning
     version = Column(Integer, default=1, nullable=False)
@@ -146,13 +146,13 @@ class PromptGroupUserModel(Base):
     
     __tablename__ = "prompt_group_users"
     
-    id = Column(String, primary_key=True)
-    prompt_group_id = Column(String, ForeignKey("prompt_groups.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(String, nullable=False)
+    id = Column(String(255), primary_key=True)
+    prompt_group_id = Column(String(255), ForeignKey("prompt_groups.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(255), nullable=False)
     # Stored as plain String to match migration — validation happens at the application layer
-    role = Column(String, nullable=False, default=PromptGroupRole.VIEWER.value)
+    role = Column(String(255), nullable=False, default=PromptGroupRole.VIEWER.value)
     added_at = Column(BigInteger, nullable=False)  # Epoch timestamp in milliseconds
-    added_by_user_id = Column(String, nullable=False)  # User who granted access
+    added_by_user_id = Column(String(255), nullable=False)  # User who granted access
 
     __table_args__ = (
         UniqueConstraint('prompt_group_id', 'user_id', name='uq_prompt_group_user'),

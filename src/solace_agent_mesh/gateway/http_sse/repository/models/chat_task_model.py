@@ -13,14 +13,14 @@ class ChatTaskModel(Base):
 
     __tablename__ = "chat_tasks"
 
-    id = Column(String, primary_key=True)
+    id = Column(String(255), primary_key=True)
     session_id = Column(
-        String,
+        String(255),
         ForeignKey("sessions.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
-    user_id = Column(String, nullable=False, index=True)
+    user_id = Column(String(255), nullable=False, index=True)
     user_message = Column(Text, nullable=True)
     message_bubbles = Column(Text, nullable=False)
     task_metadata = Column(Text, nullable=True)
