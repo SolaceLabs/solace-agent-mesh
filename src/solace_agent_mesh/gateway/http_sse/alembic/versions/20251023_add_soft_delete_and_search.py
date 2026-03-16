@@ -20,46 +20,104 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add soft delete columns and search indexes."""
     bind = op.get_bind()
+
+    if bind.dialect.name == 'mysql':
+        _upgrade_mysql(bind)
+    else:
+        _upgrade_standard(bind)
+
+
+def _upgrade_standard(bind) -> None:
+    """Standard upgrade for PostgreSQL and SQLite (original working code)."""
     inspector = inspect(bind)
-    
+
     # Add soft delete columns to sessions table
     if 'sessions' in inspector.get_table_names():
         sessions_columns = [col['name'] for col in inspector.get_columns('sessions')]
-        
+
         if 'deleted_at' not in sessions_columns:
             op.add_column('sessions', sa.Column('deleted_at', sa.BigInteger(), nullable=True))
-        
+
         if 'deleted_by' not in sessions_columns:
             op.add_column('sessions', sa.Column('deleted_by', sa.String(), nullable=True))
-        
+
         # Create index on deleted_at for efficient filtering
         try:
             op.create_index('ix_sessions_deleted_at', 'sessions', ['deleted_at'])
         except Exception:
             pass  # Index might already exist
-        
+
         # Create composite index for user queries with soft delete
         try:
             op.create_index('ix_sessions_user_deleted', 'sessions', ['user_id', 'deleted_at'])
         except Exception:
             pass
-    
+
     # Add soft delete columns to projects table
     if 'projects' in inspector.get_table_names():
         projects_columns = [col['name'] for col in inspector.get_columns('projects')]
-        
+
         if 'deleted_at' not in projects_columns:
             op.add_column('projects', sa.Column('deleted_at', sa.BigInteger(), nullable=True))
-        
+
         if 'deleted_by' not in projects_columns:
             op.add_column('projects', sa.Column('deleted_by', sa.String(), nullable=True))
-        
+
         # Create index on deleted_at for efficient filtering
         try:
             op.create_index('ix_projects_deleted_at', 'projects', ['deleted_at'])
         except Exception:
             pass
-        
+
+        # Create composite index for user queries with soft delete
+        try:
+            op.create_index('ix_projects_user_deleted', 'projects', ['user_id', 'deleted_at'])
+        except Exception:
+            pass
+
+
+def _upgrade_mysql(bind) -> None:
+    """MySQL upgrade with VARCHAR lengths."""
+    inspector = inspect(bind)
+
+    # Add soft delete columns to sessions table
+    if 'sessions' in inspector.get_table_names():
+        sessions_columns = [col['name'] for col in inspector.get_columns('sessions')]
+
+        if 'deleted_at' not in sessions_columns:
+            op.add_column('sessions', sa.Column('deleted_at', sa.BigInteger(), nullable=True))
+
+        if 'deleted_by' not in sessions_columns:
+            op.add_column('sessions', sa.Column('deleted_by', sa.String(36), nullable=True))  # UUID
+
+        # Create index on deleted_at for efficient filtering
+        try:
+            op.create_index('ix_sessions_deleted_at', 'sessions', ['deleted_at'])
+        except Exception:
+            pass
+
+        # Create composite index for user queries with soft delete
+        try:
+            op.create_index('ix_sessions_user_deleted', 'sessions', ['user_id', 'deleted_at'])
+        except Exception:
+            pass
+
+    # Add soft delete columns to projects table
+    if 'projects' in inspector.get_table_names():
+        projects_columns = [col['name'] for col in inspector.get_columns('projects')]
+
+        if 'deleted_at' not in projects_columns:
+            op.add_column('projects', sa.Column('deleted_at', sa.BigInteger(), nullable=True))
+
+        if 'deleted_by' not in projects_columns:
+            op.add_column('projects', sa.Column('deleted_by', sa.String(36), nullable=True))  # UUID
+
+        # Create index on deleted_at for efficient filtering
+        try:
+            op.create_index('ix_projects_deleted_at', 'projects', ['deleted_at'])
+        except Exception:
+            pass
+
         # Create composite index for user queries with soft delete
         try:
             op.create_index('ix_projects_user_deleted', 'projects', ['user_id', 'deleted_at'])

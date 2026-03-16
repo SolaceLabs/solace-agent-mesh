@@ -18,12 +18,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """
-    Create project_users table to enable multi-user access to projects.
-    
-    This table tracks which users have access to which projects and their roles.
-    It supports future features for collaborative project management.
-    """
+    """Create project_users table with dialect-specific handling."""
+    bind = op.get_bind()
+
+    if bind.dialect.name == 'mysql':
+        _upgrade_mysql()
+    else:
+        _upgrade_standard()
+
+
+def _upgrade_standard() -> None:
+    """Standard upgrade for PostgreSQL and SQLite (original working code)."""
     # Create project_users table
     op.create_table(
         'project_users',
@@ -37,21 +42,58 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.UniqueConstraint('project_id', 'user_id', name='uq_project_user')
     )
-    
+
     # Create indexes for efficient queries
     op.create_index(
         'ix_project_users_project_id',
         'project_users',
         ['project_id']
     )
-    
+
     op.create_index(
         'ix_project_users_user_id',
         'project_users',
         ['user_id']
     )
-    
+
     # Create composite index for common query pattern (user accessing specific project)
+    op.create_index(
+        'ix_project_users_user_project',
+        'project_users',
+        ['user_id', 'project_id']
+    )
+
+
+def _upgrade_mysql() -> None:
+    """MySQL upgrade with VARCHAR lengths."""
+    # Create project_users table
+    op.create_table(
+        'project_users',
+        sa.Column('id', sa.String(36), nullable=False),  # UUID
+        sa.Column('project_id', sa.String(36), nullable=False),  # UUID
+        sa.Column('user_id', sa.String(36), nullable=False),  # UUID
+        sa.Column('role', sa.String(50), nullable=False),  # Enum-like
+        sa.Column('added_at', sa.BigInteger(), nullable=False),
+        sa.Column('added_by_user_id', sa.String(36), nullable=False),  # UUID
+        sa.PrimaryKeyConstraint('id'),
+        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+        sa.UniqueConstraint('project_id', 'user_id', name='uq_project_user')
+    )
+
+    # Create indexes for efficient queries
+    op.create_index(
+        'ix_project_users_project_id',
+        'project_users',
+        ['project_id']
+    )
+
+    op.create_index(
+        'ix_project_users_user_id',
+        'project_users',
+        ['user_id']
+    )
+
+    # Create composite index for common query pattern
     op.create_index(
         'ix_project_users_user_project',
         'project_users',
