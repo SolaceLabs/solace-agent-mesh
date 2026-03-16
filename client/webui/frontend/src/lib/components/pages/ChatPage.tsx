@@ -15,8 +15,6 @@ import { getShareLinkForSession, getShareUsers } from "@/lib/api/shareApi";
 import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
-import { mockActiveCollaborativeSession, mockMessageAttributions } from "@/lib/mockData/collaborativeChat";
-import type { CollaborativeSessionInfo } from "@/lib/types/collaboration";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -111,11 +109,6 @@ export function ChatPage() {
             setIsForkingChat(false);
         }
     }, [sessionId, isForkingChat, handleSwitchSession, navigate]);
-
-    // TODO: Replace with actual collaboration state from backend
-    // For now, only enable collaboration mode for specific session IDs (for testing)
-    const collaborationInfo: CollaborativeSessionInfo | null = sessionId === "mock-collaborative-session" ? mockActiveCollaborativeSession : null;
-    const isCollaborativeSession = collaborationInfo?.isSharedSession || false;
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -506,7 +499,7 @@ export function ChatPage() {
                                       ? [
                                             <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
                                                 {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                Save as My Chat
+                                                Create Personal Copy
                                             </Button>,
                                         ]
                                       : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />]),

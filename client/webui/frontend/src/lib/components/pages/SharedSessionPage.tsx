@@ -6,7 +6,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, GitFork, Loader2, MessageSquare, RefreshCw, Info } from "lucide-react";
+import { ArrowLeft, Lock, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, GitFork, Loader2, Info } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";

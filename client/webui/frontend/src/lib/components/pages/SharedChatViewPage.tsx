@@ -459,12 +459,7 @@ export function SharedChatViewPage() {
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Go to Chat
             </Button>
-        ) : (
-            <Button key="save-as-my-chat" variant="outline" size="sm" onClick={handleForkChat} disabled={isForking}>
-                {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                Create Personal Copy
-            </Button>
-        ),
+        ) : null,
     ].filter(Boolean) as React.ReactNode[];
 
     return (

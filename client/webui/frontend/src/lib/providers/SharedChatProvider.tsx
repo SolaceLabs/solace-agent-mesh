@@ -68,6 +68,15 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
     // Refs
     const latestStatusText = useRef<string | null>(null);
 
+    // Build the share artifact URL for binary file access (needed for PDF, etc.)
+    const getShareArtifactUrl = useCallback(
+        (filename: string): string => {
+            const encodedFilename = encodeURIComponent(filename);
+            return `/api/v1/share/${shareId}/artifacts/${encodedFilename}`;
+        },
+        [shareId]
+    );
+
     // Open artifact for preview - fetches content and sets preview state
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
@@ -83,6 +92,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
                     mime_type: artifact.mime_type,
                     content: content.content,
                     size: artifact.size,
+                    url: getShareArtifactUrl(artifact.filename),
                 };
 
                 setPreviewFileContent(fileAttachment);
@@ -143,6 +153,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
                     mime_type: artifact.mime_type,
                     content: content.content,
                     size: artifact.size,
+                    url: getShareArtifactUrl(artifact.filename),
                 };
             } catch (error) {
                 console.error("Failed to download artifact:", error);
