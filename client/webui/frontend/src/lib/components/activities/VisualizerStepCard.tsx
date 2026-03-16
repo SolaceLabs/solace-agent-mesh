@@ -5,6 +5,7 @@ import { CheckCircle, ExternalLink, FileText, GitCommit, GitMerge, HardDrive, Li
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
 import { ImageSearchGrid } from "@/lib/components/research";
+import { NODE_COLORS } from "@/lib/constants";
 import type {
     ArtifactNotificationData,
     LLMCallData,
@@ -33,41 +34,41 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     const getStepIcon = () => {
         switch (step.type) {
             case "USER_REQUEST":
-                return <User className="mr-2 text-blue-500" size={18} />;
+                return <User className={`mr-2 ${NODE_COLORS.user}`} size={18} />;
             case "AGENT_RESPONSE_TEXT":
-                return <Zap className="mr-2 text-teal-500" size={18} />;
+                return <Zap className={`mr-2 ${NODE_COLORS.llm}`} size={18} />;
             case "TASK_COMPLETED":
-                return <CheckCircle className="mr-2 text-green-500" size={18} />;
+                return <CheckCircle className="mr-2 text-(--success-wMain)" size={18} />;
             case "TASK_FAILED":
-                return <XCircle className="mr-2 text-red-500" size={18} />;
+                return <XCircle className="mr-2 text-(--error-wMain)" size={18} />;
             case "AGENT_LLM_CALL":
-                return <Zap className="mr-2 text-purple-500" size={18} />;
+                return <Zap className={`mr-2 ${NODE_COLORS.group}`} size={18} />;
             case "AGENT_LLM_RESPONSE_TO_AGENT":
-                return <Zap className="mr-2 text-teal-500" size={18} />;
+                return <Zap className={`mr-2 ${NODE_COLORS.llm}`} size={18} />;
             case "AGENT_LLM_RESPONSE_TOOL_DECISION": {
                 const firstDecision = step.data.toolDecision?.decisions?.[0];
                 const isPeer = firstDecision?.isPeerDelegation;
 
-                return isPeer ? <Share2 className="mr-2 text-orange-500" size={18} /> : <Terminal className="mr-2 text-orange-500" size={18} />;
+                return isPeer ? <Share2 className={`mr-2 ${NODE_COLORS.peer}`} size={18} /> : <Terminal className={`mr-2 ${NODE_COLORS.peer}`} size={18} />;
             }
             case "AGENT_TOOL_INVOCATION_START":
-                return step.data.toolInvocationStart?.isPeerInvocation ? <Share2 className="mr-2 text-cyan-500" size={18} /> : <Terminal className="mr-2 text-cyan-500" size={18} />;
+                return step.data.toolInvocationStart?.isPeerInvocation ? <Share2 className={`mr-2 ${NODE_COLORS.tool}`} size={18} /> : <Terminal className={`mr-2 ${NODE_COLORS.tool}`} size={18} />;
             case "AGENT_TOOL_EXECUTION_RESULT":
-                return <HardDrive className="mr-2 text-teal-500" size={18} />;
+                return <HardDrive className={`mr-2 ${NODE_COLORS.llm}`} size={18} />;
             case "AGENT_ARTIFACT_NOTIFICATION":
-                return <FileText className="mr-2 text-indigo-500" size={18} />;
+                return <FileText className={`mr-2 ${NODE_COLORS.artifact}`} size={18} />;
             case "WORKFLOW_EXECUTION_START":
             case "WORKFLOW_EXECUTION_RESULT":
-                return <Workflow className="mr-2 text-purple-500" size={18} />;
+                return <Workflow className={`mr-2 ${NODE_COLORS.group}`} size={18} />;
             case "WORKFLOW_NODE_EXECUTION_START":
-                if (step.data.workflowNodeExecutionStart?.nodeType === "map") return <List className="mr-2 text-blue-500" size={18} />;
-                if (step.data.workflowNodeExecutionStart?.nodeType === "fork") return <Split className="mr-2 text-blue-500" size={18} />;
-                if (step.data.workflowNodeExecutionStart?.nodeType === "switch") return <GitMerge className="mr-2 text-blue-500" size={18} />;
-                return <GitCommit className="mr-2 text-blue-500" size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "map") return <List className={`mr-2 ${NODE_COLORS.map}`} size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "fork") return <Split className={`mr-2 ${NODE_COLORS.map}`} size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "switch") return <GitMerge className={`mr-2 ${NODE_COLORS.switch}`} size={18} />;
+                return <GitCommit className={`mr-2 ${NODE_COLORS.map}`} size={18} />;
             case "WORKFLOW_NODE_EXECUTION_RESULT":
-                return <GitCommit className="mr-2 text-green-500" size={18} />;
+                return <GitCommit className="mr-2 text-(--success-wMain)" size={18} />;
             case "WORKFLOW_MAP_PROGRESS":
-                return <List className="mr-2 text-blue-500" size={18} />;
+                return <List className={`mr-2 ${NODE_COLORS.map}`} size={18} />;
             default:
                 return <MessageSquare className="mr-2 text-(--secondary-text-wMain)" size={18} />;
         }
@@ -106,7 +107,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
             return (
                 <div className="mt-1.5 flex items-center justify-between text-xs text-(--secondary-text-wMain)">
                     <span className="italic">Internal LLM response</span>
-                    <button onClick={toggleExpand} className="text-xs text-blue-500 underline hover:text-blue-700">
+                    <button onClick={toggleExpand} className="text-xs text-(--info-wMain) underline hover:text-(--info-w100)">
                         Show details
                     </button>
                 </div>
@@ -118,7 +119,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
             <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
                 <div className="mb-1 flex items-center justify-between">
                     <strong>LLM Response Details:</strong>
-                    <button onClick={toggleExpand} className="text-xs text-blue-500 underline hover:text-blue-700">
+                    <button onClick={toggleExpand} className="text-xs text-(--info-wMain) underline hover:text-(--info-w100)">
                         Hide details
                     </button>
                 </div>
@@ -143,7 +144,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     };
 
     const renderToolDecisionData = (data: ToolDecisionData) => (
-        <div className="mt-1.5 rounded-md bg-blue-50 p-2 font-mono text-xs text-blue-700">
+        <div className="mt-1.5 rounded-md bg-(--info-w10) p-2 font-mono text-xs text-(--info-wMain)">
             <p className="mb-2">
                 <strong>🔧 {data.isParallel ? "Parallel Tool Calls:" : "Tool Call:"}</strong>
             </p>
@@ -222,7 +223,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                         </p>
                         <ImageSearchGrid images={isString(parsedResult.result) ? JSON.parse(parsedResult.result).images : parsedResult.result.images} />
                         <details className="mt-2">
-                            <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-700">Show full result data</summary>
+                            <summary className="cursor-pointer text-xs text-(--info-wMain) hover:text-(--info-w100)">Show full result data</summary>
                             <div className="mt-2 max-h-40 overflow-y-auto rounded bg-(--secondary-w10) p-1.5">{renderResultData(data.resultData)}</div>
                         </details>
                     </>
@@ -272,7 +273,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                         <strong>Artifact:</strong> {data.artifactName}
                         {data.version !== undefined && <span className="text-(--secondary-text-wMain)"> (v{data.version})</span>}
                     </p>
-                    <button onClick={handleViewFile} className="flex items-center gap-1 text-blue-600 transition-colors hover:text-blue-800" title="View in Files tab">
+                    <button onClick={handleViewFile} className="flex items-center gap-1 text-(--info-wMain) transition-colors hover:text-(--info-w100)" title="View in Files tab">
                         <span className="text-xs">View File</span>
                         <ExternalLink size={12} />
                     </button>
@@ -295,7 +296,9 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
         <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
             <div className="mb-1 flex items-center justify-between">
                 <span className="text-[10px] font-bold text-(--secondary-text-wMain) uppercase">{data.nodeType} Node</span>
-                {data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === "number" && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-800">Iter #{data.iterationIndex}</span>}
+                {data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === "number" && (
+                    <span className="rounded bg-(--info-w10) px-1.5 py-0.5 text-[10px] text-(--info-wMain)">Iter #{data.iterationIndex}</span>
+                )}
             </div>
 
             {data.condition && (
@@ -330,7 +333,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
             )}
             {data.metadata?.condition_result !== undefined && (
                 <p className="mt-1">
-                    <strong>Condition Result:</strong> <span className={data.metadata.condition_result ? "font-bold text-green-600" : "font-bold text-orange-600"}>{data.metadata.condition_result ? "True" : "False"}</span>
+                    <strong>Condition Result:</strong> <span className={data.metadata.condition_result ? "font-bold text-(--success-wMain)" : "font-bold text-(--warning-wMain)"}>{data.metadata.condition_result ? "True" : "False"}</span>
                 </p>
             )}
             {data.outputArtifactRef && (
@@ -403,7 +406,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
             : `
       mb-3 p-3 border rounded-lg shadow-sm
       bg-(--background-w10) hover:shadow-md transition-shadow duration-150
-      ${isHighlighted ? "border-blue-500 ring-2 ring-blue-500" : "border-(--secondary-w20)"}
+      ${isHighlighted ? "border-(--info-wMain) ring-1 ring-(--info-wMain)" : "border-(--secondary-w20)"}
       ${onClick ? "cursor-pointer" : ""}
     `;
 
@@ -429,10 +432,10 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                 </div>
             </div>
             {step.delegationInfo && step.delegationInfo.length > 0 && (
-                <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-blue-500 bg-blue-50 p-2 text-sm">
+                <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-(--info-wMain) bg-(--info-w10) p-2 text-sm">
                     {step.delegationInfo.map(info => (
                         <div key={info.functionCallId}>
-                            <div className="flex items-center font-semibold text-blue-700">
+                            <div className="flex items-center font-semibold text-(--info-wMain)">
                                 <Link className="mr-2 h-4 w-4 flex-shrink-0" />
                                 <span>
                                     {getDelegationText()}
@@ -440,7 +443,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                                 </span>
                             </div>
                             {info.subTaskId && (
-                                <div className="mt-0.5 ml-[24px] text-xs text-blue-600">
+                                <div className="mt-0.5 ml-[24px] text-xs text-(--info-wMain)">
                                     Sub-Task:{" "}
                                     <span className="font-mono" title={info.subTaskId}>
                                         {info.subTaskId.substring(0, 15)}...
