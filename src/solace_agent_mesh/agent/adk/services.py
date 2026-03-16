@@ -532,11 +532,18 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 f"{component.log_identifier} 'bucket_name' is required for GCS artifact service."
             )
         try:
-            gcs_args = {
-                k: v
-                for k, v in config.items()
-                if k not in ["type", "bucket_name", "artifact_scope"]
-            }
+            valid_gcs_params = [
+                "project",
+                "credentials",
+                "client_info",
+                "client_options",
+            ]
+
+            gcs_args = {}
+            for key in valid_gcs_params:
+                val = config.get(key)
+                if val is not None:
+                    gcs_args[key] = val
 
             project = config.get("project") or os.environ.get("GCS_PROJECT")
             if project:
