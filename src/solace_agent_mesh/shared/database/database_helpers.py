@@ -6,14 +6,8 @@ Separated from dependencies.py to avoid circular imports.
 """
 
 import json
-import logging
-import uuid as uuid_module
-from sqlalchemy import Text, TypeDecorator, String
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.dialects.mysql import BINARY
+from sqlalchemy import Text, TypeDecorator
 from ..exceptions.exceptions import DataIntegrityError
-
-log = logging.getLogger(__name__)
 
 
 class SimpleJSON(TypeDecorator):
