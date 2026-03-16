@@ -101,10 +101,11 @@ test = [
     "httpx>=0.25",
     "respx",
     "ruff",
-    "testcontainers",
+    "testcontainers[postgres,mysql]>=4.0.0",
     "aiosqlite",
     "psycopg2-binary",
     "asyncpg",
+    "pymysql>=1.1.0",  # Required for MySQL migration tests
 ]
 
 [tool.hatch.envs.hatch-test]
@@ -122,11 +123,12 @@ dependencies = [
     "httpx>=0.25",
     "respx",
     "ruff",
-    "testcontainers",
+    "testcontainers[postgres,mysql]>=4.0.0",
     "aiosqlite",
     "psycopg2-binary",
     "asyncpg",
     "bm25s==0.2.14",
+    "pymysql>=1.1.0",  # Required for MySQL testcontainers
     "pypdf==6.8.0",
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
