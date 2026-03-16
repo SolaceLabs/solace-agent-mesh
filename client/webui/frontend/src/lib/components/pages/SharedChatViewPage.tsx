@@ -11,7 +11,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { AlertCircle, FileText, Network, PanelRightIcon, Link2, GitFork, Loader2, MessageSquare, UserLock, Info } from "lucide-react";
+import { AlertCircle, FileText, Network, PanelRightIcon, Link2, Loader2, MessageSquare, UserLock, Info } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, Tooltip, TooltipContent, TooltipTrigger, CHAT_STYLES } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
@@ -514,13 +514,13 @@ export function SharedChatViewPage() {
 
                                         {/* Read-only banner instead of ChatInputArea */}
                                         <div style={CHAT_STYLES}>
-                                            <div className="bg-muted/50 border-border mx-auto flex max-w-3xl items-center gap-3 rounded-lg border px-4 py-3">
+                                            <div className="bg-muted/50 border-border mx-auto flex max-w-3xl items-center gap-3 rounded-lg border px-4 py-3 shadow-sm backdrop-blur-sm">
                                                 <Info className="text-muted-foreground h-5 w-5 flex-shrink-0" />
-                                                <span className="text-muted-foreground text-sm">This is a shared chat. Fork it to continue the conversation.</span>
+                                                <span className="text-muted-foreground text-sm">This chat is read-only. To build off of it, continue a new conversation.</span>
                                                 {!(session?.is_owner && session?.session_id) && (
                                                     <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
-                                                        {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                        Create Personal Copy
+                                                        {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
+                                                        Continue in New Chat
                                                     </Button>
                                                 )}
                                             </div>

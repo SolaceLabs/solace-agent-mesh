@@ -494,12 +494,12 @@ export function ChatPage() {
                                       : sharedEditorUsers.length > 0
                                         ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
                                         : []),
-                                  // For editors: show "Create Personal Copy" (fork) button instead of Share
+                                  // For editors: show "Continue in New Chat" (fork) button instead of Share
                                   ...(isCollaborativeSession
                                       ? [
                                             <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
                                                 {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                Create Personal Copy
+                                                Continue in New Chat
                                             </Button>,
                                         ]
                                       : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />]),

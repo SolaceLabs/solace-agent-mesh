@@ -6,7 +6,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, GitFork, Loader2, Info } from "lucide-react";
+import { ArrowLeft, AlertCircle, FileText, Network, PanelRightIcon, Link2, UserLock, MessageSquare, Loader2, Info } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
 import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
@@ -102,34 +102,6 @@ export function SharedSessionPage() {
             loadSharedSession(shareId);
         }
     }, [shareId, loadSharedSession]);
-
-    const getAccessIcon = (accessType: string) => {
-        switch (accessType) {
-            case "authenticated":
-                return <Lock className="h-4 w-4" />;
-            case "domain-restricted":
-                return <Building2 className="h-4 w-4" />;
-            case "user-specific":
-                return <UserLock className="h-4 w-4" />;
-            default:
-                return null;
-        }
-    };
-
-    const getAccessLabel = (accessType: string) => {
-        switch (accessType) {
-            case "public":
-                return "Public";
-            case "authenticated":
-                return "Authenticated";
-            case "domain-restricted":
-                return "Domain Restricted";
-            case "user-specific":
-                return "Shared with you";
-            default:
-                return accessType;
-        }
-    };
 
     // Extract RAG data from all tasks
     const ragData = useMemo(() => {
@@ -276,7 +248,6 @@ export function SharedSessionPage() {
 
     // Check if there are any RAG sources to show
     const hasRagSources = ragData.length > 0;
-    const hasArtifacts = session?.artifacts && session.artifacts.length > 0;
 
     const toggleSidePanel = () => {
         setIsSidePanelCollapsed(!isSidePanelCollapsed);
@@ -467,22 +438,6 @@ export function SharedSessionPage() {
                             <div className="h-6 border-r" />
                             <div>
                                 <h1 className="text-lg font-semibold">{session.title}</h1>
-                                <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                                    {session.access_type !== "public" && (
-                                        <>
-                                            {getAccessIcon(session.access_type)}
-                                            <span>{getAccessLabel(session.access_type)}</span>
-                                        </>
-                                    )}
-                                    {hasArtifacts && (
-                                        <>
-                                            {session.access_type !== "public" && <span>•</span>}
-                                            <span>
-                                                {session.artifacts.length} file{session.artifacts.length !== 1 ? "s" : ""}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -530,37 +485,39 @@ export function SharedSessionPage() {
                     <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
                         {/* Messages panel */}
                         <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-session-messages-panel">
-                            <main className="h-full overflow-y-auto p-6">
-                                <div className="mx-auto max-w-3xl space-y-4">
-                                    {messages.length === 0 ? (
-                                        <div className="text-muted-foreground py-12 text-center">
-                                            <p>No messages in this session.</p>
-                                        </div>
-                                    ) : (
-                                        messages.map((message, index) => {
-                                            const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                            return (
-                                                <div key={message.metadata?.messageId || `msg-${index}`}>
-                                                    <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} />
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                                {/* Fork banner at the bottom */}
+                            <div className="relative flex h-full flex-col">
+                                <main className="min-h-0 flex-1 overflow-y-auto p-6">
+                                    <div className="mx-auto max-w-3xl space-y-4">
+                                        {messages.length === 0 ? (
+                                            <div className="text-muted-foreground py-12 text-center">
+                                                <p>No messages in this session.</p>
+                                            </div>
+                                        ) : (
+                                            messages.map((message, index) => {
+                                                const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                return (
+                                                    <div key={message.metadata?.messageId || `msg-${index}`}>
+                                                        <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} />
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </main>
+                                {/* Fork banner pinned to bottom */}
                                 {!session?.is_owner && (
-                                    <div className="mx-auto mt-6 max-w-3xl">
-                                        <div className="bg-muted/50 border-border flex items-center gap-3 rounded-lg border px-4 py-3">
+                                    <div className="sticky bottom-0 z-10 px-6 pt-2 pb-4">
+                                        <div className="bg-muted/50 border-border mx-auto flex max-w-3xl items-center gap-3 rounded-lg border px-4 py-3 shadow-sm backdrop-blur-sm">
                                             <Info className="text-muted-foreground h-5 w-5 flex-shrink-0" />
-                                            <span className="text-muted-foreground text-sm">This is a shared chat. Fork it to continue the conversation.</span>
+                                            <span className="text-muted-foreground text-sm">This chat is read-only. To build off of it, continue a new conversation.</span>
                                             <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
-                                                {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                Create Personal Copy
+                                                {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
+                                                Continue in New Chat
                                             </Button>
                                         </div>
                                     </div>
                                 )}
-                            </main>
+                            </div>
                         </ResizablePanel>
 
                         <ResizableHandle />
