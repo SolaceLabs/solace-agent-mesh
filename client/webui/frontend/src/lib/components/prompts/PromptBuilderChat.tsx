@@ -271,8 +271,8 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         return (
             <div className="flex h-full items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="text-primary h-8 w-8 animate-spin" />
-                    <p className="text-muted-foreground text-sm">Initializing AI assistant...</p>
+                    <Loader2 className="h-8 w-8 animate-spin text-(--primary-wMain)" />
+                    <p className="text-sm text-(--secondary-text-wMain)">Initializing AI assistant...</p>
                 </div>
             </div>
         );
@@ -283,8 +283,8 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
             {/* Header */}
             <div className="border-b px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
-                        <Sparkles className="text-primary h-4 w-4" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-(--primary-w10)">
+                        <Sparkles className="h-4 w-4 text-(--primary-wMain)" />
                     </div>
                     <h3 className="text-sm font-semibold">AI Builder</h3>
                 </div>
@@ -294,7 +294,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
                 {messages.map((message, index) => (
                     <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-[var(--message-background)]" : ""}`}>
+                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-(--secondary-w20)" : ""}`}>
                             <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>
                         </div>
                     </div>
@@ -305,7 +305,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                     <div className="flex justify-start">
                         <div className="flex items-center gap-2 rounded-2xl px-4 py-3">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-muted-foreground text-sm">Thinking...</span>
+                            <span className="text-sm text-(--secondary-text-wMain)">Thinking...</span>
                         </div>
                     </div>
                 )}
@@ -314,7 +314,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
             </div>
 
             {/* Input Area */}
-            <div className="bg-background border-t p-4">
+            <div className="border-t bg-(--background-w10) p-4">
                 {/* STT Error Banner */}
                 {sttError && (
                     <div className="mb-3">

@@ -79,10 +79,10 @@ def init_database(database_url: str):
 
         if dialect_name == "sqlite":
             engine_kwargs = {
-                "poolclass": pool.StaticPool,
-                "connect_args": {"check_same_thread": False}
+                "poolclass": pool.NullPool,
+                "connect_args": {"check_same_thread": False},
             }
-            log.info("Configuring SQLite database (single-connection mode)")
+            log.info("Configuring SQLite database with NullPool (per-thread connections)")
 
         elif dialect_name in ("postgresql", "mysql"):
             engine_kwargs = {
@@ -115,6 +115,8 @@ def init_database(database_url: str):
             if dialect_name == "sqlite":
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA busy_timeout=5000")
                 cursor.close()
 
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

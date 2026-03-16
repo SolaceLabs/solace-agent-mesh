@@ -756,8 +756,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
         if not self.adk_model_instance:
             if not self.model_provider and not self.get_config("model"):
                 log.warning(
-                    "%s No LLM provider configured for this component. Returning None.",
+                    "%s No LLM provider configured for %s component. Returning None.",
                     self.log_identifier,
+                    self.get_component_id(),
                 )
                 return None
             self._initialize_model()

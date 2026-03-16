@@ -1,0 +1,13 @@
+Project Indexing Test Document
+
+This document contains information about the Solace Agent Mesh indexing feature.
+It includes test data specifically designed to verify that the index_search tool
+can successfully retrieve information from uploaded project files.
+
+Key capabilities:
+- Full-text search with BM25 ranking
+- Automatic file conversion for PDF and DOCX
+- Citation tracking with page/paragraph references
+- Integration with agent tool calls
+
+This content should be easily retrievable when querying about indexing features.

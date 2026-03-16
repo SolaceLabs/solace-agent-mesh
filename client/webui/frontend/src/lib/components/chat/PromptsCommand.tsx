@@ -10,6 +10,7 @@ import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
 import { api } from "@/lib/api";
+import { Badge } from "../ui/badge";
 
 export type ChatCommand = "create-template";
 
@@ -245,10 +246,10 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
             <div ref={backdropRef} className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
 
             <div data-testid="promptCommand" className="fixed top-1/3 left-1/2 z-50 w-full max-w-[672px] -translate-x-1/2 px-4">
-                <div ref={popoverRef} className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg" style={{ maxHeight: "60vh" }}>
+                <div ref={popoverRef} className="flex flex-col rounded-md border bg-(--background-w10) shadow-lg" style={{ maxHeight: "60vh" }}>
                     {/* Search Input */}
-                    <div className="flex items-center gap-2 border-b border-[var(--border)] p-3">
-                        <Search className="size-4 text-[var(--muted-foreground)]" />
+                    <div className="flex items-center gap-2 border-b p-3">
+                        <Search className="size-4 text-(--secondary-text-wMain)" />
                         <input
                             ref={inputRef}
                             type="text"
@@ -256,7 +257,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                             onChange={e => setSearchValue(e.target.value)}
                             onKeyDown={handleKeyDown}
                             placeholder="Search by shortcut or name..."
-                            className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted-foreground)]"
+                            className="flex-1 bg-transparent text-sm outline-none placeholder:text-(--secondary-text-w50)"
                         />
                     </div>
 
@@ -264,15 +265,15 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                     <div className="min-h-0 flex-1 overflow-y-auto">
                         {isLoading ? (
                             <div className="flex items-center justify-center p-8">
-                                <div className="size-6 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
+                                <div className="size-6 animate-spin rounded-xs border-2 border-(--primary-wMain) border-t-transparent" />
                             </div>
                         ) : allItems.length === 0 ? (
                             <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-                                <p className="text-sm text-[var(--muted-foreground)]">{searchValue ? "No prompts found" : "No prompts available."}</p>
+                                <p className="text-sm text-(--secondary-text-wMain)">{searchValue ? "No prompts found" : "No prompts available."}</p>
                                 {!searchValue && (
                                     <button
                                         onClick={handleNavigateToPrompts}
-                                        className="inline-flex items-center gap-2 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] transition-colors hover:bg-[var(--primary)]/90"
+                                        className="inline-flex items-center gap-2 rounded-md bg-(--primary-wMain) px-4 py-2 text-sm font-medium text-(--primary-text-w10) transition-colors hover:bg-(--primary-w90)"
                                     >
                                         <Plus className="size-4" />
                                         Create Prompt
@@ -292,17 +293,17 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                                                 setIsKeyboardMode(false);
                                                 setActiveIndex(index);
                                             }}
-                                            className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
+                                            className={`w-full rounded-xs p-3 text-left transition-colors ${index === activeIndex ? "bg-(--secondary-w10)" : !isKeyboardMode ? "hover:bg-(--primary-w10)" : ""}`}
                                         >
                                             <div className="flex items-start gap-3">
-                                                <NotepadText className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
+                                                <NotepadText className="mt-0.5 size-4 flex-shrink-0 text-(--secondary-text-wMain)" />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        {group.command && <span className="font-mono text-xs text-[var(--primary)]">/{group.command}</span>}
+                                                        {group.command && <span className="font-mono text-xs text-(--primary-wMain)">/{group.command}</span>}
                                                         <span className="text-sm font-medium">{group.name}</span>
-                                                        {group.category && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{group.category}</span>}
+                                                        {group.category && <Badge>{group.category}</Badge>}
                                                     </div>
-                                                    {group.description && <p className="mt-1 line-clamp-2 text-xs text-[var(--muted-foreground)]">{group.description}</p>}
+                                                    {group.description && <p className="mt-1 line-clamp-2 text-xs text-(--secondary-text-wMain)">{group.description}</p>}
                                                 </div>
                                             </div>
                                         </button>
@@ -312,7 +313,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                                 {/* Reserved Commands - Always visible at bottom */}
                                 {availableReservedCommands.length > 0 && (
                                     <>
-                                        {filteredGroups.length > 0 && <div className="my-2 border-t border-[var(--border)]" />}
+                                        {filteredGroups.length > 0 && <div className="my-2 border-t" />}
                                         {availableReservedCommands.map((cmd, index) => {
                                             const actualIndex = filteredGroups.length + index;
                                             const Icon = cmd.icon;
@@ -325,17 +326,19 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                                                         setIsKeyboardMode(false);
                                                         setActiveIndex(actualIndex);
                                                     }}
-                                                    className={`w-full rounded-md p-3 text-left transition-colors ${actualIndex === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
+                                                    className={`w-full rounded-xs p-3 text-left transition-colors ${actualIndex === activeIndex ? "bg-(--secondary-w10)" : !isKeyboardMode ? "hover:bg-(--primary-w10)" : ""}`}
                                                 >
                                                     <div className="flex items-start gap-3">
-                                                        <Icon className="mt-0.5 size-4 flex-shrink-0 text-[var(--primary)]" />
+                                                        <Icon className="mt-0.5 size-4 flex-shrink-0 text-(--info-wMain)" />
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex flex-wrap items-center gap-2">
-                                                                <span className="font-mono text-xs text-[var(--primary)]">/{cmd.command}</span>
+                                                                <span className="font-mono text-xs text-(--info-wMain)">/{cmd.command}</span>
                                                                 <span className="text-sm font-medium">{cmd.name}</span>
-                                                                <span className="rounded bg-[var(--primary)]/10 px-1.5 py-0.5 text-xs text-[var(--primary)]">Reserved</span>
+                                                                <Badge variant="outline" className="text-(--info-wMain)">
+                                                                    Reserved
+                                                                </Badge>
                                                             </div>
-                                                            <p className="mt-1 line-clamp-2 text-xs text-[var(--muted-foreground)]">{cmd.description}</p>
+                                                            <p className="mt-1 line-clamp-2 text-xs text-(--secondary-text-wMain)">{cmd.description}</p>
                                                         </div>
                                                     </div>
                                                 </button>

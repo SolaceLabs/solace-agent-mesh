@@ -3,10 +3,6 @@ title: SQL Connectors
 sidebar_position: 4
 ---
 
-:::info Coming Soon
-Microsoft SQL Server and Oracle connector support will be available in an upcoming release.
-:::
-
 SQL connectors allow agents to query and analyze database information using natural language.
 
 ## Overview
@@ -96,33 +92,44 @@ If your database administrator configured a custom port for security reasons or 
 
 **Database Name**
 
-The specific database within the database server that agents should access. This is the database name, not the server hostname. In PostgreSQL, this is the database name, not the schema name within a database. Agents will access the default schema (typically `public`) within the specified database.
+The specific database within the database server that agents should access. This is the database name, not the server hostname. In PostgreSQL, this is the database name, not the schema name within a database. Agents access the default schema (typically `public` for PostgreSQL or `dbo` for SQL Server) within the specified database.
 
-For example, if your PostgreSQL server contains databases named `production`, `staging`, and `development`, you would enter the specific one agents should use, such as `production`.
+For example, if your database server contains databases named `production`, `staging`, and `development`, enter the specific one agents should use, such as `production`.
 
 **Username**
 
 The database username that agents use to authenticate. This account determines what data agents can access and what operations they can perform through the database permission system.
 
-You should create a dedicated database user for agent access rather than using administrative accounts or accounts shared with other applications. This allows you to control permissions precisely and audit agent database activity.
+Create a dedicated user account in your database for agent access rather than using administrative accounts or accounts shared with other applications. This approach allows you to control permissions precisely and audit agent database activity.
 
 **Password**
 
-The password for the database username. Agent Mesh Enterprise stores this credential securely in its configuration and uses it to establish database connections.
+The password for the database username. Agent Mesh Enterprise stores this credential in its configuration and uses it to establish database connections. You should follow password security best practices, such as using strong passwords and rotating them periodically.
 
-The password is encrypted at rest and transmitted securely to the database server. However, you should still follow password security best practices, such as using strong passwords and rotating them periodically.
+**Encryption (TLS)** *(MSSQL Only)*
+
+Controls TLS encryption for data in transit between the connector and SQL Server. The default is **Enabled**.
+
+| Setting | Behavior |
+|---------|----------|
+| **Enabled** (default) | Encrypts data in transit using TLS. |
+| **Disabled** | No TLS encryption. |
+| **Strict** | Enforces TLS encryption and always validates the server certificate. The `Trust Server Certificate` setting is ignored when strict mode is active. |
+
+**Trust Server Certificate** *(MSSQL only)*
+
+Controls whether the connector validates the SQL Server's TLS certificate (expiry, trust chain, and server name match). This field appears only when **Encryption (TLS)** is set to **Enabled**.
+
+| Setting | Behavior |
+|---------|----------|
+| **Disabled** (default) | Validates the server certificate. The connection fails if the certificate is expired, self-signed, or signed by an untrusted CA. |
+| **Enabled** | Skips certificate validation. Use for dev/test environments or when using self-signed certificates. |
 
 **Service Name** *(Oracle only)*
 
 The Oracle service name that identifies the target database on the Oracle listener. The service name is not the same as the Database Name field used by other connector types; Oracle identifies databases by service name rather than a simple database name.
 
 Oracle connections use thin mode, which connects directly to the database without requiring Oracle Client libraries to be installed on the host.
-
-**ODBC Driver** *(MSSQL only)*
-
-The ODBC driver used to connect to SQL Server. Agent Mesh Enterprise includes Microsoft ODBC Driver 18 for SQL Server out of the box, which works for standard SQL operations and requires no additional installation.
-
-If your use case requires a different driver, you must install that driver on the host system first. If the driver is installed correctly, it appears in the ODBC Driver dropdown for selection.
 
 ### Connection Pooling
 
@@ -222,6 +229,30 @@ When connecting to PostgreSQL databases hosted on Supabase, you may encounter ne
 This occurs because Supabase's direct connection endpoint uses IPv6 addressing, but most Kubernetes clusters default to IPv4 networking. Use the Session Pooler endpoint instead because it is IPv4 compatible.
 
 In your Supabase project settings, navigate to Database then Connection Pooling to find the Session Pooler connection string. Use the host and port from this connection string when configuring your SQL connector. The database name, username, and password remain the same as your direct connection credentials.
+
+### Microsoft SQL Server Certificate Errors
+
+When connecting to SQL Server with `Trust Server Certificate` set to **Disabled**, you may see certificate validation errors:
+
+```
+SSL Provider: certificate verify failed: unable to get local issuer certificate
+```
+
+This error occurs because the SQL Server's certificate is not trusted by the Agent Mesh container. To resolve this issue:
+
+1. **Enable Trust Server Certificate**: Set `Trust Server Certificate` to **Enabled** in the connector configuration. This bypasses certificate validation and allows connections to servers with self-signed certificates.
+
+2. **Install the CA certificate**: If you require certificate validation, install the CA certificate that signed your SQL Server's certificate into the Agent Mesh container's trust store. See [Add CA certificates to a container](https://docs.docker.com/engine/network/ca-certs/) for instructions.
+
+**Verifying encryption status:**
+
+To confirm that your SQL Server connection uses TLS encryption, run this query from the SQL Server management console:
+
+```sql
+SELECT encrypt_option FROM sys.dm_exec_connections WHERE session_id = @@SPID;
+```
+
+A result of `TRUE` indicates the connection is encrypted.
 
 ### Query Performance Issues
 

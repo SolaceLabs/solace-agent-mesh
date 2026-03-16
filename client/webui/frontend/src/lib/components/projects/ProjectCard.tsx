@@ -65,8 +65,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
             <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                     <CardTitle className="flex min-w-0 flex-1 items-center gap-2" title={project.name}>
-                        <FolderOpen className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                        <div className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">{project.name}</div>
+                        <FolderOpen className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
+                        <div className="max-w-[250px] min-w-0 truncate text-lg font-semibold text-(--primary-text-wMain)">{project.name}</div>
                     </CardTitle>
                     <div className="flex shrink-0 items-center gap-1">
                         {isOwner && onDelete && (
@@ -96,7 +96,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                     )}
                 </div>
 
-                <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
+                <div className="mt-3 flex items-center justify-between text-xs text-(--secondary-text-wMain)">
                     <div className="flex items-center gap-1">
                         Created: {formatTimestamp(project.createdAt, "date")}
                         <div>|</div>

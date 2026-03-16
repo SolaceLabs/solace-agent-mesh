@@ -58,7 +58,7 @@ export const FeedbackModal = React.memo<FeedbackModalProps>(({ isOpen, onClose, 
                 </DialogHeader>
                 <div className="flex flex-col gap-2">
                     <Textarea ref={textareaRef} value={feedbackText} onChange={e => setFeedbackText(e.target.value)} className="min-h-[120px] text-sm" disabled={isSubmitting} />
-                    <p className="text-muted-foreground text-xs">Along with your feedback, details of the task will be recorded.</p>
+                    <p className="text-xs text-(--secondary-text-wMain)">Along with your feedback, details of the task will be recorded.</p>
                 </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>

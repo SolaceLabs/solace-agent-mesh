@@ -71,7 +71,7 @@ export function PopoverManual({ isOpen, onClose, anchorRef, children, placement 
             ref={popoverRef}
             role="dialog"
             aria-modal="false"
-            className={cn("bg-background min-w-[8rem] overflow-hidden border shadow-md", className)}
+            className={cn("min-w-[8rem] overflow-hidden border bg-(--background-w10) shadow-md", className)}
             style={{
                 ...positionStyle,
                 opacity: isOpen && isPositioned ? 1 : 0,

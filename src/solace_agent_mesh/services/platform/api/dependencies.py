@@ -44,7 +44,7 @@ def init_database(database_url: str):
     Initialize database connection with dialect-specific configuration.
 
     Configures appropriate connection pooling and settings for:
-    - SQLite: StaticPool, foreign key enforcement
+    - SQLite: NullPool with WAL mode for multi-threaded access
     - PostgreSQL/MySQL: Connection pooling with pre-ping
 
     Args:
@@ -59,10 +59,10 @@ def init_database(database_url: str):
 
         if dialect_name == "sqlite":
             engine_kwargs = {
-                "poolclass": pool.StaticPool,
+                "poolclass": pool.NullPool,
                 "connect_args": {"check_same_thread": False},
             }
-            log.info("Configuring SQLite database (single-connection mode)")
+            log.info("Configuring SQLite database with NullPool (per-thread connections)")
 
         elif dialect_name in ("postgresql", "mysql"):
             engine_kwargs = {
@@ -85,6 +85,8 @@ def init_database(database_url: str):
             if dialect_name == "sqlite":
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA busy_timeout=5000")
                 cursor.close()
 
         PlatformSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

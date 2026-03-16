@@ -116,8 +116,13 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
         if (citation.type === "document") {
             const position = citation.source.metadata?.location_range || citation.source.metadata?.primary_location;
             if (position) {
-                const combined = `${displayName}, ${position}`;
-                return truncateText(combined, maxLength);
+                // Calculate remaining space for display name (reserve space for ", " + position)
+                const separator = ", ";
+                const reservedSpace = separator.length + position.length;
+                const availableForName = Math.max(10, maxLength - reservedSpace); // At least 10 chars for name
+
+                const truncatedName = truncateText(displayName, availableForName);
+                return `${truncatedName}${separator}${position}`;
             }
         }
 
@@ -154,6 +159,9 @@ export function Citation({ citation, onClick, maxLength = DEFAULT_CITATION_MAX_L
     const isDeepResearch = sourceType === "deep_research" || citation.type === "research";
     const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
+    // For document citations with position, split filename and position for proper truncation
+    const documentPosition = isDocumentCitation ? citation.source?.metadata?.location_range || citation.source?.metadata?.primary_location : null;
+
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -173,12 +181,19 @@ export function Citation({ citation, onClick, maxLength = DEFAULT_CITATION_MAX_L
     return (
         <button
             onClick={handleClick}
-            className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-0.5 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
+            className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-0.5 rounded-sm bg-(--secondary-w10) px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-(--secondary-text-wMain) transition-colors duration-150 hover:bg-(--secondary-w20)"
             title={tooltip}
             aria-label={`Citation: ${tooltip}`}
             type="button"
         >
-            <span className="max-w-[200px] truncate">{displayText}</span>
+            {isDocumentCitation && documentPosition ? (
+                <>
+                    <span className="max-w-[120px] truncate">{citation.source?.filename ? extractFilename(citation.source.filename) : displayText}</span>
+                    <span className="flex-shrink-0">, {documentPosition}</span>
+                </>
+            ) : (
+                <span className="max-w-[200px] truncate">{displayText}</span>
+            )}
             {hasClickableUrl && <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />}
         </button>
     );
@@ -196,28 +211,10 @@ interface BundledCitationsProps {
 }
 
 export function BundledCitations({ citations, onCitationClick }: BundledCitationsProps) {
-    const [isDark, setIsDark] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const showTimeout = 150;
     const hideTimeout = 150;
-
-    // Detect dark mode
-    React.useEffect(() => {
-        const checkDarkMode = () => {
-            setIsDark(document.documentElement.classList.contains("dark"));
-        };
-
-        checkDarkMode();
-
-        const observer = new MutationObserver(checkDarkMode);
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ["class"],
-        });
-
-        return () => observer.disconnect();
-    }, []);
 
     // Cleanup timeout on unmount
     React.useEffect(() => {
@@ -306,14 +303,25 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
 
     // For document citations: render simple button without popover
     if (isDocumentCitation) {
+        // Extract position from first citation for display
+        const documentPosition = firstCitation.source?.metadata?.location_range || firstCitation.source?.metadata?.primary_location;
+        const filename = firstCitation.source?.filename ? extractFilename(firstCitation.source.filename) : firstDisplayText;
+
         return (
             <button
                 onClick={handleClick}
-                className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
+                className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-(--secondary-w10) px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-(--secondary-text-wMain) transition-colors duration-150 hover:bg-(--secondary-w20)"
                 aria-label={`${uniqueCitations.length} document citations`}
                 type="button"
             >
-                <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                {documentPosition ? (
+                    <>
+                        <span className="max-w-[120px] truncate">{filename}</span>
+                        <span className="flex-shrink-0">, {documentPosition}</span>
+                    </>
+                ) : (
+                    <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                )}
                 <span className="text-[10px] opacity-70">+{remainingCount}</span>
             </button>
         );
@@ -327,7 +335,7 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                     onClick={handleClick}
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
-                    className="citation-badge bg-muted text-muted-foreground hover:bg-muted/80 mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap transition-colors duration-150"
+                    className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-(--secondary-w10) px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-(--secondary-text-wMain) transition-colors duration-150 hover:bg-(--secondary-w20)"
                     title={allCitationsTooltip}
                     aria-label={`Citation: ${allCitationsTooltip}`}
                     type="button"
@@ -343,13 +351,13 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                 onMouseLeave={handleContentMouseLeave}
                 className="z-[999] max-h-[400px] w-[320px] max-w-[calc(100vw-2rem)] cursor-default overflow-y-auto rounded-lg border p-3 shadow-xl"
                 style={{
-                    backgroundColor: isDark ? "#1f2937" : "#ffffff",
-                    borderColor: isDark ? "#4b5563" : "#d1d5db",
-                    color: isDark ? "#f3f4f6" : "#111827",
+                    backgroundColor: "var(--background-w10)",
+                    borderColor: "var(--secondary-w40)",
+                    color: "var(--primary-text-wMain)",
                 }}
             >
                 <div className="cursor-default space-y-2">
-                    <div className="mb-3 border-b pb-2" style={{ borderColor: isDark ? "#4b5563" : "#e5e7eb" }}>
+                    <div className="mb-3 border-b pb-2" style={{ borderColor: "var(--secondary-w40)" }}>
                         <h3 className="text-sm font-semibold">All Sources · {uniqueCitations.length}</h3>
                     </div>
                     {uniqueCitations.map((citation, index) => {
@@ -383,23 +391,19 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                         };
 
                         return (
-                            <button key={`bundled-citation-${index}`} onClick={handleClick} className="hover:bg-accent group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors" type="button">
+                            <button key={`bundled-citation-${index}`} onClick={handleClick} className="group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-(--secondary-w40)" type="button">
                                 {favicon && (
-                                    <div className="relative mt-0.5 h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-white">
+                                    <div className="relative mt-0.5 h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-(--background-w10)">
                                         <img src={favicon} alt="" className="h-full w-full" />
-                                        <div className="border-border/10 absolute inset-0 rounded-full border" />
+                                        <div className="absolute inset-0 rounded-full border border-(--secondary-w20)" />
                                     </div>
                                 )}
                                 <div className="flex-1 overflow-hidden">
                                     <div className="flex items-center gap-1">
-                                        <span className="truncate text-sm font-medium text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]">
-                                            {displayText}
-                                        </span>
-                                        {hasClickableUrl && (
-                                            <ExternalLink className="h-3 w-3 flex-shrink-0 text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]" />
-                                        )}
+                                        <span className="truncate text-sm font-medium text-(--primary-wMain) group-hover:text-(--primary-w60)">{displayText}</span>
+                                        {hasClickableUrl && <ExternalLink className="h-3 w-3 flex-shrink-0 text-(--primary-wMain) group-hover:text-(--primary-w60)" />}
                                     </div>
-                                    {citation.source?.metadata?.title && <div className="text-muted-foreground mt-0.5 truncate text-xs">{citation.source.metadata.title}</div>}
+                                    {citation.source?.metadata?.title && <div className="mt-0.5 truncate text-xs text-(--secondary-text-wMain)">{citation.source.metadata.title}</div>}
                                 </div>
                             </button>
                         );
