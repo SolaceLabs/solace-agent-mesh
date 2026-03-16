@@ -15,47 +15,33 @@ class TestDetermineAutoTitleGenerationEnabled:
     def test_disabled_when_persistence_not_enabled(self):
         """Test disabled when persistence is not enabled."""
         mock_component = MagicMock()
-        mock_component.get_config.return_value = {}
-        
+        mock_component.feature_checker.is_enabled.return_value = True
+
         result = _determine_auto_title_generation_enabled(
             mock_component, {"persistence_enabled": False}, "[TEST]"
         )
-        
+
         assert result is False
 
-    def test_disabled_when_not_explicitly_enabled(self):
-        """Test disabled by default even with persistence."""
+    def test_disabled_when_flag_is_off(self):
+        """Test disabled when feature flag is off, even with persistence."""
         mock_component = MagicMock()
-        mock_component.get_config.return_value = {}
-        
+        mock_component.feature_checker.is_enabled.return_value = False
+
         result = _determine_auto_title_generation_enabled(
             mock_component, {"persistence_enabled": True}, "[TEST]"
         )
-        
+
         assert result is False
 
-    def test_enabled_via_auto_title_generation_config(self):
-        """Test enabling via auto_title_generation config block."""
+    def test_enabled_when_persistence_and_flag_on(self):
+        """Test enabled when persistence is on and feature flag is on."""
         mock_component = MagicMock()
-        mock_component.get_config.side_effect = lambda k, d=None: (
-            {"enabled": True} if k == "auto_title_generation" else {}
-        )
-        
-        result = _determine_auto_title_generation_enabled(
-            mock_component, {"persistence_enabled": True}, "[TEST]"
-        )
-        
-        assert result is True
+        mock_component.feature_checker.is_enabled.return_value = True
 
-    def test_enabled_via_frontend_feature_enablement(self):
-        """Test enabling via frontend_feature_enablement override."""
-        mock_component = MagicMock()
-        mock_component.get_config.side_effect = lambda k, d=None: (
-            {"auto_title_generation": True} if k == "frontend_feature_enablement" else {}
-        )
-        
         result = _determine_auto_title_generation_enabled(
             mock_component, {"persistence_enabled": True}, "[TEST]"
         )
-        
+
         assert result is True
+        mock_component.feature_checker.is_enabled.assert_called_once_with("auto_title_generation")
