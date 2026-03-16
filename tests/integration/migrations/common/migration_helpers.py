@@ -1,11 +1,11 @@
 """Helper functions for testing Alembic migrations."""
-from typing import List
+
+from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from alembic import command
 
 
-def get_all_revisions(alembic_config: Config) -> List[str]:
+def get_all_revisions(alembic_config: Config) -> list[str]:
     """
     Get all migration revisions in chronological order (oldest to newest).
 

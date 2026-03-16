@@ -1,18 +1,16 @@
 """Test Gateway WebUI migration sequences across all database dialects."""
 import pytest
 from alembic import command
-from alembic.script import ScriptDirectory
 
 from tests.integration.migrations.common.db_utils import (
     get_table_names,
-    verify_table_exists,
-    verify_column_exists,
     verify_index_exists,
+    verify_table_exists,
 )
 from tests.integration.migrations.common.migration_helpers import (
+    downgrade_to_revision,
     get_all_revisions,
     upgrade_to_revision,
-    downgrade_to_revision,
 )
 
 
@@ -88,7 +86,7 @@ class TestMigrationSequence:
         revisions = get_all_revisions(alembic_config)
 
         # Downgrade one revision at a time
-        for i in range(len(revisions)):
+        for _ in range(len(revisions)):
             downgrade_to_revision(alembic_config, "-1")
 
 

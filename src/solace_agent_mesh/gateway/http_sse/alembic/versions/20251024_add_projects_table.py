@@ -118,7 +118,7 @@ def _upgrade_mysql(inspector, existing_tables) -> None:
         op.create_table('projects',
             sa.Column('id', sa.String(36), nullable=False),  # UUID
             sa.Column('name', sa.String(255), nullable=False),
-            sa.Column('user_id', sa.String(36), nullable=False),  # UUID
+            sa.Column('user_id', sa.String(255), nullable=False),  # user ID
             sa.Column('description', sa.Text(), nullable=True),
             sa.Column('system_prompt', sa.Text(), nullable=True),
             sa.Column('created_at', sa.BigInteger(), nullable=False),

@@ -1,9 +1,9 @@
 """Database utility functions for migration testing."""
-from typing import List, Set
-from sqlalchemy import inspect, Engine
+
+from sqlalchemy import Engine, inspect
 
 
-def get_table_names(engine: Engine, exclude_alembic: bool = True) -> Set[str]:
+def get_table_names(engine: Engine, exclude_alembic: bool = True) -> set[str]:
     """
     Get all table names in the database.
 
@@ -23,7 +23,7 @@ def get_table_names(engine: Engine, exclude_alembic: bool = True) -> Set[str]:
     return tables
 
 
-def get_column_names(engine: Engine, table_name: str) -> Set[str]:
+def get_column_names(engine: Engine, table_name: str) -> set[str]:
     """
     Get all column names for a table.
 
@@ -39,7 +39,7 @@ def get_column_names(engine: Engine, table_name: str) -> Set[str]:
     return {col["name"] for col in columns}
 
 
-def get_index_names(engine: Engine, table_name: str) -> Set[str]:
+def get_index_names(engine: Engine, table_name: str) -> set[str]:
     """
     Get all index names for a table.
 
@@ -55,7 +55,7 @@ def get_index_names(engine: Engine, table_name: str) -> Set[str]:
     return {idx["name"] for idx in indexes if idx.get("name")}
 
 
-def get_foreign_key_info(engine: Engine, table_name: str) -> List[dict]:
+def get_foreign_key_info(engine: Engine, table_name: str) -> list[dict]:
     """
     Get foreign key information for a table.
 
