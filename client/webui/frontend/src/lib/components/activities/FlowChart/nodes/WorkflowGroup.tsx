@@ -301,7 +301,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
                 }}
             >
                 <div className="flex min-w-0 items-center gap-2">
-                    <Workflow className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                    <Workflow className="h-4 w-4 flex-shrink-0 text-(--brand-wMain)" />
                     <div className="truncate text-sm font-semibold">{node.data.label}</div>
                 </div>
                 {/* Expand control */}
@@ -337,7 +337,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
             >
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex min-w-0 items-center gap-2">
-                        <Workflow className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                        <Workflow className="h-4 w-4 flex-shrink-0 text-(--brand-wMain)" />
                         <div className="truncate text-sm font-semibold">{node.data.label}</div>
                     </div>
 

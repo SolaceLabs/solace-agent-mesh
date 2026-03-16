@@ -7,8 +7,8 @@ import { cn, formatBytes } from "@/lib/utils";
 import { FileIcon, ProjectBadge } from "../file";
 
 const ErrorState: React.FC<{ message: string }> = ({ message }) => (
-    <div className="w-full rounded-lg border border-[var(--color-error-w100)] bg-[var(--color-error-wMain-50)] p-3">
-        <div className="text-sm text-[var(--color-error-wMain)]">Error: {message}</div>
+    <div className="w-full rounded-lg border border-(--error-w100) bg-(--error-wMain-50) p-3">
+        <div className="text-sm text-(--error-wMain)">Error: {message}</div>
     </div>
 );
 
@@ -61,7 +61,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     sourceProjectName,
 }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
-    const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
 
     useEffect(() => {
         if (expandedContent) {
@@ -74,20 +73,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
             return () => clearTimeout(timer);
         }
     }, [expandedContent]);
-
-    // Track dark mode changes
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            setIsDarkMode(document.documentElement.classList.contains("dark"));
-        });
-
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ["class"],
-        });
-
-        return () => observer.disconnect();
-    }, []);
 
     // Validate required props
     if (!filename || typeof filename !== "string") {
@@ -105,7 +90,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         if (isDeleted) {
             return {
                 text: "Deleted",
-                className: "text-[var(--color-secondary-foreground)]",
+                className: "text-(--secondary-foreground)",
             };
         }
 
@@ -113,12 +98,12 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
             case "in-progress":
                 return {
                     text: bytesTransferred ? `Creating... ${formatBytes(bytesTransferred)}` : "Creating...",
-                    className: "text-[var(--color-info-wMain)]",
+                    className: "text-(--info-wMain)",
                 };
             case "failed":
                 return {
                     text: error || "Failed to create",
-                    className: "text-[var(--color-error-wMain)]",
+                    className: "text-(--error-wMain)",
                 };
             case "completed":
                 return {
@@ -127,7 +112,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
             default:
                 return {
                     text: "Unknown",
-                    className: "text-[var(--color-secondary-foreground)]",
+                    className: "text-(--secondary-foreground)",
                 };
         }
     };
@@ -171,13 +156,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         }
     };
 
-    // Define shadow and background colors based on theme
-    // Light mode: background-w10, shadow using secondary-w8040
-    // Dark mode: background-wMain, shadow using primary-w90 (darker shadows)
-    const backgroundColor = isDarkMode ? "var(--color-background-wMain)" : "var(--color-background-w10)";
-    const restingShadow = isDarkMode ? "0px 1px 4px 0px var(--color-primary-w90)" : "0px 1px 4px 0px var(--color-secondary-w8040)";
-    const hoverShadow = isDarkMode ? "0px 2px 8px 0px var(--color-primary-w90)" : "0px 2px 8px 0px var(--color-secondary-w8040)";
-
     // Determine if this artifact is clickable
     const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
     // Show shadow for all artifacts in chat context (not deleted), but only enable hover for clickable ones
@@ -187,18 +165,18 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         <div
             className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
             style={{
-                backgroundColor,
-                boxShadow: showShadow ? restingShadow : undefined,
+                backgroundColor: "var(--background-w10)",
+                boxShadow: showShadow ? "0px 1px 4px 0px var(--secondary-w8040)" : undefined,
                 borderRadius: context === "list" ? undefined : "4px",
             }}
             onMouseEnter={e => {
                 if (isClickable) {
-                    e.currentTarget.style.boxShadow = hoverShadow;
+                    e.currentTarget.style.boxShadow = "0px 2px 8px 0px var(--secondary-w8040)";
                 }
             }}
             onMouseLeave={e => {
                 if (isClickable) {
-                    e.currentTarget.style.boxShadow = restingShadow;
+                    e.currentTarget.style.boxShadow = "0px 1px 4px 0px var(--secondary-w8040)";
                 }
             }}
             onClick={isDeleted ? undefined : handleBarClick}
@@ -219,7 +197,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}
-                    <div className="text-secondary-foreground mt-1 flex items-center gap-2 text-xs leading-tight" title={hasDescription ? filename : statusDisplay.text}>
+                    <div className="mt-1 flex items-center gap-2 text-xs leading-tight text-(--secondary-text-wMain)" title={hasDescription ? filename : statusDisplay.text}>
                         {hasDescription ? (
                             <div className="truncate">
                                 {filename.length > 60 ? `${filename.substring(0, 57)}...` : filename}
@@ -337,7 +315,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     {/* Error indicator for failed status */}
                     {status === "failed" && (
                         <div className="pr-4" title="Artifact action failed">
-                            <CircleAlert className="h-4 w-4 text-[var(--color-error-wMain)]" />
+                            <CircleAlert className="h-4 w-4 text-(--error-wMain)" />
                         </div>
                     )}
                 </div>

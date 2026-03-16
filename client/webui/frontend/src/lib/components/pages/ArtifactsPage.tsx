@@ -295,9 +295,9 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
         <Card
             className={cn(
                 "group relative flex h-[220px] w-[320px] flex-shrink-0 cursor-pointer flex-col gap-0 overflow-hidden transition-all",
-                "hover:bg-(--color-primary-w10) dark:hover:bg-(--color-primary-wMain)",
-                "focus-visible:border-(--color-brand-w100) focus-visible:outline-none",
-                isSelected && "border-(--color-brand-w100)"
+                "hover:bg-(--primary-w10)",
+                "focus-visible:border-(--brand-w100) focus-visible:outline-none",
+                isSelected && "border-(--brand-w100)"
             )}
             onClick={handleCardClick}
             onKeyDown={e => {
@@ -385,13 +385,13 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
             </div>
 
             {/* Content Preview Area - takes most of the space */}
-            <div ref={cardRef} className="bg-muted/30 relative flex flex-1 items-center justify-center overflow-hidden">
+            <div ref={cardRef} className="relative flex flex-1 items-center justify-center overflow-hidden bg-(--secondary-w10)">
                 {imagePreviewUrl ? (
                     <img src={imagePreviewUrl} alt={artifact.filename} className="h-full w-full object-cover" onError={() => setImagePreviewUrl(null)} />
                 ) : canShowDocumentThumbnail && documentContent ? (
                     <DocumentThumbnail content={documentContent} filename={artifact.filename} mimeType={artifact.mime_type} width={320} height={130} onError={handleDocumentThumbnailError} className="absolute inset-0 h-full w-full" />
                 ) : contentPreview ? (
-                    <div className="text-muted-foreground h-full w-full overflow-hidden px-3 py-2 font-mono text-[11px] leading-relaxed">
+                    <div className="h-full w-full overflow-hidden px-3 py-2 font-mono text-[11px] leading-relaxed text-(--secondary-text-wMain)">
                         {contentPreview.split("\n").map((line, index) => (
                             <div key={index} className="truncate">
                                 {line || "\u00A0"}
@@ -403,27 +403,27 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 ) : (
                     <div className="flex flex-col items-center justify-center gap-2">
                         {isImageType(artifact.mime_type) ? (
-                            <FileImage className="text-muted-foreground h-12 w-12" />
+                            <FileImage className="h-12 w-12 text-(--secondary-text-wMain)" />
                         ) : supportsTextPreview(artifact.mime_type) ? (
-                            <FileCode className="text-muted-foreground h-12 w-12" />
+                            <FileCode className="h-12 w-12 text-(--secondary-text-wMain)" />
                         ) : isDocumentThumbnailSupported ? (
                             // Show appropriate icon for document types while loading or if thumbnail failed
                             artifact.mime_type.includes("pdf") ? (
-                                <FileText className="text-muted-foreground h-12 w-12" />
+                                <FileText className="h-12 w-12 text-(--secondary-text-wMain)" />
                             ) : artifact.mime_type.includes("presentation") || artifact.filename.toLowerCase().endsWith(".pptx") || artifact.filename.toLowerCase().endsWith(".ppt") ? (
-                                <Presentation className="text-muted-foreground h-12 w-12" />
+                                <Presentation className="h-12 w-12 text-(--secondary-text-wMain)" />
                             ) : (
-                                <FileText className="text-muted-foreground h-12 w-12" />
+                                <FileText className="h-12 w-12 text-(--secondary-text-wMain)" />
                             )
                         ) : (
-                            <File className="text-muted-foreground h-12 w-12" />
+                            <File className="h-12 w-12 text-(--secondary-text-wMain)" />
                         )}
-                        {artifact.description && <span className="text-muted-foreground px-4 text-center text-xs">{artifact.description}</span>}
+                        {artifact.description && <span className="px-4 text-center text-xs text-(--secondary-text-wMain)">{artifact.description}</span>}
                     </div>
                 )}
 
                 {/* Hover overlay with preview button */}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="overlay-backdrop absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
@@ -446,12 +446,12 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
             {/* Footer with metadata and extension badge */}
             <div className="flex items-center justify-between border-t px-3 py-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs">{formatBytes(artifact.size)}</span>
-                    <span className="text-muted-foreground text-xs">•</span>
-                    <span className="text-muted-foreground text-xs">{formatTimestamp(artifact.last_modified)}</span>
+                    <span className="text-xs text-(--secondary-text-wMain)">{formatBytes(artifact.size)}</span>
+                    <span className="text-xs text-(--secondary-text-wMain)">•</span>
+                    <span className="text-xs text-(--secondary-text-wMain)">{formatTimestamp(artifact.last_modified)}</span>
                 </div>
                 {/* Extension badge - uses shared getFileTypeColor from FileIcon */}
-                <span className={cn("ml-3 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-white", getFileTypeColor(artifact.mime_type, artifact.filename))}>
+                <span className={cn("ml-3 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-(--darkSurface-text)", getFileTypeColor(artifact.mime_type, artifact.filename))}>
                     {getFileExtension(artifact.filename).length > 4 ? getFileExtension(artifact.filename).substring(0, 4) : getFileExtension(artifact.filename)}
                 </span>
             </div>
@@ -654,7 +654,7 @@ const StandalonePreviewPanel = memo(function StandalonePreviewPanel({ artifact, 
                             </Select>
                         )}
                     </div>
-                    <div className="text-muted-foreground mt-0.5 flex items-center gap-2 text-xs">
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
                         <span>{formatBytes(artifact.size)}</span>
                         <span>•</span>
                         <span>{formatTimestamp(artifact.last_modified)}</span>
@@ -695,15 +695,15 @@ const StandalonePreviewPanel = memo(function StandalonePreviewPanel({ artifact, 
 
                 {error && (
                     <div className="flex h-full flex-col items-center justify-center p-4">
-                        <div className="text-destructive mb-2 text-sm">Error loading preview</div>
-                        <div className="text-muted-foreground text-xs">{error}</div>
+                        <div className="mb-2 text-sm text-(--error-wMain)">Error loading preview</div>
+                        <div className="text-xs text-(--secondary-text-wMain)">{error}</div>
                     </div>
                 )}
 
                 {!isLoading && !error && !preview?.canPreview && (
                     <div className="flex h-full flex-col items-center justify-center p-4">
-                        <File className="text-muted-foreground mb-4 h-12 w-12" />
-                        <div className="text-muted-foreground text-sm">{preview?.reason || "Preview not available"}</div>
+                        <File className="mb-4 h-12 w-12 text-(--secondary-text-wMain)" />
+                        <div className="text-sm text-(--secondary-text-wMain)">{preview?.reason || "Preview not available"}</div>
                         <Button variant="default" className="mt-4" onClick={() => onDownload(artifact)}>
                             <Download className="mr-2 h-4 w-4" />
                             Download File
@@ -716,7 +716,7 @@ const StandalonePreviewPanel = memo(function StandalonePreviewPanel({ artifact, 
                         {memoizedContentRenderer}
                         {/* Overlay spinner during version switching — keeps old content visible */}
                         {isLoading && (
-                            <div className="bg-background/60 absolute inset-0 flex items-center justify-center">
+                            <div className="overlay-backdrop absolute inset-0 flex items-center justify-center">
                                 <Spinner size="medium" variant="muted" />
                             </div>
                         )}
@@ -970,7 +970,7 @@ export function ArtifactsPage() {
                         <div className="flex items-center gap-4 pr-4">
                             {/* Search Input */}
                             <div className="relative w-64">
-                                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-(--secondary-text-wMain)" />
                                 <Input type="text" placeholder="Search artifacts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
                             </div>
 
@@ -1017,7 +1017,7 @@ export function ArtifactsPage() {
                             </div>
 
                             {!isLoading && artifacts.length > 0 && (
-                                <span className="text-muted-foreground text-sm">
+                                <span className="text-sm text-(--secondary-text-wMain)">
                                     {filteredArtifacts.length} artifact{filteredArtifacts.length !== 1 ? "s" : ""}
                                     {(searchQuery || selectedProject !== "all") && filteredArtifacts.length !== artifacts.length && ` (of ${artifacts.length})`}
                                 </span>
@@ -1050,7 +1050,7 @@ export function ArtifactsPage() {
                             )}
 
                             {!isLoading && filteredArtifacts.length === 0 && artifacts.length > 0 && (
-                                <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                                <div className="flex h-full flex-col items-center justify-center text-sm text-(--secondary-text-wMain)">
                                     <File className="mx-auto mb-4 h-12 w-12" />
                                     No artifacts found matching your {searchQuery && selectedProject !== "all" ? "search and filter" : searchQuery ? "search" : "filter"}
                                 </div>
@@ -1058,9 +1058,9 @@ export function ArtifactsPage() {
 
                             {/* Error state from fetching artifacts */}
                             {!isLoading && fetchError && (
-                                <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
-                                    <AlertTriangle className="text-destructive mx-auto mb-4 h-12 w-12" />
-                                    <p className="text-destructive">Failed to load artifacts</p>
+                                <div className="flex h-full flex-col items-center justify-center text-sm text-(--secondary-text-wMain)">
+                                    <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-(--error-wMain)" />
+                                    <p className="text-(--error-wMain)">Failed to load artifacts</p>
                                     <p className="mt-2 text-xs">{fetchError?.message}</p>
                                     <Button variant="outline" className="mt-4" onClick={() => refetch()}>
                                         Try Again
@@ -1069,7 +1069,7 @@ export function ArtifactsPage() {
                             )}
 
                             {!isLoading && !fetchError && artifacts.length === 0 && (
-                                <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                                <div className="flex h-full flex-col items-center justify-center text-sm text-(--secondary-text-wMain)">
                                     <File className="mx-auto mb-4 h-12 w-12" />
                                     <p>No artifacts available</p>
                                     <p className="mt-2 text-xs">Upload files in chat or generate artifacts with AI</p>
