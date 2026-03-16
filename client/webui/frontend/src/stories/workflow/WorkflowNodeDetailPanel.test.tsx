@@ -18,9 +18,9 @@ describe("WorkflowNodeDetailPanel", () => {
             // Verify panel renders
             expect(await screen.findByRole("complementary", { name: "Node details panel" })).toBeInTheDocument();
 
-            // Verify view toggle buttons
-            const detailsButton = screen.getByRole("button", { name: "Details view" });
-            const codeButton = screen.getByRole("button", { name: "Code view" });
+            // Verify view toggle tabs
+            const detailsButton = screen.getByRole("tab", { name: "Details view" });
+            const codeButton = screen.getByRole("tab", { name: "Code view" });
 
             expect(detailsButton).toBeInTheDocument();
             expect(codeButton).toBeInTheDocument();

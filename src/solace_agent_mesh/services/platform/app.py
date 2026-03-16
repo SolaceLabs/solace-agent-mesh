@@ -197,10 +197,14 @@ class PlatformServiceApp(SamAppBase):
 
         # Create component definition with subscriptions
         # (SAC framework looks for subscriptions in component definition for simplified apps)
+        component_name = f"{app_info.get('name', 'platform_service')}_component"
         component_definition = {
-            "name": f"{app_info.get('name', 'platform_service')}_component",
+            "name": component_name,
             "component_class": PlatformServiceComponent,
-            "component_config": {"app_config": app_config},
+            "component_config": {
+                "component_name": component_name,
+                "app_config": app_config,
+            },
             "subscriptions": subscriptions,
         }
 
