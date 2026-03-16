@@ -77,7 +77,7 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({ isOp
                         {QUICK_SUGGESTIONS.map((suggestion, index) => {
                             const Icon = suggestion.icon;
                             return (
-                                <Badge key={index} variant="outline" className="hover:bg-primary/10 cursor-pointer px-3 py-1.5 transition-colors" onClick={() => handleSuggestionClick(suggestion.label)}>
+                                <Badge key={index} variant="outline" className="cursor-pointer px-3 py-1.5 transition-colors hover:bg-(--primary-w10)" onClick={() => handleSuggestionClick(suggestion.label)}>
                                     <Icon className="mr-1.5 h-3 w-3" />
                                     {suggestion.label}
                                 </Badge>

@@ -79,7 +79,7 @@ export const DocumentSourcesPanel: React.FC<DocumentSourcesPanelProps> = ({ ragD
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                 {/* Header */}
                 <div className="mb-4">
-                    <h3 className="text-muted-foreground text-sm font-semibold">
+                    <h3 className="text-sm font-semibold text-(--secondary-text-wMain)">
                         {groupedDocuments.length} Document
                         {groupedDocuments.length !== 1 ? "s" : ""} | {totalCitations} Citation{totalCitations !== 1 ? "s" : ""}
                     </h3>

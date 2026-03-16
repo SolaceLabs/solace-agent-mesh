@@ -187,7 +187,8 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
     return (
         <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-sm p-4">
             <div ref={offscreenRef} aria-hidden style={{ position: "fixed", top: -10000, left: -10000, width: 1920, height: 1080 }} />
-            <div ref={containerRef} className="bg-muted relative flex w-full items-start justify-center overflow-hidden p-2" style={{ touchAction: "none" }} {...bind()}>
+            {/* Theme colours not used, background colour is hard-coded to use a common light colour due to random nature of mermaid diagrams */}
+            <div ref={containerRef} className="relative flex w-full items-start justify-center overflow-hidden bg-[#CFD3D9] p-2" style={{ touchAction: "none" }} {...bind()}>
                 {svgHtml ? (
                     <div
                         ref={svgContainerRef}
@@ -197,16 +198,17 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
                             transformOrigin: "0 0",
                         }}
                     >
-                        <div className="flex max-h-full w-full items-center justify-center rounded-sm bg-(--color-background) p-4 dark:bg-(--color-background-w20)" dangerouslySetInnerHTML={{ __html: svgHtml }} />
+                        {/* Theme colours not used, background colour is hard-coded to use a common light colour due to random nature of mermaid diagrams */}
+                        <div className="flex max-h-full w-full items-center justify-center rounded-sm bg-[#F3F4F6] p-4" dangerouslySetInnerHTML={{ __html: svgHtml }} />
                     </div>
                 ) : null}
 
-                <div className="bg-background absolute top-3 right-3 flex items-center gap-2 rounded-sm p-1">
+                <div className="absolute top-3 right-3 flex items-center gap-2 rounded-sm bg-(--background-w10) p-1">
                     <Button onClick={resetTransform} tooltip="Reset View" variant="ghost">
                         <Scan />
                     </Button>
                     <div className="h-6 w-px border-l" />
-                    <div className="text-muted-foreground pr-2 text-xs">Drag to pan and scroll to zoom</div>
+                    <div className="pr-2 text-xs text-(--secondary-text-wMain)">Drag to pan and scroll to zoom</div>
                 </div>
             </div>
         </div>

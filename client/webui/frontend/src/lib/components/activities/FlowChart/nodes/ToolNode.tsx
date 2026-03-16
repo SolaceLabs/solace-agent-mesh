@@ -27,7 +27,7 @@ const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
             }}
         >
             <div className="flex items-center gap-2 px-4 py-2">
-                <Wrench className="h-4 w-4 flex-shrink-0 text-(--color-accent-n7-wMain) dark:text-(--color-accent-n7-w100)" />
+                <Wrench className="h-4 w-4 flex-shrink-0 text-(--accent-n7-wMain)" />
                 <div className="truncate text-sm font-semibold">{node.data.label}</div>
             </div>
             {artifactCount > 0 && (

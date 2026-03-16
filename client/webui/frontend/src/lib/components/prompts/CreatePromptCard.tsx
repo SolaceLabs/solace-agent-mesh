@@ -22,8 +22,8 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
                 <div className="flex h-full w-full flex-col items-center justify-center gap-6">
                     {/* Title and description */}
                     <div className="flex flex-col items-center gap-2">
-                        <h2 className="text-foreground text-2xl font-semibold">Create New Prompt</h2>
-                        <p className="text-muted-foreground text-sm">Choose how you'd like to create your prompt</p>
+                        <h2 className="text-2xl font-semibold text-(--primary-text-wMain)">Create New Prompt</h2>
+                        <p className="text-sm text-(--secondary-text-wMain)">Choose how you'd like to create your prompt</p>
                     </div>
 
                     {/* Action buttons */}
@@ -45,7 +45,7 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
     }
 
     return (
-        <GridCard className={`${GRID_CARD_DIMENSIONS.prompt} border border-dashed border-[var(--color-primary-wMain)]`}>
+        <GridCard className={`${GRID_CARD_DIMENSIONS.prompt} border border-dashed border-(--primary-wMain)`}>
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6">
                 <h3 className="text-center text-lg font-semibold">Create New Prompt</h3>
 

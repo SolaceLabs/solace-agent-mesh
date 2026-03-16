@@ -73,18 +73,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
             <CardHeader className="gap-0">
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <FolderOpen className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <FolderOpen className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
                         {isTruncated ? (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <CardTitle ref={titleRef} className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">
+                                    <CardTitle ref={titleRef} className="text-(--primary-text-wMain) max-w-[250px] min-w-0 truncate text-lg font-semibold">
                                         {project.name}
                                     </CardTitle>
                                 </TooltipTrigger>
                                 <TooltipContent side="top">{project.name}</TooltipContent>
                             </Tooltip>
                         ) : (
-                            <CardTitle ref={titleRef} className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">
+                            <CardTitle ref={titleRef} className="text-(--primary-text-wMain) max-w-[250px] min-w-0 truncate text-lg font-semibold">
                                 {project.name}
                             </CardTitle>
                         )}
@@ -110,7 +110,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                 <div>{project.description ? <CardDescription className="line-clamp-3">{project.description}</CardDescription> : <div />}</div>
 
                 <div className="flex items-center justify-between">
-                    <div className="text-secondary-foreground max-w-[200px] truncate">{project.userId}</div>
+                    <div className="text-(--secondary-text-wMain) max-w-[200px] truncate">{project.userId}</div>
                     <div className="flex items-center gap-4">
                         {project.artifactCount !== undefined && project.artifactCount !== null && (
                             <div className="text-secondary-foreground flex items-center gap-1">

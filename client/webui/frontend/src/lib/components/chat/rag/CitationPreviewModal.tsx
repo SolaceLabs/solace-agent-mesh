@@ -101,7 +101,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                             <FileIcon filename={filename} variant="compact" />
                             <div className="flex flex-col gap-0.5">
                                 <DialogTitle className="text-base font-semibold">{filename}</DialogTitle>
-                                <DialogDescription className="text-muted-foreground flex items-center gap-1.5 text-sm">{locationLabel}</DialogDescription>
+                                <DialogDescription className="flex items-center gap-1.5 text-sm text-(--secondary-text-wMain)">{locationLabel}</DialogDescription>
                             </div>
                         </div>
                     </div>
@@ -144,7 +144,7 @@ export const CitationPreviewModal: React.FC<CitationPreviewModalProps> = ({ isOp
                 </div>
 
                 <DialogFooter className="flex-none border-t pt-4">
-                    <p className="text-muted-foreground flex-1 text-xs">This is a preview of the document containing the citation</p>
+                    <p className="flex-1 text-xs text-(--secondary-text-wMain)">This is a preview of the document containing the citation</p>
                     <Button variant="outline" onClick={onClose}>
                         Close
                     </Button>
