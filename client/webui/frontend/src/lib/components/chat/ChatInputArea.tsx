@@ -309,14 +309,26 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
         // Handle file pastes (existing logic)
         if (clipboardData.files && clipboardData.files.length > 0) {
-            event.preventDefault(); // Prevent the default paste behavior for files
+            // When copying text from documents (e.g. Word, Google Docs), the clipboard
+            // often contains both text AND an image (PNG) representation of the content.
+            // If text is available alongside image-only files, prefer the text content
+            // so the paste is treated as text rather than showing a PNG artifact.
+            const pastedText = clipboardData.getData("text");
+            const allFilesAreImages = Array.from(clipboardData.files).every(file => file.type.startsWith("image/"));
 
-            // Filter out duplicates based on name, size, and last modified time
-            const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
-            if (newFiles.length > 0) {
-                setSelectedFiles(prev => [...prev, ...newFiles]);
+            if (pastedText && allFilesAreImages) {
+                // Text is available alongside image files — this is likely a rich text copy.
+                // Skip file handling and fall through to text paste handling below.
+            } else {
+                event.preventDefault(); // Prevent the default paste behavior for files
+
+                // Filter out duplicates based on name, size, and last modified time
+                const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
+                if (newFiles.length > 0) {
+                    setSelectedFiles(prev => [...prev, ...newFiles]);
+                }
+                return;
             }
-            return;
         }
 
         // Handle text pastes - show badge for large text
