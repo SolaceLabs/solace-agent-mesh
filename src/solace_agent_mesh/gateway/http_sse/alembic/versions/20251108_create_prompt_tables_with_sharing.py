@@ -147,7 +147,7 @@ def _upgrade_mysql() -> None:
         sa.Column('id', sa.String(36), nullable=False),  # UUID
         sa.Column('prompt_text', sa.Text(), nullable=False),
         sa.Column('group_id', sa.String(36), nullable=False),  # UUID
-        sa.Column('user_id', sa.String(36), nullable=False),  # UUID
+        sa.Column('user_id', sa.String(255), nullable=False),  # user ID
         sa.Column('version', sa.Integer(), nullable=False, server_default='1'),
         sa.Column('created_at', sa.BigInteger(), nullable=False),
         sa.Column('updated_at', sa.BigInteger(), nullable=False),
@@ -166,7 +166,7 @@ def _upgrade_mysql() -> None:
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('category', sa.String(length=100), nullable=True),
         sa.Column('command', sa.String(length=50), nullable=True),
-        sa.Column('user_id', sa.String(36), nullable=False),  # UUID
+        sa.Column('user_id', sa.String(255), nullable=False),  # user ID
         sa.Column('author_name', sa.String(length=255), nullable=True),
         sa.Column('production_prompt_id', sa.String(36), nullable=True),  # UUID
         sa.Column('is_shared', sa.Boolean(), nullable=False, server_default=sa.text('0')),  # MySQL needs numeric default
@@ -203,10 +203,10 @@ def _upgrade_mysql() -> None:
         'prompt_group_users',
         sa.Column('id', sa.String(36), nullable=False),  # UUID
         sa.Column('prompt_group_id', sa.String(36), nullable=False),  # UUID
-        sa.Column('user_id', sa.String(36), nullable=False),  # UUID
+        sa.Column('user_id', sa.String(255), nullable=False),  # user ID
         sa.Column('role', sa.String(50), nullable=False, server_default='viewer'),
         sa.Column('added_at', sa.BigInteger(), nullable=False),
-        sa.Column('added_by_user_id', sa.String(36), nullable=False),  # UUID
+        sa.Column('added_by_user_id', sa.String(255), nullable=False),  # user ID
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(
             ['prompt_group_id'],

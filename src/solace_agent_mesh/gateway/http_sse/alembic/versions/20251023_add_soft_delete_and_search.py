@@ -88,7 +88,7 @@ def _upgrade_mysql(bind) -> None:
             op.add_column('sessions', sa.Column('deleted_at', sa.BigInteger(), nullable=True))
 
         if 'deleted_by' not in sessions_columns:
-            op.add_column('sessions', sa.Column('deleted_by', sa.String(36), nullable=True))  # UUID
+            op.add_column('sessions', sa.Column('deleted_by', sa.String(255), nullable=True))  # user ID
 
         # Create index on deleted_at for efficient filtering
         try:
@@ -110,7 +110,7 @@ def _upgrade_mysql(bind) -> None:
             op.add_column('projects', sa.Column('deleted_at', sa.BigInteger(), nullable=True))
 
         if 'deleted_by' not in projects_columns:
-            op.add_column('projects', sa.Column('deleted_by', sa.String(36), nullable=True))  # UUID
+            op.add_column('projects', sa.Column('deleted_by', sa.String(255), nullable=True))  # user ID
 
         # Create index on deleted_at for efficient filtering
         try:

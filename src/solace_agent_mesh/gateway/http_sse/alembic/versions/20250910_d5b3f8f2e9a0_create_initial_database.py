@@ -68,10 +68,10 @@ def _upgrade_mysql() -> None:
     # user_id is kept as a simple string field for tracking ownership
     op.create_table(
         "sessions",
-        sa.Column("id", sa.String(36), nullable=False),  # UUID
+        sa.Column("id", sa.String(64), nullable=False),  # session ID (e.g. web-session-<hex>)
         sa.Column("name", sa.String(255), nullable=True),
-        sa.Column("user_id", sa.String(36), nullable=False),  # UUID
-        sa.Column("agent_id", sa.String(36), nullable=True),  # UUID
+        sa.Column("user_id", sa.String(255), nullable=False),  # user ID
+        sa.Column("agent_id", sa.String(255), nullable=True),  # agent name
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
@@ -80,8 +80,8 @@ def _upgrade_mysql() -> None:
     # Create chat_messages table with CASCADE constraint and correct schema
     op.create_table(
         "chat_messages",
-        sa.Column("id", sa.String(36), nullable=False),  # UUID
-        sa.Column("session_id", sa.String(36), nullable=False),  # UUID
+        sa.Column("id", sa.String(64), nullable=False),  # message ID
+        sa.Column("session_id", sa.String(64), nullable=False),  # session ID (e.g. web-session-<hex>)
         sa.Column("message", sa.Text(), nullable=False),  # Keep as 'message' for now to match current schema
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("sender_type", sa.String(50), nullable=True),

@@ -71,10 +71,10 @@ def _upgrade_mysql() -> None:
         'project_users',
         sa.Column('id', sa.String(36), nullable=False),  # UUID
         sa.Column('project_id', sa.String(36), nullable=False),  # UUID
-        sa.Column('user_id', sa.String(36), nullable=False),  # UUID
+        sa.Column('user_id', sa.String(255), nullable=False),  # user ID
         sa.Column('role', sa.String(50), nullable=False),  # Enum-like
         sa.Column('added_at', sa.BigInteger(), nullable=False),
-        sa.Column('added_by_user_id', sa.String(36), nullable=False),  # UUID
+        sa.Column('added_by_user_id', sa.String(255), nullable=False),  # user ID
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.UniqueConstraint('project_id', 'user_id', name='uq_project_user')

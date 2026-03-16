@@ -131,10 +131,10 @@ def _upgrade_mysql() -> None:
     # Create feedback table
     op.create_table(
         "feedback",
-        sa.Column("id", sa.String(36), nullable=False),  # UUID
-        sa.Column("session_id", sa.String(36), nullable=False),  # UUID
-        sa.Column("task_id", sa.String(36), nullable=False),  # UUID
-        sa.Column("user_id", sa.String(36), nullable=False),  # UUID
+        sa.Column("id", sa.String(64), nullable=False),
+        sa.Column("session_id", sa.String(255), nullable=False),
+        sa.Column("task_id", sa.String(64), nullable=False),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("user_id", sa.String(255), nullable=False),
         sa.Column("rating", sa.String(50), nullable=False),  # Enum-like
         sa.Column("comment", sa.Text(), nullable=True),
         sa.Column("created_time", sa.BigInteger(), nullable=False),
@@ -149,8 +149,8 @@ def _upgrade_mysql() -> None:
     # Create tasks table
     op.create_table(
         "tasks",
-        sa.Column("id", sa.String(36), nullable=False),  # UUID
-        sa.Column("user_id", sa.String(36), nullable=False),  # UUID
+        sa.Column("id", sa.String(64), nullable=False),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("user_id", sa.String(255), nullable=False),
         sa.Column("start_time", sa.BigInteger(), nullable=False),
         sa.Column("end_time", sa.BigInteger(), nullable=True),
         sa.Column("status", sa.String(50), nullable=True),  # Enum-like
@@ -174,9 +174,9 @@ def _upgrade_mysql() -> None:
     # Create task_events table
     op.create_table(
         "task_events",
-        sa.Column("id", sa.String(36), nullable=False),  # UUID
-        sa.Column("task_id", sa.String(36), nullable=True),  # UUID
-        sa.Column("user_id", sa.String(36), nullable=True),  # UUID
+        sa.Column("id", sa.String(64), nullable=False),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("task_id", sa.String(64), nullable=True),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("user_id", sa.String(255), nullable=True),
         sa.Column("created_time", sa.BigInteger(), nullable=False),
         sa.Column("topic", sa.Text(), nullable=False),
         sa.Column("direction", sa.String(50), nullable=False),
@@ -194,9 +194,9 @@ def _upgrade_mysql() -> None:
     # Create chat_tasks table
     op.create_table(
         "chat_tasks",
-        sa.Column("id", sa.String(36), nullable=False),  # UUID
-        sa.Column("session_id", sa.String(36), nullable=False),  # UUID
-        sa.Column("user_id", sa.String(36), nullable=False),  # UUID
+        sa.Column("id", sa.String(64), nullable=False),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("session_id", sa.String(255), nullable=False),  # session ID
+        sa.Column("user_id", sa.String(255), nullable=False),  # user ID
         sa.Column("user_message", sa.Text(), nullable=True),
         sa.Column("message_bubbles", sa.Text(), nullable=False),
         sa.Column("task_metadata", sa.Text(), nullable=True),
@@ -231,8 +231,8 @@ def downgrade() -> None:
     if bind.dialect.name == 'mysql':
         op.create_table(
             "chat_messages",
-            sa.Column("id", sa.String(36), nullable=False),
-            sa.Column("session_id", sa.String(36), nullable=False),
+            sa.Column("id", sa.String(64), nullable=False),  # message ID
+            sa.Column("session_id", sa.String(64), nullable=False),  # session ID (e.g. web-session-<hex>)
             sa.Column("message", sa.Text(), nullable=False),
             sa.Column("created_time", sa.BigInteger(), nullable=False),
             sa.Column("sender_type", sa.String(50), nullable=True),

@@ -39,7 +39,7 @@ def _upgrade_standard() -> None:
 def _upgrade_mysql() -> None:
     """MySQL upgrade with required VARCHAR lengths."""
     op.add_column(
-        "tasks", sa.Column("parent_task_id", sa.String(36), nullable=True)  # UUID
+        "tasks", sa.Column("parent_task_id", sa.String(64), nullable=True)  # task ID (e.g. gdk-task-<hex>)
     )
     op.create_index(
         "ix_tasks_parent_task_id", "tasks", ["parent_task_id"], unique=False
