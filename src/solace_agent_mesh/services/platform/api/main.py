@@ -58,19 +58,22 @@ def _run_community_migrations(database_url: str) -> None:
 
         log.info("Starting community platform migrations...")
         engine = create_engine(database_url)
-        inspector = sa.inspect(engine)
-        existing_tables = inspector.get_table_names()
+        try:
+            inspector = sa.inspect(engine)
+            existing_tables = inspector.get_table_names()
 
-        if not existing_tables:
-            log.info("Running initial community platform database setup")
-            alembic_cfg = _setup_alembic_config(database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Community platform database migrations completed")
-        else:
-            log.info("Checking for community platform schema updates")
-            alembic_cfg = _setup_alembic_config(database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Community platform database schema is current")
+            if not existing_tables:
+                log.info("Running initial community platform database setup")
+                alembic_cfg = _setup_alembic_config(database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Community platform database migrations completed")
+            else:
+                log.info("Checking for community platform schema updates")
+                alembic_cfg = _setup_alembic_config(database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Community platform database schema is current")
+        finally:
+            engine.dispose()
     except Exception as e:
         log.warning(
             "Community platform migration check failed: %s - attempting to run migrations",

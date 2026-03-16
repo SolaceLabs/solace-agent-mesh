@@ -113,12 +113,14 @@ class TestModelConfigurationAPI:
                 "client_id": "public-id",
                 "client_secret": "super-secret",
                 "token_url": "https://auth.example.com/token",
+                "ca_cert": "/etc/ssl/certs/custom-ca.pem",
                 "type": "oauth2"
             },
             "super-secret",
             {
                 "client_id": "public-id",
                 "token_url": "https://auth.example.com/token",
+                "ca_cert": "/etc/ssl/certs/custom-ca.pem",
                 "type": "oauth2"
             }
         ),

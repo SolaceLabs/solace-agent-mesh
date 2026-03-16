@@ -288,6 +288,9 @@ class PlatformServiceComponent(SamComponentBase):
                             models_config = self.connector_models
                             seed_model_configurations(db_session, models_config)
                             log.info("%s Model configurations seeded successfully", self.log_identifier)
+                        except Exception:
+                            db_session.rollback()
+                            raise
                         finally:
                             db_session.close()
                     except Exception as e:

@@ -102,6 +102,8 @@ def _extract_auth_type_and_config(config_data: dict) -> tuple[str, dict]:
             oauth_config["token_url"] = config_data["oauth_token_url"]
         if "oauth_scope" in config_data:
             oauth_config["scope"] = config_data["oauth_scope"]
+        if "oauth_ca_cert" in config_data:
+            oauth_config["ca_cert"] = config_data["oauth_ca_cert"]
         if "oauth_token_refresh_buffer_seconds" in config_data:
             oauth_config["token_refresh_buffer_seconds"] = config_data["oauth_token_refresh_buffer_seconds"]
 

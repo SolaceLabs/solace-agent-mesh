@@ -5,7 +5,7 @@ like API keys and OAuth client secrets. Credential filtering is handled by
 ModelConfigService using redact_auth_config().
 """
 
-from typing import Optional, Literal, Dict, Any
+from typing import Optional, Dict, Any
 from pydantic import Field
 
 from solace_agent_mesh.services.platform.api.routers.dto.base import CamelCaseModel
@@ -23,8 +23,8 @@ class ModelConfigurationResponse(CamelCaseModel):
     api_base: Optional[str] = Field(
         None, description="API base URL (if using custom endpoint)"
     )
-    auth_type: Literal["apikey", "oauth2", "none"] = Field(
-        ..., description="Type of authentication configured (apikey, oauth2, or none)"
+    auth_type: str = Field(
+        ..., description="Type of authentication configured (e.g., 'apikey', 'oauth2', 'none')"
     )
     auth_config: Dict[str, Any] = Field(
         default_factory=dict, description="Authentication configuration (secrets redacted)"

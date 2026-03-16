@@ -59,7 +59,7 @@ features:
 
   - key: model_config_ui
     name: Model Configuration UI
-    release_phase: ga
+    release_phase: experimental
     default_enabled: false
     jira_epic: DATAGO-109787
     description: >

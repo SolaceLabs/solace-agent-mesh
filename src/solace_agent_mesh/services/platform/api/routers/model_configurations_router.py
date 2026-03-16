@@ -92,7 +92,7 @@ async def get_model(
     """
     Retrieve a model configuration by alias.
 
-    The alias lookup is case-insensitive. Sensitive information (API keys, OAuth
+    The alias lookup is case. Sensitive information (API keys, OAuth
     client secrets) is excluded from the response.
 
     Args:
