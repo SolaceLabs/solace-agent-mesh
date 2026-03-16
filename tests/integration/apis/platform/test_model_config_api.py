@@ -1,137 +1,259 @@
-"""Integration tests for model configuration API endpoints.
+"""
+Integration tests for Platform Service model configuration API endpoints.
 
-Tests the model configuration endpoints over HTTP using TestClient.
-Verifies:
+Tests the HTTP layer behavior for model configuration endpoints including:
 - Response shape and camelCase serialization
-- 404 for non-existent models
-- 501 when feature flag is disabled
-- Credentials are excluded from responses
+- 404 errors for non-existent aliases
+- 501 errors when feature flag is disabled
+- Credential filtering from HTTP responses
 """
 
-from fastapi.testclient import TestClient
+import logging
+import uuid
+import pytest
+from unittest.mock import patch
+from sqlalchemy.orm import Session
+
+from solace_agent_mesh.services.platform.models import ModelConfiguration
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+
+log = logging.getLogger(__name__)
 
 
-class TestModelConfigurationAPIEndpoints:
-    """Tests for GET /models and GET /models/{alias} endpoints.
+@pytest.fixture
+def enable_model_config_feature_flag():
+    """Enable the model_config_ui feature flag for testing."""
+    with patch("solace_agent_mesh.services.platform.api.routers.model_configurations_router.openfeature_api") as mock_openfeature:
+        mock_client = mock_openfeature.get_client.return_value
+        mock_client.get_boolean_value.return_value = True
+        yield
 
-    The model_config_ui feature flag is disabled by default.
-    The router is always registered but endpoints return 501 when the feature is disabled.
-    """
 
-    def test_list_models_returns_501_when_feature_disabled(self, platform_api_client: TestClient):
-        """Test that GET /models returns 501 when model_config_ui feature flag is disabled.
+class TestModelConfigurationAPI:
+    """Tests for /api/v1/platform/models endpoints."""
 
-        The endpoint is always registered, but returns 501 when feature flag is disabled.
-        """
-        response = platform_api_client.get("/models")
+    def test_get_model_response_shape_and_camel_case(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Test that GET /models/{alias} returns correct shape, camelCase fields, and non-secret data."""
+        # Setup: Create a model configuration
+        db = platform_db_session_factory()
+        try:
+            model_config = ModelConfiguration(
+                id=str(uuid.uuid4()),
+                alias="test-gpt-4",
+                provider="openai",
+                model_name="gpt-4",
+                api_base="https://api.openai.com/v1",
+                model_auth_type="apikey",
+                model_auth_config={"api_key": "sk-test-key-12345", "type": "apikey"},
+                model_params={"temperature": 0.7, "max_tokens": 2000},
+                description="Test GPT-4 configuration",
+                created_by="test_user",
+                updated_by="test_user",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
 
-        assert response.status_code == 501, f"Expected 501 (feature disabled) but got {response.status_code}: {response.text}"
-        data = response.json()
-        assert "detail" in data
-        assert "not enabled" in data["detail"].lower()
+            # Act: Fetch the model
+            response = platform_api_client.get("/api/v1/platform/models/test-gpt-4")
 
-    def test_get_model_by_alias_returns_501_when_feature_disabled(self, platform_api_client: TestClient):
-        """Test that GET /models/{alias} returns 501 when model_config_ui feature flag is disabled.
+            # Assert: Status code is 200
+            assert response.status_code == 200
 
-        The endpoint is always registered, but returns 501 when feature flag is disabled.
-        """
-        response = platform_api_client.get("/models/some-model-alias")
-
-        assert response.status_code == 501, f"Expected 501 (feature disabled) but got {response.status_code}: {response.text}"
-        data = response.json()
-        assert "detail" in data
-        assert "not enabled" in data["detail"].lower()
-
-    def test_get_nonexistent_model_returns_404(self, platform_api_client: TestClient):
-        """Test that GET /models/{nonexistent} returns 404 when feature is enabled.
-
-        Note: Since feature flag is disabled by default, this would return 501.
-        This test documents the expected behavior when the feature IS enabled.
-        """
-        response = platform_api_client.get("/models/absolutely-nonexistent-model-xyz-123")
-
-        # When feature is disabled, we get 501 (not 404)
-        # This test documents what SHOULD happen when feature is enabled
-        assert response.status_code in [404, 501], f"Got {response.status_code}"
-        data = response.json()
-        assert "detail" in data
-
-    def test_response_does_not_contain_api_key_secrets(self, platform_api_client: TestClient):
-        """Test that response text doesn't contain api_key credentials.
-
-        This is a regression test to catch if someone accidentally adds
-        api_key or other secrets to the response DTO.
-        """
-        response = platform_api_client.get("/models")
-        response_text = response.text.lower()
-
-        # Should not contain patterns like "api_key": "value"
-        # Even if endpoint returns 501, the detail message shouldn't contain secrets
-        assert '"api_key"' not in response.text, "api_key should not appear in response"
-        assert 'api_key' not in response_text or 'not enabled' in response_text, \
-            "api_key only acceptable if it's in 'not enabled' message"
-
-    def test_response_does_not_contain_client_secret(self, platform_api_client: TestClient):
-        """Test that response text doesn't contain OAuth2 client_secret credentials.
-
-        Regression test to ensure secrets don't leak in HTTP responses.
-        """
-        response = platform_api_client.get("/models")
-        response_text = response.text
-
-        assert '"client_secret"' not in response_text, "client_secret should not appear in response"
-        assert 'client_secret' not in response_text.lower(), \
-            "client_secret should not appear in response (even lowercased)"
-
-    def test_list_models_response_shape_when_enabled(self, platform_api_client: TestClient):
-        """Test that list response has correct structure when feature is enabled.
-
-        Documents the expected response shape:
-        - configurations array
-        - total count
-        - camelCase field names
-        """
-        response = platform_api_client.get("/models")
-
-        # When disabled, we get 501, so we can't test response shape without mocking
-        # This documents what the shape should be when enabled
-        if response.status_code == 200:
+            # Capture response text and data for assertions
+            response_text = response.text
             data = response.json()
 
-            # Validate structure
-            assert "configurations" in data, "Response should have 'configurations' field"
-            assert "total" in data, "Response should have 'total' field"
-            assert isinstance(data["configurations"], list), "configurations should be a list"
-            assert isinstance(data["total"], int), "total should be an integer"
+            # Assert: All expected fields are present
+            expected_fields = {
+                "id", "alias", "provider", "modelName", "apiBase", "authType",
+                "authConfig", "modelParams", "description", "createdBy",
+                "updatedBy", "createdTime", "updatedTime"
+            }
+            assert set(data.keys()) == expected_fields
 
-    def test_model_response_contains_camel_case_fields(self, platform_api_client: TestClient):
-        """Test that individual model responses use camelCase field names.
+            # Assert: Field values are correct
+            assert data["alias"] == "test-gpt-4"
+            assert data["provider"] == "openai"
+            assert data["modelName"] == "gpt-4"
+            assert data["apiBase"] == "https://api.openai.com/v1"
+            assert data["authType"] == "apikey"
+            assert isinstance(data["authConfig"], dict)
+            assert isinstance(data["modelParams"], dict)
 
-        When the feature is enabled and models exist, verify that field names
-        are properly converted from snake_case to camelCase.
-        """
-        response = platform_api_client.get("/models")
+            assert data["modelParams"]["temperature"] == 0.7
+            assert data["modelParams"]["max_tokens"] == 2000
 
-        if response.status_code == 200:
+            assert data["description"] == "Test GPT-4 configuration"
+            assert data["createdBy"] == "test_user"
+            assert data["updatedBy"] == "test_user"
+
+            # Assert: Secrets are redacted from authConfig
+            assert "api_key" not in data["authConfig"]
+            assert "sk-test-key-12345" not in response_text
+
+        finally:
+            db.close()
+
+    @pytest.mark.parametrize("auth_type,secret_fields,stored_config,expected_secret_text,expected_config", [
+        # API key auth - api_key should be redacted
+        (
+            "apikey",
+            {"api_key"},
+            {"api_key": "sk-secret-123", "type": "apikey"},
+            "sk-secret-123",
+            {"type": "apikey"}
+        ),
+        # OAuth2 - client_secret redacted, public fields preserved
+        (
+            "oauth2",
+            {"client_secret"},
+            {
+                "client_id": "public-id",
+                "client_secret": "super-secret",
+                "token_url": "https://auth.example.com/token",
+                "type": "oauth2"
+            },
+            "super-secret",
+            {
+                "client_id": "public-id",
+                "token_url": "https://auth.example.com/token",
+                "type": "oauth2"
+            }
+        ),
+        # No auth - only type field
+        (
+            "none",
+            set(),
+            {"type": "none"},
+            None,
+            {"type": "none"}
+        ),
+    ])
+    def test_credential_filtering_by_auth_type(
+        self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag,
+        auth_type, secret_fields, stored_config, expected_secret_text, expected_config
+    ):
+        """Test that secrets are redacted based on auth type while public fields are preserved."""
+        # Setup: Create a model with the specified auth type
+        db = platform_db_session_factory()
+        try:
+            alias = f"test-{auth_type}"
+            model_config = ModelConfiguration(
+                id=str(uuid.uuid4()),
+                alias=alias,
+                provider="openai",
+                model_name="gpt-4",
+                api_base=None,
+                model_auth_type=auth_type,
+                model_auth_config=stored_config,
+                model_params={},
+                created_by="test_user",
+                updated_by="test_user",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            # Act: Fetch the model
+            response = platform_api_client.get(f"/api/v1/platform/models/{alias}")
+
+            # Assert: Status code is 200
+            assert response.status_code == 200
+
+            # Assert: Secret values are NOT in response text
+            if expected_secret_text:
+                assert expected_secret_text not in response.text
+
+            # Assert: authConfig has only public/redacted fields
             data = response.json()
+            assert data["authConfig"] == expected_config
 
-            # If there are configurations, check fields are camelCase
-            if data.get("configurations"):
-                config = data["configurations"][0]
-                expected_camel_fields = [
-                    "id", "alias", "provider", "modelName", "apiBase",
-                    "authType", "authConfig", "modelParams", "createdBy",
-                    "updatedBy", "createdTime", "updatedTime"
-                ]
-                # At least some of these should be present
-                present_fields = [f for f in expected_camel_fields if f in config]
-                assert len(present_fields) > 0, \
-                    f"Response should contain camelCase fields, got: {list(config.keys())}"
+        finally:
+            db.close()
 
-                # Specifically verify no snake_case auth fields leaked
-                assert "model_auth_type" not in config, \
-                    "Should use authType (camelCase), not model_auth_type"
-                assert "model_auth_config" not in config, \
-                    "Should use authConfig (camelCase), not model_auth_config"
-                assert "model_params" not in config, \
-                    "Should use modelParams (camelCase), not model_params"
+    def test_get_model_returns_404_for_nonexistent_alias(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that GET /models/{alias} returns 404 when alias doesn't exist."""
+        # Act: Request a non-existent model
+        response = platform_api_client.get("/api/v1/platform/models/nonexistent-model")
+
+        # Assert: Status code is 404
+        assert response.status_code == 404
+
+        # Assert: Response contains error detail
+        data = response.json()
+        assert "detail" in data
+        assert "not found" in data["detail"].lower()
+
+    def test_list_models_returns_correct_structure(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Test that GET /models returns a list with correct structure and camelCase fields."""
+        # Setup: Create multiple model configurations
+        db = platform_db_session_factory()
+        try:
+            for i in range(3):
+                model_config = ModelConfiguration(
+                    id=str(uuid.uuid4()),
+                    alias=f"model-{i}",
+                    provider="openai",
+                    model_name=f"gpt-{i}",
+                    api_base=None,
+                    model_auth_type="none",
+                    model_auth_config={"type": "none"},
+                    model_params={},
+                    created_by="test_user",
+                    updated_by="test_user",
+                    created_time=now_epoch_ms(),
+                    updated_time=now_epoch_ms(),
+                )
+                db.add(model_config)
+            db.commit()
+
+            # Act: Fetch all models
+            response = platform_api_client.get("/api/v1/platform/models")
+
+            # Assert: Status code is 200
+            assert response.status_code == 200
+
+            # Assert: Response has expected structure with camelCase
+            data = response.json()
+            assert "configurations" in data
+            assert "total" in data
+            assert isinstance(data["configurations"], list)
+            assert isinstance(data["total"], int)
+            assert data["total"] >= 3
+
+            # Assert: Each configuration uses camelCase
+            for config in data["configurations"]:
+                assert "modelName" in config
+                assert "model_name" not in config
+                assert "authType" in config
+                assert "createdTime" in config
+                assert "updatedTime" in config
+
+        finally:
+            db.close()
+
+    def test_feature_flag_disabled_returns_501(self, platform_api_client_factory):
+        """Test that endpoints return 501 when model_config_ui feature flag is disabled."""
+        from fastapi.testclient import TestClient
+
+        app = platform_api_client_factory.app
+        client = TestClient(app)
+
+        # Mock the openfeature flag to be disabled
+        with patch("solace_agent_mesh.services.platform.api.routers.model_configurations_router.openfeature_api") as mock_openfeature:
+            mock_client = mock_openfeature.get_client.return_value
+            mock_client.get_boolean_value.return_value = False
+
+            # Act: Try to get models with feature flag disabled
+            response = client.get("/api/v1/platform/models")
+
+            # Assert: Status code is 501
+            assert response.status_code == 501
+
+            # Assert: Response contains error detail
+            data = response.json()
+            assert "detail" in data
+            assert "not enabled" in data["detail"].lower()
