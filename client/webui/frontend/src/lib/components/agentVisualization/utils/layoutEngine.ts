@@ -84,36 +84,21 @@ export function processAgentConfig(config: AgentDiagramConfig): AgentLayoutResul
     const skillColumnHeight = hasSkills ? skillNodes.length * C.NODE_HEIGHTS.SKILL + (skillNodes.length - 1) * C.SPACING.HORIZONTAL : 0;
     const toolColumnHeight = hasTools ? toolNodes.length * C.NODE_HEIGHTS.TOOL + (toolNodes.length - 1) * C.SPACING.HORIZONTAL : 0;
 
-    // --- Calculate total width and position columns ---
+    // --- Position agent header ---
+    // Tools go to the right of the agent; skills go below the agent.
 
-    let totalChildrenWidth: number;
-    let skillColumnX: number;
-    let toolColumnX: number;
-
-    if (hasSkills && hasTools) {
-        totalChildrenWidth = C.NODE_WIDTHS.SKILL + C.SPACING.GROUP_GAP + C.NODE_WIDTHS.TOOL;
-        skillColumnX = 0;
-        toolColumnX = C.NODE_WIDTHS.SKILL + C.SPACING.GROUP_GAP;
-    } else if (hasSkills) {
-        totalChildrenWidth = C.NODE_WIDTHS.SKILL;
-        skillColumnX = 0;
-        toolColumnX = 0;
-    } else if (hasTools) {
-        totalChildrenWidth = C.NODE_WIDTHS.TOOL;
-        skillColumnX = 0;
-        toolColumnX = 0;
-    } else {
-        totalChildrenWidth = 0;
-        skillColumnX = 0;
-        toolColumnX = 0;
-    }
-
-    const contentWidth = Math.max(C.NODE_WIDTHS.AGENT_HEADER, totalChildrenWidth);
-    const totalWidth = contentWidth + C.PADDING * 2;
-
-    // Center agent header
-    const agentX = C.PADDING + (contentWidth - C.NODE_WIDTHS.AGENT_HEADER) / 2;
+    const agentX = C.PADDING;
     const agentY = C.PADDING;
+
+    // Tools: vertical column to the right, first tool vertically center-aligned with agent
+    const toolColX = agentX + C.NODE_WIDTHS.AGENT_HEADER + C.SPACING.GROUP_GAP;
+    const toolFirstY = agentY + (C.NODE_HEIGHTS.AGENT_HEADER - C.NODE_HEIGHTS.TOOL) / 2;
+
+    // Skills: below the agent (and below the tool column if it extends further)
+    const agentBottom = agentY + C.NODE_HEIGHTS.AGENT_HEADER;
+    const toolsBottom = hasTools ? toolFirstY + toolColumnHeight : agentBottom;
+    const skillTopY = Math.max(agentBottom, toolsBottom) + C.SPACING.VERTICAL;
+    const skillColX = agentX + (C.NODE_WIDTHS.AGENT_HEADER - C.NODE_WIDTHS.SKILL) / 2;
 
     // Create agent header node
     const agentNode: AgentLayoutNode = {
@@ -134,36 +119,12 @@ export function processAgentConfig(config: AgentDiagramConfig): AgentLayoutResul
     };
     nodes.push(agentNode);
 
-    // --- Position child columns ---
+    // --- Position tools (right of agent, stacked vertically) ---
 
-    const childrenTopY = agentY + C.NODE_HEIGHTS.AGENT_HEADER + C.SPACING.VERTICAL;
-
-    // Center columns under the content area
-    const childrenOffsetX = C.PADDING + (contentWidth - totalChildrenWidth) / 2;
-
-    // Position skills (left column)
-    for (let i = 0; i < skillNodes.length; i++) {
-        const node = skillNodes[i];
-        node.x = childrenOffsetX + skillColumnX;
-        node.y = childrenTopY + i * (C.NODE_HEIGHTS.SKILL + C.SPACING.HORIZONTAL);
-        nodes.push(node);
-
-        edges.push({
-            id: `edge-agent-${node.id}`,
-            source: "agent-header",
-            target: node.id,
-            sourceX: 0,
-            sourceY: 0,
-            targetX: 0,
-            targetY: 0,
-        });
-    }
-
-    // Position tools (right column)
     for (let i = 0; i < toolNodes.length; i++) {
         const node = toolNodes[i];
-        node.x = childrenOffsetX + toolColumnX;
-        node.y = childrenTopY + i * (C.NODE_HEIGHTS.TOOL + C.SPACING.HORIZONTAL);
+        node.x = toolColX;
+        node.y = toolFirstY + i * (C.NODE_HEIGHTS.TOOL + C.SPACING.HORIZONTAL);
         nodes.push(node);
 
         edges.push({
@@ -177,10 +138,34 @@ export function processAgentConfig(config: AgentDiagramConfig): AgentLayoutResul
         });
     }
 
-    // --- Calculate total height ---
+    // --- Position skills (below agent, centered under it) ---
 
-    const maxColumnHeight = Math.max(skillColumnHeight, toolColumnHeight);
-    const totalHeight = hasSkills || hasTools ? childrenTopY + maxColumnHeight + C.PADDING : agentY + C.NODE_HEIGHTS.AGENT_HEADER + C.PADDING;
+    for (let i = 0; i < skillNodes.length; i++) {
+        const node = skillNodes[i];
+        node.x = skillColX;
+        node.y = skillTopY + i * (C.NODE_HEIGHTS.SKILL + C.SPACING.HORIZONTAL);
+        nodes.push(node);
+
+        edges.push({
+            id: `edge-agent-${node.id}`,
+            source: "agent-header",
+            target: node.id,
+            sourceX: 0,
+            sourceY: 0,
+            targetX: 0,
+            targetY: 0,
+        });
+    }
+
+    // --- Calculate total dimensions ---
+
+    const rightEdge = hasTools ? toolColX + C.NODE_WIDTHS.TOOL : agentX + C.NODE_WIDTHS.AGENT_HEADER;
+    const totalWidth = rightEdge + C.PADDING;
+
+    let bottomEdge = agentBottom;
+    if (hasTools) bottomEdge = Math.max(bottomEdge, toolFirstY + toolColumnHeight);
+    if (hasSkills) bottomEdge = Math.max(bottomEdge, skillTopY + skillColumnHeight);
+    const totalHeight = bottomEdge + C.PADDING;
 
     return { nodes, edges, totalWidth, totalHeight };
 }

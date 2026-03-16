@@ -73,6 +73,7 @@ export interface AgentCardInfo extends AgentInfo {
     peerAgents?: string[];
     tools?: AgentSkill[];
     isWorkflow?: boolean;
+    isInternal?: boolean;
     welcome?: AgentWelcomeConfig;
 }
 
@@ -378,6 +379,7 @@ export interface Session {
     createdTime: string;
     updatedTime: string;
     name: string | null;
+    agentId?: string | null;
     projectId?: string | null;
     projectName?: string | null;
     source?: string | null; // "chat" or "scheduler"

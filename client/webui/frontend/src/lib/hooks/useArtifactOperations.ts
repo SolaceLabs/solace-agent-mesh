@@ -235,7 +235,9 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
                 // Fetch the latest version with embeds resolved
                 const availableVersions: number[] = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
                 if (!availableVersions || availableVersions.length === 0) {
-                    throw new Error("No versions available");
+                    // No versions yet — common during session switches when old artifacts
+                    // are briefly referenced with the new session context. Return silently.
+                    return null;
                 }
 
                 const latestVersion = Math.max(...availableVersions);

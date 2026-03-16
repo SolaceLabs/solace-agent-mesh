@@ -4,7 +4,7 @@ import { Pencil, BookOpen, Code2, Lightbulb, Sparkles } from "lucide-react";
 
 import { SolaceIcon } from "@/lib/components/common";
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import type { AgentCardInfo, WelcomeSuggestion } from "@/lib/types";
+import type { AgentCardInfo, AgentWelcomeConfig, WelcomeSuggestion } from "@/lib/types";
 import { ChatInputArea } from "./ChatInputArea";
 import { CHAT_STYLES } from "@/lib/components/ui/chat/chatStyles";
 
@@ -58,9 +58,13 @@ const toChips = (suggestions: WelcomeSuggestion[]): SuggestionChip[] =>
 interface ChatWelcomeScreenProps {
     agents: AgentCardInfo[];
     selectedAgentName?: string;
+    /** Fallback welcome config used when the selected agent's card hasn't been discovered yet. */
+    welcomeOverride?: AgentWelcomeConfig;
+    /** Compact layout — reduces input area spacing */
+    compact?: boolean;
 }
 
-export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, selectedAgentName }) => {
+export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, selectedAgentName, welcomeOverride, compact }) => {
     const { handleSubmit } = useChatContext();
     const { configBotName } = useConfigContext();
 
@@ -72,14 +76,18 @@ export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, se
         [agents, selectedAgentName],
     );
 
-    const welcomeMessage = welcomeAgent?.welcome?.welcome_message;
+    // Prefer agent card welcome config; fall back to override (for when card hasn't arrived yet)
+    const effectiveWelcome = welcomeAgent?.welcome ?? welcomeOverride;
+    const welcomeMessage = effectiveWelcome?.welcome_message;
     // For agents without a welcome config, use a generic greeting with their name
     const defaultHeading = welcomeAgent
         ? `Hi, I'm ${welcomeAgent.displayName || welcomeAgent.name}. How can I help you?`
-        : `What can ${botName} help you with?`;
+        : selectedAgentName
+          ? `Hi, I'm ${selectedAgentName}. How can I help you?`
+          : `What can ${botName} help you with?`;
     const suggestions = useMemo(
-        () => (welcomeAgent?.welcome?.suggestions ? toChips(welcomeAgent.welcome.suggestions) : DEFAULT_SUGGESTIONS),
-        [welcomeAgent],
+        () => (effectiveWelcome?.suggestions ? toChips(effectiveWelcome.suggestions) : DEFAULT_SUGGESTIONS),
+        [effectiveWelcome],
     );
 
     const handleChipClick = async (chip: SuggestionChip) => {
@@ -119,7 +127,7 @@ export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, se
                 </div>
             </div>
             <div style={CHAT_STYLES} className="pb-6">
-                <ChatInputArea agents={agents} />
+                <ChatInputArea agents={agents} compact={compact} />
             </div>
         </div>
     );
