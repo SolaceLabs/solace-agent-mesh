@@ -315,10 +315,10 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                 const text = e.clipboardData.getData("text/plain");
 
                 if (html && html.includes("mention-chip")) {
-                    // HTML contains our mention chips, insert it directly
-                    // But we need to extract just the mention spans and text, not full HTML structure
+                    // Sanitize the HTML before parsing to prevent XSS in the temporary div
+                    const sanitizedHtml = DOMPurify.sanitize(html);
                     const tempDiv = document.createElement("div");
-                    tempDiv.innerHTML = html;
+                    tempDiv.innerHTML = sanitizedHtml;
 
                     // Extract mention chips and text nodes
                     const processedContent = Array.from(tempDiv.childNodes)
