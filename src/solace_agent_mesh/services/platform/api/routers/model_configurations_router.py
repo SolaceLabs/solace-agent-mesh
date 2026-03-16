@@ -24,12 +24,11 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Feature flag controlled by environment variable
-_MODEL_CONFIG_UI_ENABLED = os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true"
-
 
 def _require_model_config_ui_enabled() -> bool:
     """Dependency that checks if model configuration UI feature is enabled.
+
+    Checks the SAM_FEATURE_MODEL_CONFIG_UI environment variable at request time.
 
     Returns:
         True if feature is enabled, False otherwise.
@@ -37,7 +36,8 @@ def _require_model_config_ui_enabled() -> bool:
     Raises:
         HTTPException: 501 Not Implemented if feature is disabled.
     """
-    if not _MODEL_CONFIG_UI_ENABLED:
+    is_enabled = os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true"
+    if not is_enabled:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Model configuration feature is not enabled",

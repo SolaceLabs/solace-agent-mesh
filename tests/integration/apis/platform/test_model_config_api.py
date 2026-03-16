@@ -9,6 +9,7 @@ Tests the HTTP layer behavior for model configuration endpoints including:
 """
 
 import logging
+import os
 import uuid
 import pytest
 from unittest.mock import patch
@@ -23,9 +24,7 @@ log = logging.getLogger(__name__)
 @pytest.fixture
 def enable_model_config_feature_flag():
     """Enable the model_config_ui feature flag for testing."""
-    with patch("solace_agent_mesh.services.platform.api.routers.model_configurations_router.openfeature_api") as mock_openfeature:
-        mock_client = mock_openfeature.get_client.return_value
-        mock_client.get_boolean_value.return_value = True
+    with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "true"}):
         yield
 
 
@@ -242,12 +241,10 @@ class TestModelConfigurationAPI:
         from fastapi.testclient import TestClient
 
         app = platform_api_client_factory.app
-        client = TestClient(app)
 
-        # Mock the openfeature flag to be disabled
-        with patch("solace_agent_mesh.services.platform.api.routers.model_configurations_router.openfeature_api") as mock_openfeature:
-            mock_client = mock_openfeature.get_client.return_value
-            mock_client.get_boolean_value.return_value = False
+        # Ensure the feature flag is disabled
+        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "false"}):
+            client = TestClient(app)
 
             # Act: Try to get models with feature flag disabled
             response = client.get("/api/v1/platform/models")
