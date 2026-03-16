@@ -52,6 +52,7 @@ function applyThemeToDOM(themePalette: ThemePalette, theme: string): void {
             console.log(`Applying ${theme} theme with palette`);
         }
         root.classList.remove(...themes.map(t => t.id));
+        root.classList.add(theme);
         localStorage.setItem(LOCAL_STORAGE_KEY, theme);
     });
 }
