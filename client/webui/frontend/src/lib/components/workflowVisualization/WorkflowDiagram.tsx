@@ -1,48 +1,43 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { ReactFlow, ReactFlowProvider, MarkerType, useNodesState, type Node, type Edge as RFEdge, type NodeMouseHandler } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import type { WorkflowConfig } from "@/lib/utils/agentUtils";
-import PanZoomCanvas, { type PanZoomCanvasRef } from "@/lib/components/activities/FlowChart/PanZoomCanvas";
+import type { PanZoomCanvasRef } from "@/lib/components/activities/FlowChart/PanZoomCanvas";
 import { processWorkflowConfig } from "./utils/layoutEngine";
-import type { LayoutNode, Edge } from "./utils/types";
-import WorkflowNodeRenderer from "./WorkflowNodeRenderer";
-import EdgeLayer from "./edges/EdgeLayer";
+import type { LayoutNode, WorkflowFlowNodeData } from "./utils/types";
+import StartFlowNode from "./nodes/StartFlowNode";
+import EndFlowNode from "./nodes/EndFlowNode";
+import AgentFlowNode from "./nodes/AgentFlowNode";
+import WorkflowRefFlowNode from "./nodes/WorkflowRefFlowNode";
+import SwitchFlowNode from "./nodes/SwitchFlowNode";
+import MapFlowNode from "./nodes/MapFlowNode";
+import LoopFlowNode from "./nodes/LoopFlowNode";
+import ConditionPillFlowNode from "./nodes/ConditionPillFlowNode";
+import { WorkflowDiagramEdge } from "./WorkflowDiagramEdge";
+import "./workflowDiagram.css";
 
-/** Node position and dimensions */
-interface NodePosition {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-}
+const nodeTypes = {
+    "start": StartFlowNode,
+    "end": EndFlowNode,
+    "agent": AgentFlowNode,
+    "workflow": WorkflowRefFlowNode,
+    "switch": SwitchFlowNode,
+    "map": MapFlowNode,
+    "loop": LoopFlowNode,
+    "condition": ConditionPillFlowNode,
+};
 
-/**
- * Build a flat map of all node positions from the layout tree
- * Traverses nested children and accumulates offsets for absolute positions
- */
-function buildNodePositionMap(nodes: LayoutNode[], offsetX = 0, offsetY = 0): Map<string, NodePosition> {
-    const positions = new Map<string, NodePosition>();
+const EMPTY_WORKFLOWS = new Set<string>();
 
-    for (const node of nodes) {
-        const absoluteX = node.x + offsetX;
-        const absoluteY = node.y + offsetY;
+const edgeTypes = {
+    "workflow-edge": WorkflowDiagramEdge,
+};
 
-        positions.set(node.id, {
-            x: absoluteX,
-            y: absoluteY,
-            width: node.width,
-            height: node.height,
-        });
-
-        // Recursively process children (for Map/Loop containers)
-        if (node.children && node.children.length > 0) {
-            const childPositions = buildNodePositionMap(node.children, absoluteX, absoluteY);
-            for (const [childId, childPos] of childPositions) {
-                positions.set(childId, childPos);
-            }
-        }
-    }
-
-    return positions;
-}
+const DEFAULT_EDGE_MARKER = {
+    type: MarkerType.ArrowClosed,
+    width: 16,
+    height: 16,
+};
 
 interface WorkflowDiagramProps {
     config: WorkflowConfig;
@@ -70,37 +65,37 @@ interface WorkflowDiagramProps {
 }
 
 /**
- * WorkflowDiagram - Main diagram component with pan/zoom canvas
- * Manages layout calculation and collapse state
+ * WorkflowDiagram - Main workflow visualization component using ReactFlow.
+ * Shows workflow nodes in a top-to-bottom flow with smooth-step edge routing.
  */
-const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
+const WorkflowDiagram: React.FC<WorkflowDiagramProps> = (props) => {
+    const { className, ...innerProps } = props;
+    return (
+        <div className={`workflow-diagram ${className ?? "bg-card-background"} relative h-full w-full`}>
+            <ReactFlowProvider>
+                <WorkflowDiagramInner {...innerProps} />
+            </ReactFlowProvider>
+        </div>
+    );
+};
+
+type WorkflowDiagramInnerProps = Omit<WorkflowDiagramProps, "className">;
+
+const WorkflowDiagramInner: React.FC<WorkflowDiagramInnerProps> = ({
     config,
-    knownWorkflows = new Set(),
-    sidePanelWidth = 0,
+    knownWorkflows = EMPTY_WORKFLOWS,
     onNodeSelect,
     highlightedNodeIds: controlledHighlightedNodeIds,
     onHighlightNodes: controlledOnHighlightNodes,
     knownNodeIds: controlledKnownNodeIds,
     onTransformChange,
-    canvasRef: externalCanvasRef,
     onContentSizeChange,
     currentWorkflowName,
     parentPath,
-    className,
 }) => {
-    const internalCanvasRef = useRef<PanZoomCanvasRef>(null);
-    const canvasRef = externalCanvasRef || internalCanvasRef;
-    const containerRef = useRef<HTMLDivElement>(null);
-    const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
-    const [hasUserInteracted, setHasUserInteracted] = useState(false);
     const [internalHighlightedNodeIds, setInternalHighlightedNodeIds] = useState<Set<string>>(new Set());
-
-    // Track mouse position to distinguish click from drag
-    const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
-    const isDragging = useRef(false);
-    const lastClickTime = useRef(0);
 
     // Calculate layout whenever config or collapsed state changes
     const layout = useMemo(() => {
@@ -115,7 +110,6 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     }, [layout.totalWidth, layout.totalHeight, onContentSizeChange]);
 
     // Build a set of all known node IDs for validating expression references
-    // Use controlled prop if provided, otherwise compute from layout
     const computedKnownNodeIds = useMemo(() => {
         const ids = new Set<string>();
         const collectNodeIds = (nodes: LayoutNode[]) => {
@@ -147,51 +141,7 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
         [controlledOnHighlightNodes]
     );
 
-    // Calculate edges from layout positions (not DOM measurements)
-    // This avoids issues with pan/zoom transforms affecting edge positions
-    const calculatedEdges = useMemo(() => {
-        if (layout.nodes.length === 0) return [];
-
-        // Build flat map of all node positions from layout tree
-        const nodePositions = buildNodePositionMap(layout.nodes);
-
-        // Offset to ensure arrowheads are visible above nodes
-        // The arrowhead marker is 12px tall, so we end edges slightly above the node
-        const arrowheadOffset = 4;
-
-        // Calculate edges based on layout positions
-        const edges: Edge[] = [];
-        for (const edge of layout.edges) {
-            const sourcePos = nodePositions.get(edge.source);
-            const targetPos = nodePositions.get(edge.target);
-
-            if (sourcePos && targetPos) {
-                edges.push({
-                    ...edge,
-                    sourceX: sourcePos.x + sourcePos.width / 2,
-                    sourceY: sourcePos.y + sourcePos.height,
-                    targetX: targetPos.x + targetPos.width / 2,
-                    // End edge slightly above the node so arrowhead is fully visible
-                    targetY: targetPos.y - arrowheadOffset,
-                });
-            }
-        }
-
-        return edges;
-    }, [layout.nodes, layout.edges]);
-
-    // Auto-fit on initial load (once)
-    useEffect(() => {
-        if (!hasUserInteracted && layout.totalWidth > 0) {
-            // Small delay to ensure DOM is ready
-            const timer = setTimeout(() => {
-                canvasRef.current?.fitToContent(layout.totalWidth, { animated: true });
-            }, 100);
-            return () => clearTimeout(timer);
-        }
-    }, [layout.totalWidth, hasUserInteracted]);
-
-    // Handle node click
+    // Node click handler (for both RF clicks and child clicks inside containers)
     const handleNodeClick = useCallback(
         (node: LayoutNode) => {
             setSelectedNodeId(node.id);
@@ -218,77 +168,160 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
         });
     }, []);
 
-    // Handle user interaction (prevents auto-fit)
-    const handleUserInteraction = useCallback(() => {
-        setHasUserInteracted(true);
-    }, []);
+    // Convert layout nodes to ReactFlow nodes
+    const initialNodes = useMemo<Node<WorkflowFlowNodeData>[]>(() => {
+        return layout.nodes.map(n => ({
+            id: n.id,
+            type: n.type,
+            position: { x: n.x, y: n.y },
+            data: {
+                layoutNode: n,
+                onNodeClick: handleNodeClick,
+                onExpand: handleExpand,
+                onCollapse: handleCollapse,
+                onHighlightNodes: handleHighlightNodes,
+                knownNodeIds,
+                currentWorkflowName,
+                parentPath,
+            } as WorkflowFlowNodeData,
+            width: n.width,
+            height: n.height,
+            selectable: true,
+        }));
+    }, [layout.nodes, handleNodeClick, handleExpand, handleCollapse, handleHighlightNodes, knownNodeIds, currentWorkflowName, parentPath]);
 
-    // Track mouse down position to distinguish click from drag
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        mouseDownPos.current = { x: e.clientX, y: e.clientY };
-        isDragging.current = false;
-    }, []);
+    const [nodes, setNodes, onNodesChange] = useNodesState<Node<WorkflowFlowNodeData>>(initialNodes);
 
-    // Track mouse movement to detect drag
-    const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        if (mouseDownPos.current) {
-            const dx = Math.abs(e.clientX - mouseDownPos.current.x);
-            const dy = Math.abs(e.clientY - mouseDownPos.current.y);
-            // Consider it a drag if mouse moved more than 5 pixels
-            if (dx > 5 || dy > 5) {
-                isDragging.current = true;
+    // Re-sync when config/layout changes
+    useEffect(() => {
+        setNodes(initialNodes);
+    }, [initialNodes, setNodes]);
+
+    // Build pill↔target maps for drag-group synchronization
+    const { pillToTarget, targetToPills } = useMemo(() => {
+        const p2t = new Map<string, string>();
+        const t2p = new Map<string, string[]>();
+        for (const n of layout.nodes) {
+            if (n.type === "condition" && n.data.targetNodeId) {
+                p2t.set(n.id, n.data.targetNodeId);
+                const existing = t2p.get(n.data.targetNodeId);
+                if (existing) {
+                    existing.push(n.id);
+                } else {
+                    t2p.set(n.data.targetNodeId, [n.id]);
+                }
             }
         }
-    }, []);
+        return { pillToTarget: p2t, targetToPills: t2p };
+    }, [layout.nodes]);
 
-    // Handle click on background (deselect) - only if it was a simple single click, not a drag or double-click
-    const handleBackgroundClick = useCallback(() => {
-        const now = Date.now();
-        const timeSinceLastClick = now - lastClickTime.current;
-        const isDoubleClick = timeSinceLastClick < 300;
-        lastClickTime.current = now;
+    // Drag-group: capture starting positions of dragged node + paired nodes
+    const dragStartPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
 
-        if (!isDragging.current && !isDoubleClick) {
-            setSelectedNodeId(null);
-            onNodeSelect?.(null);
-        }
-        mouseDownPos.current = null;
-        isDragging.current = false;
+    const handleNodeDragStart: NodeMouseHandler<Node<WorkflowFlowNodeData>> = useCallback(
+        (_event, node) => {
+            dragStartPositions.current.clear();
+            dragStartPositions.current.set(node.id, { x: node.position.x, y: node.position.y });
+
+            // Collect paired node IDs
+            const pairedIds: string[] = [];
+            const targetId = pillToTarget.get(node.id);
+            if (targetId) pairedIds.push(targetId);
+            const pillIds = targetToPills.get(node.id);
+            if (pillIds) pairedIds.push(...pillIds);
+
+            // Capture their current positions from state
+            for (const pairedId of pairedIds) {
+                const pairedNode = nodes.find(n => n.id === pairedId);
+                if (pairedNode) {
+                    dragStartPositions.current.set(pairedId, { x: pairedNode.position.x, y: pairedNode.position.y });
+                }
+            }
+        },
+        [pillToTarget, targetToPills, nodes]
+    );
+
+    const handleNodeDrag: NodeMouseHandler<Node<WorkflowFlowNodeData>> = useCallback(
+        (_event, node) => {
+            const startPos = dragStartPositions.current.get(node.id);
+            if (!startPos || dragStartPositions.current.size <= 1) return;
+
+            const dx = node.position.x - startPos.x;
+            const dy = node.position.y - startPos.y;
+
+            setNodes(prev => prev.map(n => {
+                if (n.id === node.id) return n; // Already moved by ReactFlow
+                const nStart = dragStartPositions.current.get(n.id);
+                if (!nStart) return n; // Not a paired node
+                return { ...n, position: { x: nStart.x + dx, y: nStart.y + dy } };
+            }));
+        },
+        [setNodes]
+    );
+
+    // Convert layout edges to ReactFlow edges
+    const rfEdges = useMemo<RFEdge[]>(() => {
+        return layout.edges.map(e => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            sourceHandle: "bottom",
+            targetHandle: "top",
+            type: "workflow-edge",
+            data: { isStraight: e.isStraight },
+            // No arrow marker on edges going TO condition pills
+            markerEnd: e.target.startsWith("__condition_") ? undefined : DEFAULT_EDGE_MARKER,
+        }));
+    }, [layout.edges]);
+
+    // ReactFlow node click handler
+    const handleRFNodeClick: NodeMouseHandler<Node<WorkflowFlowNodeData>> = useCallback(
+        (_event, node) => {
+            handleNodeClick(node.data.layoutNode);
+        },
+        [handleNodeClick]
+    );
+
+    // Handle pane click — deselect
+    const handlePaneClick = useCallback(() => {
+        setSelectedNodeId(null);
+        onNodeSelect?.(null);
     }, [onNodeSelect]);
 
-    return (
-        <div className={`${className ?? "bg-card-background"} relative h-full w-full`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onClick={handleBackgroundClick}>
-            <PanZoomCanvas ref={canvasRef} initialScale={1} minScale={0.25} maxScale={2} sidePanelWidth={sidePanelWidth} onUserInteraction={handleUserInteraction} onTransformChange={onTransformChange}>
-                <div
-                    ref={containerRef}
-                    role="region"
-                    aria-label="Workflow visualization"
-                    className="relative"
-                    style={{
-                        width: `${layout.totalWidth}px`,
-                        height: `${layout.totalHeight}px`,
-                    }}
-                >
-                    {/* Edge layer (behind nodes) - uses layout positions */}
-                    <EdgeLayer edges={calculatedEdges} width={layout.totalWidth} height={layout.totalHeight} />
+    // Merge selection + highlight state into nodes
+    const nodesWithState = useMemo<Node<WorkflowFlowNodeData>[]>(() => {
+        return nodes.map(n => ({
+            ...n,
+            selected: n.id === selectedNodeId,
+            data: {
+                ...n.data,
+                selectedNodeId,
+                highlightedNodeIds,
+            },
+        }));
+    }, [nodes, selectedNodeId, highlightedNodeIds]);
 
-                    {/* Node layer */}
-                    <WorkflowNodeRenderer
-                        nodes={layout.nodes}
-                        selectedNodeId={selectedNodeId || undefined}
-                        highlightedNodeIds={highlightedNodeIds}
-                        onNodeClick={handleNodeClick}
-                        onExpand={handleExpand}
-                        onCollapse={handleCollapse}
-                        onHighlightNodes={handleHighlightNodes}
-                        knownNodeIds={knownNodeIds}
-                        nodeRefs={nodeRefs}
-                        currentWorkflowName={currentWorkflowName}
-                        parentPath={parentPath}
-                    />
-                </div>
-            </PanZoomCanvas>
-        </div>
+    return (
+        <ReactFlow
+            nodes={nodesWithState}
+            edges={rfEdges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onNodeClick={handleRFNodeClick}
+            onNodeDragStart={handleNodeDragStart}
+            onNodeDrag={handleNodeDrag}
+            onPaneClick={handlePaneClick}
+            onMoveEnd={onTransformChange ? (_event, viewport) => onTransformChange({ scale: viewport.zoom, x: viewport.x, y: viewport.y }) : undefined}
+            nodesDraggable={true}
+            nodesConnectable={false}
+            elementsSelectable={true}
+            fitView
+            fitViewOptions={{ padding: 0.15 }}
+            minZoom={0.25}
+            maxZoom={2}
+            proOptions={{ hideAttribution: true }}
+        />
     );
 };
 

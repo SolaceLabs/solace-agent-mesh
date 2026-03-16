@@ -101,7 +101,7 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId, sessionListExcludeAgentIds } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -242,6 +242,8 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             fetchSessions(currentPage + 1, true);
         }
     }, [inView, hasMore, isLoading, currentPage, fetchSessions]);
+
+    const compensationFetchCount = useRef(0);
 
     useEffect(() => {
         if (editingSessionId && inputRef.current) {
@@ -414,16 +416,39 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         return sortedNames;
     }, [sessions]);
 
-    // Filter sessions by selected project
+    // Filter sessions by excluded agent IDs and selected project
     const filteredSessions = useMemo(() => {
+        // First, exclude sessions by agent ID (e.g., builder sessions)
+        let result = sessions;
+        if (sessionListExcludeAgentIds?.length) {
+            result = result.filter(session => !sessionListExcludeAgentIds.includes(session.agentId ?? ""));
+        }
+
+        // Then filter by project
         if (selectedProject === "all") {
-            return sessions;
+            return result;
         }
         if (selectedProject === "(No Project)") {
-            return sessions.filter(session => !session.projectName);
+            return result.filter(session => !session.projectName);
         }
-        return sessions.filter(session => session.projectName === selectedProject);
-    }, [sessions, selectedProject]);
+        return result.filter(session => session.projectName === selectedProject);
+    }, [sessions, selectedProject, sessionListExcludeAgentIds]);
+
+    // Fetch-more compensation: when agent ID filtering removes too many sessions from the
+    // current page, automatically fetch additional pages to fill the visible list.
+    useEffect(() => {
+        if (!sessionListExcludeAgentIds?.length || !hasMore || isLoading) return;
+        const MIN_VISIBLE = 10;
+        const MAX_COMPENSATION_FETCHES = 5;
+        if (filteredSessions.length < MIN_VISIBLE && sessions.length > 0) {
+            if (compensationFetchCount.current < MAX_COMPENSATION_FETCHES) {
+                compensationFetchCount.current++;
+                fetchSessions(currentPage + 1, true);
+            }
+        } else {
+            compensationFetchCount.current = 0;
+        }
+    }, [filteredSessions.length, sessions.length, hasMore, isLoading, sessionListExcludeAgentIds, currentPage, fetchSessions]);
 
     // Get the project ID for the selected project name (for search filtering)
     const selectedProjectId = useMemo(() => {

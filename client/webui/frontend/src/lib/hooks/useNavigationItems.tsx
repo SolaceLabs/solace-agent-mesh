@@ -1,19 +1,20 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { FolderOpen, BookOpenText, Bot, User, LogOut } from "lucide-react";
+import { FolderOpen, BookOpenText, Bot, Hammer, User, LogOut } from "lucide-react";
 import { LifecycleBadge } from "@/lib/components/ui";
 import type { NavItemConfig } from "@/lib/types/fe";
 
 interface UseNavigationItemsProps {
     projectsEnabled: boolean;
     promptLibraryEnabled: boolean;
+    builderEnabled?: boolean;
     logoutEnabled: boolean;
     isAuthenticated: boolean;
     onUserAccountClick: () => void;
     onLogoutClick: () => void;
 }
 
-export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
+export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, builderEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
     const location = useLocation();
 
     const items = useMemo((): NavItemConfig[] => {
@@ -49,6 +50,17 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, logo
             });
         }
 
+        if (builderEnabled) {
+            navItems.push({
+                id: "build",
+                label: "Build",
+                icon: Hammer,
+                route: "/builder",
+                routeMatch: "/builder",
+                position: "top",
+            });
+        }
+
         navItems.push({
             id: "agents",
             label: "Agents",
@@ -77,11 +89,12 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, logo
         }
 
         return navItems;
-    }, [projectsEnabled, promptLibraryEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick]);
+    }, [projectsEnabled, promptLibraryEnabled, builderEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick]);
 
     const activeItemId = useMemo((): string => {
         const path = location.pathname;
         if (path === "/" || path.startsWith("/chat")) return "chats";
+        if (path.startsWith("/builder")) return "build";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/agents")) return "agents";

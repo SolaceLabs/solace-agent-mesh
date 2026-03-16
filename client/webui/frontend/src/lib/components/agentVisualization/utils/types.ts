@@ -78,6 +78,13 @@ export interface AgentNodeProps {
 }
 
 /**
+ * Data payload for ReactFlow custom nodes
+ */
+export interface AgentFlowNodeData extends Record<string, unknown> {
+    agentLayoutNode: AgentLayoutNode;
+}
+
+/**
  * Layout constants for agent diagram sizing
  */
 export const AGENT_LAYOUT_CONSTANTS = {
@@ -96,7 +103,7 @@ export const AGENT_LAYOUT_CONSTANTS = {
     SPACING: {
         VERTICAL: 60,
         HORIZONTAL: 16,
-        GROUP_GAP: 48,
+        GROUP_GAP: 80,
     },
     PADDING: 40,
 };

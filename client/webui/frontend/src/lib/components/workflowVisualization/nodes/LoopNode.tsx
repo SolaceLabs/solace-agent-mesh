@@ -47,10 +47,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
                     width: `${node.width}px`,
                     height: `${node.height}px`,
                 }}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
+                onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
             >
                 <div className="flex items-center gap-2">
                     <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
@@ -97,10 +94,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
             {/* Solid Header Box - straddles the dotted container border */}
             <div
                 className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
+                onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
             >
                 {/* Header row */}
                 <div className="flex items-center justify-between gap-4 px-4 py-2">

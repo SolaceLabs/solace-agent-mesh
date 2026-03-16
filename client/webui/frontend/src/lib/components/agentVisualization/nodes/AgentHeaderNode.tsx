@@ -18,10 +18,7 @@ const AgentHeaderNode: FC<AgentNodeProps> = ({ node, isSelected, onClick }) => {
                 width: `${node.width}px`,
                 height: `${node.height}px`,
             }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
+            onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
         >
             <div className="flex w-full items-center gap-2">
                 <Bot className="h-5 w-5 flex-shrink-0 text-(--color-brand-wMain)" />

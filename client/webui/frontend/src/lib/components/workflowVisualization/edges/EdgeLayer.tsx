@@ -12,8 +12,8 @@ interface EdgeLayerProps {
  */
 const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
     /**
-     * Generate SVG path for an edge (bezier curve or straight line)
-     * Ends with a short vertical segment so arrowhead always points down
+     * Generate SVG path for an edge (bezier curve or straight line).
+     * Supports both vertical (top-to-bottom) and horizontal (left-to-right) edges.
      */
     const generatePath = (edge: Edge): string => {
         const { sourceX, sourceY, targetX, targetY, isStraight } = edge;
@@ -23,14 +23,27 @@ const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
             return `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`;
         }
 
-        // Add a short vertical landing segment so arrow always points down
+        const dx = Math.abs(targetX - sourceX);
+        const dy = Math.abs(targetY - sourceY);
+        const isHorizontal = dx > dy;
+
+        if (isHorizontal) {
+            // Horizontal edge: straight departure → bezier curve → straight landing
+            // Mirrors the vertical pattern but rotated 90°
+            const landingLength = 12;
+            const departX = sourceX + landingLength;
+            const landingX = targetX - landingLength;
+            const curveWidth = Math.abs(landingX - departX);
+            const controlOffset = Math.min(curveWidth * 0.5, 40);
+
+            return `M ${sourceX} ${sourceY} L ${departX} ${sourceY} C ${departX + controlOffset} ${sourceY}, ${landingX - controlOffset} ${targetY}, ${landingX} ${targetY} L ${targetX} ${targetY}`;
+        }
+
+        // Vertical edge: straight departure → bezier curve → straight landing
         const landingLength = 12;
         const landingY = targetY - landingLength;
-
-        // Calculate control points for smooth bezier curve to the landing point
         const controlOffset = Math.min(Math.abs(landingY - sourceY) * 0.5, 40);
 
-        // Cubic bezier to landing point, then straight down to target
         return `M ${sourceX} ${sourceY} C ${sourceX} ${sourceY + controlOffset}, ${targetX} ${landingY - controlOffset}, ${targetX} ${landingY} L ${targetX} ${targetY}`;
     };
 

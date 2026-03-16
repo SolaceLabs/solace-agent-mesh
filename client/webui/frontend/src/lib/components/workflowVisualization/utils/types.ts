@@ -155,6 +155,22 @@ export const NODE_SELECTED_CLASS = "!border-(--color-accent-n2-wMain)";
 export const NODE_SELECTED_CLASS_COMPACT = "!border-(--color-accent-n2-wMain)";
 
 /**
+ * Data payload for ReactFlow custom workflow nodes
+ */
+export interface WorkflowFlowNodeData extends Record<string, unknown> {
+    layoutNode: LayoutNode;
+    onNodeClick?: (node: LayoutNode) => void;
+    onExpand?: (nodeId: string) => void;
+    onCollapse?: (nodeId: string) => void;
+    onHighlightNodes?: (nodeIds: string[]) => void;
+    selectedNodeId?: string | null;
+    highlightedNodeIds?: Set<string>;
+    knownNodeIds?: Set<string>;
+    currentWorkflowName?: string;
+    parentPath?: string[];
+}
+
+/**
  * Layout constants for consistent sizing
  */
 export const LAYOUT_CONSTANTS = {

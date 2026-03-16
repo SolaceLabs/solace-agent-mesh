@@ -37,10 +37,7 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
                 width: isDefault ? "auto" : `${node.width}px`,
                 height: `${node.height}px`,
             }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
+            onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             title={fullText}

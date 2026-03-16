@@ -1,10 +1,15 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
-import PanZoomCanvas, { type PanZoomCanvasRef } from "@/lib/components/activities/FlowChart/PanZoomCanvas";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import { ReactFlow, ReactFlowProvider, MarkerType, useNodesState, type Node, type Edge, type NodeMouseHandler } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+
 import { processAgentConfig } from "./utils/layoutEngine";
-import type { AgentDiagramConfig, AgentLayoutNode } from "./utils/types";
-import type { Edge } from "../workflowVisualization/utils/types";
-import AgentNodeRenderer from "./AgentNodeRenderer";
-import EdgeLayer from "../workflowVisualization/edges/EdgeLayer";
+import type { AgentDiagramConfig, AgentLayoutNode, AgentFlowNodeData } from "./utils/types";
+import AgentHeaderFlowNode from "./nodes/AgentHeaderFlowNode";
+import ToolFlowNode from "./nodes/ToolFlowNode";
+import SkillFlowNode from "./nodes/SkillFlowNode";
+import ToolsetGroupFlowNode from "./nodes/ToolsetGroupFlowNode";
+import { AgentDiagramEdge } from "./AgentDiagramEdge";
+import "./agentDiagram.css";
 
 interface AgentDiagramProps {
     config: AgentDiagramConfig;
@@ -13,126 +18,122 @@ interface AgentDiagramProps {
     className?: string;
 }
 
+const nodeTypes = {
+    "agent-header": AgentHeaderFlowNode,
+    "tool": ToolFlowNode,
+    "skill": SkillFlowNode,
+    "toolset-group": ToolsetGroupFlowNode,
+};
+
+const edgeTypes = {
+    "agent-edge": AgentDiagramEdge,
+};
+
+const DEFAULT_EDGE_MARKER = {
+    type: MarkerType.ArrowClosed,
+    width: 16,
+    height: 16,
+};
+
 /**
- * AgentDiagram - Main agent visualization component with pan/zoom canvas.
- * Shows the agent at the top with skills and tools below.
+ * AgentDiagram - Main agent visualization component using ReactFlow.
+ * Shows the agent at the top with tools to the right and skills below.
  */
 const AgentDiagram: React.FC<AgentDiagramProps> = ({ config, onNodeSelect, className }) => {
-    const canvasRef = useRef<PanZoomCanvasRef>(null);
-    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-    const [hasUserInteracted, setHasUserInteracted] = useState(false);
+    return (
+        <div className={`agent-diagram ${className ?? "bg-card-background"} relative h-full w-full`}>
+            <ReactFlowProvider>
+                <AgentDiagramInner config={config} onNodeSelect={onNodeSelect} />
+            </ReactFlowProvider>
+        </div>
+    );
+};
 
-    // Track mouse position to distinguish click from drag
-    const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
-    const isDragging = useRef(false);
-    const lastClickTime = useRef(0);
+const AgentDiagramInner: React.FC<Omit<AgentDiagramProps, "className">> = ({ config, onNodeSelect }) => {
+    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
     // Calculate layout whenever config changes
-    const layout = useMemo(() => {
-        return processAgentConfig(config);
-    }, [config]);
+    const layout = useMemo(() => processAgentConfig(config), [config]);
 
-    // Calculate edges from layout positions
-    const calculatedEdges = useMemo(() => {
-        if (layout.nodes.length === 0) return [];
+    // Seed nodes from layout engine, then let ReactFlow manage positions (for dragging)
+    const initialNodes = useMemo<Node<AgentFlowNodeData>[]>(() => {
+        return layout.nodes.map(n => ({
+            id: n.id,
+            type: n.type,
+            position: { x: n.x, y: n.y },
+            data: { agentLayoutNode: n } as AgentFlowNodeData,
+            width: n.width,
+            height: n.height,
+            selectable: true,
+        }));
+    }, [layout.nodes]);
 
-        const arrowheadOffset = 4;
-        const edges: Edge[] = [];
+    const [nodes, setNodes, onNodesChange] = useNodesState<Node<AgentFlowNodeData>>(initialNodes);
 
-        for (const edge of layout.edges) {
-            const sourceNode = layout.nodes.find(n => n.id === edge.source);
-            const targetNode = layout.nodes.find(n => n.id === edge.target);
-
-            if (sourceNode && targetNode) {
-                edges.push({
-                    ...edge,
-                    sourceX: sourceNode.x + sourceNode.width / 2,
-                    sourceY: sourceNode.y + sourceNode.height,
-                    targetX: targetNode.x + targetNode.width / 2,
-                    targetY: targetNode.y - arrowheadOffset,
-                });
-            }
-        }
-
-        return edges;
-    }, [layout.nodes, layout.edges]);
-
-    // Auto-fit on initial load (once)
+    // Re-sync when config changes (new tools/skills added)
     useEffect(() => {
-        if (!hasUserInteracted && layout.totalWidth > 0) {
-            const timer = setTimeout(() => {
-                canvasRef.current?.fitToContent(layout.totalWidth, { animated: true });
-            }, 100);
-            return () => clearTimeout(timer);
-        }
-    }, [layout.totalWidth, hasUserInteracted]);
+        setNodes(initialNodes);
+    }, [initialNodes, setNodes]);
 
-    // Handle node click
-    const handleNodeClick = useCallback(
-        (node: AgentLayoutNode) => {
-            setSelectedNodeId(node.id);
-            onNodeSelect?.(node);
+    // Convert layout edges to ReactFlow edges
+    const rfEdges = useMemo<Edge[]>(() => {
+        return layout.edges.map(e => {
+            const targetNode = layout.nodes.find(n => n.id === e.target);
+            const isHorizontal = targetNode?.type === "tool" || targetNode?.type === "toolset-group";
+            return {
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                sourceHandle: isHorizontal ? "right" : "bottom",
+                targetHandle: isHorizontal ? "left" : "top",
+                type: "agent-edge",
+                markerEnd: DEFAULT_EDGE_MARKER,
+            };
+        });
+    }, [layout.edges, layout.nodes]);
+
+    // Handle node click — map ReactFlow node back to AgentLayoutNode
+    const handleNodeClick: NodeMouseHandler<Node<AgentFlowNodeData>> = useCallback(
+        (_event, node) => {
+            const agentNode = node.data.agentLayoutNode;
+            setSelectedNodeId(agentNode.id);
+            onNodeSelect?.(agentNode);
         },
         [onNodeSelect]
     );
 
-    // Handle user interaction (prevents auto-fit)
-    const handleUserInteraction = useCallback(() => {
-        setHasUserInteracted(true);
-    }, []);
-
-    // Track mouse down position to distinguish click from drag
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        mouseDownPos.current = { x: e.clientX, y: e.clientY };
-        isDragging.current = false;
-    }, []);
-
-    // Track mouse movement to detect drag
-    const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        if (mouseDownPos.current) {
-            const dx = Math.abs(e.clientX - mouseDownPos.current.x);
-            const dy = Math.abs(e.clientY - mouseDownPos.current.y);
-            if (dx > 5 || dy > 5) {
-                isDragging.current = true;
-            }
-        }
-    }, []);
-
-    // Handle click on background (deselect)
-    const handleBackgroundClick = useCallback(() => {
-        const now = Date.now();
-        const timeSinceLastClick = now - lastClickTime.current;
-        const isDoubleClick = timeSinceLastClick < 300;
-        lastClickTime.current = now;
-
-        if (!isDragging.current && !isDoubleClick) {
-            setSelectedNodeId(null);
-            onNodeSelect?.(null);
-        }
-        mouseDownPos.current = null;
-        isDragging.current = false;
+    // Handle pane click — deselect
+    const handlePaneClick = useCallback(() => {
+        setSelectedNodeId(null);
+        onNodeSelect?.(null);
     }, [onNodeSelect]);
 
-    return (
-        <div className={`${className ?? "bg-card-background"} relative h-full w-full`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onClick={handleBackgroundClick}>
-            <PanZoomCanvas ref={canvasRef} initialScale={1} minScale={0.25} maxScale={2} onUserInteraction={handleUserInteraction}>
-                <div
-                    role="region"
-                    aria-label="Agent visualization"
-                    className="relative"
-                    style={{
-                        width: `${layout.totalWidth}px`,
-                        height: `${layout.totalHeight}px`,
-                    }}
-                >
-                    {/* Edge layer (behind nodes) */}
-                    <EdgeLayer edges={calculatedEdges} width={layout.totalWidth} height={layout.totalHeight} />
+    // Update selection state in node data when selectedNodeId changes
+    const nodesWithSelection = useMemo<Node<AgentFlowNodeData>[]>(() => {
+        return nodes.map(n => ({
+            ...n,
+            selected: n.id === selectedNodeId,
+        }));
+    }, [nodes, selectedNodeId]);
 
-                    {/* Node layer */}
-                    <AgentNodeRenderer nodes={layout.nodes} selectedNodeId={selectedNodeId || undefined} onNodeClick={handleNodeClick} />
-                </div>
-            </PanZoomCanvas>
-        </div>
+    return (
+        <ReactFlow
+            nodes={nodesWithSelection}
+            edges={rfEdges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onNodeClick={handleNodeClick}
+            onPaneClick={handlePaneClick}
+            nodesDraggable={true}
+            nodesConnectable={false}
+            elementsSelectable={true}
+            fitView
+            fitViewOptions={{ padding: 0.15 }}
+            minZoom={0.25}
+            maxZoom={2}
+            proOptions={{ hideAttribution: true }}
+        />
     );
 };
 

@@ -6,10 +6,8 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext, useUIMode } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
-import type { TextPart } from "@/lib/types";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ChatWelcomeScreen, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
-import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
-import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
+import { ChatArea, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
+import { Button, ResizablePanelGroup, ResizablePanel, ResizableHandle, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useLocation, useNavigate } from "react-router-dom";
 
 // Constants for sidepanel behavior
@@ -35,33 +33,24 @@ export function ChatPage() {
     const { isOnboardMode } = useUIMode();
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const { autoTitleGenerationEnabled, configWelcomeMessage } = useConfigContext();
     const location = useLocation();
     const navigate = useNavigate();
     const {
-        agents,
         sessionId,
         sessionName,
-        messages,
         isSidePanelCollapsed,
         setIsSidePanelCollapsed,
-        openSidePanelTab,
-        setTaskIdInSidePanel,
-        isResponding,
-        latestStatusText,
-        isLoadingSession,
         sessionToDelete,
         closeSessionDeleteModal,
         confirmSessionDelete,
         currentTaskId,
-        selectedAgentName,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
 
     // Refs for resizable panel state
-    const chatMessageListRef = useRef<ChatMessageListRef>(null);
     const chatSidePanelRef = useRef<ImperativePanelHandle>(null);
     const lastExpandedSizeRef = useRef<number | null>(null);
 
@@ -187,43 +176,6 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
-    const lastMessageIndexByTaskId = useMemo(() => {
-        const map = new Map<string, number>();
-        messages.forEach((message, index) => {
-            if (message.taskId) {
-                map.set(message.taskId, index);
-            }
-        });
-        return map;
-    }, [messages]);
-
-    // Detect if we're in the initial welcome state (only the auto-injected greeting message)
-    const isWelcomeState = useMemo(() => {
-        if (messages.length === 0) return true;
-        if (messages.length === 1 && !messages[0].isUser && messages[0].metadata?.sessionId === "") return true;
-        return false;
-    }, [messages]);
-
-    const loadingMessage = useMemo(() => {
-        return messages.find(message => message.isStatusBubble);
-    }, [messages]);
-
-    const backendStatusText = useMemo(() => {
-        if (!loadingMessage || !loadingMessage.parts) return null;
-        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
-        return textPart?.text || null;
-    }, [loadingMessage]);
-
-    const handleViewProgressClick = useMemo(() => {
-        // Use currentTaskId directly instead of relying on loadingMessage
-        if (!currentTaskId) return undefined;
-
-        return () => {
-            setTaskIdInSidePanel(currentTaskId);
-            openSidePanelTab("activity");
-        };
-    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
-
     // Handle opening sessions panel from navigation state
     useEffect(() => {
         const state = location.state as { openSessionsPanel?: boolean } | null;
@@ -312,35 +264,7 @@ export function ChatPage() {
                     {isOnboardMode ? (
                         /* Onboard mode: full-width chat panel, no side panel */
                         <div className="h-full" style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}>
-                            <div className="flex h-full w-full flex-col">
-                                <div className="flex min-h-0 flex-1 flex-col py-6">
-                                    {isLoadingSession ? (
-                                        <div className="flex h-full items-center justify-center">
-                                            <Spinner size="medium" variant="primary">
-                                                <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
-                                            </Spinner>
-                                        </div>
-                                    ) : isWelcomeState && !isResponding ? (
-                                        <ChatWelcomeScreen agents={agents} selectedAgentName={selectedAgentName} />
-                                    ) : (
-                                        <>
-                                            <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                                {messages.map((message, index) => {
-                                                    const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                                    const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                                    const isLastMessage = index === messages.length - 1;
-                                                    const shouldStream = isLastMessage && isResponding && !message.isUser;
-                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
-                                                })}
-                                            </ChatMessageList>
-                                            <div style={CHAT_STYLES}>
-                                                {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                            <ChatArea welcomeOverride={configWelcomeMessage ? { welcome_message: configWelcomeMessage } : undefined} />
                         </div>
                     ) : (
                         /* Normal mode: resizable chat + side panel */
@@ -352,35 +276,7 @@ export function ChatPage() {
                                 id="chat-panel"
                                 style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}
                             >
-                                <div className="flex h-full w-full flex-col">
-                                    <div className="flex min-h-0 flex-1 flex-col py-6">
-                                        {isLoadingSession ? (
-                                            <div className="flex h-full items-center justify-center">
-                                                <Spinner size="medium" variant="primary">
-                                                    <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
-                                                </Spinner>
-                                            </div>
-                                        ) : isWelcomeState && !isResponding ? (
-                                            <ChatWelcomeScreen agents={agents} selectedAgentName={selectedAgentName} />
-                                        ) : (
-                                            <>
-                                                <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                                    {messages.map((message, index) => {
-                                                        const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                                        const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                                        const isLastMessage = index === messages.length - 1;
-                                                        const shouldStream = isLastMessage && isResponding && !message.isUser;
-                                                        return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
-                                                    })}
-                                                </ChatMessageList>
-                                                <div style={CHAT_STYLES}>
-                                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
+                                <ChatArea />
                             </ResizablePanel>
                             <ResizableHandle />
                             <ResizablePanel

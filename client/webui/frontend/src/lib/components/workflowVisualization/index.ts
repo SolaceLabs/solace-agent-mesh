@@ -16,10 +16,21 @@ export { default as LoopNode } from "./nodes/LoopNode";
 export { default as SwitchNode } from "./nodes/SwitchNode";
 export { default as ConditionPillNode } from "./nodes/ConditionPillNode";
 
+// ReactFlow Node Wrappers
+export { default as StartFlowNode } from "./nodes/StartFlowNode";
+export { default as EndFlowNode } from "./nodes/EndFlowNode";
+export { default as AgentFlowNode } from "./nodes/AgentFlowNode";
+export { default as WorkflowRefFlowNode } from "./nodes/WorkflowRefFlowNode";
+export { default as SwitchFlowNode } from "./nodes/SwitchFlowNode";
+export { default as MapFlowNode } from "./nodes/MapFlowNode";
+export { default as LoopFlowNode } from "./nodes/LoopFlowNode";
+export { default as ConditionPillFlowNode } from "./nodes/ConditionPillFlowNode";
+
 // Edge Components
 export { default as EdgeLayer } from "./edges/EdgeLayer";
+export { WorkflowDiagramEdge } from "./WorkflowDiagramEdge";
 
 // Utils
 export { processWorkflowConfig } from "./utils/layoutEngine";
-export type { LayoutNode, Edge, LayoutResult, NodeProps, WorkflowVisualNodeType } from "./utils/types";
+export type { LayoutNode, Edge, LayoutResult, NodeProps, WorkflowVisualNodeType, WorkflowFlowNodeData } from "./utils/types";
 export { LAYOUT_CONSTANTS } from "./utils/types";

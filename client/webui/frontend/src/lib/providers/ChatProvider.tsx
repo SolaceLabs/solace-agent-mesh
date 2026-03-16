@@ -636,8 +636,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setRagData(allRagData);
             }
 
-            // Set the agent name if found
-            if (agentName) {
+            // Set the agent name if found — but never override when in builder mode,
+            // because the builder page must always target the Builder agent.
+            if (agentName && !builderMode) {
                 setSelectedAgentName(agentName);
             }
 
@@ -1610,7 +1611,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 task_metadata: {
                                     schema_version: CURRENT_SCHEMA_VERSION,
                                     status: taskStatus,
-                                    agent_name: selectedAgentName,
+                                    agent_name: builderMode ? "Builder" : selectedAgentName,
                                     rag_data: taskRagData.length > 0 ? taskRagData : undefined,
                                 },
                             },
@@ -2299,7 +2300,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
-            if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
+            const resolvedAgentName = builderMode ? "Builder" : selectedAgentName;
+            if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !resolvedAgentName) {
                 return;
             }
             closeCurrentEventSource();
@@ -2434,9 +2436,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const enableBackgroundExecution = backgroundTasksEnabled ?? false;
                 console.log(`[ChatProvider] Building metadata for ${selectedAgentName}, enableBackground=${enableBackgroundExecution}`);
 
-                // Build metadata object
+                // Build metadata object — in builder mode, always target the Builder agent
+                // regardless of what selectedAgentName might have been set to by other effects.
+                const effectiveAgentName = builderMode ? "Builder" : selectedAgentName;
                 const messageMetadata: Record<string, any> = {
-                    agent_name: selectedAgentName,
+                    agent_name: effectiveAgentName,
                 };
 
                 if (activeProject?.id) {
@@ -2553,7 +2557,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             task_metadata: {
                                 schema_version: CURRENT_SCHEMA_VERSION,
                                 status: "pending",
-                                agent_name: selectedAgentName,
+                                agent_name: effectiveAgentName,
                                 is_background_task: enabledForBackground,
                             },
                         },
@@ -2602,6 +2606,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isResponding,
             isCancelling,
             selectedAgentName,
+            builderMode,
             closeCurrentEventSource,
             uploadArtifactFile,
             saveTaskToBackend,
@@ -2754,18 +2759,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
+            // Filter out internal agents (e.g. Builder) from auto-selection candidates.
+            const selectableAgents = agents.filter(agent => !agent.isInternal);
+            if (selectableAgents.length === 0) return;
+
             // Priority order for agent selection:
             // 0. In onboard mode, prefer the agent with a welcome config (the intro agent)
             // 1. URL parameter agent (?agent=AgentName)
             // 2. Project's default agent (if in project context)
             // 3. OrchestratorAgent (fallback)
             // 4. First available agent
-            let selectedAgent = agents[0];
+            let selectedAgent = selectableAgents[0];
 
             // In onboard mode, select the Manager agent (the dedicated intro agent)
             const isOnboard = window.location.hash?.includes("mode=onboard");
             if (isOnboard) {
-                const managerAgent = agents.find(agent => agent.name === "Manager");
+                const managerAgent = selectableAgents.find(agent => agent.name === "Manager");
                 if (managerAgent) {
                     selectedAgent = managerAgent;
                 }
@@ -2777,7 +2786,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let urlAgent: AgentCardInfo | undefined;
 
             if (urlAgentName) {
-                urlAgent = agents.find(agent => agent.name === urlAgentName);
+                urlAgent = selectableAgents.find(agent => agent.name === urlAgentName);
                 if (urlAgent) {
                     selectedAgent = urlAgent;
                     console.log(`Using URL parameter agent: ${selectedAgent.name}`);
@@ -2789,16 +2798,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // If no URL agent found and not already set by onboard mode, follow existing priority order
             if (!urlAgent && !isOnboard) {
                 if (activeProject?.defaultAgentId) {
-                    const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
+                    const projectDefaultAgent = selectableAgents.find(agent => agent.name === activeProject.defaultAgentId);
                     if (projectDefaultAgent) {
                         selectedAgent = projectDefaultAgent;
                         console.log(`Using project default agent: ${selectedAgent.name}`);
                     } else {
                         console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
-                        selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+                        selectedAgent = selectableAgents.find(agent => agent.name === "OrchestratorAgent") ?? selectableAgents[0];
                     }
                 } else {
-                    selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+                    selectedAgent = selectableAgents.find(agent => agent.name === "OrchestratorAgent") ?? selectableAgents[0];
                 }
             }
 

@@ -4,7 +4,7 @@ import { Search, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { ProjectBadge } from "@/lib/components/chat";
 import { Button, Input } from "@/lib/components/ui";
-import { useDebounce } from "@/lib/hooks";
+import { useChatContext, useDebounce } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 
 interface SessionSearchProps {
@@ -23,6 +23,7 @@ interface SearchResult {
 }
 
 export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps) => {
+    const { sessionListExcludeAgentIds } = useChatContext();
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<Session[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -49,7 +50,11 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
             }
 
             const data: SearchResult = await api.webui.get(`/api/v1/sessions/search?${params.toString()}`);
-            setSearchResults(data.data || []);
+            const results = data.data || [];
+            const filtered = sessionListExcludeAgentIds?.length
+                ? results.filter(s => !sessionListExcludeAgentIds.includes(s.agentId ?? ""))
+                : results;
+            setSearchResults(filtered);
             setShowResults(true);
         } catch (error) {
             console.error("Search error:", error);
@@ -57,7 +62,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         } finally {
             setIsSearching(false);
         }
-    }, []);
+    }, [sessionListExcludeAgentIds]);
 
     useEffect(() => {
         performSearch(debouncedSearchQuery, projectId);

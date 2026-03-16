@@ -1,4 +1,6 @@
 export { AudioRecorder } from "./AudioRecorder";
+export { ChatArea } from "./ChatArea";
+export type { ChatAreaProps } from "./ChatArea";
 export { ChatInputArea } from "./ChatInputArea";
 export { ChatMessage } from "./ChatMessage";
 export { ChatSessionDeleteDialog } from "./ChatSessionDeleteDialog";
@@ -13,5 +15,6 @@ export { RecentChatsList } from "./RecentChatsList";
 export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
+export * from "./artifact";
 export * from "./file";
 export * from "./selection";

@@ -1,0 +1,39 @@
+/**
+ * Agent Diagram CSS overrides
+ * Removes default ReactFlow node styling to allow custom node components
+ * to fully control their appearance. Pattern matches enterprise editor.css.
+ */
+
+/* Remove default node padding and background */
+.agent-diagram .react-flow__node {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* Remove default selection styling - nodes handle their own */
+.agent-diagram .react-flow__node.selected {
+    box-shadow: none;
+}
+
+/* Handle z-index for interaction */
+.agent-diagram .react-flow__handle {
+    z-index: 10;
+}
+
+/* Edge path styling - theme colors */
+.agent-diagram .react-flow__edge-path {
+    stroke: var(--color-secondary-w70);
+    stroke-width: 2;
+}
+
+.dark .agent-diagram .react-flow__edge-path {
+    stroke: var(--color-secondary-w70);
+}
+
+/* Selected edge styling */
+.agent-diagram .react-flow__edge.selected .react-flow__edge-path {
+    stroke: var(--color-accent-n2-wMain);
+}

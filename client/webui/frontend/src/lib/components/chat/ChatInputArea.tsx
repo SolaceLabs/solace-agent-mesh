@@ -51,7 +51,7 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
     }
 };
 
-export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
+export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void; compact?: boolean }> = ({ agents = [], scrollToBottom, compact = false }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt, builderMode, inputAreaLeftSlot } = useChatContext();
@@ -739,7 +739,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     return (
         <div
-            className={`bg-card rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
+            className={`bg-card rounded-lg border shadow-sm ${compact ? "p-2" : "p-4"} ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -1012,8 +1012,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 cursorPosition={desiredCursorPosition}
                 mentionMap={mentionMap}
                 disambiguatedIds={disambiguatedIds}
-                placeholder={isRecording ? "Recording..." : isOnboardMode ? "Ask me about what I can do or how to get started" : mentionsEnabled ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)" : "How can I help you today? (Type '/' to insert a prompt)"}
-                className="max-h-50 resize-none overflow-y-auto rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
+                placeholder={isRecording ? "Recording..." : compact ? "How can I help you today?" : isOnboardMode ? "Ask me about what I can do or how to get started" : mentionsEnabled ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)" : "How can I help you today? (Type '/' to insert a prompt)"}
+                className={`max-h-50 resize-none overflow-y-auto rounded-2xl border-none shadow-none focus-visible:outline-none ${compact ? "pt-2 px-1.5 pb-1.5 text-base/normal" : "p-3 text-base/normal"}`}
                 onPaste={handlePaste}
                 disabled={isRecording}
                 onKeyDown={event => {
@@ -1029,7 +1029,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             />
 
             {/* Buttons */}
-            <div className="relative m-2 flex items-center gap-2">
+            <div className={`relative flex items-center gap-2 ${compact ? "" : "m-2"}`}>
                 <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
                     <Paperclip className="size-4" />
                 </Button>
@@ -1052,7 +1052,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                             </SelectTrigger>
                             <SelectContent>
                                 {agents
-                                    .filter(agent => !agent.isWorkflow)
+                                    .filter(agent => !agent.isWorkflow && !agent.isInternal)
                                     .map(agent => (
                                         <SelectItem key={agent.name} value={agent.name}>
                                             {agent.displayName || agent.name}

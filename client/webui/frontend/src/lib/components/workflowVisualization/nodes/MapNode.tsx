@@ -38,10 +38,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
                     width: `${node.width}px`,
                     height: `${node.height}px`,
                 }}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
+                onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
             >
                 <div className="flex items-center gap-2">
                     <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
@@ -80,10 +77,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
             {/* Solid Header Box - straddles the dotted container border */}
             <div
                 className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
+                onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
             >
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">

@@ -73,6 +73,8 @@ export interface ChatState {
     builderMode: boolean;
     /** Optional ReactNode rendered in the input area's left button bar (used for builder mode toggle) */
     inputAreaLeftSlot?: React.ReactNode;
+    /** Agent IDs whose sessions should be hidden from the session list (e.g., ["Builder"]) */
+    sessionListExcludeAgentIds?: string[];
     // Background Task Monitoring State
     backgroundTasks: BackgroundTaskState[];
     backgroundNotifications: BackgroundTaskNotification[];

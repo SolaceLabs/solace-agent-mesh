@@ -18,10 +18,7 @@ const SwitchNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick })
             style={{
                 width: `${node.width}px`,
             }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
+            onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
         >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3">
