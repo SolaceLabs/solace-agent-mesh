@@ -145,8 +145,10 @@ class TestInferProvider:
         )
 
     def test_no_api_base_with_model_name(self):
-        """Handle missing api_base but with model name."""
-        assert _infer_provider("", model_name="gemini-2.5-flash") == "custom"
+        """Handle missing api_base but infer provider from model name."""
+        # Gemini models are detected as Google AI Studio
+        assert _infer_provider("", model_name="gemini-2.5-flash") == "google_ai_studio"
+        # OpenAI-compatible prefix is detected
         assert (
             _infer_provider(
                 None,
@@ -154,6 +156,12 @@ class TestInferProvider:
             )
             == "openai_compatible"
         )
+        # GPT models are detected as OpenAI
+        assert _infer_provider("", model_name="gpt-4") == "openai"
+        # Claude models are detected as Anthropic
+        assert _infer_provider("", model_name="claude-3-opus") == "anthropic"
+        # Unknown models default to custom
+        assert _infer_provider("", model_name="my-custom-model") == "custom"
 
 
 class TestSeedFromModelsConfig:
@@ -205,6 +213,47 @@ class TestSeedFromModelsConfig:
         custom = next(m for m in added_models if m.alias == "my-api")
         assert custom.provider == "custom"
         assert custom.model_params == {"max_tokens": 2048}
+
+    def test_seed_from_yaml_config_with_string_entries(self):
+        """Seed models from YAML config with simple string model names."""
+        mock_db = Mock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+
+        models_config = {
+            "multimodal": "gemini-2.5-flash",
+            "gemini_pro": "gemini-2.5-pro",
+            "gpt4": {
+                "model": "gpt-4",
+                "api_base": "https://api.openai.com/v1",
+            },
+        }
+
+        count = _seed_from_models_config(mock_db, models_config)
+
+        assert count == 3
+        assert mock_db.add.call_count == 3
+        assert mock_db.commit.called
+
+        added_models = [call[0][0] for call in mock_db.add.call_args_list]
+
+        # String entry - infers Google AI Studio provider
+        multimodal = next(m for m in added_models if m.alias == "multimodal")
+        assert multimodal.model_name == "gemini-2.5-flash"
+        assert multimodal.provider == "google_ai_studio"
+        assert multimodal.api_base == "https://generativelanguage.googleapis.com/v1"
+        assert multimodal.model_auth_type == "none"
+        assert multimodal.model_auth_config == {"type": "none"}
+        assert multimodal.model_params == {}
+
+        # Another string entry
+        gemini_pro = next(m for m in added_models if m.alias == "gemini_pro")
+        assert gemini_pro.model_name == "gemini-2.5-pro"
+        assert gemini_pro.provider == "google_ai_studio"
+        assert gemini_pro.api_base == "https://generativelanguage.googleapis.com/v1"
+
+        # Dictionary entry still works
+        gpt4_model = next(m for m in added_models if m.alias == "gpt4")
+        assert gpt4_model.provider == "openai"
 
 
 class TestSeedFromEnvVars:

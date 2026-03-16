@@ -62,14 +62,52 @@ def _infer_provider(api_base: str, model_name: str = "") -> str:
         if "/v1/" in path:
             return "openai_compatible"
 
-    # Phase 3: Check model name routing prefixes (LiteLLM convention)
+    # Phase 3: Check model name routing prefixes
     if model_name:
         model_lower = model_name.lower()
 
         if model_lower.startswith("openai/"):
             return "openai_compatible"
+        elif "gemini" in model_lower:
+            return "google_ai_studio"
+        elif model_lower.startswith("claude"):
+            return "anthropic"
+        elif "gpt" in model_lower:
+            return "openai"
 
     return "custom"
+
+
+def _get_default_api_base(provider: str) -> Optional[str]:
+    """
+    Get the default API base URL for a known provider.
+
+    For providers with a standard API endpoint, returns that URL.
+    For providers where the endpoint is region-specific or requires configuration,
+    returns None.
+
+    Args:
+        provider: Provider type (e.g., 'openai', 'google_ai_studio')
+
+    Returns:
+        Default API base URL, or None if not applicable
+    """
+    provider_lower = provider.lower()
+
+    # Providers with standard endpoints
+    if provider_lower == "openai":
+        return "https://api.openai.com/v1"
+    elif provider_lower == "anthropic":
+        return "https://api.anthropic.com/v1"
+    elif provider_lower == "google_ai_studio":
+        return "https://generativelanguage.googleapis.com/v1"
+    elif provider_lower == "vertex_ai":
+        # Default to us-central1; users can override with api_base if needed
+        return "https://us-central1-aiplatform.googleapis.com/v1"
+
+    # Providers that require explicit configuration (region-specific, custom, etc.)
+    # bedrock, azure_openai, openai_compatible, custom
+    return None
 
 
 def _extract_auth_type_and_config(config_data: dict) -> tuple[str, dict]:
@@ -142,8 +180,16 @@ def seed_model_configurations(
         models_config: Models configuration dict from shared_config (optional)
 
     Returns:
-        Number of model configurations seeded
+        Number of model configurations in the table (seeded or already existing)
     """
+    from solace_agent_mesh.services.platform.models import ModelConfiguration
+
+    # Check if table already has entries (idempotent - seeding is one-time)
+    existing_count = db.query(func.count(ModelConfiguration.id)).scalar()
+    if existing_count > 0:
+        log.info(f"[Model Seed] Table already contains {existing_count} configurations, skipping seeding")
+        return existing_count
+
     count = 0
 
     # Try seeding from models_config if provided
@@ -178,6 +224,15 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
 
     for alias, config_data in models_config.items():
         try:
+            # Check if already exists before processing
+            existing = db.query(ModelConfiguration).filter(
+                ModelConfiguration.alias.ilike(alias)
+            ).first()
+
+            if existing:
+                log.debug(f"[Model Seed] Model configuration '{alias}' already exists, skipping")
+                continue
+
             if isinstance(config_data, dict):
                 model_name = config_data.get("model")
                 if not model_name:
@@ -186,29 +241,20 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
 
                 api_base = config_data.get("api_base")
                 auth_type, model_auth_config = _extract_auth_type_and_config(config_data)
-                # Add type field to auth config for redaction logic
                 model_auth_config["type"] = auth_type
                 model_params = _extract_model_params(config_data)
+                provider = _infer_provider(api_base, model_name)
+
             elif isinstance(config_data, str):
-                # String alias like "gemini-2.5-flash"
                 model_name = config_data
-                api_base = None
+                provider = _infer_provider(None, model_name)
+                api_base = _get_default_api_base(provider)
                 auth_type = "none"
-                model_auth_config = {}
+                model_auth_config = {"type": "none"}
                 model_params = {}
+
             else:
                 log.debug(f"[Model Seed] Skipping invalid entry '{alias}': {type(config_data)}")
-                continue
-
-            provider = _infer_provider(api_base, model_name)
-
-            # Check if already exists
-            existing = db.query(ModelConfiguration).filter(
-                ModelConfiguration.alias.ilike(alias)
-            ).first()
-
-            if existing:
-                log.debug(f"[Model Seed] Model configuration '{alias}' already exists, skipping")
                 continue
 
             # Insert model configuration
@@ -259,18 +305,18 @@ def _seed_from_env_vars(db: Session) -> int:
 
     for alias, model_env, endpoint_env, key_env in env_mappings:
         try:
-            model_name = os.getenv(model_env, "").strip()
-            if not model_name:
-                log.debug(f"[Model Seed] Skipping '{alias}': {model_env} not set")
-                continue
-
-            # Check if already exists
+            # Check if already exists before processing
             existing = db.query(ModelConfiguration).filter(
                 ModelConfiguration.alias.ilike(alias)
             ).first()
 
             if existing:
                 log.debug(f"[Model Seed] Model configuration '{alias}' already exists, skipping")
+                continue
+
+            model_name = os.getenv(model_env, "").strip()
+            if not model_name:
+                log.debug(f"[Model Seed] Skipping '{alias}': {model_env} not set")
                 continue
 
             api_base = os.getenv(endpoint_env, "").strip()
