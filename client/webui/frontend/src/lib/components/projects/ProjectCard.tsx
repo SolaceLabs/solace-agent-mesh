@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FileText, FolderOpen, MoreHorizontal, Download, Trash2, Share2, Eye, UserIcon } from "lucide-react";
+import { FolderOpen, MoreHorizontal, Download, Trash2, Share2, Eye, UserIcon } from "lucide-react";
 
-import { GridCard, GRID_CARD_DIMENSIONS } from "@/lib/components/common";
+import { GridCard } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
@@ -22,11 +22,14 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
     const isOwner = useIsProjectOwner(project.userId);
 
     useEffect(() => {
-        const element = titleRef.current;
-        if (element) {
-            setIsTruncated(element.scrollWidth > element.clientWidth);
-        }
-    }, [project.name]);
+        const el = titleRef.current;
+        if (!el) return;
+        const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+        check();
+        const observer = new ResizeObserver(check);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     const menuActions: MenuAction[] = [
         ...(isOwner && onShare
@@ -69,25 +72,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
     ];
 
     return (
-        <GridCard onClick={onClick} className={GRID_CARD_DIMENSIONS.project}>
+        <GridCard onClick={onClick}>
             <CardHeader className="gap-0">
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
                         <FolderOpen className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
-                        {isTruncated ? (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <CardTitle ref={titleRef} className="text-(--primary-text-wMain) max-w-[250px] min-w-0 truncate text-lg font-semibold">
-                                        {project.name}
-                                    </CardTitle>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">{project.name}</TooltipContent>
-                            </Tooltip>
-                        ) : (
-                            <CardTitle ref={titleRef} className="text-(--primary-text-wMain) max-w-[250px] min-w-0 truncate text-lg font-semibold">
-                                {project.name}
-                            </CardTitle>
-                        )}
+                        <Tooltip open={isTruncated ? undefined : false}>
+                            <TooltipTrigger asChild>
+                                <CardTitle ref={titleRef} className="max-w-[250px] min-w-0 truncate text-lg font-semibold text-(--primary-text-wMain)">
+                                    {project.name}
+                                </CardTitle>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{project.name}</TooltipContent>
+                        </Tooltip>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         {isOwner && onDelete && (
@@ -110,12 +107,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                 <div>{project.description ? <CardDescription className="line-clamp-3">{project.description}</CardDescription> : <div />}</div>
 
                 <div className="flex items-center justify-between">
-                    <div className="text-(--secondary-text-wMain) max-w-[200px] truncate">{project.userId}</div>
+                    <div className="max-w-[200px] truncate text-(--secondary-text-wMain)">{project.userId}</div>
                     <div className="flex items-center gap-4">
                         {project.artifactCount !== undefined && project.artifactCount !== null && (
-                            <div className="text-secondary-foreground flex items-center gap-1">
-                                <FileText className="h-4 w-4 text-(--color-secondary-wMain)" />
-                                <span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-(--secondary-text-wMain)">
                                     {project.artifactCount} {project.artifactCount === 1 ? "file" : "files"}
                                 </span>
                             </div>
