@@ -271,9 +271,9 @@ export function DocumentThumbnail({ content, filename, mimeType, width = 52, hei
 
     // Note: thumbnail-document and thumbnail-page CSS classes are defined in App.css
     // to avoid injecting duplicate <style> tags for each thumbnail instance
+    // Document canvas is always light — mimics paper/PDF page background
     return (
-        <div className={cn("relative overflow-hidden bg-white", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>
-            {/* Show loading spinner while page is loading */}
+        <div className={cn("relative overflow-hidden bg-[#F3F4F6]", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>
             {!pageLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center bg-(--secondary-w10)">
                     <Loader2 className="h-3 w-3 animate-spin text-(--secondary-text-wMain)" />

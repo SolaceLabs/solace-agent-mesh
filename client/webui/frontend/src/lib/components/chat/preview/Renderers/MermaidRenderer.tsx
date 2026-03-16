@@ -187,7 +187,7 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
     return (
         <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-sm p-4">
             <div ref={offscreenRef} aria-hidden style={{ position: "fixed", top: -10000, left: -10000, width: 1920, height: 1080 }} />
-            {/* bg is hard-coded to be the same light colour due to random nature of mermaid diagrams */}
+            {/* Theme colours not used, background colour is hard-coded to use a common light colour due to random nature of mermaid diagrams */}
             <div ref={containerRef} className="relative flex w-full items-start justify-center overflow-hidden bg-[#CFD3D9] p-2" style={{ touchAction: "none" }} {...bind()}>
                 {svgHtml ? (
                     <div
@@ -198,6 +198,7 @@ export const MermaidRenderer = ({ content, setRenderError }: BaseRendererProps) 
                             transformOrigin: "0 0",
                         }}
                     >
+                        {/* Theme colours not used, background colour is hard-coded to use a common light colour due to random nature of mermaid diagrams */}
                         <div className="flex max-h-full w-full items-center justify-center rounded-sm bg-[#F3F4F6] p-4" dangerouslySetInnerHTML={{ __html: svgHtml }} />
                     </div>
                 ) : null}

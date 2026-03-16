@@ -107,7 +107,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 onClick={onClick}
                                 onMouseEnter={handleMouseEnter}
                                 onMouseLeave={handleMouseLeave}
-                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-(--info-wMain) no-underline transition-colors"
+                                className="ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-(--info-wMain) no-underline transition-colors"
                                 title={isLocalFile ? "Download unavailable for local files" : undefined}
                             >
                                 {label}
@@ -119,7 +119,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 rel="noopener noreferrer"
                                 onMouseEnter={handleMouseEnter}
                                 onMouseLeave={handleMouseLeave}
-                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
+                                className="ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
                             >
                                 <span className="truncate">{label}</span>
                                 <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-60" />
@@ -130,7 +130,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                         onClick={() => setIsOpen(!isOpen)}
                         onMouseEnter={handleMouseEnter}
                         onMouseLeave={handleMouseLeave}
-                        className="text-text-primary ml-0.5 rounded-full focus:ring-2 focus:ring-(--brand-wMain) focus:outline-none"
+                        className="ml-0.5 rounded-full focus:ring-2 focus:ring-(--brand-wMain) focus:outline-none"
                         aria-label={`More details about ${label}`}
                     >
                         <VisuallyHidden>More details about {label}</VisuallyHidden>
@@ -154,7 +154,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 <span className="mb-2 flex items-center">
                                     {isFile ? (
                                         <div className="mr-2 flex h-4 w-4 items-center justify-center">
-                                            <svg className="text-text-secondary h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="h-3 w-3 text-(--secondary-text-wMain)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                                             </svg>
                                         </div>
@@ -179,11 +179,11 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 </span>
 
                                 {isFile ? (
-                                    <>{source.snippet && <span className="text-text-secondary my-2 text-xs break-all text-ellipsis md:text-sm">{source.snippet}</span>}</>
+                                    <>{source.snippet && <span className="my-2 text-xs break-all text-ellipsis text-(--secondary-text-wMain) md:text-sm">{source.snippet}</span>}</>
                                 ) : (
                                     <>
-                                        <h4 className="text-text-primary mt-0 mb-1.5 text-xs md:text-sm">{source.title || source.link}</h4>
-                                        {source.snippet && <span className="text-text-secondary my-2 text-xs break-all text-ellipsis md:text-sm">{source.snippet}</span>}
+                                        <h4 className="mt-0 mb-1.5 text-xs md:text-sm">{source.title || source.link}</h4>
+                                        {source.snippet && <span className="my-2 text-xs break-all text-ellipsis text-(--secondary-text-wMain) md:text-sm">{source.snippet}</span>}
                                     </>
                                 )}
                             </>
