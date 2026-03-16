@@ -494,13 +494,23 @@ async def _perform_search(
     """
     log_prefix = f"[IndexSearch:search:turn={search_turn}]"
 
+    # Defensive type coercion - ensure numeric types
+    top_k = int(top_k)
+    min_score = float(min_score)
+
     # 1. Tokenize query
     log.debug(f"{log_prefix} Tokenizing query: {query}")
     query_tokens = bm25s.tokenize([query])
 
     # 2. Retrieve top results from BM25
-    log.debug(f"{log_prefix} Retrieving top {top_k} results")
-    results, scores = retriever.retrieve(query_tokens, k=top_k)
+    # Clamp top_k to corpus size to avoid error when index has fewer chunks than requested
+    corpus_size = int(retriever.scores.get("num_docs", top_k))
+    effective_k = min(top_k, corpus_size)
+    if effective_k == 0:
+        log.warning(f"{log_prefix} Corpus is empty (num_docs=0), returning no results")
+        return []
+    log.debug(f"{log_prefix} Retrieving top {effective_k} results")
+    results, scores = retriever.retrieve(query_tokens, k=effective_k)
 
     # results is a 2D array: [[corpus_idx1, corpus_idx2, ...]]
     # scores is a 2D array: [[score1, score2, ...]]
@@ -519,6 +529,11 @@ async def _perform_search(
     result_index = 0
 
     for i, (corpus_idx, score) in enumerate(zip(corpus_indices, bm25_scores)):
+        # Filter out results with zero or negative BM25 score (if min_score is 0)
+        if score <= 0:
+            log.debug(f"{log_prefix} Filtered out BM25 result {i} (score {score:.2f} <= 0)")
+            continue
+
         # Filter by min_score (using raw BM25 score)
         if score < min_score:
             log.debug(f"{log_prefix} Filtered out BM25 result {i} (score {score:.2f} < {min_score})")
@@ -569,6 +584,7 @@ async def _perform_search(
             for result in search_results:
                 result["relevance_score"] = result["score"] / max_score
         else:
+            # Defensive: should be unreachable since zero-score results are filtered above
             for result in search_results:
                 result["relevance_score"] = 0.0
 
@@ -670,6 +686,19 @@ async def index_search(
         Dict with status, results, rag_metadata, formatted_results, etc.
     """
     log_identifier = "[index_search]"
+
+    # Coerce parameters to correct types - LLMs may pass strings instead of numbers
+    try:
+        top_k = int(top_k)
+    except (TypeError, ValueError):
+        top_k = 5
+    try:
+        min_score = float(min_score)
+    except (TypeError, ValueError):
+        min_score = 0.0
+
+    # Clamp top_k to valid range
+    top_k = max(1, min(top_k, 10))
 
     try:
         # Get session context

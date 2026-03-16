@@ -45,70 +45,46 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     }, [ragData]);
 
     // Process task data for visualization when the selected activity task ID changes
-    // or when monitoredTasks is updated with new data
+    // or when monitoredTasks is updated with new data.
     useEffect(() => {
         if (!taskIdInSidePanel) {
             setVisualizedTask(null);
             return;
         }
 
-        // Check if task is already in monitoredTasks with events
         const existingTask = monitoredTasks[taskIdInSidePanel];
 
-        // Always try to load from backend first if we haven't already
-        // This ensures we get historical events that may not be in the SSE stream
-        // (e.g., after browser refresh for a running background task)
-        if (!loadAttemptedRef.current.has(taskIdInSidePanel)) {
-            loadAttemptedRef.current.add(taskIdInSidePanel);
-            setIsLoadingTask(true);
-
-            loadTaskFromBackend(taskIdInSidePanel)
-                .then(loadedTask => {
-                    if (!loadedTask) {
-                        // Backend load failed, but we might still have SSE events
-                        // Check if we have any events from SSE stream
-                        if (existingTask && existingTask.events && existingTask.events.length > 0) {
-                            const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
-                            setVisualizedTask(vizTask);
-                        } else {
-                            setVisualizedTask(null);
-                        }
-                    }
-                    // loadTaskFromBackend updates monitoredTasks, which will trigger this effect again
-                    // to process the visualization with the updated data
-                })
-                .catch(() => {
-                    // On error, try to use existing SSE events if available
-                    if (existingTask && existingTask.events && existingTask.events.length > 0) {
-                        const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
-                        setVisualizedTask(vizTask);
-                    } else {
-                        setVisualizedTask(null);
-                    }
-                })
-                .finally(() => {
-                    setIsLoadingTask(false);
-                });
-        } else if (existingTask && existingTask.events && existingTask.events.length > 0) {
-            // Already loaded from backend, now process with latest events from monitoredTasks
+        // ALWAYS process SSE events if available (real-time priority)
+        if (existingTask?.events?.length > 0) {
             const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
             setVisualizedTask(vizTask);
-            setIsLoadingTask(false);
-        } else {
-            // Already attempted to load but no data - show empty state
+        } else if (loadAttemptedRef.current.has(taskIdInSidePanel)) {
+            // No SSE events and backend load already attempted — clear stale data
             setVisualizedTask(null);
+        }
+
+        // Load from backend ONLY if:
+        // 1. No SSE data exists (e.g., page refresh, navigating to historical task), OR
+        // 2. Task has reached a terminal state (backfill complete history)
+        const isTerminalState = existingTask?.events?.some(e => e.full_payload?.result?.status?.state && ["completed", "failed", "canceled", "rejected"].includes(e.full_payload.result.status.state));
+
+        if ((!existingTask || existingTask.events.length === 0 || isTerminalState) && !loadAttemptedRef.current.has(taskIdInSidePanel)) {
+            loadAttemptedRef.current.add(taskIdInSidePanel);
+            setIsLoadingTask(true);
+            loadTaskFromBackend(taskIdInSidePanel).finally(() => setIsLoadingTask(false));
         }
     }, [taskIdInSidePanel, monitoredTasks, loadTaskFromBackend]);
 
     // Reset load attempts when task ID changes
     useEffect(() => {
         if (taskIdInSidePanel) {
+            const loadAttempted = loadAttemptedRef.current;
             // Clear the load attempt for the previous task when switching to a new one
             // This allows re-loading if the user navigates away and back
             return () => {
                 // Don't clear immediately - only clear after a delay to allow for state updates
                 setTimeout(() => {
-                    loadAttemptedRef.current.delete(taskIdInSidePanel);
+                    loadAttempted.delete(taskIdInSidePanel);
                 }, 1000);
             };
         }
@@ -182,12 +158,12 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     // Collapsed state - narrow vertical panel with icons
     if (isSidePanelCollapsed) {
         return (
-            <div className="bg-background flex h-full w-full flex-col items-center border-l py-4">
+            <div className="flex h-full w-full flex-col items-center border-l bg-(--background-w10) py-4">
                 <Button data-testid="expandPanel" variant="ghost" size="sm" onClick={toggleCollapsed} className="h-10 w-10 p-0" tooltip="Expand Panel">
                     <PanelRightIcon className="size-5" />
                 </Button>
 
-                <div className="bg-border my-4 h-px w-8"></div>
+                <div className="my-4 h-px w-8 bg-(--secondary-w40)"></div>
 
                 <Button variant="ghost" size="sm" onClick={() => handleIconClick("files")} className="mb-2 h-10 w-10 p-0" tooltip="Files">
                     <FileText className="size-5" />
@@ -208,7 +184,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
     // Expanded state - full panel with tabs
     return (
-        <div className="bg-background flex h-full flex-col border-l">
+        <div className="flex h-full flex-col border-l bg-(--background-w10)">
             <div className="m-1 min-h-0 flex-1">
                 <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "activity" | "rag")} className="flex h-full flex-col">
                     <div className="@container flex gap-2 p-2">
@@ -216,29 +192,16 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             <PanelRightIcon className="size-5" />
                         </Button>
                         <TabsList className="flex min-w-0 flex-1 bg-transparent p-0">
-                            <TabsTrigger
-                                value="files"
-                                title="Files"
-                                className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 px-2 data-[state=active]:z-10 data-[state=active]:border-r-0"
-                                onClick={() => setPreviewArtifact(null)}
-                            >
+                            <TabsTrigger value="files" title="Files" className="relative min-w-0 flex-1 rounded-none rounded-l-md px-2 data-[state=active]:z-10" onClick={() => setPreviewArtifact(null)}>
                                 <FileText className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
                             </TabsTrigger>
-                            <TabsTrigger
-                                value="activity"
-                                title="Activity"
-                                className={`border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}
-                            >
+                            <TabsTrigger value="activity" title="Activity" className={`relative min-w-0 flex-1 rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}>
                                 <Network className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Activity</span>
                             </TabsTrigger>
                             {hasSourcesInSession && (
-                                <TabsTrigger
-                                    value="rag"
-                                    title="Sources"
-                                    className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border border-l-0 px-2 data-[state=active]:z-10"
-                                >
+                                <TabsTrigger value="rag" title="Sources" className="relative min-w-0 flex-1 rounded-none rounded-r-md px-2 data-[state=active]:z-10">
                                     <Link2 className="h-4 w-4 shrink-0" />
                                     <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
                                 </TabsTrigger>
@@ -268,7 +231,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
                                     return (
                                         <div className="flex h-full items-center justify-center p-4">
-                                            <div className="text-muted-foreground text-center">
+                                            <div className="text-center text-(--secondary-text-wMain)">
                                                 <Network className="mx-auto mb-4 h-12 w-12" />
                                                 <div className="text-lg font-medium">Activity</div>
                                                 <div className="mt-2 text-sm">{emptyStateContent?.message}</div>

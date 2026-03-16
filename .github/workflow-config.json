@@ -1,0 +1,18 @@
+{
+  "sca_scanning": {
+    "enabled": true,
+    "fossa": {
+      "policy": {
+        "mode": "BLOCK",
+        "block_on": ["policy_conflict", "unlicensed_dependency"]
+      },
+      "vulnerability": {
+        "mode": "BLOCK",
+        "block_on": ["critical", "high"]
+      },
+      "project_id": "SolaceLabs_solace-agent-mesh",
+      "team": null,
+      "labels": []
+    }
+  }
+}

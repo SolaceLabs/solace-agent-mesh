@@ -27,7 +27,7 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon, fullWidthVa
                 {icon && <span className="mr-2">{icon}</span>}
                 {label}:
             </div>
-            <div className={`text-accent-foreground text-sm ${fullWidthValue ? "mt-1 w-full" : "truncate"}`} title={typeof value === "string" ? value : undefined}>
+            <div className={`text-sm text-(--secondary-text-wMain) ${fullWidthValue ? "mt-1 w-full" : "truncate"}`} title={typeof value === "string" ? value : undefined}>
                 {value}
             </div>
         </div>
@@ -80,7 +80,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
             <div className="space-y-1">
                 {tools.map(tool => (
                     <div key={tool.name} className="rounded p-1.5 text-xs">
-                        <p className="text-foreground font-semibold">{tool.name}</p>
+                        <p className="font-semibold text-(--primary-text-wMain)">{tool.name}</p>
                         <p className="mb-1">{tool.description}</p>
                     </div>
                 ))}
@@ -89,13 +89,13 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
     };
 
     return (
-        <div className="bg-card h-[400px] w-full flex-shrink-0 cursor-pointer rounded-lg sm:w-[380px]" onClick={onToggleExpand} role="button" tabIndex={0} aria-expanded={isExpanded}>
+        <div className="h-[400px] w-full flex-shrink-0 cursor-pointer rounded-lg bg-(--background-w10) sm:w-[380px]" onClick={onToggleExpand} role="button" tabIndex={0} aria-expanded={isExpanded}>
             {/* Front face */}
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
                 <div className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
                     <div className="flex items-center p-4">
                         <div className="flex min-w-0 flex-1 items-center">
-                            {isWorkflow ? <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" /> : <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />}
+                            {isWorkflow ? <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-(--brand-wMain)" /> : <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-(--brand-wMain)" />}
                             <div className="min-w-0">
                                 <h2 className="truncate text-xl font-semibold" title={agent.name}>
                                     {agent.displayName || agent.name}
@@ -108,7 +108,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         <DetailItem label="Version" value={agent.version} icon={<GitMerge size={14} />} />
                         {agent.capabilities && Object.keys(agent.capabilities).length > 0 && <DetailItem label="Key Capabilities" value={renderCapabilities(agent.capabilities as { [key: string]: unknown })} icon={<Key size={14} />} fullWidthValue />}
                     </div>
-                    <div data-testid="clickForDetails" className="text-accent-foreground border-t p-2 text-center text-sm">
+                    <div data-testid="clickForDetails" className="border-t p-2 text-center text-sm text-(--secondary-text-wMain)">
                         Click for details
                     </div>
                 </div>
@@ -160,7 +160,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             <DetailItem label="A2A Protocol" value={agent.protocolVersion} />
                         </div>
                     </div>
-                    <div className="text-accent-foreground border-t p-2 text-center text-sm">Click for summary</div>
+                    <div className="border-t p-2 text-center text-sm text-(--secondary-text-wMain)">Click for summary</div>
                 </div>
             </div>
         </div>

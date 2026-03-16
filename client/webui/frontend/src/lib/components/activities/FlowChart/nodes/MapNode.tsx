@@ -3,6 +3,7 @@ import { Repeat2 } from "lucide-react";
 
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT, CONTAINER_CHILDREN_CLASSES } from "../utils/nodeStyles";
+import { NODE_COLORS } from "@/lib/constants";
 import AgentNode from "./AgentNode";
 
 interface MapNodeProps {
@@ -68,7 +69,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                     }}
                 >
                     <div className="flex items-center gap-2 px-4 py-2">
-                        <Repeat2 className="h-4 w-4 text-(--color-accent-n0-wMain)" />
+                        <Repeat2 className="h-4 w-4 text-(--accent-n0-wMain)" />
                         <span className="text-sm font-semibold">{node.data.label || label}</span>
                     </div>
                 </div>
@@ -107,8 +108,8 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
             }}
         >
             <div className="flex items-center gap-2">
-                <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{node.data.label || label}</span>
+                <Repeat2 className={`h-4 w-4 ${NODE_COLORS.map}`} />
+                <span className={`text-sm font-semibold ${NODE_COLORS.mapLabel}`}>{node.data.label || label}</span>
             </div>
         </div>
     );

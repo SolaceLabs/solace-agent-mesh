@@ -87,6 +87,7 @@ async def test_session_compaction_triggers_and_filters(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test that session compaction:
@@ -176,6 +177,7 @@ async def test_compaction_cutoff_before_30_percent(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test cutoff calculation when boundary BEFORE 30% is closer.
@@ -237,6 +239,7 @@ async def test_compaction_cutoff_after_30_percent_varied_sizes(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test cutoff calculation with varied interaction sizes.
@@ -291,6 +294,7 @@ async def test_progressive_summarization_double_compaction(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test progressive summarization: second compaction re-summarizes first summary.
@@ -398,6 +402,7 @@ async def test_compaction_percentage_30_verification(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Verify 30% compaction percentage compacts correct amount.
@@ -446,6 +451,7 @@ async def test_session_compaction_with_binary_content(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test that compaction correctly accounts for binary content (images).

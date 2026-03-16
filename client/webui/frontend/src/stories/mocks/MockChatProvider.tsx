@@ -46,6 +46,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     agentsError: null,
     ragData: [],
     ragEnabled: true,
+    expandedDocumentFilename: null,
     taskIdInSidePanel: null,
     artifactToDelete: null,
     previewArtifact: null,
@@ -111,6 +112,9 @@ const defaultMockChatContext: DefaultMockContextType = {
     startNewChatWithPrompt: async () => {},
     clearPendingPrompt: () => {},
     isTaskRunningInBackground: () => false,
+
+    // RAG Panel State
+    setExpandedDocumentFilename: () => {},
 };
 
 interface MockChatProviderProps {

@@ -1,7 +1,10 @@
 import { createContext } from "react";
+import type { ThemeDefinition } from "@/lib/providers/themes/palettes/themePalette";
 
 export interface ThemeContextValue {
-    currentTheme: "light" | "dark";
+    currentTheme: string;
+    themes: ThemeDefinition[];
+    setTheme: (themeId: string) => void;
     toggleTheme: () => void;
 }
 
