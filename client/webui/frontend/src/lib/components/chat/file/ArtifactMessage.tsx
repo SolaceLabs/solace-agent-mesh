@@ -362,7 +362,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     if (isLoading) {
         expandedContent = (
-            <div className="bg-muted flex h-25 items-center justify-center">
+            <div className="flex h-25 items-center justify-center bg-(--secondary-w10)">
                 <Spinner />
             </div>
         );

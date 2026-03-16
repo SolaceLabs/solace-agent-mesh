@@ -229,7 +229,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                             className="min-h-[300px] resize-y font-mono text-sm"
                             placeholder="Paste content here..."
                         />
-                        <p className="text-muted-foreground text-xs">
+                        <p className="text-xs text-(--secondary-text-wMain)">
                             {charCount} characters, {lineCount} lines
                         </p>
                         {contentError && <MessageBanner variant="error" message={contentError} dismissible onDismiss={() => setContentError(null)} />}

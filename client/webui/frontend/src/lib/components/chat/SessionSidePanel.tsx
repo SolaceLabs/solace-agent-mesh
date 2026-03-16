@@ -13,7 +13,7 @@ interface SessionSidePanelProps {
 
 export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) => {
     return (
-        <div className="bg-background flex h-full w-100 flex-col border-r">
+        <div className="flex h-full w-100 flex-col border-r bg-(--background-w10)">
             <div className="flex h-20 justify-between border-b px-2 pt-[35px]">
                 <div className="flex items-center gap-2">
                     <Button variant="ghost" onClick={onToggle} data-testid="hideChatSessions" tooltip="Hide Chat Sessions">

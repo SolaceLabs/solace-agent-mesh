@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
 
-export const HOVER_BG = "hover:bg-[var(--color-background-w100)]";
-export const ACTIVE_BG = "bg-[var(--color-background-w100)]";
+export const HOVER_BG = "hover:bg-(--darkSurface-bgActive)";
+export const ACTIVE_BG = "bg-(--darkSurface-bgActive)";
 
 export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "transition-colors", "py-6", "w-full", HOVER_BG], {
     variants: {
@@ -24,7 +24,7 @@ export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-cen
 export const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify-center", "rounded"], {
     variants: {
         active: {
-            true: `border border-[var(--color-brand-w60)] ${ACTIVE_BG}`,
+            true: `border border-(--darkSurface-brandAccent) ${ACTIVE_BG}`,
             false: "",
         },
         withMargin: {
@@ -38,11 +38,11 @@ export const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify
 export const iconStyles = cva(["size-6"], {
     variants: {
         active: {
-            true: "text-[var(--color-brand-w60)]",
-            false: "text-[var(--color-secondary-text-w50)]",
+            true: "text-(--brand-w60)",
+            false: "text-(--darkSurface-textMuted)",
         },
         muted: {
-            true: "text-[var(--color-primary-text-w10)]",
+            true: "text-(--darkSurface-text)",
             false: "",
         },
     },
@@ -52,8 +52,8 @@ export const iconStyles = cva(["size-6"], {
 export const navTextStyles = cva([], {
     variants: {
         active: {
-            true: "font-bold text-[var(--color-primary-text-w10)]",
-            false: "text-[var(--color-secondary-text-w50)]",
+            true: "font-bold text-(--darkSurface-text)",
+            false: "text-(--darkSurface-textMuted)",
         },
     },
     defaultVariants: { active: false },
