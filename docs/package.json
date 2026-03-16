@@ -45,5 +45,9 @@
   },
   "engines": {
     "node": ">=25.5.0 <26"
+  },
+  "overrides": {
+    "dompurify": "^3.3.2",
+    "lodash-es": "^4.17.23"
   }
 }
