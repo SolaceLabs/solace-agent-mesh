@@ -1123,8 +1123,7 @@ class TestDeleteArtifact:
         assert "Failed to delete artifact" in str(exc_info.value.detail)
 
 
-# 
-=====================================================================
+# =============================================================================
 # BULK ARTIFACTS ENDPOINT TESTS
 # =============================================================================
 
@@ -1864,7 +1863,7 @@ class TestGetArtifactByUri:
                 )
             
             assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-=======
+
 class TestGetSpecificArtifactVersion:
     """Test get_specific_artifact_version endpoint."""
 

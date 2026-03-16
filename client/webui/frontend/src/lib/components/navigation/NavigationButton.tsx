@@ -36,15 +36,15 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                     disabled={disabled}
                     className={cn(
                         "relative mx-auto flex w-full cursor-pointer flex-col items-center px-3 py-5 text-xs transition-colors",
-                        "bg-(--color-primary-w100) hover:bg-(--color-primary-w90)",
-                        "text-(--color-primary-text-w10) hover:bg-(--color-primary-w90) hover:text-(--color-background-w10)",
-                        "border-l-4 border-(--color-primary-w100)",
-                        isActive ? "border-l-4 border-(--color-brand-wMain) bg-(--color-primary-w90)" : ""
+                        "bg-(--darkSurface-bg) hover:bg-(--darkSurface-bgHover)",
+                        "text-(--darkSurface-text) hover:bg-(--darkSurface-bgHover) hover:text-(--darkSurface-text)",
+                        "border-l-4 border-(--darkSurface-bg)",
+                        isActive ? "border-l-4 border-(--darkSurface-brandMain) bg-(--darkSurface-bgHover)/50" : ""
                     )}
                     aria-label={label}
                     aria-current={isActive ? "page" : undefined}
                 >
-                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--color-brand-wMain)")} />
+                    <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--darkSurface-brandMain)")} />
                     <span className="text-center text-[13px] leading-tight">{label}</span>
                     {badge && <LifecycleBadge className="mt-1 text-[9px]">{badge}</LifecycleBadge>}
                 </button>

@@ -96,9 +96,9 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
 
                 // Flash the button to provide visual feedback
                 if (buttonRef.current) {
-                    buttonRef.current.classList.add("bg-[var(--color-secondary-w20)]", "dark:bg-[var(--color-secondary-w80)]");
+                    buttonRef.current.classList.add("bg-(--secondary-w20)");
                     setTimeout(() => {
-                        buttonRef.current?.classList.remove("bg-[var(--color-secondary-w20)]", "dark:bg-[var(--color-secondary-w80)]");
+                        buttonRef.current?.classList.remove("bg-(--secondary-w20)");
                     }, 200);
                 }
             }
@@ -127,13 +127,13 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
     }
 
     return (
-        <div className={cn("flex justify-start gap-1 text-gray-500", className)}>
+        <div className={cn("flex justify-start gap-1 text-(--secondary-text-wMain)", className)}>
             {/* TTS Button - for AI messages */}
             {!message.isUser && <TTSButton message={messageForTTS} />}
 
             {/* Copy button - all messages */}
             <Button ref={buttonRef} variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopy} tooltip={isCopied ? "Copied!" : "Copy to clipboard"}>
-                {isCopied ? <Check className="h-4 w-4 text-[var(--color-success-wMain)]" /> : <Copy className="h-4 w-4" />}
+                {isCopied ? <Check className="h-4 w-4 text-(--success-wMain)" /> : <Copy className="h-4 w-4" />}
             </Button>
         </div>
     );
