@@ -4,9 +4,13 @@ Provides endpoints for retrieving model configurations.
 All sensitive authentication information (API keys, OAuth secrets) is filtered
 from responses to ensure data security through the ModelConfigService business
 logic layer.
+
+Feature flag: model_config_ui
+  When disabled, all endpoints return 501 Not Implemented.
 """
 
 import logging
+from openfeature import api as openfeature_api
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from solace_agent_mesh.services.platform.services import ModelConfigService
@@ -20,6 +24,26 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_MODEL_CONFIG_UI_FLAG = "model_config_ui"
+
+
+def _require_model_config_ui_enabled() -> bool:
+    """Dependency that checks if model configuration UI feature is enabled.
+
+    Returns:
+        True if feature is enabled, False otherwise.
+
+    Raises:
+        HTTPException: 501 Not Implemented if feature is disabled.
+    """
+    is_enabled = openfeature_api.get_client().get_boolean_value(_MODEL_CONFIG_UI_FLAG, False)
+    if not is_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Model configuration feature is not enabled",
+        )
+    return is_enabled
+
 
 @router.get(
     "/models",
@@ -28,6 +52,7 @@ router = APIRouter()
     description="Retrieve all model configurations. Sensitive authentication information (API keys, secrets) is excluded.",
 )
 async def list_models(
+    _: None = Depends(_require_model_config_ui_enabled),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> ModelConfigurationListResponse:
     """
@@ -61,6 +86,7 @@ async def list_models(
 )
 async def get_model(
     alias: str,
+    _: None = Depends(_require_model_config_ui_enabled),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> ModelConfigurationResponse:
     """
