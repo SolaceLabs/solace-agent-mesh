@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import cast, or_, String
 
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
@@ -55,7 +55,7 @@ class ModelConfigService:
             ModelConfigurationResponse if found, None otherwise
         """
         db_config = self.db.query(ModelConfiguration).filter(
-            or_(ModelConfiguration.alias == alias, ModelConfiguration.id == alias)
+            or_(ModelConfiguration.alias == alias, cast(ModelConfiguration.id, String) == alias)
         ).first()
 
         if not db_config:
@@ -127,7 +127,7 @@ class ModelConfigService:
             LiteLlm config dict if found, None otherwise
         """
         db_config = self.db.query(ModelConfiguration).filter(
-            or_(ModelConfiguration.alias == alias, ModelConfiguration.id == alias)
+            or_(ModelConfiguration.alias == alias, cast(ModelConfiguration.id, String) == alias)
         ).first()
         if not db_config:
             return None
