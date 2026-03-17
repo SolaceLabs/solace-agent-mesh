@@ -3,7 +3,8 @@ import React, { useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, Ellipsis, FileText, Loader2 } from "lucide-react";
 
 import { Button } from "@/lib/components";
-import { useChatContext, useDownload } from "@/lib/hooks";
+import { useChatContext } from "@/lib/hooks";
+import { useDownload } from "@/lib/hooks";
 import type { ArtifactInfo } from "@/lib/types";
 import { formatBytes } from "@/lib/utils/format";
 
@@ -22,9 +23,20 @@ const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo)
     [SortOption.DateDesc]: (a1, a2) => (a1.last_modified < a2.last_modified ? 1 : -1),
 };
 
-export const ArtifactPanel: React.FC = () => {
-    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal } = useChatContext();
-    const { onDownload } = useDownload();
+interface ArtifactPanelProps {
+    /** Read-only mode - hides delete buttons and edit functionality */
+    readOnly?: boolean;
+    /** Custom download handler - if not provided, uses default useDownload hook */
+    onDownloadOverride?: (artifact: ArtifactInfo) => Promise<void>;
+}
+
+export const ArtifactPanel: React.FC<ArtifactPanelProps> = ({ readOnly = false, onDownloadOverride }) => {
+    const { artifacts, artifactsLoading, artifactsRefetch, previewArtifact, setPreviewArtifact, openDeleteModal, isDeleteModalOpen, isBatchDeleteModalOpen } = useChatContext();
+
+    const { onDownload: defaultOnDownload } = useDownload();
+
+    // Use custom download handler if provided, otherwise use default
+    const onDownload = onDownloadOverride || defaultOnDownload;
 
     const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
     const [isPreviewInfoExpanded, setIsPreviewInfoExpanded] = useState(false);
@@ -60,15 +72,18 @@ export const ArtifactPanel: React.FC = () => {
                             <div>Sort By</div>
                         </Button>
                     </SortPopover>
-                    <ArtifactMorePopover key="more-popover" hideDeleteAll={!hasDeletableArtifacts}>
-                        <Button variant="ghost" tooltip="More">
-                            <Ellipsis className="h-5 w-5" />
-                        </Button>
-                    </ArtifactMorePopover>
+                    {/* Hide "More" popover in readOnly mode */}
+                    {!readOnly && (
+                        <ArtifactMorePopover key="more-popover" hideDeleteAll={!hasDeletableArtifacts}>
+                            <Button variant="ghost" tooltip="More">
+                                <Ellipsis className="h-5 w-5" />
+                            </Button>
+                        </ArtifactMorePopover>
+                    )}
                 </div>
             )
         );
-    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact, hasDeletableArtifacts]);
+    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact, hasDeletableArtifacts, readOnly]);
 
     return (
         <div className="flex h-full flex-col">
@@ -77,20 +92,23 @@ export const ArtifactPanel: React.FC = () => {
                 {!previewArtifact && (
                     <div className="flex-1 overflow-y-auto">
                         {sortedArtifacts.map(artifact => (
-                            <ArtifactCard key={artifact.filename} artifact={artifact} />
+                            <ArtifactCard key={artifact.filename} artifact={artifact} readOnly={readOnly} onDownloadOverride={onDownloadOverride ? () => onDownloadOverride(artifact) : undefined} />
                         ))}
                         {sortedArtifacts.length === 0 && (
                             <div className="flex h-full items-center justify-center p-4">
-                                <div className="text-center text-(--secondary-text-wMain)">
+                                <div className="text-muted-foreground text-center">
                                     {artifactsLoading && <Loader2 className="size-6 animate-spin" />}
                                     {!artifactsLoading && (
                                         <>
                                             <FileText className="mx-auto mb-4 h-12 w-12" />
                                             <div className="text-lg font-medium">Files</div>
                                             <div className="mt-2 text-sm">No files available</div>
-                                            <Button className="mt-4" variant="default" onClick={artifactsRefetch} data-testid="refreshFiles" title="Refresh Files">
-                                                Refresh
-                                            </Button>
+                                            {/* Hide Refresh button in readOnly mode */}
+                                            {!readOnly && (
+                                                <Button className="mt-4" variant="default" onClick={artifactsRefetch} data-testid="refreshFiles" title="Refresh Files">
+                                                    Refresh
+                                                </Button>
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -106,7 +124,7 @@ export const ArtifactPanel: React.FC = () => {
                                 isPreview={true}
                                 isExpanded={isPreviewInfoExpanded}
                                 setIsExpanded={setIsPreviewInfoExpanded}
-                                onDelete={previewArtifact.source === "project" ? undefined : () => openDeleteModal(previewArtifact)}
+                                onDelete={readOnly || previewArtifact.source === "project" ? undefined : () => openDeleteModal(previewArtifact)}
                                 onDownload={() => onDownload(previewArtifact)}
                             />
                         </div>
@@ -115,17 +133,17 @@ export const ArtifactPanel: React.FC = () => {
                                 <div className="space-y-2 text-sm">
                                     {previewArtifact.description && (
                                         <div>
-                                            <span className="text-(--secondary-text-wMain)">Description:</span>
+                                            <span className="text-secondary-foreground">Description:</span>
                                             <div className="mt-1">{previewArtifact.description}</div>
                                         </div>
                                     )}
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <span className="text-(--secondary-text-wMain)">Size:</span>
+                                            <span className="text-secondary-foreground">Size:</span>
                                             <div>{formatBytes(previewArtifact.size)}</div>
                                         </div>
                                         <div>
-                                            <span className="text-(--secondary-text-wMain)">Type:</span>
+                                            <span className="text-secondary-foreground">Type:</span>
                                             <div>{previewArtifact.mime_type || "Unknown"}</div>
                                         </div>
                                     </div>
@@ -138,8 +156,13 @@ export const ArtifactPanel: React.FC = () => {
                     </div>
                 )}
             </div>
-            <ArtifactDeleteDialog />
-            <ArtifactDeleteAllDialog />
+            {/* Only render dialogs if they might be open - SharedChatProvider provides no-op handlers */}
+            {(isDeleteModalOpen || isBatchDeleteModalOpen) && (
+                <>
+                    <ArtifactDeleteDialog />
+                    <ArtifactDeleteAllDialog />
+                </>
+            )}
         </div>
     );
 };

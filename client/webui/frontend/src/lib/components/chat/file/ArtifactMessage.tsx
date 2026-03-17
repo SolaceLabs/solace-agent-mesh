@@ -36,6 +36,8 @@ type ArtifactMessageProps = (
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
     isStreaming?: boolean;
     message?: MessageFE; // Optional message to get taskId for ragData lookup
+    readOnly?: boolean; // Hide delete button and other edit actions
+    onDownloadOverride?: () => Promise<void>; // Custom download handler
 };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
@@ -51,6 +53,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
     const isStreaming = props.isStreaming;
+    const readOnly = props.readOnly || false;
 
     // Check if this artifact is from a project (should not be deletable)
     const isProjectArtifact = artifact?.source === "project";
@@ -128,6 +131,12 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     }, [artifact, openSidePanelTab, setPreviewArtifact, version, navigateArtifactVersion]);
 
     const handleDownloadClick = useCallback(() => {
+        // If custom download handler is provided, use it
+        if (props.onDownloadOverride) {
+            props.onDownloadOverride();
+            return;
+        }
+
         // Build the file to download from available sources
         let fileToDownload: FileAttachment | null = null;
 
@@ -140,9 +149,14 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 size: artifact.size,
                 last_modified: artifact.last_modified,
             };
-            // If artifact doesn't have URI, try to use content from fileAttachment
-            if (!fileToDownload.uri && fileAttachment?.content) {
-                fileToDownload.content = fileAttachment.content;
+            // If artifact doesn't have URI, try to use content from various sources
+            if (!fileToDownload.uri) {
+                // Priority: fetchedContent (from downloadAndResolveArtifact) > fileAttachment.content
+                if (fetchedContent) {
+                    fileToDownload.content = fetchedContent;
+                } else if (fileAttachment?.content) {
+                    fileToDownload.content = fileAttachment.content;
+                }
             }
         } else if (fileAttachment) {
             fileToDownload = fileAttachment;
@@ -153,7 +167,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         } else {
             console.error(`No file to download for artifact: ${props.name}`);
         }
-    }, [artifact, fileAttachment, sessionId, activeProject?.id, props.name]);
+    }, [artifact, fileAttachment, sessionId, activeProject?.id, props.name, fetchedContent, props.onDownloadOverride]);
 
     const handleDeleteClick = useCallback(() => {
         if (artifact) {
@@ -334,8 +348,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             return {
                 onInfo: handleInfoClick,
                 onDownload: props.status === "completed" ? handleDownloadClick : undefined,
-                // Hide delete button for artifacts with source="project" (they came from project files)
-                onDelete: artifact && props.status === "completed" && !isProjectArtifact ? handleDeleteClick : undefined,
+                // Hide delete button for artifacts with source="project" (they came from project files) or in readOnly mode
+                onDelete: artifact && props.status === "completed" && !isProjectArtifact && !readOnly ? handleDeleteClick : undefined,
             };
         } else {
             // In chat context, show preview, download, and info actions
@@ -346,7 +360,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isProjectArtifact]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isProjectArtifact, readOnly]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
@@ -362,7 +376,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     if (isLoading) {
         expandedContent = (
-            <div className="flex h-25 items-center justify-center bg-(--secondary-w10)">
+            <div className="bg-muted flex h-25 items-center justify-center">
                 <Spinner />
             </div>
         );
