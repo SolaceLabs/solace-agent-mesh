@@ -219,14 +219,12 @@ class TestModelConfigurationAPI:
 
             # Assert: Response has expected structure with camelCase
             data = response.json()
-            assert "configurations" in data
-            assert "total" in data
-            assert isinstance(data["configurations"], list)
-            assert isinstance(data["total"], int)
-            assert data["total"] >= 3
+            assert "data" in data
+            assert isinstance(data["data"], list)
+            assert len(data["data"]) >= 3
 
             # Assert: Each configuration uses camelCase
-            for config in data["configurations"]:
+            for config in data["data"]:
                 assert "modelName" in config
                 assert "model_name" not in config
                 assert "authType" in config

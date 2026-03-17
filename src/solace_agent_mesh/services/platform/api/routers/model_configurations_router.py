@@ -15,10 +15,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from solace_agent_mesh.services.platform.services import ModelConfigService
 from solace_agent_mesh.services.platform.api.dependencies import get_model_config_service
-from solace_agent_mesh.services.platform.api.routers.dto.responses import (
-    ModelConfigurationResponse,
-    ModelConfigurationListResponse,
-)
+from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
+from solace_agent_mesh.shared.api.pagination import DataResponse
 
 log = logging.getLogger(__name__)
 
@@ -47,14 +45,14 @@ def _require_model_config_ui_enabled() -> bool:
 
 @router.get(
     "/models",
-    response_model=ModelConfigurationListResponse,
+    response_model=DataResponse[list[ModelConfigurationResponse]],
     summary="List all model configurations",
     description="Retrieve all model configurations. Sensitive authentication information (API keys, secrets) is excluded.",
 )
 async def list_models(
     _: None = Depends(_require_model_config_ui_enabled),
     service: ModelConfigService = Depends(get_model_config_service),
-) -> ModelConfigurationListResponse:
+) -> DataResponse[list[ModelConfigurationResponse]]:
     """
     Retrieve all model configurations.
 
@@ -62,14 +60,11 @@ async def list_models(
     Only the authentication type (apikey, oauth2, or none) is returned.
 
     Returns:
-        ModelConfigurationListResponse: List of model configurations with safe data
+        DataResponse with list of model configurations with safe data
     """
     try:
         configurations = service.list_all()
-        return ModelConfigurationListResponse(
-            configurations=configurations,
-            total=len(configurations),
-        )
+        return DataResponse.create(configurations)
     except Exception as e:
         log.error(f"Failed to retrieve model configurations: {e}", exc_info=True)
         raise HTTPException(
