@@ -6,7 +6,7 @@
  */
 
 import { ArrowRight, Eye, Pencil } from "lucide-react";
-import { formatCollaborativeTimestamp } from "@/lib/mockData/collaborativeChat";
+import { formatCollaborativeTimestamp } from "@/lib/utils/userFormatting";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
 /**
