@@ -39,7 +39,8 @@ class WebUIBackendFactory:
     """
 
     def __init__(
-        self, db_url: str = None, gateway_id: str = "test-gateway", user: dict = None
+        self, db_url: str = None, gateway_id: str = "test-gateway", user: dict = None,
+        features_yaml_path: str = None,
     ):
         self._temp_dir = None
         if db_url is None:
@@ -212,7 +213,7 @@ class WebUIBackendFactory:
 
         # Initialise the OpenFeature provider so feature-flag evaluations work in tests
         _registry = FeatureRegistry()
-        _features_yaml = str(
+        _features_yaml = features_yaml_path or str(
             pkg_files("solace_agent_mesh.common.features").joinpath("features.yaml")
         )
         _registry.load_from_yaml(_features_yaml)
