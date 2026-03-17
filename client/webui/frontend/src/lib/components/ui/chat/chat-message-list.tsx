@@ -36,7 +36,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
                     scrollBehavior: "smooth",
                 }}
             >
-                <div className="flex flex-col gap-6" style={CHAT_STYLES} ref={contentRef}>
+                <div className="flex flex-col gap-8" style={CHAT_STYLES} ref={contentRef}>
                     {children}
                 </div>
             </div>
@@ -48,7 +48,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
                     }}
                     size="icon"
                     variant="outline"
-                    className="absolute bottom-2 left-1/2 z-20 inline-flex -translate-x-1/2 transform rounded-full bg-(--background-w10) shadow-md"
+                    className="bg-background absolute bottom-2 left-1/2 z-20 inline-flex -translate-x-1/2 transform rounded-full shadow-md"
                     aria-label="Scroll to bottom"
                 >
                     <ArrowDown className="h-4 w-4" />
