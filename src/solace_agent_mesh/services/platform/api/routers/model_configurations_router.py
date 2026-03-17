@@ -16,7 +16,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from solace_agent_mesh.services.platform.services import ModelConfigService
 from solace_agent_mesh.services.platform.api.dependencies import get_model_config_service
 from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
+from solace_agent_mesh.services.platform.api.routers.dto.requests import (
+    ModelConfigurationCreateRequest,
+    ModelConfigurationUpdateRequest,
+)
 from solace_agent_mesh.shared.api.pagination import DataResponse
+from solace_agent_mesh.shared.auth.dependencies import get_current_user
 
 log = logging.getLogger(__name__)
 
@@ -120,4 +125,144 @@ async def get_model(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve model configuration",
+        )
+
+
+@router.post(
+    "/models",
+    response_model=ModelConfigurationResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a model configuration",
+    description="Create a new model configuration. The alias must be unique (case-insensitive).",
+)
+async def create_model(
+    request: ModelConfigurationCreateRequest,
+    _: None = Depends(_require_model_config_ui_enabled),
+    user: dict = Depends(get_current_user),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> ModelConfigurationResponse:
+    """
+    Create a new model configuration.
+
+    Args:
+        request: Model configuration details
+        user: Authenticated user (from OAuth middleware)
+
+    Returns:
+        ModelConfigurationResponse: The created model configuration
+
+    Raises:
+        HTTPException: 400 if alias is invalid, 409 if alias already exists, 500 on server error
+    """
+    try:
+        created_by = user.get("id", "unknown")
+        config = service.create(request, created_by=created_by)
+        return config
+    except ValueError as e:
+        log.warning(f"Invalid model creation request: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
+    except Exception as e:
+        log.error(f"Failed to create model configuration: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create model configuration",
+        )
+
+
+@router.put(
+    "/models/{alias}",
+    response_model=ModelConfigurationResponse,
+    summary="Update a model configuration",
+    description="Update an existing model configuration by alias. Only provided fields are updated.",
+)
+async def update_model(
+    alias: str,
+    request: ModelConfigurationUpdateRequest,
+    _: None = Depends(_require_model_config_ui_enabled),
+    user: dict = Depends(get_current_user),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> ModelConfigurationResponse:
+    """
+    Update an existing model configuration.
+
+    Args:
+        alias: The model alias to update
+        request: Fields to update (only non-None fields are modified)
+        user: Authenticated user (from OAuth middleware)
+
+    Returns:
+        ModelConfigurationResponse: The updated model configuration
+
+    Raises:
+        HTTPException: 404 if not found, 409 if new alias conflicts, 500 on server error
+    """
+    try:
+        updated_by = user.get("id", "unknown")
+        config = service.update(alias, request, updated_by=updated_by)
+
+        if not config:
+            log.debug(f"Model configuration not found with alias: {alias}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Model configuration with alias '{alias}' not found",
+            )
+
+        return config
+    except ValueError as e:
+        log.warning(f"Invalid model update request: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Failed to update model configuration: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update model configuration",
+        )
+
+
+@router.delete(
+    "/models/{alias}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a model configuration",
+    description="Delete a model configuration by alias. This action cannot be undone.",
+)
+async def delete_model(
+    alias: str,
+    _: None = Depends(_require_model_config_ui_enabled),
+    user: dict = Depends(get_current_user),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> None:
+    """
+    Delete a model configuration.
+
+    Args:
+        alias: The model alias to delete
+        user: Authenticated user (from OAuth middleware)
+
+    Raises:
+        HTTPException: 404 if not found, 500 on server error
+    """
+    try:
+        deleted = service.delete(alias)
+
+        if not deleted:
+            log.debug(f"Model configuration not found with alias: {alias}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Model configuration with alias '{alias}' not found",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Failed to delete model configuration: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete model configuration",
         )

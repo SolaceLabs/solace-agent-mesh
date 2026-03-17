@@ -9,7 +9,12 @@ from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelConfigurationResponse,
 )
+from solace_agent_mesh.services.platform.api.routers.dto.requests import (
+    ModelConfigurationCreateRequest,
+    ModelConfigurationUpdateRequest,
+)
 from solace_agent_mesh.shared.utils.secret_redactor import redact_auth_config
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +67,141 @@ class ModelConfigService:
             return None
 
         return self._to_response(db_config)
+
+    def create(
+        self, request: ModelConfigurationCreateRequest, created_by: str
+    ) -> ModelConfigurationResponse:
+        """
+        Create a new model configuration.
+
+        Args:
+            request: Create request with model details
+            created_by: User or system identifier creating the configuration
+
+        Returns:
+            ModelConfigurationResponse for the created configuration
+
+        Raises:
+            ValueError: If alias already exists (case-insensitive)
+        """
+        # Check for duplicate alias (case-insensitive)
+        existing = self.db.query(ModelConfiguration).filter(
+            func.lower(ModelConfiguration.alias) == request.alias.lower()
+        ).first()
+
+        if existing:
+            raise ValueError(f"Model configuration with alias '{request.alias}' already exists")
+
+        # Create new configuration
+        db_config = ModelConfiguration(
+            alias=request.alias,
+            provider=request.provider,
+            model_name=request.model_name,
+            api_base=request.api_base,
+            model_auth_type=request.auth_type,
+            model_auth_config=request.auth_config or {},
+            model_params=request.model_params or {},
+            description=request.description,
+            created_by=created_by,
+            updated_by=created_by,
+            created_time=now_epoch_ms(),
+            updated_time=now_epoch_ms(),
+        )
+
+        self.db.add(db_config)
+        self.db.commit()
+        self.db.refresh(db_config)
+
+        return self._to_response(db_config)
+
+    def update(
+        self,
+        alias: str,
+        request: ModelConfigurationUpdateRequest,
+        updated_by: str,
+    ) -> Optional[ModelConfigurationResponse]:
+        """
+        Update an existing model configuration.
+
+        Only provided (non-None) fields are updated.
+        For auth_config: if provided, it's merged with existing secrets (preserving
+        secrets for fields not in the update request).
+
+        Args:
+            alias: Model alias to update
+            request: Update request with new values
+            updated_by: User or system identifier performing the update
+
+        Returns:
+            ModelConfigurationResponse if found and updated, None if not found
+
+        Raises:
+            ValueError: If new alias already exists (case-insensitive)
+        """
+        db_config = self.db.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == alias
+        ).first()
+
+        if not db_config:
+            return None
+
+        # If updating alias, check for case-insensitive collision with other configs
+        if request.alias is not None and request.alias.lower() != alias.lower():
+            existing = self.db.query(ModelConfiguration).filter(
+                func.lower(ModelConfiguration.alias) == request.alias.lower()
+            ).first()
+            if existing:
+                raise ValueError(f"Model configuration with alias '{request.alias}' already exists")
+
+        # Update only provided fields
+        if request.alias is not None:
+            db_config.alias = request.alias
+        if request.provider is not None:
+            db_config.provider = request.provider
+        if request.model_name is not None:
+            db_config.model_name = request.model_name
+        if request.api_base is not None:
+            db_config.api_base = request.api_base
+        if request.auth_type is not None:
+            db_config.model_auth_type = request.auth_type
+        if request.auth_config is not None:
+            # Merge with existing auth config (preserve existing secrets)
+            existing_config = db_config.model_auth_config or {}
+            db_config.model_auth_config = {**existing_config, **request.auth_config}
+        if request.model_params is not None:
+            db_config.model_params = request.model_params
+        if request.description is not None:
+            db_config.description = request.description
+
+        db_config.updated_by = updated_by
+        db_config.updated_time = now_epoch_ms()
+
+        self.db.commit()
+        self.db.refresh(db_config)
+
+        return self._to_response(db_config)
+
+    def delete(self, alias: str) -> bool:
+        """
+        Delete a model configuration by alias.
+
+        Args:
+            alias: Model alias to delete
+
+        Returns:
+            True if configuration was found and deleted, False otherwise
+        """
+        db_config = self.db.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == alias
+        ).first()
+
+        if not db_config:
+            return False
+
+        self.db.delete(db_config)
+        self.db.commit()
+
+        return True
 
     @staticmethod
     def _to_response(db_model: ModelConfiguration) -> ModelConfigurationResponse:
