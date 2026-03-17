@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button } from "@/lib/components/ui";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge } from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner } from "@/lib/components/common";
 
 import { useModelConfigs } from "@/lib/api/models";
@@ -71,7 +71,7 @@ export const ModelsView: React.FC = () => {
                 {/* Table and Pagination */}
                 <div className="flex-1 overflow-y-auto px-6 py-6">
                     {currentModels.length > 0 ? (
-                        <div className="rounded-xs border">
+                        <div className="rounded-xs border-[1px] border-(--secondary-w20)">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -84,12 +84,13 @@ export const ModelsView: React.FC = () => {
                                 </TableHeader>
                                 <TableBody>
                                     {currentModels.map(model => (
-                                        <TableRow key={model.id} className="hover:bg-muted/50">
-                                            <TableCell className="flex items-center pl-4 font-semibold">
+                                        <TableRow key={model.id} className="hover:bg-(--secondary-w10)">
+                                            <TableCell className="flex items-center gap-2 pl-4 font-semibold">
                                                 <ModelProviderIcon provider={model.provider} size="sm" />
                                                 <Button title={model.alias} variant="link" className="p-0" onClick={() => handleSelectModel(model)}>
                                                     {model.alias}
                                                 </Button>
+                                                {model.alias === "general" && <Badge>Default</Badge>}
                                             </TableCell>
                                             <TableCell>{model.modelName}</TableCell>
                                             <TableCell>{PROVIDER_DISPLAY_NAMES[model.provider] || model.provider}</TableCell>
