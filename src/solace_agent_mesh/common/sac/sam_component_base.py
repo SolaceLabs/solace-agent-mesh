@@ -75,7 +75,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         self.model_provider = model_provider_config[0] if model_provider_config and isinstance(model_provider_config, list) else None
         
         self._lazy_model_mode = (
-            os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"
+            os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"
         )
 
         log.info("%s Initialized SamComponentBase", self.log_identifier)
@@ -764,7 +764,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
             self._initialize_model()
         return self.adk_model_instance
 
-    @abc.abstractmethod
     def _on_model_status_change(self, old_status: str, new_status: str):
         """Callback invoked by LiteLlm on any status transition.
         """
