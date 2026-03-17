@@ -175,11 +175,10 @@ class TestSearchRanking:
         self, identity_service: LocalFileIdentityService
     ):
         """
-        Test that when multiple last names match, they rank by position.
+        Test that email prefix matches rank higher than name-part matches.
 
-        Both "Edward Smith" and "John Smith Jones" have "smith" in their name,
-        but "Edward Smith" has it in position 1 (last name) while
-        "John Smith Jones" has it in position 1 as well (middle name).
+        "John Smith Jones" matches on email prefix "smith.jones" (score 1),
+        while "Edward Smith" matches on last name (score 2).
         """
         results = await identity_service.search_users("smith", limit=10)
 

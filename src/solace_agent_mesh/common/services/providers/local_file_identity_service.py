@@ -137,7 +137,7 @@ class LocalFileIdentityService(BaseIdentityService):
         lower_query = query.lower()
         matches_with_scores = []
 
-        for user in self.all_users:
+        for idx, user in enumerate(self.all_users):
             # Get user fields
             name = str(user.get("name", "")).lower()
             email = str(user.get("email", "")).lower()
@@ -168,6 +168,7 @@ class LocalFileIdentityService(BaseIdentityService):
             if score is not None:
                 matches_with_scores.append((
                     score,
+                    idx,
                     {
                         "id": user.get("id"),
                         "displayName": user.get("name"),
@@ -177,8 +178,10 @@ class LocalFileIdentityService(BaseIdentityService):
                 ))
 
         # Use heap to efficiently get top N matches by score (lower is better)
-        top_matches = heapq.nsmallest(limit, matches_with_scores, key=lambda x: x[0])
-        results = [match[1] for match in top_matches]
+        # The idx tiebreaker ensures stable ordering and avoids TypeError
+        # when comparing dicts (Python 3 cannot compare dict < dict)
+        top_matches = heapq.nsmallest(limit, matches_with_scores, key=lambda x: (x[0], x[1]))
+        results = [match[2] for match in top_matches]
 
         if self.cache:
             self.cache.set(cache_key, results, ttl=min(self.cache_ttl, 60))
