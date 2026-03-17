@@ -430,81 +430,17 @@ class FilteringSessionService(BaseSessionService):
     ) -> Optional[ADKSession]:
         """
         Clone an ADK session by copying all events from source to target.
-        Creates a new independent session with the same conversation history.
-        
-        Used when forking a shared chat - the forked session gets its own
-        copy of the conversation history for true isolation.
-        
-        Returns the new session, or None if the source session doesn't exist.
+        Delegates to the standalone clone_adk_session function.
         """
-        # Get the source session (with compaction filtering applied)
-        source_session = await self.get_session(
+        return await clone_adk_session(
+            session_service=self,
             app_name=app_name,
-            user_id=source_user_id,
-            session_id=source_session_id,
+            source_user_id=source_user_id,
+            source_session_id=source_session_id,
+            target_user_id=target_user_id,
+            target_session_id=target_session_id,
+            log_identifier=log_identifier,
         )
-        
-        if source_session is None:
-            log.warning(
-                "%s Cannot clone session - source session '%s' (user '%s') not found in ADK. "
-                "Forked session will start with empty history.",
-                log_identifier, source_session_id, source_user_id
-            )
-            return None
-        
-        source_events = getattr(source_session, "events", None)
-        if source_events is None:
-            source_events = getattr(source_session, "history", None) or []
-        if not source_events:
-            log.info(
-                "%s Source session '%s' has no events to clone.",
-                log_identifier, source_session_id
-            )
-            return None
-        
-        log.info(
-            "%s Cloning %d events from session '%s' (user '%s') to session '%s' (user '%s').",
-            log_identifier, len(source_events),
-            source_session_id, source_user_id,
-            target_session_id, target_user_id
-        )
-        
-        # Create the target session (strip compaction_time — it references source timestamps)
-        clone_state = None
-        if hasattr(source_session, "state") and source_session.state:
-            clone_state = {k: v for k, v in source_session.state.items() if k != "compaction_time"}
-        target_session = await self.create_session(
-            app_name=app_name,
-            user_id=target_user_id,
-            session_id=target_session_id,
-            state=clone_state,
-        )
-        
-        # Copy events one by one (same pattern as RUN_BASED session copy)
-        for event_to_copy in source_events:
-            await append_event_with_retry(
-                session_service=self,
-                session=target_session,
-                event=event_to_copy,
-                app_name=app_name,
-                user_id=target_user_id,
-                session_id=target_session_id,
-                log_identifier=f"{log_identifier}[ForkClone]",
-            )
-
-        # Fetch final session state once after all events are appended
-        target_session = await self.get_session(
-            app_name=app_name,
-            user_id=target_user_id,
-            session_id=target_session_id,
-        )
-        
-        log.info(
-            "%s Successfully cloned %d events to forked session '%s'.",
-            log_identifier, len(source_events), target_session_id
-        )
-        
-        return target_session
 
     async def list_sessions(
         self,

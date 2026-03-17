@@ -396,7 +396,7 @@ class ShareRepository:
         count = db.query(func.count(SharedLinkUserModel.id)).filter(
             and_(
                 SharedLinkUserModel.share_id == share_id,
-                SharedLinkUserModel.user_email == user_email.lower().strip()
+                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
             )
         ).scalar()
         

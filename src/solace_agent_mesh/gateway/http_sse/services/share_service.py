@@ -1033,12 +1033,34 @@ class ShareService:
             task_repo.save(db, new_task)
         
         db.commit()
-        
+
+        # Copy artifacts from original session to forked session
+        try:
+            import asyncio
+            from ..utils.artifact_copy_utils import copy_session_artifacts
+            loop = asyncio.get_event_loop()
+            artifacts_copied = loop.run_until_complete(
+                copy_session_artifacts(
+                    source_user_id=original_owner_id,
+                    source_session_id=original_session_id,
+                    target_user_id=user_id,
+                    target_session_id=new_session.id,
+                    component=self.component,
+                    log_prefix=f"[Fork:{share_id}] ",
+                )
+            )
+            log.info(
+                "Copied %d artifacts to forked session %s",
+                artifacts_copied, new_session.id
+            )
+        except Exception as e:
+            log.warning("Failed to copy artifacts to forked session: %s", e)
+
         log.info(
-            f"User {user_id} forked shared chat {share_id} into new session {new_session.id} "
-            f"with {len(original_tasks)} tasks"
+            "User %s forked shared chat %s into new session %s with %d tasks",
+            user_id, share_id, new_session.id, len(original_tasks)
         )
-        
+
         return ForkSharedChatResponse(
             session_id=new_session.id,
             session_name=fork_title,
