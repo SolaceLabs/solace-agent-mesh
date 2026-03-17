@@ -168,6 +168,12 @@ def _run_community_migrations(database_url: str) -> None:
     Run Alembic migrations for the community database schema.
     This includes sessions, chat_messages tables and their indexes.
     """
+    from solace_agent_mesh.shared.database.sqlite_version_check import check_sqlite_version
+
+    # Verify SQLite version before running migrations
+    # This will raise RuntimeError if version is incompatible
+    check_sqlite_version(database_url, "WebUI Gateway")
+
     try:
         from sqlalchemy import create_engine
 

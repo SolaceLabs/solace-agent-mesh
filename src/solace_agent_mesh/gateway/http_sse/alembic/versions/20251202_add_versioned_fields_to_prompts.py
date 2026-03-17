@@ -30,16 +30,38 @@ def upgrade() -> None:
     
     # Migrate existing data: copy metadata from prompt_groups to prompts
     # This ensures existing prompt versions have the metadata from their group
-    connection = op.get_bind()
-    connection.execute(sa.text("""
-        UPDATE prompts 
-        SET name = pg.name,
-            description = pg.description,
-            category = pg.category,
-            command = pg.command
-        FROM prompt_groups pg
-        WHERE prompts.group_id = pg.id
-    """))
+    bind = op.get_bind()
+
+    if bind.dialect.name == 'postgresql':
+        # PostgreSQL: UPDATE ... FROM syntax
+        bind.execute(sa.text("""
+            UPDATE prompts
+            SET name = pg.name,
+                description = pg.description,
+                category = pg.category,
+                command = pg.command
+            FROM prompt_groups pg
+            WHERE prompts.group_id = pg.id
+        """))
+    elif bind.dialect.name == 'mysql':
+        # MySQL: UPDATE ... JOIN syntax
+        bind.execute(sa.text("""
+            UPDATE prompts p
+            INNER JOIN prompt_groups pg ON p.group_id = pg.id
+            SET p.name = pg.name,
+                p.description = pg.description,
+                p.category = pg.category,
+                p.command = pg.command
+        """))
+    else:
+        # SQLite: Use subqueries
+        bind.execute(sa.text("""
+            UPDATE prompts
+            SET name = (SELECT name FROM prompt_groups WHERE id = prompts.group_id),
+                description = (SELECT description FROM prompt_groups WHERE id = prompts.group_id),
+                category = (SELECT category FROM prompt_groups WHERE id = prompts.group_id),
+                command = (SELECT command FROM prompt_groups WHERE id = prompts.group_id)
+        """))
 
 
 def downgrade() -> None:
