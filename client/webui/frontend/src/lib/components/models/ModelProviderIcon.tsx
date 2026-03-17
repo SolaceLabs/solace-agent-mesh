@@ -2,10 +2,16 @@ import { useState, useEffect } from "react";
 
 interface ModelProviderIconProps {
     provider: string;
-    size?: "sm" | "md";
+    size?: "xs" | "sm" | "md";
 }
 
 const sizeConfig = {
+    xs: {
+        container: "h-5 w-5",
+        margin: "mr-1",
+        image: "h-4 w-4",
+        text: "text-xs",
+    },
     sm: {
         container: "h-8 w-8",
         margin: "mr-2",
