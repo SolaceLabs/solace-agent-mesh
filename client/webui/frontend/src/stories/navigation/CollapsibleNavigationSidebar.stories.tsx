@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { FolderOpen, BookOpenText, Bot, User, LogOut, Files } from "lucide-react";
 
@@ -6,10 +7,6 @@ import { CollapsibleNavigationSidebar } from "@/lib/components/navigation/Collap
 import { LifecycleBadge } from "@/lib/components/ui";
 import type { NavItemConfig } from "@/lib/types/fe";
 import { sessions } from "../data/sessions";
-
-// ============================================================================
-// Mock data — mirrors useNavigationItems with all features enabled
-// ============================================================================
 
 const defaultItems: NavItemConfig[] = [
     {
@@ -104,12 +101,32 @@ export const Expanded: Story = {
         items: defaultItems,
         isCollapsed: false,
     },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(canvas.getByText("Projects")).toBeInTheDocument();
+        expect(canvas.getByText("Assets")).toBeInTheDocument();
+        expect(canvas.getByText("Agents")).toBeInTheDocument();
+        expect(canvas.getByText("User Account")).toBeInTheDocument();
+        expect(canvas.getByText("Log Out")).toBeInTheDocument();
+        expect(canvas.getByText("New Chat")).toBeInTheDocument();
+        expect(canvas.getByText("Recent Chats")).toBeInTheDocument();
+    },
 };
 
 export const Collapsed: Story = {
     args: {
         items: defaultItems,
         isCollapsed: true,
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const sidebar = canvasElement.querySelector(".navigation-sidebar");
+        expect(sidebar).toBeInTheDocument();
+        expect(sidebar).toHaveClass("w-16");
+        // Labels should not be visible in collapsed mode
+        expect(canvas.queryByText("Projects")).not.toBeInTheDocument();
+        expect(canvas.queryByText("Agents")).not.toBeInTheDocument();
+        expect(canvas.queryByText("Recent Chats")).not.toBeInTheDocument();
     },
 };
 
@@ -119,6 +136,13 @@ export const WithActiveItem: Story = {
         isCollapsed: false,
         activeItemId: "projects",
     },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(canvas.getByText("Projects")).toBeInTheDocument();
+        const sidebar = canvasElement.querySelector(".navigation-sidebar");
+        expect(sidebar).toBeInTheDocument();
+        expect(sidebar).toHaveClass("w-64");
+    },
 };
 
 export const WithSubmenus: Story = {
@@ -126,6 +150,12 @@ export const WithSubmenus: Story = {
         items: defaultItems.map(item => (item.id === "assets" ? { ...item, defaultExpanded: true } : item)),
         isCollapsed: false,
         activeItemId: "prompts",
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(canvas.getByText("Assets")).toBeInTheDocument();
+        expect(canvas.getByText("Prompts")).toBeInTheDocument();
+        expect(canvas.getByText("Artifacts")).toBeInTheDocument();
     },
 };
 
@@ -138,5 +168,11 @@ export const CustomHeader: Story = {
                 <span style={{ fontSize: 20, fontWeight: 700, color: "var(--darkSurface-text)" }}>Custom Logo</span>
             </div>
         ),
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(canvas.getByText("Custom Logo")).toBeInTheDocument();
+
+        expect(canvasElement.querySelector(".navigation-sidebar")).toBeInTheDocument();
     },
 };
