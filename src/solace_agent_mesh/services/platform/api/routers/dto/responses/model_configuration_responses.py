@@ -39,12 +39,3 @@ class ModelConfigurationResponse(CamelCaseModel):
     updated_by: str = Field(..., description="User who last updated this configuration")
     created_time: int = Field(..., description="Creation timestamp (epoch ms)")
     updated_time: int = Field(..., description="Last update timestamp (epoch ms)")
-
-
-class ModelConfigurationListResponse(CamelCaseModel):
-    """Response DTO for a list of model configurations."""
-
-    configurations: list[ModelConfigurationResponse] = Field(
-        ..., description="List of model configurations"
-    )
-    total: int = Field(..., description="Total number of configurations")
