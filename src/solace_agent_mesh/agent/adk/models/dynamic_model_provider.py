@@ -3,17 +3,19 @@ Dynamic Model Provider for enterprise model configuration.
 """
 
 from typing import Any, Dict, Union
-from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
+from solace_ai_connector.components.component_base import ComponentBase as SamComponentBase
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.message import Message as SolaceMessage
 import logging
 
-log = logging.getLogger(__name__)
+from .dynamic_model_provider_topics import (
+    get_bootstrap_request_topic,
+    get_bootstrap_response_topic,
+    get_model_config_update_topic,
+)
 
-BOOTSTRAP_REQUEST_TOPIC = "{namespace}model/{id}/bootstrap"
-BOOTSTRAP_RESPONSE_TOPIC = "{namespace}model/{id}/bootstrap/response"
-MODEL_CONFIG_UPDATE_TOPIC = "{namespace}configuration/model/{name}"
+log = logging.getLogger(__name__)
 
 
 # SAC Component Info for ModelConfigReceiverComponent
@@ -141,7 +143,7 @@ class DynamicModelProvider:
         Args:
             model_config: The new model configuration (model name or config dict).
         """
-        log.info(f"Updating LiteLlm instance with new model config: {model_config}")
+        log.info("Updating LiteLlm instance with new model: %s", model_config.get('model'))
         self._litellm_instance.configure_model(model_config)
 
     def remove_litellm_model(self) -> None:
@@ -151,54 +153,18 @@ class DynamicModelProvider:
         log.info("Removing model configuration from LiteLlm instance.")
         self._litellm_instance.unconfigure_model()
 
-    def get_bootstrap_request_topic(self) -> str:
-        """
-        Get the A2A topic to publish model configuration requests to.
-
-        Returns:
-            The topic string to publish model config requests to.
-        """
-
-        return BOOTSTRAP_REQUEST_TOPIC.format(
-            namespace=self._component.namespace,
-            id=self._component.get_component_id(),
-        )
-
-    def get_bootstrap_response_topic(self) -> str:
-        """
-        Get the A2A topic to listen for model configuration request responses.
-
-        Returns:
-            The topic string to listen for model config request responses on.
-        """
-        return BOOTSTRAP_RESPONSE_TOPIC.format(
-            namespace=self._component.namespace,
-            id=self._component.get_component_id(),
-        )
-    
-    def get_model_config_update_topic(self) -> str:
-        """
-        Get the A2A topic to listen for model configuration updates on.
-
-        Returns:
-            The topic string to listen for model config updates on.
-        """
-        return MODEL_CONFIG_UPDATE_TOPIC.format(
-            namespace=self._component.namespace,
-            id=self._component.get_component_id(),
-        )   
-
     def request_model_config(self) -> None:
         """
         Request model configuration for the component.
         """
         component_id = self._component.get_component_id()
         log.info("Requesting model configuration for LiteLlm instance for component %s", component_id)
-        topic = self.get_bootstrap_request_topic()
+        topic = get_bootstrap_request_topic(self._component.namespace, self._model_id)
         payload = {
             "component_id": component_id,
             "component_type": self._component._get_component_type(),
-            "reply_to": self.get_bootstrap_response_topic(),
+            "reply_to": get_bootstrap_response_topic(self._component.namespace, self._model_id, component_id),
+            "model_id": self._model_id,
         }
         self._component.publish_a2a_message(
             payload=payload,
@@ -237,8 +203,8 @@ class DynamicModelProvider:
                 raise ValueError("Main app broker configuration is missing.")
 
             # Subscribe to the model config update topic
-            config_update_topic = self.get_model_config_update_topic()
-            config_bootstrap_topic = self.get_bootstrap_response_topic()
+            config_update_topic = get_model_config_update_topic(self._component.namespace, self._model_id)
+            config_bootstrap_topic = get_bootstrap_response_topic(self._component.namespace, self._model_id, self._component.get_component_id())
             component_id = self._component.get_component_id()
 
             broker_input_cfg = {
