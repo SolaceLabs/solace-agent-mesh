@@ -4,11 +4,12 @@ import { useSearchParams } from "react-router-dom";
 import { Button, EmptyState, Header } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
 import { WorkflowList } from "@/lib/components/workflows";
+import { ModelsView } from "@/lib/components/models";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent } from "@/lib/utils/agentUtils";
 import { RefreshCcw } from "lucide-react";
 
-type AgentMeshTab = "agents" | "workflows";
+type AgentMeshTab = "agents" | "workflows" | "models";
 
 export function AgentMeshPage() {
     const { agents, agentsLoading, agentsError, agentsRefetch } = useChatContext();
@@ -47,6 +48,12 @@ export function AgentMeshPage() {
             onClick: () => setActiveTab("workflows"),
             badge: "EXPERIMENTAL",
         },
+        {
+            id: "models",
+            label: "Models",
+            isActive: activeTab === "models",
+            onClick: () => setActiveTab("models"),
+        },
     ];
 
     return (
@@ -67,7 +74,11 @@ export function AgentMeshPage() {
             ) : agentsError ? (
                 <EmptyState variant="error" title="Error loading data" subtitle={agentsError} />
             ) : (
-                <div className="relative min-h-0 flex-1 overflow-hidden">{activeTab === "agents" ? <AgentMeshCards agents={regularAgents} /> : <WorkflowList workflows={workflowAgents} />}</div>
+                <div className="relative min-h-0 flex-1 overflow-hidden">
+                    {activeTab === "agents" && <AgentMeshCards agents={regularAgents} />}
+                    {activeTab === "workflows" && <WorkflowList workflows={workflowAgents} />}
+                    {activeTab === "models" && <ModelsView />}
+                </div>
             )}
         </div>
     );
