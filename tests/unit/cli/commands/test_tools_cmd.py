@@ -274,7 +274,7 @@ class TestListToolsCommand:
 
     def test_list_tools_brief_default(self, runner, sample_tools_list):
         """Test list command with brief output (default)"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = sample_tools_list
 
             result = runner.invoke(list_tools, [])
@@ -289,7 +289,7 @@ class TestListToolsCommand:
 
     def test_list_tools_detailed_flag(self, runner, sample_tools_list):
         """Test list command with --detailed flag"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = sample_tools_list
 
             result = runner.invoke(list_tools, ["--detailed"])
@@ -304,7 +304,7 @@ class TestListToolsCommand:
 
     def test_list_tools_detailed_short_flag(self, runner, sample_tools_list):
         """Test list command with -d short flag"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = sample_tools_list
 
             result = runner.invoke(list_tools, ["-d"])
@@ -314,7 +314,7 @@ class TestListToolsCommand:
 
     def test_list_tools_category_filter(self, runner, sample_tools_list):
         """Test list command with --category filter"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             # Mock get_tools_by_category to return only tools from test_category
             filtered_tools = [t for t in sample_tools_list if t.category == "test_category"]
             mock_registry.get_tools_by_category.return_value = filtered_tools
@@ -329,7 +329,7 @@ class TestListToolsCommand:
 
     def test_list_tools_category_short_flag(self, runner, sample_tools_list):
         """Test list command with -c short flag"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             filtered_tools = [t for t in sample_tools_list if t.category == "test_category"]
             mock_registry.get_tools_by_category.return_value = filtered_tools
 
@@ -340,7 +340,7 @@ class TestListToolsCommand:
 
     def test_list_tools_invalid_category(self, runner, sample_tools_list):
         """Test list command with invalid category"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_tools_by_category.return_value = []
             mock_registry.get_all_tools.return_value = sample_tools_list
 
@@ -352,7 +352,7 @@ class TestListToolsCommand:
 
     def test_list_tools_json_output_brief(self, runner, sample_tools_list):
         """Test list command with JSON output (brief)"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = sample_tools_list
 
             result = runner.invoke(list_tools, ["--json"])
@@ -368,7 +368,7 @@ class TestListToolsCommand:
 
     def test_list_tools_json_output_detailed(self, runner, sample_tools_list):
         """Test list command with JSON output (detailed)"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = sample_tools_list
 
             result = runner.invoke(list_tools, ["--json", "--detailed"])
@@ -383,7 +383,7 @@ class TestListToolsCommand:
 
     def test_list_tools_combined_flags(self, runner, sample_tools_list):
         """Test list command with combined flags"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             filtered_tools = [t for t in sample_tools_list if t.category == "test_category"]
             mock_registry.get_tools_by_category.return_value = filtered_tools
 
@@ -402,7 +402,7 @@ class TestListToolsCommand:
 
     def test_list_tools_no_tools_registered(self, runner):
         """Test list command when no tools are registered"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = []
 
             with patch("cli.commands.tools_cmd.error_exit", side_effect=SystemExit(1)):
@@ -412,7 +412,7 @@ class TestListToolsCommand:
 
     def test_list_tools_category_with_detailed(self, runner, sample_tools_list):
         """Test list command with category filter and detailed flag"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             filtered_tools = [t for t in sample_tools_list if t.category == "test_category"]
             mock_registry.get_tools_by_category.return_value = filtered_tools
 
@@ -435,7 +435,7 @@ class TestListToolsCommand:
 
     def test_list_tools_multiple_categories_output(self, runner, sample_tools_list):
         """Test list command groups tools by category"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = sample_tools_list
 
             result = runner.invoke(list_tools, [])
@@ -466,7 +466,7 @@ class TestListToolsCommand:
 
     def test_list_tools_json_valid_structure(self, runner, sample_tool):
         """Test JSON output has valid structure"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = [sample_tool]
 
             result = runner.invoke(list_tools, ["--json", "-d"])
@@ -486,7 +486,7 @@ class TestListToolsCommand:
 
     def test_list_tools_alphabetical_sorting(self, runner, sample_tools_list):
         """Test that tools are sorted alphabetically within categories"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_all_tools.return_value = sample_tools_list
 
             result = runner.invoke(list_tools, [])
@@ -504,7 +504,7 @@ class TestListToolsCommand:
 
     def test_list_tools_invalid_category_shows_valid_options(self, runner, sample_tools_list):
         """Test that invalid category error shows valid categories"""
-        with patch("cli.commands.tools_cmd.tool_registry") as mock_registry:
+        with patch("solace_agent_mesh.agent.tools.registry.tool_registry") as mock_registry:
             mock_registry.get_tools_by_category.return_value = []
             mock_registry.get_all_tools.return_value = sample_tools_list
 

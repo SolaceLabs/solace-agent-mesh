@@ -328,10 +328,8 @@ async def subscribe_to_visualization_stream(
                 log_id_prefix,
                 stream_id,
             )
-            sse_url = _generate_sse_url(fastapi_request, stream_id)
             return VisualizationSubscribeResponse(
                 stream_id=stream_id,
-                sse_endpoint_url=sse_url,
                 actual_subscribed_targets=existing_stream_data.get(
                     "abstract_targets", []
                 ),
@@ -658,6 +656,7 @@ async def subscribe_to_visualization_stream(
         )
         async with component._get_visualization_lock():
             component._active_visualization_streams.pop(stream_id, None)
+            component._viz_stream_drop_counts.pop(stream_id, None)
         log.debug(
             "%s Released viz lock after cleaning up failed stream %s",
             log_id_prefix,
@@ -712,19 +711,16 @@ async def subscribe_to_visualization_stream(
             len(failed_targets),
         )
 
-    sse_url = _generate_sse_url(fastapi_request, stream_id)
     log.info(
-        "%s Visualization stream %s initiated for user %s. SSE URL: %s. Processed Targets: %s",
+        "%s Visualization stream %s initiated for user %s. Processed Targets: %s",
         log_id_prefix,
         stream_id,
         user_id,
-        sse_url,
         processed_targets_for_response,
     )
 
     return VisualizationSubscribeResponse(
         stream_id=stream_id,
-        sse_endpoint_url=sse_url,
         actual_subscribed_targets=processed_targets_for_response,
         message=response_message,
     )
@@ -1178,6 +1174,7 @@ async def unsubscribe_from_visualization_stream(
             await sse_manager.close_connection(stream_id, sse_queue)
 
         component._active_visualization_streams.pop(stream_id, None)
+        component._viz_stream_drop_counts.pop(stream_id, None)
         log.info("%s Stream %s unsubscribed and removed.", log_id_prefix, stream_id)
     log.debug(
         "%s Released viz lock after unsubscribing from stream %s",

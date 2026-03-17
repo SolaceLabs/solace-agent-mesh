@@ -3,9 +3,6 @@ import json
 from typing import Optional, List, Dict, Any
 from collections import defaultdict
 
-# Import to trigger tool registration
-import solace_agent_mesh.agent.tools  # noqa: F401
-from solace_agent_mesh.agent.tools.registry import tool_registry
 from cli.utils import error_exit
 
 
@@ -284,6 +281,9 @@ def list_tools(category: Optional[str], detailed: bool, output_json: bool):
         # Filter and output as JSON
         sam tools list -c web --json
     """
+    import solace_agent_mesh.agent.tools  # noqa: F401
+    from solace_agent_mesh.agent.tools.registry import tool_registry
+
     # Fetch tools from registry
     if category:
         tools_list = tool_registry.get_tools_by_category(category)

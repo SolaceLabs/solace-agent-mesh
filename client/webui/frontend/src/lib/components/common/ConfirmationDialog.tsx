@@ -79,10 +79,10 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
                         .progress-bar-animate {
                             animation: progressBarSlide 2s ease-in-out infinite;
                             width: 25%;
-                            background: var(--color-brand-wMain);
+                            background: var(--brand-wMain);
                         }
                         `}</style>
-                        <div className="bg-muted absolute right-1 bottom-0 left-1 h-1 overflow-hidden rounded-full">
+                        <div className="absolute right-1 bottom-0 left-1 h-1 overflow-hidden rounded-full bg-(--secondary-w10)">
                             <div className="progress-bar-animate h-full rounded-full"></div>
                         </div>
                     </>

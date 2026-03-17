@@ -68,7 +68,7 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
 function FormLabel({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
     const { error, formItemId } = useFormField();
 
-    return <Label data-slot="form-label" data-error={!!error} className={cn("data-[error=true]:text-(--color-error-wMain)", className)} htmlFor={formItemId} {...props} />;
+    return <Label data-slot="form-label" data-error={!!error} className={cn("data-[error=true]:text-(--error-wMain)", className)} htmlFor={formItemId} {...props} />;
 }
 
 function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
@@ -80,7 +80,7 @@ function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
 function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
     const { formDescriptionId } = useFormField();
 
-    return <p data-slot="form-description" id={formDescriptionId} className={cn("text-muted-foreground text-sm", className)} {...props} />;
+    return <p data-slot="form-description" id={formDescriptionId} className={cn("text-sm text-(--secondary-text-wMain)", className)} {...props} />;
 }
 
 function FormError({ className, ...props }: React.ComponentProps<"p">) {
@@ -91,7 +91,7 @@ function FormError({ className, ...props }: React.ComponentProps<"p">) {
     const body = String(error?.message ?? "");
 
     return (
-        <p data-slot="form-error" id={formMessageId} className={cn("text-xs text-(--color-error-wMain)", className)} {...props}>
+        <p data-slot="form-error" id={formMessageId} className={cn("text-xs text-(--error-wMain)", className)} {...props}>
             {body}
         </p>
     );
@@ -101,7 +101,7 @@ function FormInputLabel({ className, rightAlign, ...props }: React.ComponentProp
     const { formMessageId } = useFormField();
     if (!props.children) return null;
     return (
-        <p data-slot="form-input-label" id={formMessageId} className={cn("text-muted-foreground text-xs", rightAlign && "text-right", className)} {...props}>
+        <p data-slot="form-input-label" id={formMessageId} className={cn("text-xs text-(--secondary-text-wMain)", rightAlign && "text-right", className)} {...props}>
             {props.children}
         </p>
     );

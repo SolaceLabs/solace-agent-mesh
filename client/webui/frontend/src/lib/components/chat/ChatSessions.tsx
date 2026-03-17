@@ -14,13 +14,13 @@ export const ChatSessions = () => {
         <div className="flex h-full flex-col">
             <div className="flex-1 overflow-y-auto px-4">
                 {/* Current Session */}
-                <div className="bg-accent/50 hover:bg-accent mb-3 cursor-pointer rounded-md p-3">
-                    <div className="text-foreground truncate text-sm font-medium text-nowrap">{sessionName || "New Chat"}</div>
-                    <div className="text-muted-foreground mt-1 text-xs">Current session</div>
+                <div className="mb-3 cursor-pointer rounded-md bg-(--secondary-w20) p-3 hover:bg-(--secondary-w40)">
+                    <div className="truncate text-sm font-medium text-nowrap text-(--primary-text-wMain)">{sessionName || "New Chat"}</div>
+                    <div className="mt-1 text-xs text-(--secondary-text-wMain)">Current session</div>
                 </div>
 
                 {/* Multi-session notice */}
-                <div className="text-muted-foreground mt-4 text-center text-xs">Persistence is not enabled.</div>
+                <div className="mt-4 text-center text-xs text-(--secondary-text-wMain)">Persistence is not enabled.</div>
             </div>
         </div>
     );
