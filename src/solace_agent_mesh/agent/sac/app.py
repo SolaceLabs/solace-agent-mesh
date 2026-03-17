@@ -496,11 +496,11 @@ class SamAgentAppConfig(SamConfigBase):
 
     @model_validator(mode="after")
     def _validate_model_requirement(self) -> "SamAgentAppConfig":
-        if self.model is None and not (os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"):
+        if self.model is None and not (os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"):
             raise ValueError(
                 "Missing required field: 'model'. Provide a model config"
             )
-        if (os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true") and (not self.model_provider and not self.model):
+        if (os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true") and (not self.model_provider and not self.model):
             raise ValueError(
                 "Invalid configuration: 'model_provider' or 'model' must be provided."
             )
