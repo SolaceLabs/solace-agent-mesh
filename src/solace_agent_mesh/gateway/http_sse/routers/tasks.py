@@ -711,6 +711,34 @@ async def _submit_task(
             if msg_metadata.get("maxExecutionTimeMs"):
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
 
+        # For forked sessions: pass fork metadata so the agent can clone the ADK session
+        # on first message. The forked session uses its OWN session_id (true isolation).
+        if session_id and SessionLocal is not None:
+            try:
+                from ..repository.chat_task_repository import ChatTaskRepository
+                import json as json_mod_fork
+                db_fork = SessionLocal()
+                try:
+                    task_repo = ChatTaskRepository()
+                    tasks = task_repo.find_by_session(db_fork, session_id, client_id)
+                    if tasks and tasks[0].task_metadata:
+                        meta = json_mod_fork.loads(tasks[0].task_metadata)
+                        forked_session_id = meta.get("forked_from_session_id")
+                        forked_owner_id = meta.get("forked_from_owner_id")
+                        if forked_session_id and forked_owner_id:
+                            # Pass fork source info as metadata so the agent can clone
+                            # the ADK session on first message
+                            additional_metadata["fork_source_session_id"] = forked_session_id
+                            additional_metadata["fork_source_user_id"] = forked_owner_id
+                            log.info(
+                                "%sForked session detected - passing clone metadata: source_session=%s, source_user=%s",
+                                log_prefix, forked_session_id, forked_owner_id
+                            )
+                finally:
+                    db_fork.close()
+            except Exception as e:
+                log.debug("%sFailed to check forked session context: %s", log_prefix, e)
+
         # Pass project_id to agent for project-context-aware tool injection (e.g., index_search).
         # Gated on frontend_feature_enablement.projectIndexing and BM25 index existence —
         # the agent callback injects index_search when it sees project_id, so only pass it
