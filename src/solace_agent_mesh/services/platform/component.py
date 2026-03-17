@@ -6,19 +6,14 @@ Hosts the FastAPI REST API server for platform configuration management.
 import logging
 import threading
 import json
-from importlib.resources import files as pkg_files
 from typing import Any, Dict
 
 import uvicorn
-from openfeature import api as openfeature_api
 from solace_ai_connector.common.message import Message as SolaceMessage
 
 from solace_agent_mesh.common.middleware import MiddlewareRegistry
 from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
-from solace_agent_mesh.common.features.checker import FeatureChecker
-from solace_agent_mesh.common.features.provider import SamFeatureProvider
-from solace_agent_mesh.common.features.registry import FeatureRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.common import a2a
 from solace_agent_mesh.common.constants import (
@@ -282,6 +277,7 @@ class PlatformServiceComponent(SamComponentBase):
                         try:
                             models_config = self.connector_models
                             seed_model_configurations(db_session, models_config)
+                            db_session.commit()
                             log.info("%s Model configurations seeded successfully", self.log_identifier)
                         except Exception:
                             db_session.rollback()

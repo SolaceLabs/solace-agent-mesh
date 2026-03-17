@@ -17,6 +17,8 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+from solace_agent_mesh.shared.database.id_generators import generate_uuidv7
+
 log = logging.getLogger(__name__)
 
 
@@ -188,14 +190,14 @@ def seed_model_configurations(
     # Check if table already has entries (idempotent - seeding is one-time)
     existing_count = db.query(func.count(ModelConfiguration.id)).scalar()
     if existing_count > 0:
-        log.info(f"[Model Seed] Table already contains {existing_count} configurations, skipping seeding")
+        log.info("[Model Seed] Table already contains %d configurations, skipping seeding", existing_count)
         return existing_count
 
     count = 0
 
     # Try seeding from models_config if provided
     if models_config:
-        log.info(f"[Model Seed] Seeding from config with {len(models_config)} entries")
+        log.info("[Model Seed] Seeding from config with %d entries", len(models_config))
         count = _seed_from_models_config(db, models_config)
 
     # If no models_config provided or empty, seed from environment variables
@@ -204,7 +206,7 @@ def seed_model_configurations(
         count = _seed_from_env_vars(db)
 
     if count > 0:
-        log.info(f"[Model Seed] Successfully seeded {count} model configurations")
+        log.info("[Model Seed] Successfully seeded %d model configurations", count)
     else:
         log.warning("[Model Seed] No model configurations seeded")
 
@@ -219,7 +221,6 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
         log.info("[Model Seed] No models_config provided")
         return 0
 
-    import uuid
     from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
     from solace_agent_mesh.services.platform.models import ModelConfiguration
 
@@ -227,17 +228,17 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
         try:
             # Check if already exists before processing
             existing = db.query(ModelConfiguration).filter(
-                ModelConfiguration.alias.ilike(alias)
+                ModelConfiguration.alias == alias
             ).first()
 
             if existing:
-                log.debug(f"[Model Seed] Model configuration '{alias}' already exists, skipping")
+                log.debug("[Model Seed] Model configuration '%s' already exists, skipping", alias)
                 continue
 
             if isinstance(config_data, dict):
                 model_name = config_data.get("model")
                 if not model_name:
-                    log.debug(f"[Model Seed] Skipping model '{alias}' without model_name")
+                    log.debug("[Model Seed] Skipping model '%s' without model_name", alias)
                     continue
 
                 api_base = config_data.get("api_base")
@@ -255,12 +256,12 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
                 model_params = {}
 
             else:
-                log.debug(f"[Model Seed] Skipping invalid entry '{alias}': {type(config_data)}")
+                log.debug("[Model Seed] Skipping invalid entry '%s': %s", alias, type(config_data))
                 continue
 
             # Insert model configuration
             model_config = ModelConfiguration(
-                id=str(uuid.uuid4()),
+                id=generate_uuidv7(),
                 alias=alias,
                 provider=provider,
                 model_name=model_name,
@@ -276,15 +277,11 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
             )
             db.add(model_config)
             count += 1
-            log.debug(f"[Model Seed] Seeded model configuration: {alias}")
+            log.debug("[Model Seed] Seeded model configuration: %s", alias)
 
         except Exception as e:
-            log.error(f"[Model Seed] Failed to seed model '{alias}': {e}", exc_info=True)
+            log.error("[Model Seed] Failed to seed model '%s': %s", alias, e, exc_info=True)
             # Continue with next model instead of failing the entire seeding process
-
-    if count > 0:
-        db.commit()
-        log.info(f"[Model Seed] Committed {count} model configurations")
 
     return count
 
@@ -293,7 +290,6 @@ def _seed_from_env_vars(db: Session) -> int:
     """Seed model aliases from environment variables."""
     count = 0
 
-    import uuid
     from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
     from solace_agent_mesh.services.platform.models import ModelConfiguration
 
@@ -309,16 +305,16 @@ def _seed_from_env_vars(db: Session) -> int:
         try:
             # Check if already exists before processing
             existing = db.query(ModelConfiguration).filter(
-                ModelConfiguration.alias.ilike(alias)
+                ModelConfiguration.alias == alias
             ).first()
 
             if existing:
-                log.debug(f"[Model Seed] Model configuration '{alias}' already exists, skipping")
+                log.debug("[Model Seed] Model configuration '%s' already exists, skipping", alias)
                 continue
 
             model_name = os.getenv(model_env, "").strip()
             if not model_name:
-                log.debug(f"[Model Seed] Skipping '{alias}': {model_env} not set")
+                log.debug("[Model Seed] Skipping '%s': %s not set", alias, model_env)
                 continue
 
             api_base = os.getenv(endpoint_env, "").strip()
@@ -337,7 +333,7 @@ def _seed_from_env_vars(db: Session) -> int:
 
             # Insert model configuration
             model_config = ModelConfiguration(
-                id=str(uuid.uuid4()),
+                id=generate_uuidv7(),
                 alias=alias,
                 provider=provider,
                 model_name=model_name,
@@ -353,14 +349,10 @@ def _seed_from_env_vars(db: Session) -> int:
             )
             db.add(model_config)
             count += 1
-            log.info(f"[Model Seed] Seeded model configuration from env vars: {alias}")
+            log.info("[Model Seed] Seeded model configuration from env vars: %s", alias)
 
         except Exception as e:
-            log.error(f"[Model Seed] Failed to seed model '{alias}' from env vars: {e}", exc_info=True)
+            log.error("[Model Seed] Failed to seed model '%s' from env vars: %s", alias, e, exc_info=True)
             # Continue with next model instead of failing the entire seeding process
-
-    if count > 0:
-        db.commit()
-        log.info(f"[Model Seed] Committed {count} model configurations from env vars")
 
     return count

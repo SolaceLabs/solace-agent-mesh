@@ -3,8 +3,8 @@
 import logging
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
+from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelConfigurationResponse,
@@ -19,44 +19,43 @@ class ModelConfigService:
     Service layer for model configuration business logic.
 
     Handles:
-    - Querying model configurations
+    - Business logic and validation
     - Converting database entities to safe response models
     - Credential redaction based on auth type
     - Future business logic (RBAC checks, update/delete operations)
+
+    Delegates data access to ModelConfigurationRepository.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self):
+        """Initialize the service with a repository instance."""
+        self.repository = ModelConfigurationRepository()
+
+    def list_all(self, db: Session) -> List[ModelConfigurationResponse]:
         """
-        Initialize the service with a database session.
+        Retrieve all model configurations.
 
         Args:
             db: SQLAlchemy database session
-        """
-        self.db = db
-
-    def list_all(self) -> List[ModelConfigurationResponse]:
-        """
-        Retrieve all model configurations.
 
         Returns:
             List of ModelConfigurationResponse objects with credentials filtered
         """
-        db_configs = self.db.query(ModelConfiguration).all()
+        db_configs = self.repository.get_all(db)
         return [self._to_response(config) for config in db_configs]
 
-    def get_by_alias(self, alias: str) -> Optional[ModelConfigurationResponse]:
+    def get_by_alias(self, db: Session, alias: str) -> Optional[ModelConfigurationResponse]:
         """
         Retrieve a model configuration by alias (case-sensitive exact match).
 
         Args:
+            db: SQLAlchemy database session
             alias: Model alias to look up
 
         Returns:
             ModelConfigurationResponse if found, None otherwise
         """
-        db_config = self.db.query(ModelConfiguration).filter(
-            ModelConfiguration.alias == alias
-        ).first()
+        db_config = self.repository.get_by_alias(db, alias)
 
         if not db_config:
             return None

@@ -96,15 +96,15 @@ class TestModelConfigurationAPI:
             db.close()
 
     @pytest.mark.parametrize("auth_type,secret_fields,stored_config,expected_secret_text,expected_config", [
-        # API key auth - api_key should be redacted
+        # API key auth - api_key should be redacted, type field also removed
         (
             "apikey",
             {"api_key"},
             {"api_key": "sk-secret-123", "type": "apikey"},
             "sk-secret-123",
-            {"type": "apikey"}
+            {}
         ),
-        # OAuth2 - client_secret redacted, public fields preserved
+        # OAuth2 - client_secret redacted, public fields preserved, type field removed
         (
             "oauth2",
             {"client_secret"},
@@ -120,16 +120,15 @@ class TestModelConfigurationAPI:
                 "client_id": "public-id",
                 "token_url": "https://auth.example.com/token",
                 "ca_cert": "/etc/ssl/certs/custom-ca.pem",
-                "type": "oauth2"
             }
         ),
-        # No auth - only type field
+        # No auth - type field removed (empty authConfig)
         (
             "none",
             set(),
             {"type": "none"},
             None,
-            {"type": "none"}
+            {}
         ),
     ])
     def test_credential_filtering_by_auth_type(
