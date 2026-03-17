@@ -45,10 +45,10 @@ const phaseLabels = {
 };
 
 const phaseColors = {
-    planning: "bg-primary",
-    searching: "bg-primary",
-    analyzing: "bg-primary",
-    writing: "bg-primary",
+    planning: "bg-(--primary-wMain)",
+    searching: "bg-(--primary-wMain)",
+    analyzing: "bg-(--primary-wMain)",
+    writing: "bg-(--primary-wMain)",
 };
 
 export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, isComplete = false }) => {
@@ -57,13 +57,13 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
     const phaseColor = phaseColors[progress.phase];
 
     return (
-        <Card className="dark:bg-card w-full bg-gray-50">
+        <Card className="w-full bg-(--background-w10)">
             <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2 text-lg">
                         {isComplete ? (
                             <>
-                                <CheckCircle className="h-5 w-5 text-green-500" />
+                                <CheckCircle className="h-5 w-5 text-(--success-wMain)" />
                                 <span>Research Complete</span>
                             </>
                         ) : (
@@ -85,7 +85,7 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
                 {/* Progress Bar */}
                 <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{phaseLabel}</span>
+                        <span className="text-(--secondary-text-wMain)">{phaseLabel}</span>
                         <span className="font-medium">{Math.round(progress.progress_percentage)}%</span>
                     </div>
                     <Progress value={progress.progress_percentage} className="h-2" />
@@ -103,10 +103,10 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
                             <div
                                 key={phase}
                                 className={`flex flex-col items-center gap-1 rounded-lg p-2 transition-colors ${
-                                    isActive ? "bg-primary/10 border-primary border" : isComplete ? "border border-green-500/30 bg-green-500/10 dark:border-green-500/40 dark:bg-green-500/20" : "bg-muted"
+                                    isActive ? "border border-(--primary-wMain) bg-(--primary-w10)" : isComplete ? "border border-(--success-w100) bg-(--success-w10)" : "bg-(--secondary-w10)"
                                 }`}
                             >
-                                <Icon className={`h-4 w-4 ${isActive ? "text-primary animate-pulse" : isComplete ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`} />
+                                <Icon className={`h-4 w-4 ${isActive ? "animate-pulse text-(--primary-wMain)" : isComplete ? "text-(--success-wMain)" : "text-(--secondary-text-wMain)"}`} />
                                 <span className="text-center text-xs capitalize">{phase}</span>
                             </div>
                         );
@@ -116,13 +116,13 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
                 {/* Phase Indicator */}
                 <div className="flex items-center gap-2">
                     <div className={`h-2 w-2 rounded-full ${phaseColor} animate-pulse`} />
-                    <span className="text-muted-foreground text-sm">{progress.status_text}</span>
+                    <span className="text-sm text-(--secondary-text-wMain)">{progress.status_text}</span>
                 </div>
 
                 {/* Current Query */}
                 {progress.current_query && (
-                    <div className="bg-muted/50 rounded-lg p-3">
-                        <div className="text-muted-foreground mb-1 text-xs font-medium">Current Query</div>
+                    <div className="rounded-lg bg-(--secondary-w10) p-3">
+                        <div className="mb-1 text-xs font-medium text-(--secondary-text-wMain)">Current Query</div>
                         <div className="text-sm">{progress.current_query}</div>
                     </div>
                 )}
@@ -130,10 +130,10 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
                 {/* Fetching URLs with Favicons */}
                 {progress.fetching_urls && progress.fetching_urls.length > 0 && (
                     <div className="space-y-2">
-                        <div className="text-muted-foreground text-xs font-medium">Reading Pages</div>
+                        <div className="text-xs font-medium text-(--secondary-text-wMain)">Reading Pages</div>
                         <div className="space-y-1">
                             {progress.fetching_urls.map((urlInfo, idx) => (
-                                <div key={idx} className="bg-muted/30 flex items-center gap-2 rounded p-2 text-sm">
+                                <div key={idx} className="flex items-center gap-2 rounded bg-(--secondary-w10) p-2 text-sm">
                                     {urlInfo.favicon && (
                                         <img
                                             src={urlInfo.favicon}
@@ -155,7 +155,7 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
 
                 {/* Time Tracking */}
                 {progress.max_runtime_seconds > 0 && (
-                    <div className="text-muted-foreground flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs text-(--secondary-text-wMain)">
                         <span>
                             Elapsed: {Math.floor(progress.elapsed_seconds / 60)}m {progress.elapsed_seconds % 60}s
                         </span>

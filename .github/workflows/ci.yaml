@@ -203,11 +203,28 @@ jobs:
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
           push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
           cache-from: ${{ steps.cache_list.outputs.cache_from }}
+          load: ${{ !fromJSON(needs.prepare-metadata.outputs.docker_push) }}
           cache-to: ${{ steps.image_name.outputs.cache_to }}
           provenance: false
           sbom: false
           build-args: |
             INSTALL_LIBREOFFICE=${{ secrets.INSTALL_LIBREOFFICE || 'false' }}
+
+      - name: Run Prisma Cloud Scan on Local Image
+        if: ${{ github.event_name == 'pull_request' }}
+        id: prisma_scan
+        continue-on-error: true
+        uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@main
+        with:
+          image_registry: ${{ steps.login-ecr.outputs.registry }}
+          image_repo: ${{ github.event.repository.name }}
+          image_tag: ${{ format('{0}-{1}-{2}', needs.prepare-metadata.outputs.version, needs.prepare-metadata.outputs.short_sha, matrix.platform.tag_suffix) }}
+          pcc_console_url: ${{ vars.PRISMACLOUD_CONSOLE_URL }}
+          pcc_user: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+          pcc_pass: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+          twistcli_publish: "true"
+          vulnerability_grace_period_days: "7"
+          skip_image_pull: ${{ !fromJSON(needs.prepare-metadata.outputs.docker_push) }}
 
   # ----------------------------------------------------
   # PHASE 3: Merge Multi-Platform Manifest (Always)

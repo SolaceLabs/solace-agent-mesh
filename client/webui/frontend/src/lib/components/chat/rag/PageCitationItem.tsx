@@ -27,8 +27,8 @@ export const LocationCitationItem: React.FC<LocationCitationItemProps> = ({ loca
     return (
         <div className="flex items-center justify-between py-2.5">
             <div className="flex items-center gap-2">
-                <span className="dark:text-foreground min-w-[60px] text-sm font-semibold">{locationLabel}</span>
-                <span className="dark:text-muted-foreground text-sm">
+                <span className="min-w-[60px] text-sm font-semibold">{locationLabel}</span>
+                <span className="text-sm">
                     {citationCount} citation{citationCount !== 1 ? "s" : ""}
                 </span>
             </div>

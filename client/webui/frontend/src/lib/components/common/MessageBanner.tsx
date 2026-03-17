@@ -22,11 +22,11 @@ const iconMap = {
 };
 
 const iconColorMap: Record<string, string> = {
-    warning: "text-[var(--color-warning-wMain)]",
+    warning: "text-(--warning-wMain)",
 };
 
 const textColorOverrides: Record<string, string> = {
-    warning: "text-foreground dark:text-[var(--color-white)]",
+    warning: "text-(--primary-text-wMain)",
 };
 
 export interface MessageBannerBaseProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof messageBannerVariants> {
