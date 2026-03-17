@@ -332,9 +332,8 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
             const cachedPdf = pdfConversionCache.get(cacheKey);
 
             if (cachedPdf) {
-                // NOSONAR - cache hit path tested via integration; module-level cache not exportable for unit tests
-                setPdfDataUrl(cachedPdf); // NOSONAR
-                setConversionState("success"); // NOSONAR
+                setPdfDataUrl(cachedPdf);
+                setConversionState("success");
                 return;
             }
 
