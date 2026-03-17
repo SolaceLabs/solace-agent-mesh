@@ -4,10 +4,10 @@ Model configuration database model.
 Stores LLM model aliases and their settings (provider, api_base, model_auth_config, etc.)
 """
 
-import uuid
 from sqlalchemy import Column, String, Text, BigInteger, CheckConstraint
 
 from solace_agent_mesh.shared.database import SimpleJSON, OptimizedUUID
+from solace_agent_mesh.shared.database.id_generators import generate_uuidv7
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.services.platform.constants import MODEL_CONFIGURATION_CONSTRAINTS
 
@@ -41,7 +41,7 @@ class ModelConfiguration(Base):
         ),
     )
 
-    id = Column(OptimizedUUID, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(OptimizedUUID, primary_key=True, default=generate_uuidv7)
     alias = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["ALIAS_MAX_LENGTH"]), nullable=False)
     provider = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["PROVIDER_MAX_LENGTH"]), nullable=False)
     model_name = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["MODEL_NAME_MAX_LENGTH"]), nullable=False)
