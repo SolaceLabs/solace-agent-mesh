@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useContext, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useBooleanFlagValue } from "@openfeature/react-sdk";
 import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import {
     Button,
@@ -749,9 +750,8 @@ export function ArtifactsPage() {
     const [previewArtifact, setPreviewArtifact] = useState<ArtifactWithSession | null>(null);
     const [deleteConfirmArtifact, setDeleteConfirmArtifact] = useState<ArtifactWithSession | null>(null);
 
-    // Get feature flags from config context
     const config = useContext(ConfigContext);
-    const artifactsPageEnabled = config?.configFeatureEnablement?.artifactsPage ?? false;
+    const artifactsPageEnabled = useBooleanFlagValue("artifacts_page", false);
     const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
 
     // Redirect to chat if feature is disabled

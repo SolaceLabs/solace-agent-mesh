@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useBooleanFlagValue } from "@openfeature/react-sdk";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
@@ -80,10 +81,12 @@ function AppLayoutContent() {
         }
     };
 
-    const topNavItems = getTopNavigationItems(configFeatureEnablement);
-    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
+    const artifactsPageEnabled = useBooleanFlagValue("artifacts_page", false);
+    const useNewNav = useBooleanFlagValue("new_navigation", false);
+    const logoutEnabled = useBooleanFlagValue("logout", false);
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
-    const logoutEnabled = configFeatureEnablement?.logout ?? false;
+
+    const topNavItems = getTopNavigationItems(configFeatureEnablement, { artifactsPage: artifactsPageEnabled });
 
     const handleUserAccountClick = useCallback(() => {
         setIsSettingsDialogOpen(true);
@@ -92,7 +95,7 @@ function AppLayoutContent() {
     const { items, activeItemId } = useNavigationItems({
         projectsEnabled,
         promptLibraryEnabled: configFeatureEnablement?.promptLibrary ?? false,
-        artifactsPageEnabled: configFeatureEnablement?.artifactsPage ?? false,
+        artifactsPageEnabled,
         logoutEnabled,
         isAuthenticated,
         onUserAccountClick: handleUserAccountClick,

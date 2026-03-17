@@ -9,7 +9,7 @@ import type { NavigationItem } from "@/lib/types";
  * @param featureFlags - Feature flags from backend config
  * @returns Filtered navigation items based on enabled features
  */
-export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): NavigationItem[] => {
+export const getTopNavigationItems = (featureFlags?: Record<string, boolean>, openFeatureFlags?: { artifactsPage?: boolean }): NavigationItem[] => {
     const items: NavigationItem[] = [
         {
             id: "chat",
@@ -34,9 +34,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         });
     }
 
-    // Add artifacts page only if explicitly enabled (separate from projects)
-    // Default to false - this is an experimental feature
-    const artifactsPageEnabled = featureFlags?.artifactsPage ?? false;
+    const artifactsPageEnabled = openFeatureFlags?.artifactsPage ?? false;
     if (artifactsPageEnabled) {
         items.push({
             id: "artifacts",

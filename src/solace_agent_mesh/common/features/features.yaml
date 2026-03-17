@@ -81,3 +81,39 @@ features:
     description: >
       Enable document indexing and BM25 search within projects for
       citation-backed responses.
+
+  - key: artifacts_page
+    name: Artifacts Page
+    release_phase: experimental
+    default_enabled: false
+    jira_epic: DATAGO-125132
+    description: >
+      Artifacts page for viewing and managing files across sessions
+      and projects.
+
+  - key: binary_artifact_preview
+    name: Binary Artifact Preview
+    release_phase: experimental
+    default_enabled: false
+    jira_epic: DATAGO-123135
+    description: >
+      Enable in-browser preview of Office documents (DOCX, PPTX, XLSX)
+      via server-side PDF conversion. Requires LibreOffice on the server.
+
+  - key: new_navigation
+    name: New Navigation
+    release_phase: experimental
+    default_enabled: false
+    jira_epic: DATAGO-123246
+    description: >
+      New sidebar and top navigation layout replacing the legacy
+      top-nav-only design.
+
+  - key: logout
+    name: Logout
+    release_phase: ga
+    default_enabled: false
+    jira_epic: DATAGO-123246
+    description: >
+      Show a logout button in the navigation when authentication
+      is enabled.

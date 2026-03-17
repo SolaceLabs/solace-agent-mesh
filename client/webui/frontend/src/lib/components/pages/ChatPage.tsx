@@ -35,7 +35,8 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const { activeProject } = useProjectContext();
     const { persistenceEnabled } = useConfigContext();
-    const autoTitleGenerationEnabled = useBooleanFlagValue("auto_title_generation", false) && persistenceEnabled;
+    const autoTitleFlagEnabled = useBooleanFlagValue("auto_title_generation", false);
+    const autoTitleGenerationEnabled = autoTitleFlagEnabled && persistenceEnabled;
     const location = useLocation();
     const navigate = useNavigate();
     const {

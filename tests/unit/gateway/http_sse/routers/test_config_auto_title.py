@@ -2,11 +2,12 @@
 Unit tests for feature-flag-gated configuration helpers in config.py router.
 """
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from solace_agent_mesh.gateway.http_sse.routers.config import (
     _determine_auto_title_generation_enabled,
     _determine_mentions_enabled,
+    _determine_binary_artifact_preview_enabled,
 )
 
 
@@ -80,3 +81,54 @@ class TestDetermineMentionsEnabled:
 
         assert result is True
         mock_component.feature_checker.is_enabled.assert_called_once_with("mentions")
+
+
+class TestDetermineBinaryArtifactPreviewEnabled:
+    """Tests for _determine_binary_artifact_preview_enabled function."""
+
+    def test_disabled_when_flag_is_off(self):
+        mock_component = MagicMock()
+        mock_component.feature_checker.is_enabled.return_value = False
+
+        result = _determine_binary_artifact_preview_enabled(mock_component, "[TEST]")
+
+        assert result is False
+        mock_component.feature_checker.is_enabled.assert_called_once_with("binary_artifact_preview")
+
+    @patch("solace_agent_mesh.gateway.http_sse.routers.config.get_document_conversion_service")
+    def test_disabled_when_libreoffice_not_available(self, mock_get_service):
+        mock_service = MagicMock()
+        mock_service.is_available = False
+        mock_get_service.return_value = mock_service
+
+        mock_component = MagicMock()
+        mock_component.feature_checker.is_enabled.return_value = True
+
+        result = _determine_binary_artifact_preview_enabled(mock_component, "[TEST]")
+
+        assert result is False
+
+    @patch("solace_agent_mesh.gateway.http_sse.routers.config.get_document_conversion_service")
+    def test_disabled_when_libreoffice_check_raises(self, mock_get_service):
+        mock_get_service.side_effect = RuntimeError("LibreOffice not found")
+
+        mock_component = MagicMock()
+        mock_component.feature_checker.is_enabled.return_value = True
+
+        result = _determine_binary_artifact_preview_enabled(mock_component, "[TEST]")
+
+        assert result is False
+
+    @patch("solace_agent_mesh.gateway.http_sse.routers.config.get_document_conversion_service")
+    def test_enabled_when_flag_on_and_libreoffice_available(self, mock_get_service):
+        mock_service = MagicMock()
+        mock_service.is_available = True
+        mock_get_service.return_value = mock_service
+
+        mock_component = MagicMock()
+        mock_component.feature_checker.is_enabled.return_value = True
+
+        result = _determine_binary_artifact_preview_enabled(mock_component, "[TEST]")
+
+        assert result is True
+        mock_component.feature_checker.is_enabled.assert_called_once_with("binary_artifact_preview")

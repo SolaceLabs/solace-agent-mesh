@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Settings, LogOut, User } from "lucide-react";
+import { useBooleanFlagValue } from "@openfeature/react-sdk";
 
 import { NavigationButton } from "@/lib/components/navigation";
 import type { NavigationItem } from "@/lib/types";
@@ -18,9 +19,9 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
 
-    // When authorization is enabled, show menu with user info and settings/logout
-    const { configUseAuthorization, configFeatureEnablement } = useConfigContext();
-    const logoutEnabled = configUseAuthorization && configFeatureEnablement?.logout ? true : false;
+    const { configUseAuthorization } = useConfigContext();
+    const logoutFlagEnabled = useBooleanFlagValue("logout", false);
+    const logoutEnabled = configUseAuthorization && logoutFlagEnabled;
 
     const { userInfo, logout } = useAuthContext();
     const userName = typeof userInfo?.username === "string" ? userInfo.username : "Guest";

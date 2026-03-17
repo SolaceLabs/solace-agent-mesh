@@ -171,23 +171,19 @@ def _determine_binary_artifact_preview_enabled(
 ) -> bool:
     """
     Determines if binary artifact preview (DOCX, PPTX, XLSX to PDF conversion) should be enabled.
-    
+
     Logic:
-    1. Check if explicitly enabled in frontend_feature_enablement.binaryArtifactPreview
+    1. Check OpenFeature flag 'binary_artifact_preview'
     2. Check if LibreOffice is available on the system
-    
+
     Returns:
         bool: True if binary artifact preview should be enabled
     """
-    # Check explicit feature flag - defaults to False (LibreOffice not installed by default)
-    feature_flags = component.get_config("frontend_feature_enablement", {})
-    explicitly_enabled = feature_flags.get("binaryArtifactPreview", False)
-    
-    if not explicitly_enabled:
-        log.debug("%s Binary artifact preview disabled: not enabled in config (set binaryArtifactPreview: true to enable)", log_prefix)
+    enabled = component.feature_checker.is_enabled("binary_artifact_preview")
+    if not enabled:
+        log.debug("%s Binary artifact preview disabled: feature flag is off", log_prefix)
         return False
-    
-    # Check if LibreOffice is available
+
     try:
         conversion_service = get_document_conversion_service()
         if not conversion_service.is_available:
@@ -200,7 +196,7 @@ def _determine_binary_artifact_preview_enabled(
     except Exception as e:
         log.debug("%s Binary artifact preview disabled: error checking LibreOffice: %s", log_prefix, e)
         return False
-    
+
     log.debug("%s Binary artifact preview enabled: LibreOffice available and feature enabled", log_prefix)
     return True
 
