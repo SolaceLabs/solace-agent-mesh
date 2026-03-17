@@ -44,18 +44,18 @@ def upgrade() -> None:
             for col_name, col_def in columns_needing_addition:
                 batch_op.add_column(col_def)
 
-    # Migrate existing data: copy metadata from prompt_groups to prompts
-    # This ensures existing prompt versions have the metadata from their group
-    #
-    # Using dialect-agnostic subquery approach (works on SQLite and PostgreSQL)
-    connection.execute(sa.text("""
-        UPDATE prompts
-        SET name = (SELECT name FROM prompt_groups WHERE id = prompts.group_id),
-            description = (SELECT description FROM prompt_groups WHERE id = prompts.group_id),
-            category = (SELECT category FROM prompt_groups WHERE id = prompts.group_id),
-            command = (SELECT command FROM prompt_groups WHERE id = prompts.group_id)
-        WHERE group_id IS NOT NULL
-    """))
+        # Migrate existing data: copy metadata from prompt_groups to prompts
+        # This ensures existing prompt versions have the metadata from their group
+        #
+        # Using dialect-agnostic subquery approach (works on SQLite and PostgreSQL)
+        connection.execute(sa.text("""
+            UPDATE prompts
+            SET name = (SELECT name FROM prompt_groups WHERE id = prompts.group_id),
+                description = (SELECT description FROM prompt_groups WHERE id = prompts.group_id),
+                category = (SELECT category FROM prompt_groups WHERE id = prompts.group_id),
+                command = (SELECT command FROM prompt_groups WHERE id = prompts.group_id)
+            WHERE group_id IS NOT NULL
+        """))
 
 
 def downgrade() -> None:
