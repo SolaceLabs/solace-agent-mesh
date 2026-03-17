@@ -23,9 +23,13 @@ interface UserTypeaheadProps {
     excludeEmails: string[];
     selectedEmail?: string | null;
     error?: boolean;
+    /** Hide the "Viewer" badge (useful for chat sharing where role is always viewer) */
+    hideRoleBadge?: boolean;
+    /** Hide the close/remove button (useful when parent component has its own remove button) */
+    hideCloseButton?: boolean;
 }
 
-export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, error }) => {
+export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, error, hideRoleBadge = false, hideCloseButton = false }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [isKeyboardMode, setIsKeyboardMode] = useState(false);
@@ -157,12 +161,16 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                     </div>
                 </PopoverContent>
             </Popover>
-            <Badge variant="secondary" className="justify-self-center">
-                Viewer
-            </Badge>
-            <Button variant="ghost" size="sm" onClick={handleClose} className={classForIconButton()}>
-                <X className="h-4 w-4" />
-            </Button>
+            {!hideRoleBadge && (
+                <Badge variant="secondary" className="justify-self-center">
+                    Viewer
+                </Badge>
+            )}
+            {!hideCloseButton && (
+                <Button variant="ghost" size="sm" onClick={handleClose} className={classForIconButton()}>
+                    <X className="h-4 w-4" />
+                </Button>
+            )}
         </>
     );
 };
@@ -170,11 +178,11 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
 const classForTypeaheadItem = cva(["w-full", "px-3", "py-2", "text-left", "transition-colors"], {
     variants: {
         active: {
-            true: "bg-(--secondary-w40)",
+            true: "bg-[var(--accent)]",
             false: "",
         },
         hoverEnabled: {
-            true: "hover:bg-(--secondary-w40)",
+            true: "hover:bg-[var(--accent)]",
             false: "",
         },
     },
@@ -184,7 +192,7 @@ const classForTypeaheadItem = cva(["w-full", "px-3", "py-2", "text-left", "trans
 const classForTypeaheadInput = cva(["h-9", "pr-9"], {
     variants: {
         error: {
-            true: "border-(--error-wMain)",
+            true: "border-[var(--destructive)]",
             false: "",
         },
     },
