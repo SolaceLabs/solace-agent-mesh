@@ -199,7 +199,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     };
 
     return (
-        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg)", isCollapsed ? "w-16" : "w-64")}>
+        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--background-wMain)", isCollapsed ? "w-16" : "w-64")}>
             {isCollapsed ? (
                 <>
                     <div className="relative flex min-h-[80px] w-full items-center justify-center overflow-visible border-b border-(--secondary-w70) py-3">
@@ -354,7 +354,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         </div>
                     )}
 
-                    <div className="relative z-10 border-t border-(--secondary-w70) bg-(--background-wMain) pt-2">
+                    <div className="relative z-10 border-t border-(--secondary-w70) pt-2">
                         {bottomItems.map(item => (
                             <button key={item.id} onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
                                 <div className={iconWrapperStyles({ withMargin: true })}>
