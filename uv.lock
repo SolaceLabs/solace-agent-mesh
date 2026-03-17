@@ -4026,6 +4026,20 @@ crypto = [
 ]
 
 [[package]]
+name = "pymysql"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/ae/1fe3fcd9f959efa0ebe200b8de88b5a5ce3e767e38c7ac32fb179f16a388/pymysql-1.1.2.tar.gz", hash = "sha256:4961d3e165614ae65014e361811a724e2044ad3ea3739de9903ae7c21f539f03", size = 48258, upload-time = "2025-08-24T12:55:55.146Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/4c/ad33b92b9864cbde84f259d5df035a6447f91891f5be77788e2a3892bce3/pymysql-1.1.2-py3-none-any.whl", hash = "sha256:e6b1d89711dd51f8f74b1631fe08f039e7d76cf67a42a323d3178f0f25762ed9", size = 45300, upload-time = "2025-08-24T12:55:53.394Z" },
+]
+
+[package.optional-dependencies]
+rsa = [
+    { name = "cryptography" },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.2.3"
 source = { registry = "https://pypi.org/simple" }
@@ -4916,6 +4930,7 @@ test = [
     { name = "fastmcp" },
     { name = "httpx" },
     { name = "psycopg2-binary" },
+    { name = "pymysql" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -4924,7 +4939,7 @@ test = [
     { name = "pytest-xdist" },
     { name = "respx" },
     { name = "ruff" },
-    { name = "testcontainers" },
+    { name = "testcontainers", extra = ["mysql"] },
 ]
 vertex = [
     { name = "google-cloud-aiplatform" },
@@ -4982,6 +4997,7 @@ requires-dist = [
     { name = "psycopg2-binary", marker = "extra == 'test'" },
     { name = "pydantic", specifier = "==2.11.9" },
     { name = "pydub", specifier = "==0.25.1" },
+    { name = "pymysql", marker = "extra == 'test'", specifier = ">=1.1.0" },
     { name = "pyjwt", specifier = ">=2.12.0" },
     { name = "pypdf", specifier = "==6.8.0" },
     { name = "pystache", specifier = "==0.6.8" },
@@ -5007,7 +5023,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = "==2.0.40" },
     { name = "sse-starlette", specifier = "==3.0.2" },
     { name = "starlette", specifier = "==0.49.1" },
-    { name = "testcontainers", marker = "extra == 'test'" },
+    { name = "testcontainers", extras = ["mysql", "postgres"], marker = "extra == 'test'", specifier = ">=4.0.0" },
     { name = "toml", specifier = "==0.10.2" },
     { name = "uuid-utils", specifier = ">=0.11.1" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.37.0" },
@@ -5222,6 +5238,12 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fc/b3/c272537f3ea2f312555efeb86398cc382cd07b740d5f3c730918c36e64e1/testcontainers-4.13.3.tar.gz", hash = "sha256:9d82a7052c9a53c58b69e1dc31da8e7a715e8b3ec1c4df5027561b47e2efe646", size = 79064, upload-time = "2025-11-14T05:08:47.584Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/73/27/c2f24b19dafa197c514abe70eda69bc031c5152c6b1f1e5b20099e2ceedd/testcontainers-4.13.3-py3-none-any.whl", hash = "sha256:063278c4805ffa6dd85e56648a9da3036939e6c0ac1001e851c9276b19b05970", size = 124784, upload-time = "2025-11-14T05:08:46.053Z" },
+]
+
+[package.optional-dependencies]
+mysql = [
+    { name = "pymysql", extra = ["rsa"] },
+    { name = "sqlalchemy" },
 ]
 
 [[package]]
