@@ -122,7 +122,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
     if (isLoading && sessions.length === 0) {
         return (
             <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
-                <Spinner className="mb-2 h-6 w-6 animate-spin" />
+                <Spinner />
             </div>
         );
     }
