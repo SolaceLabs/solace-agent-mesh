@@ -11,12 +11,15 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Spinner } from "../ui/spinner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { UserTypeahead } from "../common/UserTypeahead";
 import { Input } from "../ui/input";
-import { createShareLink, getShareLinkForSession, deleteShareLink, getShareUsers, addShareUsers, deleteShareUsers, copyToClipboard, copyDeferredToClipboard, updateShareSnapshot } from "../../api/shareApi";
+import { createShareLink, getShareLinkForSession, deleteShareLink, getShareUsers, addShareUsers, deleteShareUsers, updateShareSnapshot } from "../../api/shareApi";
+import { copyToClipboard, copyDeferredToClipboard } from "../../utils/clipboard";
 import { api } from "../../api";
+import { cn } from "../../utils";
 import { useConfigContext } from "../../hooks/useConfigContext";
 import type { ShareLink, SharedLinkUserInfo } from "../../types/share";
 
@@ -48,6 +51,11 @@ const accessLevelOptions: AccessLevelOption[] = [
 
 // Shared styling for table header labels
 const TABLE_HEADER_LABEL_CLASS = "text-sm text-secondary-foreground";
+
+function formatDateYMD(epochMs: number): string {
+    const d = new Date(epochMs);
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+}
 
 // Form schema
 const shareFormSchema = z.object({
@@ -148,49 +156,55 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
 
     // Reset state when dialog opens
     useEffect(() => {
-        if (open) {
-            setShareLink(null);
-            setSharedUsers([]);
-            setOwnerEmail("");
-            setIsNewlyCreatedLink(false);
-            setSessionLastUpdateMs(null);
-            setShowPublicLink(defaultShowPublicLink);
-            setFooterLinkCopied(false);
-            setPublicLinkCopied(false);
-            setCreatingLink(false);
-            newlyCreatedShareIdRef.current = null;
-            if (copiedTimerRef.current) {
-                clearTimeout(copiedTimerRef.current);
-                copiedTimerRef.current = null;
-            }
+        if (!open) return;
+        let cancelled = false;
 
-            // Fetch session's updated_time for snapshot outdated check
-            api.webui
-                .get(`/api/v1/sessions/${sessionId}`)
-                .then((data: { data?: { updatedTime?: number } }) => {
-                    if (data?.data?.updatedTime) {
-                        setSessionLastUpdateMs(data.data.updatedTime);
-                    }
-                })
-                .catch(() => {
-                    /* ignore */
-                });
-
-            reset({
-                viewers: defaultShowAddRow ? [{ id: `typeahead-${Date.now()}`, email: null, accessLevel: "read-only" }] : [],
-                pendingRemoves: [],
-                accessLevelChanges: [],
-            });
-
-            // Load existing share link (if any) - don't auto-create
-            // Link is created on-demand when user clicks "Copy Link" or adds users
-            loadShareLink().then(link => {
-                if (link) {
-                    setIsNewlyCreatedLink(false);
-                    setShowPublicLink(true); // Show the link section if a link already exists
-                }
-            });
+        setShareLink(null);
+        setSharedUsers([]);
+        setOwnerEmail("");
+        setIsNewlyCreatedLink(false);
+        setSessionLastUpdateMs(null);
+        setShowPublicLink(defaultShowPublicLink);
+        setFooterLinkCopied(false);
+        setPublicLinkCopied(false);
+        setCreatingLink(false);
+        newlyCreatedShareIdRef.current = null;
+        if (copiedTimerRef.current) {
+            clearTimeout(copiedTimerRef.current);
+            copiedTimerRef.current = null;
         }
+
+        // Fetch session's updated_time for snapshot outdated check
+        api.webui
+            .get(`/api/v1/sessions/${sessionId}`)
+            .then((data: { data?: { updatedTime?: number } }) => {
+                if (!cancelled && data?.data?.updatedTime) {
+                    setSessionLastUpdateMs(data.data.updatedTime);
+                }
+            })
+            .catch(() => {
+                /* ignore */
+            });
+
+        reset({
+            viewers: defaultShowAddRow ? [{ id: `typeahead-${Date.now()}`, email: null, accessLevel: "read-only" }] : [],
+            pendingRemoves: [],
+            accessLevelChanges: [],
+        });
+
+        // Load existing share link (if any) - don't auto-create
+        // Link is created on-demand when user clicks "Copy Link" or adds users
+        loadShareLink().then(link => {
+            if (cancelled) return;
+            if (link) {
+                setIsNewlyCreatedLink(false);
+                setShowPublicLink(true); // Show the link section if a link already exists
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [open, sessionId, defaultShowAddRow, loadShareLink, onError, reset]);
 
     // Load shared users when share link is available
@@ -279,21 +293,25 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         const success = await copyToClipboard(shareLink.share_url);
         if (success) {
             setPublicLinkCopied(true);
-            setTimeout(() => setPublicLinkCopied(false), 2000);
+            if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+            copiedTimerRef.current = setTimeout(() => {
+                copiedTimerRef.current = null;
+                setPublicLinkCopied(false);
+            }, 2000);
             setShowPublicLink(true);
             onSuccess?.("Link copied to clipboard");
         }
     };
 
     const handleDeletePublicLink = async () => {
-        // Actually delete the link from the backend
         if (shareLink?.share_id) {
             try {
                 await deleteShareLink(shareLink.share_id);
                 setShareLink(null);
                 setIsNewlyCreatedLink(false);
             } catch (error) {
-                console.error("Failed to delete share link:", error);
+                onError?.({ title: "Failed to Delete Link", message: error instanceof Error ? error.message : "Unknown error" });
+                return;
             }
         }
         setShowPublicLink(false);
@@ -321,9 +339,10 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
             clearTimeout(copiedTimerRef.current);
             copiedTimerRef.current = null;
         }
-        // If the link was newly created and user discards, delete it
-        const shareIdToDelete = shareLink?.share_id ?? newlyCreatedShareIdRef.current;
-        if ((isNewlyCreatedLink || newlyCreatedShareIdRef.current) && shareIdToDelete) {
+        // If the link was newly created and user discards, delete it.
+        // Use the ref as single source of truth (avoids stale closure issues).
+        const shareIdToDelete = newlyCreatedShareIdRef.current;
+        if (shareIdToDelete) {
             try {
                 await deleteShareLink(shareIdToDelete);
                 setShareLink(null);
@@ -337,19 +356,18 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         }
         reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
         onOpenChange(false);
-    }, [isNewlyCreatedLink, shareLink, onOpenChange, reset, onSuccess]);
+    }, [onOpenChange, reset, onSuccess]);
 
     // Intercept dialog close (X button, backdrop click, Escape) to clean up newly created links
     const handleOpenChange = useCallback(
         (nextOpen: boolean) => {
-            if (!nextOpen && (isNewlyCreatedLink || newlyCreatedShareIdRef.current)) {
-                // Dialog is closing with an unsaved new link — run discard logic
+            if (!nextOpen && newlyCreatedShareIdRef.current) {
                 handleDiscard();
                 return;
             }
             onOpenChange(nextOpen);
         },
-        [isNewlyCreatedLink, onOpenChange, handleDiscard]
+        [onOpenChange, handleDiscard]
     );
 
     const onSubmit = async (data: ShareFormData) => {
@@ -357,12 +375,14 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         try {
             // Create share link on-demand if it doesn't exist yet
             let activeShareLink = shareLink;
+            let linkCreatedInSubmit = false;
             if (!activeShareLink?.share_id) {
                 const newLink = await createShareLink(sessionId, { require_authentication: true });
                 setShareLink(newLink);
-                setIsNewlyCreatedLink(false); // It's being saved, so it's no longer "newly created"
-                newlyCreatedShareIdRef.current = null;
                 activeShareLink = newLink;
+                linkCreatedInSubmit = true;
+                // Keep ref so discard can clean up if a later step fails
+                newlyCreatedShareIdRef.current = newLink.share_id;
             }
             if (!activeShareLink?.share_id) {
                 onError?.({ title: "Failed to Save", message: "Could not create share link" });
@@ -398,6 +418,11 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                 onSuccess?.(`Access levels updated for ${data.accessLevelChanges.length} user(s)`);
             }
 
+            // All operations succeeded — clear newly-created tracking
+            if (linkCreatedInSubmit) {
+                setIsNewlyCreatedLink(false);
+                newlyCreatedShareIdRef.current = null;
+            }
             reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
             await loadSharedUsers();
             window.dispatchEvent(new CustomEvent("share-updated", { detail: { sessionId } }));
@@ -497,7 +522,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                                 />
                                             </div>
                                             {/* Remove button */}
-                                            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => handleRemoveRow(field.id)}>
+                                            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => handleRemoveRow(field.id)} aria-label="Remove user row">
                                                 <X className="h-4 w-4" />
                                             </Button>
                                         </div>
@@ -526,7 +551,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                         {/* User Rows */}
                         {loadingUsers ? (
                             <div className="flex justify-center py-8">
-                                <div className="border-primary h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
+                                <Spinner size="small" variant="muted" />
                             </div>
                         ) : (
                             <>
@@ -540,8 +565,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                     </div>
                                 )}
                                 {displayedViewers.map(user => {
-                                    const snapshotDate = new Date(user.added_at);
-                                    const formattedDate = `${snapshotDate.getFullYear()}/${String(snapshotDate.getMonth() + 1).padStart(2, "0")}/${String(snapshotDate.getDate()).padStart(2, "0")}`;
+                                    const formattedDate = formatDateYMD(user.added_at);
 
                                     // Check if snapshot is outdated (session was updated after user was added)
                                     const effectiveLastUpdate = sessionLastUpdateMs || (sessionUpdatedTime ? new Date(sessionUpdatedTime).getTime() : null);
@@ -564,7 +588,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                                                 disabled={isUpdatingThisUser || !!updatingSnapshotEmail}
                                                                 onClick={() => handleUpdateUserSnapshot(user.user_email)}
                                                             >
-                                                                <RefreshCw className={`h-3.5 w-3.5 ${isUpdatingThisUser ? "animate-spin" : ""}`} />
+                                                                <RefreshCw className={cn("h-3.5 w-3.5", isUpdatingThisUser && "animate-spin")} />
                                                             </Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
@@ -599,7 +623,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                             </div>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={savingUser}>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={savingUser} aria-label="User actions">
                                                         <MoreVertical className="h-4 w-4" />
                                                     </Button>
                                                 </DropdownMenuTrigger>
@@ -631,7 +655,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                 </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Link actions">
                                             <MoreVertical className="h-4 w-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
@@ -652,21 +676,27 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                 <div className="relative min-w-0 flex-1">
                                     <div className="bg-background truncate rounded border px-3 py-2 pr-10 font-mono text-xs">{shareLink.share_url}</div>
                                     <Button variant="ghost" size="icon" className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2" onClick={handleCopyPublicLink}>
-                                        {publicLinkCopied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                                        {publicLinkCopied ? <Check className="h-4 w-4 text-(--success-wMain)" /> : <Copy className="h-4 w-4" />}
                                     </Button>
                                 </div>
                                 <div className="flex shrink-0 flex-col items-start px-4">
                                     <span className="text-muted-foreground text-xs">Shared On</span>
                                     <div className="flex items-center gap-1">
-                                        <span className="text-sm whitespace-nowrap">
-                                            {(() => {
-                                                const d = new Date(shareLink.created_time);
-                                                return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-                                            })()}
-                                        </span>
+                                        <span className="text-sm whitespace-nowrap">{formatDateYMD(shareLink.created_time)}</span>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-5 w-5" aria-label="Refresh public link snapshot">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-5 w-5"
+                                                    aria-label="Refresh public link snapshot"
+                                                    onClick={() =>
+                                                        shareLink &&
+                                                        updateShareSnapshot(shareLink.share_id)
+                                                            .then(() => onSuccess?.("Snapshot updated"))
+                                                            .catch(err => onError?.({ title: "Failed to Update Snapshot", message: err instanceof Error ? err.message : "Unknown error" }))
+                                                    }
+                                                >
                                                     <RefreshCw className="h-3.5 w-3.5" />
                                                 </Button>
                                             </TooltipTrigger>
@@ -687,12 +717,12 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                         <Button variant="ghost" size="sm" onClick={handleCopyPublicLink} disabled={creatingLink}>
                             {footerLinkCopied ? (
                                 <>
-                                    <Check className="mr-2 h-4 w-4 text-green-600" />
+                                    <Check className="mr-2 h-4 w-4 text-(--success-wMain)" />
                                     Copied!
                                 </>
                             ) : creatingLink ? (
                                 <>
-                                    <div className="border-primary mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
+                                    <Spinner size="small" variant="muted" className="mr-2" />
                                     Creating Link...
                                 </>
                             ) : (

@@ -7,19 +7,20 @@
  */
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui";
-import { getUserInitials } from "@/lib/mockData/collaborativeChat";
+import { cn } from "@/lib/utils";
+import { getUserInitials } from "@/lib/utils/userFormatting";
 
 // Sequential accent colors from our design system (n1-n9)
 export const USER_AVATAR_COLORS = [
-    "bg-[var(--color-accent-n1-wMain)] text-white",
-    "bg-[var(--color-accent-n2-wMain)] text-white",
-    "bg-[var(--color-accent-n3-wMain)] text-white",
-    "bg-[var(--color-accent-n4-wMain)] text-white",
-    "bg-[var(--color-accent-n5-wMain)] text-white",
-    "bg-[var(--color-accent-n6-wMain)] text-white",
-    "bg-[var(--color-accent-n7-wMain)] text-white",
-    "bg-[var(--color-accent-n8-wMain)] text-white",
-    "bg-[var(--color-accent-n9-wMain)] text-white",
+    "bg-(--color-accent-n1-wMain) text-white",
+    "bg-(--color-accent-n2-wMain) text-white",
+    "bg-(--color-accent-n3-wMain) text-white",
+    "bg-(--color-accent-n4-wMain) text-white",
+    "bg-(--color-accent-n5-wMain) text-white",
+    "bg-(--color-accent-n6-wMain) text-white",
+    "bg-(--color-accent-n7-wMain) text-white",
+    "bg-(--color-accent-n8-wMain) text-white",
+    "bg-(--color-accent-n9-wMain) text-white",
 ];
 
 interface UserAvatarProps {
@@ -35,7 +36,7 @@ export function UserAvatar({ name, userIndex, avatarUrl, className = "", showToo
     const colorClass = USER_AVATAR_COLORS[userIndex % USER_AVATAR_COLORS.length];
 
     const avatar = (
-        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${colorClass} ${className}`}>
+        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium", colorClass, className)}>
             {avatarUrl ? <img src={avatarUrl} alt={name} className="h-full w-full rounded-full object-cover" /> : initials}
         </div>
     );
