@@ -82,25 +82,26 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
     def get_component_id(self) -> str:
         """Returns the unique identifier for this component instance."""
-        if hasattr(self, "_component_id") and self._component_id:
-            return self._component_id
+        component_id = getattr(self, "_component_id", None)
+        if component_id:
+            return component_id
 
-        if not hasattr(self, "_component_id") or not self._component_id:
-            self._component_id = (
-                getattr(self, "agent_name", None)
-                or getattr(self, "gateway_id", None)
-                or getattr(self, "workflow_name", None)
+        component_id = (
+            getattr(self, "agent_name", None)
+            or getattr(self, "gateway_id", None)
+            or getattr(self, "workflow_name", None)
+        )
+
+        if not component_id:
+            component_id = f"component_{id(self)}"
+            log.warning(
+                "%s Could not determine specific component identifier. Falling back to generic identifier: %s",
+                self.log_identifier,
+                component_id,
             )
-            if not self._component_id:
-                # Fall back to a generic identifier if specific ones are not available
-                self._component_id = f"component_{id(self)}"
-                log.warning(
-                    "%s Could not determine specific component identifier. Falling back to generic identifier: %s",
-                    self.log_identifier,
-                    self._component_id,
-                )
 
-        return self._component_id
+        self._component_id = component_id
+        return component_id
 
     def add_timer(
         self,
