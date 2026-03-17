@@ -115,11 +115,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         await handleSwitchSession(clickedSessionId);
     };
 
-    if (!persistenceEnabled) {
-        return <div className="py-2 text-center text-xs text-(--secondary-text-wMain)">Persistence is not enabled.</div>;
-    }
-
-    if (isLoading && sessions.length === 0) {
+    if (isLoading && sessions.length === 0 && persistenceEnabled) {
         return (
             <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
                 <Spinner />
