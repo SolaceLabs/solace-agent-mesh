@@ -2,7 +2,7 @@
  * ShareDialog component - Manage access dialog with per-user permissions
  */
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -98,6 +98,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     const [footerLinkCopied, setFooterLinkCopied] = useState(false);
     const [creatingLink, setCreatingLink] = useState(false);
     const [isNewlyCreatedLink, setIsNewlyCreatedLink] = useState(false);
+    const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [updatingSnapshotEmail, setUpdatingSnapshotEmail] = useState<string | null>(null);
     const [sessionLastUpdateMs, setSessionLastUpdateMs] = useState<number | null>(null);
 
@@ -150,6 +151,14 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
             setOwnerEmail("");
             setIsNewlyCreatedLink(false);
             setSessionLastUpdateMs(null);
+            setShowPublicLink(defaultShowPublicLink);
+            setFooterLinkCopied(false);
+            setPublicLinkCopied(false);
+            setCreatingLink(false);
+            if (copiedTimerRef.current) {
+                clearTimeout(copiedTimerRef.current);
+                copiedTimerRef.current = null;
+            }
 
             // Fetch session's updated_time for snapshot outdated check
             api.webui
@@ -238,7 +247,8 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                     setPublicLinkCopied(true);
                     onSuccess?.("Public link created and copied to clipboard");
                     // Brief delay so user sees the "Copied!" state on the footer button
-                    setTimeout(() => {
+                    copiedTimerRef.current = setTimeout(() => {
+                        copiedTimerRef.current = null;
                         setFooterLinkCopied(false);
                         setPublicLinkCopied(false);
                         setShowPublicLink(true);
@@ -295,6 +305,11 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     };
 
     const handleDiscard = async () => {
+        // Cancel any pending "Copied!" timer so it doesn't re-show the link section
+        if (copiedTimerRef.current) {
+            clearTimeout(copiedTimerRef.current);
+            copiedTimerRef.current = null;
+        }
         // If the link was newly created and user discards, delete it
         if (isNewlyCreatedLink && shareLink?.share_id) {
             try {
