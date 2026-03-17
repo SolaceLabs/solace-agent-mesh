@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Pencil, Trash2, Ellipsis } from "lucide-react";
 
@@ -8,7 +8,7 @@ import { Header } from "@/lib/components/header";
 
 import { useModelConfigs } from "@/lib/api/models";
 import { PageFooter, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, Metadata } from "@/lib/components/common/PageCommon";
-import { PROVIDER_DISPLAY_NAMES } from "./common";
+import { PROVIDER_DISPLAY_NAMES, getDisplayModelName } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 
 export const ModelDetailsPage = () => {
@@ -21,14 +21,15 @@ export const ModelDetailsPage = () => {
         return modelConfigs.find(m => m.alias.toLowerCase() === modelAlias.toLowerCase()) || null;
     }, [modelAlias, modelConfigs]);
 
-    const handleBack = () => {
+    const handleBack = useCallback(() => {
         navigate(`/agents?tab=models`);
-    };
+    }, [navigate]);
 
-    const handleEdit = () => {
-        // TODO: Navigate to edit page in PR #4
-        console.log("Edit model:", modelToView?.alias);
-    };
+    const handleEdit = useCallback(() => {
+        if (modelToView?.alias) {
+            navigate(`/models/${modelToView.alias}/edit`);
+        }
+    }, [modelToView?.alias, navigate]);
 
     const menuActions = useMemo(() => {
         const actions: MenuAction[] = [
@@ -43,18 +44,11 @@ export const ModelDetailsPage = () => {
             },
         ];
         return actions;
-    }, [modelToView]);
+    }, []);
 
     const headerButtons = useMemo(() => {
         return [
-            <Button
-                key="edit"
-                variant="ghost"
-                onClick={handleEdit}
-                title="Edit Model"
-                disabled={true}
-                // TODO: Enable edit in PR #4
-            >
+            <Button key="edit" variant="ghost" onClick={handleEdit} title="Edit Model">
                 <Pencil />
                 Edit
             </Button>,
@@ -69,7 +63,7 @@ export const ModelDetailsPage = () => {
                 </PopoverContent>
             </Popover>,
         ];
-    }, [menuActions]);
+    }, [handleEdit, menuActions]);
 
     const title = modelToView ? modelToView.alias : "N/A";
 
@@ -105,7 +99,7 @@ export const ModelDetailsPage = () => {
                         <div className="pt-6 font-semibold">Model Connection Details</div>
                         <PageLabelWithValue className="flex gap-2">
                             <PageLabel>Model Name</PageLabel>
-                            <div>{modelToView.modelName}</div>
+                            <div>{getDisplayModelName(modelToView.modelName)}</div>
                         </PageLabelWithValue>
 
                         {modelToView.apiBase && (

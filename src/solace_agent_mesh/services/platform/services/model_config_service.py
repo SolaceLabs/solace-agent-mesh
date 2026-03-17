@@ -68,6 +68,24 @@ class ModelConfigService:
 
         return self._to_response(db_config)
 
+    def get_raw_config_by_alias(self, alias: str) -> Optional[ModelConfiguration]:
+        """
+        Retrieve raw model configuration by alias (case-sensitive exact match).
+
+        This returns the unredacted database model with all credentials intact.
+        For internal use only (e.g., backend proxy calls to fetch models).
+        Do NOT return this to external API clients.
+
+        Args:
+            alias: Model alias to look up
+
+        Returns:
+            ModelConfiguration database model if found, None otherwise
+        """
+        return self.db.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == alias
+        ).first()
+
     def create(
         self, request: ModelConfigurationCreateRequest, created_by: str
     ) -> ModelConfigurationResponse:

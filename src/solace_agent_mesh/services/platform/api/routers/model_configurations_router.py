@@ -11,10 +11,11 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
 
 import logging
 import os
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from solace_agent_mesh.services.platform.services import ModelConfigService
-from solace_agent_mesh.services.platform.api.dependencies import get_model_config_service
+from solace_agent_mesh.services.platform.services import ModelConfigService, ModelListService
+from solace_agent_mesh.services.platform.api.dependencies import get_model_config_service, get_model_list_service
 from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationCreateRequest,
@@ -79,8 +80,70 @@ async def list_models(
 
 
 @router.get(
+    "/supported-models/{provider}",
+    response_model=DataResponse[list[dict]],
+    summary="List supported models for a provider",
+    description="Retrieve supported models for a specific provider. For openai_compatible, optionally pass model_alias to use stored credentials.",
+)
+async def list_supported_models_by_provider(
+    provider: str,
+    model_alias: Optional[str] = None,
+    _: None = Depends(_require_model_config_ui_enabled),
+    service: ModelListService = Depends(get_model_list_service),
+    config_service: ModelConfigService = Depends(get_model_config_service),
+) -> DataResponse[list[dict]]:
+    """
+    Retrieve supported models for a specific provider.
+
+    For standard providers, uses LiteLLM to fetch available models.
+    For openai_compatible providers with model_alias, acts as a proxy:
+      - Looks up the model config by alias
+      - Uses stored API base and credentials to fetch models from that endpoint
+      - Returns models securely without exposing credentials
+
+    Args:
+        provider: The provider ID (e.g., 'openai', 'anthropic', 'openai_compatible')
+        model_alias: Optional. For openai_compatible, the model alias to look up for stored credentials
+
+    Returns:
+        DataResponse with list of supported models for the provider
+    """
+    try:
+        # For openai_compatible with model_alias, use stored credentials
+        if provider == "openai_compatible" and model_alias:
+            # Use raw unredacted config for backend proxy calls
+            raw_config = config_service.get_raw_config_by_alias(model_alias)
+            if not raw_config:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Model configuration with alias '{model_alias}' not found",
+                )
+
+            # Use the service to fetch models from the configured endpoint
+            models = service.get_models_by_provider_with_config(
+                provider=provider,
+                api_base=raw_config.api_base,
+                auth_type=raw_config.model_auth_type,
+                auth_config=raw_config.model_auth_config,
+            )
+            return DataResponse.create(models)
+
+        # Standard LiteLLM provider
+        models = service.get_models_by_provider(provider)
+        return DataResponse.create(models)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Failed to retrieve supported models for provider {provider}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve supported models for provider {provider}",
+        )
+
+
+@router.get(
     "/models/{alias}",
-    response_model=ModelConfigurationResponse,
+    response_model=DataResponse[ModelConfigurationResponse],
     summary="Get model configuration by alias",
     description="Retrieve a model configuration by alias (e.g., 'gpt-4', 'claude-3'). Sensitive authentication information is excluded.",
 )
@@ -88,7 +151,7 @@ async def get_model(
     alias: str,
     _: None = Depends(_require_model_config_ui_enabled),
     service: ModelConfigService = Depends(get_model_config_service),
-) -> ModelConfigurationResponse:
+) -> DataResponse[ModelConfigurationResponse]:
     """
     Retrieve a model configuration by alias.
 
@@ -114,7 +177,7 @@ async def get_model(
                 detail=f"Model configuration with alias '{alias}' not found",
             )
 
-        return config
+        return DataResponse.create(config)
     except HTTPException:
         raise
     except Exception as e:

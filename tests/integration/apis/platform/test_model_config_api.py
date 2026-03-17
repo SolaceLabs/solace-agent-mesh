@@ -459,3 +459,66 @@ class TestModelConfigurationAPI:
         data = response.json()
         assert "detail" in data
         assert "not found" in data["detail"].lower()
+
+
+class TestSupportedModelsAPI:
+    """Tests for /api/v1/platform/supported-models endpoints."""
+
+    def test_list_supported_models_by_provider_returns_correct_structure(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that GET /supported-models/{provider} returns correct structure."""
+        # Act: Fetch models for openai provider
+        response = platform_api_client.get("/api/v1/platform/supported-models/openai")
+
+        # Assert: Status code is 200
+        assert response.status_code == 200
+
+        # Assert: Response has expected structure
+        data = response.json()
+        assert "data" in data
+        assert isinstance(data["data"], list)
+
+        # Assert: If models are returned, they all have required fields
+        if len(data["data"]) > 0:
+            for model in data["data"]:
+                assert "id" in model
+                assert "label" in model
+                assert "provider" in model
+                assert model["provider"] == "openai"
+
+    def test_list_supported_models_by_provider_accepts_various_providers(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that GET /supported-models/{provider} works for different provider IDs."""
+        # Test with multiple provider IDs
+        providers = ["openai", "anthropic", "vertex_ai", "bedrock"]
+
+        for provider in providers:
+            # Act: Fetch models for the provider
+            response = platform_api_client.get(f"/api/v1/platform/supported-models/{provider}")
+
+            # Assert: Status code is 200 (not 404 or 500)
+            assert response.status_code == 200
+
+            # Assert: Response structure is valid
+            data = response.json()
+            assert "data" in data
+            assert isinstance(data["data"], list)
+
+    def test_supported_models_by_provider_feature_flag_disabled_returns_501(self, platform_api_client_factory):
+        """Test that GET /supported-models/{provider} returns 501 when feature flag is disabled."""
+        from fastapi.testclient import TestClient
+
+        app = platform_api_client_factory.app
+
+        # Ensure the feature flag is disabled
+        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "false"}):
+            client = TestClient(app)
+
+            # Act: Try to get models for a provider with feature flag disabled
+            response = client.get("/api/v1/platform/supported-models/openai")
+
+            # Assert: Status code is 501
+            assert response.status_code == 501
+
+            # Assert: Response contains error detail
+            data = response.json()
+            assert "detail" in data
+            assert "not enabled" in data["detail"].lower()

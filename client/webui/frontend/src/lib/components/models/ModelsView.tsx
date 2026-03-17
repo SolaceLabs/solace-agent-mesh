@@ -9,7 +9,7 @@ import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelsOnboardingView } from "./ModelsOnboardingView";
 import { ModelProviderIcon } from "./ModelProviderIcon";
-import { PROVIDER_DISPLAY_NAMES } from "./common";
+import { PROVIDER_DISPLAY_NAMES, getDisplayModelName, getDisplayAliasName } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
 const MODELS_HEADER = "Your Models Are Now Accessible to Your Team";
@@ -43,6 +43,14 @@ export const ModelsView: React.FC = () => {
         navigate(`/models/${model.alias}`);
     };
 
+    const handleCreateModel = () => {
+        navigate("/models/new/edit");
+    };
+
+    const handleEditModel = (model: ModelConfig) => {
+        navigate(`/models/${model.alias}/edit`);
+    };
+
     const getRowMenuActions = (model: ModelConfig): MenuAction[] => [
         {
             id: "open-details",
@@ -52,8 +60,7 @@ export const ModelsView: React.FC = () => {
         {
             id: "edit",
             label: "Edit",
-            onClick: () => {},
-            disabled: true,
+            onClick: () => handleEditModel(model),
         },
         {
             id: "delete",
@@ -101,11 +108,11 @@ export const ModelsView: React.FC = () => {
                                             <TableCell className="flex items-center gap-2 pl-4 font-semibold">
                                                 <ModelProviderIcon provider={model.provider} size="sm" />
                                                 <Button title={model.alias} variant="link" className="p-0" onClick={() => handleSelectModel(model)}>
-                                                    {model.alias}
+                                                    {getDisplayAliasName(model.alias, model.createdBy)}
                                                 </Button>
                                                 {model.alias === "general" && <Badge>Default</Badge>}
                                             </TableCell>
-                                            <TableCell>{model.modelName}</TableCell>
+                                            <TableCell>{getDisplayModelName(model.modelName)}</TableCell>
                                             <TableCell>{PROVIDER_DISPLAY_NAMES[model.provider] || model.provider}</TableCell>
                                             <TableCell className="pr-4 text-right">
                                                 <Popover>
@@ -125,7 +132,7 @@ export const ModelsView: React.FC = () => {
                             </Table>
                         </div>
                     ) : (
-                        <ModelsOnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} />
+                        <ModelsOnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} onAddModel={handleCreateModel} />
                     )}
                 </div>
 

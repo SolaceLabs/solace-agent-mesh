@@ -45,3 +45,5 @@ export const Metadata = ({ metadata }: { metadata: Record<string, string | numbe
         </PageSection>
     );
 };
+
+export const ErrorLabel = ({ children }: { children: React.ReactNode }) => <div className="text-xs text-(--error-w100)">{children}</div>;
