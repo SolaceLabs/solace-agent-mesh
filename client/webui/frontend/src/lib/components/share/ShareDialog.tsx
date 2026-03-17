@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { UserTypeahead } from "../common/UserTypeahead";
 import { Input } from "../ui/input";
-import { createShareLink, getShareLinkForSession, deleteShareLink, getShareUsers, addShareUsers, deleteShareUsers, copyToClipboard, updateShareSnapshot } from "../../api/shareApi";
+import { createShareLink, getShareLinkForSession, deleteShareLink, getShareUsers, addShareUsers, deleteShareUsers, copyToClipboard, copyDeferredToClipboard, updateShareSnapshot } from "../../api/shareApi";
 import { api } from "../../api";
 import { useConfigContext } from "../../hooks/useConfigContext";
 import type { ShareLink, SharedLinkUserInfo } from "../../types/share";
@@ -233,15 +233,20 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         // Generate share link if it doesn't exist
         if (!shareLink) {
             setCreatingLink(true);
+
+            // Start the clipboard write synchronously (before any await) so the
+            // browser still considers this a user-gesture context.
+            const linkPromise = createShareLink(sessionId, {
+                require_authentication: false, // Public link = no auth required
+            });
+            const clipboardOk = copyDeferredToClipboard(linkPromise.then(link => link.share_url));
+
             try {
-                const newLink = await createShareLink(sessionId, {
-                    require_authentication: false, // Public link = no auth required
-                });
+                const newLink = await linkPromise;
                 setShareLink(newLink);
                 setIsNewlyCreatedLink(true);
 
-                // Copy to clipboard and show feedback before revealing the section
-                const success = await copyToClipboard(newLink.share_url);
+                const success = await clipboardOk;
                 if (success) {
                     setFooterLinkCopied(true);
                     setPublicLinkCopied(true);
@@ -255,6 +260,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                     }, 1500);
                 } else {
                     setShowPublicLink(true);
+                    onSuccess?.("Public link created");
                 }
             } catch (error) {
                 onError?.({ title: "Failed to Create Public Link", message: error instanceof Error ? error.message : "Unknown error" });
