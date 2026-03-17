@@ -332,7 +332,6 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
             const cachedPdf = pdfConversionCache.get(cacheKey);
 
             if (cachedPdf) {
-                console.log("Using cached PDF conversion for:", filename);
                 setPdfDataUrl(cachedPdf);
                 setConversionState("success");
                 return;
