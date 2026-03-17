@@ -115,6 +115,7 @@ class PlatformServiceComponent(SamComponentBase):
         # Note: self.max_message_size_bytes is already set by SamComponentBase
 
         try:
+            self._component_id = "platform_service"
             # Retrieve Platform Service specific configuration
             self.database_url = self.get_config("database_url")
             self.fastapi_host = self.get_config("fastapi_host", "127.0.0.1")
