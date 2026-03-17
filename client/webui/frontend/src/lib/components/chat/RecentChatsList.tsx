@@ -44,7 +44,8 @@ interface SessionNameProps {
 
 function SessionName({ session, respondingSessionId, isActive, hasRunningBackgroundTask }: SessionNameProps) {
     const { persistenceEnabled } = useConfigContext();
-    const autoTitleGenerationEnabled = useBooleanFlagValue("auto_title_generation", false) && persistenceEnabled;
+    const autoTitleFlagEnabled = useBooleanFlagValue("auto_title_generation", false);
+    const autoTitleGenerationEnabled = autoTitleFlagEnabled && persistenceEnabled;
 
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {

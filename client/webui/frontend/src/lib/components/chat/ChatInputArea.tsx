@@ -62,7 +62,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
-    const mentionsEnabled = useBooleanFlagValue("mentions", false) && identityServiceType !== null;
+    const mentionsFlagEnabled = useBooleanFlagValue("mentions", false);
+    const mentionsEnabled = mentionsFlagEnabled && identityServiceType !== null;
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
