@@ -4,6 +4,7 @@ import { ChatPage } from "@/lib/components/pages/ChatPage";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { defaultPromptGroups } from "../data/prompts";
+import type { MessageFE } from "@/lib/types/fe";
 
 const handlers = [
     http.get("*/api/v1/prompts/groups/all", () => {
@@ -231,5 +232,87 @@ export const AgentDropdownFiltersWorkflows: Story = {
         // This confirms workflows are filtered out from the agent dropdown
         const mockWorkflowElements = canvasElement.innerHTML.includes("MockWorkflow");
         expect(mockWorkflowElements).toBe(false);
+    },
+};
+
+// Mock messages for collaborative chat showing conversation between Alice, Bob, and Charlie (current user)
+const collaborativeMessages: MessageFE[] = [
+    // Alice's messages before sharing (indices 0, 1, 2, 3)
+    {
+        isUser: true,
+        parts: [{ kind: "text", text: "Hi! Can you help me create a Python script to process CSV files?" }],
+    },
+    {
+        isUser: false,
+        parts: [{ kind: "text", text: "I'd be happy to help! I'll create a script that reads CSV files, processes the data, and generates reports." }],
+    },
+    {
+        isUser: true,
+        parts: [{ kind: "text", text: "Great! Can you also add error handling for missing columns?" }],
+    },
+    {
+        isUser: false,
+        parts: [
+            { kind: "text", text: "I've created a Python script with comprehensive error handling for missing columns." },
+            {
+                kind: "artifact",
+                status: "completed",
+                name: "csv_processor.py",
+                description: "Python script for CSV processing",
+                file: {
+                    name: "csv_processor.py",
+                    mime_type: "text/x-python",
+                    size: 2400,
+                    last_modified: new Date().toISOString(),
+                },
+            },
+        ],
+    },
+    // Share event will eventually be a real message type from backend
+    // For now, showing with ShareNotification component at end of ChatMessageList
+    // Bob's messages after being added (indices 4, 5, 6, 7)
+    {
+        isUser: true,
+        parts: [{ kind: "text", text: "Thanks for adding me! Does this handle different CSV delimiters like semicolons?" }],
+    },
+    {
+        isUser: false,
+        parts: [{ kind: "text", text: "Yes! The script uses Python's csv.Sniffer to automatically detect delimiters including semicolons, tabs, and pipes." }],
+    },
+    // Charlie's message (current user - no attribution) (index 6)
+    {
+        isUser: true,
+        parts: [{ kind: "text", text: "I just tested it with a semicolon-delimited file and it works perfectly!" }],
+    },
+    {
+        isUser: false,
+        parts: [{ kind: "text", text: "Great to hear! The auto-detection is working as expected." }],
+    },
+    // Alice responds (index 8)
+    {
+        isUser: true,
+        parts: [{ kind: "text", text: "Excellent! Can we also add summary statistics?" }],
+    },
+    {
+        isUser: false,
+        parts: [{ kind: "text", text: "Absolutely! I'll add a summary module that calculates count, mean, median, and standard deviation for numeric columns." }],
+    },
+];
+
+export const CollaborativeChat: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-collaborative-session",
+            sessionName: "Python Script Development",
+            messages: collaborativeMessages,
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+        },
     },
 };
