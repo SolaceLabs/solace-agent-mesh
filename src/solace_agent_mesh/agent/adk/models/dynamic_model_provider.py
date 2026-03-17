@@ -143,7 +143,7 @@ class DynamicModelProvider:
         Args:
             model_config: The new model configuration (model name or config dict).
         """
-        log.info(f"Updating LiteLlm instance with new model config: {model_config}")
+        log.info("Updating LiteLlm instance with new model: %s", model_config.get('model'))
         self._litellm_instance.configure_model(model_config)
 
     def remove_litellm_model(self) -> None:
