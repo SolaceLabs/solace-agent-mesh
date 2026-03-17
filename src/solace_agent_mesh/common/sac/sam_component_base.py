@@ -75,7 +75,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         self.model_provider = model_provider_config[0] if model_provider_config and isinstance(model_provider_config, list) else None
         
         self._lazy_model_mode = (
-            os.environ.get("SAM_FEATURE_MODEL_CONFIG_BE", "").lower() == "true"
+            os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"
         )
 
         log.info("%s Initialized SamComponentBase", self.log_identifier)
