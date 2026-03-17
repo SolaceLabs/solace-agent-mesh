@@ -15,6 +15,7 @@ import os
 from typing import Optional
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 log = logging.getLogger(__name__)
 
