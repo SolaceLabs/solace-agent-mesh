@@ -3,6 +3,8 @@ API routes for share link functionality.
 """
 
 import logging
+import os
+import re as _re
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
@@ -268,52 +270,44 @@ async def update_snapshot(
     user_id: str = Depends(get_user_id),
     db: DBSession = Depends(get_db),
     body: Optional[UpdateSnapshotRequest] = None,
+    share_service: ShareService = Depends(get_share_service),
 ):
     """
     Update the snapshot timestamp for a share.
-    
+
     - If called by a viewer (no body or no user_email in body): updates the current user's snapshot.
     - If called by the owner with a user_email in body: updates that specific user's snapshot.
-    
+
     This refreshes the viewer's snapshot to include newer messages.
     Only applicable for RESOURCE_VIEWER users.
     """
-    from ..repository.share_repository import ShareRepository
-    from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
-    share_repo = ShareRepository()
-    
-    # Verify the share link exists and caller has access
-    share_link = share_repo.find_by_share_id(db, share_id)
-    if not share_link:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link not found")
+    try:
+        target_email = body.user_email if body and body.user_email else None
 
-    # Determine target email
-    target_email = None
-    if body and body.user_email:
-        # Owner is updating a specific user's snapshot
-        if share_link.user_id != user_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can update another user's snapshot")
-        target_email = body.user_email
-    else:
-        # Viewer updating their own snapshot — must be a shared user
+        # Resolve caller email from request state
+        caller_email = None
         if hasattr(request.state, 'user') and request.state.user:
-            target_email = request.state.user.get("email")
+            caller_email = request.state.user.get("email")
 
-        if not target_email:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email required")
+        new_time = share_service.update_snapshot(
+            db=db,
+            share_id=share_id,
+            user_id=user_id,
+            target_email=target_email,
+            caller_email=caller_email,
+        )
+        return {"snapshot_time": new_time}
 
-        if share_link.user_id != user_id and not share_repo.check_user_has_access(db, share_id, target_email):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    
-    new_time = now_epoch_ms()
-    updated = share_repo.update_user_snapshot_time(db, share_id, target_email, new_time)
-    
-    if not updated:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share user not found")
-    
-    db.commit()
-    
-    return {"snapshot_time": new_time}
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+    except PermissionError as e:
+        error_msg = str(e)
+        if "Email required" in error_msg:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
 
 
 @router.post("/{share_id}/fork", response_model=ForkSharedChatResponse)
@@ -336,7 +330,7 @@ async def fork_shared_chat(
         if hasattr(request.state, 'user') and request.state.user:
             user_email = request.state.user.get("email")
         
-        result = share_service.fork_shared_chat(
+        result = await share_service.fork_shared_chat(
             db=db,
             share_id=share_id,
             user_id=user_id,
@@ -397,24 +391,11 @@ async def view_shared_session(
     Returns 403 if authenticated but access denied.
     """
     try:
-        # Determine snapshot_time for viewers (not owner, not editor)
-        snapshot_time = None
-        if user_email:
-            from ..repository.share_repository import ShareRepository
-            share_repo = ShareRepository()
-            share_link = share_repo.find_by_share_id(db, share_id)
-            if share_link and not (user_id and share_link.user_id == user_id):
-                # Not the owner - check if they're a shared user
-                shared_user = share_repo.find_share_user_by_email(db, share_id, user_email)
-                if shared_user and shared_user.access_level == "RESOURCE_VIEWER":
-                    snapshot_time = shared_user.added_at
-        
         session_view = await share_service.get_shared_session_view(
             db=db,
             share_id=share_id,
             user_id=user_id,
             user_email=user_email,
-            snapshot_time=snapshot_time
         )
         
         return session_view
@@ -568,7 +549,8 @@ async def get_shared_artifact_content(
     - If allowed_domains is set: User's email domain must match
     """
     # Reject path traversal attempts
-    if ".." in filename or filename.startswith("/"):
+    normalized = os.path.normpath(filename)
+    if normalized.startswith('..') or os.path.isabs(normalized) or '\x00' in filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid filename"
@@ -707,16 +689,27 @@ async def get_shared_artifact_content(
         # Determine content type - prefer from load result, then artifact info
         mime_type = load_result.get("mime_type") or artifact_mime_type or "application/octet-stream"
         
+        # Strip control characters and sanitize for Content-Disposition
+        safe_name = filename.split("/")[-1]
+        safe_name = _re.sub(r'[\x00-\x1f\x7f]', '', safe_name)  # strip all control chars
+        safe_name = safe_name.replace('"', '\\"')
+
+        headers = {
+            "Content-Disposition": f'inline; filename="{safe_name}"',
+            "Content-Length": str(len(content_bytes)),
+        }
+        # Add RFC 5987 filename* for non-ASCII filenames
+        try:
+            safe_name.encode('ascii')
+        except UnicodeEncodeError:
+            from urllib.parse import quote
+            headers["Content-Disposition"] += f"; filename*=UTF-8''{quote(safe_name)}"
+
         # Return as streaming response
         return StreamingResponse(
             io.BytesIO(content_bytes),
             media_type=mime_type,
-            headers={
-                "Content-Disposition": 'inline; filename="{}"'.format(
-                    filename.split("/")[-1].replace('"', '\\"').replace("\r", "").replace("\n", "")
-                ),
-                "Content-Length": str(len(content_bytes)),
-            }
+            headers=headers
         )
     
     except PermissionError as e:

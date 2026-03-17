@@ -32,8 +32,8 @@ class ShareLink(BaseModel):
     session_id: str
     user_id: str
     title: Optional[str] = None
-    is_public: bool = True
-    require_authentication: bool = False
+    is_public: bool = True  # Reserved for future public (no-login) access; currently always True
+    require_authentication: bool = False  # Reserved for future anonymous access; currently always forced to True by router
     allowed_domains: Optional[str] = None  # Comma-separated in DB
     created_time: int
     updated_time: int

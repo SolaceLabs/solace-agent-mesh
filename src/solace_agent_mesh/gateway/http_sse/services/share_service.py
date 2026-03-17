@@ -9,6 +9,9 @@ from typing import TYPE_CHECKING, Optional, List, Dict, Any
 from sqlalchemy.orm import Session as DBSession
 
 from ..repository.share_repository import ShareRepository
+from ..repository.chat_task_repository import ChatTaskRepository
+from ..repository.session_repository import SessionRepository
+from ..repository.task_repository import TaskRepository
 from ..repository.entities.share import ShareLink, SharedArtifact, SharedLinkUser
 from ..repository.models.share_model import (
     ShareLinkResponse,
@@ -194,7 +197,6 @@ class ShareService:
         total_count = self.repository.count_by_user(db, user_id, search)
         
         # Build response items
-        from ..repository.chat_task_repository import ChatTaskRepository
         task_repo = ChatTaskRepository()
 
         items = []
@@ -321,35 +323,33 @@ class ShareService:
         share_id: str,
         user_id: Optional[str] = None,
         user_email: Optional[str] = None,
-        snapshot_time: Optional[int] = None
     ) -> SharedSessionView:
         """
         Get public view of a shared session.
-        
+
         Args:
             db: Database session
             share_id: Share ID
             user_id: Optional user ID (if authenticated)
             user_email: Optional user email (if authenticated)
-            snapshot_time: Optional epoch ms cutoff - only include tasks created at or before this time (for viewers)
-        
+
         Returns:
             SharedSessionView with anonymized data and full artifact info
-        
+
         Raises:
             ValueError: If not found or access denied
         """
         share_link = self.repository.find_by_share_id(db, share_id)
         if not share_link or share_link.is_deleted():
             raise ValueError("Share link not found")
-        
+
         # Owner always has access
         is_owner = user_id and share_link.user_id == user_id
-        
+
         if not is_owner:
             # Get shared user emails for user-specific access check
             shared_user_emails = self.repository.find_share_user_emails(db, share_id)
-            
+
             # Check access permissions
             can_access, reason = share_link.can_be_accessed_by_user(user_id, user_email, shared_user_emails)
             if not can_access:
@@ -359,14 +359,28 @@ class ShareService:
                     raise PermissionError("Access restricted to authorized domains")
                 else:
                     raise PermissionError("Access denied")
-        
+
+        # Compute snapshot_time for non-owner viewers and determine access level
+        snapshot_time = None
+        is_editor = False
+        if not is_owner and user_email:
+            shared_user = self.repository.find_share_user_by_email(db, share_id, user_email)
+            if shared_user:
+                if shared_user.access_level == "RESOURCE_VIEWER":
+                    snapshot_time = shared_user.added_at
+                elif shared_user.access_level == "RESOURCE_EDITOR":
+                    is_editor = True
+
         # Get session tasks (anonymized)
-        from ..repository.chat_task_repository import ChatTaskRepository
-        from ..repository.session_repository import SessionRepository
         task_repo = ChatTaskRepository()
         session_repo = SessionRepository()
-        tasks = task_repo.find_by_session(db, share_link.session_id, share_link.user_id)
-        
+
+        # Editors and owners see all users' messages; viewers see only the owner's
+        if is_owner or is_editor:
+            tasks = task_repo.find_by_session_all_users(db, share_link.session_id)
+        else:
+            tasks = task_repo.find_by_session(db, share_link.session_id, share_link.user_id)
+
         # Filter tasks by snapshot_time if set (for viewers)
         if snapshot_time is not None:
             tasks = [t for t in tasks if t.created_time <= snapshot_time]
@@ -474,8 +488,6 @@ class ShareService:
         Returns:
             Dictionary of task events keyed by task_id, or None if no events found
         """
-        from ..repository.task_repository import TaskRepository
-        
         task_repo = TaskRepository()
         all_task_events: Dict[str, Any] = {}
         
@@ -918,7 +930,60 @@ class ShareService:
             for s in shares
         ]
 
-    def fork_shared_chat(
+    def update_snapshot(
+        self,
+        db: DBSession,
+        share_id: str,
+        user_id: str,
+        target_email: Optional[str] = None,
+        caller_email: Optional[str] = None
+    ) -> int:
+        """
+        Update the snapshot timestamp for a share.
+
+        - If target_email is provided (by owner): updates that specific user's snapshot.
+        - If target_email is None: updates the caller's own snapshot (using caller_email).
+
+        Args:
+            db: Database session
+            share_id: Share ID
+            user_id: Caller's user ID
+            target_email: If provided (by owner), update that user's snapshot
+            caller_email: Caller's email (for self-update)
+
+        Returns:
+            The new snapshot_time in epoch milliseconds
+
+        Raises:
+            ValueError: If share link or share user not found
+            PermissionError: If caller lacks permission
+        """
+        share_link = self.repository.find_by_share_id(db, share_id)
+        if not share_link:
+            raise ValueError("Share link not found")
+
+        if target_email:
+            # Owner is updating a specific user's snapshot
+            if share_link.user_id != user_id:
+                raise PermissionError("Only the owner can update another user's snapshot")
+        else:
+            # Viewer updating their own snapshot
+            target_email = caller_email
+            if not target_email:
+                raise PermissionError("Email required")
+            if share_link.user_id != user_id and not self.repository.check_user_has_access(db, share_id, target_email):
+                raise PermissionError("Access denied")
+
+        new_time = now_epoch_ms()
+        updated = self.repository.update_user_snapshot_time(db, share_id, target_email, new_time)
+
+        if not updated:
+            raise ValueError("Share user not found")
+
+        db.commit()
+        return new_time
+
+    async def fork_shared_chat(
         self,
         db: DBSession,
         share_id: str,
@@ -961,7 +1026,6 @@ class ShareService:
                 raise PermissionError("Access denied")
         
         # Get the original session's chat tasks
-        from ..repository.chat_task_repository import ChatTaskRepository
         task_repo = ChatTaskRepository()
         original_tasks = task_repo.find_by_session(db, share_link.session_id, share_link.user_id)
         
@@ -1036,18 +1100,14 @@ class ShareService:
 
         # Copy artifacts from original session to forked session
         try:
-            import asyncio
             from ..utils.artifact_copy_utils import copy_session_artifacts
-            loop = asyncio.get_event_loop()
-            artifacts_copied = loop.run_until_complete(
-                copy_session_artifacts(
-                    source_user_id=original_owner_id,
-                    source_session_id=original_session_id,
-                    target_user_id=user_id,
-                    target_session_id=new_session.id,
-                    component=self.component,
-                    log_prefix=f"[Fork:{share_id}] ",
-                )
+            artifacts_copied = await copy_session_artifacts(
+                source_user_id=original_owner_id,
+                source_session_id=original_session_id,
+                target_user_id=user_id,
+                target_session_id=new_session.id,
+                component=self.component,
+                log_prefix=f"[Fork:{share_id}] ",
             )
             log.info(
                 "Copied %d artifacts to forked session %s",

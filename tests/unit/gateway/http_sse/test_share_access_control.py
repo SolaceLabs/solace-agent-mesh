@@ -505,11 +505,11 @@ class TestShareServiceAccessEnforcement:
         service.repository.find_share_user_emails.return_value = ["alice@example.com"]
 
         # Patch the downstream data loading so we don't need real DB fixtures.
-        # These are imported lazily inside the method body, so we patch at their source modules.
+        # These are imported at the top of share_service, so patch in the service module's namespace.
         with patch(
-            "solace_agent_mesh.gateway.http_sse.repository.chat_task_repository.ChatTaskRepository"
+            "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository"
         ) as MockTaskRepo, patch(
-            "solace_agent_mesh.gateway.http_sse.repository.session_repository.SessionRepository"
+            "solace_agent_mesh.gateway.http_sse.services.share_service.SessionRepository"
         ) as MockSessionRepo:
             mock_task_repo = MagicMock()
             mock_task_repo.find_by_session.return_value = []

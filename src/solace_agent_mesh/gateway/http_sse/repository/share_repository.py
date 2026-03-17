@@ -3,6 +3,7 @@ Repository for share link data access operations.
 """
 
 import logging
+import re
 import uuid
 from typing import Optional, List
 from sqlalchemy.orm import Session as DBSession
@@ -95,8 +96,9 @@ class ShareRepository:
         
         # Apply search filter if provided
         if search:
+            escaped = re.sub(r'([%_])', r'\\\1', search)
             query = query.filter(
-                SharedLinkModel.title.ilike(f"%{search}%")
+                SharedLinkModel.title.ilike(f"%{escaped}%")
             )
         
         # Apply pagination
@@ -127,10 +129,11 @@ class ShareRepository:
         )
         
         if search:
+            escaped = re.sub(r'([%_])', r'\\\1', search)
             query = query.filter(
-                SharedLinkModel.title.ilike(f"%{search}%")
+                SharedLinkModel.title.ilike(f"%{escaped}%")
             )
-        
+
         return query.scalar() or 0
 
     def save(self, db: DBSession, share_link: ShareLink) -> ShareLink:
