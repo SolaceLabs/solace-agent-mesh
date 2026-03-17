@@ -20,28 +20,18 @@ import { api } from "../../api";
 import { useConfigContext } from "../../hooks/useConfigContext";
 import type { ShareLink, SharedLinkUserInfo } from "../../types/share";
 
-type AccessLevel = "read-only" | "collaborate";
+type AccessLevel = "read-only";
 
 /** Map frontend access level names to backend values */
-function toBackendAccessLevel(level: AccessLevel): string {
-    switch (level) {
-        case "collaborate":
-            return "RESOURCE_EDITOR";
-        case "read-only":
-        default:
-            return "RESOURCE_VIEWER";
-    }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function toBackendAccessLevel(_level: AccessLevel): string {
+    return "RESOURCE_VIEWER";
 }
 
 /** Map backend access level values to frontend names */
-function toFrontendAccessLevel(backendLevel: string): AccessLevel {
-    switch (backendLevel) {
-        case "RESOURCE_EDITOR":
-            return "collaborate";
-        case "RESOURCE_VIEWER":
-        default:
-            return "read-only";
-    }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function toFrontendAccessLevel(_backendLevel: string): AccessLevel {
+    return "read-only";
 }
 
 interface AccessLevelOption {
@@ -54,10 +44,6 @@ const accessLevelOptions: AccessLevelOption[] = [
         value: "read-only",
         label: "Viewer",
     },
-    {
-        value: "collaborate",
-        label: "Editor",
-    },
 ];
 
 // Shared styling for table header labels
@@ -69,14 +55,14 @@ const shareFormSchema = z.object({
         z.object({
             id: z.string(),
             email: z.string().email().nullable(),
-            accessLevel: z.enum(["read-only", "collaborate"]),
+            accessLevel: z.enum(["read-only"]),
         })
     ),
     pendingRemoves: z.array(z.string().email()),
     accessLevelChanges: z.array(
         z.object({
             email: z.string().email(),
-            newAccessLevel: z.enum(["read-only", "collaborate"]),
+            newAccessLevel: z.enum(["read-only"]),
         })
     ),
 });
@@ -513,7 +499,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                             <div className="min-w-0 flex-1 truncate text-sm">{user.user_email}</div>
                                             <div className="flex w-full shrink-0 items-center gap-2 sm:w-[200px]">
                                                 <span className="text-muted-foreground text-sm whitespace-nowrap">{formattedDate}</span>
-                                                {isSnapshotOutdated && user.access_level !== "RESOURCE_EDITOR" && (
+                                                {isSnapshotOutdated && (
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <Button
