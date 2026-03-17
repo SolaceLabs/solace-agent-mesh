@@ -7,11 +7,11 @@ interface CardProps extends React.ComponentProps<"div"> {
 }
 
 function Card({ className, noPadding, ...props }: CardProps) {
-    return <div data-slot="card" className={cn("flex flex-col gap-6 rounded-lg border bg-(--background-w10) text-(--primary-text-wMain) shadow-[0_4px_6px_-1px_rgba(0,0,0,0.15)]", !noPadding && "py-6", className)} {...props} />;
+    return <div data-slot="card" className={cn("flex flex-col gap-5 rounded-lg border bg-(--background-w10) text-(--primary-text-wMain) shadow-[0_4px_6px_-1px_rgba(0,0,0,0.15)]", !noPadding && "py-6", className)} {...props} />;
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
-    return <div data-slot="card-header" className={cn("@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6", className)} {...props} />;
+    return <div data-slot="card-header" className={cn("@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6", className)} {...props} />;
 }
 
 function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
@@ -19,7 +19,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
-    return <div data-slot="card-description" className={cn("text-sm text-(--secondary-text-wMain)", className)} {...props} />;
+    return <div data-slot="card-description" className={cn("text-sm text-(--primary-text-wMain)", className)} {...props} />;
 }
 
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
