@@ -1,0 +1,16 @@
+# SQLite test databases
+*.db
+*.sqlite
+*.sqlite3
+
+# pytest cache
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Test artifacts
+*.log
+
+# Coverage
+.coverage
+htmlcov/
