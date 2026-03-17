@@ -1,11 +1,12 @@
 """
-Unit tests for auto_title_generation configuration in config.py router.
+Unit tests for feature-flag-gated configuration helpers in config.py router.
 """
 import pytest
 from unittest.mock import MagicMock
 
 from solace_agent_mesh.gateway.http_sse.routers.config import (
     _determine_auto_title_generation_enabled,
+    _determine_mentions_enabled,
 )
 
 
@@ -45,3 +46,37 @@ class TestDetermineAutoTitleGenerationEnabled:
 
         assert result is True
         mock_component.feature_checker.is_enabled.assert_called_once_with("auto_title_generation")
+
+
+class TestDetermineMentionsEnabled:
+    """Tests for _determine_mentions_enabled function."""
+
+    def test_disabled_when_no_identity_service(self):
+        mock_component = MagicMock()
+        mock_component.identity_service = None
+        mock_component.feature_checker.is_enabled.return_value = True
+
+        result = _determine_mentions_enabled(mock_component, "[TEST]")
+
+        assert result is False
+        mock_component.feature_checker.is_enabled.assert_not_called()
+
+    def test_disabled_when_flag_is_off(self):
+        mock_component = MagicMock()
+        mock_component.identity_service = MagicMock()
+        mock_component.feature_checker.is_enabled.return_value = False
+
+        result = _determine_mentions_enabled(mock_component, "[TEST]")
+
+        assert result is False
+        mock_component.feature_checker.is_enabled.assert_called_once_with("mentions")
+
+    def test_enabled_when_identity_service_and_flag_on(self):
+        mock_component = MagicMock()
+        mock_component.identity_service = MagicMock()
+        mock_component.feature_checker.is_enabled.return_value = True
+
+        result = _determine_mentions_enabled(mock_component, "[TEST]")
+
+        assert result is True
+        mock_component.feature_checker.is_enabled.assert_called_once_with("mentions")
