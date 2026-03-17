@@ -228,7 +228,7 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
         try:
             # Check if already exists before processing
             existing = db.query(ModelConfiguration).filter(
-                ModelConfiguration.alias.ilike(alias)
+                ModelConfiguration.alias == alias
             ).first()
 
             if existing:
@@ -283,10 +283,6 @@ def _seed_from_models_config(db: Session, models_config: dict) -> int:
             log.error("[Model Seed] Failed to seed model '%s': %s", alias, e, exc_info=True)
             # Continue with next model instead of failing the entire seeding process
 
-    if count > 0:
-        db.commit()
-        log.info("[Model Seed] Committed %d model configurations", count)
-
     return count
 
 
@@ -309,7 +305,7 @@ def _seed_from_env_vars(db: Session) -> int:
         try:
             # Check if already exists before processing
             existing = db.query(ModelConfiguration).filter(
-                ModelConfiguration.alias.ilike(alias)
+                ModelConfiguration.alias == alias
             ).first()
 
             if existing:
@@ -358,9 +354,5 @@ def _seed_from_env_vars(db: Session) -> int:
         except Exception as e:
             log.error("[Model Seed] Failed to seed model '%s' from env vars: %s", alias, e, exc_info=True)
             # Continue with next model instead of failing the entire seeding process
-
-    if count > 0:
-        db.commit()
-        log.info("[Model Seed] Committed %d model configurations from env vars", count)
 
     return count

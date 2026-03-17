@@ -277,6 +277,7 @@ class PlatformServiceComponent(SamComponentBase):
                         try:
                             models_config = self.connector_models
                             seed_model_configurations(db_session, models_config)
+                            db_session.commit()
                             log.info("%s Model configurations seeded successfully", self.log_identifier)
                         except Exception:
                             db_session.rollback()

@@ -9,7 +9,6 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
   Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
-import logging
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -22,8 +21,6 @@ from solace_agent_mesh.services.platform.api.dependencies import (
 from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.api.response_utils import create_data_response
-
-log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -68,15 +65,8 @@ async def list_models(
     Returns:
         DataResponse with list of model configurations with safe data
     """
-    try:
-        configurations = service.list_all(db)
-        return create_data_response(configurations)
-    except Exception as e:
-        log.error("Failed to retrieve model configurations: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve model configurations",
-        )
+    configurations = service.list_all(db)
+    return create_data_response(configurations)
 
 
 @router.get(
@@ -106,27 +96,12 @@ async def get_model(
     Raises:
         HTTPException: 404 if configuration not found
     """
-    try:
-        config = service.get_by_alias(db, alias)
+    config = service.get_by_alias(db, alias)
 
-        if not config:
-            log.debug("Model configuration not found with alias: %s", alias)
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Model configuration with alias '{alias}' not found",
-            )
-
-        return config
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(
-            "Failed to retrieve model configuration by alias %s: %s",
-            alias,
-            e,
-            exc_info=True,
-        )
+    if not config:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve model configuration",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Model configuration with alias '{alias}' not found",
         )
+
+    return config
