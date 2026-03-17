@@ -6,7 +6,7 @@ import { MessageCircle } from "lucide-react";
 import { useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
 
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
@@ -121,12 +121,8 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
 
     if (isLoading && sessions.length === 0) {
         return (
-            <div className="flex flex-col py-2">
-                {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex h-10 items-center pl-6">
-                        <span className="animate-pulse-slow text-sm text-(--secondary-text-w50)">Loading...</span>
-                    </div>
-                ))}
+            <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
+                <Spinner className="mb-2 h-6 w-6 animate-spin" />
             </div>
         );
     }
