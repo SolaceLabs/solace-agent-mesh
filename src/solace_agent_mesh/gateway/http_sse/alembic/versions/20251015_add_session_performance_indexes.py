@@ -55,16 +55,41 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove performance indexes."""
+    bind = op.get_bind()
 
-    op.create_index(
-        op.f("ix_tasks_initial_request_text"),
-        "tasks",
-        ["initial_request_text"],
-        unique=False,
-    )
+    # Recreate TEXT index (dialect-specific for MySQL)
+    if bind.dialect.name == 'mysql':
+        bind.execute(sa.text("CREATE INDEX ix_tasks_initial_request_text ON tasks (initial_request_text(255))"))
+    else:
+        op.create_index(
+            op.f("ix_tasks_initial_request_text"),
+            "tasks",
+            ["initial_request_text"],
+            unique=False,
+        )
 
-    op.drop_index("ix_task_events_task_created", table_name="task_events")
-    op.drop_index("ix_tasks_user_start_time", table_name="tasks")
-    op.drop_index("ix_chat_tasks_session_user_created", table_name="chat_tasks")
-    op.drop_index("ix_sessions_user_updated", table_name="sessions")
-    op.drop_index("ix_sessions_user_id", table_name="sessions")
+    # Drop indexes (some may not exist on all dialects)
+    try:
+        op.drop_index("ix_task_events_task_created", table_name="task_events")
+    except:
+        pass
+
+    try:
+        op.drop_index("ix_tasks_user_start_time", table_name="tasks")
+    except:
+        pass
+
+    try:
+        op.drop_index("ix_chat_tasks_session_user_created", table_name="chat_tasks")
+    except:
+        pass
+
+    try:
+        op.drop_index("ix_sessions_user_updated", table_name="sessions")
+    except:
+        pass
+
+    try:
+        op.drop_index("ix_sessions_user_id", table_name="sessions")
+    except:
+        pass
