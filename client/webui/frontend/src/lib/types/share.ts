@@ -4,7 +4,7 @@
 
 import type { MessageBubble, TaskMetadata } from "./storage";
 
-export type ShareAccessType = "public" | "authenticated" | "domain-restricted" | "user-specific";
+export type ShareAccessType = "public" | "authenticated" | "domain-restricted";
 
 export interface ShareLink {
     share_id: string;
@@ -41,8 +41,9 @@ export interface UpdateShareLinkRequest {
 }
 
 export interface SharedTaskEvents {
+    task_id: string;
     events: SharedTaskEvent[];
-    initial_request_text: string;
+    initial_request_text?: string;
 }
 
 export interface SharedTaskEvent {
@@ -65,7 +66,7 @@ export interface SharedSessionView {
     share_id: string;
     title: string;
     created_time: number;
-    access_type: string;
+    access_type: ShareAccessType;
     tasks: SharedTask[];
     artifacts: SharedArtifact[];
     task_events?: Record<string, SharedTaskEvents> | null;
@@ -97,12 +98,6 @@ export interface SharedArtifact {
     source?: string | null;
 }
 
-export interface ShareLinkResponse {
-    success: boolean;
-    data: ShareLink;
-    message: string;
-}
-
 export interface ShareLinksListResponse {
     data: ShareLinkItem[];
     pageNumber: number;
@@ -110,17 +105,6 @@ export interface ShareLinksListResponse {
     totalPages: number;
     totalCount: number;
     nextPage: number | null;
-}
-
-export interface SharedSessionViewResponse {
-    success: boolean;
-    data: SharedSessionView;
-    message: string;
-}
-
-export interface DeleteShareLinkResponse {
-    success: boolean;
-    message: string;
 }
 
 // User-specific sharing types

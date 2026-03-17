@@ -2,6 +2,7 @@
  * API client for chat sharing operations
  */
 
+import { api } from "./client";
 import type {
     ShareLink,
     CreateShareLinkRequest,
@@ -17,52 +18,28 @@ import type {
     ForkSharedChatResponse,
 } from "../types/share";
 
-const API_BASE = "/api/v1";
+const SHARE_BASE = "/api/v1/share";
 
 /**
  * Create a share link for a session
  */
 export async function createShareLink(sessionId: string, options: CreateShareLinkRequest = {}): Promise<ShareLink> {
-    const response = await fetch(`${API_BASE}/share/${sessionId}`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(options),
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to create share link" }));
-        throw new Error(error.detail || "Failed to create share link");
-    }
-
-    // Backend returns ShareLinkResponse directly (not wrapped in { data: ... })
-    const data: ShareLink = await response.json();
-    return data;
+    return api.webui.post<ShareLink>(`${SHARE_BASE}/${sessionId}`, options);
 }
 
 /**
  * Get existing share link for a session
  */
 export async function getShareLinkForSession(sessionId: string): Promise<ShareLink | null> {
-    const response = await fetch(`${API_BASE}/share/link/${sessionId}`, {
-        method: "GET",
-        credentials: "include",
-    });
-
+    const response = await api.webui.get(`${SHARE_BASE}/link/${sessionId}`, { fullResponse: true });
     if (response.status === 404) {
         return null;
     }
-
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: "Failed to get share link" }));
         throw new Error(error.detail || "Failed to get share link");
     }
-
-    // Backend returns ShareLinkResponse directly (not wrapped in { data: ... })
-    const data: ShareLink = await response.json();
-    return data;
+    return response.json();
 }
 
 /**
@@ -76,88 +53,33 @@ export async function listShareLinks(
     } = {}
 ): Promise<ShareLinksListResponse> {
     const queryParams = new URLSearchParams();
-    if (params.page) queryParams.append("page", params.page.toString());
-    if (params.pageSize) queryParams.append("pageSize", params.pageSize.toString());
+    if (params.page != null) queryParams.append("page", params.page.toString());
+    if (params.pageSize != null) queryParams.append("pageSize", params.pageSize.toString());
     if (params.search) queryParams.append("search", params.search);
 
-    const response = await fetch(`${API_BASE}/share?${queryParams}`, {
-        method: "GET",
-        credentials: "include",
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to list share links" }));
-        throw new Error(error.detail || "Failed to list share links");
-    }
-
-    return await response.json();
+    const qs = queryParams.toString();
+    return api.webui.get<ShareLinksListResponse>(`${SHARE_BASE}${qs ? `?${qs}` : ""}`);
 }
 
 /**
- * View a shared session (public endpoint, no auth required for public shares)
+ * View a shared session (sends credentials for auth-required shares)
  */
 export async function viewSharedSession(shareId: string): Promise<SharedSessionView> {
-    const response = await fetch(`${API_BASE}/share/${shareId}`, {
-        method: "GET",
-        credentials: "include", // Include credentials in case auth is required
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to view shared session" }));
-
-        // Provide more specific error messages
-        if (response.status === 401) {
-            throw new Error("Authentication required to view this shared session");
-        } else if (response.status === 403) {
-            throw new Error(error.detail || "You do not have access to this shared session");
-        } else if (response.status === 404) {
-            throw new Error("Shared session not found");
-        }
-
-        throw new Error(error.detail || "Failed to view shared session");
-    }
-
-    // Backend returns SharedSessionView directly (not wrapped in { data: ... })
-    const data: SharedSessionView = await response.json();
-    return data;
+    return api.webui.get<SharedSessionView>(`${SHARE_BASE}/${shareId}`, { credentials: "include" });
 }
 
 /**
  * Update share link settings
  */
 export async function updateShareLink(shareId: string, options: UpdateShareLinkRequest): Promise<ShareLink> {
-    const response = await fetch(`${API_BASE}/share/${shareId}`, {
-        method: "PATCH",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(options),
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to update share link" }));
-        throw new Error(error.detail || "Failed to update share link");
-    }
-
-    // Backend returns ShareLinkResponse directly (not wrapped in { data: ... })
-    const data: ShareLink = await response.json();
-    return data;
+    return api.webui.patch<ShareLink>(`${SHARE_BASE}/${shareId}`, options);
 }
 
 /**
  * Delete a share link
  */
 export async function deleteShareLink(shareId: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/share/${shareId}`, {
-        method: "DELETE",
-        credentials: "include",
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to delete share link" }));
-        throw new Error(error.detail || "Failed to delete share link");
-    }
+    await api.webui.delete(`${SHARE_BASE}/${shareId}`);
 }
 
 /**
@@ -168,10 +90,7 @@ export async function deleteShareLink(shareId: string): Promise<void> {
  */
 export async function getSharedArtifactContent(shareId: string, filename: string): Promise<{ content: string; mimeType: string }> {
     const encodedFilename = encodeURIComponent(filename);
-    const response = await fetch(`${API_BASE}/share/${shareId}/artifacts/${encodedFilename}`, {
-        method: "GET",
-        credentials: "include",
-    });
+    const response = await api.webui.get(`${SHARE_BASE}/${shareId}/artifacts/${encodedFilename}`, { fullResponse: true, credentials: "include" });
 
     if (!response.ok) {
         throw new Error(`Failed to fetch shared artifact content: ${response.statusText}`);
@@ -197,47 +116,13 @@ export async function getSharedArtifactContent(shareId: string, filename: string
  */
 export async function downloadSharedArtifact(shareId: string, filename: string): Promise<Blob> {
     const encodedFilename = encodeURIComponent(filename);
-    const response = await fetch(`${API_BASE}/share/${shareId}/artifacts/${encodedFilename}`, {
-        method: "GET",
-        credentials: "include",
-    });
+    const response = await api.webui.get(`${SHARE_BASE}/${shareId}/artifacts/${encodedFilename}`, { fullResponse: true, credentials: "include" });
 
     if (!response.ok) {
         throw new Error(`Failed to download: ${response.statusText}`);
     }
 
-    return await response.blob();
-}
-
-/**
- * Copy text to clipboard
- */
-export async function copyToClipboard(text: string): Promise<boolean> {
-    try {
-        await navigator.clipboard.writeText(text);
-        return true;
-    } catch (err) {
-        console.error("Failed to copy to clipboard:", err);
-        return false;
-    }
-}
-
-/**
- * Copy the result of an async operation to the clipboard while preserving
- * the user gesture. Call this synchronously inside a click handler —
- * it creates the ClipboardItem immediately and lets the browser resolve
- * the content when the promise settles.
- */
-export function copyDeferredToClipboard(textPromise: Promise<string>): Promise<boolean> {
-    try {
-        const item = new ClipboardItem({
-            "text/plain": textPromise.then(text => new Blob([text], { type: "text/plain" })),
-        });
-        return navigator.clipboard.write([item]).then(() => true);
-    } catch (err) {
-        console.error("Failed to copy to clipboard (deferred):", err);
-        return Promise.resolve(false);
-    }
+    return response.blob();
 }
 
 // Share User Management APIs
@@ -246,59 +131,35 @@ export function copyDeferredToClipboard(textPromise: Promise<string>): Promise<b
  * Get users with access to a share link
  */
 export async function getShareUsers(shareId: string): Promise<ShareUsersResponse> {
-    const response = await fetch(`${API_BASE}/share/${shareId}/users`, {
-        method: "GET",
-        credentials: "include",
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to get share users" }));
-        throw new Error(error.detail || "Failed to get share users");
-    }
-
-    return await response.json();
+    return api.webui.get<ShareUsersResponse>(`${SHARE_BASE}/${shareId}/users`);
 }
 
 /**
  * Add users to a share link
  */
 export async function addShareUsers(shareId: string, data: BatchAddShareUsersRequest): Promise<BatchAddShareUsersResponse> {
-    const response = await fetch(`${API_BASE}/share/${shareId}/users`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to add share users" }));
-        throw new Error(error.detail || "Failed to add share users");
-    }
-
-    return await response.json();
+    return api.webui.post<BatchAddShareUsersResponse>(`${SHARE_BASE}/${shareId}/users`, data);
 }
 
 /**
  * Remove users from a share link
  */
 export async function deleteShareUsers(shareId: string, data: BatchDeleteShareUsersRequest): Promise<BatchDeleteShareUsersResponse> {
-    const response = await fetch(`${API_BASE}/share/${shareId}/users`, {
-        method: "DELETE",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        credentials: "include",
+    // ApiClient.delete() doesn't support a request body in its type signature,
+    // but the backend DELETE endpoint requires one. Use the fullResponse overload
+    // and pass body via a type assertion (the runtime accepts it fine).
+    const opts = {
+        fullResponse: true as const,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-    });
-
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response: Response = await (api.webui.delete as any)(`${SHARE_BASE}/${shareId}/users`, opts);
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: "Failed to delete share users" }));
         throw new Error(error.detail || "Failed to delete share users");
     }
-
-    return await response.json();
+    return response.json();
 }
 
 // Shared-with-me APIs
@@ -307,17 +168,7 @@ export async function deleteShareUsers(shareId: string, data: BatchDeleteShareUs
  * List all chats shared with the current user
  */
 export async function listSharedWithMe(): Promise<SharedWithMeItem[]> {
-    const response = await fetch(`${API_BASE}/share/shared-with-me`, {
-        method: "GET",
-        credentials: "include",
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to list shared chats" }));
-        throw new Error(error.detail || "Failed to list shared chats");
-    }
-
-    return await response.json();
+    return api.webui.get<SharedWithMeItem[]>(`${SHARE_BASE}/shared-with-me`);
 }
 
 /**
@@ -326,39 +177,13 @@ export async function listSharedWithMe(): Promise<SharedWithMeItem[]> {
  * - With userEmail: owner updates a specific user's snapshot.
  */
 export async function updateShareSnapshot(shareId: string, userEmail?: string): Promise<{ snapshot_time: number }> {
-    const options: RequestInit = {
-        method: "POST",
-        credentials: "include",
-    };
-
-    if (userEmail) {
-        options.headers = { "Content-Type": "application/json" };
-        options.body = JSON.stringify({ user_email: userEmail });
-    }
-
-    const response = await fetch(`${API_BASE}/share/${shareId}/update-snapshot`, options);
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to update snapshot" }));
-        throw new Error(error.detail || "Failed to update snapshot");
-    }
-
-    return response.json();
+    const body = userEmail ? { user_email: userEmail } : undefined;
+    return api.webui.post<{ snapshot_time: number }>(`${SHARE_BASE}/${shareId}/update-snapshot`, body);
 }
 
 /**
  * Fork a shared chat into the user's own sessions
  */
 export async function forkSharedChat(shareId: string): Promise<ForkSharedChatResponse> {
-    const response = await fetch(`${API_BASE}/share/${shareId}/fork`, {
-        method: "POST",
-        credentials: "include",
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Failed to fork shared chat" }));
-        throw new Error(error.detail || "Failed to fork shared chat");
-    }
-
-    return await response.json();
+    return api.webui.post<ForkSharedChatResponse>(`${SHARE_BASE}/${shareId}/fork`);
 }

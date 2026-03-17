@@ -100,15 +100,8 @@ export const mockSharedSessionsList: SharedSessionListItem[] = [
     },
 ];
 
-/**
- * Helper function to get user initials from name
- */
-export function getUserInitials(name: string): string {
-    const words = name.trim().split(/\s+/);
-    if (words.length === 0) return "?";
-    if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
-    return (words[0][0] + words[1][0]).toUpperCase();
-}
+// Re-export utils from their canonical location (kept here for mock data consumers)
+export { getUserInitials, formatCollaborativeTimestamp } from "../utils/userFormatting";
 
 /**
  * Helper function to get avatar color based on user ID
@@ -117,18 +110,6 @@ export function getAvatarColor(userId: string): string {
     const colors = ["bg-blue-100 text-blue-700", "bg-green-100 text-green-700", "bg-purple-100 text-purple-700", "bg-orange-100 text-orange-700", "bg-pink-100 text-pink-700", "bg-teal-100 text-teal-700"];
     const hash = userId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
-}
-
-/**
- * Format timestamp for display (e.g., "9:48 am")
- */
-export function formatCollaborativeTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-    });
 }
 
 /**
