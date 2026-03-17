@@ -208,7 +208,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         {!hideCollapseButton && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={handleToggle} className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--background-wMain)">
+                                    <button onClick={handleToggle} className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
                                         <ChevronRight className="size-4 text-(--darkSurface-text)" />
                                     </button>
                                 </TooltipTrigger>
