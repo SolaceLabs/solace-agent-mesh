@@ -160,7 +160,7 @@ class LocalFileIdentityService(BaseIdentityService):
                 score = 1
             # Check other name parts
             else:
-                for i, part in enumerate(name_parts[1:], start=1):
+                for i, part in enumerate(name_parts[1:], start=0):
                     if part.startswith(lower_query):
                         score = 2 + i
                         break

@@ -183,8 +183,10 @@ class TestSearchRanking:
         """
         results = await identity_service.search_users("smith", limit=10)
 
-        # Should have at least 2 matches
+        # Should have at least 2 matches with correct ordering
         assert len(results) >= 2
+        assert results[0]["displayName"] == "John Smith Jones"
+        assert results[1]["displayName"] == "Edward Smith"
 
 
 class TestSearchBasics:
