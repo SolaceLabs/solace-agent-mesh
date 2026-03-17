@@ -504,19 +504,17 @@ export function SharedSessionPage() {
                                         )}
                                     </div>
                                 </main>
-                                {/* Fork banner pinned to bottom */}
-                                {!session?.is_owner && (
-                                    <div className="sticky bottom-0 z-10 px-6 pt-2 pb-4">
-                                        <div className="bg-muted/50 border-border mx-auto flex max-w-3xl items-center gap-3 rounded-lg border px-4 py-3 shadow-sm backdrop-blur-sm">
-                                            <Info className="text-muted-foreground h-5 w-5 flex-shrink-0" />
-                                            <span className="text-muted-foreground text-sm">This chat is read-only. To build off of it, continue a new conversation.</span>
-                                            <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
-                                                {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
-                                                Continue in New Chat
-                                            </Button>
-                                        </div>
+                                {/* Read-only banner pinned to bottom */}
+                                <div className="z-10 flex-shrink-0 px-6 pt-2 pb-4">
+                                    <div className="bg-muted/50 border-border mx-auto flex max-w-3xl items-center gap-3 rounded-lg border px-4 py-3 shadow-sm backdrop-blur-sm">
+                                        <Info className="text-muted-foreground h-5 w-5 flex-shrink-0" />
+                                        <span className="text-muted-foreground text-sm">This chat is read-only. To build off of it, continue a new conversation.</span>
+                                        <Button variant="outline" size="sm" onClick={handleForkChat} disabled={isForking} className="ml-auto flex-shrink-0">
+                                            {isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
+                                            Continue in New Chat
+                                        </Button>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </ResizablePanel>
 
