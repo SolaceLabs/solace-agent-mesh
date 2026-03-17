@@ -42,7 +42,7 @@ describe("ProjectCard", () => {
             const ownerIcon = document.querySelector(".lucide-user");
             expect(ownerIcon).toBeInTheDocument();
 
-            const viewerIcon = document.querySelector(".lucide-user-search");
+            const viewerIcon = document.querySelector(".lucide-eye");
             expect(viewerIcon).not.toBeInTheDocument();
         });
 
@@ -63,7 +63,7 @@ describe("ProjectCard", () => {
 
             expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
 
-            const viewerIcon = document.querySelector(".lucide-user-search");
+            const viewerIcon = document.querySelector(".lucide-eye");
             expect(viewerIcon).toBeInTheDocument();
 
             const ownerIcon = document.querySelector(".lucide-user-cog");
