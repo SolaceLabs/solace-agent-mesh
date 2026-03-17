@@ -99,6 +99,9 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     const [creatingLink, setCreatingLink] = useState(false);
     const [isNewlyCreatedLink, setIsNewlyCreatedLink] = useState(false);
     const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Track the newly created share ID in a ref so discard can always find it,
+    // even during the async gap between createShareLink and setState.
+    const newlyCreatedShareIdRef = useRef<string | null>(null);
     const [updatingSnapshotEmail, setUpdatingSnapshotEmail] = useState<string | null>(null);
     const [sessionLastUpdateMs, setSessionLastUpdateMs] = useState<number | null>(null);
 
@@ -155,6 +158,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
             setFooterLinkCopied(false);
             setPublicLinkCopied(false);
             setCreatingLink(false);
+            newlyCreatedShareIdRef.current = null;
             if (copiedTimerRef.current) {
                 clearTimeout(copiedTimerRef.current);
                 copiedTimerRef.current = null;
@@ -243,6 +247,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
 
             try {
                 const newLink = await linkPromise;
+                newlyCreatedShareIdRef.current = newLink.share_id;
                 setShareLink(newLink);
                 setIsNewlyCreatedLink(true);
 
@@ -317,12 +322,14 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
             copiedTimerRef.current = null;
         }
         // If the link was newly created and user discards, delete it
-        if (isNewlyCreatedLink && shareLink?.share_id) {
+        const shareIdToDelete = shareLink?.share_id ?? newlyCreatedShareIdRef.current;
+        if ((isNewlyCreatedLink || newlyCreatedShareIdRef.current) && shareIdToDelete) {
             try {
-                await deleteShareLink(shareLink.share_id);
+                await deleteShareLink(shareIdToDelete);
                 setShareLink(null);
                 setIsNewlyCreatedLink(false);
                 setShowPublicLink(false);
+                newlyCreatedShareIdRef.current = null;
                 onSuccess?.("Share link removed");
             } catch (error) {
                 console.error("Failed to delete share link on discard:", error);
@@ -341,6 +348,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                 const newLink = await createShareLink(sessionId, { require_authentication: true });
                 setShareLink(newLink);
                 setIsNewlyCreatedLink(false); // It's being saved, so it's no longer "newly created"
+                newlyCreatedShareIdRef.current = null;
                 activeShareLink = newLink;
             }
             if (!activeShareLink?.share_id) {
