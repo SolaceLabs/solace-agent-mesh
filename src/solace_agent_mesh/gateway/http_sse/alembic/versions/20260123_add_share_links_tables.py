@@ -48,6 +48,7 @@ def upgrade() -> None:
         op.create_index('idx_shared_links_session_id', 'shared_links', ['session_id'])
         op.create_index('idx_shared_links_created_time', 'shared_links', ['created_time'])
         op.create_index('idx_shared_links_require_auth', 'shared_links', ['require_authentication'])
+        op.create_index('idx_shared_links_deleted_at', 'shared_links', ['deleted_at'])
         
         # Note: SQLite doesn't support adding foreign keys after table creation
         # The foreign key constraint is defined but won't be enforced in SQLite
@@ -86,18 +87,18 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop shared_links and shared_artifacts tables."""
-    
-    # Drop foreign key constraints first
-    op.drop_constraint('fk_shared_artifacts_share_id', 'shared_artifacts', type_='foreignkey')
-    op.drop_constraint('fk_shared_links_session_id', 'shared_links', type_='foreignkey')
-    
-    # Drop indexes
-    op.drop_index('idx_shared_artifacts_share_id', 'shared_artifacts')
-    op.drop_index('idx_shared_links_require_auth', 'shared_links')
-    op.drop_index('idx_shared_links_created_time', 'shared_links')
-    op.drop_index('idx_shared_links_session_id', 'shared_links')
-    op.drop_index('idx_shared_links_user_id', 'shared_links')
-    
-    # Drop tables
-    op.drop_table('shared_artifacts')
-    op.drop_table('shared_links')
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = inspector.get_table_names()
+
+    if 'shared_artifacts' in existing_tables:
+        op.drop_index('idx_shared_artifacts_share_id', 'shared_artifacts')
+        op.drop_table('shared_artifacts')
+
+    if 'shared_links' in existing_tables:
+        op.drop_index('idx_shared_links_deleted_at', 'shared_links')
+        op.drop_index('idx_shared_links_require_auth', 'shared_links')
+        op.drop_index('idx_shared_links_created_time', 'shared_links')
+        op.drop_index('idx_shared_links_session_id', 'shared_links')
+        op.drop_index('idx_shared_links_user_id', 'shared_links')
+        op.drop_table('shared_links')

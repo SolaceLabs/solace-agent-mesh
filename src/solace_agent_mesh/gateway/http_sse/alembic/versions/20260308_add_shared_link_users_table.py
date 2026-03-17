@@ -40,24 +40,12 @@ def upgrade() -> None:
             sa.UniqueConstraint('share_id', 'user_email', name='uq_shared_link_user')
         )
 
-        # Create indexes for efficient lookups
-        op.create_index(
-            'ix_shared_link_users_share_id',
-            'shared_link_users',
-            ['share_id']
-        )
-
+        # The unique constraint on (share_id, user_email) already creates a composite index.
+        # Add a single-column index on user_email for "shared with me" lookups.
         op.create_index(
             'ix_shared_link_users_user_email',
             'shared_link_users',
             ['user_email']
-        )
-
-        # Composite index for checking user access to a share
-        op.create_index(
-            'ix_shared_link_users_share_user',
-            'shared_link_users',
-            ['share_id', 'user_email']
         )
 
 
@@ -70,17 +58,7 @@ def downgrade() -> None:
     if 'shared_link_users' in existing_tables:
         # Drop indexes first
         try:
-            op.drop_index('ix_shared_link_users_share_user', table_name='shared_link_users')
-        except Exception:
-            pass
-
-        try:
             op.drop_index('ix_shared_link_users_user_email', table_name='shared_link_users')
-        except Exception:
-            pass
-
-        try:
-            op.drop_index('ix_shared_link_users_share_id', table_name='shared_link_users')
         except Exception:
             pass
 

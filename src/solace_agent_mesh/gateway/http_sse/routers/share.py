@@ -282,21 +282,28 @@ async def update_snapshot(
     from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
     share_repo = ShareRepository()
     
+    # Verify the share link exists and caller has access
+    share_link = share_repo.find_by_share_id(db, share_id)
+    if not share_link:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Share link not found")
+
     # Determine target email
     target_email = None
     if body and body.user_email:
         # Owner is updating a specific user's snapshot
-        share_link = share_repo.find_by_share_id(db, share_id)
-        if not share_link or share_link.user_id != user_id:
+        if share_link.user_id != user_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can update another user's snapshot")
         target_email = body.user_email
     else:
-        # Viewer updating their own snapshot
+        # Viewer updating their own snapshot — must be a shared user
         if hasattr(request.state, 'user') and request.state.user:
             target_email = request.state.user.get("email")
-        
+
         if not target_email:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email required")
+
+        if share_link.user_id != user_id and not share_repo.check_user_has_access(db, share_id, target_email):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     new_time = now_epoch_ms()
     updated = share_repo.update_user_snapshot_time(db, share_id, target_email, new_time)
@@ -560,6 +567,13 @@ async def get_shared_artifact_content(
     - If require_authentication=True: Must be authenticated
     - If allowed_domains is set: User's email domain must match
     """
+    # Reject path traversal attempts
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename"
+        )
+
     try:
         # First get the share link to verify access and get the original user_id
         from ..repository.share_repository import ShareRepository
@@ -698,7 +712,9 @@ async def get_shared_artifact_content(
             io.BytesIO(content_bytes),
             media_type=mime_type,
             headers={
-                "Content-Disposition": f'inline; filename="{filename}"',
+                "Content-Disposition": 'inline; filename="{}"'.format(
+                    filename.split("/")[-1].replace('"', '\\"').replace("\r", "").replace("\n", "")
+                ),
                 "Content-Length": str(len(content_bytes)),
             }
         )

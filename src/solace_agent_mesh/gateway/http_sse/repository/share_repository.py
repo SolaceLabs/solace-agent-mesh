@@ -31,7 +31,10 @@ class ShareRepository:
             ShareLink entity or None if not found
         """
         model = db.query(SharedLinkModel).filter(
-            SharedLinkModel.share_id == share_id
+            and_(
+                SharedLinkModel.share_id == share_id,
+                SharedLinkModel.deleted_at.is_(None)
+            )
         ).first()
         
         if not model:
@@ -194,6 +197,7 @@ class ShareRepository:
         Returns:
             True if deleted, False if not found or not authorized
         """
+        now = now_epoch_ms()
         result = db.query(SharedLinkModel).filter(
             and_(
                 SharedLinkModel.share_id == share_id,
@@ -201,8 +205,8 @@ class ShareRepository:
                 SharedLinkModel.deleted_at.is_(None)
             )
         ).update({
-            'deleted_at': now_epoch_ms(),
-            'updated_time': now_epoch_ms()
+            'deleted_at': now,
+            'updated_time': now
         })
         
         return result > 0

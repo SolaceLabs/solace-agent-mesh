@@ -194,11 +194,12 @@ class ShareService:
         total_count = self.repository.count_by_user(db, user_id, search)
         
         # Build response items
+        from ..repository.chat_task_repository import ChatTaskRepository
+        task_repo = ChatTaskRepository()
+
         items = []
         for share_link in share_links:
             # Get message count for this session
-            from ..repository.chat_task_repository import ChatTaskRepository
-            task_repo = ChatTaskRepository()
             tasks = task_repo.find_by_session(db, share_link.session_id, user_id)
             message_count = sum(
                 len(json.loads(task.message_bubbles) if isinstance(task.message_bubbles, str) else task.message_bubbles)
@@ -355,8 +356,7 @@ class ShareService:
                 if reason == "authentication_required":
                     raise PermissionError("Authentication required to view this shared session")
                 elif reason == "domain_mismatch":
-                    allowed = ', '.join(share_link.get_allowed_domains_list())
-                    raise PermissionError(f"Access restricted to users from: {allowed}")
+                    raise PermissionError("Access restricted to authorized domains")
                 else:
                     raise PermissionError("Access denied")
         
@@ -491,7 +491,7 @@ class ShareService:
                     if isinstance(task_metadata, str):
                         try:
                             task_metadata = json.loads(task_metadata)
-                        except:
+                        except (json.JSONDecodeError, TypeError, ValueError):
                             task_metadata = None
                     
                     if task_metadata and isinstance(task_metadata, dict):

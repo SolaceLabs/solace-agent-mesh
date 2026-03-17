@@ -452,7 +452,9 @@ class FilteringSessionService(BaseSessionService):
             )
             return None
         
-        source_events = getattr(source_session, "events", None) or getattr(source_session, "history", None) or []
+        source_events = getattr(source_session, "events", None)
+        if source_events is None:
+            source_events = getattr(source_session, "history", None) or []
         if not source_events:
             log.info(
                 "%s Source session '%s' has no events to clone.",
@@ -467,12 +469,15 @@ class FilteringSessionService(BaseSessionService):
             target_session_id, target_user_id
         )
         
-        # Create the target session
+        # Create the target session (strip compaction_time — it references source timestamps)
+        clone_state = None
+        if hasattr(source_session, "state") and source_session.state:
+            clone_state = {k: v for k, v in source_session.state.items() if k != "compaction_time"}
         target_session = await self.create_session(
             app_name=app_name,
             user_id=target_user_id,
             session_id=target_session_id,
-            state=source_session.state if hasattr(source_session, "state") else None,
+            state=clone_state,
         )
         
         # Copy events one by one (same pattern as RUN_BASED session copy)
@@ -486,12 +491,13 @@ class FilteringSessionService(BaseSessionService):
                 session_id=target_session_id,
                 log_identifier=f"{log_identifier}[ForkClone]",
             )
-            # Re-fetch session after each append to keep it fresh
-            target_session = await self.get_session(
-                app_name=app_name,
-                user_id=target_user_id,
-                session_id=target_session_id,
-            )
+
+        # Fetch final session state once after all events are appended
+        target_session = await self.get_session(
+            app_name=app_name,
+            user_id=target_user_id,
+            session_id=target_session_id,
+        )
         
         log.info(
             "%s Successfully cloned %d events to forked session '%s'.",
@@ -626,7 +632,9 @@ async def clone_adk_session(
         )
         return None
     
-    source_events = getattr(source_session, "events", None) or getattr(source_session, "history", None) or []
+    source_events = getattr(source_session, "events", None)
+    if source_events is None:
+        source_events = getattr(source_session, "history", None) or []
     if not source_events:
         log.info(
             "%s Source session '%s' has no events to clone.",
@@ -641,12 +649,15 @@ async def clone_adk_session(
         target_session_id, target_user_id
     )
     
-    # Create the target session
+    # Create the target session (strip compaction_time — it references source timestamps)
+    clone_state = None
+    if hasattr(source_session, "state") and source_session.state:
+        clone_state = {k: v for k, v in source_session.state.items() if k != "compaction_time"}
     target_session = await session_service.create_session(
         app_name=app_name,
         user_id=target_user_id,
         session_id=target_session_id,
-        state=source_session.state if hasattr(source_session, "state") else None,
+        state=clone_state,
     )
     
     # Copy events one by one (same pattern as RUN_BASED session copy)
@@ -660,12 +671,13 @@ async def clone_adk_session(
             session_id=target_session_id,
             log_identifier=f"{log_identifier}[ForkClone]",
         )
-        # Re-fetch session after each append to keep it fresh
-        target_session = await session_service.get_session(
-            app_name=app_name,
-            user_id=target_user_id,
-            session_id=target_session_id,
-        )
+
+    # Fetch final session state once after all events are appended
+    target_session = await session_service.get_session(
+        app_name=app_name,
+        user_id=target_user_id,
+        session_id=target_session_id,
+    )
     
     log.info(
         "%s Successfully cloned %d events to forked session '%s'.",

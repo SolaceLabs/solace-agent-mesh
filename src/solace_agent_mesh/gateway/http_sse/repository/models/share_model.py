@@ -5,7 +5,7 @@ Share link SQLAlchemy model and Pydantic models for strongly-typed operations.
 from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Literal, Optional, List
 
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from .base import Base
@@ -159,7 +159,7 @@ class ShareUsersResponse(BaseModel):
 class AddShareUserRequest(BaseModel):
     """Request to add a user to a share."""
     user_email: str = Field(..., description="Email of user to share with")
-    access_level: str = Field(default="RESOURCE_VIEWER", description="Access level for the user")
+    access_level: Literal["RESOURCE_VIEWER", "RESOURCE_EDITOR"] = Field(default="RESOURCE_VIEWER", description="Access level for the user")
 
 
 class BatchAddShareUsersRequest(BaseModel):

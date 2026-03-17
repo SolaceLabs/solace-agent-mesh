@@ -157,7 +157,7 @@ def anonymize_chat_task(task: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(task_metadata, str):
             try:
                 task_metadata = json_module.loads(task_metadata)
-            except:
+            except (json_module.JSONDecodeError, TypeError, ValueError):
                 task_metadata = None
         
         if task_metadata and isinstance(task_metadata, dict):
