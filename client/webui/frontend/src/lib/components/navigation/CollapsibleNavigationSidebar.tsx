@@ -199,7 +199,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     };
 
     return (
-        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--background-wMain)", isCollapsed ? "w-16" : "w-64")}>
+        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg)", isCollapsed ? "w-16" : "w-64")}>
             {isCollapsed ? (
                 <>
                     <div className="relative flex min-h-[80px] w-full items-center justify-center overflow-visible border-b border-(--secondary-w70) py-3">
@@ -208,7 +208,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         {!hideCollapseButton && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={handleToggle} className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
+                                    <button onClick={handleToggle} className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--background-wMain)">
                                         <ChevronRight className="size-4 text-(--darkSurface-text)" />
                                     </button>
                                 </TooltipTrigger>
