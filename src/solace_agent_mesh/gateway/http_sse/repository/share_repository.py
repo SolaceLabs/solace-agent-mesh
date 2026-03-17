@@ -417,10 +417,10 @@ class ShareRepository:
         result = db.query(SharedLinkUserModel).filter(
             and_(
                 SharedLinkUserModel.share_id == share_id,
-                SharedLinkUserModel.user_email == user_email.lower().strip()
+                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
             )
         ).delete()
-        
+
         return result > 0
 
     def delete_share_users_batch(self, db: DBSession, share_id: str, user_emails: List[str]) -> int:
@@ -439,7 +439,7 @@ class ShareRepository:
         result = db.query(SharedLinkUserModel).filter(
             and_(
                 SharedLinkUserModel.share_id == share_id,
-                SharedLinkUserModel.user_email.in_(normalized_emails)
+                func.lower(SharedLinkUserModel.user_email).in_(normalized_emails)
             )
         ).delete(synchronize_session='fetch')
         
@@ -606,7 +606,7 @@ class ShareRepository:
             )
         ).filter(
             and_(
-                SharedLinkUserModel.user_email == user_email.lower().strip(),
+                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip(),
                 SharedLinkModel.deleted_at.is_(None)
             )
         ).order_by(

@@ -60,7 +60,7 @@ class SharedArtifactModel(Base):
     __tablename__ = "shared_artifacts"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    share_id = Column(String(21), nullable=False, index=True)
+    share_id = Column(String(21), ForeignKey("shared_links.share_id", ondelete="CASCADE"), nullable=False, index=True)
     artifact_uri = Column(String(1000), nullable=False)
     artifact_version = Column(BigInteger, nullable=True)
     is_public = Column(Boolean, default=True, nullable=False)

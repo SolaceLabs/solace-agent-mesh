@@ -777,11 +777,18 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                 effective_session_id,
                             )
                         else:
-                            adk_session_for_run = await component.session_service.create_session(
-                                app_name=agent_name,
-                                user_id=user_id,
-                                session_id=effective_session_id,
-                            )
+                            try:
+                                adk_session_for_run = await component.session_service.create_session(
+                                    app_name=agent_name,
+                                    user_id=user_id,
+                                    session_id=effective_session_id,
+                                )
+                            except Exception:
+                                adk_session_for_run = await component.session_service.get_session(
+                                    app_name=agent_name,
+                                    user_id=user_id,
+                                    session_id=effective_session_id,
+                                )
                             log.warning(
                                 "%s Fork clone returned None - created empty session '%s'.",
                                 component.log_identifier,
@@ -817,11 +824,19 @@ async def handle_a2a_request(component, message: SolaceMessage):
                             )
                 else:
                     # Normal new session (not a fork)
-                    adk_session_for_run = await component.session_service.create_session(
-                        app_name=agent_name,
-                        user_id=user_id,
-                        session_id=effective_session_id,
-                    )
+                    try:
+                        adk_session_for_run = await component.session_service.create_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
+                    except Exception:
+                        # Another concurrent message may have already created it
+                        adk_session_for_run = await component.session_service.get_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
                     log.info(
                         "%s Created new ADK session '%s' for task '%s'.",
                         component.log_identifier,
