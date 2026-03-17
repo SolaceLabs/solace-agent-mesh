@@ -8,12 +8,17 @@ export interface ModelConfig {
     provider: string;
     modelName: string;
     apiBase: string | null;
-    hasCredentials: boolean;
     authType: string | null;
+    authConfig: Record<string, unknown>;
     modelParams: Record<string, unknown>;
     description: string | null;
     createdBy: string;
     updatedBy: string;
     createdTime: number;
     updatedTime: number;
+}
+
+export interface ModelConfigurationListResponse {
+    data: ModelConfig[];
+    total: number;
 }

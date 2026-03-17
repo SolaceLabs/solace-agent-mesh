@@ -24,8 +24,8 @@ const mockModelConfigs = [
         provider: "anthropic",
         modelName: "claude-3-5-sonnet",
         apiBase: "https://api.anthropic.com",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: { temperature: 0.1, max_tokens: 4096 },
         description: "Planning model for strategic tasks",
         createdBy: "system",
@@ -39,8 +39,8 @@ const mockModelConfigs = [
         provider: "openai",
         modelName: "gpt-4",
         apiBase: "https://api.openai.com",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: {},
         description: "General purpose model",
         createdBy: "system",
@@ -54,8 +54,8 @@ const mockModelConfigs = [
         provider: "openai",
         modelName: "dall-e-3",
         apiBase: "https://api.openai.com",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: {},
         description: "Image generation model",
         createdBy: "system",
@@ -69,8 +69,8 @@ const mockModelConfigs = [
         provider: "openai_compatible",
         modelName: "llama2",
         apiBase: "http://localhost:8000",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: {},
         description: "OpenAI-compatible API",
         createdBy: "system",
@@ -84,8 +84,8 @@ const mockModelConfigs = [
         provider: "google_ai_studio",
         modelName: "gemini-2.0-flash",
         apiBase: "https://generativelanguage.googleapis.com",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: {},
         description: "Google AI Studio Gemini model",
         createdBy: "system",
@@ -99,8 +99,8 @@ const mockModelConfigs = [
         provider: "vertex_ai",
         modelName: "gemini-1.5-pro",
         apiBase: "https://vertex.googleapis.com",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: {},
         description: "Google Vertex AI model",
         createdBy: "system",
@@ -114,8 +114,8 @@ const mockModelConfigs = [
         provider: "azure_openai",
         modelName: "gpt-4",
         apiBase: "https://myresource.openai.azure.com",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: {},
         description: "Azure OpenAI deployment",
         createdBy: "system",
@@ -129,8 +129,8 @@ const mockModelConfigs = [
         provider: "bedrock",
         modelName: "claude-3-sonnet",
         apiBase: "https://bedrock.amazonaws.com",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: {},
         description: "AWS Bedrock model",
         createdBy: "system",
@@ -144,8 +144,8 @@ const mockModelConfigs = [
         provider: "ollama",
         modelName: "mistral",
         apiBase: "http://localhost:11434",
-        hasCredentials: false,
-        authType: null,
+        authType: "none",
+        authConfig: { type: "none" },
         modelParams: {},
         description: "Local Ollama model",
         createdBy: "system",
@@ -159,8 +159,8 @@ const mockModelConfigs = [
         provider: "custom",
         modelName: "unknown-provider-model",
         apiBase: "https://custom.api.com",
-        hasCredentials: true,
-        authType: "api_key",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
         modelParams: {},
         description: "Custom provider model (fallback icon test)",
         createdBy: "system",
@@ -172,20 +172,20 @@ const mockModelConfigs = [
 
 const successHandlers = [
     http.get("*/api/v1/platform/models", () => {
-        return HttpResponse.json({ data: mockModelConfigs });
+        return HttpResponse.json({ data: mockModelConfigs, total: mockModelConfigs.length });
     }),
 ];
 
 const loadingHandlers = [
     http.get("*/api/v1/platform/models", async () => {
         await delay("infinite");
-        return HttpResponse.json({ data: [] });
+        return HttpResponse.json({ data: [], total: 0 });
     }),
 ];
 
 const emptyHandlers = [
     http.get("*/api/v1/platform/models", () => {
-        return HttpResponse.json({ data: [] });
+        return HttpResponse.json({ data: [], total: 0 });
     }),
 ];
 
@@ -264,22 +264,24 @@ export const WithPagination: Story = {
         msw: {
             handlers: [
                 http.get("*/api/v1/platform/models", () => {
+                    const data = Array.from({ length: 45 }, (_, i) => ({
+                        id: `model-${i}`,
+                        alias: `model-${i}`,
+                        provider: i % 3 === 0 ? "anthropic" : i % 3 === 1 ? "openai" : "vertex_ai",
+                        modelName: `test-model-${i}`,
+                        apiBase: "https://api.example.com",
+                        authType: "apikey",
+                        authConfig: { type: "apikey" },
+                        modelParams: {},
+                        description: `Test model ${i}`,
+                        createdBy: "system",
+                        updatedBy: "system",
+                        createdTime: Date.now(),
+                        updatedTime: Date.now(),
+                    }));
                     return HttpResponse.json({
-                        data: Array.from({ length: 45 }, (_, i) => ({
-                            id: `model-${i}`,
-                            alias: `model-${i}`,
-                            provider: i % 3 === 0 ? "anthropic" : i % 3 === 1 ? "openai" : "vertex_ai",
-                            modelName: `test-model-${i}`,
-                            apiBase: "https://api.example.com",
-                            hasCredentials: true,
-                            authType: "api_key",
-                            modelParams: {},
-                            description: `Test model ${i}`,
-                            createdBy: "system",
-                            updatedBy: "system",
-                            createdTime: Date.now(),
-                            updatedTime: Date.now(),
-                        })),
+                        data,
+                        total: data.length,
                     });
                 }),
             ],
