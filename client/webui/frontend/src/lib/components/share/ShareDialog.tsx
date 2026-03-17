@@ -95,6 +95,8 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     const [savingUser, setSavingUser] = useState(false);
     const [showPublicLink, setShowPublicLink] = useState(defaultShowPublicLink);
     const [publicLinkCopied, setPublicLinkCopied] = useState(false);
+    const [footerLinkCopied, setFooterLinkCopied] = useState(false);
+    const [creatingLink, setCreatingLink] = useState(false);
     const [isNewlyCreatedLink, setIsNewlyCreatedLink] = useState(false);
     const [updatingSnapshotEmail, setUpdatingSnapshotEmail] = useState<string | null>(null);
     const [sessionLastUpdateMs, setSessionLastUpdateMs] = useState<number | null>(null);
@@ -221,6 +223,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     const handleCopyPublicLink = async () => {
         // Generate share link if it doesn't exist
         if (!shareLink) {
+            setCreatingLink(true);
             try {
                 const newLink = await createShareLink(sessionId, {
                     require_authentication: false, // Public link = no auth required
@@ -228,16 +231,25 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                 setShareLink(newLink);
                 setIsNewlyCreatedLink(true);
 
-                // Copy to clipboard
+                // Copy to clipboard and show feedback before revealing the section
                 const success = await copyToClipboard(newLink.share_url);
                 if (success) {
+                    setFooterLinkCopied(true);
                     setPublicLinkCopied(true);
-                    setTimeout(() => setPublicLinkCopied(false), 2000);
-                    setShowPublicLink(true);
                     onSuccess?.("Public link created and copied to clipboard");
+                    // Brief delay so user sees the "Copied!" state on the footer button
+                    setTimeout(() => {
+                        setFooterLinkCopied(false);
+                        setPublicLinkCopied(false);
+                        setShowPublicLink(true);
+                    }, 1500);
+                } else {
+                    setShowPublicLink(true);
                 }
             } catch (error) {
                 onError?.({ title: "Failed to Create Public Link", message: error instanceof Error ? error.message : "Unknown error" });
+            } finally {
+                setCreatingLink(false);
             }
             return;
         }
@@ -365,7 +377,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         return sharedUsers.filter(user => !pendingRemoves.includes(user.user_email)).sort((a, b) => a.user_email.localeCompare(b.user_email));
     }, [sharedUsers, pendingRemoves]);
 
-    const hasChanges = viewers.filter(v => v.email !== null).length > 0 || pendingRemoves.length > 0 || accessLevelChanges.length > 0 || isNewlyCreatedLink || showPublicLink;
+    const hasChanges = viewers.filter(v => v.email !== null).length > 0 || pendingRemoves.length > 0 || accessLevelChanges.length > 0 || isNewlyCreatedLink;
     const hasIncompleteRows = viewers.some(v => v.email === null);
 
     return (
@@ -630,9 +642,23 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                 <DialogFooter className="flex justify-between gap-2">
                     {/* Public Link Button - left side */}
                     {!showPublicLink && (
-                        <Button variant="ghost" size="sm" onClick={handleCopyPublicLink}>
-                            <Link2 className="mr-2 h-4 w-4" />
-                            Copy Sharing Link
+                        <Button variant="ghost" size="sm" onClick={handleCopyPublicLink} disabled={creatingLink}>
+                            {footerLinkCopied ? (
+                                <>
+                                    <Check className="mr-2 h-4 w-4 text-green-600" />
+                                    Copied!
+                                </>
+                            ) : creatingLink ? (
+                                <>
+                                    <div className="border-primary mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
+                                    Creating Link...
+                                </>
+                            ) : (
+                                <>
+                                    <Link2 className="mr-2 h-4 w-4" />
+                                    Copy Sharing Link
+                                </>
+                            )}
                         </Button>
                     )}
                     <div className="flex-1" />
