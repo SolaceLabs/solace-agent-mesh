@@ -17,7 +17,7 @@ interface PastedTextBadgeProps {
  */
 export const PastedTextBadge: React.FC<PastedTextBadgeProps> = ({ index, textPreview, onClick, onRemove }) => {
     return (
-        <Badge className="bg-muted hover:bg-muted/80 max-w-fit cursor-pointer gap-1.5 rounded-full pr-1 transition-colors" onClick={onClick} title={`Click to view full content: ${textPreview}`}>
+        <Badge className="max-w-fit cursor-pointer gap-1.5 rounded-full bg-(--secondary-w10) pr-1 transition-colors hover:bg-(--secondary-w20)" onClick={onClick} title={`Click to view full content: ${textPreview}`}>
             <FileText className="size-3 shrink-0" />
             <span className="min-w-0 flex-1 text-xs font-medium whitespace-nowrap md:text-sm">Pasted Text #{index}</span>
             {onRemove && (
@@ -71,8 +71,8 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
         <Tooltip>
             <TooltipTrigger asChild>
                 <div
-                    className={`bg-background relative inline-flex max-w-[200px] cursor-pointer flex-col rounded-lg border shadow-sm transition-colors ${
-                        isConfigured ? "border-[var(--color-info-wMain)]/50 hover:border-[var(--color-info-wMain)]" : "border-border hover:border-primary/50"
+                    className={`relative inline-flex max-w-[200px] cursor-pointer flex-col rounded-lg border bg-(--background-w10) shadow-sm transition-colors ${
+                        isConfigured ? "border-(--info-w10) hover:border-(--info-wMain)" : "hover:border-(--primary-w20)"
                     }`}
                     onClick={onClick}
                 >
@@ -84,7 +84,7 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                             e.stopPropagation();
                             onRemove();
                         }}
-                        className="bg-background border-border hover:bg-muted absolute -top-2 -left-2 h-5 w-5 rounded-full border p-0 shadow-sm"
+                        className="absolute -top-2 -left-2 h-5 w-5 rounded-full border bg-(--background-w10) p-0 shadow-sm hover:bg-(--secondary-w10)"
                         tooltip="Remove pasted text"
                         tooltipSide="left"
                     >
@@ -92,24 +92,24 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                     </Button>
 
                     {/* Text preview */}
-                    <div className="text-muted-foreground overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed">
+                    <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
                         {previewLines.map((line, index) => (
                             <div key={index} className="truncate">
                                 {line || "\u00A0"}
                             </div>
                         ))}
-                        {content.split("\n").length > 2 && <div className="text-muted-foreground/60">...</div>}
+                        {content.split("\n").length > 2 && <div className="text-(--secondary-text-w50)">...</div>}
                     </div>
 
                     {/* Status label - show filename (configured or default) */}
                     <div className="flex items-center gap-1 px-2 pb-2">
                         {isConfigured ? (
-                            <span className="inline-flex max-w-[170px] items-center gap-1.5 truncate rounded bg-[var(--color-info-w10)] px-2 py-0.5 text-[10px] font-semibold tracking-wider text-[var(--color-info-wMain)] dark:bg-[var(--color-info-wMain)] dark:text-[var(--color-primary-text-w10)]">
+                            <span className="inline-flex max-w-[170px] items-center gap-1.5 truncate rounded bg-(--info-w10) px-2 py-0.5 text-[10px] font-semibold tracking-wider text-(--info-wMain)">
                                 {filename || "CONFIGURED"}
-                                <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--color-info-wMain)] dark:bg-[var(--color-primary-text-w10)]" />
+                                <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-(--info-wMain)" />
                             </span>
                         ) : (
-                            <span className="bg-muted text-muted-foreground inline-block max-w-[170px] truncate rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider">{defaultFilename || "snippet.txt"}</span>
+                            <span className="inline-block max-w-[170px] truncate rounded bg-(--secondary-w10) px-2 py-0.5 text-[10px] font-semibold tracking-wider text-(--secondary-text-wMain)">{defaultFilename || "snippet.txt"}</span>
                         )}
                     </div>
                 </div>

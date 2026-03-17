@@ -199,20 +199,17 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     };
 
     return (
-        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-[var(--color-background-wMain)]", isCollapsed ? "w-16" : "w-64")}>
+        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg)", isCollapsed ? "w-16" : "w-64")}>
             {isCollapsed ? (
                 <>
-                    <div className="relative flex min-h-[80px] w-full items-center justify-center overflow-visible border-b border-[var(--color-secondary-w70)] py-3">
+                    <div className="relative flex min-h-[80px] w-full items-center justify-center overflow-visible border-b border-(--secondary-w70) py-3">
                         {renderHeader()}
                         {/* Positioned outside panel bounds to create floating expand button effect */}
                         {!hideCollapseButton && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button
-                                        onClick={handleToggle}
-                                        className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-[var(--color-background-wMain)] p-0.5 shadow-md hover:bg-[var(--color-background-w100)]"
-                                    >
-                                        <ChevronRight className="size-4 text-[var(--color-primary-text-w10)]" />
+                                    <button onClick={handleToggle} className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
+                                        <ChevronRight className="size-4 text-(--darkSurface-text)" />
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="right">Expand Navigation</TooltipContent>
@@ -265,7 +262,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         })}
                     </div>
 
-                    <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] py-3">
+                    <div className="mt-auto flex flex-col items-center gap-2 border-t border-(--secondary-w70) py-3">
                         {bottomItems.map(item => {
                             const isActive = activeItem === item.id;
                             return (
@@ -285,12 +282,12 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                 </>
             ) : (
                 <>
-                    <div className="flex min-h-[80px] items-center justify-between border-b border-[var(--color-secondary-w70)] py-3 pr-4 pl-6">
+                    <div className="flex min-h-[80px] items-center justify-between border-b border-(--secondary-w70) py-3 pr-4 pl-6">
                         <div className="flex items-center gap-2">{renderHeader()}</div>
                         {!hideCollapseButton && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={handleToggle} className="flex h-8 w-8 cursor-pointer items-center justify-center p-1 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]">
+                                    <button onClick={handleToggle} className="flex h-8 w-8 cursor-pointer items-center justify-center p-1 text-(--darkSurface-text) hover:bg-(--darkSurface-bgHover)">
                                         <ChevronLeft className="size-6" />
                                     </button>
                                 </TooltipTrigger>
@@ -328,7 +325,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                                     const isChildActive = activeItem === child.id;
                                                     return (
                                                         <div key={child.id} className="group relative">
-                                                            <div className={cn("absolute top-0 left-0 h-full bg-[var(--color-brand-w60)] transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
+                                                            <div className={cn("absolute top-0 left-0 h-full bg-(--brand-w60) transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
                                                             <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
                                                         </div>
                                                     );
@@ -343,10 +340,11 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
 
                     {showRecentChats && (
                         <div className="flex min-h-0 flex-1 flex-col">
-                            <div className="border-t border-[var(--color-secondary-w70)]" />
+                            <div className="border-t border-(--secondary-w70)" />
                             <div className="mb-2 flex items-center justify-between pt-4 pr-6 pl-6">
-                                <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Recent Chats</span>
-                                <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
+                                <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
+                                {/** Hard-code colours to avoid extra variables in the theme for a single usage, may reconsider if there is greater usage */}
+                                <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm text-[#679DB4] hover:text-[#E6EFF2]">
                                     View All
                                 </button>
                             </div>
@@ -356,7 +354,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         </div>
                     )}
 
-                    <div className="relative z-10 border-t border-[var(--color-secondary-w70)] bg-[var(--color-background-wMain)] pt-2">
+                    <div className="relative z-10 border-t border-(--secondary-w70) bg-(--background-wMain) pt-2">
                         {bottomItems.map(item => (
                             <button key={item.id} onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
                                 <div className={iconWrapperStyles({ withMargin: true })}>

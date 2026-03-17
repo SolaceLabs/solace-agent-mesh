@@ -200,20 +200,20 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                     left: `${popupPosition.left}px`,
                 }}
             >
-                <div ref={popoverRef} className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg" style={{ maxHeight: "300px" }}>
+                <div ref={popoverRef} className="flex flex-col rounded-lg border bg-(--background-w10) shadow-lg" style={{ maxHeight: "300px" }}>
                     {/* Search Display */}
-                    <div className="flex items-center gap-2 border-b border-[var(--border)] p-3">
+                    <div className="flex items-center gap-2 border-b p-3">
                         {showingRecent ? (
                             <>
-                                <Clock className="size-4 text-[var(--muted-foreground)]" />
-                                <div className="flex-1 text-sm text-[var(--muted-foreground)]">
+                                <Clock className="size-4 text-(--secondary-text-wMain)" />
+                                <div className="flex-1 text-sm text-(--secondary-text-wMain)">
                                     <span>Recent mentions</span>
                                 </div>
                             </>
                         ) : (
                             <>
-                                <Search className="size-4 text-[var(--muted-foreground)]" />
-                                <div className="flex-1 text-sm text-[var(--muted-foreground)]">
+                                <Search className="size-4 text-(--secondary-text-wMain)" />
+                                <div className="flex-1 text-sm text-(--secondary-text-wMain)">
                                     <span>
                                         Searching for: <strong>{searchQuery}</strong>
                                     </span>
@@ -226,11 +226,11 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                     <div className="min-h-0 flex-1 overflow-y-auto">
                         {isLoading ? (
                             <div className="flex items-center justify-center p-8">
-                                <div className="size-6 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
+                                <div className="size-6 animate-spin rounded-full border-2 border-(--primary-wMain) border-t-transparent" />
                             </div>
                         ) : showingRecent && recentMentions.length === 0 ? (
                             <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-                                <p className="text-sm text-[var(--muted-foreground)]">No recent mentions. Start typing to search...</p>
+                                <p className="text-sm text-(--secondary-text-wMain)">No recent mentions. Start typing to search...</p>
                             </div>
                         ) : showingRecent ? (
                             <div className="flex flex-col p-2">
@@ -244,16 +244,16 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                                                 setIsKeyboardMode(false);
                                                 setActiveIndex(index);
                                             }}
-                                            className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
+                                            className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-(--secondary-w40)" : !isKeyboardMode ? "hover:bg-(--secondary-w40)" : ""}`}
                                         >
                                             <div className="flex items-start gap-3">
-                                                <Clock className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
+                                                <Clock className="mt-0.5 size-4 flex-shrink-0 text-(--secondary-text-wMain)" />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span className="text-sm font-medium">{person.displayName}</span>
-                                                        {person.jobTitle && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.jobTitle}</span>}
+                                                        {person.jobTitle && <span className="rounded bg-(--secondary-w10) px-1.5 py-0.5 text-xs text-(--secondary-text-wMain)">{person.jobTitle}</span>}
                                                     </div>
-                                                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">{person.workEmail}</p>
+                                                    <p className="mt-1 text-xs text-(--secondary-text-wMain)">{person.workEmail}</p>
                                                 </div>
                                             </div>
                                         </button>
@@ -262,7 +262,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                             </div>
                         ) : people.length === 0 ? (
                             <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-                                <p className="text-sm text-[var(--muted-foreground)]">No people found matching "{searchQuery}"</p>
+                                <p className="text-sm text-(--secondary-text-wMain)">No people found matching "{searchQuery}"</p>
                             </div>
                         ) : (
                             <div className="flex flex-col p-2">
@@ -276,16 +276,16 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                                                 setIsKeyboardMode(false);
                                                 setActiveIndex(index);
                                             }}
-                                            className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
+                                            className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-(--secondary-w40)" : !isKeyboardMode ? "hover:bg-(--secondary-w40)" : ""}`}
                                         >
                                             <div className="flex items-start gap-3">
-                                                <User className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
+                                                <User className="mt-0.5 size-4 flex-shrink-0 text-(--secondary-text-wMain)" />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span className="text-sm font-medium">{person.displayName}</span>
-                                                        {person.jobTitle && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.jobTitle}</span>}
+                                                        {person.jobTitle && <span className="rounded bg-(--secondary-w10) px-1.5 py-0.5 text-xs text-(--secondary-text-wMain)">{person.jobTitle}</span>}
                                                     </div>
-                                                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">{person.workEmail}</p>
+                                                    <p className="mt-1 text-xs text-(--secondary-text-wMain)">{person.workEmail}</p>
                                                 </div>
                                             </div>
                                         </button>
