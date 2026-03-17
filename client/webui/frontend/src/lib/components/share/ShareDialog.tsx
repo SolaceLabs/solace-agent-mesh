@@ -315,7 +315,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         }
     };
 
-    const handleDiscard = async () => {
+    const handleDiscard = useCallback(async () => {
         // Cancel any pending "Copied!" timer so it doesn't re-show the link section
         if (copiedTimerRef.current) {
             clearTimeout(copiedTimerRef.current);
@@ -337,7 +337,20 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         }
         reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
         onOpenChange(false);
-    };
+    }, [isNewlyCreatedLink, shareLink, onOpenChange, reset, onSuccess]);
+
+    // Intercept dialog close (X button, backdrop click, Escape) to clean up newly created links
+    const handleOpenChange = useCallback(
+        (nextOpen: boolean) => {
+            if (!nextOpen && (isNewlyCreatedLink || newlyCreatedShareIdRef.current)) {
+                // Dialog is closing with an unsaved new link — run discard logic
+                handleDiscard();
+                return;
+            }
+            onOpenChange(nextOpen);
+        },
+        [isNewlyCreatedLink, onOpenChange, handleDiscard]
+    );
 
     const onSubmit = async (data: ShareFormData) => {
         setSavingUser(true);
@@ -410,7 +423,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     const hasIncompleteRows = viewers.some(v => v.email === null);
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[818px]">
                 <DialogHeader>
                     <DialogTitle className="mb-4 text-xl">
