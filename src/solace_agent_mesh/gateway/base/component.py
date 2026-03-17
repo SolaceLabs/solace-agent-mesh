@@ -2269,8 +2269,7 @@ class BaseGatewayComponent(SamComponentBase):
 
         log.info("%s Message processor loop finished.", self.log_identifier)
 
-    def _on_model_status_change(self, old_status: str, new_status: str):
-        pass
+
 
     @abstractmethod
     async def _extract_initial_claims(
