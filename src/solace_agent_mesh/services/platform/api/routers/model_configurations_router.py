@@ -9,13 +9,19 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
   Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
-import logging
 import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
 
 from solace_agent_mesh.services.platform.services import ModelConfigService, ModelListService
-from solace_agent_mesh.services.platform.api.dependencies import get_model_config_service, get_model_list_service
+from solace_agent_mesh.services.platform.api.dependencies import (
+    get_model_config_service,
+    get_model_list_service,
+    get_platform_db,
+)
+
 from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationCreateRequest,
@@ -23,8 +29,10 @@ from solace_agent_mesh.services.platform.api.routers.dto.requests import (
 )
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.auth.dependencies import get_current_user
+from solace_agent_mesh.shared.api.response_utils import create_data_response
 
 log = logging.getLogger(__name__)
+
 
 router = APIRouter()
 
@@ -57,6 +65,7 @@ def _require_model_config_ui_enabled() -> bool:
 )
 async def list_models(
     _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[ModelConfigurationResponse]]:
     """
@@ -68,15 +77,8 @@ async def list_models(
     Returns:
         DataResponse with list of model configurations with safe data
     """
-    try:
-        configurations = service.list_all()
-        return DataResponse.create(configurations)
-    except Exception as e:
-        log.error(f"Failed to retrieve model configurations: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve model configurations",
-        )
+    configurations = service.list_all(db)
+    return create_data_response(configurations)
 
 
 @router.get(
@@ -150,12 +152,13 @@ async def list_supported_models_by_provider(
 async def get_model(
     alias: str,
     _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
     """
     Retrieve a model configuration by alias.
 
-    The alias lookup is case. Sensitive information (API keys, OAuth
+    The alias lookup is case-sensitive. Sensitive information (API keys, OAuth
     client secrets) is excluded from the response.
 
     Args:
@@ -167,29 +170,12 @@ async def get_model(
     Raises:
         HTTPException: 404 if configuration not found
     """
-    try:
-        config = service.get_by_alias(alias)
-
-        if not config:
-            log.debug(f"Model configuration not found with alias: {alias}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Model configuration with alias '{alias}' not found",
-            )
-
-        return DataResponse.create(config)
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(
-            f"Failed to retrieve model configuration by alias {alias}: {e}",
-            exc_info=True,
-        )
+    config = service.get_by_alias(db, alias)
+    if not config:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve model configuration",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Model configuration with alias '{alias}' not found",
         )
-
 
 @router.post(
     "/models",
@@ -329,3 +315,5 @@ async def delete_model(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete model configuration",
         )
+
+    return config
