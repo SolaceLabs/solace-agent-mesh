@@ -364,13 +364,13 @@ const WorkflowRenderer = ({ processedSteps, agentNameMap, selectedStepId, onNode
             <Fragment key={node.id}>
                 {component}
                 {/* Add connector line between nodes */}
-                {index < nodes.length - 1 && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
+                {index < nodes.length - 1 && <div className="my-0 h-4 w-0.5 bg-(--secondary-w40)" />}
             </Fragment>
         );
     };
 
     if (nodes.length === 0) {
-        return <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">{processedSteps.length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}</div>;
+        return <div className="flex h-full items-center justify-center text-(--secondary-text-wMain)">{processedSteps.length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}</div>;
     }
 
     return (

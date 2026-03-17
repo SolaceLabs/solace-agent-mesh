@@ -41,7 +41,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                badge: <LifecycleBadge className="scale-90 border-white/60 text-white/90">EXPERIMENTAL</LifecycleBadge>,
+                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
             });
         }
 
@@ -52,7 +52,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                badge: <LifecycleBadge className="scale-90 border-white/60 text-white/90">EXPERIMENTAL</LifecycleBadge>,
+                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
             });
         }
 

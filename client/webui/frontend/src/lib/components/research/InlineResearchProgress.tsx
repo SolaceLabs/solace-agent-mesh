@@ -361,11 +361,11 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
             {/* Show completed state when research is done */}
             {isComplete ? (
                 <div>
-                    <div className="border-border bg-background rounded-lg border p-3">
+                    <div className="rounded-lg border bg-(--background-w10) p-3">
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 flex-1 items-start gap-3">
                                 {/* Checkmark Icon */}
-                                <div className="mt-0.5 flex-shrink-0 text-green-600 dark:text-green-400">
+                                <div className="mt-0.5 flex-shrink-0 text-(--success-wMain)">
                                     <CheckCircle className="h-5 w-5" />
                                 </div>
 
@@ -375,8 +375,8 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
 
                                     {/* Progress bar - full */}
                                     <div className={`mt-2 ${showSpacing ? "mb-4" : ""}`}>
-                                        <div className="h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                            <div className="h-full bg-green-600 transition-all duration-300 ease-out dark:bg-green-400" style={{ width: "100%" }} />
+                                        <div className="h-1 overflow-hidden rounded-full bg-(--secondary-w20)">
+                                            <div className="h-full bg-(--success-wMain) transition-all duration-300 ease-out" style={{ width: "100%" }} />
                                         </div>
                                     </div>
                                 </div>
@@ -415,11 +415,11 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                                                         return (
                                                             <React.Fragment key={idx}>
                                                                 {/* Section header for grouped events */}
-                                                                {isNewSection && <div className="mt-4 text-xs font-medium text-[var(--color-secondary-text-wMain)] first:mt-0">{event.type === "search" ? "Searching" : "Reviewing"}</div>}
+                                                                {isNewSection && <div className="mt-4 text-xs font-medium text-(--secondary-text-wMain) first:mt-0">{event.type === "search" ? "Searching" : "Reviewing"}</div>}
 
                                                                 <div className="flex items-start gap-2">
                                                                     <div className="mt-1 flex-shrink-0">
-                                                                        {event.type === "search" && <Search className="text-muted-foreground h-3 w-3" />}
+                                                                        {event.type === "search" && <Search className="h-3 w-3 text-(--secondary-text-wMain)" />}
                                                                         {event.type === "read" &&
                                                                             (() => {
                                                                                 if (event.favicon && event.favicon.trim() !== "") {
@@ -434,24 +434,24 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                                                                                         />
                                                                                     );
                                                                                 }
-                                                                                return <Globe className="text-muted-foreground h-3 w-3" />;
+                                                                                return <Globe className="h-3 w-3 text-(--secondary-text-wMain)" />;
                                                                             })()}
                                                                     </div>
 
                                                                     <div className="min-w-0 flex-1 text-sm">
                                                                         {event.type === "search" && (
                                                                             <div>
-                                                                                <span className="font-medium text-gray-900 dark:text-gray-100">{event.content}</span>
+                                                                                <span className="font-medium text-(--primary-text-wMain)">{event.content}</span>
                                                                             </div>
                                                                         )}
                                                                         {event.type === "read" && (
                                                                             <div>
                                                                                 {event.url ? (
-                                                                                    <a href={event.url} target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline" onClick={e => e.stopPropagation()}>
+                                                                                    <a href={event.url} target="_blank" rel="noopener noreferrer" className="font-medium text-(--primary-wMain) hover:underline" onClick={e => e.stopPropagation()}>
                                                                                         {event.title || event.url}
                                                                                     </a>
                                                                                 ) : (
-                                                                                    <span className="font-medium text-gray-900 dark:text-gray-100">{event.content}</span>
+                                                                                    <span className="font-medium text-(--primary-text-wMain)">{event.content}</span>
                                                                                 )}
                                                                             </div>
                                                                         )}
@@ -463,9 +463,9 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                                                 })()}
                                             </div>
                                             {/* Fade gradient at top when scrolled down */}
-                                            {showTopGradient && <div className="pointer-events-none absolute top-0 right-0 left-0 h-10 bg-gradient-to-b from-white to-transparent dark:from-gray-900" />}
+                                            {showTopGradient && <div className="pointer-events-none absolute top-0 right-0 left-0 h-10 bg-gradient-to-b from-(--background-w10) to-transparent" />}
                                             {/* Fade gradient at bottom to indicate more content */}
-                                            {showBottomGradient && <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-10 bg-gradient-to-t from-white to-transparent dark:from-gray-900" />}
+                                            {showBottomGradient && <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-10 bg-gradient-to-t from-(--background-w10) to-transparent" />}
                                         </div>
                                     </div>
                                 </div>
@@ -485,25 +485,25 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
 
                     return (
                         <div key={stage.phase}>
-                            <div className="border-border bg-background rounded-lg border p-3">
+                            <div className="rounded-lg border bg-(--background-w10) p-3">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="flex min-w-0 flex-1 items-start gap-3">
                                         {/* Icon */}
-                                        <div className="text-primary mt-0.5 flex-shrink-0">
+                                        <div className="mt-0.5 flex-shrink-0 text-(--primary-wMain)">
                                             <Icon className="h-5 w-5 animate-pulse" />
                                         </div>
 
                                         {/* Content */}
                                         <div className="min-w-0 flex-1">
                                             <h3 className="text-sm font-medium">
-                                                {stage.label}: <span className="text-sm font-normal text-gray-500 dark:text-gray-400">{progress.status_text}</span>
+                                                {stage.label}: <span className="text-sm font-normal text-(--secondary-text-wMain)">{progress.status_text}</span>
                                             </h3>
 
                                             {/* Progress bar for active stage */}
                                             {isCurrentStage && (
                                                 <div className={`mt-2 ${showSpacing ? "mb-4" : ""}`}>
-                                                    <div className="h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                        <div className="bg-primary h-full transition-all duration-300 ease-out" style={{ width: `${Math.min(progress.progress_percentage, 100)}%` }} />
+                                                    <div className="h-1 overflow-hidden rounded-full bg-(--secondary-w20)">
+                                                        <div className="h-full bg-(--primary-wMain) transition-all duration-300 ease-out" style={{ width: `${Math.min(progress.progress_percentage, 100)}%` }} />
                                                     </div>
                                                 </div>
                                             )}
@@ -543,11 +543,11 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                                                                 return (
                                                                     <React.Fragment key={idx}>
                                                                         {/* Section header for grouped events */}
-                                                                        {isNewSection && <div className="mt-4 text-xs font-medium text-[var(--color-secondary-text-wMain)] first:mt-0">{event.type === "search" ? "Searching" : "Reviewing"}</div>}
+                                                                        {isNewSection && <div className="mt-4 text-xs font-medium text-(--secondary-text-wMain) first:mt-0">{event.type === "search" ? "Searching" : "Reviewing"}</div>}
 
                                                                         <div className="flex items-start gap-2">
                                                                             <div className="mt-1 flex-shrink-0">
-                                                                                {event.type === "search" && <Search className="text-muted-foreground h-3 w-3" />}
+                                                                                {event.type === "search" && <Search className="h-3 w-3 text-(--secondary-text-wMain)" />}
                                                                                 {event.type === "read" &&
                                                                                     (() => {
                                                                                         if (event.favicon && event.favicon.trim() !== "") {
@@ -562,24 +562,30 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                                                                                                 />
                                                                                             );
                                                                                         }
-                                                                                        return <Globe className="text-muted-foreground h-3 w-3" />;
+                                                                                        return <Globe className="h-3 w-3 text-(--secondary-text-wMain)" />;
                                                                                     })()}
                                                                             </div>
 
                                                                             <div className="min-w-0 flex-1 text-sm">
                                                                                 {event.type === "search" && (
                                                                                     <div>
-                                                                                        <span className="font-medium text-gray-900 dark:text-gray-100">{event.content}</span>
+                                                                                        <span className="font-medium text-(--primary-text-wMain)">{event.content}</span>
                                                                                     </div>
                                                                                 )}
                                                                                 {event.type === "read" && (
                                                                                     <div>
                                                                                         {event.url ? (
-                                                                                            <a href={event.url} target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline" onClick={e => e.stopPropagation()}>
+                                                                                            <a
+                                                                                                href={event.url}
+                                                                                                target="_blank"
+                                                                                                rel="noopener noreferrer"
+                                                                                                className="font-medium text-(--primary-wMain) hover:underline"
+                                                                                                onClick={e => e.stopPropagation()}
+                                                                                            >
                                                                                                 {event.title || event.url}
                                                                                             </a>
                                                                                         ) : (
-                                                                                            <span className="font-medium text-gray-900 dark:text-gray-100">{event.content}</span>
+                                                                                            <span className="font-medium text-(--primary-text-wMain)">{event.content}</span>
                                                                                         )}
                                                                                     </div>
                                                                                 )}
@@ -591,9 +597,9 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                                                         })()}
                                                     </div>
                                                     {/* Fade gradient at top when scrolled down */}
-                                                    {showTopGradient && <div className="pointer-events-none absolute top-0 right-0 left-0 h-10 bg-gradient-to-b from-white to-transparent dark:from-gray-900" />}
+                                                    {showTopGradient && <div className="pointer-events-none absolute top-0 right-0 left-0 h-10 bg-gradient-to-b from-(--background-w10) to-transparent" />}
                                                     {/* Fade gradient at bottom to indicate more content */}
-                                                    {showBottomGradient && <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-10 bg-gradient-to-t from-white to-transparent dark:from-gray-900" />}
+                                                    {showBottomGradient && <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-10 bg-gradient-to-t from-(--background-w10) to-transparent" />}
                                                 </div>
                                             </div>
                                         </div>

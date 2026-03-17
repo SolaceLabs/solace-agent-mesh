@@ -253,8 +253,8 @@ export function DocumentThumbnail({ content, filename, mimeType, width = 52, hei
     // Loading state
     if (isLoading) {
         return (
-            <div className={cn("bg-muted/50 flex items-center justify-center", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>
-                <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+            <div className={cn("flex items-center justify-center bg-(--secondary-w10)", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>
+                <Loader2 className="h-4 w-4 animate-spin text-(--secondary-text-wMain)" />
             </div>
         );
     }
@@ -271,12 +271,12 @@ export function DocumentThumbnail({ content, filename, mimeType, width = 52, hei
 
     // Note: thumbnail-document and thumbnail-page CSS classes are defined in App.css
     // to avoid injecting duplicate <style> tags for each thumbnail instance
+    // Document canvas is always light — mimics paper/PDF page background
     return (
-        <div className={cn("relative overflow-hidden bg-white", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>
-            {/* Show loading spinner while page is loading */}
+        <div className={cn("relative overflow-hidden bg-[#F3F4F6]", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>
             {!pageLoaded && (
-                <div className="bg-muted/50 absolute inset-0 flex items-center justify-center">
-                    <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center bg-(--secondary-w10)">
+                    <Loader2 className="h-3 w-3 animate-spin text-(--secondary-text-wMain)" />
                 </div>
             )}
             <div className={cn("h-full w-full transition-opacity duration-200", !pageLoaded && "opacity-0")}>

@@ -22,7 +22,7 @@ export const SystemPromptSection = ({ project, onSave, isSaving, isDisabled, err
         <>
             <div className="mb-6">
                 <div className="mb-3 flex items-center justify-between px-4 pt-4">
-                    <h3 className="text-foreground text-sm font-semibold">Instructions</h3>
+                    <h3 className="text-sm font-semibold text-(--primary-text-wMain)">Instructions</h3>
                     {isOwner && (
                         <Button variant="ghost" size="sm" testid="editInstructions" onClick={() => setIsDialogOpen(true)} className="h-8 w-8 p-0" tooltip="Edit" disabled={isDisabled}>
                             <Pencil className="h-4 w-4" />
@@ -31,7 +31,7 @@ export const SystemPromptSection = ({ project, onSave, isSaving, isDisabled, err
                 </div>
 
                 <div className="px-4">
-                    <div className={`text-muted-foreground bg-muted max-h-[240px] min-h-[120px] overflow-y-auto rounded-md p-3 text-sm whitespace-pre-wrap ${!project.systemPrompt ? "flex items-center justify-center" : ""}`}>
+                    <div className={`max-h-[240px] min-h-[120px] overflow-y-auto rounded-md bg-(--secondary-w10) p-3 text-sm whitespace-pre-wrap text-(--secondary-text-wMain) ${!project.systemPrompt ? "flex items-center justify-center" : ""}`}>
                         {project.systemPrompt || "No instructions. Provide instructions to tailor the chat responses to your needs."}
                     </div>
                 </div>
