@@ -6,6 +6,7 @@ Hosts the FastAPI REST API server for platform configuration management.
 import logging
 import threading
 import json
+import os
 from importlib.resources import files as pkg_files
 from typing import Any, Dict
 
@@ -189,6 +190,9 @@ class PlatformServiceComponent(SamComponentBase):
 
         self.direct_publisher = None
 
+        # Internal app for model config bootstrap listener
+        self._bootstrap_listener_app = None
+
         log.info("%s Running database migrations...", self.log_identifier)
         self._run_database_migrations()
         log.info("%s Database migrations completed", self.log_identifier)
@@ -235,7 +239,96 @@ class PlatformServiceComponent(SamComponentBase):
         # Schedule gateway health checks to remove expired gateways from registry
         self._schedule_gateway_health_check()
 
+        # Start bootstrap listener for model config requests (only if feature enabled)
+
+        if os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true":
+            self._start_bootstrap_listener()
+
         log.info("%s Late initialization complete", self.log_identifier)
+
+    def _start_bootstrap_listener(self):
+        """
+        Start an internal SAC flow to listen for model config bootstrap requests.
+
+        Subscribes to BOOTSTRAP_SUBSCRIBE_TOPIC and uses
+        BootstrapRequestListenerComponent to handle requests from agents'
+        DynamicModelProvider instances.
+        """
+        from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_bootstrap_subscribe_topic
+        from .components.dynamic_model_provider_listener import BootstrapRequestListenerComponent
+
+        log.info("%s Starting model config bootstrap listener...", self.log_identifier)
+
+        try:
+            main_app = self.get_app()
+            if not main_app or not main_app.connector:
+                log.error(
+                    "%s Cannot start bootstrap listener: app or connector not available.",
+                    self.log_identifier,
+                )
+                return
+
+            main_broker_config = main_app.app_info.get("broker", {})
+            if not main_broker_config:
+                log.error(
+                    "%s Cannot start bootstrap listener: broker config not found.",
+                    self.log_identifier,
+                )
+                return
+
+            subscribe_topic = get_bootstrap_subscribe_topic(self.namespace)
+
+            broker_input_cfg = {
+                "component_module": "broker_input",
+                "component_name": "platform_bootstrap_broker_input",
+                "broker_queue_name": f"{self.namespace}q/platform/model_config_bootstrap",
+                "create_queue_on_start": True,
+                "component_config": {
+                    **main_broker_config,
+                    "broker_subscriptions": [{"topic": subscribe_topic}],
+                },
+            }
+
+            receiver_cfg = {
+                "component_class": BootstrapRequestListenerComponent,
+                "component_name": "platform_bootstrap_listener",
+                "component_config": {"platform_component_ref": self},
+            }
+
+            flow_config = {
+                "name": "platform_model_bootstrap_flow",
+                "components": [broker_input_cfg, receiver_cfg],
+            }
+
+            self._bootstrap_listener_app = main_app.connector.create_internal_app(
+                app_name="platform_model_bootstrap_app",
+                flows=[flow_config],
+            )
+            self._bootstrap_listener_app.run()
+
+            log.info(
+                "%s Model config bootstrap listener started (topic: %s)",
+                self.log_identifier,
+                subscribe_topic,
+            )
+
+        except Exception as e:
+            log.error(
+                "%s Failed to start bootstrap listener: %s",
+                self.log_identifier,
+                e,
+                exc_info=True,
+            )
+            if self._bootstrap_listener_app:
+                try:
+                    self._bootstrap_listener_app.cleanup()
+                except Exception as cleanup_err:
+                    log.error(
+                        "%s Error during bootstrap listener cleanup after init failure: %s",
+                        self.log_identifier,
+                        cleanup_err,
+                    )
+            self._bootstrap_listener_app = None
 
     def _start_fastapi_server(self):
         """
@@ -646,6 +739,14 @@ class PlatformServiceComponent(SamComponentBase):
                 log.info("%s Gateway registry cleared", self.log_identifier)
             except Exception as e:
                 log.warning("%s Error clearing gateway registry: %s", self.log_identifier, e)
+
+        # Stop bootstrap listener
+        if self._bootstrap_listener_app:
+            try:
+                self._bootstrap_listener_app.cleanup()
+                log.info("%s Bootstrap listener stopped", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error stopping bootstrap listener: %s", self.log_identifier, e)
 
         # Signal uvicorn to shutdown
         if self.uvicorn_server:

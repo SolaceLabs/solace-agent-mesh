@@ -174,6 +174,24 @@ def get_gateway_registry():
     return platform_component_instance.get_gateway_registry()
 
 
+def get_component_instance() -> "PlatformServiceComponent":
+    """
+    FastAPI dependency for accessing the PlatformServiceComponent instance.
+
+    Returns:
+        The PlatformServiceComponent instance.
+
+    Raises:
+        HTTPException: 503 if component is not initialized.
+    """
+    if platform_component_instance is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Platform component not initialized.",
+        )
+    return platform_component_instance
+
+
 def get_model_config_service(db: Session = Depends(get_platform_db)) -> ModelConfigService:
     """
     FastAPI dependency for ModelConfigService.

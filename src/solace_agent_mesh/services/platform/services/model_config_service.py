@@ -1,9 +1,9 @@
 """Service layer for model configuration business logic."""
 
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import or_
 
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
@@ -49,13 +49,13 @@ class ModelConfigService:
         Retrieve a model configuration by alias (case-sensitive exact match).
 
         Args:
-            alias: Model alias to look up
+            alias: Model alias or ID to look up
 
         Returns:
             ModelConfigurationResponse if found, None otherwise
         """
         db_config = self.db.query(ModelConfiguration).filter(
-            ModelConfiguration.alias == alias
+            or_(ModelConfiguration.alias == alias, ModelConfiguration.id == alias)
         ).first()
 
         if not db_config:
@@ -97,3 +97,38 @@ class ModelConfigService:
             created_time=db_model.created_time,
             updated_time=db_model.updated_time,
         )
+
+    @staticmethod
+    def _to_raw_litellm_config(db_model: ModelConfiguration) -> Dict:
+        """Build an unredacted LiteLlm config dict from a DB record."""
+        config = {"model": db_model.model_name}
+        if db_model.api_base:
+            config["api_base"] = db_model.api_base
+        # Merge auth credentials (unredacted)
+        if db_model.model_auth_config:
+            auth_config = dict(db_model.model_auth_config)
+            auth_config.pop("type", None)
+            config.update(auth_config)
+        # Merge model params
+        if db_model.model_params:
+            config.update(db_model.model_params)
+        return config
+
+    def get_raw_config_by_alias(self, alias: str) -> Optional[Dict]:
+        """
+        Retrieve the raw unredacted LiteLlm config dict for a model.
+
+        Matches by alias or ID (OR logic).
+
+        Args:
+            alias: Model alias or UUID to look up
+
+        Returns:
+            LiteLlm config dict if found, None otherwise
+        """
+        db_config = self.db.query(ModelConfiguration).filter(
+            or_(ModelConfiguration.alias == alias, ModelConfiguration.id == alias)
+        ).first()
+        if not db_config:
+            return None
+        return self._to_raw_litellm_config(db_config)

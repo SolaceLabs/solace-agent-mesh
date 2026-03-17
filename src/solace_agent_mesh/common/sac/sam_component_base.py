@@ -764,7 +764,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
             self._initialize_model()
         return self.adk_model_instance
 
-    @abc.abstractmethod
     def _on_model_status_change(self, old_status: str, new_status: str):
         """Callback invoked by LiteLlm on any status transition.
         """
