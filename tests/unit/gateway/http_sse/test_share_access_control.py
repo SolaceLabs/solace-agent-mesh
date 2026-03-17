@@ -44,10 +44,12 @@ def make_share_link(**overrides) -> ShareLink:
 class TestPublicShareAccess:
     """A share link with require_authentication=False is publicly accessible."""
 
-    def test_unauthenticated_user_can_access_public_share(self):
+    def test_unauthenticated_user_is_denied_even_on_public_share(self):
+        """Authentication is always required — unauthenticated access is never allowed."""
         link = make_share_link(require_authentication=False)
         can_access, reason = link.can_be_accessed_by_user(user_id=None, user_email=None)
-        assert can_access is True
+        assert can_access is False
+        assert reason == "authentication_required"
 
     def test_authenticated_user_can_access_public_share(self):
         link = make_share_link(require_authentication=False)
@@ -120,11 +122,15 @@ class TestDomainRestrictedShareAccess:
 
     def test_domain_restriction_requires_authentication_flag(self):
         """Domains without require_authentication should not exist (validated at creation),
-        but the entity must handle it safely — public access should take precedence."""
+        but authentication is always required regardless of require_authentication flag."""
         link = make_share_link(require_authentication=False, allowed_domains="company.com")
-        # require_authentication=False → public path, domain list irrelevant
-        can_access, _ = link.can_be_accessed_by_user(user_id=None, user_email=None)
-        assert can_access is True
+        # Authentication is always required — unauthenticated users are denied
+        can_access, reason = link.can_be_accessed_by_user(user_id=None, user_email=None)
+        assert can_access is False
+        assert reason == "authentication_required"
+        # Authenticated user from allowed domain should still work
+        can_access2, _ = link.can_be_accessed_by_user(user_id="uid", user_email="alice@company.com")
+        assert can_access2 is True
 
 
 # ---------------------------------------------------------------------------
@@ -161,10 +167,16 @@ class TestUserSpecificShareAccess:
         assert reason == "authentication_required"
 
     def test_empty_shared_users_list_falls_back_to_general_rules(self):
-        """An empty list is NOT the same as a populated list — it should not restrict access."""
+        """An empty list is NOT the same as a populated list — it should not restrict access.
+        Authentication is still required, but an authenticated user should get through."""
         link = make_share_link(require_authentication=False)
-        can_access, _ = link.can_be_accessed_by_user(None, None, shared_user_emails=[])
-        assert can_access is True
+        # Unauthenticated is always denied
+        can_access_unauth, reason = link.can_be_accessed_by_user(None, None, shared_user_emails=[])
+        assert can_access_unauth is False
+        assert reason == "authentication_required"
+        # Authenticated user with empty shared list falls back to general rules (allowed)
+        can_access_auth, _ = link.can_be_accessed_by_user("uid", "user@example.com", shared_user_emails=[])
+        assert can_access_auth is True
 
     def test_user_specific_check_is_case_insensitive(self):
         link = make_share_link(require_authentication=False)
@@ -245,15 +257,24 @@ class TestViewSharedSessionEndpoint:
             side_effect=PermissionError("Access restricted to users from: company.com")
         )
 
-        with pytest.raises(HTTPException) as exc_info:
-            await view_shared_session(
-                share_id="abc123",
-                request=MagicMock(),
-                user_id="uid",
-                user_email="user@other.com",
-                db=mock_db,
-                share_service=mock_share_service,
-            )
+        # Patch ShareRepository used inside the endpoint for snapshot_time lookup
+        mock_share_repo = MagicMock()
+        mock_share_repo.find_by_share_id.return_value = make_share_link(user_id="other-owner")
+        mock_share_repo.find_share_user_by_email.return_value = None
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.repository.share_repository.ShareRepository",
+            return_value=mock_share_repo,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await view_shared_session(
+                    share_id="abc123",
+                    request=MagicMock(),
+                    user_id="uid",
+                    user_email="user@other.com",
+                    db=mock_db,
+                    share_service=mock_share_service,
+                )
 
         assert exc_info.value.status_code == 403
 
@@ -289,14 +310,23 @@ class TestViewSharedSessionEndpoint:
         expected_view = MagicMock()
         mock_share_service.get_shared_session_view = AsyncMock(return_value=expected_view)
 
-        result = await view_shared_session(
-            share_id="abc123",
-            request=MagicMock(),
-            user_id="uid",
-            user_email="user@company.com",
-            db=mock_db,
-            share_service=mock_share_service,
-        )
+        # Patch ShareRepository used inside the endpoint for snapshot_time lookup
+        mock_share_repo = MagicMock()
+        mock_share_repo.find_by_share_id.return_value = make_share_link(user_id="other-owner")
+        mock_share_repo.find_share_user_by_email.return_value = None
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.repository.share_repository.ShareRepository",
+            return_value=mock_share_repo,
+        ):
+            result = await view_shared_session(
+                share_id="abc123",
+                request=MagicMock(),
+                user_id="uid",
+                user_email="user@company.com",
+                db=mock_db,
+                share_service=mock_share_service,
+            )
 
         assert result is expected_view
 
@@ -627,7 +657,7 @@ class TestShareUserManagementPersistence:
         )
         mock_db = MagicMock()
 
-        service.add_share_users(mock_db, "share123", "owner", ["alice@example.com"])
+        service.add_share_users(mock_db, "share123", "owner", [{"user_email": "alice@example.com"}])
 
         mock_db.commit.assert_called_once()
 
