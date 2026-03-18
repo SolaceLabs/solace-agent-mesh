@@ -30,7 +30,7 @@ export interface CollapsibleNavigationSidebarProps {
      */
     items: NavItemConfig[];
 
-    header?: HeaderConfig | React.ReactNode;
+    header?: HeaderConfig | ReactNode;
 
     showNewChatButton?: boolean;
     newChatConfig?: NewChatConfig;
@@ -49,7 +49,7 @@ export interface CollapsibleNavigationSidebarProps {
     defaultCollapsed?: boolean;
 }
 
-export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebarProps> = ({
+export const CollapsibleNavigationSidebar = ({
     items,
     header,
     showNewChatButton = true,
@@ -60,7 +60,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     activeItemId: controlledActiveItemId,
     isCollapsed: controlledIsCollapsed,
     defaultCollapsed = false,
-}) => {
+}: CollapsibleNavigationSidebarProps) => {
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -185,12 +185,12 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const newChatLabel = newChatConfig?.label ?? "New Chat";
     const NewChatIcon = newChatConfig?.icon ?? Plus;
 
-    const renderHeader = (): React.ReactNode => {
+    const renderHeader = (): ReactNode => {
         if (header && typeof header === "object" && header !== null && "component" in header) {
             const headerConfig = header as HeaderConfig;
             if (headerConfig.component) return headerConfig.component;
         } else if (header !== undefined && header !== null) {
-            return header as React.ReactNode;
+            return header as ReactNode;
         }
         return <SolaceIcon variant={isCollapsed ? "short" : "full"} className={isCollapsed ? "h-8 w-8" : "h-8 w-24"} />;
     };
