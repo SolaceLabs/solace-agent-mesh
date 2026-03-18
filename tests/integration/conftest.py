@@ -895,7 +895,7 @@ def shared_solace_connector(
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
         description="The main test agent (orchestrator)",
-        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied", "TestAgent_Proxied_NoConvert"],
+        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied", "TestAgent_Proxied_NoConvert", "TestAgent_Proxied_Batched"],
         tools=test_agent_tools,
         model_suffix="sam",
         inject_system_purpose=True,
@@ -1865,8 +1865,18 @@ def shared_solace_connector(
                         "url": test_a2a_agent_server_harness.url,
                         "request_timeout_seconds": 3,
                         "convert_progress_updates": False,  # Disable text-to-data conversion
-                    }
+                    },
+                    {
+                        "name": "TestAgent_Proxied_Batched",
+                        "url": test_a2a_agent_server_harness.url,
+                        "request_timeout_seconds": 3,
+                        # Per-agent threshold override: flush every 10 bytes for test predictability
+                        "stream_batching_threshold_bytes": 10,
+                    },
                 ],
+                # Disable batching globally so existing tests are unaffected;
+                # agents that need batching set their own stream_batching_threshold_bytes.
+                "stream_batching_threshold_bytes": 0,
                 "artifact_service": {"type": "test_in_memory"},
                 "discovery_interval_seconds": 1,
             },
