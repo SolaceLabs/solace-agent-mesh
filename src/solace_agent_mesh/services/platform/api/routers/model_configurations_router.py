@@ -118,7 +118,7 @@ async def get_model(
 
 @router.post(
     "/models",
-    response_model=ModelConfigurationResponse,
+    response_model=DataResponse[ModelConfigurationResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Create a model configuration",
     description="Create a new model configuration. The alias must be unique (case-sensitive).",
@@ -129,7 +129,7 @@ async def create_model(
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
-) -> ModelConfigurationResponse:
+) -> DataResponse[ModelConfigurationResponse]:
     """
     Create a new model configuration.
 
@@ -138,7 +138,7 @@ async def create_model(
         user: Authenticated user (from OAuth middleware)
 
     Returns:
-        ModelConfigurationResponse: The created model configuration
+        DataResponse with the created model configuration
 
     Raises:
         HTTPException: 400 if alias is invalid, 409 if alias already exists, 500 on server error
@@ -146,7 +146,7 @@ async def create_model(
     try:
         created_by = user.get("id", "unknown")
         config = service.create(db, request, created_by=created_by)
-        return config
+        return create_data_response(config)
     except ValueError as e:
         log.warning(f"Invalid model creation request: {e}")
         raise HTTPException(
@@ -162,7 +162,7 @@ async def create_model(
 
 @router.put(
     "/models/{alias}",
-    response_model=ModelConfigurationResponse,
+    response_model=DataResponse[ModelConfigurationResponse],
     summary="Update a model configuration",
     description="Update an existing model configuration by alias. Only provided fields are updated.",
 )
@@ -173,7 +173,7 @@ async def update_model(
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
-) -> ModelConfigurationResponse:
+) -> DataResponse[ModelConfigurationResponse]:
     """
     Update an existing model configuration.
 
@@ -183,7 +183,7 @@ async def update_model(
         user: Authenticated user (from OAuth middleware)
 
     Returns:
-        ModelConfigurationResponse: The updated model configuration
+        DataResponse with the updated model configuration
 
     Raises:
         HTTPException: 404 if not found, 409 if new alias conflicts, 500 on server error
@@ -199,7 +199,7 @@ async def update_model(
                 detail=f"Model configuration with alias '{alias}' not found",
             )
 
-        return config
+        return create_data_response(config)
     except ValueError as e:
         log.warning(f"Invalid model update request: {e}")
         raise HTTPException(

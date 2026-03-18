@@ -279,7 +279,8 @@ class TestModelConfigurationAPI:
         assert response.status_code == 201
 
         # Assert: Response has correct structure and values
-        data = response.json()
+        response_data = response.json()
+        data = response_data["data"]
         assert data["alias"] == "test-create-gpt4"
         assert data["provider"] == "openai"
         assert data["modelName"] == "gpt-4"
@@ -380,7 +381,8 @@ class TestModelConfigurationAPI:
             assert response.status_code == 200
 
             # Assert: Response has updated values
-            data = response.json()
+            response_data = response.json()
+            data = response_data["data"]
             assert data["alias"] == "test-update-model"  # Unchanged
             assert data["description"] == "Updated description"
             assert data["modelParams"]["temperature"] == 0.7
