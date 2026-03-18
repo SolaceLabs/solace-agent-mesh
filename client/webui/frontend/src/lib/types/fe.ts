@@ -94,6 +94,7 @@ export interface ArtifactInfo {
     isDisplayed?: boolean; // Optional: Tracks if artifact is currently visible to user
     needsEmbedResolution?: boolean; // Optional: Tracks if artifact needs download for embed resolution
     source?: string; // Optional: Source of the artifact (e.g., "project")
+    sourceProjectId?: string; // Optional: ID of the project this artifact came from
 }
 
 /**

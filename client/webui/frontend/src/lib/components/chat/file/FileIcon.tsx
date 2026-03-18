@@ -17,14 +17,8 @@ const getFileExtension = (filename: string): string => {
 
 /**
  * Returns hardcoded color classes for file type badges.
- *
- * Why hardcoded instead of theme colors:
  * - File type colors are semantic identifiers (HTML orange #e34c26, PDF red #d32f2f)
  *   with industry-wide recognition that aids user recognition across applications
- * - Theme colors represent UI chrome, not content - mixing them would conflate
- *   interface state with content type, reducing scanability
- * - Consistency requirement: file types must maintain color identity across
- *   light/dark themes to prevent user confusion when switching modes
  */
 export const getFileStyles = (type: string) => {
     switch (type) {
@@ -45,12 +39,12 @@ export const getFileStyles = (type: string) => {
         case "powerpoint":
             return "bg-[#d24726]";
         default:
-            return "bg-gray-500";
+            return "bg-[#6b7280]";
     }
 };
 
-export const getFileTypeIcon = (mimeType?: string, filename?: string, iconProps: { className?: string; size?: number } = { className: "text-secondary-foreground/60" }): React.ReactElement | null => {
-    const props = { className: iconProps.className ?? "text-secondary-foreground/60", size: iconProps.size };
+export const getFileTypeIcon = (mimeType?: string, filename?: string, iconProps: { className?: string; size?: number } = { className: "text-(--secondary-text-w50)" }): React.ReactElement | null => {
+    const props = { className: iconProps.className ?? "text-(--secondary-text-w50)", size: iconProps.size };
 
     if (mimeType) {
         // Image files
@@ -243,12 +237,12 @@ export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, classNam
     const fileIcon = getFileTypeIcon(mimeType, filename);
 
     if (variant === "compact") {
-        const compactIcon = getFileTypeIcon(mimeType, filename, { className: "h-4 w-4 text-secondary-foreground/60" });
+        const compactIcon = getFileTypeIcon(mimeType, filename, { className: "h-4 w-4 text-(--secondary-text-w50)" });
         return (
             <div className={cn("relative flex-shrink-0", className)}>
-                <div className="bg-muted/50 relative h-[42px] w-[38px] border">
-                    <div className="absolute top-[2px] right-[2px] bottom-[18px] left-[2px] flex items-center justify-center">{compactIcon ?? <File className="text-secondary-foreground/60 h-4 w-4" />}</div>
-                    <div className={cn("absolute right-0 bottom-0 left-0 z-[4] py-[2px] text-center text-[10px] font-bold text-[var(--color-primary-text-w10)] select-none", typeColor)}>{displayExtension}</div>
+                <div className="relative h-[42px] w-[38px] border bg-(--secondary-w10)">
+                    <div className="absolute top-[2px] right-[2px] bottom-[18px] left-[2px] flex items-center justify-center">{compactIcon ?? <File className="h-4 w-4 text-(--secondary-text-w50)" />}</div>
+                    <div className={cn("absolute right-0 bottom-0 left-0 z-[4] py-[2px] text-center text-[10px] font-bold text-(--darkSurface-text) select-none", typeColor)}>{displayExtension}</div>
                 </div>
             </div>
         );
@@ -257,20 +251,20 @@ export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, classNam
     return (
         <div className={cn("relative flex-shrink-0", className)}>
             {/* Main document icon with square corners */}
-            <div className="bg-muted/50 relative h-[75px] w-[60px] border">
+            <div className="relative h-[75px] w-[60px] border bg-(--secondary-w10)">
                 {/* Icon */}
                 <div className="absolute top-[4px] right-[4px] bottom-[24px] left-[4px] overflow-hidden font-mono text-[3.5px] leading-[1.4]">
                     {fileIcon ? (
                         <div className="flex h-full items-center justify-center">{fileIcon}</div>
                     ) : (
-                        <div className="text-secondary-foreground flex h-full text-[8px] select-none">
-                            <div className="flex h-full w-full items-center justify-center">{<File className="text-secondary-foreground/60" />}</div>
+                        <div className="flex h-full text-[8px] text-(--secondary-text-wMain) select-none">
+                            <div className="flex h-full w-full items-center justify-center">{<File className="text-(--secondary-text-w50)" />}</div>
                         </div>
                     )}
                 </div>
 
                 {/* File type badge */}
-                <div className={cn("absolute right-[4px] bottom-[4px] z-[4] px-[4px] py-[2px] text-[10px] font-bold text-[var(--color-primary-text-w10)] select-none", typeColor)}>{displayExtension}</div>
+                <div className={cn("absolute right-[4px] bottom-[4px] z-[4] px-[4px] py-[2px] text-[10px] font-bold text-(--darkSurface-text) select-none", typeColor)}>{displayExtension}</div>
             </div>
         </div>
     );

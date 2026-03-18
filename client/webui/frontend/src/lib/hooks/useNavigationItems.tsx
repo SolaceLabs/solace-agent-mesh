@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { FolderOpen, BookOpenText, Bot, Hammer, User, LogOut } from "lucide-react";
+import { FolderOpen, BookOpenText, Bot, Hammer, User, LogOut, Files } from "lucide-react";
 import { LifecycleBadge } from "@/lib/components/ui";
 import type { NavItemConfig } from "@/lib/types/fe";
 
@@ -8,13 +8,14 @@ interface UseNavigationItemsProps {
     projectsEnabled: boolean;
     promptLibraryEnabled: boolean;
     builderEnabled?: boolean;
+    artifactsPageEnabled: boolean;
     logoutEnabled: boolean;
     isAuthenticated: boolean;
     onUserAccountClick: () => void;
     onLogoutClick: () => void;
 }
 
-export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, builderEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
+export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, builderEnabled, artifactsPageEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
     const location = useLocation();
 
     const items = useMemo((): NavItemConfig[] => {
@@ -31,21 +32,38 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
             });
         }
 
+        // Build Assets section with children based on enabled features
+        const assetsChildren: NavItemConfig[] = [];
+
         if (promptLibraryEnabled) {
+            assetsChildren.push({
+                id: "prompts",
+                label: "Prompts",
+                icon: BookOpenText,
+                route: "/prompts",
+                routeMatch: "/prompts",
+                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+            });
+        }
+
+        if (artifactsPageEnabled) {
+            assetsChildren.push({
+                id: "artifacts",
+                label: "Artifacts",
+                icon: Files,
+                route: "/artifacts",
+                routeMatch: "/artifacts",
+                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+            });
+        }
+
+        // Only add Assets section if there are children
+        if (assetsChildren.length > 0) {
             navItems.push({
                 id: "assets",
                 label: "Assets",
                 icon: BookOpenText,
-                children: [
-                    {
-                        id: "prompts",
-                        label: "Prompts",
-                        icon: BookOpenText,
-                        route: "/prompts",
-                        routeMatch: "/prompts",
-                        badge: <LifecycleBadge className="scale-90 border-white/60 text-white/90">EXPERIMENTAL</LifecycleBadge>,
-                    },
-                ],
+                children: assetsChildren,
                 position: "top",
             });
         }
@@ -89,7 +107,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
         }
 
         return navItems;
-    }, [projectsEnabled, promptLibraryEnabled, builderEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick]);
+    }, [projectsEnabled, promptLibraryEnabled, builderEnabled, artifactsPageEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick]);
 
     const activeItemId = useMemo((): string => {
         const path = location.pathname;
@@ -97,6 +115,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
         if (path.startsWith("/builder")) return "build";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
+        if (path.startsWith("/artifacts")) return "artifacts";
         if (path.startsWith("/agents")) return "agents";
         return "chats";
     }, [location.pathname]);

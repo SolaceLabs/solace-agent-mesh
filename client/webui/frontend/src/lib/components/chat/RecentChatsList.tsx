@@ -6,13 +6,13 @@ import { MessageCircle } from "lucide-react";
 import { useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
 
-const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--color-background-w100)"], {
+const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
         active: {
-            true: "bg-(--color-background-w100)",
+            true: "bg-(--darkSurface-bgActive)",
             false: "",
         },
     },
@@ -22,8 +22,8 @@ const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "it
 const sessionTextStyles = cva(["block", "truncate", "text-sm", "transition-opacity", "duration-300"], {
     variants: {
         active: {
-            true: "text-(--color-primary-text-w10)",
-            false: "text-(--color-secondary-text-w50)",
+            true: "text-(--darkSurface-text)",
+            false: "text-(--darkSurface-textMuted)",
         },
         animation: {
             pulseGenerate: "animate-pulse-slow",
@@ -115,25 +115,17 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         await handleSwitchSession(clickedSessionId);
     };
 
-    if (!persistenceEnabled) {
-        return <div className="text-muted-foreground py-2 text-center text-xs">Persistence is not enabled.</div>;
-    }
-
-    if (isLoading && sessions.length === 0) {
+    if (isLoading && sessions.length === 0 && persistenceEnabled) {
         return (
-            <div className="flex flex-col py-2">
-                {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex h-10 items-center pl-6">
-                        <span className="animate-pulse-slow text-sm text-(--color-secondary-text-w50)">Loading...</span>
-                    </div>
-                ))}
+            <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
+                <Spinner />
             </div>
         );
     }
 
     if (sessions.length === 0) {
         return (
-            <div className="text-muted-foreground flex flex-col items-center justify-center py-4 text-xs">
+            <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
                 <MessageCircle className="mb-2 h-6 w-6" />
                 No recent chats
             </div>

@@ -19,20 +19,41 @@ log = logging.getLogger(__name__)
 
 
 class GcsStorageClient(ObjectStorageClient):
-    """Google Cloud Storage client."""
+    """Google Cloud Storage client.
+
+    Args:
+        bucket_name: The name of the GCS bucket to use.
+        project: Optional GCP project ID.
+        credentials_path: Optional path to a service account JSON key file.
+        credentials_json: Optional inline service account JSON key string.
+            Takes precedence over credentials_path when both are provided.
+    """
 
     def __init__(
         self,
         bucket_name: str,
         project: str | None = None,
         credentials_path: str | None = None,
+        credentials_json: str | None = None,
     ):
         self._bucket_name = bucket_name
         self._credentials = None
         kwargs: dict = {}
         if project:
             kwargs["project"] = project
-        if credentials_path:
+        if credentials_json:
+            import json
+
+            try:
+                info = json.loads(credentials_json)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"GCS_CREDENTIALS_JSON contains invalid JSON: {e}. "
+                    "Ensure the value is a valid JSON string, not base64-encoded."
+                ) from e
+            self._credentials = service_account.Credentials.from_service_account_info(info)
+            kwargs["credentials"] = self._credentials
+        elif credentials_path:
             self._credentials = service_account.Credentials.from_service_account_file(credentials_path)
             kwargs["credentials"] = self._credentials
 
@@ -59,7 +80,6 @@ class GcsStorageClient(ObjectStorageClient):
         try:
             blob = self._bucket.blob(key)
             content = blob.download_as_bytes()
-            blob.reload()
             return StorageObject(
                 content=content,
                 content_type=blob.content_type or "application/octet-stream",
@@ -96,6 +116,11 @@ class GcsStorageClient(ObjectStorageClient):
             raise self._translate_error(e) from e
 
     def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        if not self._credentials:
+            raise StoragePermissionError(
+                "Service account credentials are required to generate signed URLs",
+                key=key,
+            )
         try:
             blob = self._bucket.blob(key)
             return blob.generate_signed_url(
