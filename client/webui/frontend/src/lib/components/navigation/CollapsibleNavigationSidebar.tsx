@@ -276,7 +276,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                     />
                                 </ConditionalTooltip>
                                 {!isCollapsed && item.hasSubmenu && expandedMenus[item.id] && item.children && (
-                                    <div className="ml-10">
+                                    <div className="pl-8">
                                         {item.children.map(child => {
                                             const isChildActive = activeItem === child.id;
                                             return (
