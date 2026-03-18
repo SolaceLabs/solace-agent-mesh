@@ -208,7 +208,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         {!hideCollapseButton && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={handleToggle} className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
+                                    <button onClick={handleToggle} className="absolute -right-3 z-30 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
                                         <ChevronRight className="size-4 text-(--darkSurface-text)" />
                                     </button>
                                 </TooltipTrigger>
@@ -262,7 +262,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         })}
                     </div>
 
-                    <div className="mt-auto flex flex-col items-center gap-2 border-t border-(--secondary-w70) py-3">
+                    <div className="mt-auto flex flex-col items-center border-t border-(--secondary-w70) py-3">
                         {bottomItems.map(item => {
                             const isActive = activeItem === item.id;
                             return (
@@ -354,7 +354,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         </div>
                     )}
 
-                    <div className="relative z-10 border-t border-(--secondary-w70) bg-(--darkSurface-bg) pt-2">
+                    <div className="relative z-10 border-t border-(--secondary-w70) bg-(--darkSurface-bg) py-3">
                         {bottomItems.map(item => (
                             <button key={item.id} onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
                                 <div className={iconWrapperStyles({ withMargin: true })}>
