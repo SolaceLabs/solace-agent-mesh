@@ -76,8 +76,6 @@ class OptimizedUUID(TypeDecorator):
             logger.warning(f"OptimizedUUID: invalid UUID in filter, returning NULL: {value!r}")
             return None
 
-        dialect_name = dialect.name
-
         if dialect_name in ('mysql', 'mariadb'):
             return uuid_obj.bytes
         else:
