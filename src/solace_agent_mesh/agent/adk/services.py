@@ -532,11 +532,40 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 f"{component.log_identifier} 'bucket_name' is required for GCS artifact service."
             )
         try:
-            gcs_args = {
-                k: v
-                for k, v in config.items()
-                if k not in ["type", "bucket_name", "artifact_scope"]
-            }
+            valid_gcs_params = [
+                "project",
+                "credentials",
+                "client_info",
+                "client_options",
+            ]
+
+            gcs_args = {}
+            for key in valid_gcs_params:
+                val = config.get(key)
+                if val is not None:
+                    gcs_args[key] = val
+
+            project = config.get("project") or os.environ.get("GCS_PROJECT")
+            if project:
+                gcs_args.setdefault("project", project)
+
+            credentials_json = os.environ.get("GCS_CREDENTIALS_JSON")
+            if credentials_json and "credentials" not in gcs_args:
+                import json
+
+                from google.oauth2 import service_account
+
+                try:
+                    info = json.loads(credentials_json)
+                except json.JSONDecodeError as e:
+                    raise ValueError(
+                        f"GCS_CREDENTIALS_JSON contains invalid JSON: {e}. "
+                        "Ensure the value is a valid JSON string, not base64-encoded."
+                    ) from e
+                gcs_args["credentials"] = (
+                    service_account.Credentials.from_service_account_info(info)
+                )
+
             concrete_service = GcsArtifactService(bucket_name=bucket_name, **gcs_args)
         except ImportError:
             log.error(
@@ -619,6 +648,39 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 "%s Failed to initialize S3ArtifactService: %s",
                 component.log_identifier,
                 e,
+            )
+            raise
+    elif service_type == "azure":
+        container_name = config.get("container_name") or config.get("bucket_name")
+        if not container_name or not container_name.strip():
+            raise ValueError(
+                f"{component.log_identifier} 'container_name' is required for Azure artifact service."
+            )
+        try:
+            from .artifacts.azure_artifact_service import AzureArtifactService
+
+            azure_config = {}
+            for key, env_var in [
+                ("connection_string", "AZURE_STORAGE_CONNECTION_STRING"),
+                ("account_name", "AZURE_STORAGE_ACCOUNT_NAME"),
+                ("account_key", "AZURE_STORAGE_ACCOUNT_KEY"),
+            ]:
+                azure_config[key] = config.get(key) or os.environ.get(env_var)
+
+            azure_config_cleaned = {k: v for k, v in azure_config.items() if v is not None}
+            concrete_service = AzureArtifactService(
+                container_name=container_name, **azure_config_cleaned
+            )
+        except ImportError as e:
+            log.error(
+                "%s Azure dependencies not available: %s",
+                component.log_identifier, e,
+            )
+            raise
+        except Exception as e:
+            log.error(
+                "%s Failed to initialize AzureArtifactService: %s",
+                component.log_identifier, e,
             )
             raise
     elif service_type == "test_in_memory":
