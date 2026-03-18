@@ -18,7 +18,7 @@ interface ModelData {
 
 interface ModelResponse {
     id?: string;
-    data?: string[];
+    data?: Array<{ id?: string; name?: string; label?: string }>;
     models?: Array<{ id: string; name?: string }>;
 }
 
@@ -85,18 +85,35 @@ export async function fetchModelsFromCustomEndpoint(apiBase: string, authType: s
         const data = await response.json();
 
         // Handle different response formats
-        let modelIds: string[] = [];
         const modelResponse = data as ModelResponse;
+        let models: Array<{ id: string; label: string }> = [];
+
         if (modelResponse.data && Array.isArray(modelResponse.data)) {
-            modelIds = modelResponse.data.filter(Boolean) as string[];
+            // Extract id from objects, use label if available, fall back to id as label
+            models = modelResponse.data
+                .filter(item => item.id ?? item.name)
+                .map(item => ({
+                    id: (item.id ?? item.name) as string,
+                    label: item.label ?? item.id ?? item.name ?? "",
+                }));
         } else if (modelResponse.models && Array.isArray(modelResponse.models)) {
-            modelIds = modelResponse.models.filter((model: { id?: string; name?: string }) => model.id ?? model.name).map((model: { id?: string; name?: string }) => model.id ?? model.name ?? "");
+            models = modelResponse.models
+                .filter(model => model.id ?? model.name)
+                .map(model => ({
+                    id: model.id ?? (model.name as string),
+                    label: model.id ?? (model.name as string),
+                }));
         } else if (Array.isArray(data)) {
             const arrayData = data as Array<{ id?: string; name?: string }>;
-            modelIds = arrayData.filter((model: { id?: string; name?: string }) => model.id ?? model.name).map((model: { id?: string; name?: string }) => model.id ?? (model.name as string));
+            models = arrayData
+                .filter(model => model.id ?? model.name)
+                .map(model => ({
+                    id: (model.id ?? model.name) as string,
+                    label: (model.id ?? model.name) as string,
+                }));
         }
 
-        return modelIds.map(id => ({ id, label: id }));
+        return models;
     } catch (error) {
         console.error("Error fetching models from custom endpoint:", error);
         return [];
