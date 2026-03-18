@@ -204,7 +204,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const textAnimBase = "overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-200";
 
     return (
-        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg) transition-[width] duration-200 ease-out", isCollapsed ? "w-16" : "w-64")}>
+        <nav className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg) transition-[width] duration-200 ease-out", isCollapsed ? "w-16" : "w-64")}>
             {/* Header */}
             <div className="relative flex min-h-[80px] w-full items-center border-b border-(--secondary-w70) py-3 pr-4 pl-4">
                 <div className="flex items-center gap-2">{renderHeader()}</div>
@@ -327,6 +327,6 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     );
                 })}
             </div>
-        </aside>
+        </nav>
     );
 };

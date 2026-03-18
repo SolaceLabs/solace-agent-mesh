@@ -99,7 +99,6 @@ type Story = StoryObj<typeof meta>;
 export const Expanded: Story = {
     args: {
         items: defaultItems,
-        isCollapsed: false,
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
@@ -116,7 +115,7 @@ export const Expanded: Story = {
 export const Collapsed: Story = {
     args: {
         items: defaultItems,
-        isCollapsed: true,
+        defaultCollapsed: true,
     },
     play: async ({ canvasElement }) => {
         const sidebar = canvasElement.querySelector(".navigation-sidebar");
@@ -136,7 +135,6 @@ export const Collapsed: Story = {
 export const WithActiveItem: Story = {
     args: {
         items: defaultItems,
-        isCollapsed: false,
         activeItemId: "projects",
     },
     play: async ({ canvasElement }) => {
@@ -151,7 +149,6 @@ export const WithActiveItem: Story = {
 export const WithSubmenus: Story = {
     args: {
         items: defaultItems.map(item => (item.id === "assets" ? { ...item, defaultExpanded: true } : item)),
-        isCollapsed: false,
         activeItemId: "prompts",
     },
     play: async ({ canvasElement }) => {
@@ -165,7 +162,6 @@ export const WithSubmenus: Story = {
 export const CustomHeader: Story = {
     args: {
         items: defaultItems,
-        isCollapsed: false,
         header: (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 20, fontWeight: 700, color: "var(--darkSurface-text)" }}>Custom Logo</span>
