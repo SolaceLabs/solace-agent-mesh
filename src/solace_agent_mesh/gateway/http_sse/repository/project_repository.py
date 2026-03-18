@@ -175,6 +175,7 @@ class ProjectRepository(IProjectRepository):
             description=model.description,
             system_prompt=model.system_prompt,
             default_agent_id=model.default_agent_id,
+            is_pinned=getattr(model, 'is_pinned', False) or False,
             created_at=model.created_at,
             updated_at=model.updated_at,
             deleted_at=model.deleted_at,

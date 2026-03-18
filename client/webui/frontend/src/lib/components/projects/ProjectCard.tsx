@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FolderOpen, MoreHorizontal, Download, Trash2, Share2, Eye, UserIcon } from "lucide-react";
+import { FolderOpen, MoreHorizontal, Download, Trash2, Share2, Eye, UserIcon, Star } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
@@ -13,9 +13,11 @@ interface ProjectCardProps {
     onDelete?: (project: Project) => void;
     onExport?: (project: Project) => void;
     onShare?: (project: Project) => void;
+    onTogglePin?: (project: Project) => void;
+    isPinToggling?: boolean;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, onShare }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, onShare, onTogglePin, isPinToggling }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isTruncated, setIsTruncated] = useState(false);
     const titleRef = useRef<HTMLDivElement>(null);
@@ -87,6 +89,21 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                         </Tooltip>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
+                        {onTogglePin && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={isPinToggling}
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    onTogglePin(project);
+                                }}
+                                className={project.isPinned ? "text-(--primary-wMain)" : "text-(--secondary-text-wMain)"}
+                                tooltip={project.isPinned ? "Remove from favorites" : "Add to favorites"}
+                            >
+                                <Star size={16} fill={project.isPinned ? "currentColor" : "none"} />
+                            </Button>
+                        )}
                         {isOwner && onDelete && (
                             <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                                 <PopoverTrigger asChild>
