@@ -18,6 +18,17 @@ from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 log = logging.getLogger(__name__)
 
+# Default API bases for known providers
+_DEFAULT_API_BASES = {
+    "openai": "https://api.openai.com/v1",
+    "anthropic": "https://api.anthropic.com",
+    "google_ai_studio": "https://generativelanguage.googleapis.com/v1beta",
+    "vertex_ai": "https://us-central1-aiplatform.googleapis.com/v1",
+    "azure_openai": "https://{resource_name}.openai.azure.com/",
+    "bedrock": "https://bedrock-runtime.us-east-1.amazonaws.com",
+    "ollama": "http://localhost:11434",
+}
+
 
 class ModelConfigService:
     """
@@ -92,6 +103,8 @@ class ModelConfigService:
         """
         Create a new model configuration.
 
+        For known providers, auto-fills api_base if not provided.
+
         Args:
             db: SQLAlchemy database session
             request: Create request with model details
@@ -107,12 +120,17 @@ class ModelConfigService:
         if self.repository.exists_by_alias(db, request.alias):
             raise ValueError(f"Model configuration with alias '{request.alias}' already exists")
 
+        # Auto-fill api_base for known providers if not provided
+        api_base = request.api_base
+        if not api_base and request.provider in _DEFAULT_API_BASES:
+            api_base = _DEFAULT_API_BASES[request.provider]
+
         # Create new configuration
         db_config = ModelConfiguration(
             alias=request.alias,
             provider=request.provider,
             model_name=request.model_name,
-            api_base=request.api_base,
+            api_base=api_base,
             model_auth_type=request.auth_type,
             model_auth_config=request.auth_config or {},
             model_params=request.model_params or {},
@@ -172,6 +190,9 @@ class ModelConfigService:
             db_config.model_name = request.model_name
         if request.api_base is not None:
             db_config.api_base = request.api_base
+        elif request.provider is not None and request.provider in _DEFAULT_API_BASES:
+            # Auto-fill api_base if provider changed to a known provider
+            db_config.api_base = _DEFAULT_API_BASES[request.provider]
         if request.auth_type is not None:
             db_config.model_auth_type = request.auth_type
         if request.auth_config is not None:
