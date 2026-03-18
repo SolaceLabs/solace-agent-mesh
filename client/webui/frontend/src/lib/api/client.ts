@@ -211,18 +211,21 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     let bearerToken = getApiBearerToken();
 
     if (!bearerToken) {
-        // No token in localStorage — attempt a refresh before sending an
-        // unauthenticated request.
-        // Note: refreshToken() handles the redirect to /auth/login internally
-        // when the refresh fails (no refresh token, or server rejects it).
-        const newToken = await refreshToken();
-        if (!newToken) {
-            // refreshToken() already redirected to login (or there was no
-            // refresh token). Return a synthetic 401 so callers get a proper
-            // Response object rather than throwing.
-            return new Response(JSON.stringify({ detail: "Not authenticated", error_type: "authentication_required" }), { status: 401 });
+        // No access token in localStorage.
+        // Only attempt a refresh if a refresh_token is present
+        if (getRefreshToken()) {
+            const newToken = await refreshToken();
+            if (!newToken) {
+                // refreshToken() already redirected to login (server rejected the
+                // refresh token). Return a synthetic 401 so callers get a proper
+                // Response object rather than throwing.
+                return new Response(JSON.stringify({ detail: "Not authenticated", error_type: "authentication_required" }), { status: 401 });
+            }
+            bearerToken = newToken;
         }
-        bearerToken = newToken;
+        // No refresh_token either — fall through and send the request without
+        // an Authorization header (original behaviour). The backend will return
+        // 401 which the caller can handle, and MSW can still intercept the request.
     }
 
     const response = await fetch(url, {

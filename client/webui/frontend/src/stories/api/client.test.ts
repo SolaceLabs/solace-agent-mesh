@@ -311,27 +311,33 @@ describe("authenticatedFetch — no-token path (401 storm prevention)", () => {
         expect(calls.some(url => url.includes("/users/me"))).toBe(true);
     });
 
-    test("returns synthetic 401 when no bearer token and no refresh token", async () => {
-        // No tokens at all in localStorage — refreshToken() returns null immediately
-        // (no refresh_token present), so authenticatedFetch returns a synthetic 401
-        // without navigating. The redirect to login is handled by refreshToken() only
-        // when a refresh_token exists but the server rejects it.
-        const fetchSpy = vi.spyOn(globalThis, "fetch");
+    test("falls through to unauthenticated fetch when no bearer token and no refresh token", async () => {
+        // No tokens at all in localStorage — no refresh_token means we skip the
+        // refresh attempt entirely and fall through to the original unauthenticated
+        // fetch. This preserves MSW interception in Storybook/test environments and
+        // community/dev mode where auth is not configured.
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ id: "user-1" }), { status: 200 }));
 
         let caughtError: Error | null = null;
+        let result: unknown = null;
         try {
-            await api.webui.get("/api/v1/users/me");
+            result = await api.webui.get("/api/v1/users/me");
         } catch (e) {
             caughtError = e as Error;
         }
 
-        // Should NOT have called fetch for the actual endpoint (short-circuited)
-        const apiCalls = fetchSpy.mock.calls.filter(([url]) => (url as string).includes("/users/me"));
-        expect(apiCalls).toHaveLength(0);
+        // Should NOT have thrown — the unauthenticated request went through
+        expect(caughtError).toBeNull();
+        expect(result).toEqual({ id: "user-1" });
 
-        // Should have thrown "Not authenticated" (from fetchJsonWithError → fetchWithError)
-        expect(caughtError).not.toBeNull();
-        expect(caughtError?.message).toContain("Not authenticated");
+        // Should have called fetch for the actual endpoint (no short-circuit)
+        const fetchSpy = vi.mocked(globalThis.fetch);
+        const apiCalls = fetchSpy.mock.calls.filter(([url]) => (url as string).includes("/users/me"));
+        expect(apiCalls).toHaveLength(1);
+
+        // Should NOT have called /auth/refresh (no refresh token to use)
+        const refreshCalls = fetchSpy.mock.calls.filter(([url]) => (url as string).includes("/auth/refresh"));
+        expect(refreshCalls).toHaveLength(0);
     });
 
     test("deduplicates concurrent no-token requests into a single refresh call", async () => {
