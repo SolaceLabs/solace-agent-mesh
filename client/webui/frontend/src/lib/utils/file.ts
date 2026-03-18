@@ -1,4 +1,13 @@
-import { api } from "../api";
+import { api, getErrorFromResponse } from "../api";
+import type { ArtifactInfo } from "../types";
+import type { Project } from "../types/projects";
+
+/**
+ * Returns the identifier if it is a usable, non-sentinel value, or undefined otherwise.
+ * Filters out null, undefined, empty strings, whitespace-only strings,
+ * and the literal strings "null" / "undefined" that can leak from serialization.
+ */
+export const validIdOrUndefined = (id: string | null | undefined): string | undefined => (id && id.trim() && id !== "null" && id !== "undefined" ? id : undefined);
 
 /**
  * Converts a File object to a Base64-encoded string.
@@ -39,19 +48,19 @@ export const blobToBase64 = (blob: Blob): Promise<string> => {
  * @throws {Error} When neither sessionId nor projectId is provided
  */
 export const getArtifactUrl = ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number | "latest" }): string => {
-    const isValidSession = sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined";
+    const validSessionId = validIdOrUndefined(sessionId);
     const encodedFilename = encodeURIComponent(filename);
 
-    const basePath = isValidSession ? `/api/v1/artifacts/${sessionId}/${encodedFilename}/versions` : `/api/v1/artifacts/null/${encodedFilename}/versions`;
+    const basePath = validSessionId ? `/api/v1/artifacts/${validSessionId}/${encodedFilename}/versions` : `/api/v1/artifacts/null/${encodedFilename}/versions`;
     const versionPath = version !== undefined ? `/${version}` : "";
     const url = `${basePath}${versionPath}`;
 
     // Add projectId query param if needed (when no valid session)
-    if (!isValidSession && projectId) {
+    if (!validSessionId && projectId) {
         return `${url}?project_id=${projectId}`;
     }
 
-    if (!isValidSession && !projectId) {
+    if (!validSessionId && !projectId) {
         throw new Error("No valid context for artifact: either sessionId or projectId must be provided");
     }
 
@@ -78,7 +87,7 @@ export const getArtifactContent = async ({ filename, sessionId, projectId, versi
 
     const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
     if (!contentResponse.ok) {
-        throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
+        throw new Error(await getErrorFromResponse(contentResponse));
     }
 
     const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
@@ -127,4 +136,15 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
         console.error("Invalid artifact URI:", e);
         return null;
     }
+};
+
+/**
+ * Resolves the display name for an artifact's source project badge.
+ * Returns the active project's name if IDs match, "Project" as a
+ * fallback for legacy artifacts, or undefined if not project-sourced.
+ */
+export const getSourceProjectName = (artifact: ArtifactInfo | undefined, activeProject: Project | null): string | undefined => {
+    if (artifact?.sourceProjectId === activeProject?.id) return activeProject?.name;
+    if (artifact?.source === "project" && !artifact?.sourceProjectId) return "Project";
+    return undefined;
 };

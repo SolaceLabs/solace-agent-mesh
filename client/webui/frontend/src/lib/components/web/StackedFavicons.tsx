@@ -25,9 +25,9 @@ function SourceIcon({ source, className = "", size = 16 }: { source: SearchSourc
     if (isDocument && source.filename) {
         // Show file type icon for documents - reuses getFileTypeIcon from FileIcon component
         const iconSize = Math.round(size * 0.6);
-        const icon = getFileTypeIcon(undefined, source.filename, { size: iconSize, className: "text-muted-foreground" });
+        const icon = getFileTypeIcon(undefined, source.filename, { size: iconSize, className: "text-(--secondary-text-wMain)" });
         return (
-            <div className={`bg-muted relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] ${className}`} style={{ width: size, height: size }} title={source.filename}>
+            <div className={`relative box-content overflow-hidden rounded-full border border-(--secondary-w20) bg-(--secondary-w10) ${className}`} style={{ width: size, height: size }} title={source.filename}>
                 <div className="flex h-full w-full items-center justify-center">{icon}</div>
             </div>
         );
@@ -36,7 +36,7 @@ function SourceIcon({ source, className = "", size = 16 }: { source: SearchSourc
     // For web sources, use favicon
     const domain = getCleanDomain(source.link || "");
     return (
-        <div className={`relative box-content overflow-hidden rounded-full border border-[var(--color-secondary-w20)] bg-white ${className}`} style={{ width: size, height: size }}>
+        <div className={`relative box-content overflow-hidden rounded-full border border-(--secondary-w20) bg-(--background-w10) ${className}`} style={{ width: size, height: size }}>
             <img
                 src={getFaviconUrl(domain, size * 2)}
                 alt={domain}
@@ -47,7 +47,7 @@ function SourceIcon({ source, className = "", size = 16 }: { source: SearchSourc
                     target.style.display = "none";
                     const parent = target.parentElement;
                     if (parent) {
-                        parent.innerHTML = `<div class="bg-muted text-muted-foreground flex h-full w-full items-center justify-center text-xs font-bold">${domain[0].toUpperCase()}</div>`;
+                        parent.innerHTML = `<div class="bg-(--secondary-w10) text-(--secondary-text-wMain) flex h-full w-full items-center justify-center text-xs font-bold">${domain[0].toUpperCase()}</div>`;
                     }
                 }}
             />

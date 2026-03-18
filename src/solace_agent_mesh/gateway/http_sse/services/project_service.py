@@ -361,7 +361,10 @@ class ProjectService:
             )
             project_session_id = f"project-{project_domain.id}"
             for file, content_bytes in validated_files:
-                metadata = {"source": "project"}
+                metadata = {
+                    "source": "project",
+                    "source_project_id": project_domain.id,
+                }
                 desc = file_metadata.get(file.filename) if file_metadata else None
                 if desc:
                     metadata["description"] = desc
@@ -610,8 +613,11 @@ class ProjectService:
         results = []
 
         for file, content_bytes in validated_files:
+            metadata = {
+                "source": "project",
+                "source_project_id": project.id,
+            }
             mime_type = resolve_mime_type(file.filename, file.content_type)
-            metadata = {"source": "project"}
             desc = file_metadata.get(file.filename) if file_metadata else None
             if desc:
                 metadata["description"] = desc
@@ -763,7 +769,10 @@ class ProjectService:
                 return False
 
             # Prepare updated metadata
-            metadata = {"source": "project"}
+            metadata = {
+                "source": "project",
+                "source_project_id": project.id,
+            }
             if description is not None:
                 self._validate_file_descriptions({filename: description})
                 metadata["description"] = description
@@ -1274,17 +1283,20 @@ class ProjectService:
                                 self.logger.warning(f"{log_prefix} {skip_msg}")
                                 warnings.append(skip_msg)
                                 continue  # Skip this artifact, continue with others
-                            
+
                             # Find metadata from project.json
                             artifact_meta = next(
                                 (a for a in project_data.get('artifacts', [])
                                  if a['filename'] == filename),
                                 None
                             )
-                            
+
                             metadata = artifact_meta.get('metadata', {}) if artifact_meta else {}
                             mime_type = artifact_meta.get('mimeType', 'application/octet-stream') if artifact_meta else 'application/octet-stream'
-                            
+
+                            if metadata.get("source") == "project":
+                                metadata["source_project_id"] = project.id
+
                             # Save artifact
                             from ....agent.utils.artifact_helpers import save_artifact_with_metadata
                             await save_artifact_with_metadata(

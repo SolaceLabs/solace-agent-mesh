@@ -188,7 +188,7 @@ const Description = ({ children, className, asChild, ...props }: React.Component
     const Comp = asChild ? Slot : "p";
 
     return (
-        <Comp date-component="stepper-step-description" className={cn("text-muted-foreground text-sm", className)} {...props}>
+        <Comp date-component="stepper-step-description" className={cn("text-sm text-(--secondary-text-wMain)", className)} {...props}>
             {children}
         </Comp>
     );
@@ -220,7 +220,7 @@ const CircleStepIndicator = ({ currentStep, totalSteps, size = 80, strokeWidth =
         <div date-component="stepper-step-indicator" role="progressbar" aria-valuenow={currentStep} aria-valuemin={1} aria-valuemax={totalSteps} tabIndex={-1} className="relative inline-flex items-center justify-center">
             <svg width={size} height={size}>
                 <title>Step Indicator</title>
-                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-muted-foreground" />
+                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-(--secondary-text-wMain)" />
                 <circle
                     cx={size / 2}
                     cy={size / 2}
@@ -230,7 +230,7 @@ const CircleStepIndicator = ({ currentStep, totalSteps, size = 80, strokeWidth =
                     strokeWidth={strokeWidth}
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
-                    className="text-primary transition-all duration-300 ease-in-out"
+                    className="text-(--primary-wMain) transition-all duration-300 ease-in-out"
                     transform={`rotate(-90 ${size / 2} ${size / 2})`}
                 />
             </svg>
@@ -253,7 +253,7 @@ const classForNavigationList = cva("flex gap-2", {
     },
 });
 
-const classForSeparator = cva(["bg-border", "data-[state=completed]:bg-primary data-[disabled]:opacity-50", "transition-all duration-300 ease-in-out"], {
+const classForSeparator = cva(["bg-(--secondary-w40)", "data-[state=completed]:bg-(--primary-wMain) data-[disabled]:opacity-50", "transition-all duration-300 ease-in-out"], {
     variants: {
         orientation: {
             horizontal: "h-0.5 flex-1",

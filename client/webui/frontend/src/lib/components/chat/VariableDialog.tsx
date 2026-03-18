@@ -64,12 +64,12 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({ group, onSubmit,
     }, [onClose]);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg">
+        <div className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg border bg-(--background-w10) shadow-lg">
                 {/* Header - Fixed */}
                 <div className="flex-shrink-0 p-6 pb-4">
                     <h2 className="text-lg font-semibold">Insert {group.name}</h2>
-                    <p className="mt-1 text-sm text-[var(--muted-foreground)]">Variables represent placeholder information in the template. Enter a value for each placeholder below.</p>
+                    <p className="mt-1 text-sm text-(--secondary-text-wMain)">Variables represent placeholder information in the template. Enter a value for each placeholder below.</p>
                 </div>
 
                 {showError && (
@@ -96,7 +96,7 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({ group, onSubmit,
                                                 [variable]: e.target.value,
                                             }))
                                         }
-                                        className="min-h-[80px] w-full rounded-md border border-[var(--border)] bg-[var(--background)] p-2 text-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
+                                        className="min-h-[80px] w-full rounded-md border bg-(--background-w10) p-2 text-sm focus:ring-2 focus:ring-(--primary-wMain) focus:outline-none"
                                         required
                                     />
                                 </div>
@@ -104,7 +104,7 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({ group, onSubmit,
                         </div>
                     </div>
 
-                    <div className="flex flex-shrink-0 justify-end gap-2 border-t border-[var(--border)] p-6 pt-4">
+                    <div className="flex flex-shrink-0 justify-end gap-2 border-t p-6 pt-4">
                         <Button type="button" variant="ghost" onClick={onClose}>
                             Cancel
                         </Button>

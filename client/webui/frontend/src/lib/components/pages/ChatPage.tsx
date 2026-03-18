@@ -34,7 +34,6 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const { isOnboardMode } = useUIMode();
     const { activeProject } = useProjectContext();
-    const { currentTheme } = useThemeContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
     const location = useLocation();
     const navigate = useNavigate();
@@ -273,7 +272,7 @@ export function ChatPage() {
                                         <p>{pageTitle}</p>
                                     </TooltipContent>
                                 </Tooltip>
-                                {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[200px]" />}
+                                {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[360px]" />}
                             </div>
                         )
                     }
@@ -317,7 +316,7 @@ export function ChatPage() {
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">
                                             <Spinner size="medium" variant="primary">
-                                                <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
+                                                <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading session...</p>
                                             </Spinner>
                                         </div>
                                     ) : isWelcomeState && !isResponding ? (

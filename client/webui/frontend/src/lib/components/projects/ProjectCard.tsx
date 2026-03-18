@@ -1,11 +1,10 @@
-import React, { useState } from "react";
-import { FileText, FolderOpen, MoreHorizontal, Download, Trash2, Share2, UserSearch, UserIcon } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { FolderOpen, MoreHorizontal, Download, Trash2, Share2, Eye, UserIcon } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
-import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
+import { CardContent, CardDescription, CardHeader, CardTitle, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
-import { formatTimestamp } from "@/lib/utils/format";
 import { useIsProjectOwner } from "@/lib/hooks";
 
 interface ProjectCardProps {
@@ -18,7 +17,19 @@ interface ProjectCardProps {
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, onShare }) => {
     const [menuOpen, setMenuOpen] = useState(false);
+    const [isTruncated, setIsTruncated] = useState(false);
+    const titleRef = useRef<HTMLDivElement>(null);
     const isOwner = useIsProjectOwner(project.userId);
+
+    useEffect(() => {
+        const el = titleRef.current;
+        if (!el) return;
+        const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+        check();
+        const observer = new ResizeObserver(check);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     const menuActions: MenuAction[] = [
         ...(isOwner && onShare
@@ -62,12 +73,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
 
     return (
         <GridCard onClick={onClick}>
-            <CardHeader>
+            <CardHeader className="gap-0">
                 <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="flex min-w-0 flex-1 items-center gap-2" title={project.name}>
-                        <FolderOpen className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                        <div className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">{project.name}</div>
-                    </CardTitle>
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <FolderOpen className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
+                        <Tooltip open={isTruncated ? undefined : false}>
+                            <TooltipTrigger asChild>
+                                <CardTitle ref={titleRef} className="max-w-[250px] min-w-0 truncate text-lg font-semibold text-(--primary-text-wMain)">
+                                    {project.name}
+                                </CardTitle>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{project.name}</TooltipContent>
+                        </Tooltip>
+                    </div>
                     <div className="flex shrink-0 items-center gap-1">
                         {isOwner && onDelete && (
                             <Popover open={menuOpen} onOpenChange={setMenuOpen}>
@@ -85,36 +103,23 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                 </div>
             </CardHeader>
 
-            <CardContent className="flex flex-1 flex-col justify-between">
-                <div>
-                    {project.description ? (
-                        <CardDescription className="line-clamp-3" title={project.description}>
-                            {project.description}
-                        </CardDescription>
-                    ) : (
-                        <div />
-                    )}
-                </div>
+            <CardContent className="flex flex-1 flex-col justify-between gap-4">
+                <div>{project.description ? <CardDescription className="line-clamp-3">{project.description}</CardDescription> : <div />}</div>
 
-                <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1">
-                        Created: {formatTimestamp(project.createdAt, "date")}
-                        <div>|</div>
-                        <div className="max-w-[100px] truncate" title={project.userId}>
-                            {project.userId}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {project.artifactCount !== undefined && project.artifactCount !== null && isOwner && (
-                            <Badge variant="secondary" className="flex h-6 items-center gap-1" title={`${project.artifactCount} ${project.artifactCount === 1 ? "file" : "files"}`}>
-                                <FileText className="h-3.5 w-3.5" />
-                                <span>{project.artifactCount}</span>
-                            </Badge>
+                <div className="flex items-center justify-between">
+                    <div className="max-w-[200px] truncate text-(--secondary-text-wMain)">{project.userId}</div>
+                    <div className="flex items-center gap-4">
+                        {project.artifactCount !== undefined && project.artifactCount !== null && (
+                            <div className="flex items-center gap-1">
+                                <span className="text-(--secondary-text-wMain)">
+                                    {project.artifactCount} {project.artifactCount === 1 ? "file" : "files"}
+                                </span>
+                            </div>
                         )}
                         {onShare && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <span className="cursor-default">{isOwner ? <UserIcon className="h-4 w-4" /> : <UserSearch className="h-4 w-4" />}</span>
+                                    <span className="text-secondary-foreground cursor-default">{isOwner ? <UserIcon className="h-6 w-6" /> : <Eye className="h-6 w-6" />}</span>
                                 </TooltipTrigger>
                                 <TooltipContent side="top">{isOwner ? "You are the owner of this project" : "You are a viewer of this project"}</TooltipContent>
                             </Tooltip>

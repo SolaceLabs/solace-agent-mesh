@@ -59,14 +59,18 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 
 # Install system dependencies and uv
 # Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
+# Pin libc6=2.41-12+deb13u2 to fix CVE-2026-0861, CVE-2026-0915, CVE-2025-15281 (glibc vulnerabilities)
+# Pin dpkg=1.22.22 to fix CVE-2026-2219 (denial of service via zstd-compressed .deb archives)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    dpkg=1.22.22 \
     ffmpeg=7:7.1.3-0+deb13u1  \
     git \
+    libc6=2.41-12+deb13u2 \
     libtasn1-6/unstable \
     libpng16-16t64=1.6.48-1+deb13u3 \
     libssl3t64=3.5.4-1~deb13u2 \
@@ -152,13 +156,17 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 # Install minimal runtime dependencies (no uv for licensing compliance, no curl - due to vulnerabilities)
 # LibreOffice is optionally installed for document conversion (DOCX/PPTX to PDF for preview)
 # Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
+# Pin libc6=2.41-12+deb13u2 to fix CVE-2026-0861, CVE-2026-0915, CVE-2025-15281 (glibc vulnerabilities)
+# Pin dpkg=1.22.22 to fix CVE-2026-2219 (denial of service via zstd-compressed .deb archives)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
+    dpkg=1.22.22 \
     ffmpeg=7:7.1.3-0+deb13u1 \
     git \
     libatomic1 \
+    libc6=2.41-12+deb13u2 \
     libtasn1-6/unstable \
     libpng16-16t64=1.6.48-1+deb13u3 \
     libssl3t64=3.5.4-1~deb13u2 \
@@ -182,10 +190,8 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1
 
-# Fix CVE-2026-25547: Upgrade npm to 11.9.0+ (includes @isaacs/brace-expansion@5.0.1)
-# Node 25.5.0 bundles npm 11.8.0 which has vulnerable @isaacs/brace-expansion@5.0.0
-RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.9.0
-
+# Node 25.5.0 ships with npm 11.8.0; upgrade to pick up security fixes in bundled dependencies
+RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.11.1
 
 # Install playwright temporarily just for browser installation (cached layer)
 # This is separate from the full venv to keep this layer cached

@@ -112,11 +112,11 @@ const defaultMockChatContext: DefaultMockContextType = {
     startNewChatWithPrompt: async () => {},
     clearPendingPrompt: () => {},
     isTaskRunningInBackground: () => false,
+    builderMode: false,
+    setBuilderMode: () => {},
 
     // RAG Panel State
     setExpandedDocumentFilename: () => {},
-    builderMode: false,
-    setBuilderMode: () => {},
 };
 
 interface MockChatProviderProps {

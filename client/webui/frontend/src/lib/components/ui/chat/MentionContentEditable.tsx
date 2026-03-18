@@ -368,7 +368,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
             />
 
             {/* Show placeholder when empty */}
-            {!value && placeholder && <div className="pointer-events-none absolute inset-0 flex items-start p-3 text-[var(--muted-foreground)]">{placeholder}</div>}
+            {!value && placeholder && <div className="pointer-events-none absolute inset-0 flex items-start p-3 text-(--secondary-text-w50)">{placeholder}</div>}
         </div>
     );
 });

@@ -3,6 +3,7 @@ FastAPI router for managing session-specific artifacts via REST endpoints.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from collections.abc import Callable
@@ -459,6 +460,273 @@ async def upload_artifact_with_session(
             log.warning("%sError closing upload file: %s", log_prefix, close_error)
 
 
+# ============================================================================
+# BULK ARTIFACTS ENDPOINT
+# This endpoint MUST be defined BEFORE any /{session_id} routes to avoid
+# FastAPI matching "/all" as a session_id parameter.
+# ============================================================================
+
+class ArtifactWithContext(BaseModel):
+    """Artifact info with session/project context for bulk listing."""
+    
+    # Core artifact fields from ArtifactInfo
+    filename: str
+    size: int
+    mime_type: Optional[str] = Field(None, alias="mimeType")
+    last_modified: Optional[str] = Field(None, alias="lastModified")  # ISO date string
+    uri: Optional[str] = None
+    
+    # Context fields
+    session_id: str = Field(..., alias="sessionId")
+    session_name: Optional[str] = Field(None, alias="sessionName")
+    project_id: Optional[str] = Field(None, alias="projectId")
+    project_name: Optional[str] = Field(None, alias="projectName")
+    
+    # Source field for origin badges (upload, generated, project)
+    source: Optional[str] = None
+    
+    model_config = {"populate_by_name": True}
+
+
+class BulkArtifactsResponse(BaseModel):
+    """Response model for bulk artifacts listing."""
+    
+    artifacts: list[ArtifactWithContext]
+    total_count: int = Field(..., alias="totalCount")
+    
+    model_config = {"populate_by_name": True}
+
+
+# Semaphore to limit concurrent artifact fetches (prevent overwhelming the artifact service)
+_ARTIFACT_FETCH_SEMAPHORE = asyncio.Semaphore(10)
+
+
+@router.get(
+    "/all",
+    response_model=BulkArtifactsResponse,
+    summary="List All User Artifacts",
+    description="Retrieves all artifacts across all sessions and projects for the current user in a single request.",
+)
+async def list_all_artifacts(
+    artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
+    user_id: str = Depends(get_user_id),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    session_service: SessionService | None = Depends(get_session_business_service_optional),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
+    db: Session | None = Depends(get_db_optional),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
+    limit: int = Query(default=500, ge=1, le=1000, description="Maximum number of artifacts to return"),
+):
+    """
+    Lists all artifacts across all sessions and projects for the current user.
+    This bulk endpoint fetches all artifacts in a single request instead of
+    requiring separate calls per session/project.
+    
+    Uses parallel fetching with a semaphore to limit concurrent requests.
+    
+    Returns artifacts with their session/project context for display in the artifacts page.
+    """
+    log_prefix = f"[ArtifactRouter:ListAll] User={user_id} -"
+    log.info("%s Request received (limit=%d).", log_prefix, limit)
+    
+    if artifact_service is None:
+        log.error("%s Artifact service is not configured or available.", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Artifact service is not configured.",
+        )
+    
+    app_name = component.get_config("name", "A2A_WebUI_App")
+    
+    # Helper function to determine artifact source
+    def _determine_source(filename: str, session_id: str) -> str:
+        """Determine the source type of an artifact based on filename and session."""
+        if session_id.startswith("project-"):
+            return "project"
+        if filename.endswith('.converted.txt') or filename == 'project_bm25_index.zip':
+            return "generated"
+        # Default to upload for user-uploaded files
+        return "upload"
+    
+    # Helper function to fetch artifacts for a session with semaphore
+    async def _fetch_session_artifacts(
+        session_id: str,
+        session_name: Optional[str],
+        project_id: Optional[str],
+        project_name: Optional[str],
+        fetch_user_id: str,
+    ) -> list[ArtifactWithContext]:
+        """Fetch artifacts for a single session, respecting the semaphore."""
+        async with _ARTIFACT_FETCH_SEMAPHORE:
+            try:
+                artifacts = await get_artifact_info_list(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=fetch_user_id,
+                    session_id=session_id,
+                )
+                
+                # Filter out generated files and convert to ArtifactWithContext
+                result = []
+                for artifact in artifacts:
+                    if artifact.filename.endswith('.converted.txt') or artifact.filename == 'project_bm25_index.zip':
+                        continue
+                    
+                    result.append(ArtifactWithContext(
+                        filename=artifact.filename,
+                        size=artifact.size,
+                        mime_type=artifact.mime_type,
+                        last_modified=artifact.last_modified,
+                        uri=artifact.uri,
+                        session_id=session_id,
+                        session_name=session_name,
+                        project_id=project_id,
+                        project_name=project_name,
+                        source=_determine_source(artifact.filename, session_id),
+                    ))
+                return result
+            except Exception as e:
+                log.warning("%s Error fetching artifacts for session %s: %s", log_prefix, session_id, e)
+                return []
+    
+    try:
+        # Collect all fetch tasks
+        fetch_tasks: list[asyncio.Task] = []
+        
+        # Fetch artifacts from all user sessions
+        if session_service and db:
+            try:
+                # Get all sessions for the user (paginate through all pages)
+                from solace_agent_mesh.shared.api.pagination import PaginationParams
+                all_sessions = []
+                page_number = 1
+                page_size = 100  # Max allowed by PaginationParams
+                
+                while True:
+                    pagination = PaginationParams(page_number=page_number, page_size=page_size)
+                    sessions_response = session_service.get_user_sessions(db, user_id, pagination)
+                    all_sessions.extend(sessions_response.data)
+                    
+                    # Check if there are more pages
+                    if sessions_response.meta.pagination.next_page is None:
+                        break
+                    page_number += 1
+                    
+                    # Safety limit to prevent infinite loops
+                    if page_number > 100:
+                        log.warning("%s Reached safety limit of 100 pages for sessions", log_prefix)
+                        break
+                
+                log.info("%s Found %d sessions for user", log_prefix, len(all_sessions))
+                
+                # Create fetch tasks for all sessions
+                for session in all_sessions:
+                    task = asyncio.create_task(_fetch_session_artifacts(
+                        session_id=session.id,
+                        session_name=session.name,
+                        project_id=session.project_id,
+                        project_name=session.project_name,
+                        fetch_user_id=user_id,
+                    ))
+                    fetch_tasks.append(task)
+                        
+            except Exception as e:
+                log.warning("%s Error fetching sessions: %s", log_prefix, e)
+        
+        # Fetch artifacts from all user projects
+        if project_service and db:
+            try:
+                projects = project_service.get_user_projects(db, user_id)
+                log.info("%s Found %d projects for user", log_prefix, len(projects))
+                
+                # Create fetch tasks for all projects
+                for project in projects:
+                    project_session_id = f"project-{project.id}"
+                    task = asyncio.create_task(_fetch_session_artifacts(
+                        session_id=project_session_id,
+                        session_name=None,
+                        project_id=project.id,
+                        project_name=project.name,
+                        fetch_user_id=project.user_id,  # Use project owner's user_id
+                    ))
+                    fetch_tasks.append(task)
+                        
+            except Exception as e:
+                log.warning("%s Error fetching projects: %s", log_prefix, e)
+        
+        # Execute all fetch tasks in parallel
+        if fetch_tasks:
+            results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+            
+            # Flatten results, handling any exceptions
+            all_artifacts: list[ArtifactWithContext] = []
+            for result in results:
+                if isinstance(result, Exception):
+                    log.warning("%s Task failed with exception: %s", log_prefix, result)
+                    continue
+                all_artifacts.extend(result)
+        else:
+            all_artifacts = []
+        
+        # Deduplicate artifacts using O(n) dict-based approach:
+        # If the same filename appears multiple times for the same project,
+        # prefer the one from the project itself (session_id starts with "project-") over
+        # artifacts from chat sessions within that project.
+        #
+        # We use a dict to track seen artifacts and build the final list at the end,
+        # avoiding O(n^2) list.remove() operations.
+        seen_project_artifacts: dict[tuple[str, str], ArtifactWithContext] = {}  # (project_id, filename) -> artifact
+        non_project_artifacts: list[ArtifactWithContext] = []
+        
+        for artifact in all_artifacts:
+            if artifact.project_id:
+                key = (artifact.project_id, artifact.filename)
+                existing = seen_project_artifacts.get(key)
+                
+                if existing is None:
+                    # First time seeing this artifact for this project
+                    seen_project_artifacts[key] = artifact
+                elif artifact.session_id.startswith("project-") and not existing.session_id.startswith("project-"):
+                    # Current artifact is from project knowledge, existing is from a chat session
+                    # Replace with the project knowledge version
+                    seen_project_artifacts[key] = artifact
+                # else: keep the existing one (either both are from project, or existing is from project)
+            else:
+                # Non-project artifact, always include
+                non_project_artifacts.append(artifact)
+        
+        # Build final deduplicated list from dict values + non-project artifacts
+        deduplicated_artifacts = list(seen_project_artifacts.values()) + non_project_artifacts
+        
+        # Sort by last_modified (newest first), handling None values
+        deduplicated_artifacts.sort(key=lambda a: a.last_modified or "", reverse=True)
+        
+        # Apply limit
+        total_count = len(deduplicated_artifacts)
+        if len(deduplicated_artifacts) > limit:
+            deduplicated_artifacts = deduplicated_artifacts[:limit]
+        
+        log.info("%s Returning %d artifacts (limit=%d, total=%d, before_dedup=%d)",
+                 log_prefix, len(deduplicated_artifacts), limit, total_count, len(all_artifacts))
+        
+        return BulkArtifactsResponse(
+            artifacts=deduplicated_artifacts,
+            total_count=total_count,
+        )
+        
+    except Exception as e:
+        log.exception("%s Error retrieving all artifacts: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve artifacts: {str(e)}",
+        )
+
+
+# ============================================================================
+# SESSION-SPECIFIC ARTIFACT ENDPOINTS
+# These endpoints use /{session_id} path parameters and must come AFTER /all
+# ============================================================================
+
 @router.get(
     "/{session_id}/{filename}/versions",
     response_model=list[int],
@@ -589,7 +857,7 @@ async def list_artifacts(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
-        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
 
         artifact_info_list = await get_artifact_info_list(
@@ -975,6 +1243,8 @@ async def get_specific_artifact_version(
             },
         )
 
+    except HTTPException:
+        raise
     except FileNotFoundError:
         log.warning("%s Artifact version not found by service.", log_prefix)
         raise HTTPException(
@@ -1056,6 +1326,38 @@ async def get_artifact_by_uri(
             version,
         )
 
+        is_authorized = False
+        
+        if owner_user_id == requesting_user_id:
+            # User owns the artifact
+            is_authorized = True
+        elif session_id.startswith("project-"):
+            # Project artifact - check if user has shared access to the project
+            project_id = session_id.replace("project-", "", 1)
+            from ..dependencies import SessionLocal
+            from ..services.project_service import ProjectService
+            if SessionLocal:
+                db = SessionLocal()
+                try:
+                    project_service = ProjectService(component=component)
+                    # _has_view_access checks both ownership and shared access
+                    is_authorized = project_service._has_view_access(db, project_id, requesting_user_id)
+                finally:
+                    db.close()
+        
+        if not is_authorized:
+            log.warning(
+                "%s Authorization denied: User '%s' attempted to access artifact owned by '%s' (session=%s)",
+                log_id_prefix,
+                requesting_user_id,
+                owner_user_id,
+                session_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You are not authorized to access this artifact.",
+            )
+
         log.info(
             "%s User '%s' authorized to access artifact URI.",
             log_id_prefix,
@@ -1089,8 +1391,13 @@ async def get_artifact_by_uri(
             },
         )
 
+    except HTTPException:
+        raise
     except (ValueError, IndexError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid artifact URI: {e}")
+    except HTTPException:
+        # Re-raise HTTP exceptions (authorization denied, not found, etc.)
+        raise
     except Exception as e:
         log.exception("%s Error fetching artifact by URI: %s", log_id_prefix, e)
         raise HTTPException(
@@ -1160,3 +1467,5 @@ async def delete_artifact(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete artifact: {str(e)}",
         )
+
+

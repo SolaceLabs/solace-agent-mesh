@@ -56,6 +56,9 @@ router = APIRouter()
 
 log = logging.getLogger(__name__)
 
+# Cache for fork metadata lookups so the DB is only queried once per session
+_fork_metadata_cache: dict[str, dict | None] = {}
+
 SESSION_NOT_FOUND_MSG = "Session not found."
 
 
@@ -288,12 +291,8 @@ async def _inject_project_context(
         if artifact_service:
             try:
                 # Get feature flag value
-                project_indexing_config = component.get_config("project_indexing", {})
-                indexing_enabled = (
-                    project_indexing_config.get("enabled", False)
-                    if isinstance(project_indexing_config, dict)
-                    else False
-                )
+                feature_flags = component.get_config("frontend_feature_enablement", {})
+                indexing_enabled = feature_flags.get("projectIndexing", False)
 
                 artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
                     project_id=project_id,
@@ -715,16 +714,47 @@ async def _submit_task(
             if msg_metadata.get("maxExecutionTimeMs"):
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
 
+        # For forked sessions: pass fork metadata so the agent can clone the ADK session
+        # on first message. The forked session uses its OWN session_id (true isolation).
+        if session_id and SessionLocal is not None:
+            if session_id not in _fork_metadata_cache:
+                _fork_metadata_cache[session_id] = None  # default
+                try:
+                    from ..repository.chat_task_repository import ChatTaskRepository
+                    import json as json_mod_fork
+                    db_fork = SessionLocal()
+                    try:
+                        task_repo = ChatTaskRepository()
+                        tasks = task_repo.find_by_session(db_fork, session_id, client_id)
+                        if tasks and tasks[0].task_metadata:
+                            meta = json_mod_fork.loads(tasks[0].task_metadata)
+                            forked_session_id = meta.get("forked_from_session_id")
+                            forked_owner_id = meta.get("forked_from_owner_id")
+                            if forked_session_id and forked_owner_id:
+                                _fork_metadata_cache[session_id] = {
+                                    "fork_source_session_id": forked_session_id,
+                                    "fork_source_user_id": forked_owner_id,
+                                }
+                    finally:
+                        db_fork.close()
+                except Exception as e:
+                    log.debug("%sFailed to check forked session context: %s", log_prefix, e)
+
+            cached = _fork_metadata_cache.get(session_id)
+            if cached:
+                additional_metadata.update(cached)
+                log.info(
+                    "%sForked session detected - passing clone metadata: source_session=%s, source_user=%s",
+                    log_prefix, cached["fork_source_session_id"], cached["fork_source_user_id"]
+                )
+
         # Pass project_id to agent for project-context-aware tool injection (e.g., index_search).
-        # Gated on project_indexing.enabled and BM25 index existence — the agent callback
-        # injects index_search when it sees project_id, so only pass it when the tool is usable.
+        # Gated on frontend_feature_enablement.projectIndexing and BM25 index existence —
+        # the agent callback injects index_search when it sees project_id, so only pass it
+        # when the tool is usable.
         if project_id:
-            project_indexing_config = component.get_config("project_indexing", {})
-            indexing_enabled = (
-                project_indexing_config.get("enabled", False)
-                if isinstance(project_indexing_config, dict)
-                else False
-            )
+            feature_flags = component.get_config("frontend_feature_enablement", {})
+            indexing_enabled = feature_flags.get("projectIndexing", False)
             if indexing_enabled and project:
                 has_index = await _check_project_has_bm25_index(
                     project=project,

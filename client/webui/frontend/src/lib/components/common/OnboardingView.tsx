@@ -19,7 +19,7 @@ function OnboardingView({ title, description, learnMoreText, learnMoreHref = "#"
             <div className="my-auto grid max-w-6xl grid-cols-[40%_60%] gap-8">
                 <div className="flex flex-col justify-center">
                     <h2 className="mb-4 text-xl font-semibold">{title}</h2>
-                    <p className="text-muted-foreground mb-6 text-sm">{description}</p>
+                    <p className="mb-6 text-sm text-(--secondary-text-wMain)">{description}</p>
                     {learnMoreText && (
                         <Button variant="link" onClick={() => window.open(learnMoreHref, "_blank")} className="w-fit p-0!">
                             {learnMoreText}
