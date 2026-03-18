@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useContext } from "react";
+import { useMemo, useCallback, useContext, type MouseEvent } from "react";
 
 import { Download, Eye } from "lucide-react";
 
@@ -21,7 +21,7 @@ interface FileMessageProps {
     readOnly?: boolean;
 }
 
-export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mimeType, className, onDownload, isEmbedded = false, readOnly = false }) => {
+export const FileMessage = ({ filename, mimeType, className, onDownload, isEmbedded = false, readOnly = false }: Readonly<FileMessageProps>) => {
     // Try to get ChatContext, but don't fail if not available (for shared sessions)
     const chatContext = useContext(ChatContext) as ChatContextValue | undefined;
     const hasContext = chatContext !== undefined && !readOnly;
@@ -34,7 +34,7 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mi
     const FileIcon = useMemo(() => getFileIcon(artifact || { filename, mime_type: mimeType || "", size: 0, last_modified: "" }), [artifact, filename, mimeType]);
 
     const handlePreviewClick = useCallback(
-        (e: React.MouseEvent) => {
+        (e: MouseEvent) => {
             e.stopPropagation();
             if (artifact && setPreviewArtifact && openSidePanelTab) {
                 openSidePanelTab("files");
@@ -51,7 +51,7 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mi
     }, [onDownload]);
 
     return (
-        <div className={`flex h-11 max-w-xs flex-shrink items-center gap-2 rounded-lg bg-[var(--message-background)] px-2 py-1 ${className || ""}`}>
+        <div className={`flex h-11 max-w-xs flex-shrink items-center gap-2 rounded-lg bg-(--message-background) px-2 py-1 ${className || ""}`}>
             {FileIcon}
             <span className="min-w-0 flex-1 truncate text-sm leading-9" title={filename}>
                 <strong>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { ArrowDown, ArrowLeft, Ellipsis, FileText, Loader2 } from "lucide-react";
 
@@ -30,7 +30,7 @@ interface ArtifactPanelProps {
     onDownloadOverride?: (artifact: ArtifactInfo) => Promise<void>;
 }
 
-export const ArtifactPanel: React.FC<ArtifactPanelProps> = ({ readOnly = false, onDownloadOverride }) => {
+export const ArtifactPanel = ({ readOnly = false, onDownloadOverride }: ArtifactPanelProps) => {
     const { artifacts, artifactsLoading, artifactsRefetch, previewArtifact, setPreviewArtifact, openDeleteModal, isDeleteModalOpen, isBatchDeleteModalOpen } = useChatContext();
 
     const { onDownload: defaultOnDownload } = useDownload();
