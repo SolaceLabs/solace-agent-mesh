@@ -27,10 +27,10 @@ class ModelConfigurationCreateRequest(CamelCaseModel):
         max_length=255,
         description="Full model name",
     )
-    api_base: str = Field(
-        ...,
+    api_base: Optional[str] = Field(
+        None,
         max_length=2048,
-        description="API base URL",
+        description="API base URL (auto-filled for known providers if not provided)",
     )
     auth_type: str = Field(
         default="none",
