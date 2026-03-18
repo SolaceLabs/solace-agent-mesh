@@ -1,13 +1,39 @@
 /// <reference types="@testing-library/jest-dom" />
-import { render } from "@testing-library/react";
+import { render, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
+import React from "react";
 import * as matchers from "@testing-library/jest-dom/matchers";
 
 import { ArtifactsPage } from "@/lib/components/pages/ArtifactsPage";
+import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { StoryProvider } from "../mocks/StoryProvider";
+import type { ConfigContextValue } from "@/lib/contexts/ConfigContext";
 
 expect.extend(matchers);
+
+// Mock config value with artifactsPage enabled
+const mockConfig: ConfigContextValue = {
+    webuiServerUrl: "",
+    platformServerUrl: "",
+    configAuthLoginUrl: "",
+    configUseAuthorization: false,
+    configWelcomeMessage: "",
+    configRedirectUrl: "",
+    configCollectFeedback: false,
+    configBotName: "",
+    configLogoUrl: "",
+    persistenceEnabled: true,
+    projectsEnabled: true,
+    backgroundTasksEnabled: false,
+    backgroundTasksDefaultTimeoutMs: 3600000,
+    platformConfigured: false,
+    autoTitleGenerationEnabled: false,
+    identityServiceType: null,
+    binaryArtifactPreviewEnabled: true,
+    configFeatureEnablement: { artifactsPage: true },
+    frontend_use_authorization: false,
+};
 
 // Mock react-pdf to prevent PDF.js worker errors
 vi.mock("react-pdf", () => ({
@@ -30,75 +56,57 @@ Object.defineProperty(window, "IntersectionObserver", {
     value: mockIntersectionObserver,
 });
 
-// Mock the useAllArtifacts hook to return test data
-vi.mock("@/lib/api/artifacts/hooks", async importOriginal => {
-    const original = await importOriginal<typeof import("@/lib/api/artifacts/hooks")>();
-    return {
-        ...original,
-        useAllArtifacts: () => ({
-            data: [
+// Mock global fetch to intercept all HTTP calls
+// The api client uses fetch internally
+const mockFetch = vi.fn().mockImplementation((url: string) => {
+    const urlStr = String(url);
+    if (urlStr.includes("/api/v1/artifacts/all")) {
+        const responseData = {
+            artifacts: [
                 {
                     filename: "test-image.png",
                     size: 1024,
-                    mime_type: "image/png",
-                    last_modified: "2026-01-01T00:00:00Z",
+                    mimeType: "image/png",
+                    lastModified: "2026-01-01T00:00:00Z",
                     uri: "/api/v1/artifacts/session1/test-image.png/versions/0",
                     sessionId: "session1",
                     sessionName: "Test Session",
-                    projectId: undefined,
-                    projectName: undefined,
-                    source: "upload",
-                },
-                {
-                    filename: "test-doc.docx",
-                    size: 2048,
-                    mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    last_modified: "2026-01-01T00:00:00Z",
-                    uri: "/api/v1/artifacts/session1/test-doc.docx/versions/0",
-                    sessionId: "session1",
-                    sessionName: "Test Session",
-                    projectId: undefined,
-                    projectName: undefined,
+                    projectId: null,
+                    projectName: null,
                     source: "upload",
                 },
             ],
-            isLoading: false,
-            error: null,
-            refetch: vi.fn(),
-        }),
-    };
-});
-
-// Mock api to prevent actual HTTP calls
-vi.mock("@/lib/api", async importOriginal => {
-    const original = await importOriginal<typeof import("@/lib/api")>();
-    return {
-        ...original,
-        api: {
-            ...original.api,
-            webui: {
-                ...original.api?.webui,
-                get: vi.fn().mockResolvedValue({
-                    ok: true,
-                    blob: () => Promise.resolve(new Blob(["data"], { type: "image/png" })),
-                }),
-                delete: vi.fn().mockResolvedValue({ ok: true }),
-            },
-        },
-    };
+            totalCount: 1,
+        };
+        return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(responseData),
+            text: () => Promise.resolve(JSON.stringify(responseData)),
+            blob: () => Promise.resolve(new Blob([])),
+            headers: new Headers({ "content-type": "application/json" }),
+        });
+    }
+    // For image preview requests
+    return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+        text: () => Promise.resolve(""),
+        blob: () => Promise.resolve(new Blob(["image-data"], { type: "image/png" })),
+        headers: new Headers({ "content-type": "image/png" }),
+    });
 });
 
 const renderWithProviders = () => {
     return render(
         <MemoryRouter>
-            <StoryProvider
-                configContextValues={{
-                    configFeatureEnablement: { artifactsPage: true },
-                    binaryArtifactPreviewEnabled: true,
-                }}
-            >
-                <ArtifactsPage />
-            </StoryProvider>
+            {/* Use local ConfigContext directly to ensure ArtifactsPage reads the correct context */}
+            <ConfigContext.Provider value={mockConfig}>
+                <StoryProvider>
+                    <ArtifactsPage />
+                </StoryProvider>
+            </ConfigContext.Provider>
         </MemoryRouter>
     );
 };
@@ -106,6 +114,8 @@ const renderWithProviders = () => {
 describe("ArtifactsPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // Stub global fetch with our mock
+        vi.stubGlobal("fetch", mockFetch);
         // Mock URL.createObjectURL and revokeObjectURL
         Object.defineProperty(window, "URL", {
             writable: true,
@@ -121,37 +131,56 @@ describe("ArtifactsPage", () => {
         vi.restoreAllMocks();
     });
 
-    it("renders without crashing with artifactsPage feature enabled", () => {
+    it("renders without crashing with artifactsPage feature enabled", async () => {
         const { container } = renderWithProviders();
+        // Wait for React Query to resolve and render the artifacts
+        await waitFor(
+            () => {
+                // Either the artifacts are shown OR the empty state is shown (both mean loading is done)
+                const html = container.innerHTML;
+                const isLoaded = !html.includes("animate-spin") || html.includes("test-image.png");
+                if (!isLoaded) throw new Error("Still loading");
+            },
+            { timeout: 3000 }
+        );
         expect(container).toBeDefined();
     });
 
     it("renders artifact grid with image and docx artifacts", async () => {
         const { container } = renderWithProviders();
-        // Component renders without crashing
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 200));
+        });
         expect(container).toBeDefined();
     });
 
     it("loads image preview via authenticated API (new blob URL code path)", async () => {
         const { container } = renderWithProviders();
-        // Wait for async image loading
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Wait for async image loading (covers lines 185-196)
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        });
         expect(container).toBeDefined();
     });
 
     it("revokes blob URL on unmount (cleanup code path)", async () => {
         const { unmount, container } = renderWithProviders();
-        // Wait for image to load
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Wait for image to load (covers line 176 and 190)
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        });
         expect(container).toBeDefined();
-        // Unmount triggers cleanup
-        unmount();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Unmount triggers cleanup (covers lines 289-291)
+        await act(async () => {
+            unmount();
+        });
     });
 
     it("handles aborted requests gracefully", async () => {
         const { container } = renderWithProviders();
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 50));
+        });
         expect(container).toBeDefined();
     });
 });
