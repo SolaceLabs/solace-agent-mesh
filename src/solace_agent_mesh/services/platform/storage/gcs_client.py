@@ -19,7 +19,15 @@ log = logging.getLogger(__name__)
 
 
 class GcsStorageClient(ObjectStorageClient):
-    """Google Cloud Storage client."""
+    """Google Cloud Storage client.
+
+    Args:
+        bucket_name: The name of the GCS bucket to use.
+        project: Optional GCP project ID.
+        credentials_path: Optional path to a service account JSON key file.
+        credentials_json: Optional inline service account JSON key string.
+            Takes precedence over credentials_path when both are provided.
+    """
 
     def __init__(
         self,
@@ -36,7 +44,13 @@ class GcsStorageClient(ObjectStorageClient):
         if credentials_json:
             import json
 
-            info = json.loads(credentials_json)
+            try:
+                info = json.loads(credentials_json)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"GCS_CREDENTIALS_JSON contains invalid JSON: {e}. "
+                    "Ensure the value is a valid JSON string, not base64-encoded."
+                ) from e
             self._credentials = service_account.Credentials.from_service_account_info(info)
             kwargs["credentials"] = self._credentials
         elif credentials_path:

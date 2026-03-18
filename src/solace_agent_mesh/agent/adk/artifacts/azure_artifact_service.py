@@ -24,9 +24,8 @@ class AzureArtifactService(BaseArtifactService):
     {app_name}/{user_id}/{session_id_or_user}/{filename}/{version}
 
     Required Azure Permissions:
-    The identity must have the following minimum permissions on the container:
-    - Storage Blob Data Reader: Read artifacts from the container
-    - Storage Blob Data Contributor: Store and delete artifacts in the container
+    The identity must have the following minimum role on the container:
+    - Storage Blob Data Contributor: Read, store, and delete artifacts in the container
 
     Example Role Assignment (replace values with actual resource IDs):
     az role assignment create \\
@@ -46,7 +45,8 @@ class AzureArtifactService(BaseArtifactService):
         Args:
             container_name: The name of the Azure Blob container to use.
             connection_string: Optional Azure Storage connection string.
-            account_name: Optional storage account name (used with account_key).
+            account_name: Optional storage account name. Used with account_key for
+                shared key auth, or alone for workload identity (DefaultAzureCredential).
             account_key: Optional storage account key (used with account_name).
 
         Raises:
@@ -275,7 +275,9 @@ class AzureArtifactService(BaseArtifactService):
                 load_version,
                 e,
             )
-            return None
+            raise OSError(
+                f"Failed to load artifact version {load_version} from Azure: {e}"
+            ) from e
 
     @override
     async def list_artifact_keys(
@@ -415,7 +417,9 @@ class AzureArtifactService(BaseArtifactService):
                 prefix,
                 e,
             )
-            return []
+            raise OSError(
+                f"Failed to list artifact versions from Azure: {e}"
+            ) from e
 
         sorted_versions = sorted(versions)
         logger.debug("%sFound versions: %s", log_prefix, sorted_versions)
@@ -489,7 +493,9 @@ class AzureArtifactService(BaseArtifactService):
                 prefix,
                 e,
             )
-            return []
+            raise OSError(
+                f"Failed to list artifact versions from Azure: {e}"
+            ) from e
 
         artifact_versions.sort(key=lambda av: av.version)
         logger.debug("%sFound %d artifact versions", log_prefix, len(artifact_versions))
@@ -570,4 +576,6 @@ class AzureArtifactService(BaseArtifactService):
                 load_version,
                 e,
             )
-            return None
+            raise OSError(
+                f"Failed to get artifact version metadata from Azure: {e}"
+            ) from e

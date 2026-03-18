@@ -555,7 +555,13 @@ def initialize_artifact_service(component) -> BaseArtifactService:
 
                 from google.oauth2 import service_account
 
-                info = json.loads(credentials_json)
+                try:
+                    info = json.loads(credentials_json)
+                except json.JSONDecodeError as e:
+                    raise ValueError(
+                        f"GCS_CREDENTIALS_JSON contains invalid JSON: {e}. "
+                        "Ensure the value is a valid JSON string, not base64-encoded."
+                    ) from e
                 gcs_args["credentials"] = (
                     service_account.Credentials.from_service_account_info(info)
                 )

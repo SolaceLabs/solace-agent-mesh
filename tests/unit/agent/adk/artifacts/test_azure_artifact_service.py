@@ -432,15 +432,14 @@ class TestAzureArtifactServiceLoadArtifact:
         mock_blob_client.download_blob.side_effect = HttpResponseError("Forbidden")
         azure_service.container_client.get_blob_client.return_value = mock_blob_client
 
-        loaded = await azure_service.load_artifact(
-            app_name="test_app",
-            user_id="user1",
-            session_id="session1",
-            filename="test.txt",
-            version=0,
-        )
-
-        assert loaded is None
+        with pytest.raises(OSError, match="Failed to load artifact version"):
+            await azure_service.load_artifact(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+                version=0,
+            )
 
     @pytest.mark.asyncio
     async def test_load_artifact_user_namespace(self, azure_service):
@@ -685,14 +684,13 @@ class TestAzureArtifactServiceListVersions:
             "Forbidden"
         )
 
-        versions = await azure_service.list_versions(
-            app_name="test_app",
-            user_id="user1",
-            session_id="session1",
-            filename="test.txt",
-        )
-
-        assert versions == []
+        with pytest.raises(OSError, match="Failed to list artifact versions from Azure"):
+            await azure_service.list_versions(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+            )
 
     @pytest.mark.asyncio
     async def test_list_versions_user_namespace(self, azure_service):
@@ -713,3 +711,210 @@ class TestAzureArtifactServiceListVersions:
         azure_service.container_client.list_blobs.assert_called_once_with(
             name_starts_with="test_app/user1/user/document.txt/"
         )
+
+
+class TestAzureArtifactServiceListArtifactVersions:
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_success(self, azure_service):
+        blobs = [
+            _make_blob_mock("test_app/user1/session1/test.txt/0"),
+            _make_blob_mock("test_app/user1/session1/test.txt/1"),
+        ]
+        azure_service.container_client.list_blobs.return_value = blobs
+
+        mock_props_0 = Mock()
+        mock_props_0.content_settings.content_type = "text/plain"
+        mock_props_0.last_modified.timestamp.return_value = 1000.0
+
+        mock_props_1 = Mock()
+        mock_props_1.content_settings.content_type = "image/png"
+        mock_props_1.last_modified.timestamp.return_value = 2000.0
+
+        mock_blob_client = Mock()
+        mock_blob_client.get_blob_properties.side_effect = [mock_props_0, mock_props_1]
+        azure_service.container_client.get_blob_client.return_value = mock_blob_client
+
+        versions = await azure_service.list_artifact_versions(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+        )
+
+        assert len(versions) == 2
+        assert versions[0].version == 0
+        assert versions[0].mime_type == "text/plain"
+        assert versions[0].create_time == 1000.0
+        assert versions[1].version == 1
+        assert versions[1].mime_type == "image/png"
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_empty(self, azure_service):
+        azure_service.container_client.list_blobs.return_value = []
+
+        versions = await azure_service.list_artifact_versions(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+        )
+
+        assert versions == []
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_http_error(self, azure_service):
+        azure_service.container_client.list_blobs.side_effect = HttpResponseError(
+            "Forbidden"
+        )
+
+        with pytest.raises(OSError, match="Failed to list artifact versions from Azure"):
+            await azure_service.list_artifact_versions(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+            )
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_skips_bad_version_keys(self, azure_service):
+        blobs = [
+            _make_blob_mock("test_app/user1/session1/test.txt/0"),
+            _make_blob_mock("test_app/user1/session1/test.txt/metadata"),
+        ]
+        azure_service.container_client.list_blobs.return_value = blobs
+
+        mock_props = Mock()
+        mock_props.content_settings.content_type = "text/plain"
+        mock_props.last_modified.timestamp.return_value = 1000.0
+        mock_blob_client = Mock()
+        mock_blob_client.get_blob_properties.return_value = mock_props
+        azure_service.container_client.get_blob_client.return_value = mock_blob_client
+
+        versions = await azure_service.list_artifact_versions(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+        )
+
+        assert len(versions) == 1
+        assert versions[0].version == 0
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_per_blob_error_continues(self, azure_service):
+        blobs = [
+            _make_blob_mock("test_app/user1/session1/test.txt/0"),
+            _make_blob_mock("test_app/user1/session1/test.txt/1"),
+        ]
+        azure_service.container_client.list_blobs.return_value = blobs
+
+        mock_props = Mock()
+        mock_props.content_settings.content_type = "text/plain"
+        mock_props.last_modified.timestamp.return_value = 1000.0
+
+        mock_blob_client = Mock()
+        mock_blob_client.get_blob_properties.side_effect = [
+            HttpResponseError("Transient"),
+            mock_props,
+        ]
+        azure_service.container_client.get_blob_client.return_value = mock_blob_client
+
+        versions = await azure_service.list_artifact_versions(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+        )
+
+        assert len(versions) == 1
+        assert versions[0].version == 1
+
+
+class TestAzureArtifactServiceGetArtifactVersion:
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_specific(self, azure_service):
+        mock_props = Mock()
+        mock_props.content_settings.content_type = "text/plain"
+        mock_props.last_modified.timestamp.return_value = 1000.0
+        mock_blob_client = Mock()
+        mock_blob_client.get_blob_properties.return_value = mock_props
+        azure_service.container_client.get_blob_client.return_value = mock_blob_client
+
+        result = await azure_service.get_artifact_version(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+            version=3,
+        )
+
+        assert result is not None
+        assert result.version == 3
+        assert result.mime_type == "text/plain"
+        assert result.create_time == 1000.0
+        assert "azure://" in result.canonical_uri
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_latest(self, azure_service):
+        mock_props = Mock()
+        mock_props.content_settings.content_type = "image/png"
+        mock_props.last_modified.timestamp.return_value = 2000.0
+        mock_blob_client = Mock()
+        mock_blob_client.get_blob_properties.return_value = mock_props
+        azure_service.container_client.get_blob_client.return_value = mock_blob_client
+
+        with patch.object(azure_service, "list_versions", return_value=[0, 1, 5]):
+            result = await azure_service.get_artifact_version(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+            )
+
+        assert result is not None
+        assert result.version == 5
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_no_versions(self, azure_service):
+        with patch.object(azure_service, "list_versions", return_value=[]):
+            result = await azure_service.get_artifact_version(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+            )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_not_found(self, azure_service):
+        mock_blob_client = Mock()
+        mock_blob_client.get_blob_properties.side_effect = ResourceNotFoundError("Not found")
+        azure_service.container_client.get_blob_client.return_value = mock_blob_client
+
+        result = await azure_service.get_artifact_version(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+            version=99,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_http_error(self, azure_service):
+        mock_blob_client = Mock()
+        mock_blob_client.get_blob_properties.side_effect = HttpResponseError("Server Error")
+        azure_service.container_client.get_blob_client.return_value = mock_blob_client
+
+        with pytest.raises(OSError, match="Failed to get artifact version metadata from Azure"):
+            await azure_service.get_artifact_version(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+                version=0,
+            )
