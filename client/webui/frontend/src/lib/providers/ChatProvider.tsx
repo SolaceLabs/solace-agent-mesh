@@ -1322,6 +1322,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Don't return early - let the data part flow through to the message
                                     break;
                                 }
+                                case "compaction_notification": {
+                                    // Compaction notification - keep the data part for ChatMessage to render
+                                    // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
+                                    latestStatusText.current = null;
+                                    break;
+                                }
                                 case "tool_result": {
                                     // Handle tool results that may contain RAG metadata
                                     const resultData = (data as any).result_data;
@@ -1397,10 +1403,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             const newContentParts =
                 messageToProcess?.parts?.filter(p => {
-                    // Keep deep_research_progress data parts
+                    // Keep deep_research_progress and compaction_notification data parts
                     if (p.kind === "data") {
                         const dataPart = p as DataPart;
-                        return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
+                        const dataType = dataPart.data && (dataPart.data as any).type;
+                        return dataType === "deep_research_progress" || dataType === "compaction_notification";
                     }
                     // Filter out text parts if we have deep research progress (to show progress-only)
                     if (p.kind === "text" && hasDeepResearchProgress) {
@@ -1460,7 +1467,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // For other cases, only create a new bubble if there is visible content to render.
                     // Include deep_research_progress data parts as visible content
                     const hasVisibleContent =
-                        isTaskFailed || newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress"));
+                        isTaskFailed ||
+                        newContentParts.some(
+                            p =>
+                                (p.kind === "text" && (p as TextPart).text.trim()) ||
+                                p.kind === "file" ||
+                                (p.kind === "data" && (p as DataPart).data && ((p as DataPart).data.type === "deep_research_progress" || (p as DataPart).data.type === "compaction_notification"))
+                        );
                     if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
