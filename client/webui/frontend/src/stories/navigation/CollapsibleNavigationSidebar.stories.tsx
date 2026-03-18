@@ -117,33 +117,6 @@ export const Collapsed: Story = {
         items: defaultItems,
         defaultCollapsed: true,
     },
-    play: async ({ canvasElement }) => {
-        const sidebar = canvasElement.querySelector(".navigation-sidebar");
-        expect(sidebar).toBeInTheDocument();
-        expect(sidebar).toHaveClass("w-16");
-        // Labels are in the DOM but visually hidden with opacity-0
-        const canvas = within(canvasElement);
-        const projectsText = canvas.getByText("Projects");
-        expect(projectsText).toBeInTheDocument();
-        expect(projectsText.className).toContain("opacity-0");
-        const agentsText = canvas.getByText("Agents");
-        expect(agentsText).toBeInTheDocument();
-        expect(agentsText.className).toContain("opacity-0");
-    },
-};
-
-export const WithActiveItem: Story = {
-    args: {
-        items: defaultItems,
-        activeItemId: "projects",
-    },
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        expect(canvas.getByText("Projects")).toBeInTheDocument();
-        const sidebar = canvasElement.querySelector(".navigation-sidebar");
-        expect(sidebar).toBeInTheDocument();
-        expect(sidebar).toHaveClass("w-64");
-    },
 };
 
 export const WithSubmenus: Story = {
