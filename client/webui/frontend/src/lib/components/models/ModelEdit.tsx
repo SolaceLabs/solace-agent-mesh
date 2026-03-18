@@ -240,37 +240,45 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const providers = availableProviders;
 
     // Helper function to render a single field
-    const renderField = (field: ProviderField) => (
-        <PageLabelWithValue key={field.name}>
-            <PageLabel required={field.required}>{field.label}</PageLabel>
-            <Input
-                type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
-                inputMode={field.type === "number" ? "decimal" : undefined}
-                placeholder={field.placeholder}
-                step={field.type === "number" ? field.step : undefined}
-                {...register(field.name, {
-                    required: field.required ? `${field.label} is required` : false,
-                    ...(field.type === "number" &&
-                        field.min !== undefined && {
-                            min: {
-                                value: field.min,
-                                message: `${field.label} must be at least ${field.min}`,
-                            },
-                        }),
-                    ...(field.type === "number" &&
-                        field.max !== undefined && {
-                            max: {
-                                value: field.max,
-                                message: `${field.label} must not exceed ${field.max}`,
-                            },
-                        }),
-                })}
-                aria-invalid={!!errors[field.name]}
-            />
-            {field.helpText && <div className="text-secondary-foreground text-xs">{field.helpText}</div>}
-            {errors[field.name] && <ErrorLabel>{getErrorMessage(errors[field.name])}</ErrorLabel>}
-        </PageLabelWithValue>
-    );
+    const renderField = (field: ProviderField) => {
+        // For auth fields during edit, make them optional (credentials are stored server-side)
+        // Only auth credential fields (apiKey, clientSecret) are truly optional;
+        // structural fields (clientId, tokenUrl) remain required for OAuth2 setup
+        const isAuthCredentialField = field.storageTarget === "auth" && (field.name === "apiKey" || field.name === "clientSecret");
+        const isRequiredField = field.required && (!isAuthCredentialField || isNew);
+
+        return (
+            <PageLabelWithValue key={field.name}>
+                <PageLabel required={isRequiredField}>{field.label}</PageLabel>
+                <Input
+                    type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
+                    inputMode={field.type === "number" ? "decimal" : undefined}
+                    placeholder={field.placeholder}
+                    step={field.type === "number" ? field.step : undefined}
+                    {...register(field.name, {
+                        required: isRequiredField ? `${field.label} is required` : false,
+                        ...(field.type === "number" &&
+                            field.min !== undefined && {
+                                min: {
+                                    value: field.min,
+                                    message: `${field.label} must be at least ${field.min}`,
+                                },
+                            }),
+                        ...(field.type === "number" &&
+                            field.max !== undefined && {
+                                max: {
+                                    value: field.max,
+                                    message: `${field.label} must not exceed ${field.max}`,
+                                },
+                            }),
+                    })}
+                    aria-invalid={!!errors[field.name]}
+                />
+                {field.helpText && <div className="text-secondary-foreground text-xs">{field.helpText}</div>}
+                {errors[field.name] && <ErrorLabel>{getErrorMessage(errors[field.name])}</ErrorLabel>}
+            </PageLabelWithValue>
+        );
+    };
 
     const onFormSubmit = async (data: FormData) => {
         await onSave(data);
@@ -352,7 +360,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                     onValueChange={field.onChange}
                                                     items={modelItems.map((model: { id: string; label: string }) => ({
                                                         id: model.id,
-                                                        label: model.label,
+                                                        label: model.id, // Display model ID in input field
                                                     }))}
                                                     placeholder="Select a model..."
                                                     invalid={!!errors.modelName}

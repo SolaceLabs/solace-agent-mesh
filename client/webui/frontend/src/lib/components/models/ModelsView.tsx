@@ -39,22 +39,25 @@ export const ModelsView: React.FC = () => {
             setHighlightedModelAlias(state.highlightModelAlias);
             setShowSuccessToast(true);
 
-            // Auto-hide toast after 4 seconds
+            // Clear the location state to prevent re-triggering on refresh
+            navigate(location.pathname + location.search, { replace: true });
+
+            // Auto-hide toast after 6 seconds
             const toastTimer = setTimeout(() => {
                 setShowSuccessToast(false);
-            }, 4000);
+            }, 6000);
 
-            // Auto-fade highlight after 2.5 seconds
+            // Auto-fade highlight after 4 seconds
             const highlightTimer = setTimeout(() => {
                 setHighlightedModelAlias(null);
-            }, 2500);
+            }, 4000);
 
             return () => {
                 clearTimeout(toastTimer);
                 clearTimeout(highlightTimer);
             };
         }
-    }, [location]);
+    }, [location, navigate]);
 
     // Scroll highlighted row into view
     useEffect(() => {
@@ -150,7 +153,7 @@ export const ModelsView: React.FC = () => {
                                         <TableRow
                                             key={model.id}
                                             ref={highlightedModelAlias === model.alias ? highlightedRowRef : null}
-                                            className={`transition-colors duration-500 ${highlightedModelAlias === model.alias ? "bg-yellow-100" : "hover:bg-(--secondary-w10)"}`}
+                                            className={`transition-colors duration-500 ${highlightedModelAlias === model.alias ? "bg-(--success-w10)" : "hover:bg-(--primary-w10)"}`}
                                         >
                                             <TableCell className="flex items-center gap-2 pl-4 font-semibold">
                                                 <ModelProviderIcon provider={model.provider} size="sm" />

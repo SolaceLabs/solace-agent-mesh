@@ -160,20 +160,31 @@ export const ModelEditPage = () => {
             }
 
             // Build auth config
+            // When editing, only include credential fields if they are provided (not empty)
+            // This preserves existing server-side credentials if user doesn't change them
             let authConfig: Record<string, unknown> = {};
-            if (data.authType === "apikey" && data.apiKey) {
-                authConfig = { type: "apikey", api_key: data.apiKey };
+            if (data.authType === "apikey") {
+                authConfig = { type: "apikey" };
+                if (data.apiKey) {
+                    authConfig.api_key = data.apiKey;
+                }
             } else if (data.authType === "oauth2") {
-                authConfig = {
-                    type: "oauth2",
-                    client_id: data.clientId,
-                    client_secret: data.clientSecret,
-                    token_url: data.tokenUrl,
-                    ...(data.oauthScope && { scope: data.oauthScope }),
-                    ...(data.oauthTokenRefreshBufferSeconds && {
-                        token_refresh_buffer_seconds: Number(data.oauthTokenRefreshBufferSeconds),
-                    }),
-                };
+                authConfig = { type: "oauth2" };
+                if (data.clientId) {
+                    authConfig.client_id = data.clientId;
+                }
+                if (data.clientSecret) {
+                    authConfig.client_secret = data.clientSecret;
+                }
+                if (data.tokenUrl) {
+                    authConfig.token_url = data.tokenUrl;
+                }
+                if (data.oauthScope) {
+                    authConfig.scope = data.oauthScope;
+                }
+                if (data.oauthTokenRefreshBufferSeconds) {
+                    authConfig.token_refresh_buffer_seconds = Number(data.oauthTokenRefreshBufferSeconds);
+                }
             } else {
                 authConfig = { type: "none" };
             }
