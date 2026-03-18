@@ -150,33 +150,9 @@ def downgrade() -> None:
     inspector = sa.inspect(conn)
     existing_tables = inspector.get_table_names()
 
-    # Drop in reverse dependency order
-    if "shared_link_users" in existing_tables:
-        try:
-            op.drop_index(
-                "ix_shared_link_users_user_email",
-                table_name="shared_link_users",
-            )
-        except Exception:
-            pass
-        op.drop_table("shared_link_users")
-
-    if "shared_artifacts" in existing_tables:
-        op.drop_index(
-            "idx_shared_artifacts_share_id", "shared_artifacts"
-        )
-        op.drop_table("shared_artifacts")
-
-    if "shared_links" in existing_tables:
-        try:
-            op.drop_index(
-                "uq_shared_links_session_user_active", "shared_links"
-            )
-        except Exception:
-            pass
-        op.drop_index("idx_shared_links_deleted_at", "shared_links")
-        op.drop_index("idx_shared_links_require_auth", "shared_links")
-        op.drop_index("idx_shared_links_created_time", "shared_links")
-        op.drop_index("idx_shared_links_session_id", "shared_links")
-        op.drop_index("idx_shared_links_user_id", "shared_links")
-        op.drop_table("shared_links")
+    # Drop in reverse dependency order.
+    # drop_table handles indexes/constraints automatically; no need to drop
+    # them separately (and doing so breaks MySQL when a FK backs an index).
+    for table in ("shared_link_users", "shared_artifacts", "shared_links"):
+        if table in existing_tables:
+            op.drop_table(table)
