@@ -1767,6 +1767,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             log.info(
                                 "%s Scheduler service started.", self.log_identifier
                             )
+
+                            # Register scheduler backend for built-in scheduling tools
+                            try:
+                                from ...agent.tools.scheduling_tools import register_scheduler_backend
+                                register_scheduler_backend(
+                                    scheduler_service=self.scheduler_service,
+                                    session_factory=session_factory,
+                                    namespace=self.namespace,
+                                )
+                            except Exception as reg_err:
+                                log.warning(
+                                    "%s Failed to register scheduling tools backend: %s",
+                                    self.log_identifier, reg_err,
+                                )
                         else:
                             log.info(
                                 "%s Scheduler service is disabled.", self.log_identifier
@@ -1877,6 +1891,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         # Stop scheduler service
         if self.scheduler_service:
+            # Unregister scheduling tools backend
+            try:
+                from ...agent.tools.scheduling_tools import unregister_scheduler_backend
+                unregister_scheduler_backend()
+            except Exception:
+                pass
             log.info("%s Stopping scheduler service...", self.log_identifier)
             try:
                 if self.fastapi_event_loop and self.fastapi_event_loop.is_running():
