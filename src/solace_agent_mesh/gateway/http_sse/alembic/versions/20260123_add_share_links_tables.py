@@ -75,8 +75,8 @@ def upgrade() -> None:
             "shared_links",
             ["session_id", "user_id"],
             unique=True,
-            postgresql_where="deleted_at IS NULL",
-            sqlite_where="deleted_at IS NULL",
+            postgresql_where=sa.text("deleted_at IS NULL"),
+            sqlite_where=sa.text("deleted_at IS NULL"),
         )
 
     # --- shared_artifacts ---
