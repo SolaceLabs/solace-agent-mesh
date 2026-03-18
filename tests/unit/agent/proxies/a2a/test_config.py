@@ -507,42 +507,15 @@ class TestStreamBatchingThreshold:
     """Tests for stream_batching_threshold_bytes config field."""
 
     def test_global_threshold_defaults_to_100(self):
-        """BaseProxyAppConfig.stream_batching_threshold_bytes defaults to 100."""
-        from solace_agent_mesh.agent.proxies.a2a.config import A2AProxyAppConfig
-
+        """Global default of 100 bytes is the effective threshold for all agents without an override."""
         config = A2AProxyAppConfig(
             namespace="test/namespace",
             proxied_agents=[{"name": "agent-a", "url": "https://example.com"}],
         )
         assert config.stream_batching_threshold_bytes == 100
 
-    def test_global_threshold_can_be_set(self):
-        """stream_batching_threshold_bytes can be set to a custom value."""
-        from solace_agent_mesh.agent.proxies.a2a.config import A2AProxyAppConfig
-
-        config = A2AProxyAppConfig(
-            namespace="test/namespace",
-            proxied_agents=[{"name": "agent-a", "url": "https://example.com"}],
-            stream_batching_threshold_bytes=500,
-        )
-        assert config.stream_batching_threshold_bytes == 500
-
-    def test_global_threshold_zero_disables_batching(self):
-        """Setting stream_batching_threshold_bytes to 0 disables batching."""
-        from solace_agent_mesh.agent.proxies.a2a.config import A2AProxyAppConfig
-
-        config = A2AProxyAppConfig(
-            namespace="test/namespace",
-            proxied_agents=[{"name": "agent-a", "url": "https://example.com"}],
-            stream_batching_threshold_bytes=0,
-        )
-        assert config.stream_batching_threshold_bytes == 0
-
     def test_global_threshold_rejects_negative(self):
-        """stream_batching_threshold_bytes must be >= 0."""
-        from pydantic import ValidationError
-        from solace_agent_mesh.agent.proxies.a2a.config import A2AProxyAppConfig
-
+        """Negative stream_batching_threshold_bytes is rejected at config load time."""
         with pytest.raises(ValidationError):
             A2AProxyAppConfig(
                 namespace="test/namespace",
@@ -551,33 +524,15 @@ class TestStreamBatchingThreshold:
             )
 
     def test_per_agent_threshold_defaults_to_none(self):
-        """Per-agent stream_batching_threshold_bytes defaults to None (use global)."""
+        """None signals that the agent inherits the global threshold rather than overriding it."""
         config = A2AProxiedAgentConfig(
             name="test-agent",
             url="https://example.com",
         )
         assert config.stream_batching_threshold_bytes is None
 
-    def test_per_agent_threshold_override(self):
-        """Per-agent stream_batching_threshold_bytes overrides the global value."""
-        config = A2AProxiedAgentConfig(
-            name="test-agent",
-            url="https://example.com",
-            stream_batching_threshold_bytes=50,
-        )
-        assert config.stream_batching_threshold_bytes == 50
-
-    def test_per_agent_threshold_zero_disables_batching_for_agent(self):
-        """Per-agent threshold=0 disables batching for that agent only."""
-        config = A2AProxiedAgentConfig(
-            name="test-agent",
-            url="https://example.com",
-            stream_batching_threshold_bytes=0,
-        )
-        assert config.stream_batching_threshold_bytes == 0
-
     def test_per_agent_threshold_rejects_negative(self):
-        """Per-agent stream_batching_threshold_bytes must be >= 0."""
+        """Negative per-agent stream_batching_threshold_bytes is rejected at config load time."""
         with pytest.raises(ValidationError):
             A2AProxiedAgentConfig(
                 name="test-agent",

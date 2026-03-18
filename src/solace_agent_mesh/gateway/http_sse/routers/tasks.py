@@ -924,6 +924,7 @@ async def get_task_events(
             )
 
         # Transform task events into A2AEventSSEPayload format for the frontend
+        # Need to reconstruct the SSE structure from stored data
         formatted_events = []
 
         for event in events:
@@ -1096,6 +1097,7 @@ async def get_task_events(
                 "initial_request_text": related_task.initial_request_text or "",
             }
 
+        # Return all tasks (parent + children) for the frontend to process
         return {"tasks": all_tasks}
 
     except HTTPException:
