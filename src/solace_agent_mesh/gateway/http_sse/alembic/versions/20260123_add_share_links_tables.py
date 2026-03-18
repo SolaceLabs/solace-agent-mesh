@@ -111,7 +111,7 @@ def upgrade() -> None:
     if "shared_link_users" not in existing_tables:
         op.create_table(
             "shared_link_users",
-            sa.Column("id", sa.String(), nullable=False),
+            sa.Column("id", sa.String(36), nullable=False),
             sa.Column("share_id", sa.String(21), nullable=False),
             sa.Column("user_email", sa.String(255), nullable=False),
             sa.Column(

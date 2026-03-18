@@ -36,7 +36,7 @@ class SharedLinkUserModel(Base):
 
     __tablename__ = "shared_link_users"
 
-    id = Column(String, primary_key=True)
+    id = Column(String(36), primary_key=True)
     share_id = Column(String(21), ForeignKey("shared_links.share_id", ondelete="CASCADE"), nullable=False)
     user_email = Column(String(255), nullable=False)
     access_level = Column(String(50), nullable=False, default="RESOURCE_VIEWER")
