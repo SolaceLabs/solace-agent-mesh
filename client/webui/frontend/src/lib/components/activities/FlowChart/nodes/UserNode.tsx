@@ -25,7 +25,7 @@ const UserNode: FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
             }}
         >
             <div className="flex items-center gap-2" data-testid="userNode">
-                <User className="h-4 w-4 flex-shrink-0 text-(--color-brand-wMain)" />
+                <User className="h-4 w-4 flex-shrink-0 text-(--brand-wMain)" />
                 <div className="text-sm font-semibold">{node.data.label}</div>
             </div>
         </div>

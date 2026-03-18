@@ -74,7 +74,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
 
                         <div>
                             <label htmlFor="project-name" className="font-medium">
-                                Project Name <span className="text-[var(--color-brand-wMain)]">*</span>
+                                Project Name <span className="text-(--brand-wMain)">*</span>
                             </label>
                             <Input
                                 id="project-name"
@@ -85,9 +85,9 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
                                 }}
                                 disabled={isSubmitting}
                                 maxLength={256}
-                                className={nameError ? "border-destructive" : ""}
+                                className={nameError ? "border-(--error-wMain)" : ""}
                             />
-                            {nameError && <div className="text-destructive text-xs">{nameError}</div>}
+                            {nameError && <div className="text-xs text-(--error-wMain)">{nameError}</div>}
                         </div>
 
                         <div>
@@ -101,7 +101,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
                                 disabled={isSubmitting}
                                 rows={3}
                                 maxLength={MAX_DESCRIPTION_LENGTH + 1}
-                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
+                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-(--error-wMain)" : ""}`}
                             />
                             <FieldFooter hasError={isDescriptionOverLimit} message={`${description.length} / ${MAX_DESCRIPTION_LENGTH}`} error={`Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`} />
                         </div>

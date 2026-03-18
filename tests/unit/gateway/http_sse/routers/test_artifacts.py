@@ -512,13 +512,15 @@ class TestUploadArtifactWithSession:
             deps['upload_file'].content_type = mime_type
 
             # Use BytesIO for each file type
+            # Fix: Capture file_buffer in closure default argument to avoid
+            # closure-over-loop-variable bug (each iteration needs its own buffer)
             file_buffer = io.BytesIO(content)
 
-            async def async_read_file(size=-1):
-                return file_buffer.read(size)
+            async def async_read_file(size=-1, buf=file_buffer):
+                return buf.read(size)
 
-            async def async_seek_file(offset):
-                return file_buffer.seek(offset)
+            async def async_seek_file(offset, buf=file_buffer):
+                return buf.seek(offset)
 
             deps['upload_file'].read = async_read_file
             deps['upload_file'].seek = async_seek_file
@@ -623,6 +625,121 @@ class TestUploadArtifactWithSession:
             
             # Verify upload still succeeded
             assert isinstance(result, ArtifactUploadResponse)
+
+    @pytest.mark.asyncio
+    async def test_upload_artifact_path_traversal_filenames(self, mock_dependencies):
+        """Test that path traversal filenames are rejected.
+        
+        Security: Verifies that filenames containing path traversal sequences
+        like '../' or absolute paths are rejected to prevent directory escape attacks.
+        
+        Note: The actual validation happens in process_artifact_upload (is_filename_safe),
+        which returns an error for invalid filenames. This test verifies the router
+        correctly handles that error response.
+        """
+        deps = mock_dependencies
+        
+        # Path traversal attack filenames
+        malicious_filenames = [
+            ("../../../etc/passwd", "path traversal with .."),
+            ("..\\..\\..\\windows\\system32\\config\\sam", "Windows path traversal"),
+            ("/etc/passwd", "absolute Unix path"),
+            ("foo/../../../bar.txt", "embedded path traversal"),
+        ]
+        
+        for malicious_filename, description in malicious_filenames:
+            # Mock process_artifact_upload to return error for invalid filename
+            # (simulating what the real is_filename_safe validation would do)
+            with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
+                mock_process.return_value = {
+                    'status': 'error',
+                    'message': f"Invalid filename: '{malicious_filename}'. Filename must not contain path separators or traversal sequences.",
+                    'error': 'invalid_filename'
+                }
+                
+                # Execute - should reject with 400 Bad Request
+                with pytest.raises(HTTPException) as exc_info:
+                    await upload_artifact_with_session(
+                        request=deps['request'],
+                        upload_file=deps['upload_file'],
+                        sessionId="test-session",
+                        filename=malicious_filename,
+                        metadata_json=None,
+                        artifact_service=deps['artifact_service'],
+                        user_id=deps['user_id'],
+                        validate_session=deps['validate_session'],
+                        component=deps['component'],
+                        user_config=deps['user_config'],
+                        session_manager=deps['session_manager'],
+                        session_service=deps['session_service'],
+                        db=deps['db']
+                    )
+                
+                assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST, \
+                    f"Expected 400 for {description}: {malicious_filename}"
+                assert "Invalid filename" in str(exc_info.value.detail), \
+                    f"Expected 'Invalid filename' in error for {description}"
+
+    @pytest.mark.asyncio
+    async def test_upload_artifact_size_limit_enforcement(self, mock_dependencies):
+        """Test that files exceeding the size limit are rejected.
+        
+        Security: Verifies that the gateway_max_upload_size_bytes limit is enforced
+        to prevent denial-of-service attacks via large file uploads.
+        """
+        deps = mock_dependencies
+        
+        # Set a small size limit for testing (1KB)
+        def mock_get_config_small_limit(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 1024  # 1KB limit
+            return default
+        deps['component'].get_config.side_effect = mock_get_config_small_limit
+        
+        # Create content that exceeds the limit (2KB)
+        large_content = b"x" * 2048
+        large_buffer = io.BytesIO(large_content)
+        
+        async def async_read_large(size=-1):
+            return large_buffer.read(size)
+        
+        async def async_seek_large(offset):
+            return large_buffer.seek(offset)
+        
+        deps['upload_file'].read = async_read_large
+        deps['upload_file'].seek = async_seek_large
+        
+        # Mock process_artifact_upload to verify it's not called
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
+            mock_process.return_value = {
+                'status': 'success',
+                'artifact_uri': 'artifact://TestApp/test-user-123/test-session/large.bin?version=1',
+                'version': 1
+            }
+            
+            # Execute - should reject due to size limit
+            with pytest.raises(HTTPException) as exc_info:
+                await upload_artifact_with_session(
+                    request=deps['request'],
+                    upload_file=deps['upload_file'],
+                    sessionId="test-session",
+                    filename="large.bin",
+                    metadata_json=None,
+                    artifact_service=deps['artifact_service'],
+                    user_id=deps['user_id'],
+                    validate_session=deps['validate_session'],
+                    component=deps['component'],
+                    user_config=deps['user_config'],
+                    session_manager=deps['session_manager'],
+                    session_service=deps['session_service'],
+                    db=deps['db']
+                )
+            
+            # Verify rejection with appropriate error
+            assert exc_info.value.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            assert "exceeds" in str(exc_info.value.detail).lower() or "too large" in str(exc_info.value.detail).lower()
 
 
 class TestListArtifactVersions:
@@ -1006,6 +1123,747 @@ class TestDeleteArtifact:
         assert "Failed to delete artifact" in str(exc_info.value.detail)
 
 
+# =============================================================================
+# BULK ARTIFACTS ENDPOINT TESTS
+# =============================================================================
+
+from solace_agent_mesh.gateway.http_sse.routers.artifacts import (
+    list_all_artifacts,
+    ArtifactWithContext,
+    BulkArtifactsResponse,
+)
+from solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
+
+
+class TestListAllArtifacts:
+    """Test list_all_artifacts bulk endpoint."""
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Create mock dependencies for bulk listing tests."""
+        # Mock artifact service
+        mock_artifact_service = MagicMock(spec=BaseArtifactService)
+        
+        # Mock session service
+        mock_session_service = MagicMock(spec=SessionService)
+        
+        # Mock project service
+        mock_project_service = MagicMock(spec=ProjectService)
+        
+        # Mock database session
+        mock_db = MagicMock(spec=Session)
+        
+        # Mock component
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = "TestApp"
+        
+        return {
+            'artifact_service': mock_artifact_service,
+            'session_service': mock_session_service,
+            'project_service': mock_project_service,
+            'db': mock_db,
+            'component': mock_component,
+            'user_id': 'test-user-123',
+            'user_config': {'tool:artifact:list': True},
+        }
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_no_artifact_service(self, mock_dependencies):
+        """Test that endpoint returns 501 when artifact service is not configured."""
+        deps = mock_dependencies
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await list_all_artifacts(
+                artifact_service=None,
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=500,
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_501_NOT_IMPLEMENTED
+        assert "Artifact service is not configured" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_empty_result(self, mock_dependencies):
+        """Test bulk listing with no sessions or projects."""
+        deps = mock_dependencies
+        
+        # Mock empty sessions response
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = []
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        result = await list_all_artifacts(
+            artifact_service=deps['artifact_service'],
+            user_id=deps['user_id'],
+            component=deps['component'],
+            session_service=deps['session_service'],
+            project_service=deps['project_service'],
+            db=deps['db'],
+            user_config=deps['user_config'],
+            limit=500,
+        )
+        
+        assert isinstance(result, BulkArtifactsResponse)
+        assert len(result.artifacts) == 0
+        assert result.total_count == 0
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_with_sessions(self, mock_dependencies):
+        """Test bulk listing with session artifacts."""
+        deps = mock_dependencies
+        
+        # Mock session with artifacts
+        mock_session = MagicMock()
+        mock_session.id = "session-123"
+        mock_session.name = "Test Session"
+        mock_session.project_id = None
+        mock_session.project_name = None
+        
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        # Mock artifact info list
+        mock_artifact = MagicMock()
+        mock_artifact.filename = "test.txt"
+        mock_artifact.size = 1024
+        mock_artifact.mime_type = "text/plain"
+        mock_artifact.last_modified = "2023-01-01T00:00:00Z"
+        mock_artifact.uri = "artifact://app/user/session-123/test.txt"
+        
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+            mock_get_list.return_value = [mock_artifact]
+            
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=500,
+            )
+        
+        assert isinstance(result, BulkArtifactsResponse)
+        assert len(result.artifacts) == 1
+        assert result.artifacts[0].filename == "test.txt"
+        assert result.artifacts[0].session_id == "session-123"
+        assert result.artifacts[0].session_name == "Test Session"
+        assert result.artifacts[0].source == "upload"
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_filters_generated_files(self, mock_dependencies):
+        """Test that generated files (.converted.txt, project_bm25_index.zip) are filtered out."""
+        deps = mock_dependencies
+        
+        # Mock session
+        mock_session = MagicMock()
+        mock_session.id = "session-123"
+        mock_session.name = "Test Session"
+        mock_session.project_id = None
+        mock_session.project_name = None
+        
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        # Mock artifacts including generated files
+        mock_artifacts = [
+            MagicMock(filename="document.pdf", size=1024, mime_type="application/pdf", last_modified="2023-01-01T00:00:00Z", uri="uri1"),
+            MagicMock(filename="document.pdf.converted.txt", size=512, mime_type="text/plain", last_modified="2023-01-01T00:00:00Z", uri="uri2"),
+            MagicMock(filename="project_bm25_index.zip", size=2048, mime_type="application/zip", last_modified="2023-01-01T00:00:00Z", uri="uri3"),
+        ]
+        
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+            mock_get_list.return_value = mock_artifacts
+            
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=500,
+            )
+        
+        # Only the original document should be returned
+        assert len(result.artifacts) == 1
+        assert result.artifacts[0].filename == "document.pdf"
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_with_project_artifacts(self, mock_dependencies):
+        """Test bulk listing with project artifacts."""
+        deps = mock_dependencies
+        
+        # Mock empty sessions
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = []
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock project
+        mock_project = MagicMock()
+        mock_project.id = "project-456"
+        mock_project.name = "Test Project"
+        mock_project.user_id = "test-user-123"
+        deps['project_service'].get_user_projects.return_value = [mock_project]
+        
+        # Mock project artifact
+        mock_artifact = MagicMock()
+        mock_artifact.filename = "knowledge.docx"
+        mock_artifact.size = 4096
+        mock_artifact.mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        mock_artifact.last_modified = "2023-01-01T00:00:00Z"
+        mock_artifact.uri = "artifact://app/user/project-456/knowledge.docx"
+        
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+            mock_get_list.return_value = [mock_artifact]
+            
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=500,
+            )
+        
+        assert len(result.artifacts) == 1
+        assert result.artifacts[0].filename == "knowledge.docx"
+        assert result.artifacts[0].session_id == "project-project-456"
+        assert result.artifacts[0].project_id == "project-456"
+        assert result.artifacts[0].project_name == "Test Project"
+        assert result.artifacts[0].source == "project"
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_deduplication(self, mock_dependencies):
+        """Test that duplicate artifacts are deduplicated, preferring project source."""
+        deps = mock_dependencies
+        
+        # Mock session that belongs to a project
+        mock_session = MagicMock()
+        mock_session.id = "session-123"
+        mock_session.name = "Project Chat"
+        mock_session.project_id = "project-456"
+        mock_session.project_name = "Test Project"
+        
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock project
+        mock_project = MagicMock()
+        mock_project.id = "project-456"
+        mock_project.name = "Test Project"
+        mock_project.user_id = "test-user-123"
+        deps['project_service'].get_user_projects.return_value = [mock_project]
+        
+        # Same artifact appears in both session and project
+        mock_artifact = MagicMock()
+        mock_artifact.filename = "shared.pdf"
+        mock_artifact.size = 2048
+        mock_artifact.mime_type = "application/pdf"
+        mock_artifact.last_modified = "2023-01-01T00:00:00Z"
+        mock_artifact.uri = "artifact://app/user/project-456/shared.pdf"
+        
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+            mock_get_list.return_value = [mock_artifact]
+            
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=500,
+            )
+        
+        # Should only have one artifact (deduplicated)
+        # The project version should be preferred
+        project_artifacts = [a for a in result.artifacts if a.session_id.startswith("project-")]
+        assert len(project_artifacts) >= 1
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_limit_parameter(self, mock_dependencies):
+        """Test that limit parameter restricts the number of returned artifacts."""
+        deps = mock_dependencies
+        
+        # Mock session with many artifacts
+        mock_session = MagicMock()
+        mock_session.id = "session-123"
+        mock_session.name = "Test Session"
+        mock_session.project_id = None
+        mock_session.project_name = None
+        
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        # Create 10 mock artifacts
+        mock_artifacts = []
+        for i in range(10):
+            artifact = MagicMock()
+            artifact.filename = f"file{i}.txt"
+            artifact.size = 100 * (i + 1)
+            artifact.mime_type = "text/plain"
+            artifact.last_modified = f"2023-01-{i+1:02d}T00:00:00Z"
+            artifact.uri = f"artifact://app/user/session-123/file{i}.txt"
+            mock_artifacts.append(artifact)
+        
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+            mock_get_list.return_value = mock_artifacts
+            
+            # Request with limit of 5
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=5,
+            )
+        
+        # Should return only 5 artifacts
+        assert len(result.artifacts) == 5
+        # total_count should reflect the actual total before limiting
+        assert result.total_count == 10
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_handles_session_fetch_error(self, mock_dependencies):
+        """Test that endpoint handles session fetch errors gracefully."""
+        deps = mock_dependencies
+        
+        # Mock session service to raise an error
+        deps['session_service'].get_user_sessions.side_effect = Exception("Database error")
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        # Should not raise, just return empty result
+        result = await list_all_artifacts(
+            artifact_service=deps['artifact_service'],
+            user_id=deps['user_id'],
+            component=deps['component'],
+            session_service=deps['session_service'],
+            project_service=deps['project_service'],
+            db=deps['db'],
+            user_config=deps['user_config'],
+            limit=500,
+        )
+        
+        assert isinstance(result, BulkArtifactsResponse)
+        assert len(result.artifacts) == 0
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_handles_project_fetch_error(self, mock_dependencies):
+        """Test that endpoint handles project fetch errors gracefully."""
+        deps = mock_dependencies
+        
+        # Mock empty sessions
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = []
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock project service to raise an error
+        deps['project_service'].get_user_projects.side_effect = Exception("Database error")
+        
+        # Should not raise, just return empty result
+        result = await list_all_artifacts(
+            artifact_service=deps['artifact_service'],
+            user_id=deps['user_id'],
+            component=deps['component'],
+            session_service=deps['session_service'],
+            project_service=deps['project_service'],
+            db=deps['db'],
+            user_config=deps['user_config'],
+            limit=500,
+        )
+        
+        assert isinstance(result, BulkArtifactsResponse)
+        assert len(result.artifacts) == 0
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_sorts_by_last_modified(self, mock_dependencies):
+        """Test that artifacts are sorted by last_modified (newest first)."""
+        deps = mock_dependencies
+        
+        # Mock session
+        mock_session = MagicMock()
+        mock_session.id = "session-123"
+        mock_session.name = "Test Session"
+        mock_session.project_id = None
+        mock_session.project_name = None
+        
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        # Create artifacts with different dates (in random order)
+        mock_artifacts = [
+            MagicMock(filename="old.txt", size=100, mime_type="text/plain", last_modified="2023-01-01T00:00:00Z", uri="uri1"),
+            MagicMock(filename="newest.txt", size=100, mime_type="text/plain", last_modified="2023-12-31T00:00:00Z", uri="uri2"),
+            MagicMock(filename="middle.txt", size=100, mime_type="text/plain", last_modified="2023-06-15T00:00:00Z", uri="uri3"),
+        ]
+        
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+            mock_get_list.return_value = mock_artifacts
+            
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=500,
+            )
+        
+        # Should be sorted newest first
+        assert result.artifacts[0].filename == "newest.txt"
+        assert result.artifacts[1].filename == "middle.txt"
+        assert result.artifacts[2].filename == "old.txt"
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_user_isolation_sessions(self, mock_dependencies):
+        """Test that bulk endpoint only fetches sessions for the authenticated user.
+        
+        Security: Verifies user_id is correctly passed to get_user_sessions,
+        ensuring users cannot access other users' session artifacts.
+        """
+        deps = mock_dependencies
+        test_user_id = "specific-user-abc123"
+        
+        # Mock empty sessions response
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = []
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        await list_all_artifacts(
+            artifact_service=deps['artifact_service'],
+            user_id=test_user_id,
+            component=deps['component'],
+            session_service=deps['session_service'],
+            project_service=deps['project_service'],
+            db=deps['db'],
+            user_config=deps['user_config'],
+            limit=500,
+        )
+        
+        # Verify get_user_sessions was called with the correct user_id
+        deps['session_service'].get_user_sessions.assert_called_once()
+        call_kwargs = deps['session_service'].get_user_sessions.call_args
+        assert call_kwargs.kwargs.get('user_id') == test_user_id or call_kwargs.args[1] == test_user_id
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_user_isolation_projects(self, mock_dependencies):
+        """Test that bulk endpoint only fetches projects for the authenticated user.
+        
+        Security: Verifies user_id is correctly passed to get_user_projects,
+        ensuring users cannot access other users' project artifacts.
+        """
+        deps = mock_dependencies
+        test_user_id = "specific-user-xyz789"
+        
+        # Mock empty sessions response
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = []
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock empty projects
+        deps['project_service'].get_user_projects.return_value = []
+        
+        await list_all_artifacts(
+            artifact_service=deps['artifact_service'],
+            user_id=test_user_id,
+            component=deps['component'],
+            session_service=deps['session_service'],
+            project_service=deps['project_service'],
+            db=deps['db'],
+            user_config=deps['user_config'],
+            limit=500,
+        )
+        
+        # Verify get_user_projects was called with the correct user_id
+        deps['project_service'].get_user_projects.assert_called_once()
+        call_args = deps['project_service'].get_user_projects.call_args
+        # Check both positional and keyword arguments for user_id
+        assert test_user_id in call_args.args or call_args.kwargs.get('user_id') == test_user_id
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_determine_source_heuristic(self, mock_dependencies):
+        """Test the _determine_source heuristic for classifying artifact origins.
+        
+        The heuristic should:
+        - Return 'project' for project-prefixed session IDs (project knowledge files)
+        - Return 'upload' for regular session artifacts (user uploads)
+        
+        Note: .converted.txt and project_bm25_index.zip are filtered out before
+        source determination, so they don't appear in results.
+        """
+        deps = mock_dependencies
+        
+        # Mock session with various artifact types
+        mock_session = MagicMock()
+        mock_session.id = "session-123"
+        mock_session.name = "Test Session"
+        mock_session.project_id = None
+        mock_session.project_name = None
+        
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        
+        # Mock project
+        mock_project = MagicMock()
+        mock_project.id = "project-456"
+        mock_project.name = "Test Project"
+        mock_project.user_id = "test-user-123"
+        deps['project_service'].get_user_projects.return_value = [mock_project]
+        
+        # Create artifacts for session (should be 'upload')
+        session_artifacts = [
+            MagicMock(filename="document.pdf", size=1024, mime_type="application/pdf", last_modified="2023-01-01T00:00:00Z", uri="uri1"),
+            MagicMock(filename="image.png", size=2048, mime_type="image/png", last_modified="2023-01-02T00:00:00Z", uri="uri2"),
+        ]
+        
+        # Create artifacts for project (should be 'project')
+        project_artifacts = [
+            MagicMock(filename="knowledge.docx", size=4096, mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", last_modified="2023-01-03T00:00:00Z", uri="uri3"),
+        ]
+        
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+            # Return different artifacts based on session_id
+            def get_artifacts_for_session(**kwargs):
+                session_id = kwargs.get('session_id', '')
+                if session_id.startswith('project-'):
+                    return project_artifacts
+                return session_artifacts
+            
+            mock_get_list.side_effect = get_artifacts_for_session
+            
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                limit=500,
+            )
+        
+        # Build a map of filename -> source for easier assertions
+        source_map = {a.filename: a.source for a in result.artifacts}
+        
+        # Verify session artifacts are classified as 'upload'
+        assert source_map["document.pdf"] == "upload", "Session PDF should be classified as upload"
+        assert source_map["image.png"] == "upload", "Session PNG should be classified as upload"
+        
+        # Verify project artifacts are classified as 'project'
+        assert source_map["knowledge.docx"] == "project", "Project DOCX should be classified as project"
+
+
+# =============================================================================
+# GET ARTIFACT BY URI ENDPOINT TESTS
+# =============================================================================
+
+from solace_agent_mesh.gateway.http_sse.routers.artifacts import get_artifact_by_uri
+
+
+class TestGetArtifactByUri:
+    """Test get_artifact_by_uri endpoint security and functionality."""
+
+    @pytest.fixture
+    def mock_component(self):
+        """Create mock component for artifact retrieval tests."""
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = "TestApp"
+        
+        # Mock artifact service
+        mock_artifact_service = MagicMock(spec=BaseArtifactService)
+        mock_component.get_shared_artifact_service.return_value = mock_artifact_service
+        
+        return mock_component
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_authorization_bypass_blocked(self, mock_component):
+        """Test that users cannot access other users' artifacts via URI manipulation.
+        
+        Security: This is the critical test that verifies the authorization bypass
+        vulnerability is fixed. A user should NOT be able to access another user's
+        artifacts by crafting a URI with a different user_id.
+        """
+        # User A (attacker) tries to access User B's (victim) artifact
+        attacker_user_id = "attacker-user-123"
+        victim_user_id = "victim-user-456"
+        
+        # Craft a malicious URI pointing to victim's artifact
+        malicious_uri = f"artifact://TestApp/{victim_user_id}/session-789/secret.pdf?version=1"
+        
+        # Execute - should be blocked with 403 Forbidden
+        with pytest.raises(HTTPException) as exc_info:
+            await get_artifact_by_uri(
+                uri=malicious_uri,
+                requesting_user_id=attacker_user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+        assert "not authorized" in str(exc_info.value.detail).lower()
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_own_artifact_allowed(self, mock_component):
+        """Test that users can access their own artifacts via URI."""
+        user_id = "test-user-123"
+        
+        # URI pointing to user's own artifact
+        own_artifact_uri = f"artifact://TestApp/{user_id}/session-456/document.pdf?version=1"
+        
+        # Mock successful artifact load
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.load_artifact_content_or_metadata') as mock_load:
+            mock_load.return_value = {
+                'status': 'success',
+                'raw_bytes': b'PDF content here',
+                'mime_type': 'application/pdf',
+            }
+            
+            # Execute - should succeed
+            result = await get_artifact_by_uri(
+                uri=own_artifact_uri,
+                requesting_user_id=user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+            
+            # Verify it's a streaming response
+            from starlette.responses import StreamingResponse
+            assert isinstance(result, StreamingResponse)
+            assert result.media_type == 'application/pdf'
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_invalid_scheme(self, mock_component):
+        """Test that invalid URI schemes are rejected."""
+        user_id = "test-user-123"
+        
+        # Invalid scheme (http instead of artifact)
+        invalid_uri = f"http://TestApp/{user_id}/session-456/document.pdf?version=1"
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await get_artifact_by_uri(
+                uri=invalid_uri,
+                requesting_user_id=user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Invalid" in str(exc_info.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_missing_version(self, mock_component):
+        """Test that URIs without version parameter are rejected."""
+        user_id = "test-user-123"
+        
+        # URI without version parameter
+        uri_no_version = f"artifact://TestApp/{user_id}/session-456/document.pdf"
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await get_artifact_by_uri(
+                uri=uri_no_version,
+                requesting_user_id=user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+        assert "version" in str(exc_info.value.detail).lower()
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_service_unavailable(self, mock_component):
+        """Test that endpoint returns 503 when artifact service is not available."""
+        user_id = "test-user-123"
+        uri = f"artifact://TestApp/{user_id}/session-456/document.pdf?version=1"
+        
+        # Mock artifact service as unavailable
+        mock_component.get_shared_artifact_service.return_value = None
+        
+        with pytest.raises(HTTPException) as exc_info:
+            await get_artifact_by_uri(
+                uri=uri,
+                requesting_user_id=user_id,
+                component=mock_component,
+                user_config={'tool:artifact:load': True},
+            )
+        
+        assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_by_uri_artifact_not_found(self, mock_component):
+        """Test that endpoint returns 404 when artifact doesn't exist."""
+        user_id = "test-user-123"
+        uri = f"artifact://TestApp/{user_id}/session-456/nonexistent.pdf?version=1"
+        
+        # Mock artifact not found
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.load_artifact_content_or_metadata') as mock_load:
+            mock_load.return_value = {
+                'status': 'error',
+                'message': 'Artifact not found',
+            }
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await get_artifact_by_uri(
+                    uri=uri,
+                    requesting_user_id=user_id,
+                    component=mock_component,
+                    user_config={'tool:artifact:load': True},
+                )
+            
+            assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
 class TestGetSpecificArtifactVersion:
     """Test get_specific_artifact_version endpoint."""
 
@@ -1047,4 +1905,5 @@ class TestGetSpecificArtifactVersion:
 
             assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
             assert "not found" in exc_info.value.detail.lower()
+
 

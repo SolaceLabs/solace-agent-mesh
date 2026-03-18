@@ -494,6 +494,10 @@ async def _perform_search(
     """
     log_prefix = f"[IndexSearch:search:turn={search_turn}]"
 
+    # Defensive type coercion - ensure numeric types
+    top_k = int(top_k)
+    min_score = float(min_score)
+
     # 1. Tokenize query
     log.debug(f"{log_prefix} Tokenizing query: {query}")
     query_tokens = bm25s.tokenize([query])
@@ -682,6 +686,19 @@ async def index_search(
         Dict with status, results, rag_metadata, formatted_results, etc.
     """
     log_identifier = "[index_search]"
+
+    # Coerce parameters to correct types - LLMs may pass strings instead of numbers
+    try:
+        top_k = int(top_k)
+    except (TypeError, ValueError):
+        top_k = 5
+    try:
+        min_score = float(min_score)
+    except (TypeError, ValueError):
+        min_score = 0.0
+
+    # Clamp top_k to valid range
+    top_k = max(1, min(top_k, 10))
 
     try:
         # Get session context

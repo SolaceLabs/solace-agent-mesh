@@ -211,18 +211,18 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                             {/* STT Configuration Warning - Only show for External API */}
                             {settings.sttProvider !== "browser" && sttConfigured === false && (
-                                <div className="rounded-md border border-[var(--color-warning-w40)] bg-[var(--color-warning-w20)] p-3 dark:border-[var(--color-warning-w80)] dark:bg-[var(--color-warning-w95)]">
+                                <div className="rounded-md border border-(--warning-w40) bg-(--warning-w20) p-3">
                                     <div className="flex gap-2">
-                                        <AlertCircle className="mt-0.5 size-5 flex-shrink-0 text-[var(--color-warning-wMain)]" />
+                                        <AlertCircle className="mt-0.5 size-5 flex-shrink-0 text-(--warning-wMain)" />
                                         <div className="flex-1 text-sm">
-                                            <p className="mb-1 font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)]">External STT Not Configured</p>
-                                            <p className="mb-2 text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)]">
-                                                To use External API mode, add configuration to your <code className="rounded bg-[var(--color-warning-w30)] px-1 py-0.5 text-xs dark:bg-[var(--color-warning-w90)]">webui.yaml</code>:
+                                            <p className="mb-1 font-semibold text-(--warning-w80)">External STT Not Configured</p>
+                                            <p className="mb-2 text-(--warning-w70)">
+                                                To use External API mode, add configuration to your <code className="rounded bg-(--warning-w30) px-1 py-0.5 text-xs">webui.yaml</code>:
                                             </p>
                                             <div className="space-y-2">
                                                 <div>
-                                                    <p className="mb-1 text-xs font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)]">OpenAI Whisper:</p>
-                                                    <pre className="overflow-x-auto rounded bg-[var(--color-warning-w30)] p-2 text-xs dark:bg-[var(--color-warning-w90)]">
+                                                    <p className="mb-1 text-xs font-semibold text-(--warning-w80)">OpenAI Whisper:</p>
+                                                    <pre className="overflow-x-auto rounded bg-(--warning-w30) p-2 text-xs">
                                                         {`speech:
   stt:
     provider: openai
@@ -233,8 +233,8 @@ export const SpeechSettingsPanel: React.FC = () => {
                                                     </pre>
                                                 </div>
                                                 <div>
-                                                    <p className="mb-1 text-xs font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)]">Azure Speech:</p>
-                                                    <pre className="overflow-x-auto rounded bg-[var(--color-warning-w30)] p-2 text-xs dark:bg-[var(--color-warning-w90)]">
+                                                    <p className="mb-1 text-xs font-semibold text-(--warning-w80)">Azure Speech:</p>
+                                                    <pre className="overflow-x-auto rounded bg-(--warning-w30) p-2 text-xs">
                                                         {`speech:
   stt:
     provider: azure
@@ -245,7 +245,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                                                     </pre>
                                                 </div>
                                             </div>
-                                            <p className="mt-2 text-xs text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)]">Or use Browser mode (free, no setup required).</p>
+                                            <p className="mt-2 text-xs text-(--warning-w70)">Or use Browser mode (free, no setup required).</p>
                                         </div>
                                     </div>
                                 </div>
@@ -315,22 +315,22 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                             {/* TTS Configuration Warning - Only show for External API */}
                             {settings.ttsProvider !== "browser" && ttsConfigured === false && (
-                                <div className="rounded-md border border-[var(--color-warning-w40)] bg-[var(--color-warning-w20)] p-3 dark:border-[var(--color-warning-w80)] dark:bg-[var(--color-warning-w95)]">
+                                <div className="rounded-md border border-(--warning-w40) bg-(--warning-w20) p-3">
                                     <div className="flex gap-2">
-                                        <AlertCircle className="mt-0.5 size-5 flex-shrink-0 text-[var(--color-warning-wMain)]" />
+                                        <AlertCircle className="mt-0.5 size-5 flex-shrink-0 text-(--warning-wMain)" />
                                         <div className="flex-1 text-sm">
-                                            <p className="mb-1 font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)]">External TTS Not Configured</p>
-                                            <p className="mb-2 text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)]">
-                                                To use External API mode, configure TTS in your <code className="rounded bg-[var(--color-warning-w30)] px-1 py-0.5 text-xs dark:bg-[var(--color-warning-w90)]">webui.yaml</code>. Example for Gemini:
+                                            <p className="mb-1 font-semibold text-(--warning-w80)">External TTS Not Configured</p>
+                                            <p className="mb-2 text-(--warning-w70)">
+                                                To use External API mode, configure TTS in your <code className="rounded bg-(--warning-w30) px-1 py-0.5 text-xs">webui.yaml</code>. Example for Gemini:
                                             </p>
-                                            <pre className="overflow-x-auto rounded bg-[var(--color-warning-w30)] p-2 text-xs dark:bg-[var(--color-warning-w90)]">
+                                            <pre className="overflow-x-auto rounded bg-(--warning-w30) p-2 text-xs">
                                                 {`speech:
   tts:
     provider: gemini
     api_key: \${GEMINI_API_KEY}
     model: gemini-2.0-flash-exp`}
                                             </pre>
-                                            <p className="mt-2 text-xs text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)]">Or use Browser mode (free, no setup required).</p>
+                                            <p className="mt-2 text-xs text-(--warning-w70)">Or use Browser mode (free, no setup required).</p>
                                         </div>
                                     </div>
                                 </div>
@@ -338,15 +338,15 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                             {/* TTS Configuration Warning for Polly - Only show for External API */}
                             {settings.ttsProvider === "polly" && ttsConfigured === false && (
-                                <div className="rounded-md border border-[var(--color-warning-w40)] bg-[var(--color-warning-w20)] p-3 dark:border-[var(--color-warning-w80)] dark:bg-[var(--color-warning-w95)]">
+                                <div className="rounded-md border border-(--warning-w40) bg-(--warning-w20) p-3">
                                     <div className="flex gap-2">
-                                        <AlertCircle className="mt-0.5 size-5 flex-shrink-0 text-[var(--color-warning-wMain)]" />
+                                        <AlertCircle className="mt-0.5 size-5 flex-shrink-0 text-(--warning-wMain)" />
                                         <div className="flex-1 text-sm">
-                                            <p className="mb-1 font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)]">External TTS Not Configured</p>
-                                            <p className="mb-2 text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)]">
-                                                To use AWS Polly, configure TTS in your <code className="rounded bg-[var(--color-warning-w30)] px-1 py-0.5 text-xs dark:bg-[var(--color-warning-w90)]">webui.yaml</code>:
+                                            <p className="mb-1 font-semibold text-(--warning-w80)">External TTS Not Configured</p>
+                                            <p className="mb-2 text-(--warning-w70)">
+                                                To use AWS Polly, configure TTS in your <code className="rounded bg-(--warning-w30) px-1 py-0.5 text-xs">webui.yaml</code>:
                                             </p>
-                                            <pre className="overflow-x-auto rounded bg-[var(--color-warning-w30)] p-2 text-xs dark:bg-[var(--color-warning-w90)]">
+                                            <pre className="overflow-x-auto rounded bg-(--warning-w30) p-2 text-xs">
                                                 {`speech:
   tts:
     provider: polly
@@ -357,7 +357,7 @@ export const SpeechSettingsPanel: React.FC = () => {
       engine: neural  # or 'standard'
       default_voice: Joanna`}
                                             </pre>
-                                            <p className="mt-2 text-xs text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)]">Or use Browser mode (free, no setup required).</p>
+                                            <p className="mt-2 text-xs text-(--warning-w70)">Or use Browser mode (free, no setup required).</p>
                                         </div>
                                     </div>
                                 </div>
@@ -388,7 +388,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                                                                 <>
                                                                     {hdVoices.length > 0 && (
                                                                         <>
-                                                                            <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold">HD Voices (Premium)</div>
+                                                                            <div className="px-2 py-1.5 text-xs font-semibold text-(--secondary-text-wMain)">HD Voices (Premium)</div>
                                                                             {hdVoices.map(voice => {
                                                                                 // Format: "en-US-AvaMultilingualNeural:DragonHDLatestNeural" -> "Ava"
                                                                                 const parts = voice.split("-");
@@ -404,7 +404,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                                                                     )}
                                                                     {normalVoices.length > 0 && (
                                                                         <>
-                                                                            <div className="text-muted-foreground mt-1 border-t px-2 py-1.5 pt-2 text-xs font-semibold">Standard Voices</div>
+                                                                            <div className="mt-1 border-t px-2 py-1.5 pt-2 text-xs font-semibold text-(--secondary-text-wMain)">Standard Voices</div>
                                                                             {normalVoices.map(voice => {
                                                                                 // Format: "en-US-AvaMultilingualNeural" -> "Ava"
                                                                                 const parts = voice.split("-");

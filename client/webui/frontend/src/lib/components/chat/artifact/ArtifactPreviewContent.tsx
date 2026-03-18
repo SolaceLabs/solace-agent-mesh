@@ -13,7 +13,7 @@ import { ArtifactPreviewDownload } from "./ArtifactPreviewDownload";
 import { ArtifactTransitionOverlay } from "./ArtifactTransitionOverlay";
 
 const EmptyState: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
-    return <div className="text-muted-foreground flex h-[50vh] items-center justify-center">{children || "No preview available"}</div>;
+    return <div className="flex h-[50vh] items-center justify-center text-(--secondary-text-wMain)">{children || "No preview available"}</div>;
 };
 
 export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ artifact }) => {
@@ -161,7 +161,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     if (isLoading) {
         return (
             <EmptyState>
-                <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+                <Loader2 className="h-6 w-6 animate-spin text-(--secondary-text-wMain)" />
             </EmptyState>
         );
     }

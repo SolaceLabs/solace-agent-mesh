@@ -39,7 +39,7 @@ export const DefaultAgentSection = ({ project, onSave, isSaving, isDisabled = fa
         <>
             <div className="mb-6">
                 <div className="mb-3 flex items-center justify-between px-4">
-                    <h3 className="text-foreground text-sm font-semibold">Default Agent</h3>
+                    <h3 className="text-sm font-semibold text-(--primary-text-wMain)">Default Agent</h3>
                     {isOwner && (
                         <Button variant="ghost" testid="editDefaultAgent" size="sm" onClick={() => setIsEditing(true)} disabled={agentsLoading || isDisabled} className="h-8 w-8 p-0" tooltip="Edit">
                             <Pencil className="h-4 w-4" />
@@ -53,7 +53,7 @@ export const DefaultAgentSection = ({ project, onSave, isSaving, isDisabled = fa
                 )}
 
                 <div className="px-4">
-                    <div className="text-muted-foreground bg-muted flex items-center rounded-md p-2.5 text-sm">
+                    <div className="flex items-center rounded-md bg-(--secondary-w10) p-2.5 text-sm text-(--secondary-text-wMain)">
                         {project.defaultAgentId ? (
                             <div className="flex items-center gap-2">
                                 <Bot className="h-4 w-4" />
@@ -79,7 +79,7 @@ export const DefaultAgentSection = ({ project, onSave, isSaving, isDisabled = fa
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">
-                                    <span className="text-muted-foreground italic">No default agent</span>
+                                    <span className="text-(--secondary-text-wMain) italic">No default agent</span>
                                 </SelectItem>
                                 {agents.map(agent => (
                                     <SelectItem key={agent.name} value={agent.name || ""}>

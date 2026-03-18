@@ -175,3 +175,5 @@ client/webui/frontend/static/ui-version.json
 requirements.txt
 data/artifacts/
 CLAUDE.md
+!client/webui/frontend/.claude/
+!client/webui/frontend/.claude/CLAUDE.md

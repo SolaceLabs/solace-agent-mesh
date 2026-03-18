@@ -11,9 +11,10 @@ import type { Project, Session } from "@/lib/types";
 interface SessionNameProps {
     session: Session;
     respondingSessionId: string | null;
+    isSelected: boolean;
 }
 
-const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId }) => {
+const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId, isSelected }) => {
     const { autoTitleGenerationEnabled } = useConfigContext();
 
     const displayName = useMemo(() => {
@@ -60,7 +61,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
         return "opacity-100";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
-    return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
+    return <span className={`truncate transition-opacity duration-300 ${isSelected ? "font-semibold" : ""} ${animationClass}`}>{animatedName}</span>;
 };
 import { formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
@@ -466,7 +467,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded-sm px-2 py-2 ${session.id === sessionId ? "bg-muted dark:bg-muted/50" : ""}`}>
+                                <div className={`flex items-center gap-2 rounded-xs px-2 py-2 ${session.id === sessionId ? "bg-(--secondary-w10)" : "hover:bg-(--primary-w10)"}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -486,17 +487,17 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
-                                                        <SessionName session={session} respondingSessionId={respondingSessionId} />
+                                                        <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
                                                         {session.hasRunningBackgroundTask && (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <Loader2 className="text-primary h-4 w-4 flex-shrink-0 animate-spin" />
+                                                                    <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-(--primary-wMain)" />
                                                                 </TooltipTrigger>
                                                                 <TooltipContent>Background task running</TooltipContent>
                                                             </Tooltip>
                                                         )}
                                                     </div>
-                                                    <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
+                                                    <span className="truncate text-xs text-(--secondary-text-wMain)">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && <ProjectBadge text={session.projectName} />}
                                             </div>
@@ -582,13 +583,13 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     </ul>
                 )}
                 {filteredSessions.length === 0 && sessions.length > 0 && !isLoading && (
-                    <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                    <div className="flex h-full flex-col items-center justify-center text-sm text-(--secondary-text-wMain)">
                         <MessageCircle className="mx-auto mb-4 h-12 w-12" />
                         No sessions found for this project
                     </div>
                 )}
                 {sessions.length === 0 && !isLoading && (
-                    <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                    <div className="flex h-full flex-col items-center justify-center text-sm text-(--secondary-text-wMain)">
                         <MessageCircle className="mx-auto mb-4 h-12 w-12" />
                         No chat sessions available
                     </div>
