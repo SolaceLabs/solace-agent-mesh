@@ -312,7 +312,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
             )}
 
             {/* Bottom items */}
-            <div className="relative z-10 border-t border-(--secondary-w70) bg-(--darkSurface-bg) py-3">
+            <div className="relative z-10 mt-auto border-t border-(--secondary-w70) bg-(--darkSurface-bg) py-3">
                 {bottomItems.map(item => {
                     const isActive = activeItem === item.id;
                     return (
