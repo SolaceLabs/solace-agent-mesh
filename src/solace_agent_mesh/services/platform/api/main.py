@@ -53,6 +53,12 @@ def _run_community_migrations(database_url: str) -> None:
     Args:
         database_url: Database connection string.
     """
+    from solace_agent_mesh.shared.database.sqlite_version_check import check_sqlite_version
+
+    # Verify SQLite version before running migrations
+    # This will raise RuntimeError if version is incompatible
+    check_sqlite_version(database_url, "Platform Service")
+
     try:
         from sqlalchemy import create_engine
 
