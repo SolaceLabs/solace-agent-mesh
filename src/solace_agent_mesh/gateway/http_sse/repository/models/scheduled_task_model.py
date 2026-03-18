@@ -76,7 +76,7 @@ class ScheduledTaskModel(Base):
     timeout_seconds = Column(Integer, nullable=False, default=3600)
 
     # Source tracking
-    source = Column(String, nullable=True, default="ui")  # "config" vs "ui"
+    source = Column(String, nullable=True, default="ui")  # "ui" / "config" / "chat"
 
     # Failure tracking
     consecutive_failure_count = Column(Integer, nullable=False, default=0)

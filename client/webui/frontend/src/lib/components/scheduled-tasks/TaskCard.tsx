@@ -3,7 +3,7 @@ import { Pencil, Trash2, Calendar, Clock, MoreHorizontal, Play, Pause, History }
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
-import type { ScheduledTask } from "@/lib/types/scheduled-tasks";
+import type { ScheduledTask, TaskStatus } from "@/lib/types/scheduled-tasks";
 
 interface TaskCardProps {
     task: ScheduledTask;
@@ -94,6 +94,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
         }
     };
 
+    const statusConfig: Record<TaskStatus, { label: string; className: string }> = {
+        active: { label: "Active", className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+        paused: { label: "Paused", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+        error: { label: "Error", className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+    };
+
     const formatNextRun = (timestamp?: number): string => {
         if (!timestamp) return "Not scheduled";
         const date = new Date(timestamp);
@@ -167,9 +173,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
                     <div className="mb-2 flex items-center gap-2">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${task.enabled ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"}`}>
-                            {task.enabled ? "Enabled" : "Disabled"}
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${statusConfig[task.status]?.className ?? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"}`}>
+                            {statusConfig[task.status]?.label ?? task.status}
                         </span>
+                        {task.source === "config" && <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">Config</span>}
                     </div>
                     {task.description && <div className="mb-3 line-clamp-2 text-sm leading-5">{task.description}</div>}
                     <div className="mt-auto space-y-1">

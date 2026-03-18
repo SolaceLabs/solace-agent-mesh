@@ -4,6 +4,7 @@
  */
 
 export type ScheduleType = "cron" | "interval" | "one_time";
+export type TaskStatus = "active" | "paused" | "error";
 export type ExecutionStatus = "pending" | "running" | "completed" | "failed" | "timeout" | "cancelled";
 
 export interface MessagePart {
@@ -42,9 +43,14 @@ export interface ScheduledTask {
     taskMetadata?: Record<string, unknown>;
 
     enabled: boolean;
+    status: TaskStatus;
     maxRetries: number;
     retryDelaySeconds: number;
     timeoutSeconds: number;
+
+    source?: string;
+    consecutiveFailureCount: number;
+    runCount: number;
 
     notificationConfig?: NotificationConfig;
 
@@ -182,9 +188,13 @@ interface ApiScheduledTask {
     task_message: MessagePart[];
     task_metadata?: Record<string, unknown>;
     enabled: boolean;
+    status: TaskStatus;
     max_retries: number;
     retry_delay_seconds: number;
     timeout_seconds: number;
+    source?: string;
+    consecutive_failure_count: number;
+    run_count: number;
     notification_config?: ApiNotificationConfig;
     created_at: number;
     updated_at: number;
@@ -238,9 +248,13 @@ export function transformApiTask(apiTask: ApiScheduledTask): ScheduledTask {
         taskMessage: apiTask.task_message,
         taskMetadata: apiTask.task_metadata,
         enabled: apiTask.enabled,
+        status: apiTask.status,
         maxRetries: apiTask.max_retries,
         retryDelaySeconds: apiTask.retry_delay_seconds,
         timeoutSeconds: apiTask.timeout_seconds,
+        source: apiTask.source,
+        consecutiveFailureCount: apiTask.consecutive_failure_count,
+        runCount: apiTask.run_count,
         notificationConfig: apiTask.notification_config
             ? {
                   channels: apiTask.notification_config.channels,

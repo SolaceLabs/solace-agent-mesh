@@ -334,8 +334,8 @@ class SchedulerService:
                         ScheduledTaskModel.enabled == True,
                         ScheduledTaskModel.namespace == self.namespace,
                         ScheduledTaskModel.deleted_at == None,
-                        # Phase 3.1: Skip tasks in error state
-                        ScheduledTaskModel.status != "error",
+                        # Only load active tasks (skip paused and error)
+                        ScheduledTaskModel.status == "active",
                     )
                 )
                 tasks = session.execute(stmt).scalars().all()
@@ -614,8 +614,9 @@ class SchedulerService:
                             await self.notification_service.notify_execution_complete(
                                 execution=execution, task=task,
                             )
-                    # Execution history bounds: keep only last 100
-                    await self._enforce_execution_history_bounds(task_id)
+
+            # Execution history bounds: keep only last 100 (runs after every execution)
+            await self._enforce_execution_history_bounds(task_id)
 
         except Exception as e:
             log.error(

@@ -182,6 +182,9 @@ class ScheduledTaskRepository:
             return None
 
         task.enabled = True
+        # Restore status to active (unless in error state — use reactivate for that)
+        if task.status == "paused":
+            task.status = "active"
         task.updated_at = now_epoch_ms()
         session.flush()
         session.refresh(task)
@@ -198,6 +201,9 @@ class ScheduledTaskRepository:
             return None
 
         task.enabled = False
+        # Set status to paused (preserve error state if already in error)
+        if task.status != "error":
+            task.status = "paused"
         task.updated_at = now_epoch_ms()
         session.flush()
         session.refresh(task)

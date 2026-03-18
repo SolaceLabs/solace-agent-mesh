@@ -34,22 +34,25 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
         setSelectedTask(null);
     };
 
-    const statuses = ["Enabled", "Disabled"];
+    const statuses = ["Active", "Paused", "Error"];
 
     const filteredTasks = useMemo(() => {
+        const statusMap: Record<string, string> = { Active: "active", Paused: "paused", Error: "error" };
+        const selectedStatusValues = selectedStatuses.map(s => statusMap[s]);
+
         const filtered = tasks.filter(task => {
             const matchesSearch = task.name?.toLowerCase().includes(searchQuery.toLowerCase()) || task.description?.toLowerCase().includes(searchQuery.toLowerCase()) || task.targetAgentName?.toLowerCase().includes(searchQuery.toLowerCase());
 
-            const matchesStatus = selectedStatuses.length === 0 || (task.enabled && selectedStatuses.includes("Enabled")) || (!task.enabled && selectedStatuses.includes("Disabled"));
+            const matchesStatus = selectedStatusValues.length === 0 || selectedStatusValues.includes(task.status);
 
             return matchesSearch && matchesStatus;
         });
 
+        const statusOrder: Record<string, number> = { active: 0, paused: 1, error: 2 };
         return filtered.sort((a, b) => {
-            // Sort by enabled status first (enabled tasks first)
-            if (a.enabled !== b.enabled) {
-                return a.enabled ? -1 : 1;
-            }
+            // Sort by status first (active > paused > error)
+            const statusDiff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+            if (statusDiff !== 0) return statusDiff;
             // Then sort alphabetically by name
             const nameA = (a.name || "").toLowerCase();
             const nameB = (b.name || "").toLowerCase();

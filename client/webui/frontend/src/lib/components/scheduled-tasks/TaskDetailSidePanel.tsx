@@ -131,7 +131,10 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Badge variant={task.enabled ? "default" : "secondary"}>{task.enabled ? "Enabled" : "Disabled"}</Badge>
+                    <Badge variant={task.status === "active" ? "default" : task.status === "error" ? "destructive" : "secondary"}>
+                        {task.status === "active" ? "Active" : task.status === "paused" ? "Paused" : task.status === "error" ? "Error" : task.status}
+                    </Badge>
+                    {task.source === "config" && <Badge variant="outline">Config</Badge>}
                 </div>
             </div>
 
