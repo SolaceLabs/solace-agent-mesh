@@ -187,7 +187,7 @@ def get_model_config_service() -> ModelConfigService:
     """
     from solace_agent_mesh.services.platform.services import ModelConfigService
 
-    return ModelConfigService(db=db)
+    return ModelConfigService()
 
 
 def get_model_list_service() -> "ModelListService":
@@ -201,4 +201,4 @@ def get_model_list_service() -> "ModelListService":
     """
     from solace_agent_mesh.services.platform.services import ModelListService
 
-    return ModelListService(db=db)
+    return ModelListService()
