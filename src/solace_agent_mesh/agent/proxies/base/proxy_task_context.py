@@ -21,8 +21,6 @@ class ProxyTaskContext:
     # Text batching state
     _streaming_text_buffer: str = field(default="", init=False)
     _batching_threshold_bytes: int = field(default=100, init=True)
-    _has_published_batched_text: bool = field(default=False, init=False)
-    _has_published_converted_artifact: bool = field(default=False, init=False)
 
     def append_to_streaming_buffer(self, text: str) -> None:
         """Appends text to the streaming buffer for batching."""
@@ -39,23 +37,3 @@ class ProxyTaskContext:
     def get_batching_threshold(self) -> int:
         """Returns the batching threshold in bytes for this task."""
         return self._batching_threshold_bytes
-
-    def mark_batched_text_published(self) -> None:
-        """Marks that batched text has been published for this task."""
-        self._has_published_batched_text = True
-
-    def has_published_batched_text(self) -> bool:
-        """Returns whether batched text has been published for this task."""
-        return self._has_published_batched_text
-
-    def mark_converted_artifact_published(self) -> None:
-        """Marks that a converted artifact has been published for this task."""
-        self._has_published_converted_artifact = True
-
-    def has_published_converted_artifact(self) -> bool:
-        """Returns whether a converted artifact has been published for this task."""
-        return self._has_published_converted_artifact
-
-    def has_published_streaming_text(self) -> bool:
-        """Returns whether any streaming text (batched or artifact) has been published."""
-        return self._has_published_batched_text or self._has_published_converted_artifact

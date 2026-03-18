@@ -1,7 +1,5 @@
 """Unit tests for ProxyTaskContext streaming buffer and batching state."""
 
-import pytest
-
 from solace_agent_mesh.agent.proxies.base.proxy_task_context import ProxyTaskContext
 
 
@@ -58,41 +56,3 @@ class TestBatchingThreshold:
         assert ctx.get_batching_threshold() == 0
 
 
-class TestPublishingFlags:
-    def test_has_published_batched_text_starts_false(self):
-        ctx = make_context()
-        assert ctx.has_published_batched_text() is False
-
-    def test_mark_batched_text_published_sets_flag(self):
-        ctx = make_context()
-        ctx.mark_batched_text_published()
-        assert ctx.has_published_batched_text() is True
-
-    def test_has_published_converted_artifact_starts_false(self):
-        ctx = make_context()
-        assert ctx.has_published_converted_artifact() is False
-
-    def test_mark_converted_artifact_published_sets_flag(self):
-        ctx = make_context()
-        ctx.mark_converted_artifact_published()
-        assert ctx.has_published_converted_artifact() is True
-
-    def test_has_published_streaming_text_false_when_neither_flag_set(self):
-        ctx = make_context()
-        assert ctx.has_published_streaming_text() is False
-
-    def test_has_published_streaming_text_true_when_batched_text_published(self):
-        ctx = make_context()
-        ctx.mark_batched_text_published()
-        assert ctx.has_published_streaming_text() is True
-
-    def test_has_published_streaming_text_true_when_artifact_published(self):
-        ctx = make_context()
-        ctx.mark_converted_artifact_published()
-        assert ctx.has_published_streaming_text() is True
-
-    def test_has_published_streaming_text_true_when_both_flags_set(self):
-        ctx = make_context()
-        ctx.mark_batched_text_published()
-        ctx.mark_converted_artifact_published()
-        assert ctx.has_published_streaming_text() is True
