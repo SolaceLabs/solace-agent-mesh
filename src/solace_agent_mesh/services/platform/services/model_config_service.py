@@ -260,7 +260,7 @@ class ModelConfigService:
         """
         try:
             if not litellm:
-                return False, "litellm library not available"
+                return False, "Test connection failed. litellm library not available"
 
             # Resolve configuration from alias or request
             provider = request.provider
@@ -273,7 +273,7 @@ class ModelConfigService:
             if request.alias:
                 stored_config = self.get_raw_config_by_alias(db, request.alias)
                 if not stored_config:
-                    return False, f"Model configuration with alias '{request.alias}' not found"
+                    return False, f"Test connection failed. Model configuration with alias '{request.alias}' not found"
 
                 # Use stored values as defaults if not provided in request
                 if not provider:
@@ -297,9 +297,9 @@ class ModelConfigService:
 
             # Validate required fields
             if not provider:
-                return False, "provider is required (either in request or via alias)"
+                return False, "Test connection failed. provider is required (either in request or via alias)"
             if not model_name:
-                return False, "model_name is required (either in request or via alias)"
+                return False, "Test connection failed. model_name is required (either in request or via alias)"
 
             # Resolve api_base: auto-fill from defaults if not provided
             if not api_base and provider in _DEFAULT_API_BASES:
@@ -327,21 +327,24 @@ class ModelConfigService:
                 if token:
                     litellm_kwargs["api_key"] = token
                 else:
-                    return False, "Failed to fetch OAuth2 token"
+                    return False, "Test connection failed. Failed to fetch OAuth2 token"
 
-            # Add model_params as top-level kwargs to allow provider validation
-            if request.model_params:
-                litellm_kwargs.update(request.model_params)
+            # For connection testing, do NOT include model_params.
+            # The test is purely to verify connectivity and authentication work.
+            # Custom parameters are validated during actual model usage, not in the test.
+
+            # Bedrock models require tool_choice to be explicitly set
+            if "bedrock" in (model_name or "").lower() and "tool_choice" not in litellm_kwargs:
+                litellm_kwargs["tool_choice"] = {"type": "auto"}
 
             # Make the test call
             response = litellm.completion(**litellm_kwargs)
 
             # Extract response message
             if response and response.choices and len(response.choices) > 0:
-                message_content = response.choices[0].message.content
-                return True, message_content or "Connection successful"
+                return True, "Connection test successful"
             else:
-                return False, "No response from LLM"
+                return False, "Test connection failed. No response from LLM"
 
         except Exception as e:
             # Return error message, but sanitize it to avoid exposing sensitive data
@@ -349,7 +352,7 @@ class ModelConfigService:
             # Truncate very long errors
             if len(error_msg) > 500:
                 error_msg = error_msg[:500] + "..."
-            return False, error_msg
+            return False, f"Test connection failed. {error_msg}"
 
     @staticmethod
     def _fetch_oauth2_token(auth_config: Dict[str, Any]) -> Optional[str]:
