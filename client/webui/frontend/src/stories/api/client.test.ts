@@ -311,20 +311,27 @@ describe("authenticatedFetch — no-token path (401 storm prevention)", () => {
         expect(calls.some(url => url.includes("/users/me"))).toBe(true);
     });
 
-    test("redirects to login when no bearer token and no refresh token", async () => {
-        // No tokens at all in localStorage
+    test("returns synthetic 401 when no bearer token and no refresh token", async () => {
+        // No tokens at all in localStorage — refreshToken() returns null immediately
+        // (no refresh_token present), so authenticatedFetch returns a synthetic 401
+        // without navigating. The redirect to login is handled by refreshToken() only
+        // when a refresh_token exists but the server rejects it.
         const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-        await api.webui.get("/api/v1/users/me").catch(() => {
-            /* ignore */
-        });
+        let caughtError: Error | null = null;
+        try {
+            await api.webui.get("/api/v1/users/me");
+        } catch (e) {
+            caughtError = e as Error;
+        }
 
-        // Should NOT have called fetch for the actual endpoint (redirected instead)
+        // Should NOT have called fetch for the actual endpoint (short-circuited)
         const apiCalls = fetchSpy.mock.calls.filter(([url]) => (url as string).includes("/users/me"));
         expect(apiCalls).toHaveLength(0);
 
-        // Should have redirected to login
-        expect(globalThis.location.href).toBe("/api/v1/auth/login");
+        // Should have thrown "Not authenticated" (from fetchJsonWithError → fetchWithError)
+        expect(caughtError).not.toBeNull();
+        expect(caughtError?.message).toContain("Not authenticated");
     });
 
     test("deduplicates concurrent no-token requests into a single refresh call", async () => {

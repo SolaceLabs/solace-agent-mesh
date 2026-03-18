@@ -213,11 +213,13 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     if (!bearerToken) {
         // No token in localStorage — attempt a refresh before sending an
         // unauthenticated request.
+        // Note: refreshToken() handles the redirect to /auth/login internally
+        // when the refresh fails (no refresh token, or server rejects it).
         const newToken = await refreshToken();
         if (!newToken) {
-            // No refresh token either (or refresh failed) — redirect to login.
-            // Return a synthetic 401 so callers don't throw on a missing Response.
-            globalThis.location.href = "/api/v1/auth/login";
+            // refreshToken() already redirected to login (or there was no
+            // refresh token). Return a synthetic 401 so callers get a proper
+            // Response object rather than throwing.
             return new Response(JSON.stringify({ detail: "Not authenticated", error_type: "authentication_required" }), { status: 401 });
         }
         bearerToken = newToken;
