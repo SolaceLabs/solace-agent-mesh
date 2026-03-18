@@ -1,9 +1,10 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ellipsis } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner } from "@/lib/components/common";
+import { Toast } from "@/lib/components/toast";
 
 import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
@@ -24,8 +25,43 @@ const EMPTY_STATE_DESCRIPTION =
 
 export const ModelsView: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading, error: modelConfigsErrorObj } = useModelConfigs();
     const [currentPage, setCurrentPage] = useState<number>(1);
+    const [highlightedModelAlias, setHighlightedModelAlias] = useState<string | null>(null);
+    const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
+    const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+
+    // Check if we're coming back from creating a new model
+    useEffect(() => {
+        const state = location.state as { highlightModelAlias?: string } | null;
+        if (state?.highlightModelAlias) {
+            setHighlightedModelAlias(state.highlightModelAlias);
+            setShowSuccessToast(true);
+
+            // Auto-hide toast after 4 seconds
+            const toastTimer = setTimeout(() => {
+                setShowSuccessToast(false);
+            }, 4000);
+
+            // Auto-fade highlight after 2.5 seconds
+            const highlightTimer = setTimeout(() => {
+                setHighlightedModelAlias(null);
+            }, 2500);
+
+            return () => {
+                clearTimeout(toastTimer);
+                clearTimeout(highlightTimer);
+            };
+        }
+    }, [location]);
+
+    // Scroll highlighted row into view
+    useEffect(() => {
+        if (highlightedRowRef.current) {
+            highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }, [highlightedModelAlias]);
 
     const modelConfigsError = modelConfigsErrorObj ? (modelConfigsErrorObj instanceof Error ? modelConfigsErrorObj.message : "Failed to load models") : null;
 
@@ -83,6 +119,13 @@ export const ModelsView: React.FC = () => {
 
     return (
         <div className="flex h-full w-full flex-col overflow-hidden">
+            {/* Toast Notification */}
+            {showSuccessToast && (
+                <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform">
+                    <Toast id="model-added" message="Model Added" type="success" />
+                </div>
+            )}
+
             <div className="flex h-full flex-col overflow-hidden">
                 {/* Onboarding Banner - only show when models exist */}
                 {hasModels && <OnboardingBanner storageKey={MODELS_STORAGE_KEY} header={MODELS_HEADER} description={MODELS_DESCRIPTION} learnMoreText={MODELS_LEARN_MORE_TEXT} learnMoreUrl={MODELS_URL} className="mx-6 mt-6" />}
@@ -104,7 +147,11 @@ export const ModelsView: React.FC = () => {
                                 </TableHeader>
                                 <TableBody>
                                     {currentModels.map(model => (
-                                        <TableRow key={model.id} className="hover:bg-(--secondary-w10)">
+                                        <TableRow
+                                            key={model.id}
+                                            ref={highlightedModelAlias === model.alias ? highlightedRowRef : null}
+                                            className={`transition-colors duration-500 ${highlightedModelAlias === model.alias ? "bg-yellow-100" : "hover:bg-(--secondary-w10)"}`}
+                                        >
                                             <TableCell className="flex items-center gap-2 pl-4 font-semibold">
                                                 <ModelProviderIcon provider={model.provider} size="sm" />
                                                 <Button title={model.alias} variant="link" className="p-0" onClick={() => handleSelectModel(model)}>

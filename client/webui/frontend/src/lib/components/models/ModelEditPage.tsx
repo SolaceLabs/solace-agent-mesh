@@ -195,13 +195,15 @@ export const ModelEditPage = () => {
                 modelParams,
             };
 
+            let createdAlias: string | undefined;
             if (isNew) {
-                await createModelConfig(payload);
+                const result = await createModelConfig(payload);
+                createdAlias = result.alias;
             } else {
                 await updateModelConfig(modelToEdit!.alias, payload);
             }
 
-            navigate("/agents?tab=models");
+            navigate("/agents?tab=models", { state: { highlightModelAlias: createdAlias } });
         } catch (error) {
             const message = error instanceof Error ? error.message : "An unknown error occurred while saving the model.";
             setErrorMessage(message);
