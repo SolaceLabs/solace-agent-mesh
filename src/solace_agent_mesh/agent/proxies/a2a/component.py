@@ -1921,11 +1921,15 @@ class A2AProxyComponent(BaseProxyComponent):
                             total_text_size = sum(len(part.text.encode("utf-8")) for part in original_parts if isinstance(part, TextPart) and part.text)
                             batching_threshold = task_context.get_batching_threshold()
 
+                            if batching_threshold <= 0:
+                                # Batching disabled - forward the event unchanged without touching the buffer
+                                pass
+
                             # A chunk >= 2x the threshold would take too long to pair with
                             # subsequent tokens to hit the threshold naturally, which would
                             # stall the UI. Flush any buffered text first, then forward
                             # the large chunk immediately without buffering.
-                            if batching_threshold > 0 and total_text_size >= batching_threshold * 2:
+                            elif total_text_size >= batching_threshold * 2:
                                 log.debug(
                                     "%s Single text update (%d bytes) is very large (>= 2x threshold). Flushing buffer and forwarding immediately.",
                                     log_identifier,
@@ -1941,19 +1945,16 @@ class A2AProxyComponent(BaseProxyComponent):
                                         task_context.append_to_streaming_buffer(part.text)
 
                                 buffer_content = task_context.get_streaming_buffer_content()
-                                batching_disabled = batching_threshold <= 0
                                 buffer_size_bytes = len(buffer_content.encode("utf-8"))
-                                threshold_met = buffer_size_bytes >= batching_threshold
 
-                                if not batching_disabled and not threshold_met:
+                                if buffer_size_bytes < batching_threshold:
                                     return
 
-                                # Threshold met or batching disabled - flush buffer
+                                # Threshold met - flush buffer
                                 log.debug(
-                                    "%s Flushing text buffer (%d bytes) due to %s",
+                                    "%s Flushing text buffer (%d bytes): threshold met.",
                                     log_identifier,
                                     buffer_size_bytes,
-                                    "batching disabled" if batching_disabled else "threshold met",
                                 )
 
                                 # Create new status update with batched text
