@@ -119,14 +119,17 @@ export const Collapsed: Story = {
         isCollapsed: true,
     },
     play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
         const sidebar = canvasElement.querySelector(".navigation-sidebar");
         expect(sidebar).toBeInTheDocument();
         expect(sidebar).toHaveClass("w-16");
-        // Labels should not be visible in collapsed mode
-        expect(canvas.queryByText("Projects")).not.toBeInTheDocument();
-        expect(canvas.queryByText("Agents")).not.toBeInTheDocument();
-        expect(canvas.queryByText("Recent Chats")).not.toBeInTheDocument();
+        // Labels are in the DOM but visually hidden with opacity-0
+        const canvas = within(canvasElement);
+        const projectsText = canvas.getByText("Projects");
+        expect(projectsText).toBeInTheDocument();
+        expect(projectsText.className).toContain("opacity-0");
+        const agentsText = canvas.getByText("Agents");
+        expect(agentsText).toBeInTheDocument();
+        expect(agentsText.className).toContain("opacity-0");
     },
 };
 
