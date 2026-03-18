@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useContext, useRef, memo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import {
@@ -27,7 +28,7 @@ import {
     DialogTitle,
 } from "@/lib/components/ui";
 import { useChatContext } from "@/lib/hooks";
-import { useAllArtifacts } from "@/lib/api/artifacts";
+import { useAllArtifacts, artifactKeys } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent } from "@/lib/utils";
 import { formatBytes } from "@/lib/utils/format";
@@ -740,6 +741,34 @@ const StandalonePreviewPanel = memo(function StandalonePreviewPanel({ artifact, 
     );
 });
 
+/**
+ * Skeleton placeholder card that matches the exact dimensions and layout of ArtifactGridCard.
+ * Shown during initial load to give immediate visual feedback.
+ */
+function ArtifactSkeletonCard() {
+    return (
+        <div className="flex h-[220px] w-[320px] flex-shrink-0 flex-col overflow-hidden rounded-lg border bg-(--surface-wMain)">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+                <div className="h-4 w-40 animate-pulse rounded bg-(--secondary-w20)" />
+                <div className="h-6 w-6 animate-pulse rounded bg-(--secondary-w20)" />
+            </div>
+            {/* Content area */}
+            <div className="flex flex-1 items-center justify-center bg-(--secondary-w10)">
+                <div className="h-12 w-12 animate-pulse rounded bg-(--secondary-w20)" />
+            </div>
+            {/* Footer */}
+            <div className="flex items-center justify-between border-t px-3 py-2">
+                <div className="flex items-center gap-2">
+                    <div className="h-3 w-12 animate-pulse rounded bg-(--secondary-w20)" />
+                    <div className="h-3 w-16 animate-pulse rounded bg-(--secondary-w20)" />
+                </div>
+                <div className="h-4 w-10 animate-pulse rounded bg-(--secondary-w20)" />
+            </div>
+        </div>
+    );
+}
+
 // Sort options for artifacts
 type SortField = "date" | "name" | "type" | "size";
 type SortDirection = "asc" | "desc";
@@ -753,8 +782,15 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
 
 export function ArtifactsPage() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
     const { data: artifacts = [], isLoading, error: fetchError, refetch } = useAllArtifacts();
+
+    // isLoading is true only on the very first load (no cached data at all).
+    // On re-visits keepPreviousData keeps real cards visible while isFetching is true,
+    // so we never show skeletons on navigation — only on the absolute first load.
+    // Use the previous artifact count if available, otherwise a small neutral fallback.
+    const skeletonCount = artifacts.length > 0 ? artifacts.length : 4;
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [sortBy, setSortBy] = useState<SortField>("date");
@@ -928,20 +964,43 @@ export function ArtifactsPage() {
     const handleDeleteConfirm = useCallback(async () => {
         if (!deleteConfirmArtifact) return;
 
+        const artifactToDelete = deleteConfirmArtifact;
+        // Close dialog immediately for snappy UX
+        setDeleteConfirmArtifact(null);
+
+        // Optimistically remove the artifact from the cache so the grid updates instantly
+        queryClient.setQueryData(artifactKeys.lists(), (old: Parameters<typeof queryClient.setQueryData>[1]) => {
+            if (!old || typeof old !== "object" || !("artifacts" in (old as object))) return old;
+            const prev = old as { artifacts: Array<{ sessionId: string; filename: string }> };
+            return {
+                ...prev,
+                artifacts: prev.artifacts.filter(a => !(a.sessionId === artifactToDelete.sessionId && a.filename === artifactToDelete.filename)),
+            };
+        });
+
+        // Also close the preview panel if the deleted artifact is currently being previewed
+        setPreviewArtifact(prev => {
+            if (prev && prev.sessionId === artifactToDelete.sessionId && prev.filename === artifactToDelete.filename) {
+                return null;
+            }
+            return prev;
+        });
+
         try {
-            await api.webui.delete(`/api/v1/artifacts/${deleteConfirmArtifact.sessionId}/${encodeURIComponent(deleteConfirmArtifact.filename)}`);
-            addNotification?.(`Deleted ${deleteConfirmArtifact.filename}`, "success");
-            setDeleteConfirmArtifact(null);
-            refetch();
+            await api.webui.delete(`/api/v1/artifacts/${artifactToDelete.sessionId}/${encodeURIComponent(artifactToDelete.filename)}`);
+            addNotification?.(`Deleted ${artifactToDelete.filename}`, "success");
+            // Invalidate to sync with server in the background
+            queryClient.invalidateQueries({ queryKey: artifactKeys.lists() });
         } catch (error) {
             console.error("Error deleting artifact:", error);
+            // Revert the optimistic update by refetching
+            refetch();
             displayError?.({
                 title: "Delete Failed",
                 error: error instanceof Error ? error.message : "Failed to delete artifact",
             });
-            setDeleteConfirmArtifact(null);
         }
-    }, [deleteConfirmArtifact, addNotification, displayError, refetch]);
+    }, [deleteConfirmArtifact, addNotification, displayError, refetch, queryClient]);
 
     const handlePreview = useCallback((artifact: ArtifactWithSession) => {
         // Open the preview panel directly on this page
@@ -1039,8 +1098,10 @@ export function ArtifactsPage() {
 
                         <div className="flex-1 overflow-y-auto pr-4">
                             {isLoading && (
-                                <div className="flex h-full items-center justify-center">
-                                    <Spinner size="large" variant="muted" />
+                                <div className="flex flex-wrap gap-4">
+                                    {Array.from({ length: skeletonCount }).map((_, i) => (
+                                        <ArtifactSkeletonCard key={i} />
+                                    ))}
                                 </div>
                             )}
 

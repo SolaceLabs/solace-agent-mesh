@@ -1,4 +1,4 @@
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 
 import { validIdOrUndefined } from "@/lib/utils/file";
 import { artifactKeys } from "./keys";
@@ -24,6 +24,12 @@ export function useAllArtifacts() {
         queryKey: artifactKeys.lists(),
         queryFn: artifactService.getAllArtifacts,
         refetchOnMount: "always",
+        // Keep cached data alive for 10 minutes so navigating away and back
+        // doesn't evict the cache and trigger a full loading state again.
+        gcTime: 10 * 60 * 1000,
+        // Keep previous data visible while a background refetch is in progress
+        // so the grid never flashes blank during invalidation (e.g. after delete)
+        placeholderData: keepPreviousData,
         select: (data: BulkArtifactsResponse): ArtifactWithSession[] =>
             data.artifacts
                 .filter(artifact => !isIntermediateWebContentArtifact(artifact.filename))
