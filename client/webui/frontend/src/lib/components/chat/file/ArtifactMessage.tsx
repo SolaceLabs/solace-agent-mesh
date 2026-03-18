@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { api, getErrorFromResponse } from "@/lib/api";
 import { Spinner } from "@/lib/components/ui/spinner";
@@ -41,7 +40,7 @@ type ArtifactMessageProps = (
     onDownloadOverride?: () => Promise<void>; // Custom download handler
 };
 
-export function ArtifactMessage(props: ArtifactMessageProps) {
+export const ArtifactMessage = (props: ArtifactMessageProps) => {
     const { artifacts, allArtifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion, ragData } = useChatContext();
     const { activeProject } = useProjectContext();
     const [isLoading, setIsLoading] = useState(false);
@@ -517,4 +516,4 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
             sourceProjectName={getSourceProjectName(artifactInAll, activeProject)}
         />
     );
-}
+};

@@ -32,7 +32,7 @@ interface ArtifactPanelProps {
     onDownloadOverride?: (artifact: ArtifactInfo) => Promise<void>;
 }
 
-export const ArtifactPanel: React.FC<ArtifactPanelProps> = ({ readOnly = false, onDownloadOverride }) => {
+export const ArtifactPanel = ({ readOnly = false, onDownloadOverride }: ArtifactPanelProps) => {
     const { artifacts, artifactsLoading, artifactsRefetch, previewArtifact, setPreviewArtifact, openDeleteModal, isDeleteModalOpen, isBatchDeleteModalOpen, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useChatContext();
 
     const { onDownload: defaultOnDownload } = useDownload();

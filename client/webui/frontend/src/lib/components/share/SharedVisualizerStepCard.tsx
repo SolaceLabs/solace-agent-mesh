@@ -3,7 +3,7 @@
  * This version doesn't use ChatContext and doesn't have artifact navigation features
  */
 
-import React from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal, User, XCircle, Zap } from "lucide-react";
 
@@ -19,7 +19,7 @@ interface SharedVisualizerStepCardProps {
     variant?: "list" | "popover";
 }
 
-const SharedVisualizerStepCard: React.FC<SharedVisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
+const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "list" }: SharedVisualizerStepCardProps) => {
     const getStepIcon = () => {
         switch (step.type) {
             case "USER_REQUEST":
@@ -71,10 +71,10 @@ const SharedVisualizerStepCard: React.FC<SharedVisualizerStepCardProps> = ({ ste
         </div>
     );
 
-    const LLMResponseToAgentDetails: React.FC<{ data: LLMResponseToAgentData }> = ({ data }) => {
-        const [expanded, setExpanded] = React.useState(false);
+    const LLMResponseToAgentDetails = ({ data }: { data: LLMResponseToAgentData }) => {
+        const [expanded, setExpanded] = useState(false);
 
-        const toggleExpand = (e: React.MouseEvent) => {
+        const toggleExpand = (e: MouseEvent) => {
             e.stopPropagation();
             setExpanded(!expanded);
         };
@@ -153,7 +153,7 @@ const SharedVisualizerStepCard: React.FC<SharedVisualizerStepCardProps> = ({ ste
     /**
      * Renders result data as either a JSON viewer (for objects) or a preformatted text block (for primitives).
      */
-    const renderResultData = (resultData: unknown): React.ReactNode => {
+    const renderResultData = (resultData: unknown): ReactNode => {
         if (typeof resultData === "object") {
             return <JSONViewer data={resultData as Parameters<typeof JSONViewer>[0]["data"]} />;
         }
