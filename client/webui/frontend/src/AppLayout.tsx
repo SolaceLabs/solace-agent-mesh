@@ -16,8 +16,8 @@ function AppLayoutContent() {
     const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
-    const { addNotification } = useChatContext();
     const { isOnboardMode } = useUIMode();
+    const { addNotification } = useChatContext();
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
@@ -93,6 +93,7 @@ function AppLayoutContent() {
     const { items, activeItemId } = useNavigationItems({
         projectsEnabled,
         promptLibraryEnabled: configFeatureEnablement?.promptLibrary ?? false,
+        artifactsPageEnabled: configFeatureEnablement?.artifactsPage ?? false,
         logoutEnabled,
         isAuthenticated,
         onUserAccountClick: handleUserAccountClick,
@@ -105,6 +106,7 @@ function AppLayoutContent() {
         const path = location.pathname;
         if (path === "/" || path.startsWith("/chat")) return "chat";
         if (path.startsWith("/projects")) return "projects";
+        if (path.startsWith("/artifacts")) return "artifacts";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/agents")) return "agentMesh";
         return "chat";

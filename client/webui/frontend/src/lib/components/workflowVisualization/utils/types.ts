@@ -109,7 +109,7 @@ export interface NodeProps {
  * Shared CSS classes for node highlighting when referenced in expressions
  * Used by all node components to ensure consistent highlight styling
  */
-export const NODE_HIGHLIGHT_CLASSES = "ring-1 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/50 dark:ring-amber-500 dark:ring-offset-gray-900 dark:shadow-amber-500/30";
+export const NODE_HIGHLIGHT_CLASSES = "ring-1 ring-amber-400 ring-offset-2 shadow-lg shadow-(--warning-w100)/50";
 
 /**
  * Common base styles for different node types
@@ -120,21 +120,17 @@ export const NODE_BASE_STYLES = {
     /** Rectangular node style - used by Agent, Workflow, Switch nodes
      * Figma Card: rounded (4px), shadow, 16px padding
      */
-    RECTANGULAR:
-        "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-4 py-3 shadow transition-all duration-200 ease-in-out hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded bg-(--background-w10) px-4 py-3 shadow-md shadow-(--secondary-w8040) transition-all duration-200 ease-in-out hover:shadow-lg",
     /** Rectangular compact style - used by Loop/Map collapsed nodes */
-    RECTANGULAR_COMPACT:
-        "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-3 py-2 shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded bg-(--background-w10) px-3 py-2 shadow-md shadow-(--secondary-w8040) transition-all duration-200 hover:shadow-lg",
     /** Pill-shaped node style - used by Start/End nodes (non-interactive) */
-    PILL: "flex items-center justify-center gap-2 rounded-full bg-(--color-primary-w10) px-4 py-2 shadow-sm dark:bg-(--color-primary-w90) dark:!shadow-none",
+    PILL: "flex items-center justify-center gap-2 rounded-full bg-(--primary-w10) px-4 py-2 shadow-sm shadow-(--secondary-w8040)",
     /** Container header style - used by Loop/Map expanded header */
-    CONTAINER_HEADER:
-        "group relative mx-auto w-fit cursor-pointer rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded bg-(--background-w10) shadow-md shadow-(--secondary-w8040) transition-all duration-200 hover:shadow-lg",
     /** Condition pill style - used by Switch condition pills */
-    CONDITION_PILL:
-        "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 bg-(--color-background-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    CONDITION_PILL: "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm shadow-(--secondary-w8040) transition-all duration-200 bg-(--background-w10)",
     /** Switch node style - similar to rectangular but without justify-between */
-    SWITCH: "group relative cursor-pointer rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    SWITCH: "group relative cursor-pointer rounded bg-(--background-w10) shadow-md shadow-(--secondary-w8040) transition-all duration-200 hover:shadow-lg",
 } as const;
 
 /**
@@ -142,17 +138,17 @@ export const NODE_BASE_STYLES = {
  * Shows the node's ID at the bottom center with fade in/out animation
  */
 export const NODE_ID_BADGE_CLASSES =
-    "absolute -bottom-2 left-1/2 -translate-x-1/2 rounded bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-100 opacity-0 transition-opacity duration-[750ms] ease-in group-hover:opacity-100 group-hover:duration-75 group-hover:ease-out dark:bg-gray-600";
+    "absolute -bottom-2 left-1/2 -translate-x-1/2 rounded bg-(--secondary-w80) px-2 py-0.5 font-mono text-xs text-(--secondary-w10) opacity-0 transition-opacity duration-[750ms] ease-in group-hover:opacity-100 group-hover:duration-75 group-hover:ease-out";
 
 /**
  * Shared CSS classes for node selection styling
  * Changes border color to accent-n2-wMain instead of adding a ring
  */
 /** Standard selection border for most nodes */
-export const NODE_SELECTED_CLASS = "!border-(--color-accent-n2-wMain)";
+export const NODE_SELECTED_CLASS = "!border-(--accent-n2-wMain)";
 
 /** Selection border for compact nodes (condition pills) */
-export const NODE_SELECTED_CLASS_COMPACT = "!border-(--color-accent-n2-wMain)";
+export const NODE_SELECTED_CLASS_COMPACT = "!border-(--accent-n2-wMain)";
 
 /**
  * Layout constants for consistent sizing

@@ -37,7 +37,7 @@ export const FileDetailsDialog: React.FC<FileDetailsDialogProps> = ({ isOpen, ar
                 <div className="my-5 flex flex-col gap-2 overflow-hidden">
                     <FileLabel fileName={artifact.filename} fileSize={artifact.size} />
                     <div>
-                        <div className="text-secondary-foreground my-1">Description:</div>
+                        <div className="my-1 text-(--secondary-text-wMain)">Description:</div>
                         <div className="max-h-[50vh] overflow-y-auto text-sm whitespace-pre-wrap">{artifact.description || "No description provided"}</div>
                     </div>
                 </div>

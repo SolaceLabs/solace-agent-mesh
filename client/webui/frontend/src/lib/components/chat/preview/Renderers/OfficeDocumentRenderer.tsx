@@ -328,6 +328,15 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
             // Generate cache key for this content
             const cacheKey = hashContent(content, filename);
 
+            // Check cache first (before deduplication check, so re-renders can use cached results)
+            const cachedPdf = pdfConversionCache.get(cacheKey);
+
+            if (cachedPdf) {
+                setPdfDataUrl(cachedPdf);
+                setConversionState("success");
+                return;
+            }
+
             // Skip if we've already started conversion for this exact content
             // This prevents duplicate conversions on re-renders
             if (conversionStartedRef.current === cacheKey) {
@@ -340,16 +349,6 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
                 console.log("Binary artifact preview is disabled via feature flag");
                 setConversionState("error");
                 setError("Document preview is not enabled on this server.");
-                return;
-            }
-
-            // Check cache first
-            const cachedPdf = pdfConversionCache.get(cacheKey);
-
-            if (cachedPdf) {
-                console.log("Using cached PDF conversion for:", filename);
-                setPdfDataUrl(cachedPdf);
-                setConversionState("success");
                 return;
             }
 
@@ -443,9 +442,9 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
         const loadingMessage = conversionState === "waiting" ? "Processing preview, please wait..." : "Processing...";
         return (
             <div className="flex h-64 flex-col items-center justify-center space-y-4 text-center">
-                <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                <Loader2 className="h-8 w-8 animate-spin text-(--secondary-text-wMain)" />
                 <div>
-                    <p className="text-muted-foreground">{loadingMessage}</p>
+                    <p className="text-(--secondary-text-wMain)">{loadingMessage}</p>
                 </div>
             </div>
         );
@@ -459,12 +458,12 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
     // Error state - show message to download the file
     return (
         <div className="flex h-64 flex-col items-center justify-center space-y-4 p-6 text-center">
-            <FileType className="text-muted-foreground h-16 w-16" />
+            <FileType className="h-16 w-16 text-(--secondary-text-wMain)" />
             <div>
                 <h3 className="text-lg font-semibold">Preview Unavailable</h3>
-                <p className="text-muted-foreground mt-2">Unable to preview this {documentType.toUpperCase()} file.</p>
-                {error && <p className="text-muted-foreground mt-1 text-sm">{error}</p>}
-                <p className="text-muted-foreground mt-4 flex items-center justify-center gap-2 text-sm">
+                <p className="mt-2 text-(--secondary-text-wMain)">Unable to preview this {documentType.toUpperCase()} file.</p>
+                {error && <p className="mt-1 text-sm text-(--secondary-text-wMain)">{error}</p>}
+                <p className="mt-4 flex items-center justify-center gap-2 text-sm text-(--secondary-text-wMain)">
                     <Download className="h-4 w-4" />
                     Download the file to open it in the appropriate application.
                 </p>

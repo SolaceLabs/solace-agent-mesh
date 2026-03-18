@@ -62,7 +62,7 @@ const Menu = React.forwardRef<HTMLDivElement, MenuProps>(({ actions, className, 
         <div ref={ref} role="menu" className={cn("min-w-[8rem] overflow-hidden", className)} {...props}>
             {actions.map((action, index) => (
                 <React.Fragment key={action.id}>
-                    {action.divider && index > 0 && <div className="my-1 h-px bg-[var(--color-secondary-w40)] dark:bg-[var(--color-secondary-w70)]" />}
+                    {action.divider && index > 0 && <div className="my-1 h-px bg-(--secondary-w40)" />}
                     <div
                         role="menuitem"
                         tabIndex={0}
@@ -70,7 +70,7 @@ const Menu = React.forwardRef<HTMLDivElement, MenuProps>(({ actions, className, 
                         className={cn(
                             "relative my-1.5 flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm transition-colors select-none",
                             "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-                            "hover:bg-[var(--color-primary-w10)] hover:text-[var(--color-primary-text-w60)] dark:hover:bg-[var(--color-primary-w60)] dark:hover:text-[var(--color-primary-text-w10)]"
+                            "hover:bg-(--primary-w10) hover:text-(--primary-text-w60)"
                         )}
                         onClick={action.onClick}
                         onKeyDown={e => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -12,6 +12,14 @@ import type { NavItemConfig, HeaderConfig, NewChatConfig } from "@/lib/types/fe"
 import { NavItemButton } from "./NavItemButton";
 import { navButtonStyles, iconWrapperStyles, iconStyles, navTextStyles } from "./navigationStyles";
 import type { NavItem } from "./types";
+
+/** Wraps children in a Tooltip when collapsed, renders children directly when expanded */
+const ConditionalTooltip: React.FC<{ show: boolean; label: string; children: React.ReactElement }> = ({ show, label, children }) => (
+    <Tooltip>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        {show && <TooltipContent side="right">{label}</TooltipContent>}
+    </Tooltip>
+);
 
 export interface CollapsibleNavigationSidebarProps {
     /**
@@ -62,7 +70,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         onCollapseChange?.(value);
     };
 
-    const [internalActiveItem, setInternalActiveItem] = useState<string>("chats");
+    const [internalActiveItem, setInternalActiveItem] = useState<string>("");
     const activeItem = controlledActiveItemId ?? internalActiveItem;
     const setActiveItem = (value: string) => {
         if (controlledActiveItemId === undefined) {
@@ -122,7 +130,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                 }
             });
         } else {
-            setInternalActiveItem("chats");
+            setInternalActiveItem("");
         }
     }, [location.pathname, items, controlledActiveItemId, findActiveItemId]);
 
@@ -192,182 +200,133 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
         item.onClick?.();
     };
 
-    const isNavItemOrChildActive = (item: NavItem): boolean => {
-        if (activeItem === item.id) return true;
-        if (item.children?.some(child => activeItem === child.id)) return true;
-        return false;
-    };
+    const textAnimClass = isCollapsed ? "max-w-0 opacity-0" : "max-w-[180px] opacity-100";
+    const textAnimBase = "overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-200";
 
     return (
-        <aside className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-[var(--color-background-wMain)]", isCollapsed ? "w-16" : "w-64")}>
-            {isCollapsed ? (
-                <>
-                    <div className="relative flex min-h-[80px] w-full items-center justify-center overflow-visible border-b border-[var(--color-secondary-w70)] py-3">
-                        {renderHeader()}
-                        {/* Positioned outside panel bounds to create floating expand button effect */}
-                        {!hideCollapseButton && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={handleToggle}
-                                        className="absolute -right-3 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-[var(--color-background-wMain)] p-0.5 shadow-md hover:bg-[var(--color-background-w100)]"
-                                    >
-                                        <ChevronRight className="size-4 text-[var(--color-primary-text-w10)]" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">Expand Navigation</TooltipContent>
-                            </Tooltip>
-                        )}
-                    </div>
+        <nav className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg) transition-[width] duration-200 ease-out", isCollapsed ? "w-16" : "w-64")}>
+            {/* Header */}
+            <div className="relative flex min-h-[80px] w-full items-center border-b border-(--secondary-w70) py-3 pr-4 pl-4">
+                <div className="flex items-center gap-2">{renderHeader()}</div>
+                {!hideCollapseButton &&
+                    (isCollapsed ? (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button onClick={handleToggle} className="absolute -right-3 z-30 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
+                                    <ChevronRight className="size-4 text-(--darkSurface-text)" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">Expand Navigation</TooltipContent>
+                        </Tooltip>
+                    ) : (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button onClick={handleToggle} className="ml-auto flex h-8 w-8 cursor-pointer items-center justify-center p-1 text-(--darkSurface-text) hover:bg-(--darkSurface-bgHover)">
+                                    <ChevronLeft className="size-6" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">Collapse Navigation</TooltipContent>
+                        </Tooltip>
+                    ))}
+            </div>
 
-                    <div className="flex flex-col items-center py-3">
-                        {showNewChatButton && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button onClick={handleNewChatClickResolved} className={navButtonStyles({ variant: "collapsed" })}>
-                                        <div className={iconWrapperStyles({ active: activeItem === "chats" })}>
-                                            <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
-                                        </div>
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">{newChatLabel}</TooltipContent>
-                            </Tooltip>
-                        )}
+            {/* Nav items */}
+            <div className="flex-shrink-0 py-3">
+                {showNewChatButton && (
+                    <ConditionalTooltip show={isCollapsed} label={newChatLabel}>
+                        <button onClick={handleNewChatClickResolved} className={navButtonStyles()}>
+                            <div className={iconWrapperStyles({ active: false, withMargin: true })}>
+                                <NewChatIcon className={iconStyles({ active: false })} />
+                            </div>
+                            <span className={cn(navTextStyles({ active: false }), textAnimBase, textAnimClass)}>{newChatLabel}</span>
+                        </button>
+                    </ConditionalTooltip>
+                )}
 
-                        {navItems.map(item => {
-                            const isActive = isNavItemOrChildActive(item);
-                            const hasSubmenu = item.hasSubmenu && item.children?.length;
-
-                            return (
-                                <Tooltip key={item.id}>
-                                    <TooltipTrigger asChild>
-                                        <button
-                                            onClick={() => {
-                                                if (hasSubmenu) {
-                                                    setActiveItem(item.id);
-                                                    setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
-                                                    setIsCollapsed(false);
-                                                } else {
-                                                    handleItemClick(item.id, item);
-                                                }
-                                            }}
-                                            className={navButtonStyles({ variant: "collapsed" })}
-                                            disabled={item.disabled}
-                                        >
-                                            <div className={iconWrapperStyles({ active: isActive })}>
-                                                <item.icon className={iconStyles({ active: isActive })} />
-                                            </div>
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="right">{item.label}</TooltipContent>
-                                </Tooltip>
-                            );
-                        })}
-                    </div>
-
-                    <div className="mt-auto flex flex-col items-center gap-2 border-t border-[var(--color-secondary-w70)] py-3">
-                        {bottomItems.map(item => {
-                            const isActive = activeItem === item.id;
-                            return (
-                                <Tooltip key={item.id}>
-                                    <TooltipTrigger asChild>
-                                        <button onClick={() => handleBottomItemClick(item)} className={navButtonStyles({ variant: "collapsed" })} disabled={item.disabled}>
-                                            <div className={iconWrapperStyles({ active: isActive })}>
-                                                <item.icon className={iconStyles({ active: isActive })} />
-                                            </div>
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="right">{item.label}</TooltipContent>
-                                </Tooltip>
-                            );
-                        })}
-                    </div>
-                </>
-            ) : (
-                <>
-                    <div className="flex min-h-[80px] items-center justify-between border-b border-[var(--color-secondary-w70)] py-3 pr-4 pl-6">
-                        <div className="flex items-center gap-2">{renderHeader()}</div>
-                        {!hideCollapseButton && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button onClick={handleToggle} className="flex h-8 w-8 cursor-pointer items-center justify-center p-1 text-[var(--color-primary-text-w10)] hover:bg-[var(--color-background-w100)]">
-                                        <ChevronLeft className="size-6" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">Collapse Navigation</TooltipContent>
-                            </Tooltip>
-                        )}
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto py-3">
-                        {showNewChatButton && (
-                            <button onClick={handleNewChatClickResolved} className={navButtonStyles()}>
-                                <div className={iconWrapperStyles({ active: activeItem === "chats", withMargin: true })}>
-                                    <NewChatIcon className={iconStyles({ active: activeItem === "chats" })} />
-                                </div>
-                                <span className={navTextStyles({ active: activeItem === "chats" })}>{newChatLabel}</span>
-                            </button>
-                        )}
-
-                        <div>
-                            {navItems.map(item => {
-                                const hasActiveChild = item.children?.some(child => activeItem === child.id) ?? false;
-                                return (
-                                    <div key={item.id}>
-                                        <NavItemButton
-                                            item={item}
-                                            isActive={activeItem === item.id}
-                                            onClick={() => handleItemClick(item.id, item)}
-                                            isExpanded={expandedMenus[item.id]}
-                                            onToggleExpand={() => toggleMenu(item.id)}
-                                            hasActiveChild={hasActiveChild}
-                                        />
-                                        {item.hasSubmenu && expandedMenus[item.id] && item.children && (
-                                            <div className="ml-10">
-                                                {item.children.map(child => {
-                                                    const isChildActive = activeItem === child.id;
-                                                    return (
-                                                        <div key={child.id} className="group relative">
-                                                            <div className={cn("absolute top-0 left-0 h-full bg-[var(--color-brand-w60)] transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
-                                                            <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
+                <div>
+                    {navItems.map(item => {
+                        const hasActiveChild = item.children?.some(child => activeItem === child.id) ?? false;
+                        return (
+                            <div key={item.id}>
+                                <ConditionalTooltip show={isCollapsed} label={item.label}>
+                                    <NavItemButton
+                                        item={item}
+                                        isActive={activeItem === item.id}
+                                        isCollapsed={isCollapsed}
+                                        onClick={() => {
+                                            if (isCollapsed && item.hasSubmenu) {
+                                                setActiveItem(item.id);
+                                                setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
+                                                setIsCollapsed(false);
+                                            } else {
+                                                handleItemClick(item.id, item);
+                                            }
+                                        }}
+                                        isExpanded={expandedMenus[item.id]}
+                                        onToggleExpand={() => {
+                                            if (isCollapsed && item.hasSubmenu) {
+                                                setActiveItem(item.id);
+                                                setExpandedMenus(prev => ({ ...prev, [item.id]: true }));
+                                                setIsCollapsed(false);
+                                            } else {
+                                                toggleMenu(item.id);
+                                            }
+                                        }}
+                                        hasActiveChild={hasActiveChild}
+                                    />
+                                </ConditionalTooltip>
+                                {!isCollapsed && item.hasSubmenu && expandedMenus[item.id] && item.children && (
+                                    <div className="pl-8">
+                                        {item.children.map(child => {
+                                            const isChildActive = activeItem === child.id;
+                                            return (
+                                                <div key={child.id} className="group relative">
+                                                    <div className={cn("absolute top-0 left-0 h-full bg-(--brand-w60) transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
+                                                    <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                );
-                            })}
-                        </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
 
-                        {showRecentChats && (
-                            <>
-                                <div className="my-4 border-t border-[var(--color-secondary-w70)]" />
-                                <div className="mb-2 flex items-center justify-between pr-4 pl-6">
-                                    <span className="text-sm font-bold text-[var(--color-secondary-text-wMain)]">Recent Chats</span>
-                                    <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm font-normal text-[var(--color-primary-w60)] hover:text-[var(--color-primary-text-w10)]">
-                                        View All
-                                    </button>
-                                </div>
-                                <div className="flex-1">
-                                    <RecentChatsList maxItems={MAX_RECENT_CHATS} />
-                                </div>
-                            </>
-                        )}
+            {/* Recent Chats */}
+            {showRecentChats && (
+                <div className={cn("flex min-h-0 flex-col transition-[opacity] duration-200", isCollapsed ? "pointer-events-none h-0 min-h-0 flex-none overflow-hidden opacity-0" : "flex-1 opacity-100")}>
+                    <div className="border-t border-(--secondary-w70)" />
+                    <div className="mb-2 flex items-center justify-between pt-4 pr-6 pl-6">
+                        <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
+                        {/** Hard-code colours to avoid extra variables in the theme for a single usage, may reconsider if there is greater usage */}
+                        <Link to="/chat" state={{ openSessionsPanel: true }} className="cursor-pointer text-sm text-[#679DB4] no-underline hover:text-[#E6EFF2]">
+                            View All
+                        </Link>
                     </div>
-
-                    <div className="mt-2 border-t border-[var(--color-secondary-w70)] pt-2">
-                        {bottomItems.map(item => (
-                            <button key={item.id} onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
-                                <div className={iconWrapperStyles({ withMargin: true })}>
-                                    <item.icon className={iconStyles()} />
-                                </div>
-                                <span className={navTextStyles()}>{item.label}</span>
-                            </button>
-                        ))}
+                    <div className="scrollbar-subtle min-h-[120px] flex-1 overflow-y-auto">
+                        <RecentChatsList maxItems={MAX_RECENT_CHATS} />
                     </div>
-                </>
+                </div>
             )}
-        </aside>
+
+            {/* Bottom items */}
+            <div className="relative z-10 mt-auto border-t border-(--secondary-w70) bg-(--darkSurface-bg) py-3">
+                {bottomItems.map(item => {
+                    const isActive = activeItem === item.id;
+                    return (
+                        <ConditionalTooltip key={item.id} show={isCollapsed} label={item.label}>
+                            <button onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
+                                <div className={iconWrapperStyles({ active: isActive, withMargin: true })}>
+                                    <item.icon className={iconStyles({ active: isActive })} />
+                                </div>
+                                <span className={cn(navTextStyles(), textAnimBase, textAnimClass)}>{item.label}</span>
+                            </button>
+                        </ConditionalTooltip>
+                    );
+                })}
+            </div>
+        </nav>
     );
 };

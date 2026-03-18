@@ -208,7 +208,7 @@ platform_service:
 
 #### SQLite (Development)
 
-SQLite stores session data in a local file, ideal for development without external infrastructure.
+SQLite stores session data in a local file, ideal for development without external infrastructure. Requires SQLite 3.35.0 or later.
 
 ```yaml
 session_service:

@@ -9,6 +9,7 @@ import { useProjectContext } from "@/lib/providers";
 import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext, useSessionStorage } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
+import { formatTimestamp } from "@/lib/utils/format";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
@@ -216,7 +217,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
                     {getIndexingBanner(isIndexing, indexingError, () => setIndexingError(null))}
                     {project.description && (
                         <div className="px-8 py-4">
-                            <p className="text-muted-foreground text-sm">{project.description}</p>
+                            <p className="text-sm text-(--secondary-text-wMain)">{project.description}</p>
                         </div>
                     )}
                     {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} isDisabled={isIndexing} />}
@@ -231,7 +232,8 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
             </div>
 
             {/* Footer */}
-            <Footer>
+            <Footer className="justify-between">
+                <div className="text-muted-foreground text-sm">Created on {formatTimestamp(project.createdAt, "date")}</div>
                 <Button variant="outline" data-testid="closeButton" title="Close" onClick={onBack}>
                     Close
                 </Button>
@@ -258,7 +260,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
                                 rows={4}
                                 disabled={isSaving}
                                 maxLength={MAX_DESCRIPTION_LENGTH + 1}
-                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
+                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-(--error-wMain)" : ""}`}
                             />
                             <FieldFooter hasError={isDescriptionOverLimit} message={`${editedDescription.length} / ${MAX_DESCRIPTION_LENGTH}`} error={`Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`} />
                         </div>

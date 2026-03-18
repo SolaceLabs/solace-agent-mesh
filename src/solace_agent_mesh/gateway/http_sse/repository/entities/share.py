@@ -1,0 +1,177 @@
+"""
+Share link domain entity.
+"""
+
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List
+
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+
+
+class SharedLinkUser(BaseModel):
+    """Shared link user domain entity."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    share_id: str
+    user_email: str
+    access_level: str = "RESOURCE_VIEWER"
+    added_at: int
+    added_by_user_id: str
+    original_access_level: Optional[str] = None
+    original_added_at: Optional[int] = None
+
+
+class ShareLink(BaseModel):
+    """Share link domain entity with business logic."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    share_id: str
+    session_id: str
+    user_id: str
+    title: Optional[str] = None
+    is_public: bool = True  # Reserved for future public (no-login) access; currently always True
+    require_authentication: bool = False  # Reserved for future anonymous access; currently always forced to True by router
+    allowed_domains: Optional[str] = None  # Comma-separated in DB
+    created_time: int
+    updated_time: int
+    deleted_at: Optional[int] = None
+
+    def is_deleted(self) -> bool:
+        """Check if share link is soft deleted."""
+        return self.deleted_at is not None
+
+    def soft_delete(self) -> None:
+        """Soft delete the share link."""
+        self.deleted_at = now_epoch_ms()
+        self.updated_time = now_epoch_ms()
+
+    def get_access_type(self, has_shared_users: bool = False) -> str:
+        """
+        Determine the access type for this share link.
+        
+        Args:
+            has_shared_users: Whether this share has user-specific shares
+        
+        Returns:
+            "authenticated", "domain-restricted", or "user-specific"
+        """
+        if has_shared_users:
+            return "user-specific"
+        if not self.allowed_domains:
+            return "authenticated"
+        return "domain-restricted"
+
+    def get_allowed_domains_list(self) -> List[str]:
+        """
+        Parse allowed_domains string into a list.
+        
+        Returns:
+            List of domain strings, or empty list if none
+        """
+        if not self.allowed_domains:
+            return []
+        return [d.strip() for d in self.allowed_domains.split(',') if d.strip()]
+
+    def set_allowed_domains_list(self, domains: List[str]) -> None:
+        """
+        Set allowed domains from a list.
+        
+        Args:
+            domains: List of domain strings
+        """
+        if domains:
+            self.allowed_domains = ','.join(domains)
+        else:
+            self.allowed_domains = None
+        self.updated_time = now_epoch_ms()
+
+    def update_authentication_settings(
+        self, 
+        require_authentication: Optional[bool] = None,
+        allowed_domains: Optional[List[str]] = None
+    ) -> None:
+        """
+        Update authentication settings.
+        
+        Args:
+            require_authentication: Whether to require authentication
+            allowed_domains: List of allowed email domains
+        """
+        if require_authentication is not None:
+            self.require_authentication = require_authentication
+        
+        if allowed_domains is not None:
+            self.set_allowed_domains_list(allowed_domains)
+        
+        self.updated_time = now_epoch_ms()
+
+    def can_be_accessed_by_user(
+        self,
+        user_id: Optional[str],
+        user_email: Optional[str],
+        shared_user_emails: Optional[List[str]] = None
+    ) -> tuple[bool, str]:
+        """
+        Check if a user can access this share link.
+        
+        Authentication is always required. Public (not logged-in) access is not supported.
+        
+        Args:
+            user_id: User ID (None if not authenticated)
+            user_email: User email (None if not authenticated)
+            shared_user_emails: List of emails with explicit access (from shared_link_users table).
+            Pass None if not queried, pass [] if queried but empty.
+        
+        Returns:
+            Tuple of (can_access: bool, reason: str)
+        """
+        # Authentication is always required
+        if user_id is None:
+            return (False, "authentication_required")
+        
+        # Check user-specific sharing first
+        if shared_user_emails is not None and len(shared_user_emails) > 0:
+            # If there are shared users, only they can access (plus owner)
+            if user_email and user_email.lower() in [e.lower() for e in shared_user_emails]:
+                return (True, "user_specific")
+            # If user is not in the shared list and there are shared users, deny access
+            # (unless they're the owner, which is checked elsewhere)
+            return (False, "not_shared_with_user")
+        
+        # No shared users - fall back to domain-based settings
+        
+        # No domain restriction - any authenticated user can access
+        if not self.allowed_domains:
+            return (True, "authenticated")
+        
+        # Domain restriction - check user's email domain
+        if not user_email or '@' not in user_email:
+            return (False, "invalid_email")
+        
+        user_domain = user_email.split('@')[1].lower().strip()
+        allowed_domains = [d.lower() for d in self.get_allowed_domains_list()]
+        
+        if user_domain in allowed_domains:
+            return (True, "domain_match")
+        else:
+            return (False, "domain_mismatch")
+
+    def can_be_modified_by_user(self, user_id: str) -> bool:
+        """Check if user can modify this share link."""
+        return self.user_id == user_id and not self.is_deleted()
+
+
+class SharedArtifact(BaseModel):
+    """Shared artifact domain entity."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: Optional[int] = None
+    share_id: str
+    artifact_uri: str
+    artifact_version: Optional[int] = None
+    is_public: bool = True
+    created_time: int

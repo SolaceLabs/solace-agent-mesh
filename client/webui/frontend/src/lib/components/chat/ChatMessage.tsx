@@ -85,10 +85,10 @@ const MessageActions: React.FC<{
                     {shouldShowFeedback && (
                         <div className="flex items-center">
                             <Button tooltip="Like" variant="ghost" size="sm" className={`${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("up")} disabled={!!submittedFeedbackType}>
-                                <ThumbsUp className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`} />
+                                <ThumbsUp className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-(--brand-wMain) text-(--brand-wMain) !opacity-100" : ""}`} />
                             </Button>
                             <Button tooltip="Dislike" variant="ghost" size="sm" className={`${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("down")} disabled={!!submittedFeedbackType}>
-                                <ThumbsDown className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`} />
+                                <ThumbsDown className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-(--brand-wMain) text-(--brand-wMain) opacity-100" : ""}`} />
                             </Button>
                         </div>
                     )}
@@ -142,7 +142,7 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
     React.useEffect(() => {
         if (!highlightedText || !contentRef.current) return;
 
-        const highlightStyle = "background-color: color-mix(in srgb, var(--color-brand-wMain) 30%, transparent); color: inherit; transition: background-color 0.5s ease-out;";
+        const highlightStyle = "background-color: color-mix(in srgb, var(--brand-wMain) 30%, transparent); color: inherit; transition: background-color 0.5s ease-out;";
         const highlightMarks: HTMLElement[] = [];
 
         // Normalize text for matching (collapse whitespace, handle line breaks)
@@ -514,7 +514,7 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
             const friendlyErrorMessage = getUserFriendlyErrorMessage(displayText);
             return (
                 <div className="flex items-center">
-                    <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
+                    <AlertCircle className="mr-2 self-start text-(--error-wMain)" />
                     <MarkdownHTMLConverter>{friendlyErrorMessage}</MarkdownHTMLConverter>
                 </div>
             );
@@ -760,7 +760,7 @@ const getChatBubble = (
             {message.isUser && message.contextQuote && (
                 <div className="flex justify-end pr-4">
                     <button
-                        className={`bg-muted/50 flex max-w-fit items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm ${message.contextQuoteSourceId ? "hover:bg-muted cursor-pointer transition-colors" : "cursor-default"}`}
+                        className={`flex max-w-fit items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm ${message.contextQuoteSourceId ? "cursor-pointer transition-colors hover:bg-(--secondary-w10)" : "cursor-default"}`}
                         onClick={() => {
                             if (message.contextQuoteSourceId) {
                                 // Dispatch event to scroll to and highlight the quoted text in the source message
@@ -774,8 +774,8 @@ const getChatBubble = (
                         disabled={!message.contextQuoteSourceId}
                         title={message.contextQuoteSourceId ? "Click to scroll to original message" : undefined}
                     >
-                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                        <span className="text-muted-foreground truncate italic">"{message.contextQuote}"</span>
+                        <Quote className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
+                        <span className="truncate text-(--secondary-text-wMain) italic">"{message.contextQuote}"</span>
                     </button>
                 </div>
             )}
@@ -1009,7 +1009,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     };
 
     return (
-        <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
+        <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "rounded-lg bg-(--primary-w10) ring-2 ring-(--primary-wMain)" : ""}`}>
             {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
             {isDeepResearchComplete &&
                 hasRagSources &&

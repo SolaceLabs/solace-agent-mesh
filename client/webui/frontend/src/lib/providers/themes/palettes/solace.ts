@@ -1,4 +1,4 @@
-import type { ThemePalette } from "./themePalette";
+import type { ThemePalette, ThemeDefinition } from "./themePalette";
 
 export const solace: ThemePalette = {
     brand: {
@@ -22,14 +22,14 @@ export const solace: ThemePalette = {
         text: {
             wMain: "#273749",
             w100: "#000000",
-            w10: "#CCCCCC",
+            w10: "#FFFFFF",
         },
     },
 
     secondary: {
         w70: "#536574",
         w80: "#354E62",
-        w8040: "#354E6240",
+        w8040: "#354E6266",
         w100: "#000000",
         wMain: "#8790A0",
         w40: "#CFD3D9",
@@ -148,6 +148,7 @@ export const solace: ThemePalette = {
             wMain: "#DA162D",
         },
     },
+
     learning: {
         wMain: "#033A6F",
         w90: "#022E59",
@@ -155,4 +156,27 @@ export const solace: ThemePalette = {
         w20: "#CDD8E2",
         w10: "#E6EBF1",
     },
+
+    darkSurface: {
+        bg: "#03223B", // background-wMain
+        bgHover: "#021B2F", // background-w100
+        bgActive: "#021B2F", // background-w100
+        text: "#CCCCCC", // primiary-text-w10
+        textMuted: "#B1B9C0", // secondary-text-w50
+        brandMain: "#00C895", // brand-wMain
+        brandAccent: "#66DEBF", // brand-w60
+        border: "#536574", // secondary-w70
+    },
+
+    temporary: {
+        primary: {
+            wMain: "#015B82",
+        },
+    },
+};
+
+export const solaceTheme: ThemeDefinition = {
+    id: "light",
+    label: "Solace Light",
+    palette: solace,
 };
