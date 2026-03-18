@@ -208,10 +208,19 @@ const getErrorFromResponse = async (response: Response): Promise<string> => {
 };
 
 const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const bearerToken = getApiBearerToken();
+    let bearerToken = getApiBearerToken();
 
     if (!bearerToken) {
-        return fetch(url, options);
+        // No token in localStorage — attempt a refresh before sending an
+        // unauthenticated request.
+        const newToken = await refreshToken();
+        if (!newToken) {
+            // No refresh token either (or refresh failed) — redirect to login.
+            // Return a synthetic 401 so callers don't throw on a missing Response.
+            globalThis.location.href = "/api/v1/auth/login";
+            return new Response(JSON.stringify({ detail: "Not authenticated", error_type: "authentication_required" }), { status: 401 });
+        }
+        bearerToken = newToken;
     }
 
     const response = await fetch(url, {
