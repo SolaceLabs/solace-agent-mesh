@@ -2149,11 +2149,12 @@ class A2AProxyComponent(BaseProxyComponent):
 
             # Check if final event - construct and send Task
             if event_payload.final:
+                log.info(
+                    "%s Received final status update. Constructing completed Task.",
+                    log_identifier,
+                )
 
-                # Construct Task from final status update
-                # Use the event's status message directly - when streaming text was already
-                # published, TextParts have been stripped to avoid duplication. When no streaming
-                # occurred, the message retains its full content.
+                # Construct Task from the final status update
                 task_message = event_payload.status.message if event_payload.status else None
 
                 final_task_status = TaskStatus(
