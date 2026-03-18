@@ -6,15 +6,38 @@ import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext } from "@/lib/hooks";
+import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext, useSessionStorage } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
+import { formatTimestamp } from "@/lib/utils/format";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
+
+// Helper function to return applicable indexing banner
+const getIndexingBanner = (isIndexing: boolean, indexingError: string | null, onDismiss: () => void) => {
+    if (indexingError) {
+        return <MessageBanner variant="error" dismissible onDismiss={onDismiss} message={indexingError} className="m-6" />;
+    }
+    if (isIndexing) {
+        return (
+            <MessageBanner
+                variant="info"
+                message={
+                    <div className="flex gap-2">
+                        <div>Processing project files for faster access...</div>
+                        <Spinner size="small" />
+                    </div>
+                }
+                className="m-6"
+            />
+        );
+    }
+    return null;
+};
 
 interface ProjectDetailViewProps {
     project: Project;
@@ -31,13 +54,20 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
     const { addNotification } = useChatContext();
     const isProjectSharingEnabled = useIsProjectSharingEnabled();
 
-    const [indexingError, setIndexingError] = useState<string | null>(null);
+    const [indexingError, setIndexingError] = useSessionStorage<string | null>(`sam_indexing_error_${project.id}`, null);
     const { isIndexing } = useIndexingSSE({
         resourceId: project.id,
-        onError: error => setIndexingError(error),
-        onComplete: () => {
-            setIndexingError(null);
-            addNotification("Project file processing complete", "success");
+        onComplete: (failedFiles = [], errors = []) => {
+            const messages: string[] = [...errors];
+            if (failedFiles.length > 0) {
+                messages.push(`Unable to process: ${failedFiles.join(", ")}`);
+            }
+            if (messages.length > 0) {
+                setIndexingError(`${messages.join(" ")}. Please ensure all files are valid and try again.`);
+            } else {
+                setIndexingError(null);
+                addNotification("Project files processed", "success");
+            }
         },
     });
 
@@ -122,6 +152,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
         setIsEditing(false);
         setNameError(null);
     };
+
     const handleDeleteClick = () => {
         setIsDeleteDialogOpen(true);
     };
@@ -183,22 +214,10 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
             <div className="flex min-h-0 flex-1">
                 {/* Left Panel - Description and Project Chats */}
                 <div className="w-[60%] overflow-y-auto border-r">
-                    {indexingError && <MessageBanner variant="error" message={`Processing project files failed: ${indexingError}`} className="m-6" />}
-                    {isIndexing && (
-                        <MessageBanner
-                            variant="info"
-                            message={
-                                <div className="flex gap-2">
-                                    <div>Processing project files for faster access...</div>
-                                    <Spinner size="small" />
-                                </div>
-                            }
-                            className="m-6"
-                        />
-                    )}
+                    {getIndexingBanner(isIndexing, indexingError, () => setIndexingError(null))}
                     {project.description && (
                         <div className="px-8 py-4">
-                            <p className="text-muted-foreground text-sm">{project.description}</p>
+                            <p className="text-sm text-(--secondary-text-wMain)">{project.description}</p>
                         </div>
                     )}
                     {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} isDisabled={isIndexing} />}
@@ -208,12 +227,13 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
                 <div className="flex min-h-0 w-[40%] flex-col overflow-y-auto">
                     <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} isDisabled={isIndexing} error={error} />
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isDisabled={isIndexing} />
-                    <KnowledgeSection project={project} isDisabled={isIndexing} />
+                    <KnowledgeSection project={project} isDisabled={isIndexing} onFileChange={() => setIndexingError(null)} />
                 </div>
             </div>
 
             {/* Footer */}
-            <Footer>
+            <Footer className="justify-between">
+                <div className="text-muted-foreground text-sm">Created on {formatTimestamp(project.createdAt, "date")}</div>
                 <Button variant="outline" data-testid="closeButton" title="Close" onClick={onBack}>
                     Close
                 </Button>
@@ -240,7 +260,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
                                 rows={4}
                                 disabled={isSaving}
                                 maxLength={MAX_DESCRIPTION_LENGTH + 1}
-                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
+                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-(--error-wMain)" : ""}`}
                             />
                             <FieldFooter hasError={isDescriptionOverLimit} message={`${editedDescription.length} / ${MAX_DESCRIPTION_LENGTH}`} error={`Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`} />
                         </div>

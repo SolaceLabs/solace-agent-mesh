@@ -10,6 +10,7 @@ const v4 = () => uuidv4({});
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useAuthContext } from "@/lib/hooks";
+import { useSseErrorRecovery } from "@/lib/hooks/useSseErrorRecovery";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
@@ -67,6 +68,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
     const ragDataRef = useRef<RAGSearchResult[]>([]);
     const [ragEnabled] = useState<boolean>(true);
+    const [expandedDocumentFilename, setExpandedDocumentFilename] = useState<string | null>(null);
 
     // Wrapper to keep ref in sync with state
     const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
@@ -2254,20 +2256,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         /* console.log for SSE open */
     }, []);
 
-    const handleSseError = useCallback(() => {
-        if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
-            setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
-        }
-        if (!isFinalizing.current) {
-            setIsResponding(false);
-            if (!isCancellingRef.current) {
-                closeCurrentEventSource();
-                setCurrentTaskId(null);
-            }
-            latestStatusText.current = null;
-        }
+    // SSE error recovery with token refresh — extracted to a custom hook for testability.
+    // See useSseErrorRecovery.ts for the full implementation.
+    const cleanupMessages = useCallback(() => {
+        latestStatusText.current = null;
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-    }, [closeCurrentEventSource, isResponding, setError]);
+    }, []);
+
+    const { sseReconnectKey, handleSseError } = useSseErrorRecovery(
+        {
+            isResponding,
+            isFinalizing,
+            isCancelling: isCancellingRef,
+            currentTaskId,
+        },
+        {
+            closeCurrentEventSource,
+            setError,
+            setIsResponding,
+            setCurrentTaskId,
+            cleanupMessages,
+        }
+    );
 
     const cleanupUploadedFiles = useCallback(async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
         if (uploadedFiles.length === 0) {
@@ -2649,18 +2659,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [sessionId]);
 
     useEffect(() => {
-        const handleSessionMoved = async (event: Event) => {
+        const handleSessionUpdated = async (event: Event) => {
             const customEvent = event as CustomEvent;
-            const { sessionId: movedSessionId, projectId: newProjectId } = customEvent.detail;
+            const { sessionId: updatedSessionId, projectId } = customEvent.detail;
 
-            // If the moved session is the current session, update the project context
-            if (movedSessionId === sessionId) {
+            // Only handle if projectId is present (indicating a move)
+            if (projectId === undefined) return;
+
+            // If the updated session is the current session, update the project context
+            if (updatedSessionId === sessionId) {
                 // Set flag to prevent handleNewSession from being triggered by this project change
                 isSessionMoveRef.current = true;
 
-                if (newProjectId) {
+                if (projectId) {
                     // Session moved to a project - activate that project
-                    const project = projects.find((p: Project) => p.id === newProjectId);
+                    const project = projects.find((p: Project) => p.id === projectId);
                     if (project) {
                         setActiveProject(project);
                     }
@@ -2671,9 +2684,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         };
 
-        window.addEventListener("session-moved", handleSessionMoved);
+        window.addEventListener("session-updated", handleSessionUpdated);
         return () => {
-            window.removeEventListener("session-moved", handleSessionMoved);
+            window.removeEventListener("session-updated", handleSessionUpdated);
         };
     }, [sessionId, projects, setActiveProject]);
 
@@ -2874,11 +2887,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         } else {
             closeCurrentEventSource();
         }
-    }, [currentTaskId, closeCurrentEventSource]);
+    }, [currentTaskId, closeCurrentEventSource, sseReconnectKey]);
 
     const contextValue: ChatContextValue = {
         ragData,
         ragEnabled,
+        expandedDocumentFilename,
+        setExpandedDocumentFilename,
         configCollectFeedback,
         submittedFeedback,
         handleFeedbackSubmit,

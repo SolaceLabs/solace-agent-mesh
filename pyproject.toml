@@ -30,6 +30,7 @@ dependencies = [
     "httpx==0.28.1",
     "jwcrypto==1.5.6",
     "python-jwt==4.1.0",
+    "pyjwt>=2.12.0",  # [CVE-2026-32597] Security fix: validates the crit (Critical) Header Parameter in JWS tokens (transitive from a2a-sdk, msal)
     "asteval==1.0.6",
     "pystache==0.6.8",
     "python-liquid==2.1.0",
@@ -54,14 +55,15 @@ dependencies = [
     "pydub==0.25.1",
     "toml==0.10.2",
     "GitPython==3.1.45",
-    "Flask==3.0.3",
+    "Flask==3.1.3",
     "flask-cors==6.0.1",
+    "werkzeug==3.1.6",
     "fastapi==0.120.1",
     "starlette==0.49.1",
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==3.3.2",
+    "solace_ai_connector==3.3.4",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
@@ -74,13 +76,19 @@ dependencies = [
     "cryptography==46.0.5",  # [CVE-2026-26007] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
     "pillow==12.1.1",  # [CVE-2026-25990] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
     "bm25s==0.2.14",
-    "pypdf==6.6.2",
+    "pypdf==6.8.0",  # [CVE-2026-31826] Security fix: large memory usage via crafted PDF content stream
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "google-cloud-storage==3.9.0",
+    "azure-identity>=1.17.0",
     "azure-storage-blob==12.28.0",
-    "authlib==1.6.5",
-    "cachetools==7.0.1"
+    "authlib>=1.6.9",  # [CVE-2026-27962] Security fix: GHSA-wvwj-cvrp-7pv5 JWK Header Injection
+    "pyasn1>=0.6.3",  # [CVE-2026-30922] Security fix: Prevents DoS via unbounded recursion in ASN.1 decoder
+    "cachetools==7.0.1",
+    "openfeature-sdk==0.8.4",
+    "filelock==3.20.3",
+    "uuid-utils>=0.11.1",
+    "nanoid==2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -97,10 +105,11 @@ test = [
     "httpx>=0.25",
     "respx",
     "ruff",
-    "testcontainers",
+    "testcontainers[postgres,mysql]>=4.0.0",
     "aiosqlite",
     "psycopg2-binary",
     "asyncpg",
+    "pymysql>=1.1.0",  # Required for MySQL migration tests
 ]
 
 [tool.hatch.envs.hatch-test]
@@ -118,12 +127,13 @@ dependencies = [
     "httpx>=0.25",
     "respx",
     "ruff",
-    "testcontainers",
+    "testcontainers[postgres,mysql]>=4.0.0",
     "aiosqlite",
     "psycopg2-binary",
     "asyncpg",
     "bm25s==0.2.14",
-    "pypdf==6.6.2",
+    "pymysql>=1.1.0",  # Required for MySQL testcontainers
+    "pypdf==6.8.0",
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"

@@ -21,6 +21,7 @@ import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
 import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
+import { SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./preview/Renderers/PdfRenderer";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -241,6 +242,41 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         };
     }, [handleSubmit, scrollToBottom]);
 
+    // Handle snip-to-chat event from PDF renderer
+    useEffect(() => {
+        const handleSnipToChat = (event: Event) => {
+            console.log("[ChatInputArea] Received snip-to-chat event");
+            const customEvent = event as CustomEvent<SnipToChatEventDetail>;
+            const { file } = customEvent.detail;
+
+            console.log("[ChatInputArea] Adding file to selectedFiles:", file.name);
+
+            // Add the snipped image to selected files
+            // Filter out duplicates based on name, size, and last modified time
+            setSelectedFiles(prev => {
+                const isDuplicate = prev.some(existingFile => existingFile.name === file.name && existingFile.size === file.size && existingFile.lastModified === file.lastModified);
+                if (isDuplicate) {
+                    console.log("[ChatInputArea] File is duplicate, skipping");
+                    return prev;
+                }
+                console.log("[ChatInputArea] File added successfully");
+                return [...prev, file];
+            });
+
+            // Focus the chat input
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+            }, 100);
+        };
+
+        console.log("[ChatInputArea] Setting up snip-to-chat event listener");
+        window.addEventListener(SNIP_TO_CHAT_EVENT, handleSnipToChat);
+        return () => {
+            console.log("[ChatInputArea] Removing snip-to-chat event listener");
+            window.removeEventListener(SNIP_TO_CHAT_EVENT, handleSnipToChat);
+        };
+    }, []);
+
     const handleFileSelect = () => {
         if (!isResponding) {
             fileInputRef.current?.click();
@@ -274,14 +310,26 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
         // Handle file pastes (existing logic)
         if (clipboardData.files && clipboardData.files.length > 0) {
-            event.preventDefault(); // Prevent the default paste behavior for files
+            // When copying text from documents (e.g. Word, Google Docs), the clipboard
+            // often contains both text AND an image (PNG) representation of the content.
+            // If text is available alongside image-only files, prefer the text content
+            // so the paste is treated as text rather than showing a PNG artifact.
+            const pastedText = clipboardData.getData("text");
+            const allFilesAreImages = Array.from(clipboardData.files).every(file => file.type.startsWith("image/"));
 
-            // Filter out duplicates based on name, size, and last modified time
-            const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
-            if (newFiles.length > 0) {
-                setSelectedFiles(prev => [...prev, ...newFiles]);
+            if (pastedText && allFilesAreImages) {
+                // Text is available alongside image files — this is likely a rich text copy.
+                // Skip file handling and fall through to text paste handling below.
+            } else {
+                event.preventDefault(); // Prevent the default paste behavior for files
+
+                // Filter out duplicates based on name, size, and last modified time
+                const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
+                if (newFiles.length > 0) {
+                    setSelectedFiles(prev => [...prev, ...newFiles]);
+                }
+                return;
             }
-            return;
         }
 
         // Handle text pastes - show badge for large text
@@ -684,7 +732,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     return (
         <div
-            className={`bg-card rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
+            className={`rounded-lg border bg-(--background-w10) p-4 shadow-sm ${isDragging ? "border-dotted border-(--primary-wMain) bg-(--background-w20)" : ""}`}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -712,9 +760,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
                 <div className="mb-2 overflow-hidden">
-                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
-                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                        <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
+                    <div className="inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm">
+                        <Quote className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
+                        <span className="min-w-0 flex-1 truncate text-(--secondary-text-wMain) italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
                             className="h-5 w-5 shrink-0"

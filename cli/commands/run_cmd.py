@@ -7,8 +7,6 @@ import click
 from dotenv import find_dotenv, load_dotenv
 
 from cli.utils import error_exit, discover_config_files
-from solace_agent_mesh.common.utils.initializer import initialize
-from solace_ai_connector.common.logging_config import configure_from_file
 
 
 def _execute_with_solace_ai_connector(config_file_paths: list[str]):
@@ -95,6 +93,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 os.environ["LOGGING_CONFIG_PATH"] = absolute_logging_path
 
     try:
+        from solace_ai_connector.common.logging_config import configure_from_file
         if configure_from_file():
             log = logging.getLogger(__name__)
             log.info("Logging reconfigured from LOGGING_CONFIG_PATH")
@@ -114,6 +113,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
             log.info("Loaded environment variables from: %s", env_path)
 
     # Run enterprise initialization if present
+    from solace_agent_mesh.common.utils.initializer import initialize
     initialize()
 
     try:

@@ -10,6 +10,7 @@ import type { TextPart } from "@/lib/types";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
+import { useLocation, useNavigate } from "react-router-dom";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -33,8 +34,9 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const { isOnboardMode } = useUIMode();
     const { activeProject } = useProjectContext();
-    const { currentTheme } = useThemeContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
+    const location = useLocation();
+    const navigate = useNavigate();
     const {
         agents,
         sessionId,
@@ -213,6 +215,16 @@ export function ChatPage() {
         };
     }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
 
+    // Handle opening sessions panel from navigation state
+    useEffect(() => {
+        const state = location.state as { openSessionsPanel?: boolean } | null;
+        if (state?.openSessionsPanel) {
+            setIsSessionSidePanelCollapsed(false);
+            // Clear the state to prevent reopening on browser back button
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location.state, location.pathname, navigate]);
+
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
         const handleWindowFocus = () => {
@@ -252,7 +264,7 @@ export function ChatPage() {
                                         <p>{pageTitle}</p>
                                     </TooltipContent>
                                 </Tooltip>
-                                {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[200px]" />}
+                                {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[360px]" />}
                             </div>
                         )
                     }
@@ -296,7 +308,7 @@ export function ChatPage() {
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">
                                             <Spinner size="medium" variant="primary">
-                                                <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
+                                                <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading session...</p>
                                             </Spinner>
                                         </div>
                                     ) : (

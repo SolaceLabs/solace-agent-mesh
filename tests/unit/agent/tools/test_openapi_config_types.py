@@ -1,7 +1,11 @@
 """Tests for OpenAPI tool configuration types."""
 import pytest
 from pydantic import ValidationError
-from solace_agent_mesh.agent.tools.tool_config_types import OpenApiToolConfig, AnyToolConfig
+
+from solace_agent_mesh.agent.tools.tool_config_types import (
+    AnyToolConfig,
+    OpenApiToolConfig,
+)
 
 
 class TestOpenApiToolConfig:
@@ -111,3 +115,26 @@ class TestOpenApiToolConfig:
         adapter = TypeAdapter(AnyToolConfig)
         result = adapter.validate_python(config)
         assert isinstance(result, OpenApiToolConfig)
+
+    def test_openapi_config_with_headers(self):
+        """Test config with custom HTTP headers."""
+        config = {
+            "tool_type": "openapi",
+            "specification_file": "./api.json",
+            "headers": {
+                "X-Custom-Header": "value",
+                "Authorization": "Bearer token123"
+            }
+        }
+        result = OpenApiToolConfig.model_validate(config)
+        assert result.headers == {"X-Custom-Header": "value", "Authorization": "Bearer token123"}
+
+    def test_openapi_config_headers_default_none(self):
+        """Test that headers defaults to None when not specified."""
+        config = {
+            "tool_type": "openapi",
+            "specification_file": "./api.json"
+        }
+        result = OpenApiToolConfig.model_validate(config)
+        assert result.headers is None
+
