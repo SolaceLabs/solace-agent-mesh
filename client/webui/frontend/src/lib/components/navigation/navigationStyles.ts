@@ -17,7 +17,7 @@ export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-cen
     defaultVariants: { active: false, indent: false },
 });
 
-export const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify-center", "rounded"], {
+export const iconWrapperStyles = cva(["flex", "shrink-0", "size-8", "items-center", "justify-center", "rounded"], {
     variants: {
         active: {
             true: `border border-(--darkSurface-brandAccent) ${ACTIVE_BG}`,
