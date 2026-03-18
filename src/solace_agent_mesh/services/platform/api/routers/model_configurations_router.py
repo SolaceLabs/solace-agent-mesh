@@ -9,6 +9,7 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
   Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
+import logging
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -112,16 +113,20 @@ async def get_model(
             detail=f"Model configuration with alias '{alias}' not found",
         )
 
+    return config
+
+
 @router.post(
     "/models",
     response_model=ModelConfigurationResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a model configuration",
-    description="Create a new model configuration. The alias must be unique (case-insensitive).",
+    description="Create a new model configuration. The alias must be unique (case-sensitive).",
 )
 async def create_model(
     request: ModelConfigurationCreateRequest,
     _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> ModelConfigurationResponse:
@@ -140,7 +145,7 @@ async def create_model(
     """
     try:
         created_by = user.get("id", "unknown")
-        config = service.create(request, created_by=created_by)
+        config = service.create(db, request, created_by=created_by)
         return config
     except ValueError as e:
         log.warning(f"Invalid model creation request: {e}")
@@ -166,6 +171,7 @@ async def update_model(
     alias: str,
     request: ModelConfigurationUpdateRequest,
     _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> ModelConfigurationResponse:
@@ -185,7 +191,7 @@ async def update_model(
     """
     try:
         updated_by = user.get("id", "unknown")
-        config = service.update(alias, request, updated_by=updated_by)
+        config = service.update(db, alias, request, updated_by=updated_by)
 
         if not config:
             log.debug(f"Model configuration not found with alias: {alias}")
@@ -220,6 +226,7 @@ async def update_model(
 async def delete_model(
     alias: str,
     _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> None:
@@ -234,7 +241,7 @@ async def delete_model(
         HTTPException: 404 if not found, 500 on server error
     """
     try:
-        deleted = service.delete(alias)
+        deleted = service.delete(db, alias)
 
         if not deleted:
             log.debug(f"Model configuration not found with alias: {alias}")
@@ -250,5 +257,3 @@ async def delete_model(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete model configuration",
         )
-
-    return config
