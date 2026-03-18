@@ -297,7 +297,7 @@ class TestModelConfigurationAPI:
         assert "sk-secret-key" not in response.text
 
     def test_create_model_duplicate_alias_returns_409(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
-        """Test that POST /models returns 409 when alias already exists (case-insensitive)."""
+        """Test that POST /models returns 409 when alias already exists (case-sensitive)."""
         # Setup: Create an existing model
         db = platform_db_session_factory()
         try:
@@ -318,9 +318,9 @@ class TestModelConfigurationAPI:
             db.add(model_config)
             db.commit()
 
-            # Arrange: Prepare request with same alias (different case)
+            # Arrange: Prepare request with same alias (case-sensitive)
             request_data = {
-                "alias": "EXISTING-MODEL",  # Different case
+                "alias": "existing-model",  # Exact case match (case-sensitive)
                 "provider": "openai",
                 "modelName": "gpt-4",
                 "apiBase": "https://api.openai.com/v1"
