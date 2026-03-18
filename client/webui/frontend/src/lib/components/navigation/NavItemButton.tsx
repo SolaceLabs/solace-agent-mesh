@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -19,9 +20,11 @@ export interface NavItemButtonProps {
 
 export const NavItemButton: React.FC<NavItemButtonProps> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild, isCollapsed = false }) => {
     const isHighlighted = isActive || hasActiveChild;
+    const classes = cn(navButtonStyles({ indent: !!indent, active: !!indent && isActive }), className);
+    const handleClick = item.hasSubmenu ? onToggleExpand : onClick;
 
-    return (
-        <button onClick={item.hasSubmenu ? onToggleExpand : onClick} className={cn(navButtonStyles({ indent: !!indent, active: !!indent && isActive }), className)}>
+    const children = (
+        <>
             {indent ? (
                 <span className={navTextStyles({ active: isActive })}>{item.label}</span>
             ) : (
@@ -34,6 +37,20 @@ export const NavItemButton: React.FC<NavItemButtonProps> = ({ item, isActive, on
             )}
             {!isCollapsed && item.hasSubmenu && <span className="ml-auto text-(--darkSurface-text)">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
             {!isCollapsed && item.badge}
+        </>
+    );
+
+    if (item.route && !item.hasSubmenu) {
+        return (
+            <Link to={item.route} onClick={handleClick} className={classes}>
+                {children}
+            </Link>
+        );
+    }
+
+    return (
+        <button onClick={handleClick} className={classes}>
+            {children}
         </button>
     );
 };

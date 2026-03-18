@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -301,9 +301,9 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                     <div className="mb-2 flex items-center justify-between pt-4 pr-6 pl-6">
                         <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
                         {/** Hard-code colours to avoid extra variables in the theme for a single usage, may reconsider if there is greater usage */}
-                        <button onClick={() => navigate("/chat", { state: { openSessionsPanel: true } })} className="cursor-pointer text-sm text-[#679DB4] hover:text-[#E6EFF2]">
+                        <Link to="/chat" state={{ openSessionsPanel: true }} className="cursor-pointer text-sm text-[#679DB4] no-underline hover:text-[#E6EFF2]">
                             View All
-                        </button>
+                        </Link>
                     </div>
                     <div className="scrollbar-subtle min-h-[120px] flex-1 overflow-y-auto">
                         <RecentChatsList maxItems={MAX_RECENT_CHATS} />
