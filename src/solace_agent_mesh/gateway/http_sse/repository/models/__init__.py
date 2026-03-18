@@ -13,6 +13,13 @@ from .sse_event_buffer_model import SSEEventBufferModel
 from .task_event_model import TaskEventModel
 from .task_model import TaskModel
 from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
+from .scheduled_task_model import (
+    ScheduledTaskModel,
+    ScheduledTaskExecutionModel,
+    SchedulerLockModel,
+    ScheduleType,
+    ExecutionStatus,
+)
 from .share_model import (
     SharedLinkModel,
     SharedArtifactModel,
@@ -51,4 +58,9 @@ __all__ = [
     "ShareLinkResponse",
     "ShareLinkItem",
     "SharedSessionView",
+    "ScheduledTaskModel",
+    "ScheduledTaskExecutionModel",
+    "SchedulerLockModel",
+    "ScheduleType",
+    "ExecutionStatus",
 ]

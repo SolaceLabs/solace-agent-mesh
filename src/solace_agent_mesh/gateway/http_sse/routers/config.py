@@ -272,6 +272,36 @@ def _determine_projects_enabled(
     return True
 
 
+def _determine_scheduler_enabled(
+    component: "WebUIBackendComponent",
+    api_config: Dict[str, Any],
+    log_prefix: str
+) -> bool:
+    """
+    Determines if scheduler feature should be enabled.
+
+    Requires SQL persistence and explicit scheduler_service.enabled=true.
+    """
+    session_config = component.get_config("session_service", {})
+    session_type = session_config.get("type", "memory")
+
+    if session_type != "sql":
+        log.debug("%s Scheduler disabled: session_service type is '%s' (not 'sql')", log_prefix, session_type)
+        return False
+
+    scheduler_config = component.get_config("scheduler_service", {})
+    if isinstance(scheduler_config, dict):
+        if not scheduler_config.get("enabled", False):
+            log.debug("%s Scheduler disabled: scheduler_service.enabled is not true", log_prefix)
+            return False
+    else:
+        log.debug("%s Scheduler disabled: no scheduler_service config section", log_prefix)
+        return False
+
+    log.debug("%s Scheduler enabled", log_prefix)
+    return True
+
+
 @router.get("/config", response_model=Dict[str, Any])
 async def get_app_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
@@ -423,6 +453,14 @@ async def get_app_config(
         else:
             log.debug("%s Binary artifact preview feature flag is disabled.", log_prefix)
         
+        # Determine if scheduler should be enabled
+        scheduler_enabled = _determine_scheduler_enabled(component, api_config, log_prefix)
+        feature_enablement["scheduler"] = scheduler_enabled
+        if scheduler_enabled:
+            log.debug("%s Scheduler feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Scheduler feature flag is disabled.", log_prefix)
+
         # Check tool configuration status
         tool_config_status = {}
         
