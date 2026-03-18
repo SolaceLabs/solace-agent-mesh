@@ -46,7 +46,7 @@ export const solaceDark: ThemePalette = {
         w100: "#f5f5f5",
         wMain: "#7184A1",
         w20: "#071e36",
-        w10: "#03223B",
+        w10: "#02172b",
     },
 
     info: {
