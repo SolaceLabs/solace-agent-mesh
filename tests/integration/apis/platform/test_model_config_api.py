@@ -62,7 +62,10 @@ class TestModelConfigurationAPI:
 
             # Capture response text and data for assertions
             response_text = response.text
-            data = response.json()
+            response_data = response.json()
+
+            # Extract the model data from DataResponse
+            data = response_data["data"]
 
             # Assert: All expected fields are present
             expected_fields = {
@@ -168,7 +171,8 @@ class TestModelConfigurationAPI:
                 assert expected_secret_text not in response.text
 
             # Assert: authConfig has only public/redacted fields
-            data = response.json()
+            response_data = response.json()
+            data = response_data["data"]
             assert data["authConfig"] == expected_config
 
         finally:
