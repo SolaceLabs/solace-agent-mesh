@@ -29,6 +29,17 @@ const mockViewerRecent = {
     access_level: "read-only" as const,
 };
 
+/** Shared args across all stories */
+const sharedArgs = {
+    sessionId: "test-session-123",
+    sessionTitle: "My Chat Session",
+    sessionUpdatedTime: new Date().toISOString(),
+    open: true,
+    onOpenChange: () => {},
+    onError: (error: string) => console.error(error),
+    onSuccess: (message: string) => console.log(message),
+} satisfies Partial<typeof ShareDialog extends React.ComponentType<infer P> ? P : never>;
+
 const meta: Meta<typeof ShareDialog> = {
     title: "Chat/ShareDialog",
     component: ShareDialog,
@@ -69,55 +80,24 @@ type Story = StoryObj<typeof ShareDialog>;
 
 // Default state with owner and 1 viewer
 export const Default: Story = {
-    args: {
-        sessionId: "test-session-123",
-        sessionTitle: "My Chat Session",
-        sessionUpdatedTime: new Date().toISOString(),
-        open: true,
-        onOpenChange: () => {},
-        onError: error => console.error(error),
-        onSuccess: message => console.log(message),
-    },
+    args: { ...sharedArgs },
 };
 
 // With add row visible
 export const WithAddRow: Story = {
-    args: {
-        sessionId: "test-session-123",
-        sessionTitle: "My Chat Session",
-        sessionUpdatedTime: new Date().toISOString(),
-        open: true,
-        onOpenChange: () => {},
-        onError: error => console.error(error),
-        onSuccess: message => console.log(message),
-        defaultShowAddRow: true,
-    },
+    args: { ...sharedArgs, defaultShowAddRow: true },
 };
 
 // With public link visible
 export const WithPublicLink: Story = {
-    args: {
-        sessionId: "test-session-123",
-        sessionTitle: "My Chat Session",
-        sessionUpdatedTime: new Date().toISOString(),
-        open: true,
-        onOpenChange: () => {},
-        onError: error => console.error(error),
-        onSuccess: message => console.log(message),
-        defaultShowPublicLink: true,
-    },
+    args: { ...sharedArgs, defaultShowPublicLink: true },
 };
 
 // With both add row and public link
 export const FullyExpanded: Story = {
     args: {
-        sessionId: "test-session-123",
+        ...sharedArgs,
         sessionTitle: "My Chat Session with a Very Long Title That Might Need Truncation",
-        sessionUpdatedTime: new Date().toISOString(),
-        open: true,
-        onOpenChange: () => {},
-        onError: error => console.error(error),
-        onSuccess: message => console.log(message),
         defaultShowAddRow: true,
         defaultShowPublicLink: true,
     },
@@ -126,14 +106,10 @@ export const FullyExpanded: Story = {
 // With outdated session (shows update snapshot button for the viewer)
 export const WithOutdatedSession: Story = {
     args: {
-        sessionId: "test-session-123",
+        ...sharedArgs,
         sessionTitle: "Recently Updated Chat",
         // Session updated 1 day ago (after viewer was added 2 days ago)
         sessionUpdatedTime: new Date(Date.now() - 86400000).toISOString(),
-        open: true,
-        onOpenChange: () => {},
-        onError: error => console.error(error),
-        onSuccess: message => console.log(message),
     },
     parameters: {
         msw: {
@@ -154,15 +130,7 @@ export const WithOutdatedSession: Story = {
 
 // With no viewers (just owner)
 export const OnlyOwner: Story = {
-    args: {
-        sessionId: "test-session-123",
-        sessionTitle: "Chat Not Shared Yet",
-        sessionUpdatedTime: new Date().toISOString(),
-        open: true,
-        onOpenChange: () => {},
-        onError: error => console.error(error),
-        onSuccess: message => console.log(message),
-    },
+    args: { ...sharedArgs, sessionTitle: "Chat Not Shared Yet" },
     parameters: {
         msw: {
             handlers: [
@@ -182,13 +150,5 @@ export const OnlyOwner: Story = {
 
 // Closed state
 export const Closed: Story = {
-    args: {
-        sessionId: "test-session-123",
-        sessionTitle: "My Chat Session",
-        sessionUpdatedTime: new Date().toISOString(),
-        open: false,
-        onOpenChange: () => {},
-        onError: error => console.error(error),
-        onSuccess: message => console.log(message),
-    },
+    args: { ...sharedArgs, open: false },
 };
