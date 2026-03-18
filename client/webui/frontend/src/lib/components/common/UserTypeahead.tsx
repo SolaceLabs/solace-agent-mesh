@@ -3,7 +3,7 @@
  * Uses Popover-based implementation with search input and dropdown results.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ChangeEvent, type KeyboardEvent, type FC } from "react";
 import { cva } from "class-variance-authority";
 import { X } from "lucide-react";
 import { Input } from "@/lib/components/ui/input";
@@ -29,7 +29,7 @@ interface UserTypeaheadProps {
     hideCloseButton?: boolean;
 }
 
-export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, error, hideRoleBadge = false, hideCloseButton = false }) => {
+export const UserTypeahead: FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, error, hideRoleBadge = false, hideCloseButton = false }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [isKeyboardMode, setIsKeyboardMode] = useState(false);
@@ -65,7 +65,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
     }, [id, onRemove]);
 
     const handleKeyDown = useCallback(
-        (e: React.KeyboardEvent) => {
+        (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 e.preventDefault();
                 handleClose();
@@ -98,7 +98,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
 
     // Handle input change - clear selection if user starts typing
     const handleInputChange = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
+        (e: ChangeEvent<HTMLInputElement>) => {
             const newValue = e.target.value;
             if (selectedEmail) {
                 // Clear selection and start fresh search
