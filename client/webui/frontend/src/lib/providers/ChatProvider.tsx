@@ -599,6 +599,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
             }
 
+            // Deduplicate messageIds — older sessions may have stored multiple
+            // agent bubbles for the same task with messageId === taskId (e.g. pre-
+            // and post-HIL responses). Suffix duplicates so React keys stay unique.
+            const seenMessageIds = new Set<string>();
+            for (const msg of allMessages) {
+                const id = msg.metadata?.messageId;
+                if (id && seenMessageIds.has(id)) {
+                    msg.metadata = { ...msg.metadata, messageId: `${id}-${v4().slice(0, 8)}` };
+                } else if (id) {
+                    seenMessageIds.add(id);
+                }
+            }
+
             // Extract feedback state from task metadata
             const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
             // Extract RAG data from task metadata
@@ -847,6 +860,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isFinalizing.current = false;
     }, []);
 
+    /**
+     * Find the last agent message bubble for a task, respecting HIL boundaries.
+     * Returns -1 if no suitable bubble exists or if a responded HIL message
+     * sits between the candidate bubble and the end of the array (meaning
+     * new content should go into a fresh bubble below the HIL response summary).
+     */
+    const findAgentBubbleForTask = useCallback((messages: MessageFE[], taskId: string | undefined): number => {
+        const idx = messages.findLastIndex(m => !m.isUser && !m.userInputRequest && m.taskId === taskId);
+        if (idx === -1) return -1;
+        // If a responded HIL form for the same task exists after this bubble,
+        // don't reuse it — new content belongs in a separate bubble.
+        const hasRespondedHilAfter = messages.slice(idx + 1).some(
+            m => m.userInputRequest?.responded && m.taskId === taskId,
+        );
+        return hasRespondedHilAfter ? -1 : idx;
+    }, []);
+
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
             sseEventSequenceRef.current += 1;
@@ -1066,7 +1096,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                     setMessages(prev => {
                                         const newMessages = [...prev];
-                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && !m.userInputRequest && m.taskId === currentTaskIdFromResult);
+                                        let agentMessageIndex = findAgentBubbleForTask(newMessages, currentTaskIdFromResult);
 
                                         if (agentMessageIndex === -1) {
                                             const newAgentMessage: MessageFE = {
@@ -1463,39 +1493,52 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     lastMessage = newMessages[newMessages.length - 1];
                 }
 
+                // Find existing agent message for this task — search backwards so we
+                // find it even when other messages (HIL, auth, artifact-handler) were
+                // appended after it. This prevents creating duplicate bubbles with the
+                // same messageId (task ID) when lastMessage doesn't match.
+                //
+                // However, do NOT reuse a bubble that appears BEFORE a responded HIL
+                // form for the same task. After a HIL form is answered, new text from
+                // the agent should appear in a fresh bubble below the response summary,
+                // not retroactively appended to the pre-HIL bubble.
+                const taskId = (result as TaskStatusUpdateEvent).taskId;
+                const existingAgentIdx = findAgentBubbleForTask(newMessages, taskId);
+                const existingAgentMsg = existingAgentIdx !== -1 ? newMessages[existingAgentIdx] : undefined;
+
                 // Check if this is a deep research progress update
                 const isProgressUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && ((newContentParts[0] as DataPart).data as any).type === "deep_research_progress";
 
                 // For progress updates, always update the same message (don't replace, just update the data)
                 // The InlineResearchProgress component will handle showing all stages
-                if (isProgressUpdate && lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                if (isProgressUpdate && existingAgentMsg) {
                     const updatedMessage: MessageFE = {
-                        ...lastMessage,
+                        ...existingAgentMsg,
                         parts: newContentParts,
                         isComplete: isFinalEvent || hasNewFiles,
                         metadata: {
-                            ...lastMessage.metadata,
+                            ...existingAgentMsg.metadata,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     };
-                    newMessages[newMessages.length - 1] = updatedMessage;
-                } else if (lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                    newMessages[existingAgentIdx] = updatedMessage;
+                } else if (existingAgentMsg && newContentParts.length > 0) {
                     // When the final response includes file parts, the gateway has
                     // resolved artifact_return embeds and interleaved them at the
                     // correct text positions. Replace the streamed parts with the
                     // authoritative final parts to preserve that ordering.
                     // For non-final events, append as usual.
                     const updatedMessage: MessageFE = {
-                        ...lastMessage,
-                        parts: isFinalEvent && hasNewFiles ? newContentParts : [...lastMessage.parts, ...newContentParts],
+                        ...existingAgentMsg,
+                        parts: isFinalEvent && hasNewFiles ? newContentParts : [...existingAgentMsg.parts, ...newContentParts],
                         isComplete: isFinalEvent || hasNewFiles,
-                        isError: isTaskFailed || lastMessage.isError,
+                        isError: isTaskFailed || existingAgentMsg.isError,
                         metadata: {
-                            ...lastMessage.metadata,
+                            ...existingAgentMsg.metadata,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     };
-                    newMessages[newMessages.length - 1] = updatedMessage;
+                    newMessages[existingAgentIdx] = updatedMessage;
                 } else {
                     // For failed tasks, always create a message bubble even if there are no content parts
                     // For other cases, only create a new bubble if there is visible content to render.
@@ -1511,7 +1554,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isComplete: isFinalEvent || hasNewFiles,
                             isError: isTaskFailed,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                                messageId: `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -1879,7 +1922,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData]
+        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData, findAgentBubbleForTask]
     );
 
     // Wrapper that shows confirmation when task is running and background tasks are disabled
