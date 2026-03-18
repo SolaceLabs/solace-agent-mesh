@@ -9,6 +9,7 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
   Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -23,10 +24,14 @@ from solace_agent_mesh.services.platform.api.dependencies import (
     get_platform_db,
 )
 
-from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
+from solace_agent_mesh.services.platform.api.routers.dto.responses import (
+    ModelConfigurationResponse,
+    ModelConfigurationTestResponse,
+)
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationCreateRequest,
     ModelConfigurationUpdateRequest,
+    ModelConfigurationTestRequest,
 )
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.auth.dependencies import get_current_user
@@ -56,6 +61,44 @@ def _require_model_config_ui_enabled() -> bool:
             detail="Model configuration feature is not enabled",
         )
     return True
+
+
+@router.post(
+    "/models/test",
+    response_model=DataResponse[ModelConfigurationTestResponse],
+    summary="Test a model configuration",
+    description="Test connectivity by making a minimal LLM call. Supports both new configurations (all config in body) and existing models (provide alias to use stored credentials as fallback).",
+)
+async def test_model_connection(
+    request: ModelConfigurationTestRequest,
+    _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> DataResponse[ModelConfigurationTestResponse]:
+    """
+    Test a model configuration connection.
+
+    Makes a minimal LLM call with the provided configuration to verify connectivity
+    and validate credentials. Supports two scenarios:
+
+    1. New model: Provide all configuration details
+    2. Editing existing model: Provide alias to use stored credentials as fallback
+
+    When testing an existing model by alias, any empty auth_config fields will use
+    the stored values. This allows testing a new provider/model with existing credentials.
+
+    Args:
+        request: Test request with model configuration details
+        _: Feature flag dependency
+        db: Database session
+        service: Model configuration service
+
+    Returns:
+        DataResponse with success status and message
+    """
+    success, message = await asyncio.to_thread(service.test_connection, db, request)
+    response = ModelConfigurationTestResponse(success=success, message=message)
+    return create_data_response(response)
 
 
 @router.get(
