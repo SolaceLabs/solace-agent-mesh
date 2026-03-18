@@ -194,7 +194,8 @@ class TestSeedFromModelsConfig:
 
         assert count == 3
         assert mock_db.add.call_count == 3
-        assert mock_db.commit.called
+        # Note: Transaction ownership is with the caller (component startup)
+        # The seeding function only adds models, caller is responsible for commit
 
         # Verify each model type was seeded correctly
         added_models = [call[0][0] for call in mock_db.add.call_args_list]
@@ -235,7 +236,8 @@ class TestSeedFromModelsConfig:
 
         assert count == 3
         assert mock_db.add.call_count == 3
-        assert mock_db.commit.called
+        # Note: Transaction ownership is with the caller (component startup)
+        # The seeding function only adds models, caller is responsible for commit
 
         added_models = [call[0][0] for call in mock_db.add.call_args_list]
 
@@ -288,7 +290,8 @@ class TestSeedFromEnvVars:
             # Should seed 4 models (planning, general, image_gen, report_gen)
             assert count == 4
             assert mock_db.add.call_count == 4
-            assert mock_db.commit.called
+            # Note: Transaction ownership is with the caller (component startup)
+        # The seeding function only adds models, caller is responsible for commit
 
             added_models = [call[0][0] for call in mock_db.add.call_args_list]
 

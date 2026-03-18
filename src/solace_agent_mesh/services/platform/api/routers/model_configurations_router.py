@@ -80,7 +80,7 @@ async def list_models(
 
 @router.get(
     "/models/{alias}",
-    response_model=ModelConfigurationResponse,
+    response_model=DataResponse[ModelConfigurationResponse],
     summary="Get model configuration by alias",
     description="Retrieve a model configuration by alias (e.g., 'gpt-4', 'claude-3'). Sensitive authentication information is excluded.",
 )
@@ -89,7 +89,7 @@ async def get_model(
     _: None = Depends(_require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
-) -> ModelConfigurationResponse:
+) -> DataResponse[ModelConfigurationResponse]:
     """
     Retrieve a model configuration by alias.
 
@@ -100,7 +100,7 @@ async def get_model(
         alias: The model alias to look up
 
     Returns:
-        ModelConfigurationResponse: The model configuration with safe data
+        DataResponse with model configuration data
 
     Raises:
         HTTPException: 404 if configuration not found
@@ -113,7 +113,7 @@ async def get_model(
             detail=f"Model configuration with alias '{alias}' not found",
         )
 
-    return config
+    return create_data_response(config)
 
 
 @router.post(
@@ -159,7 +159,6 @@ async def create_model(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create model configuration",
         )
-
 
 @router.put(
     "/models/{alias}",
