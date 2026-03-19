@@ -48,7 +48,7 @@ export const ModelProviderIcon = ({ provider, size = "md" }: ModelProviderIconPr
 
     if (!iconPath || imageError) {
         return (
-            <div className={`${config.margin} flex bg-(--secondary-w10) ${config.container} items-center justify-center rounded-full`}>
+            <div className={`${config.margin} flex bg-[#CFD3D9] ${config.container} items-center justify-center rounded-full`}>
                 <span className={`text-(--secondary-text-w50) ${config.text} font-semibold`}>{provider.charAt(0).toUpperCase()}</span>
             </div>
         );

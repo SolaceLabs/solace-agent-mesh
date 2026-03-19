@@ -9,3 +9,9 @@ export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     ollama: "Ollama",
     custom: "Custom",
 };
+
+export const AUTH_TYPE_LABELS: Record<string, string> = {
+    apikey: "API Key",
+    oauth2: "OAuth2",
+    none: "None",
+};

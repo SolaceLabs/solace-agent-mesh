@@ -3,12 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Pencil, Trash2, Ellipsis } from "lucide-react";
 
 import { Button, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
-import { EmptyState } from "@/lib/components/common";
+import { EmptyState, Footer, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, PageValue, Metadata } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 
 import { useModelConfigs } from "@/lib/api/models";
-import { PageFooter, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, Metadata } from "@/lib/components/common/PageCommon";
-import { PROVIDER_DISPLAY_NAMES } from "./common";
+import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 
 export const ModelDetailsPage = () => {
@@ -25,11 +24,6 @@ export const ModelDetailsPage = () => {
         navigate(`/agents?tab=models`);
     };
 
-    const handleEdit = () => {
-        // TODO: Navigate to edit page in PR #4
-        console.log("Edit model:", modelToView?.alias);
-    };
-
     const menuActions = useMemo(() => {
         const actions: MenuAction[] = [
             {
@@ -43,14 +37,14 @@ export const ModelDetailsPage = () => {
             },
         ];
         return actions;
-    }, [modelToView]);
+    }, []);
 
     const headerButtons = useMemo(() => {
         return [
             <Button
                 key="edit"
                 variant="ghost"
-                onClick={handleEdit}
+                onClick={() => {}}
                 title="Edit Model"
                 disabled={true}
                 // TODO: Enable edit in PR #4
@@ -69,13 +63,13 @@ export const ModelDetailsPage = () => {
                 </PopoverContent>
             </Popover>,
         ];
-    }, [menuActions]);
+    }, []);
 
     const title = modelToView ? modelToView.alias : "N/A";
 
     return (
         <div className="flex h-full w-full min-w-4xl flex-col overflow-hidden">
-            <Header title={title} breadcrumbs={[{ label: "Agent Mesh", onClick: () => navigate("/agents?tab=models") }, { label: title }]} buttons={headerButtons} />
+            <Header title={title} breadcrumbs={[{ label: "Models", onClick: () => navigate("/agents?tab=models") }, { label: title }]} buttons={headerButtons} />
 
             {modelConfigsLoading ? (
                 <EmptyState variant="loading" title="Loading Models..." />
@@ -88,16 +82,16 @@ export const ModelDetailsPage = () => {
                         {modelToView.description && (
                             <PageLabelWithValue className="flex gap-2">
                                 <PageLabel>Description</PageLabel>
-                                <div className="whitespace-pre-wrap">{modelToView.description}</div>
+                                <PageValue className="whitespace-pre-wrap">{modelToView.description}</PageValue>
                             </PageLabelWithValue>
                         )}
 
                         <PageLabelWithValue className="flex gap-2">
                             <PageLabel>Model Provider</PageLabel>
-                            <div className="flex items-center gap-2">
+                            <PageValue className="flex items-center gap-2">
                                 <ModelProviderIcon provider={modelToView.provider} size="xs" />
                                 <span>{PROVIDER_DISPLAY_NAMES[modelToView.provider] || modelToView.provider}</span>
-                            </div>
+                            </PageValue>
                         </PageLabelWithValue>
                     </PageSection>
 
@@ -105,31 +99,31 @@ export const ModelDetailsPage = () => {
                         <div className="pt-6 font-semibold">Model Connection Details</div>
                         <PageLabelWithValue className="flex gap-2">
                             <PageLabel>Model Name</PageLabel>
-                            <div>{modelToView.modelName}</div>
+                            <PageValue>{modelToView.modelName}</PageValue>
                         </PageLabelWithValue>
 
                         {modelToView.apiBase && (
                             <PageLabelWithValue className="flex gap-2">
                                 <PageLabel>URL</PageLabel>
-                                <div>{modelToView.apiBase}</div>
+                                <PageValue>{modelToView.apiBase}</PageValue>
                             </PageLabelWithValue>
                         )}
 
                         <PageLabelWithValue className="flex gap-2">
                             <PageLabel>Authentication</PageLabel>
-                            <div>{modelToView.authType !== "none" && modelToView.authType ? (modelToView.authType === "apikey" ? "API Key" : modelToView.authType) : "None"}</div>
+                            <PageValue>{AUTH_TYPE_LABELS[modelToView.authType ?? "none"] ?? modelToView.authType}</PageValue>
                         </PageLabelWithValue>
 
                         {Object.keys(modelToView.modelParams).length > 0 && (
                             <PageLabelWithValue className="flex gap-2">
                                 <PageLabel>Model Parameters</PageLabel>
-                                <div className="space-y-1">
+                                <PageValue className="space-y-1">
                                     {Object.entries(modelToView.modelParams).map(([key, value]) => (
                                         <div key={key}>
                                             <span className="font-medium">{key}:</span> {String(value)}
                                         </div>
                                     ))}
-                                </div>
+                                </PageValue>
                             </PageLabelWithValue>
                         )}
                     </PageSection>
@@ -146,11 +140,11 @@ export const ModelDetailsPage = () => {
                 </PageContentWrapper>
             )}
 
-            <PageFooter>
+            <Footer>
                 <Button variant="outline" title="Close" onClick={handleBack}>
                     Close
                 </Button>
-            </PageFooter>
+            </Footer>
         </div>
     );
 };

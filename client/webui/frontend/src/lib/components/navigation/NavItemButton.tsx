@@ -1,7 +1,7 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { cn } from "@/lib/utils";
 import { navButtonStyles, iconWrapperStyles, iconStyles, navTextStyles } from "./navigationStyles";
 import type { NavItem } from "./types";
@@ -15,13 +15,16 @@ export interface NavItemButtonProps {
     className?: string;
     indent?: boolean;
     hasActiveChild?: boolean;
+    isCollapsed?: boolean;
 }
 
-export const NavItemButton: React.FC<NavItemButtonProps> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild }) => {
+export const NavItemButton: React.FC<NavItemButtonProps> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild, isCollapsed = false }) => {
     const isHighlighted = isActive || hasActiveChild;
+    const classes = cn(navButtonStyles({ indent: !!indent, active: !!indent && isActive }), className);
+    const handleClick = item.hasSubmenu ? onToggleExpand : onClick;
 
-    const buttonContent = (
-        <button onClick={item.hasSubmenu ? onToggleExpand : onClick} className={cn(navButtonStyles({ indent: !!indent, active: !!indent && isActive }), className)}>
+    const children = (
+        <>
             {indent ? (
                 <span className={navTextStyles({ active: isActive })}>{item.label}</span>
             ) : (
@@ -29,24 +32,25 @@ export const NavItemButton: React.FC<NavItemButtonProps> = ({ item, isActive, on
                     <div className={iconWrapperStyles({ active: isHighlighted, withMargin: true })}>
                         <item.icon className={iconStyles({ active: isHighlighted })} />
                     </div>
-                    <span className={navTextStyles({ active: isHighlighted })}>{item.label}</span>
+                    <span className={cn(navTextStyles({ active: isActive }), "overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-200", isCollapsed ? "max-w-0 opacity-0" : "max-w-[180px] opacity-100")}>{item.label}</span>
                 </>
             )}
-            {item.hasSubmenu && <span className="ml-auto text-(--darkSurface-text)">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
-            {item.badge}
-        </button>
+            {!isCollapsed && item.hasSubmenu && <span className="ml-auto text-(--darkSurface-text)">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
+            {!isCollapsed && item.badge}
+        </>
     );
 
-    if (item.tooltip) {
+    if (item.route && !item.hasSubmenu) {
         return (
-            <Tooltip>
-                <TooltipTrigger asChild>{buttonContent}</TooltipTrigger>
-                <TooltipContent side="right">
-                    <p>{item.tooltip}</p>
-                </TooltipContent>
-            </Tooltip>
+            <Link to={item.route} onClick={handleClick} className={classes}>
+                {children}
+            </Link>
         );
     }
 
-    return buttonContent;
+    return (
+        <button onClick={handleClick} className={classes}>
+            {children}
+        </button>
+    );
 };

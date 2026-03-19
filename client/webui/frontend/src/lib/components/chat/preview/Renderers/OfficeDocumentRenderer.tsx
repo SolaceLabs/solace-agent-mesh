@@ -328,6 +328,15 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
             // Generate cache key for this content
             const cacheKey = hashContent(content, filename);
 
+            // Check cache first (before deduplication check, so re-renders can use cached results)
+            const cachedPdf = pdfConversionCache.get(cacheKey);
+
+            if (cachedPdf) {
+                setPdfDataUrl(cachedPdf);
+                setConversionState("success");
+                return;
+            }
+
             // Skip if we've already started conversion for this exact content
             // This prevents duplicate conversions on re-renders
             if (conversionStartedRef.current === cacheKey) {
@@ -340,16 +349,6 @@ export function OfficeDocumentRenderer({ content, filename, documentType, setRen
                 console.log("Binary artifact preview is disabled via feature flag");
                 setConversionState("error");
                 setError("Document preview is not enabled on this server.");
-                return;
-            }
-
-            // Check cache first
-            const cachedPdf = pdfConversionCache.get(cacheKey);
-
-            if (cachedPdf) {
-                console.log("Using cached PDF conversion for:", filename);
-                setPdfDataUrl(cachedPdf);
-                setConversionState("success");
                 return;
             }
 

@@ -76,6 +76,24 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         )
         return Session.model_validate(model) if model else None
 
+    def find_session_by_id(
+        self, session: DBSession, session_id: SessionId
+    ) -> Session | None:
+        """Find a session by ID without user ownership check.
+        
+        Used for editor access scenarios where the requesting user
+        is not the owner but has been granted editor access via sharing.
+        """
+        model = (
+            session.query(SessionModel)
+            .filter(
+                SessionModel.id == session_id,
+                SessionModel.deleted_at.is_(None)
+            )
+            .first()
+        )
+        return Session.model_validate(model) if model else None
+
     def save(self, db_session: DBSession, session: Session) -> Session:
         """Save or update a session."""
         existing_model = (
