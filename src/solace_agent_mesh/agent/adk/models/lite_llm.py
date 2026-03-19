@@ -981,6 +981,7 @@ class LiteLlm(BaseLlm):
             self._set_status("initializing")
             return
 
+        self.model = model_name
         copied_model_config = model_config.copy()
         if copied_model_config.get("type") is None:
             copied_model_config.setdefault("num_retries", 3)

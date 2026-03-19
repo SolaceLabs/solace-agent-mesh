@@ -37,7 +37,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Derive projects and error from React Query
     const projects = useMemo(() => {
         if (!projectsEnabled || !projectsData) return [];
-        return [...projectsData.projects].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+        return [...projectsData.projects].sort((a, b) => {
+            // Pinned projects first
+            if (a.isPinned !== b.isPinned) {
+                return a.isPinned ? -1 : 1;
+            }
+            return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        });
     }, [projectsData, projectsEnabled]);
 
     const error = queryError ? (queryError instanceof Error ? queryError.message : "Could not load projects.") : null;
