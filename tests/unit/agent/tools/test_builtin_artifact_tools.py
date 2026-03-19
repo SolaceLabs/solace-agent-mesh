@@ -321,6 +321,94 @@ class TestExtractContentFromArtifact:
         assert "ToolContext is missing" in result.message
 
 
+class TestExtractContentUsesHostComponentLlm:
+    """Tests for extract_content_from_artifact using host_component.get_lite_llm_model()."""
+
+    @pytest.fixture
+    def mock_tool_context_with_host(self):
+        """Create a mock ToolContext with host_component providing get_lite_llm_model."""
+        mock_context = Mock()
+        mock_inv = Mock()
+        mock_inv.artifact_service = AsyncMock()
+        mock_inv.app_name = "test_app"
+        mock_inv.user_id = "test_user"
+
+        mock_llm = Mock()
+        mock_llm.model = "gpt-4"
+        mock_host = Mock()
+        mock_host.get_lite_llm_model = Mock(return_value=mock_llm)
+
+        mock_agent = Mock()
+        mock_agent.host_component = mock_host
+        mock_inv.agent = mock_agent
+
+        mock_context._invocation_context = mock_inv
+        return mock_context
+
+    @pytest.mark.asyncio
+    async def test_extract_uses_host_component_llm_when_no_model_config(self, mock_tool_context_with_host):
+        """Test that extract_content_from_artifact uses host_component.get_lite_llm_model() as default."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
+
+            mock_load.return_value = {
+                "status": "success",
+                "content": "Some content",
+                "mime_type": "text/plain",
+                "raw_bytes": b"Some content",
+                "version": 0,
+            }
+            mock_session.return_value = "session123"
+
+            # The function will proceed to call the LLM; we expect it to use host_component's LLM.
+            # It will fail at the LLM call since it's a mock, but we can verify the model was chosen.
+            try:
+                await extract_content_from_artifact(
+                    filename="test.txt",
+                    extraction_goal="Extract key points",
+                    tool_context=mock_tool_context_with_host,
+                )
+            except Exception:
+                pass
+
+            # Verify get_lite_llm_model was called (default path)
+            mock_tool_context_with_host._invocation_context.agent.host_component.get_lite_llm_model.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_extract_uses_host_component_llm_when_extraction_config_has_no_model(self, mock_tool_context_with_host):
+        """Test that host_component.get_lite_llm_model() is used when tool_config has no model override."""
+        # Configure host_component to return empty extraction config (no model override)
+        mock_tool_context_with_host._invocation_context.agent.host_component.get_config = Mock(
+            side_effect=lambda key, default=None: {
+                "extract_content_from_artifact": {},
+            }.get(key, default)
+        )
+
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
+
+            mock_load.return_value = {
+                "status": "success",
+                "content": "Some content",
+                "mime_type": "text/plain",
+                "raw_bytes": b"Some content",
+                "version": 0,
+            }
+            mock_session.return_value = "session123"
+
+            try:
+                await extract_content_from_artifact(
+                    filename="test.txt",
+                    extraction_goal="Extract key points",
+                    tool_context=mock_tool_context_with_host,
+                )
+            except Exception:
+                pass
+
+            # Should use host_component.get_lite_llm_model() since no model config override
+            mock_tool_context_with_host._invocation_context.agent.host_component.get_lite_llm_model.assert_called_once()
+
+
 class TestDeleteArtifact:
     """Test cases for delete_artifact function."""
 
