@@ -57,7 +57,7 @@ from litellm import (
     completion,
     token_counter,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from typing_extensions import override
 
 from .oauth2_token_manager import OAuth2ClientCredentialsTokenManager
@@ -857,7 +857,7 @@ class LiteLlm(BaseLlm):
     llm_client: LiteLLMClient = Field(default_factory=LiteLLMClient)
     """The LLM client to use for the model."""
 
-    _model_config: Dict[str, Any] = {}
+    _model_config: Dict[str, Any] = PrivateAttr(default_factory=dict)
 
     _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
     _cache_strategy: str = "5m"  # Default to 5-minute ephemeral cache
@@ -1036,7 +1036,7 @@ class LiteLlm(BaseLlm):
                 self._status,
             )
             raise BadRequestError(
-                f"Error: This component's LLM model has not been configured yet.", None, None
+                "Error: This component's LLM model has not been configured yet.", None, None
             )
 
         if not llm_request.contents or llm_request.contents[-1].role not in [
