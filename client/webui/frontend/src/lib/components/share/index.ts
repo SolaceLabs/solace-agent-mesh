@@ -3,4 +3,4 @@
  */
 
 export { ShareButton } from "./ShareButton";
-export { ShareDialog } from "./ShareDialog";
+export { ShareChatDialog, ShareDialog } from "./ShareDialog";

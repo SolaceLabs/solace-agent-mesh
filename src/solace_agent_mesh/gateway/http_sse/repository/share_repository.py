@@ -103,7 +103,7 @@ class ShareRepository:
         
         # Apply pagination
         query = query.order_by(SharedLinkModel.created_time.desc())
-        query = query.offset((pagination.page - 1) * pagination.page_size)
+        query = query.offset(pagination.offset)
         query = query.limit(pagination.page_size)
         
         models = query.all()

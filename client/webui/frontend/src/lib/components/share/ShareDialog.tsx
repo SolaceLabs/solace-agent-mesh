@@ -1,11 +1,12 @@
 /**
- * ShareDialog component - Manage access dialog with per-user permissions
+ * ShareChatDialog component - Manage access dialog with per-user permissions
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { X, Plus, MoreVertical, RefreshCw, Trash2, ExternalLink, Link2, Check, Copy } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -16,12 +17,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { UserTypeahead } from "../common/UserTypeahead";
 import { Input } from "../ui/input";
-import { createShareLink, getShareLinkForSession, deleteShareLink, getShareUsers, addShareUsers, deleteShareUsers, updateShareSnapshot } from "../../api/share";
+import { useShareLink, useShareUsers, useCreateShareLink, useDeleteShareLink, useAddShareUsers, useDeleteShareUsers, useUpdateShareSnapshot } from "../../api/share";
 import { copyToClipboard, copyDeferredToClipboard } from "../../utils/clipboard";
 import { api } from "../../api";
 import { cn } from "../../utils";
 import { useConfigContext } from "../../hooks/useConfigContext";
-import type { ShareLink, SharedLinkUserInfo } from "../../types/share";
+import type { ShareLink } from "../../types/share";
 
 type AccessLevel = "read-only";
 
@@ -77,7 +78,7 @@ const shareFormSchema = z.object({
 
 type ShareFormData = z.infer<typeof shareFormSchema>;
 
-interface ShareDialogProps {
+interface ShareChatDialogProps {
     sessionId: string;
     sessionTitle: string;
     /** ISO timestamp of when the session was last updated (optional, defaults to current time) */
@@ -94,13 +95,34 @@ interface ShareDialogProps {
     defaultShowPublicLink?: boolean;
 }
 
-export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open, onOpenChange, onError, onSuccess, defaultShowAddRow = false, defaultShowPublicLink = false }: Readonly<ShareDialogProps>) {
+export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, open, onOpenChange, onError, onSuccess, defaultShowAddRow = false, defaultShowPublicLink = false }: Readonly<ShareChatDialogProps>) {
     const { identityServiceType } = useConfigContext();
-    const [shareLink, setShareLink] = useState<ShareLink | null>(null);
-    const [sharedUsers, setSharedUsers] = useState<SharedLinkUserInfo[]>([]);
-    const [ownerEmail, setOwnerEmail] = useState<string>("");
-    const [loadingUsers, setLoadingUsers] = useState(false);
-    const [savingUser, setSavingUser] = useState(false);
+
+    // React Query hooks for data fetching
+    const shareLinkQuery = useShareLink(sessionId);
+    const shareUsersQuery = useShareUsers(shareLinkQuery.data?.shareId);
+    const createShareLinkMutation = useCreateShareLink();
+    const deleteShareLinkMutation = useDeleteShareLink();
+    const addShareUsersMutation = useAddShareUsers();
+    const deleteShareUsersMutation = useDeleteShareUsers();
+    const updateSnapshotMutation = useUpdateShareSnapshot();
+
+    // Derived state from React Query
+    const shareLink: ShareLink | null = shareLinkQuery.data ?? null;
+    const sharedUsers = shareUsersQuery.data?.users ?? [];
+    const ownerEmail = shareUsersQuery.data?.ownerEmail ?? "";
+    const loadingUsers = shareUsersQuery.isLoading;
+    const isSaving = createShareLinkMutation.isPending || addShareUsersMutation.isPending || deleteShareUsersMutation.isPending;
+
+    // Session detail query for snapshot outdated detection
+    const sessionDetailQuery = useQuery({
+        queryKey: ["sessions", "detail", sessionId],
+        queryFn: () => api.webui.get(`/api/v1/sessions/${sessionId}`),
+        enabled: open && !!sessionId,
+    });
+    const sessionLastUpdateMs: number | null = (sessionDetailQuery.data as { data?: { updatedTime?: number } })?.data?.updatedTime ?? null;
+
+    // UI-only local state
     const [showPublicLink, setShowPublicLink] = useState(defaultShowPublicLink);
     const [publicLinkCopied, setPublicLinkCopied] = useState(false);
     const [footerLinkCopied, setFooterLinkCopied] = useState(false);
@@ -110,8 +132,6 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     // Track the newly created share ID in a ref so discard can always find it,
     // even during the async gap between createShareLink and setState.
     const newlyCreatedShareIdRef = useRef<string | null>(null);
-    const [updatingSnapshotEmail, setUpdatingSnapshotEmail] = useState<string | null>(null);
-    const [sessionLastUpdateMs, setSessionLastUpdateMs] = useState<number | null>(null);
 
     const { control, handleSubmit, reset, setValue, watch } = useForm<ShareFormData>({
         resolver: zodResolver(shareFormSchema),
@@ -124,47 +144,12 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     const pendingRemoves = watch("pendingRemoves");
     const accessLevelChanges = watch("accessLevelChanges");
 
-    // Load share link for the session
-    const loadShareLink = useCallback(async () => {
-        try {
-            const link = await getShareLinkForSession(sessionId);
-            if (link) {
-                setShareLink(link);
-            }
-            return link;
-        } catch (error) {
-            console.error("Failed to load share link:", error);
-            return null;
-        }
-    }, [sessionId]);
-
-    // Load shared users for the share link
-    const loadSharedUsers = useCallback(async () => {
-        if (!shareLink?.shareId) return;
-        setLoadingUsers(true);
-        try {
-            const response = await getShareUsers(shareLink.shareId);
-            setSharedUsers(response.users);
-            setOwnerEmail(response.ownerEmail);
-        } catch (error) {
-            console.error("Failed to load shared users:", error);
-            onError?.({ title: "Failed to Load Shared Users", message: error instanceof Error ? error.message : "Unknown error" });
-        } finally {
-            setLoadingUsers(false);
-        }
-    }, [shareLink?.shareId, onError]);
-
     // Reset state when dialog opens
     useEffect(() => {
         if (!open) return;
-        let cancelled = false;
 
-        setShareLink(null);
-        setSharedUsers([]);
-        setOwnerEmail("");
         setIsNewlyCreatedLink(false);
-        setSessionLastUpdateMs(null);
-        setShowPublicLink(defaultShowPublicLink);
+        setShowPublicLink(defaultShowPublicLink || !!shareLinkQuery.data);
         setFooterLinkCopied(false);
         setPublicLinkCopied(false);
         setCreatingLink(false);
@@ -174,45 +159,23 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
             copiedTimerRef.current = null;
         }
 
-        // Fetch session's updated_time for snapshot outdated check
-        api.webui
-            .get(`/api/v1/sessions/${sessionId}`)
-            .then((data: { data?: { updatedTime?: number } }) => {
-                if (!cancelled && data?.data?.updatedTime) {
-                    setSessionLastUpdateMs(data.data.updatedTime);
-                }
-            })
-            .catch(() => {
-                /* ignore */
-            });
-
         reset({
             viewers: defaultShowAddRow ? [{ id: `typeahead-${Date.now()}`, email: null, accessLevel: "read-only" }] : [],
             pendingRemoves: [],
             accessLevelChanges: [],
         });
 
-        // Load existing share link (if any) - don't auto-create
-        // Link is created on-demand when user clicks "Copy Link" or adds users
-        loadShareLink().then(link => {
-            if (cancelled) return;
-            if (link) {
-                setIsNewlyCreatedLink(false);
-                setShowPublicLink(true); // Show the link section if a link already exists
-            }
-        });
+        // Refetch data when dialog opens
+        shareLinkQuery.refetch();
+        sessionDetailQuery.refetch();
+    }, [open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-        return () => {
-            cancelled = true;
-        };
-    }, [open, sessionId, defaultShowAddRow, loadShareLink, onError, reset]);
-
-    // Load shared users when share link is available
+    // Show public link section when share link data loads
     useEffect(() => {
-        if (shareLink?.shareId) {
-            loadSharedUsers();
+        if (shareLinkQuery.data) {
+            setShowPublicLink(true);
         }
-    }, [shareLink?.shareId, loadSharedUsers]);
+    }, [shareLinkQuery.data]);
 
     const handleAddRow = useCallback(() => {
         const newId = `typeahead-${Date.now()}`;
@@ -254,15 +217,15 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
 
             // Start the clipboard write synchronously (before any await) so the
             // browser still considers this a user-gesture context.
-            const linkPromise = createShareLink(sessionId, {
-                require_authentication: false, // Public link = no auth required
+            const linkPromise = createShareLinkMutation.mutateAsync({
+                sessionId,
+                options: { require_authentication: false },
             });
             const clipboardOk = copyDeferredToClipboard(linkPromise.then(link => link.shareUrl));
 
             try {
                 const newLink = await linkPromise;
                 newlyCreatedShareIdRef.current = newLink.shareId;
-                setShareLink(newLink);
                 setIsNewlyCreatedLink(true);
 
                 const success = await clipboardOk;
@@ -306,8 +269,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     const handleDeletePublicLink = async () => {
         if (shareLink?.shareId) {
             try {
-                await deleteShareLink(shareLink.shareId);
-                setShareLink(null);
+                await deleteShareLinkMutation.mutateAsync(shareLink.shareId);
                 setIsNewlyCreatedLink(false);
             } catch (error) {
                 onError?.({ title: "Failed to Delete Link", message: error instanceof Error ? error.message : "Unknown error" });
@@ -319,17 +281,16 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     };
 
     const handleUpdateUserSnapshot = async (userEmail: string) => {
-        if (!shareLink?.shareId || updatingSnapshotEmail) return;
+        if (!shareLink?.shareId) return;
 
-        setUpdatingSnapshotEmail(userEmail);
         try {
-            await updateShareSnapshot(shareLink.shareId, userEmail);
+            await updateSnapshotMutation.mutateAsync({
+                shareId: shareLink.shareId,
+                userEmail,
+            });
             onSuccess?.(`Snapshot updated for ${userEmail}`);
-            await loadSharedUsers();
         } catch (error) {
             onError?.({ title: "Failed to Update Snapshot", message: error instanceof Error ? error.message : "Unknown error" });
-        } finally {
-            setUpdatingSnapshotEmail(null);
         }
     };
 
@@ -344,8 +305,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         const shareIdToDelete = newlyCreatedShareIdRef.current;
         if (shareIdToDelete) {
             try {
-                await deleteShareLink(shareIdToDelete);
-                setShareLink(null);
+                await deleteShareLinkMutation.mutateAsync(shareIdToDelete);
                 setIsNewlyCreatedLink(false);
                 setShowPublicLink(false);
                 newlyCreatedShareIdRef.current = null;
@@ -356,7 +316,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         }
         reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
         onOpenChange(false);
-    }, [onOpenChange, reset, onSuccess]);
+    }, [onOpenChange, reset, onSuccess, deleteShareLinkMutation]);
 
     // Intercept dialog close (X button, backdrop click, Escape) to clean up newly created links
     const handleOpenChange = useCallback(
@@ -371,14 +331,15 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
     );
 
     const onSubmit = async (data: ShareFormData) => {
-        setSavingUser(true);
         try {
             // Create share link on-demand if it doesn't exist yet
             let activeShareLink = shareLink;
             let linkCreatedInSubmit = false;
             if (!activeShareLink?.shareId) {
-                const newLink = await createShareLink(sessionId, { require_authentication: true });
-                setShareLink(newLink);
+                const newLink = await createShareLinkMutation.mutateAsync({
+                    sessionId,
+                    options: { require_authentication: true },
+                });
                 activeShareLink = newLink;
                 linkCreatedInSubmit = true;
                 // Keep ref so discard can clean up if a later step fails
@@ -392,28 +353,37 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
             const emailsToAdd = data.viewers.filter(v => v.email !== null).map(v => ({ email: v.email as string, accessLevel: v.accessLevel }));
 
             if (emailsToAdd.length > 0) {
-                await addShareUsers(activeShareLink.shareId, {
-                    shares: emailsToAdd.map(item => ({
-                        user_email: item.email,
-                        access_level: toBackendAccessLevel(item.accessLevel),
-                    })),
+                await addShareUsersMutation.mutateAsync({
+                    shareId: activeShareLink.shareId,
+                    data: {
+                        shares: emailsToAdd.map(item => ({
+                            user_email: item.email,
+                            access_level: toBackendAccessLevel(item.accessLevel),
+                        })),
+                    },
                 });
                 const userText = emailsToAdd.length === 1 ? "user" : "users";
                 onSuccess?.(`${emailsToAdd.length} ${userText} added`);
             }
 
             if (data.pendingRemoves.length > 0) {
-                await deleteShareUsers(activeShareLink.shareId, { user_emails: data.pendingRemoves });
+                await deleteShareUsersMutation.mutateAsync({
+                    shareId: activeShareLink.shareId,
+                    data: { user_emails: data.pendingRemoves },
+                });
                 const userText = data.pendingRemoves.length === 1 ? "user" : "users";
                 onSuccess?.(`${data.pendingRemoves.length} ${userText} removed`);
             }
 
             if (data.accessLevelChanges.length > 0) {
-                await addShareUsers(activeShareLink.shareId, {
-                    shares: data.accessLevelChanges.map(change => ({
-                        user_email: change.email,
-                        access_level: toBackendAccessLevel(change.newAccessLevel),
-                    })),
+                await addShareUsersMutation.mutateAsync({
+                    shareId: activeShareLink.shareId,
+                    data: {
+                        shares: data.accessLevelChanges.map(change => ({
+                            user_email: change.email,
+                            access_level: toBackendAccessLevel(change.newAccessLevel),
+                        })),
+                    },
                 });
                 onSuccess?.(`Access levels updated for ${data.accessLevelChanges.length} user(s)`);
             }
@@ -424,12 +394,9 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                 newlyCreatedShareIdRef.current = null;
             }
             reset({ viewers: [], pendingRemoves: [], accessLevelChanges: [] });
-            await loadSharedUsers();
             onOpenChange(false);
         } catch (error) {
             onError?.({ title: "Failed to Save Changes", message: error instanceof Error ? error.message : "Unknown error" });
-        } finally {
-            setSavingUser(false);
         }
     };
 
@@ -459,7 +426,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                     {/* Description + Add Button */}
                     <div className="flex items-start justify-between gap-6">
                         <p className="text-foreground flex-1 text-sm">Users will see a snapshot of the shared chat, including files and conversation history.</p>
-                        <Button variant="outline" size="sm" onClick={handleAddRow} disabled={hasIncompleteRows || savingUser} className="shrink-0">
+                        <Button variant="outline" size="sm" onClick={handleAddRow} disabled={hasIncompleteRows || isSaving} className="shrink-0">
                             <Plus className="mr-2 h-4 w-4" />
                             Add
                         </Button>
@@ -569,7 +536,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                     // Check if snapshot is outdated (session was updated after user was added)
                                     const effectiveLastUpdate = sessionLastUpdateMs || (sessionUpdatedTime ? new Date(sessionUpdatedTime).getTime() : null);
                                     const isSnapshotOutdated = effectiveLastUpdate !== null && effectiveLastUpdate > user.addedAt;
-                                    const isUpdatingThisUser = updatingSnapshotEmail === user.userEmail;
+                                    const isUpdatingThisUser = updateSnapshotMutation.isPending && updateSnapshotMutation.variables?.userEmail === user.userEmail;
 
                                     return (
                                         <div key={user.userEmail} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
@@ -584,7 +551,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                                                 size="icon"
                                                                 className="h-6 w-6 shrink-0"
                                                                 aria-label="Update snapshot"
-                                                                disabled={isUpdatingThisUser || !!updatingSnapshotEmail}
+                                                                disabled={updateSnapshotMutation.isPending}
                                                                 onClick={() => handleUpdateUserSnapshot(user.userEmail)}
                                                             >
                                                                 <RefreshCw className={cn("h-3.5 w-3.5", isUpdatingThisUser && "animate-spin")} />
@@ -622,7 +589,7 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                             </div>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={savingUser} aria-label="User actions">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={isSaving} aria-label="User actions">
                                                         <MoreVertical className="h-4 w-4" />
                                                     </Button>
                                                 </DropdownMenuTrigger>
@@ -691,7 +658,8 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
                                                     aria-label="Refresh public link snapshot"
                                                     onClick={() =>
                                                         shareLink &&
-                                                        updateShareSnapshot(shareLink.shareId)
+                                                        updateSnapshotMutation
+                                                            .mutateAsync({ shareId: shareLink.shareId })
                                                             .then(() => onSuccess?.("Snapshot updated"))
                                                             .catch(err => onError?.({ title: "Failed to Update Snapshot", message: err instanceof Error ? err.message : "Unknown error" }))
                                                     }
@@ -736,10 +704,10 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
 
                     {/* Save/Discard - right side */}
                     <div className="flex gap-2">
-                        <Button variant="ghost" onClick={handleDiscard} disabled={savingUser}>
+                        <Button variant="ghost" onClick={handleDiscard} disabled={isSaving}>
                             Discard Changes
                         </Button>
-                        <Button onClick={handleSubmit(onSubmit)} disabled={savingUser || !hasChanges}>
+                        <Button onClick={handleSubmit(onSubmit)} disabled={isSaving || !hasChanges}>
                             Save
                         </Button>
                     </div>
@@ -748,3 +716,6 @@ export function ShareDialog({ sessionId, sessionTitle, sessionUpdatedTime, open,
         </Dialog>
     );
 }
+
+/** @deprecated Use ShareChatDialog instead */
+export const ShareDialog = ShareChatDialog;
