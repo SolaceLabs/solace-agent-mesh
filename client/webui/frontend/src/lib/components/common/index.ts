@@ -7,6 +7,7 @@ export { ErrorLabel } from "./ErrorLabel";
 export { FileUpload } from "./FileUpload";
 export { Footer } from "./Footer";
 export { GridCard } from "./GridCard";
+export { PinButton } from "./PinButton";
 export { LoadingBlocker } from "./LoadingBlocker";
 export { MarkdownHTMLConverter } from "./MarkdownHTMLConverter";
 export * from "./MarkdownWrapper";
