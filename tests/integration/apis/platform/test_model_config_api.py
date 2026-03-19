@@ -62,7 +62,10 @@ class TestModelConfigurationAPI:
 
             # Capture response text and data for assertions
             response_text = response.text
-            data = response.json()
+            response_data = response.json()
+
+            # Extract the model data from DataResponse
+            data = response_data["data"]
 
             # Assert: All expected fields are present
             expected_fields = {
@@ -96,15 +99,15 @@ class TestModelConfigurationAPI:
             db.close()
 
     @pytest.mark.parametrize("auth_type,secret_fields,stored_config,expected_secret_text,expected_config", [
-        # API key auth - api_key should be redacted
+        # API key auth - api_key should be redacted, type field also removed
         (
             "apikey",
             {"api_key"},
             {"api_key": "sk-secret-123", "type": "apikey"},
             "sk-secret-123",
-            {"type": "apikey"}
+            {}
         ),
-        # OAuth2 - client_secret redacted, public fields preserved
+        # OAuth2 - client_secret redacted, public fields preserved, type field removed
         (
             "oauth2",
             {"client_secret"},
@@ -120,16 +123,15 @@ class TestModelConfigurationAPI:
                 "client_id": "public-id",
                 "token_url": "https://auth.example.com/token",
                 "ca_cert": "/etc/ssl/certs/custom-ca.pem",
-                "type": "oauth2"
             }
         ),
-        # No auth - only type field
+        # No auth - type field removed (empty authConfig)
         (
             "none",
             set(),
             {"type": "none"},
             None,
-            {"type": "none"}
+            {}
         ),
     ])
     def test_credential_filtering_by_auth_type(
@@ -169,7 +171,8 @@ class TestModelConfigurationAPI:
                 assert expected_secret_text not in response.text
 
             # Assert: authConfig has only public/redacted fields
-            data = response.json()
+            response_data = response.json()
+            data = response_data["data"]
             assert data["authConfig"] == expected_config
 
         finally:

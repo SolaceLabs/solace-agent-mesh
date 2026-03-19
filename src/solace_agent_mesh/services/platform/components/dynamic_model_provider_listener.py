@@ -126,7 +126,7 @@ class BootstrapRequestListenerComponent(ComponentBase):
         try:
             from ..services import ModelConfigService
 
-            service = ModelConfigService(db=db)
-            return service.get_raw_config_by_alias(model_id)
+            service = ModelConfigService()
+            return service.get_by_alias_or_id(db, model_id, raw=True)
         finally:
             db.close()

@@ -3,8 +3,11 @@
 import logging
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import cast, or_, String
 
+from typing import List, Optional
+from sqlalchemy.orm import Session
+
+from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelConfigurationResponse,
@@ -19,48 +22,71 @@ class ModelConfigService:
     Service layer for model configuration business logic.
 
     Handles:
-    - Querying model configurations
+    - Business logic and validation
     - Converting database entities to safe response models
     - Credential redaction based on auth type
     - Future business logic (RBAC checks, update/delete operations)
+
+    Delegates data access to ModelConfigurationRepository.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self):
+        """Initialize the service with a repository instance."""
+        self.repository = ModelConfigurationRepository()
+
+    def list_all(self, db: Session) -> List[ModelConfigurationResponse]:
         """
-        Initialize the service with a database session.
+        Retrieve all model configurations.
 
         Args:
             db: SQLAlchemy database session
-        """
-        self.db = db
-
-    def list_all(self) -> List[ModelConfigurationResponse]:
-        """
-        Retrieve all model configurations.
 
         Returns:
             List of ModelConfigurationResponse objects with credentials filtered
         """
-        db_configs = self.db.query(ModelConfiguration).all()
+        db_configs = self.repository.get_all(db)
         return [self._to_response(config) for config in db_configs]
 
-    def get_by_alias(self, alias: str) -> Optional[ModelConfigurationResponse]:
+    def get_by_alias(self, db: Session, alias: str, raw=False) -> Optional[ModelConfigurationResponse]:
         """
         Retrieve a model configuration by alias (case-sensitive exact match).
 
         Args:
-            alias: Model alias or ID to look up
+            db: SQLAlchemy database session
+            alias: Model alias to look up
+            raw: If True, return unredacted LiteLlm config dict instead of response model
 
         Returns:
             ModelConfigurationResponse if found, None otherwise
         """
-        db_config = self.db.query(ModelConfiguration).filter(
-            or_(ModelConfiguration.alias == alias, cast(ModelConfiguration.id, String) == alias)
-        ).first()
+        db_config = self.repository.get_by_alias(db, alias)
 
         if not db_config:
             return None
 
+        if raw:
+            return self._to_raw_litellm_config(db_config)
+        return self._to_response(db_config)
+    
+    def get_by_alias_or_id(self, db: Session, alias: str, raw=False) -> Optional[Dict]:
+        """
+        Retrieve a model configuration by alias (case-sensitive exact match) or ID.
+
+        Args:
+            db: SQLAlchemy database session
+            alias: Model alias or ID to look up
+            raw: If True, return unredacted LiteLlm config dict instead of response model
+
+        Returns:
+            ModelConfigurationResponse if found, None otherwise
+        """
+        db_config = self.repository.get_by_alias_or_id(db, alias)
+
+        if not db_config:
+            return None
+
+        if raw:
+            return self._to_raw_litellm_config(db_config)
         return self._to_response(db_config)
 
     @staticmethod
@@ -113,22 +139,3 @@ class ModelConfigService:
         if db_model.model_params:
             config.update(db_model.model_params)
         return config
-
-    def get_raw_config_by_alias(self, alias: str) -> Optional[Dict]:
-        """
-        Retrieve the raw unredacted LiteLlm config dict for a model.
-
-        Matches by alias or ID (OR logic).
-
-        Args:
-            alias: Model alias or UUID to look up
-
-        Returns:
-            LiteLlm config dict if found, None otherwise
-        """
-        db_config = self.db.query(ModelConfiguration).filter(
-            or_(ModelConfiguration.alias == alias, cast(ModelConfiguration.id, String) == alias)
-        ).first()
-        if not db_config:
-            return None
-        return self._to_raw_litellm_config(db_config)

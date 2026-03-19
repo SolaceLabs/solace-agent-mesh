@@ -194,7 +194,8 @@ class TestSeedFromModelsConfig:
 
         assert count == 3
         assert mock_db.add.call_count == 3
-        assert mock_db.commit.called
+        # Note: Transaction ownership is with the caller (component startup)
+        # The seeding function only adds models, caller is responsible for commit
 
         # Verify each model type was seeded correctly
         added_models = [call[0][0] for call in mock_db.add.call_args_list]
@@ -203,16 +204,19 @@ class TestSeedFromModelsConfig:
         gpt4 = next(m for m in added_models if m.alias == "gpt-4")
         assert gpt4.provider == "openai"
         assert gpt4.model_auth_type == "apikey"
+        assert gpt4.description  # Verify description is set (not null/empty)
 
         # OpenAI-compatible
         local = next(m for m in added_models if m.alias == "local-llm")
         assert local.provider == "openai_compatible"
         assert local.model_params == {"temperature": 0.7}
+        assert local.description  # Verify description is set (not null/empty)
 
         # Custom provider
         custom = next(m for m in added_models if m.alias == "my-api")
         assert custom.provider == "custom"
         assert custom.model_params == {"max_tokens": 2048}
+        assert custom.description  # Verify description is set (not null/empty)
 
     def test_seed_from_yaml_config_with_string_entries(self):
         """Seed models from YAML config with simple string model names."""
@@ -232,7 +236,8 @@ class TestSeedFromModelsConfig:
 
         assert count == 3
         assert mock_db.add.call_count == 3
-        assert mock_db.commit.called
+        # Note: Transaction ownership is with the caller (component startup)
+        # The seeding function only adds models, caller is responsible for commit
 
         added_models = [call[0][0] for call in mock_db.add.call_args_list]
 
@@ -244,16 +249,19 @@ class TestSeedFromModelsConfig:
         assert multimodal.model_auth_type == "none"
         assert multimodal.model_auth_config == {"type": "none"}
         assert multimodal.model_params == {}
+        assert multimodal.description  # Verify description is set (not null/empty)
 
         # Another string entry
         gemini_pro = next(m for m in added_models if m.alias == "gemini_pro")
         assert gemini_pro.model_name == "gemini-2.5-pro"
         assert gemini_pro.provider == "google_ai_studio"
         assert gemini_pro.api_base == "https://generativelanguage.googleapis.com/v1"
+        assert gemini_pro.description  # Verify description is set (not null/empty)
 
         # Dictionary entry still works
         gpt4_model = next(m for m in added_models if m.alias == "gpt4")
         assert gpt4_model.provider == "openai"
+        assert gpt4_model.description  # Verify description is set (not null/empty)
 
 
 class TestSeedFromEnvVars:
@@ -282,7 +290,8 @@ class TestSeedFromEnvVars:
             # Should seed 4 models (planning, general, image_gen, report_gen)
             assert count == 4
             assert mock_db.add.call_count == 4
-            assert mock_db.commit.called
+            # Note: Transaction ownership is with the caller (component startup)
+        # The seeding function only adds models, caller is responsible for commit
 
             added_models = [call[0][0] for call in mock_db.add.call_args_list]
 
@@ -291,15 +300,19 @@ class TestSeedFromEnvVars:
             assert planning.model_name == "gpt-4"
             assert planning.model_auth_type == "apikey"
             assert planning.model_auth_config["api_key"] == "sk-planning-key"
+            assert planning.description  # Verify description is set (not null/empty)
 
             general = next(m for m in added_models if m.alias == "general")
             assert general.model_name == "gpt-3.5-turbo"
+            assert general.description  # Verify description is set (not null/empty)
 
             image = next(m for m in added_models if m.alias == "image_gen")
             assert image.model_name == "dall-e-3"
+            assert image.description  # Verify description is set (not null/empty)
 
             report = next(m for m in added_models if m.alias == "report_gen")
             assert report.model_name == "gpt-4-turbo"
+            assert report.description  # Verify description is set (not null/empty)
         finally:
             # Clean up env vars
             for key in [

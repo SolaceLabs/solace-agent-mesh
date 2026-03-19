@@ -143,6 +143,22 @@ def get_heartbeat_tracker():
         return None
     return platform_component_instance.get_heartbeat_tracker()
 
+def get_component_instance() -> "PlatformServiceComponent":
+    """
+    FastAPI dependency for accessing the PlatformServiceComponent instance.
+
+    Returns:
+        The PlatformServiceComponent instance.
+
+    Raises:
+        HTTPException: 503 if component is not initialized.
+    """
+    if platform_component_instance is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Platform component not initialized.",
+        )
+    return platform_component_instance
 
 def get_agent_registry():
     """
@@ -174,37 +190,17 @@ def get_gateway_registry():
     return platform_component_instance.get_gateway_registry()
 
 
-def get_component_instance() -> "PlatformServiceComponent":
-    """
-    FastAPI dependency for accessing the PlatformServiceComponent instance.
-
-    Returns:
-        The PlatformServiceComponent instance.
-
-    Raises:
-        HTTPException: 503 if component is not initialized.
-    """
-    if platform_component_instance is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Platform component not initialized.",
-        )
-    return platform_component_instance
-
-
-def get_model_config_service(db: Session = Depends(get_platform_db)) -> ModelConfigService:
+def get_model_config_service() -> ModelConfigService:
     """
     FastAPI dependency for ModelConfigService.
 
     Provides a service instance for model configuration business logic.
-    Database session lifecycle is managed by get_platform_db().
-
-    Args:
-        db: Database session from get_platform_db dependency
+    The service is stateless and takes db: Session as a parameter to each method,
+    allowing database session lifecycle to be managed independently.
 
     Returns:
         ModelConfigService instance for accessing model configurations.
     """
     from solace_agent_mesh.services.platform.services import ModelConfigService
 
-    return ModelConfigService(db=db)
+    return ModelConfigService()
