@@ -2,11 +2,15 @@ import React from "react";
 
 export const PageLabel = ({ children, required, className = "" }: { children: React.ReactNode; required?: boolean; className?: string }) => {
     return (
-        <div className={`text-(--secondary-text-w50) ${className}`}>
+        <div className={`text-sm font-medium text-(--secondary-text-wMain) ${className}`}>
             {children}
             {required && <span className="ml-1 text-(--accent-w100)">*</span>}
         </div>
     );
+};
+
+export const PageValue = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
+    return <div className={`text-sm ${className}`}>{children}</div>;
 };
 
 export const PageLabelWithValue = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
@@ -28,11 +32,11 @@ export const PageContentWrapper = ({ children, className = "" }: { children: Rea
 export const Metadata = ({ metadata }: { metadata: Record<string, string | number> }) => {
     return (
         <PageSection className="gap-2 border-t border-(--secondary-w20) pt-6">
-            <div className="text-xs font-semibold text-(--secondary-text-w50)">Metadata</div>
+            <div className="text-xs font-semibold text-(--secondary-text-wMain)">Metadata</div>
             <div className="space-y-1">
                 {Object.entries(metadata).map(([key, value]) => (
                     <div key={key} className="text-xs">
-                        <span className="font-medium text-(--secondary-text-w50)">{key}:</span> <span className="text-(--secondary-text-w50)">{String(value)}</span>
+                        <span className="font-medium text-(--secondary-text-wMain)">{key}:</span> <span className="text-(--secondary-text-wMain)">{String(value)}</span>
                     </div>
                 ))}
             </div>
