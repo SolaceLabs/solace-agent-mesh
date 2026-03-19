@@ -99,7 +99,7 @@ export const ModelsView: React.FC = () => {
                             </Table>
                         </div>
                     ) : (
-                        <OnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} learnMoreText={MODELS_LEARN_MORE_TEXT} learnMoreHref={MODELS_URL} actionButtonText="Add Model" actionButtonDisabled={true} />
+                        <OnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} learnMoreText={MODELS_LEARN_MORE_TEXT} learnMoreHref={MODELS_URL} />
                     )}
                 </div>
 
