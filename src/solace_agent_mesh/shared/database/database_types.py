@@ -73,7 +73,7 @@ class OptimizedUUID(TypeDecorator):
         try:
             uuid_obj = uuid_module.UUID(value)
         except ValueError:
-            logger.warning(f"OptimizedUUID: invalid UUID in filter, returning NULL: {value!r}")
+            logger.error(f"OptimizedUUID: invalid UUID in filter, returning NULL: {value!r}")
             return None
 
         if dialect_name in ('mysql', 'mariadb'):
