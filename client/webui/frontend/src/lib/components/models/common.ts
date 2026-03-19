@@ -43,3 +43,9 @@ export const getDisplayAliasName = (alias: string, createdBy?: string): string =
     // Return original alias for user-created models
     return alias;
 };
+
+export const AUTH_TYPE_LABELS: Record<string, string> = {
+    apikey: "API Key",
+    oauth2: "OAuth2",
+    none: "None",
+};

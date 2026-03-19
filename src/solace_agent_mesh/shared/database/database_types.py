@@ -1,10 +1,26 @@
-from sqlalchemy import TypeDecorator, String
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.dialects.mysql import BINARY
-import uuid as uuid_module
 import logging
+import uuid as uuid_module
+
+from sqlalchemy import String, TypeDecorator
+from sqlalchemy.dialects.mysql import BINARY
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 logger = logging.getLogger(__name__)
+
+
+def coerce_uuid(value) -> str | None:
+    """Convert a UUID value to a canonical hyphenated string.
+
+    After session.flush() on MySQL, SQLAlchemy leaves BINARY(16) columns as raw
+    bytes on the in-memory ORM object (process_result_value is only called on
+    DB reads, not in-memory access). Use this as a Pydantic field_validator on
+    all UUID string fields in entities to ensure they are always UUID strings.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return str(uuid_module.UUID(bytes=value))
+    return str(value)
 
 
 class OptimizedUUID(TypeDecorator):
@@ -41,15 +57,24 @@ class OptimizedUUID(TypeDecorator):
         if value is None:
             return None
 
+        dialect_name = dialect.name
+
+        # On MySQL, SQLAlchemy may present the raw bytes value from an in-memory
+        # ORM object (e.g. after flush() before refresh()). Accept bytes directly
+        # so WHERE clauses work correctly without requiring a session.refresh().
+        if isinstance(value, bytes):
+            if dialect_name in ('mysql', 'mariadb'):
+                return value
+            return str(uuid_module.UUID(bytes=value))
+
         if not isinstance(value, str):
             raise TypeError(f"OptimizedUUID expects string UUID, got {type(value).__name__}")
 
         try:
             uuid_obj = uuid_module.UUID(value)
-        except ValueError as e:
-            raise ValueError(f"Invalid UUID format: {value}") from e
-
-        dialect_name = dialect.name
+        except ValueError:
+            logger.warning(f"OptimizedUUID: invalid UUID in filter, returning NULL: {value!r}")
+            return None
 
         if dialect_name in ('mysql', 'mariadb'):
             return uuid_obj.bytes
@@ -81,9 +106,3 @@ class OptimizedUUID(TypeDecorator):
         x_str = str(x) if x is not None else None
         y_str = str(y) if y is not None else None
         return x_str == y_str
-
-    def coerce_compared_value(self, op, value):
-        if value is not None:
-            return self.impl
-        else:
-            return self

@@ -4,7 +4,7 @@ import { Input, Textarea, Button } from "@/lib/components/ui";
 import { Plus } from "lucide-react";
 
 import type { ModelConfig } from "@/lib/api/models";
-import { PAGE_COMMON_CLASSES, PageLabel, PageSection, PageLabelWithValue, ErrorLabel } from "../common/PageCommon";
+import { PageLabel, PageSection, PageLabelWithValue, ErrorLabel } from "../common/PageCommon";
 import { getProviderConfig, AUTH_FIELDS, COMMON_MODEL_PARAMS, type AuthType, type ProviderField, type SupportedModel, type ModelProvider } from "./modelProviderUtils";
 import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
@@ -285,7 +285,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
     return (
         <FormProvider {...methods}>
-            <div className={PAGE_COMMON_CLASSES}>
+            <div>
                 <form id="model-form" onSubmit={handleSubmit(onFormSubmit)}>
                     <PageSection className="gap-6">
                         {/* Display Name / Alias - Always Visible */}

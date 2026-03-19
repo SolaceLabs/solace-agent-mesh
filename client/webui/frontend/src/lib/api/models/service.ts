@@ -2,7 +2,7 @@
  * API functions for model configuration management.
  */
 
-import { api } from "@/lib/api/client";
+import { api } from "@/lib/api";
 import type { ModelConfig } from "./types";
 
 interface ModelData {

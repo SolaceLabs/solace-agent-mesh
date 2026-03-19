@@ -3,12 +3,11 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ellipsis } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
-import { PaginationControls, EmptyState, OnboardingBanner } from "@/lib/components/common";
 import { Toast } from "@/lib/components/toast";
+import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 
 import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
-import { ModelsOnboardingView } from "./ModelsOnboardingView";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 import { PROVIDER_DISPLAY_NAMES, getDisplayModelName, getDisplayAliasName } from "./common";
 
@@ -182,7 +181,7 @@ export const ModelsView: React.FC = () => {
                             </Table>
                         </div>
                     ) : (
-                        <ModelsOnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} onAddModel={handleCreateModel} />
+                        <OnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} learnMoreText={MODELS_LEARN_MORE_TEXT} learnMoreHref={MODELS_URL} actionButton={{ text: "Add Model", onClick: handleCreateModel }} />
                     )}
                 </div>
 

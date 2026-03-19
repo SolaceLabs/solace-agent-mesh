@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -94,6 +95,32 @@ export const WithAPIKeyAuth: Story = {
             routePath: "/models/:alias",
         },
     },
+    play: async () => {
+        // Model alias displayed in header and breadcrumb
+        await expect(await screen.findByText("anthropic-model")).toBeInTheDocument();
+
+        // Provider shown with display name
+        await expect(await screen.findByText("Anthropic")).toBeInTheDocument();
+
+        // Model name
+        await expect(await screen.findByText("claude-3-5-sonnet")).toBeInTheDocument();
+
+        // Description
+        await expect(await screen.findByText("Enterprise-grade planning model with prompt caching for cost optimization")).toBeInTheDocument();
+
+        // Auth type rendered as human-readable label
+        await expect(await screen.findByText("API Key")).toBeInTheDocument();
+
+        // API base URL
+        await expect(await screen.findByText("https://api.anthropic.com")).toBeInTheDocument();
+
+        // Model parameters
+        await expect(await screen.findByText("temperature:")).toBeInTheDocument();
+        await expect(await screen.findByText("max_tokens:")).toBeInTheDocument();
+
+        // Metadata section
+        await expect(await screen.findByText("Metadata")).toBeInTheDocument();
+    },
 };
 
 /**
@@ -106,5 +133,9 @@ export const NotFound: Story = {
             initialPath: "/models/nonexistent-model",
             routePath: "/models/:alias",
         },
+    },
+    play: async () => {
+        await expect(await screen.findByText("Model Not Found")).toBeInTheDocument();
+        await expect(await screen.findByRole("button", { name: "Go To Models" })).toBeInTheDocument();
     },
 };

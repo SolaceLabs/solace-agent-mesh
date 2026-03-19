@@ -2,10 +2,9 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/lib/components/ui";
-import { EmptyState } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 
-import { PageFooter, PageContentWrapper } from "../common/PageCommon";
+import { Footer, PageContentWrapper, EmptyState } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { getProviderConfig, getAllProviders } from "./modelProviderUtils";
 import { fetchModelByAlias, fetchSupportedModelsByProvider, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
@@ -245,14 +244,14 @@ export const ModelEditPage = () => {
                 />
             </PageContentWrapper>
 
-            <PageFooter>
+            <Footer>
                 <Button variant="outline" title="Cancel" onClick={handleCancel} disabled={isLoading}>
                     Cancel
                 </Button>
                 <Button type="submit" form="model-form" disabled={!isFormValid || isLoading} title={isNew ? "Add Model" : "Save Model"}>
                     {isLoading ? "Saving..." : isNew ? "Add" : "Save"}
                 </Button>
-            </PageFooter>
+            </Footer>
         </div>
     );
 };

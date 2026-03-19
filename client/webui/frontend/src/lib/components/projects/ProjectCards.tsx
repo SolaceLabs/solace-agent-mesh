@@ -28,9 +28,11 @@ interface ProjectCardsProps {
     onExport?: (project: Project) => void;
     isLoading?: boolean;
     onShare?: (project: Project) => void;
+    onTogglePin?: (project: Project) => void;
+    isPinToggling?: boolean;
 }
 
-export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false, onShare }: ProjectCardsProps) => {
+export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false, onShare, onTogglePin, isPinToggling }: ProjectCardsProps) => {
     return (
         <div className="flex h-full flex-col bg-(--background-w20)">
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
@@ -56,7 +58,7 @@ export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectC
                         <div className="flex flex-wrap gap-6">
                             <CreateProjectCard onClick={onCreateNew} />
                             {projects.map(project => (
-                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} onShare={onShare} />
+                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} onShare={onShare} onTogglePin={onTogglePin} isPinToggling={isPinToggling} />
                             ))}
                         </div>
                     </div>

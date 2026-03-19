@@ -3,12 +3,8 @@ import { cva } from "class-variance-authority";
 export const HOVER_BG = "hover:bg-(--darkSurface-bgActive)";
 export const ACTIVE_BG = "bg-(--darkSurface-bgActive)";
 
-export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "transition-colors", "py-6", "w-full", HOVER_BG], {
+export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "justify-start", "transition-colors", "py-6", "w-full", "pl-4", "pr-4", "text-sm", "font-normal", "no-underline", HOVER_BG], {
     variants: {
-        variant: {
-            expanded: "justify-start pr-4 pl-6 text-sm font-normal",
-            collapsed: "justify-center p-0",
-        },
         active: {
             true: ACTIVE_BG,
             false: "",
@@ -18,10 +14,10 @@ export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-cen
             false: "",
         },
     },
-    defaultVariants: { variant: "expanded", active: false, indent: false },
+    defaultVariants: { active: false, indent: false },
 });
 
-export const iconWrapperStyles = cva(["flex", "size-8", "items-center", "justify-center", "rounded"], {
+export const iconWrapperStyles = cva(["flex", "shrink-0", "size-8", "items-center", "justify-center", "rounded"], {
     variants: {
         active: {
             true: `border border-(--darkSurface-brandAccent) ${ACTIVE_BG}`,
