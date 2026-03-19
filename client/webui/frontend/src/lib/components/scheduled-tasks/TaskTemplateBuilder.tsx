@@ -8,7 +8,7 @@ import { TaskPreviewPanel } from "./TaskPreviewPanel";
 import { ScheduleBuilder } from "./ScheduleBuilder";
 import { useAgentCards, useNavigationBlocker } from "@/lib/hooks";
 import { api } from "@/lib/api/client";
-import type { CreateScheduledTaskRequest, ScheduledTask } from "@/lib/types/scheduled-tasks";
+import type { CreateScheduledTaskRequest, ScheduledTask, TargetType } from "@/lib/types/scheduled-tasks";
 
 // Common timezones for the dropdown
 const COMMON_TIMEZONES = [
@@ -35,6 +35,7 @@ interface TaskConfig {
     description: string;
     scheduleType: "cron" | "interval" | "one_time";
     scheduleExpression: string;
+    targetType: TargetType;
     targetAgentName: string;
     taskMessage: string;
     timezone: string;
@@ -67,6 +68,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         description: "",
         scheduleType: "cron",
         scheduleExpression: "0 9 * * *",
+        targetType: "agent",
         targetAgentName: "OrchestratorAgent",
         taskMessage: "",
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -81,6 +83,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 description: editingTask.description || "",
                 scheduleType: editingTask.scheduleType,
                 scheduleExpression: editingTask.scheduleExpression,
+                targetType: editingTask.targetType || "agent",
                 targetAgentName: editingTask.targetAgentName,
                 taskMessage: editingTask.taskMessage?.[0]?.text || "",
                 timezone: editingTask.timezone,
@@ -95,6 +98,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 description: "",
                 scheduleType: "cron",
                 scheduleExpression: "0 9 * * *",
+                targetType: "agent",
                 targetAgentName: "OrchestratorAgent",
                 taskMessage: "",
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -125,6 +129,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
             config.description !== initialConfig.description ||
             config.scheduleType !== initialConfig.scheduleType ||
             config.scheduleExpression !== initialConfig.scheduleExpression ||
+            config.targetType !== initialConfig.targetType ||
             config.targetAgentName !== initialConfig.targetAgentName ||
             config.taskMessage !== initialConfig.taskMessage ||
             config.timezone !== initialConfig.timezone ||
@@ -158,6 +163,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         if (updates.description) taskUpdates.description = String(updates.description);
         if (updates.scheduleType || updates.schedule_type) taskUpdates.scheduleType = (updates.scheduleType || updates.schedule_type) as "cron" | "interval" | "one_time";
         if (updates.scheduleExpression || updates.schedule_expression) taskUpdates.scheduleExpression = String(updates.scheduleExpression || updates.schedule_expression);
+        if (updates.targetType || updates.target_type) taskUpdates.targetType = (updates.targetType || updates.target_type) as TargetType;
         if (updates.targetAgentName || updates.target_agent_name) taskUpdates.targetAgentName = String(updates.targetAgentName || updates.target_agent_name);
         if (updates.taskMessage || updates.task_message) taskUpdates.taskMessage = String(updates.taskMessage || updates.task_message);
         if (updates.timezone) taskUpdates.timezone = String(updates.timezone);
@@ -236,6 +242,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 scheduleExpression: config.scheduleExpression,
                 timezone: config.timezone,
                 targetAgentName: config.targetAgentName,
+                targetType: config.targetType,
                 taskMessage: [{ type: "text", text: config.taskMessage }],
                 enabled: config.enabled,
                 timeoutSeconds: editingTask?.timeoutSeconds || 3600,
@@ -251,6 +258,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 schedule_expression: taskData.scheduleExpression,
                 timezone: taskData.timezone,
                 target_agent_name: taskData.targetAgentName,
+                target_type: taskData.targetType || "agent",
                 task_message: taskData.taskMessage,
                 enabled: taskData.enabled,
                 timeout_seconds: taskData.timeoutSeconds,
@@ -434,20 +442,35 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                     <h3 className="text-base font-semibold">Task Configuration</h3>
 
                                     <div className="space-y-2">
+                                        <Label htmlFor="target-type">Target Type</Label>
+                                        <Select value={config.targetType} onValueChange={value => updateConfig({ targetType: value as TargetType, targetAgentName: "" })}>
+                                            <SelectTrigger className="max-w-xs">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="agent">Agent</SelectItem>
+                                                <SelectItem value="workflow">Workflow</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
                                         <Label htmlFor="target-agent">
-                                            Target Agent <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            Target {config.targetType === "workflow" ? "Workflow" : "Agent"} <span className="text-[var(--color-primary-wMain)]">*</span>
                                         </Label>
                                         <Select value={config.targetAgentName} onValueChange={value => updateConfig({ targetAgentName: value })}>
                                             <SelectTrigger className={validationErrors.targetAgentName ? "border-red-500" : ""}>
-                                                <SelectValue placeholder="Select an agent" />
+                                                <SelectValue placeholder={`Select a ${config.targetType === "workflow" ? "workflow" : "agent"}`} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {agents.map(agent => (
-                                                    <SelectItem key={agent.name} value={agent.name}>
-                                                        {agent.name}
-                                                        {agent.description && <span className="text-muted-foreground ml-2 text-xs">- {agent.description}</span>}
-                                                    </SelectItem>
-                                                ))}
+                                                {agents
+                                                    .filter(agent => (config.targetType === "workflow" ? agent.isWorkflow : !agent.isWorkflow))
+                                                    .map(agent => (
+                                                        <SelectItem key={agent.name} value={agent.name}>
+                                                            {agent.displayName || agent.name}
+                                                            {agent.description && <span className="text-muted-foreground ml-2 text-xs">- {agent.description}</span>}
+                                                        </SelectItem>
+                                                    ))}
                                             </SelectContent>
                                         </Select>
                                         {validationErrors.targetAgentName && <p className="text-sm text-red-600">{validationErrors.targetAgentName}</p>}

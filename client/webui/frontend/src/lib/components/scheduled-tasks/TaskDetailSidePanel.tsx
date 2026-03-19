@@ -157,9 +157,9 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
                         </div>
                     </div>
 
-                    {/* Target Agent */}
+                    {/* Target Agent/Workflow */}
                     <div>
-                        <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Target Agent</h3>
+                        <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Target {task.targetType === "workflow" ? "Workflow" : "Agent"}</h3>
                         <div className="text-primary bg-primary/10 inline-block rounded px-2 py-0.5 font-mono text-xs">{task.targetAgentName}</div>
                     </div>
                 </div>

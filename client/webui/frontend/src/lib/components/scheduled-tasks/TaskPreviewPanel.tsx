@@ -7,6 +7,7 @@ interface TaskConfig {
     description: string;
     scheduleType: "cron" | "interval" | "one_time";
     scheduleExpression: string;
+    targetType: "agent" | "workflow";
     targetAgentName: string;
     taskMessage: string;
     timezone: string;
@@ -151,12 +152,12 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                     </div>
                 </div>
 
-                {/* Target Agent */}
+                {/* Target Agent/Workflow */}
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
                         <User className="text-muted-foreground h-4 w-4" />
-                        <label className="text-muted-foreground text-sm font-medium">Target Agent</label>
-                        {isFieldHighlighted("targetAgentName") && (
+                        <label className="text-muted-foreground text-sm font-medium">Target {config.targetType === "workflow" ? "Workflow" : "Agent"}</label>
+                        {(isFieldHighlighted("targetAgentName") || isFieldHighlighted("targetType")) && (
                             <Badge variant="default" className="bg-primary text-primary-foreground text-xs">
                                 Updated
                             </Badge>

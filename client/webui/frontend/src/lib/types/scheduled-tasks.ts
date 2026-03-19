@@ -5,6 +5,7 @@
 
 export type ScheduleType = "cron" | "interval" | "one_time";
 export type TaskStatus = "active" | "paused" | "error";
+export type TargetType = "agent" | "workflow";
 export type ExecutionStatus = "pending" | "running" | "completed" | "failed" | "timeout" | "cancelled";
 
 export interface MessagePart {
@@ -39,6 +40,7 @@ export interface ScheduledTask {
     timezone: string;
 
     targetAgentName: string;
+    targetType: TargetType;
     taskMessage: MessagePart[];
     taskMetadata?: Record<string, unknown>;
 
@@ -138,6 +140,7 @@ export interface CreateScheduledTaskRequest {
     scheduleExpression: string;
     timezone?: string;
     targetAgentName: string;
+    targetType?: TargetType;
     taskMessage: MessagePart[];
     taskMetadata?: Record<string, unknown>;
     enabled?: boolean;
@@ -155,6 +158,7 @@ export interface UpdateScheduledTaskRequest {
     scheduleExpression?: string;
     timezone?: string;
     targetAgentName?: string;
+    targetType?: TargetType;
     taskMessage?: MessagePart[];
     taskMetadata?: Record<string, unknown>;
     enabled?: boolean;
@@ -185,6 +189,7 @@ interface ApiScheduledTask {
     schedule_expression: string;
     timezone: string;
     target_agent_name: string;
+    target_type: TargetType;
     task_message: MessagePart[];
     task_metadata?: Record<string, unknown>;
     enabled: boolean;
@@ -245,6 +250,7 @@ export function transformApiTask(apiTask: ApiScheduledTask): ScheduledTask {
         scheduleExpression: apiTask.schedule_expression,
         timezone: apiTask.timezone,
         targetAgentName: apiTask.target_agent_name,
+        targetType: apiTask.target_type,
         taskMessage: apiTask.task_message,
         taskMetadata: apiTask.task_metadata,
         enabled: apiTask.enabled,
@@ -308,6 +314,7 @@ export function transformTaskToApi(task: CreateScheduledTaskRequest): Record<str
         schedule_expression: task.scheduleExpression,
         timezone: task.timezone,
         target_agent_name: task.targetAgentName,
+        target_type: task.targetType || "agent",
         task_message: task.taskMessage,
         task_metadata: task.taskMetadata,
         enabled: task.enabled,
@@ -335,6 +342,7 @@ export function transformUpdateToApi(update: UpdateScheduledTaskRequest): Record
     if (update.scheduleExpression !== undefined) result.schedule_expression = update.scheduleExpression;
     if (update.timezone !== undefined) result.timezone = update.timezone;
     if (update.targetAgentName !== undefined) result.target_agent_name = update.targetAgentName;
+    if (update.targetType !== undefined) result.target_type = update.targetType;
     if (update.taskMessage !== undefined) result.task_message = update.taskMessage;
     if (update.taskMetadata !== undefined) result.task_metadata = update.taskMetadata;
     if (update.enabled !== undefined) result.enabled = update.enabled;

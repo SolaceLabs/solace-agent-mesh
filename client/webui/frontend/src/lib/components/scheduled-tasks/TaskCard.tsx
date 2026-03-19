@@ -189,7 +189,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                             <span>Next: {formatNextRun(task.nextRunAt)}</span>
                         </div>
                         <div className="text-muted-foreground text-xs">
-                            <span className="truncate">Agent: {task.targetAgentName}</span>
+                            <span className="truncate">
+                                {task.targetType === "workflow" ? "Workflow" : "Agent"}: {task.targetAgentName}
+                            </span>
                         </div>
                     </div>
                 </div>

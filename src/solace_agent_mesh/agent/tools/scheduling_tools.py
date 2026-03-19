@@ -84,6 +84,7 @@ async def schedule_create(
     schedule_expression: str,
     target_agent_name: str,
     task_message: str,
+    target_type: str = "agent",
     description: str = "",
     timezone_str: str = "UTC",
     tool_context: ToolContext = None,
@@ -96,8 +97,9 @@ async def schedule_create(
         name: Human-readable name for the task.
         schedule_type: One of "cron", "interval", or "one_time".
         schedule_expression: Cron expression (e.g. "0 9 * * *") or interval (e.g. "30m").
-        target_agent_name: The agent to invoke on each execution.
-        task_message: The prompt/message to send to the agent.
+        target_agent_name: The agent or workflow to invoke on each execution.
+        task_message: The prompt/message to send to the target.
+        target_type: "agent" or "workflow" (default: "agent").
         description: Optional description of the task.
         timezone_str: IANA timezone (default UTC).
         tool_context: Provided by ADK framework.
@@ -118,6 +120,13 @@ async def schedule_create(
         return ToolResult.error(
             f"Invalid schedule_type '{schedule_type}'. Must be one of: {', '.join(valid_types)}",
             code="INVALID_SCHEDULE_TYPE",
+        )
+
+    # Validate target_type
+    if target_type not in ("agent", "workflow"):
+        return ToolResult.error(
+            f"Invalid target_type '{target_type}'. Must be 'agent' or 'workflow'.",
+            code="INVALID_TARGET_TYPE",
         )
 
     # Validate cron expression
@@ -158,7 +167,7 @@ async def schedule_create(
         "schedule_expression": schedule_expression,
         "timezone": timezone_str,
         "target_agent_name": target_agent_name,
-        "target_type": "agent",
+        "target_type": target_type,
         "task_message": message_parts,
         "task_metadata": None,
         "enabled": True,
@@ -193,10 +202,11 @@ async def schedule_create(
             else:
                 schedule_desc = f"one-time at {schedule_expression}"
 
+            target_label = "workflow" if target_type == "workflow" else "agent"
             return ToolResult.ok(
                 f"Scheduled task '{name}' created successfully. "
                 f"Schedule: {schedule_desc} ({timezone_str}). "
-                f"Target agent: {target_agent_name}. "
+                f"Target {target_label}: {target_agent_name}. "
                 f"Task ID: {task_id}",
                 data={
                     "task_id": task_id,
@@ -204,6 +214,7 @@ async def schedule_create(
                     "schedule_type": schedule_type,
                     "schedule_expression": schedule_expression,
                     "target_agent_name": target_agent_name,
+                    "target_type": target_type,
                     "timezone": timezone_str,
                     "enabled": True,
                 },
@@ -282,6 +293,7 @@ async def schedule_list(
                     "schedule_type": t.schedule_type.value if hasattr(t.schedule_type, 'value') else str(t.schedule_type),
                     "schedule_expression": t.schedule_expression,
                     "target_agent_name": t.target_agent_name,
+                    "target_type": t.target_type or "agent",
                     "enabled": t.enabled,
                     "status": t.status,
                     "next_run": next_run,
@@ -394,11 +406,12 @@ schedule_create_tool = BuiltinTool(
     name="schedule_create",
     implementation=schedule_create,
     description=(
-        "Create a new scheduled task that runs an agent on a recurring schedule. "
+        "Create a new scheduled task that runs an agent or workflow on a recurring schedule. "
         "Supports cron expressions (e.g. '0 9 * * *' for daily at 9 AM), "
         "intervals (e.g. '30m', '1h'), and one-time schedules. "
         "Use this when the user wants to automate a recurring task like "
-        "'generate a daily report' or 'check system health every 30 minutes'."
+        "'generate a daily report' or 'run the data pipeline every 30 minutes'. "
+        "Set target_type to 'workflow' when targeting a workflow instead of an agent."
     ),
     category=CATEGORY,
     category_name=CATEGORY_NAME,
@@ -426,7 +439,12 @@ schedule_create_tool = BuiltinTool(
             ),
             "target_agent_name": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="Name of the agent to invoke on each execution.",
+                description="Name of the agent or workflow to invoke on each execution.",
+            ),
+            "target_type": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Type of target: 'agent' (default) or 'workflow'.",
+                enum=["agent", "workflow"],
             ),
             "task_message": adk_types.Schema(
                 type=adk_types.Type.STRING,
