@@ -839,3 +839,6 @@ def get_indexing_task_service(
         sse_manager=sse_manager,
         project_service=project_service
     )
+
+
+from ...common.features.fastapi import get_feature_value, require_feature  # noqa: F401 — re-exported for gateway routers
