@@ -4,9 +4,6 @@ import logging
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 
-from typing import List, Optional
-from sqlalchemy.orm import Session
-
 from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
