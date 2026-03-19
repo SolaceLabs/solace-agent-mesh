@@ -7,6 +7,7 @@
 
 import { Bot } from "lucide-react";
 import { formatCollaborativeTimestamp } from "@/lib/utils/userFormatting";
+import { formatFullDateTime } from "@/lib/utils/format";
 import { UserAvatar } from "./UserAvatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
@@ -23,29 +24,13 @@ interface MessageAttributionProps {
     readonly avatarUrl?: string;
 }
 
-/**
- * Format timestamp as full date and time for tooltip (YYYY-MM-DD HH:MM AM/PM)
- */
-function formatFullDateTime(timestamp: number): string {
-    const date = new Date(timestamp);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const time = date.toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-    });
-    return `${year}-${month}-${day} ${time}`;
-}
-
 export function MessageAttribution({ type, name, userIndex = 0, timestamp, avatarUrl }: MessageAttributionProps) {
     return (
         <div className="flex items-center gap-2">
             {/* Icon/Avatar */}
             {type === "agent" ? (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10) dark:bg-(--color-accent-n2-w100)">
-                    <Bot className="h-4 w-4 text-(--color-brand-wMain)" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--accent-n2-w10) dark:bg-(--accent-n2-w100)">
+                    <Bot className="h-4 w-4 text-(--brand-wMain)" />
                 </div>
             ) : (
                 <UserAvatar name={name} userIndex={userIndex} avatarUrl={avatarUrl} />
