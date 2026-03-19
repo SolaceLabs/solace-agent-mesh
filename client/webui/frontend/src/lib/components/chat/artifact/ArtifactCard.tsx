@@ -1,15 +1,18 @@
-import React from "react";
+import type { MouseEvent } from "react";
 
 import type { ArtifactInfo } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { ArtifactMessage } from "../file/ArtifactMessage";
 import { useChatContext } from "@/lib/hooks";
 
 interface ArtifactCardProps {
     artifact: ArtifactInfo;
     isPreview?: boolean;
+    readOnly?: boolean;
+    onDownloadOverride?: () => Promise<void>;
 }
 
-export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview }) => {
+export const ArtifactCard = ({ artifact, isPreview, readOnly = false, onDownloadOverride }: ArtifactCardProps) => {
     const { setPreviewArtifact } = useChatContext();
 
     // Create a FileAttachment from the ArtifactInfo
@@ -20,7 +23,7 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
         uri: artifact.uri,
     };
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
         if (!isPreview) {
             e.stopPropagation();
             setPreviewArtifact(artifact);
@@ -28,8 +31,8 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
     };
 
     return (
-        <div className={`${isPreview ? "" : "cursor-pointer transition-all duration-150 hover:bg-(--background-w20)"}`} onClick={handleClick}>
-            <ArtifactMessage status="completed" name={artifact.filename} fileAttachment={fileAttachment} context="list" />
+        <div className={cn(!isPreview && "cursor-pointer transition-all duration-150 hover:bg-(--accent-background)")} onClick={handleClick}>
+            <ArtifactMessage status="completed" name={artifact.filename} fileAttachment={fileAttachment} context="list" readOnly={readOnly} onDownloadOverride={onDownloadOverride} />
         </div>
     );
 };
