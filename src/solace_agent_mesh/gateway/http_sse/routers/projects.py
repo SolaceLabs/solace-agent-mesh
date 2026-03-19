@@ -901,7 +901,6 @@ async def delete_project(
 async def toggle_pin_project(
     project_id: str,
     user: dict = Depends(get_current_user),
-    project_service: ProjectService = Depends(get_project_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):

@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { ProjectCard } from "./ProjectCard";
 import { CreateProjectCard } from "./CreateProjectCard";
 import type { Project } from "@/lib/types/projects";
@@ -34,15 +33,6 @@ interface ProjectCardsProps {
 }
 
 export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false, onShare, onTogglePin, isPinToggling }: ProjectCardsProps) => {
-    const sortedProjects = useMemo(() => {
-        return [...projects].sort((a, b) => {
-            if (a.isPinned !== b.isPinned) {
-                return a.isPinned ? -1 : 1;
-            }
-            return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-        });
-    }, [projects]);
-
     return (
         <div className="flex h-full flex-col bg-(--background-w20)">
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
@@ -67,7 +57,7 @@ export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectC
                     <div className="flex-1 overflow-y-auto">
                         <div className="flex flex-wrap gap-6">
                             <CreateProjectCard onClick={onCreateNew} />
-                            {sortedProjects.map(project => (
+                            {projects.map(project => (
                                 <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} onShare={onShare} onTogglePin={onTogglePin} isPinToggling={isPinToggling} />
                             ))}
                         </div>
