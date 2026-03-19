@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { Share2 } from "lucide-react";
 
-import { listSharedWithMe } from "@/lib/api/shareApi";
+import { listSharedWithMe } from "@/lib/api/share";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useChatContext } from "@/lib/hooks";
 import type { SharedWithMeItem } from "@/lib/types/share";
@@ -101,18 +101,18 @@ export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
             </div>
             <div>
                 {sharedChats.map(item => {
-                    const isEditor = item.access_level === "RESOURCE_EDITOR" && item.session_id;
+                    const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
                     const handleClick = () => {
-                        if (isEditor && item.session_id) {
+                        if (isEditor && item.sessionId) {
                             // Use switchSession to load the session in ChatProvider, then navigate to /chat
-                            handleSwitchSession(item.session_id);
+                            handleSwitchSession(item.sessionId);
                             navigate("/chat");
                         } else {
-                            navigate(`/shared-chat/${item.share_id}`);
+                            navigate(`/shared-chat/${item.shareId}`);
                         }
                     };
 
-                    return <SharedChatItem key={item.share_id} item={item} onClick={handleClick} />;
+                    return <SharedChatItem key={item.shareId} item={item} onClick={handleClick} />;
                 })}
             </div>
         </>
