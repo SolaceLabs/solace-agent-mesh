@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge } from "@/lib/components/ui";
-import { PaginationControls, EmptyState, OnboardingBanner } from "@/lib/components/common";
+import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 
 import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
-import { ModelsOnboardingView } from "./ModelsOnboardingView";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
@@ -100,7 +99,7 @@ export const ModelsView: React.FC = () => {
                             </Table>
                         </div>
                     ) : (
-                        <ModelsOnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} />
+                        <OnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} learnMoreText={MODELS_LEARN_MORE_TEXT} learnMoreHref={MODELS_URL} actionButtonText="Add Model" actionButtonDisabled={true} />
                     )}
                 </div>
 

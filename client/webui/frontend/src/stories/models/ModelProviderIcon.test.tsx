@@ -2,7 +2,7 @@
 import { render } from "@testing-library/react";
 import { describe, test, expect } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
-import { ModelProviderIcon } from "../ModelProviderIcon";
+import { ModelProviderIcon } from "../../lib/components/models/ModelProviderIcon";
 
 expect.extend(matchers);
 
