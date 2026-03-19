@@ -717,7 +717,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         if self.model_provider and self._lazy_model_mode:
             # Lazy model mode: create LiteLlm with placeholder
             adk_model_instance = LiteLlm(
-                model=None,
+                model=model_config,
                 on_status_change=self._on_model_status_change,
             )
         elif isinstance(model_config, str):
