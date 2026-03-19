@@ -151,6 +151,12 @@ class DynamicModelProvider:
             await asyncio.sleep(5)
             if self._initialized:
                 break
+        
+        if not self._initialized:
+            log.warning(
+                "%s Model configuration not received after multiple attempts. LiteLlm instance may not be configured.",
+                self._component.log_identifier,
+            )
 
     def update_litellm_model(self, model_config: Union[str, Dict[str, Any]]) -> None:
         """
