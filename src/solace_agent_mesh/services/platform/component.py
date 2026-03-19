@@ -258,7 +258,6 @@ class PlatformServiceComponent(SamComponentBase):
             # Import FastAPI app and setup function
             from .api.main import app as fastapi_app_instance
             from .api.main import setup_dependencies
-
             self.fastapi_app = fastapi_app_instance
 
             setup_dependencies(self)
@@ -266,6 +265,37 @@ class PlatformServiceComponent(SamComponentBase):
             # Register startup event for background tasks
             @self.fastapi_app.on_event("startup")
             async def start_background_tasks():
+                # Seed model configurations (community responsibility, after migrations)
+                # Only seed if the model_config_ui feature flag is enabled
+                import os
+                if os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true":
+                    try:
+                        from solace_agent_mesh.services.platform.services import seed_model_configurations
+                        from .api import dependencies
+
+                        log.info("%s Seeding model configurations...", self.log_identifier)
+                        db_session = dependencies.PlatformSessionLocal()
+                        try:
+                            models_config = self.connector_models
+                            seed_model_configurations(db_session, models_config)
+                            db_session.commit()
+                            log.info("%s Model configurations seeded successfully", self.log_identifier)
+                        except Exception:
+                            db_session.rollback()
+                            raise
+                        finally:
+                            db_session.close()
+                    except Exception as e:
+                        log.error(
+                            "%s Failed to seed model configurations: %s",
+                            self.log_identifier,
+                            e,
+                            exc_info=True
+                        )
+                else:
+                    log.info("%s Model configurations seeding skipped (feature flag disabled)", self.log_identifier)
+
+                # Start enterprise background tasks
                 try:
                     from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
 
@@ -665,6 +695,20 @@ class PlatformServiceComponent(SamComponentBase):
         Return the ConfigResolver instance.
         """
         return self.config_resolver
+
+    @property
+    def connector_models(self) -> dict:
+        """Get models from shared_config if they exist."""
+        try:
+            if hasattr(self, 'connector') and self.connector and hasattr(self.connector, 'config'):
+                shared_config = self.connector.config.get("shared_config", [])
+                # shared_config is a list, find the models dict
+                for item in shared_config:
+                    if isinstance(item, dict) and "models" in item:
+                        return item
+        except Exception:
+            pass
+        return {}
 
     def get_session_manager(self) -> _StubSessionManager:
         """

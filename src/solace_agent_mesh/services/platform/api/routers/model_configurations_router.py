@@ -9,17 +9,18 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
   Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
-import logging
 import os
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from solace_agent_mesh.services.platform.services import ModelConfigService
-from solace_agent_mesh.services.platform.api.dependencies import get_model_config_service, get_component_instance
+from solace_agent_mesh.services.platform.api.dependencies import (
+    get_model_config_service,
+    get_platform_db,
+)
 from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
 from solace_agent_mesh.shared.api.pagination import DataResponse
-from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_model_config_update_topic
-
-log = logging.getLogger(__name__)
+from solace_agent_mesh.shared.api.response_utils import create_data_response
 
 router = APIRouter()
 
@@ -52,6 +53,7 @@ def _require_model_config_ui_enabled() -> bool:
 )
 async def list_models(
     _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[ModelConfigurationResponse]]:
     """
@@ -63,136 +65,43 @@ async def list_models(
     Returns:
         DataResponse with list of model configurations with safe data
     """
-    try:
-        configurations = service.list_all()
-        return DataResponse.create(configurations)
-    except Exception as e:
-        log.error(f"Failed to retrieve model configurations: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve model configurations",
-        )
+    configurations = service.list_all(db)
+    return create_data_response(configurations)
 
 
 @router.get(
     "/models/{alias}",
-    response_model=ModelConfigurationResponse,
+    response_model=DataResponse[ModelConfigurationResponse],
     summary="Get model configuration by alias",
     description="Retrieve a model configuration by alias (e.g., 'gpt-4', 'claude-3'). Sensitive authentication information is excluded.",
 )
 async def get_model(
     alias: str,
     _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
-) -> ModelConfigurationResponse:
+) -> DataResponse[ModelConfigurationResponse]:
     """
     Retrieve a model configuration by alias.
 
-    The alias lookup is case. Sensitive information (API keys, OAuth
+    The alias lookup is case-sensitive. Sensitive information (API keys, OAuth
     client secrets) is excluded from the response.
 
     Args:
         alias: The model alias to look up
 
     Returns:
-        ModelConfigurationResponse: The model configuration with safe data
+        DataResponse with model configuration data
 
     Raises:
         HTTPException: 404 if configuration not found
     """
-    try:
-        config = service.get_by_alias(alias)
+    config = service.get_by_alias(db, alias)
 
-        if not config:
-            log.debug(f"Model configuration not found with alias: {alias}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Model configuration with alias '{alias}' not found",
-            )
-
-        return config
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(
-            f"Failed to retrieve model configuration by alias {alias}: {e}",
-            exc_info=True,
-        )
+    if not config:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve model configuration",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Model configuration with alias '{alias}' not found",
         )
 
-
-def _emit_model_config_update(component, model_id: str, alias: str, model_config: dict | None):
-    """Emit model config update events on both ID and alias topics.
-
-    Publishes to get_model_config_update_topic twice: once with the model's database ID
-    and once with the model's alias. This ensures agents subscribing by either
-    identifier receive the update.
-
-    Args:
-        component: PlatformServiceComponent instance for publishing.
-        model_id: The model's database UUID.
-        alias: The model's alias string.
-        model_config: The full LiteLlm config dict, or None to unconfigure.
-    """
-    payload = {"model_config": model_config}
-
-    # Emit by ID
-    topic_by_id = get_model_config_update_topic(component.namespace, model_id)
-    component.publish_a2a_message(payload=payload, topic=topic_by_id)
-
-    # Emit by alias
-    topic_by_alias = get_model_config_update_topic(component.namespace, alias)
-    component.publish_a2a_message(payload=payload, topic=topic_by_alias)
-
-
-@router.post(
-    "/models",
-    summary="Create model configuration (placeholder)",
-    description="Placeholder for creating a model configuration. Emits A2A update events.",
-)
-async def create_model(
-    body: dict = Body(...),
-    _: None = Depends(_require_model_config_ui_enabled),
-    service: ModelConfigService = Depends(get_model_config_service),
-    component=Depends(get_component_instance),
-):
-    # TODO: Implement actual creation logic (persist to DB, generate ID, etc.)
-    model_config = body.get("model_config")
-    model_id = body.get("id", "")
-    alias = body.get("alias", "")
-
-    if model_config and model_id and alias:
-        _emit_model_config_update(component, model_id, alias, model_config)
-
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
-    )
-
-
-@router.put(
-    "/models/{alias}",
-    summary="Update model configuration (placeholder)",
-    description="Placeholder for updating a model configuration. Emits A2A update events.",
-)
-async def update_model(
-    alias: str,
-    body: dict = Body(...),
-    _: None = Depends(_require_model_config_ui_enabled),
-    service: ModelConfigService = Depends(get_model_config_service),
-    component=Depends(get_component_instance),
-):
-    # TODO: Implement actual update logic (persist changes to DB, etc.)
-    model_config = body.get("model_config")
-    model_id = body.get("id", "")
-
-    if model_config and model_id:
-        _emit_model_config_update(component, model_id, alias, model_config)
-
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
-    )
+    return create_data_response(config)
