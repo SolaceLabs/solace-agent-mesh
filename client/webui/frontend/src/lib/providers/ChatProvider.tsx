@@ -1993,11 +1993,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setSessionOwnerEmail(null);
                     // Check if the owner has shared with editors (for showing collaborative UI elements)
                     try {
-                        const { getShareLinkForSession, getShareUsers } = await import("@/lib/api/shareApi");
+                        const { getShareLinkForSession, getShareUsers } = await import("@/lib/api/share");
                         const link = await getShareLinkForSession(newSessionId);
                         if (link) {
-                            const usersResponse = await getShareUsers(link.share_id);
-                            const hasEditors = (usersResponse.users || []).some(u => u.access_level === "RESOURCE_EDITOR");
+                            const usersResponse = await getShareUsers(link.shareId);
+                            const hasEditors = (usersResponse.users || []).some(u => u.accessLevel === "RESOURCE_EDITOR");
                             setHasSharedEditors(hasEditors);
                         } else {
                             setHasSharedEditors(false);
@@ -2721,11 +2721,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const detail = (event as CustomEvent).detail;
             if (detail?.sessionId === sessionId && !isCollaborativeSession) {
                 try {
-                    const { getShareLinkForSession, getShareUsers } = await import("@/lib/api/shareApi");
+                    const { getShareLinkForSession, getShareUsers } = await import("@/lib/api/share");
                     const link = await getShareLinkForSession(sessionId);
                     if (link) {
-                        const usersResponse = await getShareUsers(link.share_id);
-                        const hasEditors = (usersResponse.users || []).some(u => u.access_level === "RESOURCE_EDITOR");
+                        const usersResponse = await getShareUsers(link.shareId);
+                        const hasEditors = (usersResponse.users || []).some(u => u.accessLevel === "RESOURCE_EDITOR");
                         setHasSharedEditors(hasEditors);
                     } else {
                         setHasSharedEditors(false);
