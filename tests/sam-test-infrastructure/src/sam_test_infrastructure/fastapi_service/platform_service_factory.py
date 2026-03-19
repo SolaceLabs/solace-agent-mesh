@@ -159,12 +159,16 @@ class PlatformServiceFactory:
         """Run database migrations for Platform Service."""
         try:
             from solace_agent_mesh.services.platform.api.main import (
+                _run_community_migrations,
                 _run_enterprise_migrations,
             )
 
+            log.info("[PlatformServiceFactory] Running community platform migrations...")
+            _run_community_migrations(database_url)
+
             log.info("[PlatformServiceFactory] Running enterprise platform migrations...")
             _run_enterprise_migrations(database_url)
-            log.info("[PlatformServiceFactory] Enterprise platform migrations completed")
+            log.info("[PlatformServiceFactory] Platform migrations completed")
         except ImportError:
             log.info("[PlatformServiceFactory] Enterprise package not available - skipping enterprise migrations")
         except Exception as e:

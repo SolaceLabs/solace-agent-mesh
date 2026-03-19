@@ -746,17 +746,103 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 app_name=agent_name, user_id=user_id, session_id=effective_session_id
             )
             if adk_session_for_run is None:
-                adk_session_for_run = await component.session_service.create_session(
-                    app_name=agent_name,
-                    user_id=user_id,
-                    session_id=effective_session_id,
-                )
-                log.info(
-                    "%s Created new ADK session '%s' for task '%s'.",
-                    component.log_identifier,
-                    effective_session_id,
-                    logical_task_id,
-                )
+                # Check if this is a forked session that needs history cloned
+                fork_source_session_id = task_metadata.get("fork_source_session_id")
+                fork_source_user_id = task_metadata.get("fork_source_user_id")
+                
+                if fork_source_session_id and fork_source_user_id:
+                    # Try to clone the source session's conversation history
+                    log.info(
+                        "%s Forked session detected - cloning ADK session from '%s' (user '%s') to '%s' (user '%s').",
+                        component.log_identifier,
+                        fork_source_session_id, fork_source_user_id,
+                        effective_session_id, user_id,
+                    )
+                    try:
+                        from ...agent.adk.services import clone_adk_session
+                        cloned_session = await clone_adk_session(
+                            session_service=component.session_service,
+                            app_name=agent_name,
+                            source_user_id=fork_source_user_id,
+                            source_session_id=fork_source_session_id,
+                            target_user_id=user_id,
+                            target_session_id=effective_session_id,
+                            log_identifier=f"{component.log_identifier}[Fork:{logical_task_id}]",
+                        )
+                        if cloned_session:
+                            adk_session_for_run = cloned_session
+                            log.info(
+                                "%s Successfully cloned ADK session for forked session '%s'.",
+                                component.log_identifier,
+                                effective_session_id,
+                            )
+                        else:
+                            try:
+                                adk_session_for_run = await component.session_service.create_session(
+                                    app_name=agent_name,
+                                    user_id=user_id,
+                                    session_id=effective_session_id,
+                                )
+                            except Exception:
+                                adk_session_for_run = await component.session_service.get_session(
+                                    app_name=agent_name,
+                                    user_id=user_id,
+                                    session_id=effective_session_id,
+                                )
+                            log.warning(
+                                "%s Fork clone returned None - created empty session '%s'.",
+                                component.log_identifier,
+                                effective_session_id,
+                            )
+                    except Exception as clone_err:
+                        log.warning(
+                            "%s Fork clone error: %s - cleaning up and creating empty session '%s'.",
+                            component.log_identifier, clone_err, effective_session_id,
+                        )
+                        # Clean up partially-cloned session before creating a fresh one
+                        try:
+                            await component.session_service.delete_session(
+                                app_name=agent_name,
+                                user_id=user_id,
+                                session_id=effective_session_id,
+                            )
+                        except Exception:
+                            pass  # Session may not exist yet
+                        # Create fresh session; handle race with concurrent first-message
+                        try:
+                            adk_session_for_run = await component.session_service.create_session(
+                                app_name=agent_name,
+                                user_id=user_id,
+                                session_id=effective_session_id,
+                            )
+                        except Exception:
+                            # Another concurrent message may have already created it
+                            adk_session_for_run = await component.session_service.get_session(
+                                app_name=agent_name,
+                                user_id=user_id,
+                                session_id=effective_session_id,
+                            )
+                else:
+                    # Normal new session (not a fork)
+                    try:
+                        adk_session_for_run = await component.session_service.create_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
+                    except Exception:
+                        # Another concurrent message may have already created it
+                        adk_session_for_run = await component.session_service.get_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
+                    log.info(
+                        "%s Created new ADK session '%s' for task '%s'.",
+                        component.log_identifier,
+                        effective_session_id,
+                        logical_task_id,
+                    )
 
             else:
                 log.info(

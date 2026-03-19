@@ -4,16 +4,19 @@ FastAPI dependency injection for Platform Service.
 Provides database sessions, component instance access, and user authentication.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Generator
 
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 if TYPE_CHECKING:
     from ..component import PlatformServiceComponent
+    from ..services import ModelConfigService
 
 log = logging.getLogger(__name__)
 
@@ -169,3 +172,19 @@ def get_gateway_registry():
         log.warning("Platform component not initialized - gateway registry unavailable")
         return None
     return platform_component_instance.get_gateway_registry()
+
+
+def get_model_config_service() -> ModelConfigService:
+    """
+    FastAPI dependency for ModelConfigService.
+
+    Provides a service instance for model configuration business logic.
+    The service is stateless and takes db: Session as a parameter to each method,
+    allowing database session lifecycle to be managed independently.
+
+    Returns:
+        ModelConfigService instance for accessing model configurations.
+    """
+    from solace_agent_mesh.services.platform.services import ModelConfigService
+
+    return ModelConfigService()
