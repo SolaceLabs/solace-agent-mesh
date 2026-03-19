@@ -3,6 +3,7 @@ Dynamic Model Provider for enterprise model configuration.
 """
 
 from typing import Any, Dict, Union
+import asyncio
 from solace_ai_connector.components.component_base import ComponentBase as SamComponentBase
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 from solace_ai_connector.components.component_base import ComponentBase
@@ -97,8 +98,9 @@ class ModelConfigReceiverComponent(ComponentBase):
                 log.info(
                     "%s Model config found, updating LiteLlm: %s",
                     log_id_prefix,
-                    model_config,
+                    model_config.get('model', 'N/A'),
                 )
+                self.model_provider._initialized = True
                 self.model_provider.update_litellm_model(model_config)
             else:
                 log.info(
@@ -134,7 +136,21 @@ class DynamicModelProvider:
         self._broker_input = None
 
         # Initial model configuration
-        self.request_model_config()
+        self._initialized = False
+        asyncio.create_task(self.initialize())
+
+    async def initialize(self):
+        """
+        Initialize the DynamicModelProvider by starting to listen for model config changes.
+        """
+        await self.listen_for_model_config_change()
+
+        # Call request_model_config up to 3 times, once every 5 seconds, until initialized
+        for i in range(3):
+            await self.request_model_config()
+            await asyncio.sleep(5)
+            if self._initialized:
+                break
 
     def update_litellm_model(self, model_config: Union[str, Dict[str, Any]]) -> None:
         """
@@ -143,7 +159,7 @@ class DynamicModelProvider:
         Args:
             model_config: The new model configuration (model name or config dict).
         """
-        log.info("Updating LiteLlm instance with new model: %s", model_config.get('model'))
+        log.info("Updating LiteLlm instance with new model: %s", model_config.get('model', 'N/A') if isinstance(model_config, dict) else model_config)
         self._litellm_instance.configure_model(model_config)
 
     def remove_litellm_model(self) -> None:
@@ -153,7 +169,7 @@ class DynamicModelProvider:
         log.info("Removing model configuration from LiteLlm instance.")
         self._litellm_instance.unconfigure_model()
 
-    def request_model_config(self) -> None:
+    async def request_model_config(self) -> None:
         """
         Request model configuration for the component.
         """
@@ -347,5 +363,4 @@ async def start_model_listener(litellm_instance: LiteLlm, component: SamComponen
     """
     log.info("Starting model '%s' listener for component %s", model_provider_id, component.get_component_id())
     model_config_provider = DynamicModelProvider(component, litellm_instance, model_provider_id)
-    await model_config_provider.listen_for_model_config_change()
     return model_config_provider
