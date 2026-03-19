@@ -100,7 +100,7 @@ class ModelConfigReceiverComponent(ComponentBase):
                     log_id_prefix,
                     model_config.get('model', 'N/A'),
                 )
-                self.model_provider._initialized = True
+                self.model_provider.mark_initialized()
                 self.model_provider.update_litellm_model(model_config)
             else:
                 log.info(
@@ -157,6 +157,12 @@ class DynamicModelProvider:
                 "%s Model configuration not received after multiple attempts. LiteLlm instance may not be configured.",
                 self._component.log_identifier,
             )
+    def mark_initialized(self):
+        """
+        Mark the provider as initialized. This can be called by the receiver component
+        when a valid model config is received.
+        """
+        self._initialized = True
 
     def update_litellm_model(self, model_config: Union[str, Dict[str, Any]]) -> None:
         """
