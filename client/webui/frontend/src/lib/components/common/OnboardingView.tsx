@@ -4,6 +4,11 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { cn } from "@/lib/utils";
 
+interface ActionButton {
+    text: string;
+    onClick?: () => void;
+}
+
 interface OnboardingViewProps {
     title: string;
     description: string;
@@ -11,12 +16,10 @@ interface OnboardingViewProps {
     learnMoreHref?: string;
     image?: ReactElement;
     className?: string;
-    actionButtonText?: string;
-    onActionClick?: () => void;
-    actionButtonDisabled?: boolean;
+    actionButton?: ActionButton;
 }
 
-function OnboardingView({ title, description, learnMoreText, learnMoreHref = "#", image, className, actionButtonText, onActionClick, actionButtonDisabled = false }: OnboardingViewProps) {
+function OnboardingView({ title, description, learnMoreText, learnMoreHref = "#", image, className, actionButton }: OnboardingViewProps) {
     return (
         <div className={cn("flex h-full justify-center overflow-auto p-12", className)}>
             <div className="my-auto flex max-w-6xl gap-8">
@@ -24,10 +27,10 @@ function OnboardingView({ title, description, learnMoreText, learnMoreHref = "#"
                     <h2 className="mb-4 text-xl font-semibold">{title}</h2>
                     <p className="mb-6 text-sm text-(--secondary-text-wMain)">{description}</p>
 
-                    {actionButtonText && (
+                    {actionButton && (
                         <div className={cn("mb-2 flex gap-3", !image && "flex-col items-center")}>
-                            <Button disabled={actionButtonDisabled} onClick={onActionClick}>
-                                <span className="mr-2">+</span> {actionButtonText}
+                            <Button onClick={actionButton.onClick}>
+                                <span className="mr-2">+</span> {actionButton.text}
                             </Button>
                         </div>
                     )}
@@ -35,7 +38,7 @@ function OnboardingView({ title, description, learnMoreText, learnMoreHref = "#"
                     {learnMoreText && (
                         <Button variant="link" onClick={() => window.open(learnMoreHref, "_blank")} className="w-fit p-0!">
                             {learnMoreText}
-                            {image && <ExternalLink size={14} />}
+                            <ExternalLink size={14} />
                         </Button>
                     )}
                 </div>
