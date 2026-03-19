@@ -29,6 +29,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
     - Managing a dedicated asyncio event loop running in a separate thread.
     - Publishing A2A messages with built-in size validation.
     """
+    adk_model_instance: LiteLlm | None = None
 
     adk_model_instance: LiteLlm | None = None
     _component_id: str
@@ -77,7 +78,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
         self._lazy_model_mode = (
             os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"
         )
-
         log.info("%s Initialized SamComponentBase", self.log_identifier)
 
     def get_component_id(self) -> str:

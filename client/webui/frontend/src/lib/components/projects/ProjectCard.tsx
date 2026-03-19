@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FolderOpen, MoreHorizontal, Download, Trash2, Share2, Eye, UserIcon } from "lucide-react";
 
-import { GridCard } from "@/lib/components/common";
+import { GridCard, PinButton } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Button, Popover, PopoverContent, PopoverTrigger, Menu, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
@@ -13,9 +13,11 @@ interface ProjectCardProps {
     onDelete?: (project: Project) => void;
     onExport?: (project: Project) => void;
     onShare?: (project: Project) => void;
+    onTogglePin?: (project: Project) => void;
+    isPinToggling?: boolean;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, onShare }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, onShare, onTogglePin, isPinToggling }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isTruncated, setIsTruncated] = useState(false);
     const titleRef = useRef<HTMLDivElement>(null);
@@ -87,6 +89,16 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                         </Tooltip>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
+                        {onTogglePin && (
+                            <PinButton
+                                isPinned={project.isPinned ?? false}
+                                disabled={isPinToggling}
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    onTogglePin(project);
+                                }}
+                            />
+                        )}
                         {isOwner && onDelete && (
                             <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                                 <PopoverTrigger asChild>
