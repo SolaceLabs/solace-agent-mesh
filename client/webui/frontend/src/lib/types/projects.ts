@@ -12,6 +12,7 @@ export interface Project {
     artifactCount?: number | null;
     createdAt: string; // ISO string
     updatedAt: string; // ISO string
+    isPinned?: boolean;
 }
 
 export interface CreateProjectRequest {

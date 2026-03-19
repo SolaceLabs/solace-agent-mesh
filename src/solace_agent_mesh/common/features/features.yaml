@@ -56,3 +56,12 @@ features:
     description: >
       Run long-running agent tasks in the background and receive results
       when they complete.
+
+  - key: model_config_ui
+    name: Model Configuration UI
+    release_phase: ga
+    default_enabled: false
+    jira_epic: DATAGO-109787
+    description: >
+      Enable the Models tab in the Agent Mesh interface to view and manage
+      LLM model configurations. When disabled, the Models tab is hidden.
