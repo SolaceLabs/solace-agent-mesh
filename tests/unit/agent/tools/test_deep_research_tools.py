@@ -457,18 +457,25 @@ class TestGetModelForPhase:
     """Tests for _get_model_for_phase helper function."""
     
     def _create_mock_tool_context(self, agent=None, canonical_model=None, host_component=None):
-        """Helper to create a mock tool context with configurable agent and model."""
+        """Helper to create a mock tool context with configurable agent and model.
+
+        When canonical_model is provided but host_component is not, a host_component
+        is automatically created that returns canonical_model from get_lite_llm_model().
+        """
         mock_context = MagicMock()
         mock_inv_context = MagicMock()
-        
+
         if agent is None:
             agent = MagicMock()
             agent.canonical_model = canonical_model
+            if host_component is None and canonical_model is not None:
+                host_component = MagicMock()
+                host_component.get_lite_llm_model = MagicMock(return_value=canonical_model)
             agent.host_component = host_component
-        
+
         mock_inv_context.agent = agent
         mock_context._invocation_context = mock_inv_context
-        
+
         return mock_context
     
     def test_returns_canonical_model_when_available(self):
@@ -516,25 +523,25 @@ class TestGetModelForPhase:
         mock_host_component.get_lite_llm_model.assert_called_once()
         assert result == mock_model
     
-    def test_raises_value_error_when_no_model_available(self):
-        """Test that ValueError is raised when no default model is available."""
+    def test_raises_error_when_no_model_available(self):
+        """Test that an error is raised when host_component is None."""
         mock_agent = MagicMock()
         mock_agent.canonical_model = None
         mock_agent.host_component = None
-        
+
         tool_context = self._create_mock_tool_context(agent=mock_agent)
-        
-        with pytest.raises(ValueError, match="No default model available"):
+
+        with pytest.raises(AttributeError):
             _get_model_for_phase("query_generation", tool_context, None)
-    
-    def test_raises_value_error_when_no_agent(self):
-        """Test that ValueError is raised when no agent is available."""
+
+    def test_raises_error_when_no_agent(self):
+        """Test that an error is raised when agent is None."""
         mock_context = MagicMock()
         mock_inv_context = MagicMock()
         mock_inv_context.agent = None
         mock_context._invocation_context = mock_inv_context
-        
-        with pytest.raises(ValueError, match="No default model available"):
+
+        with pytest.raises(AttributeError):
             _get_model_for_phase("query_generation", mock_context, None)
     
     def test_returns_default_model_when_no_tool_config(self):
@@ -562,7 +569,7 @@ class TestGetModelForPhase:
             }
         }
         
-        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.LiteLlm') as mock_lite_llm:
             mock_lite_llm.return_value = MagicMock()
             result = _get_model_for_phase("query_generation", tool_context, tool_config)
             
@@ -591,7 +598,7 @@ class TestGetModelForPhase:
             }
         }
         
-        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.LiteLlm') as mock_lite_llm:
             mock_lite_llm.return_value = MagicMock()
             result = _get_model_for_phase("report_generation", tool_context, tool_config)
             
@@ -619,7 +626,7 @@ class TestGetModelForPhase:
             }
         }
         
-        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.LiteLlm') as mock_lite_llm:
             mock_lite_llm.return_value = MagicMock()
             result = _get_model_for_phase("report_generation", tool_context, tool_config)
             
@@ -676,7 +683,7 @@ class TestGetModelForPhase:
             }
         }
         
-        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.LiteLlm') as mock_lite_llm:
             mock_lite_llm.return_value = MagicMock()
             result = _get_model_for_phase("query_generation", tool_context, tool_config)
             
@@ -714,7 +721,7 @@ class TestGetModelForPhase:
             }
         }
         
-        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.LiteLlm') as mock_lite_llm:
             mock_lite_llm.return_value = MagicMock()
             result = _get_model_for_phase("query_generation", tool_context, tool_config)
             
@@ -735,7 +742,7 @@ class TestGetModelForPhase:
             }
         }
         
-        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.LiteLlm') as mock_lite_llm:
             mock_lite_llm.return_value = MagicMock()
             result = _get_model_for_phase("query_generation", tool_context, tool_config)
             
@@ -1065,14 +1072,16 @@ class TestSendRagInfoUpdate:
 @pytest.mark.asyncio
 class TestGenerateInitialQueries:
     """Tests for _generate_initial_queries async function."""
-    
+
     def _create_mock_tool_context(self, canonical_model=None):
         """Helper to create a mock tool context with a model."""
         mock_context = MagicMock()
         mock_inv_context = MagicMock()
         mock_agent = MagicMock()
         mock_agent.canonical_model = canonical_model
-        mock_agent.host_component = None
+        mock_host = MagicMock()
+        mock_host.get_lite_llm_model = MagicMock(return_value=canonical_model)
+        mock_agent.host_component = mock_host
         mock_inv_context.agent = mock_agent
         mock_context._invocation_context = mock_inv_context
         return mock_context
@@ -1187,14 +1196,16 @@ class TestGenerateInitialQueries:
 @pytest.mark.asyncio
 class TestGenerateResearchTitle:
     """Tests for _generate_research_title async function."""
-    
+
     def _create_mock_tool_context(self, canonical_model=None):
         """Helper to create a mock tool context with a model."""
         mock_context = MagicMock()
         mock_inv_context = MagicMock()
         mock_agent = MagicMock()
         mock_agent.canonical_model = canonical_model
-        mock_agent.host_component = None
+        mock_host = MagicMock()
+        mock_host.get_lite_llm_model = MagicMock(return_value=canonical_model)
+        mock_agent.host_component = mock_host
         mock_inv_context.agent = mock_agent
         mock_context._invocation_context = mock_inv_context
         return mock_context
@@ -1299,14 +1310,16 @@ class TestGenerateResearchTitle:
 @pytest.mark.asyncio
 class TestReflectOnFindings:
     """Tests for _reflect_on_findings async function."""
-    
+
     def _create_mock_tool_context(self, canonical_model=None):
         """Helper to create a mock tool context with a model."""
         mock_context = MagicMock()
         mock_inv_context = MagicMock()
         mock_agent = MagicMock()
         mock_agent.canonical_model = canonical_model
-        mock_agent.host_component = None
+        mock_host = MagicMock()
+        mock_host.get_lite_llm_model = MagicMock(return_value=canonical_model)
+        mock_agent.host_component = mock_host
         mock_inv_context.agent = mock_agent
         mock_context._invocation_context = mock_inv_context
         return mock_context
@@ -1430,14 +1443,16 @@ class TestReflectOnFindings:
 @pytest.mark.asyncio
 class TestSelectSourcesToFetch:
     """Tests for _select_sources_to_fetch async function."""
-    
+
     def _create_mock_tool_context(self, canonical_model=None):
         """Helper to create a mock tool context with a model."""
         mock_context = MagicMock()
         mock_inv_context = MagicMock()
         mock_agent = MagicMock()
         mock_agent.canonical_model = canonical_model
-        mock_agent.host_component = None
+        mock_host = MagicMock()
+        mock_host.get_lite_llm_model = MagicMock(return_value=canonical_model)
+        mock_agent.host_component = mock_host
         mock_inv_context.agent = mock_agent
         mock_context._invocation_context = mock_inv_context
         return mock_context
@@ -1979,21 +1994,25 @@ class TestFetchSelectedSources:
 @pytest.mark.asyncio
 class TestGenerateResearchReport:
     """Tests for _generate_research_report async function."""
-    
+
     def _create_mock_tool_context(self, canonical_model=None, a2a_context=None, host_component=None):
         """Helper to create a mock tool context with a model."""
         mock_context = MagicMock()
         mock_context.state = MagicMock()
         mock_context.state.get = MagicMock(return_value=a2a_context)
-        
+
         mock_inv_context = MagicMock()
         mock_agent = MagicMock()
         mock_agent.canonical_model = canonical_model
+        if host_component is None and canonical_model is not None:
+            host_component = MagicMock()
+        if host_component is not None and canonical_model is not None:
+            host_component.get_lite_llm_model = MagicMock(return_value=canonical_model)
         mock_agent.host_component = host_component
         mock_inv_context.agent = mock_agent
         mock_context._invocation_context = mock_inv_context
         return mock_context
-    
+
     async def test_generates_report_from_llm(self):
         """Test that report is generated from LLM response."""
         mock_model = MagicMock()

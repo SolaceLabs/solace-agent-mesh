@@ -30,14 +30,16 @@ async def _async_gen(*responses):
         yield r
 
 
-def _create_service_with_mock_llm(llm_return=None):
+def _create_service_with_mock_llm(model_config=None, llm_return=None):
     """Create a TitleGenerationService with a mocked LiteLlm."""
+    if model_config is None:
+        model_config = {}
     mock_llm = MagicMock()
     if llm_return is not None:
         mock_llm.generate_content_async = MagicMock(
             return_value=_async_gen(llm_return)
         )
-    service = TitleGenerationService(mock_llm)
+    service = TitleGenerationService(model_config=model_config, llm=mock_llm)
     return service
 
 
@@ -133,3 +135,63 @@ class TestTitleGenerationService:
         await asyncio.sleep(0.1)
 
         mock_callback.assert_called_once_with("Generated Title")
+
+    def test_init_uses_provided_llm_when_no_title_model(self):
+        """Test that the provided llm is used when no title-specific model is configured."""
+        mock_llm = MagicMock()
+        service = TitleGenerationService(model_config={}, llm=mock_llm)
+        assert service.llm is mock_llm
+
+    def test_init_creates_litellm_for_title_specific_model(self):
+        """Test that a new LiteLlm is created when llm_service_title_model_name is set."""
+        mock_llm = MagicMock()
+        model_config = {"llm_service_title_model_name": "gpt-3.5-turbo", "api_key": "k"}
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.title_generation_service.LiteLlm"
+        ) as MockLiteLlm:
+            title_llm = MagicMock()
+            MockLiteLlm.return_value = title_llm
+            service = TitleGenerationService(model_config=model_config, llm=mock_llm)
+
+            MockLiteLlm.assert_called_once_with(model="gpt-3.5-turbo", **model_config)
+            assert service.llm is title_llm
+            assert service.llm is not mock_llm
+
+    @pytest.mark.asyncio
+    async def test_call_litellm_none_content_uses_fallback(self):
+        """Test that None content from LLM falls back to user message."""
+        mock_resp = MagicMock()
+        mock_resp.content = None
+        service = _create_service_with_mock_llm(llm_return=mock_resp)
+
+        result = await service._call_litellm("Hello world question", "response")
+
+        assert result == "Hello world question"
+
+    @pytest.mark.asyncio
+    async def test_call_litellm_empty_title_uses_fallback(self):
+        """Test that empty title from LLM falls back to user message."""
+        mock_resp = _mock_llm_response("   ")
+        service = _create_service_with_mock_llm(llm_return=mock_resp)
+
+        result = await service._call_litellm("Hello world", "response")
+
+        assert result == "Hello world"
+
+    @pytest.mark.asyncio
+    async def test_call_litellm_builds_llm_request(self):
+        """Test that _call_litellm builds an LlmRequest and calls generate_content_async."""
+        mock_resp = _mock_llm_response("My Title")
+        mock_llm = MagicMock()
+        mock_llm.generate_content_async = MagicMock(
+            return_value=_async_gen(mock_resp)
+        )
+        service = TitleGenerationService(model_config={}, llm=mock_llm)
+
+        result = await service._call_litellm("Hello", "Hi")
+
+        assert result == "My Title"
+        mock_llm.generate_content_async.assert_called_once()
+        llm_request = mock_llm.generate_content_async.call_args[0][0]
+        assert len(llm_request.contents) == 1
+        assert llm_request.contents[0].role == "user"
