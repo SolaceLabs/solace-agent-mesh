@@ -7,7 +7,7 @@
 
 import { Bot } from "lucide-react";
 import { formatCollaborativeTimestamp } from "@/lib/utils/userFormatting";
-import { formatFullDateTime } from "@/lib/utils/format";
+import { formatTimestamp } from "@/lib/utils/format";
 import { UserAvatar } from "./UserAvatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
@@ -44,7 +44,7 @@ export function MessageAttribution({ type, name, userIndex = 0, timestamp, avata
                         <TooltipTrigger asChild>
                             <span className="text-secondary-foreground cursor-default text-sm">{formatCollaborativeTimestamp(timestamp)}</span>
                         </TooltipTrigger>
-                        <TooltipContent>{formatFullDateTime(timestamp)}</TooltipContent>
+                        <TooltipContent>{formatTimestamp(new Date(timestamp).toISOString())}</TooltipContent>
                     </Tooltip>
                 )}
             </div>

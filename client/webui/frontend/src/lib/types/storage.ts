@@ -17,8 +17,8 @@ export interface MessageBubble {
     displayHtml?: string; // HTML for displaying user messages with mention chips
     contextQuote?: string; // Original quoted text from "Ask Followup" action
     contextQuoteSourceId?: string; // Task ID of the message containing the original quoted text
-    sender_display_name?: string; // Display name of the sender (injected for collaborative sessions)
-    sender_email?: string; // Email of the sender (injected for collaborative sessions)
+    senderDisplayName?: string; // Display name of the sender (injected for collaborative sessions)
+    senderEmail?: string; // Email of the sender (injected for collaborative sessions)
 }
 
 /**

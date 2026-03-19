@@ -42,22 +42,6 @@ export const formatRelativeTime = (dateString: string): string => {
 };
 
 /**
- * Format epoch timestamp as full date and time (YYYY-MM-DD HH:MM AM/PM)
- */
-export const formatFullDateTime = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const time = date.toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-    });
-    return `${year}-${month}-${day} ${time}`;
-};
-
-/**
  * Helper function to format ISO string
  * @param isoString - The ISO date string to format
  * @param format - The format type: "datetime" (default), "date", or "time"
