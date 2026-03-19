@@ -35,7 +35,7 @@ function OnboardingView({ title, description, learnMoreText, learnMoreHref = "#"
                     {learnMoreText && (
                         <Button variant="link" onClick={() => window.open(learnMoreHref, "_blank")} className="w-fit p-0!">
                             {learnMoreText}
-                            {image && <ExternalLink size={14} />}
+                            <ExternalLink size={14} />
                         </Button>
                     )}
                 </div>
