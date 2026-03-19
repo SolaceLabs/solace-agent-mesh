@@ -13,7 +13,7 @@ interface HighlightedTextareaProps extends React.TextareaHTMLAttributes<HTMLText
  * Uses an overlay technique where a transparent textarea sits on top of
  * a highlighted backdrop div that mirrors the textarea content.
  */
-const HighlightedTextarea = React.forwardRef<HTMLTextAreaElement, HighlightedTextareaProps>(({ className, value, highlightPattern = /(\{\{[^}]+\}\})/g, highlightClassName = "bg-primary/20 text-primary rounded px-0.5", ...props }, ref) => {
+const HighlightedTextarea = React.forwardRef<HTMLTextAreaElement, HighlightedTextareaProps>(({ className, value, highlightPattern = /(\{\{[^}]+\}\})/g, highlightClassName = "bg-(--info-w100) text-(--info-wMain) rounded px-0.5", ...props }, ref) => {
     const backdropRef = React.useRef<HTMLDivElement>(null);
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -83,7 +83,7 @@ const HighlightedTextarea = React.forwardRef<HTMLTextAreaElement, HighlightedTex
                 style={{
                     // Ensure consistent styling with backdrop
                     lineHeight: "1.5",
-                    caretColor: "var(--foreground)",
+                    caretColor: "var(--primary-text-wMain)",
                     // WebKit specific: hide selection background to avoid double-rendering
                     WebkitTextFillColor: "transparent",
                 }}

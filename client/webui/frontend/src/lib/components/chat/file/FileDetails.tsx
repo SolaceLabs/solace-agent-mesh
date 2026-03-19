@@ -14,23 +14,23 @@ export const FileDetails: React.FC<FileDetailsProps> = ({ description, size, las
         <div className="space-y-2 text-sm">
             {description && (
                 <div>
-                    <span className="text-secondary-foreground">Description:</span>
+                    <span className="text-(--secondary-text-wMain)">Description:</span>
                     <div className="mt-1">{description}</div>
                 </div>
             )}
             <div className="grid grid-cols-2 gap-2">
                 <div>
-                    <span className="text-secondary-foreground">Size:</span>
+                    <span className="text-(--secondary-text-wMain)">Size:</span>
                     <div>{formatBytes(size)}</div>
                 </div>
                 <div>
-                    <span className="text-secondary-foreground">Modified:</span>
+                    <span className="text-(--secondary-text-wMain)">Modified:</span>
                     <div>{formatRelativeTime(lastModified)}</div>
                 </div>
             </div>
             {mimeType && (
                 <div>
-                    <span className="text-secondary-foreground">Type:</span>
+                    <span className="text-(--secondary-text-wMain)">Type:</span>
                     <div>{mimeType}</div>
                 </div>
             )}

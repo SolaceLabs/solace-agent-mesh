@@ -5,7 +5,6 @@ import type { LayoutNode, Edge } from "./utils/types";
 import AgentNode from "./nodes/AgentNode";
 import UserNode from "./nodes/UserNode";
 import WorkflowGroup from "./nodes/WorkflowGroup";
-// import EdgeLayer from "./EdgeLayer";
 
 /**
  * Check if a node or any of its descendants has status 'in-progress'
@@ -112,6 +111,54 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
                 isCollapsed: true,
                 // If children were processing, mark the collapsed node as processing
                 hasProcessingChildren: childrenProcessing,
+            },
+        };
+    }
+
+    // For Map nodes, mark as expanded if in expandedNodeIds and process children
+    if (node.type === "map") {
+        if (node.children.length > 0) {
+            const collapsedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
+
+            return {
+                ...node,
+                children: collapsedChildren,
+                data: {
+                    ...node.data,
+                    isExpanded: isManuallyExpanded,
+                },
+            };
+        }
+
+        return {
+            ...node,
+            data: {
+                ...node.data,
+                isExpanded: isManuallyExpanded,
+            },
+        };
+    }
+
+    // For Loop nodes, mark as expanded if in expandedNodeIds and process children
+    if (node.type === "loop") {
+        if (node.children.length > 0) {
+            const collapsedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
+
+            return {
+                ...node,
+                children: collapsedChildren,
+                data: {
+                    ...node.data,
+                    isExpanded: isManuallyExpanded,
+                },
+            };
+        }
+
+        return {
+            ...node,
+            data: {
+                ...node.data,
+                isExpanded: isManuallyExpanded,
             },
         };
     }
@@ -317,13 +364,13 @@ const WorkflowRenderer = ({ processedSteps, agentNameMap, selectedStepId, onNode
             <Fragment key={node.id}>
                 {component}
                 {/* Add connector line between nodes */}
-                {index < nodes.length - 1 && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
+                {index < nodes.length - 1 && <div className="my-0 h-4 w-0.5 bg-(--secondary-w40)" />}
             </Fragment>
         );
     };
 
     if (nodes.length === 0) {
-        return <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">{processedSteps.length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}</div>;
+        return <div className="flex h-full items-center justify-center text-(--secondary-text-wMain)">{processedSteps.length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}</div>;
     }
 
     return (

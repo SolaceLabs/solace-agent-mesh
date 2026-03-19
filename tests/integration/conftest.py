@@ -6,6 +6,7 @@ import time
 import subprocess
 import sys
 import tempfile
+import os
 from pathlib import Path
 
 import httpx
@@ -46,6 +47,40 @@ from tests.integration.test_support.a2a_agent.executor import (
 
 if TYPE_CHECKING:
     from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+
+
+def pytest_configure(config):
+    """Configure pytest and set environment variables before test session starts.
+
+    This runs BEFORE all fixtures, ensuring env vars are available during fixture initialization.
+    """
+    # TEST_TOKEN_TRIGGER_THRESHOLD should only be set in specific compaction tests,
+    # not globally, to avoid polluting non-compaction tests
+
+
+@pytest.fixture(scope="function")
+def enable_test_compaction_trigger():
+    """
+    Fixture to enable TEST_TOKEN_TRIGGER_THRESHOLD for specific compaction tests.
+
+    Use this fixture in tests that need to trigger proactive compaction.
+    Automatically cleans up the env var after the test to avoid pollution.
+
+    Example:
+        def test_my_compaction_scenario(enable_test_compaction_trigger):
+            # Test runs with TEST_TOKEN_TRIGGER_THRESHOLD=300
+            ...
+    """
+    original_value = os.environ.get("TEST_TOKEN_TRIGGER_THRESHOLD")
+    os.environ["TEST_TOKEN_TRIGGER_THRESHOLD"] = "300"
+
+    yield
+
+    # Cleanup: restore original value or remove if it wasn't set
+    if original_value is not None:
+        os.environ["TEST_TOKEN_TRIGGER_THRESHOLD"] = original_value
+    else:
+        os.environ.pop("TEST_TOKEN_TRIGGER_THRESHOLD", None)
 
 
 @pytest.fixture(scope="session")
@@ -901,6 +936,23 @@ def shared_solace_connector(
         model_suffix="peerD",
     )
 
+    # Compaction test agent with auto-summarization enabled
+    compaction_agent_config = create_agent_config(
+        agent_name="TestAgentCompaction",
+        description="Test agent for session compaction with auto-summarization",
+        allow_list=[],
+        tools=[
+            {"tool_type": "builtin-group", "group_name": "artifact_management"},
+        ],
+        model_suffix="compaction",
+        session_behavior="PERSISTENT",  # CRITICAL: Must persist events across runs for compaction testing
+    )
+    # Enable auto-summarization with low thresholds for testing
+    compaction_agent_config["auto_summarization"] = {
+        "enabled": True,
+        "compaction_percentage": 0.30,  # Compact 30% of conversation
+    }
+
     combined_dynamic_agent_config = create_agent_config(
         agent_name="CombinedDynamicAgent",
         description="Agent for testing all dynamic tool features.",
@@ -1125,6 +1177,12 @@ def shared_solace_connector(
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
+            "name": "TestAgentCompaction_App",
+            "app_config": compaction_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
             "name": "TestHarnessGatewayApp",
             "app_config": {
                 "namespace": "test_namespace",
@@ -1230,6 +1288,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1339,6 +1398,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1423,6 +1483,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1480,6 +1541,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1579,6 +1641,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1633,6 +1696,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1680,6 +1744,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1744,6 +1809,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -1778,6 +1844,7 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
                 "agent_card_publishing": {"interval_seconds": 1},
                 "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
             },
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.workflow.app",
@@ -2002,6 +2069,18 @@ def artifact_content_agent_app_under_test(
     assert isinstance(
         app_instance, SamAgentApp
     ), "Failed to retrieve ArtifactContentAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def compaction_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the TestAgentCompaction_App instance with auto-summarization enabled."""
+    app_instance = shared_solace_connector.get_app("TestAgentCompaction_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve TestAgentCompaction_App."
     yield app_instance
 
 
@@ -2297,6 +2376,7 @@ def clear_all_agent_states_between_tests(
         "mixed_discovery_agent_app_under_test",
         "complex_signatures_agent_app_under_test",
         "config_context_agent_app_under_test",
+        "compaction_agent_app_under_test"
     ]
 
     for fixture_name in agent_app_fixtures:

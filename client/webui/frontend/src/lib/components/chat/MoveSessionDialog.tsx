@@ -4,17 +4,20 @@ import { Button } from "@/lib/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
 import type { Project } from "@/lib/types/projects";
 import type { Session } from "@/lib/types";
+import { useProjectContext } from "@/lib/providers";
 
 interface MoveSessionDialogProps {
     isOpen: boolean;
     onClose: () => void;
     onConfirm: (targetProjectId: string | null) => Promise<void>;
     session: Session | null;
-    projects: Project[];
+    projects?: Project[];
     currentProjectId?: string | null;
 }
 
-export const MoveSessionDialog = ({ isOpen, onClose, onConfirm, session, projects, currentProjectId }: MoveSessionDialogProps) => {
+export const MoveSessionDialog = ({ isOpen, onClose, onConfirm, session, projects: projectsProp, currentProjectId }: MoveSessionDialogProps) => {
+    const { projects: projectsFromContext } = useProjectContext();
+    const projects = projectsProp ?? projectsFromContext;
     const [selectedProjectId, setSelectedProjectId] = useState<string | null | "">(null);
     const [isMoving, setIsMoving] = useState(false);
 

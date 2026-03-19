@@ -204,9 +204,9 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
     }, []);
 
     return (
-        <div style={{ height: "100%", width: "100%" }} className="relative">
+        <div style={{ height: "100%", width: "100%" }} className="relative bg-(--background-w20)">
             {/* Controls bar - Show Detail toggle and Re-center button */}
-            <div className="bg-background absolute top-4 right-4 z-50 flex items-center gap-3 rounded-sm border px-4 py-2 shadow-md">
+            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 rounded-sm border bg-(--background-w10) px-4 py-2 shadow-md">
                 {/* Re-center button */}
                 <Button onClick={handleRecenter} variant="ghost" size="sm" tooltip="Center Workflow">
                     <Scan className="h-4 w-4" />
@@ -261,7 +261,7 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
                             <NodeDetailsCard nodeDetails={selectedNodeDetails} onClose={handleDialogClose} />
                         </div>
                     )}
-                    <DialogFooter className="mt-0 flex-shrink-0 border-t border-gray-200 p-4 dark:border-gray-700">
+                    <DialogFooter className="mt-0 flex-shrink-0 border-t border-(--secondary-w20) p-4">
                         <Button variant="outline" onClick={handleDialogClose}>
                             Close
                         </Button>
