@@ -2,7 +2,7 @@
  * API functions for model configuration management.
  */
 
-import { api } from "@SolaceLabs/solace-agent-mesh-ui";
+import { api } from "@/lib/api";
 import type { ModelConfig } from "./types";
 
 /**
