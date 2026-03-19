@@ -61,7 +61,7 @@ def upgrade() -> None:
             sa.Column("target_type", sa.String(), nullable=False, server_default="agent"),
             sa.Column("task_message", sa.JSON(), nullable=False),
             sa.Column("task_metadata", sa.JSON(), nullable=True),
-            sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+            sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
             sa.Column("status", sa.String(), nullable=False, server_default="active"),
             sa.Column("max_retries", sa.Integer(), nullable=False, server_default=sa.text("0")),
             sa.Column("retry_delay_seconds", sa.Integer(), nullable=False, server_default=sa.text("60")),
