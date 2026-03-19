@@ -10,6 +10,10 @@ from typing import Any, Dict
 
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.message import Message as SolaceMessage
+from solace_agent_mesh.services.platform.api.dependencies import (
+    get_platform_db,
+    get_model_config_service,
+)
 
 log = logging.getLogger(__name__)
 
@@ -120,13 +124,6 @@ class BootstrapRequestListenerComponent(ComponentBase):
 
     def _get_model_config(self, model_id: str) -> dict | None:
         """Look up raw LiteLlm config from DB using ModelConfigService."""
-        from ..api import dependencies
-
-        db = dependencies.PlatformSessionLocal()
-        try:
-            from ..services import ModelConfigService
-
-            service = ModelConfigService()
-            return service.get_by_alias_or_id(db, model_id, raw=True)
-        finally:
-            db.close()
+        db = get_platform_db()
+        service = get_model_config_service()
+        return service.get_by_alias_or_id(db, model_id, raw=True)
