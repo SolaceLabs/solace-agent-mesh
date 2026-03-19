@@ -34,6 +34,7 @@ from .routers import (
     feedback,
     people,
     sse,
+    share,
     speech,
     version,
     visualization,
@@ -168,6 +169,12 @@ def _run_community_migrations(database_url: str) -> None:
     Run Alembic migrations for the community database schema.
     This includes sessions, chat_messages tables and their indexes.
     """
+    from solace_agent_mesh.shared.database.sqlite_version_check import check_sqlite_version
+
+    # Verify SQLite version before running migrations
+    # This will raise RuntimeError if version is incompatible
+    check_sqlite_version(database_url, "WebUI Gateway")
+
     try:
         from sqlalchemy import create_engine
 
@@ -325,6 +332,7 @@ def _setup_routers() -> None:
         prefix=f"{api_prefix}/document-conversion",
         tags=["Document Conversion"],
     )
+    app.include_router(share.router, prefix=api_prefix, tags=["Share"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers
