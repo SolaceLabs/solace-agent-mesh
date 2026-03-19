@@ -18,7 +18,12 @@ depends_on = None
 
 def upgrade():
     """Add default_agent_id column to projects table."""
-    op.add_column('projects', sa.Column('default_agent_id', sa.String(), nullable=True))
+    bind = op.get_bind()
+
+    if bind.dialect.name == 'mysql':
+        op.add_column('projects', sa.Column('default_agent_id', sa.String(36), nullable=True))  # UUID
+    else:
+        op.add_column('projects', sa.Column('default_agent_id', sa.String(), nullable=True))
 
 
 def downgrade():
