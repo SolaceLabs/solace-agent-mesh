@@ -113,7 +113,7 @@ export function SharedSidePanel({
                         </TabsContent>
                         <TabsContent value="workflow" className="m-0 h-full">
                             <div className="h-full">
-                                <SharedWorkflowPanel taskEvents={session?.task_events} selectedTaskId={selectedTaskId} onTaskSelect={onTaskSelect} />
+                                <SharedWorkflowPanel taskEvents={session?.taskEvents} selectedTaskId={selectedTaskId} onTaskSelect={onTaskSelect} />
                             </div>
                         </TabsContent>
                         {hasRagSources && (
