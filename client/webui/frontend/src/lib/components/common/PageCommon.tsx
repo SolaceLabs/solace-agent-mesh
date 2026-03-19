@@ -1,7 +1,5 @@
 import React from "react";
 
-export const PAGE_COMMON_CLASSES = "w-full max-w-[1200px] leading-[21px]";
-
 export const PageLabel = ({ children, required, className = "" }: { children: React.ReactNode; required?: boolean; className?: string }) => {
     return (
         <div className={`text-(--secondary-text-w50) ${className}`}>
@@ -13,10 +11,6 @@ export const PageLabel = ({ children, required, className = "" }: { children: Re
 
 export const PageLabelWithValue = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
     return <div className={`grid grid-rows-[auto_1fr] gap-2 ${className}`}>{children}</div>;
-};
-
-export const PageFooter = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
-    return <div className={`flex h-16 items-center justify-end gap-4 border-t border-(--secondary-w20) px-8 ${className}`}>{children}</div>;
 };
 
 export const PageSection = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {

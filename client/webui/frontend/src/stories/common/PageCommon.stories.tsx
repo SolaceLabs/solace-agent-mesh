@@ -1,5 +1,4 @@
-import { PageLabel, PageLabelWithValue, PageFooter, PageSection, PageContentWrapper, Metadata } from "@/lib/components/common/PageCommon";
-import { Button } from "@/lib/components/ui/button";
+import { PageLabel, PageLabelWithValue, PageSection, PageContentWrapper, Metadata } from "@/lib/components/common";
 import { Input } from "@/lib/components/ui/input";
 import { expect, screen, within } from "storybook/test";
 import type { Meta } from "@storybook/react-vite";
@@ -109,27 +108,6 @@ export const PageContentWrapperExample = {
         const inputs = screen.getAllByPlaceholderText("Enter value");
         const wrapper = inputs[0].closest(".custom-wrapper-class");
         await expect(wrapper).toHaveClass("custom-wrapper-class");
-    },
-};
-
-export const PageFooterExample = {
-    render: () => (
-        <div className="flex h-screen flex-col">
-            <div className="flex-1 p-8">
-                <h2 className="mb-4 text-lg font-bold">PageFooter - sticky footer with action buttons</h2>
-                <p>Page content</p>
-            </div>
-            <PageFooter>
-                <Button variant="outline">Cancel</Button>
-                <Button>Save</Button>
-            </PageFooter>
-        </div>
-    ),
-    play: async () => {
-        const cancelButton = screen.getByRole("button", { name: "Cancel" });
-        await expect(cancelButton).toBeInTheDocument();
-        const saveButton = screen.getByRole("button", { name: "Save" });
-        await expect(saveButton).toBeInTheDocument();
     },
 };
 

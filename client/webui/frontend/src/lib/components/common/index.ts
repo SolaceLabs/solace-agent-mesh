@@ -13,6 +13,7 @@ export { MarkdownHTMLConverter } from "./MarkdownHTMLConverter";
 export * from "./MarkdownWrapper";
 export { MessageBanner } from "./MessageBanner";
 export * from "./messageColourVariants";
+export { PageLabel, PageLabelWithValue, PageSection, PageContentWrapper, Metadata } from "./PageCommon";
 export { PaginationControls } from "./PaginationControls";
 export { SolaceIcon } from "./SolaceIcon";
 export * from "./StreamingMarkdown";

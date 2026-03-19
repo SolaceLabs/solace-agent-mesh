@@ -3,12 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Pencil, Trash2, Ellipsis } from "lucide-react";
 
 import { Button, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
-import { EmptyState } from "@/lib/components/common";
+import { EmptyState, Footer, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, Metadata } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 
 import { useModelConfigs } from "@/lib/api/models";
-import { PageFooter, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, Metadata } from "@/lib/components/common/PageCommon";
-import { PROVIDER_DISPLAY_NAMES } from "./common";
+import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 
 export const ModelDetailsPage = () => {
@@ -23,11 +22,6 @@ export const ModelDetailsPage = () => {
 
     const handleBack = () => {
         navigate(`/agents?tab=models`);
-    };
-
-    const handleEdit = () => {
-        // TODO: Navigate to edit page in PR #4
-        console.log("Edit model:", modelToView?.alias);
     };
 
     const menuActions = useMemo(() => {
@@ -50,7 +44,7 @@ export const ModelDetailsPage = () => {
             <Button
                 key="edit"
                 variant="ghost"
-                onClick={handleEdit}
+                onClick={() => {}}
                 title="Edit Model"
                 disabled={true}
                 // TODO: Enable edit in PR #4
@@ -75,7 +69,7 @@ export const ModelDetailsPage = () => {
 
     return (
         <div className="flex h-full w-full min-w-4xl flex-col overflow-hidden">
-            <Header title={title} breadcrumbs={[{ label: "Agent Mesh", onClick: () => navigate("/agents?tab=models") }, { label: title }]} buttons={headerButtons} />
+            <Header title={title} breadcrumbs={[{ label: "Models", onClick: () => navigate("/agents?tab=models") }, { label: title }]} buttons={headerButtons} />
 
             {modelConfigsLoading ? (
                 <EmptyState variant="loading" title="Loading Models..." />
@@ -117,7 +111,7 @@ export const ModelDetailsPage = () => {
 
                         <PageLabelWithValue className="flex gap-2">
                             <PageLabel>Authentication</PageLabel>
-                            <div>{modelToView.authType !== "none" && modelToView.authType ? (modelToView.authType === "apikey" ? "API Key" : modelToView.authType) : "None"}</div>
+                            <div>{AUTH_TYPE_LABELS[modelToView.authType ?? "none"] ?? modelToView.authType}</div>
                         </PageLabelWithValue>
 
                         {Object.keys(modelToView.modelParams).length > 0 && (
@@ -146,11 +140,11 @@ export const ModelDetailsPage = () => {
                 </PageContentWrapper>
             )}
 
-            <PageFooter>
+            <Footer>
                 <Button variant="outline" title="Close" onClick={handleBack}>
                     Close
                 </Button>
-            </PageFooter>
+            </Footer>
         </div>
     );
 };
