@@ -28,7 +28,13 @@ class TitleGenerationService:
         # Use title-specific model if available, fallback to general model
         title_model = model_config.get("llm_service_title_model_name")
         if title_model:
-            self.llm = LiteLlm(model=title_model, **model_config)
+            # Filter out keys that conflict with explicit args or are not LiteLlm params
+            litellm_config = {
+                k: v
+                for k, v in model_config.items()
+                if k not in ("model", "llm_service_title_model_name")
+            }
+            self.llm = LiteLlm(model=title_model, **litellm_config)
         else:
             self.llm = llm
         log.info(f"TitleGenerationService initialized with LiteLLM instance")
