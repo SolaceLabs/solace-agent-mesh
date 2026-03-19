@@ -44,9 +44,9 @@ export const solaceDark: ThemePalette = {
 
     background: {
         w100: "#f5f5f5",
-        wMain: "#03223B",
+        wMain: "#7184A1",
         w20: "#071e36",
-        w10: "#02172b",
+        w10: "#03223B",
     },
 
     info: {
@@ -150,8 +150,8 @@ export const solaceDark: ThemePalette = {
     },
 
     learning: {
-        wMain: "#4a8fe0",
-        w90: "#7fb1ea",
+        wMain: "#1a4173",
+        w90: "#265a9b",
         w100: "#b6d1f5",
         w20: "#142d4b",
         w10: "#0a1621",
@@ -159,7 +159,7 @@ export const solaceDark: ThemePalette = {
 
     // common to solace.ts except for bg => background-w10 to reduce the number of very close dark blue shades
     darkSurface: {
-        bg: "#02172b",
+        bg: "#03223B",
         bgHover: "#021B2F",
         bgActive: "#021B2F",
         text: "#CCCCCC",

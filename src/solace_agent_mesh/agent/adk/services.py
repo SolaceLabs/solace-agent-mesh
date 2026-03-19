@@ -418,6 +418,30 @@ class FilteringSessionService(BaseSessionService):
             session_id=session_id
         )
 
+    async def clone_session(
+        self,
+        *,
+        app_name: str,
+        source_user_id: str,
+        source_session_id: str,
+        target_user_id: str,
+        target_session_id: str,
+        log_identifier: str = ""
+    ) -> Optional[ADKSession]:
+        """
+        Clone an ADK session by copying all events from source to target.
+        Delegates to the standalone clone_adk_session function.
+        """
+        return await clone_adk_session(
+            session_service=self,
+            app_name=app_name,
+            source_user_id=source_user_id,
+            source_session_id=source_session_id,
+            target_user_id=target_user_id,
+            target_session_id=target_session_id,
+            log_identifier=log_identifier,
+        )
+
     async def list_sessions(
         self,
         *,
@@ -508,6 +532,97 @@ def initialize_session_service(component) -> BaseSessionService:
     return base_service
 
 
+async def clone_adk_session(
+    *,
+    session_service,
+    app_name: str,
+    source_user_id: str,
+    source_session_id: str,
+    target_user_id: str,
+    target_session_id: str,
+    log_identifier: str = ""
+) -> Optional[ADKSession]:
+    """
+    Clone an ADK session by copying all events from source to target.
+    Creates a new independent session with the same conversation history.
+    
+    Works with any session service (FilteringSessionService, DatabaseSessionService, etc.)
+    
+    Used when forking a shared chat - the forked session gets its own
+    copy of the conversation history for true isolation.
+    
+    Returns the new session, or None if the source session doesn't exist.
+    """
+    # Get the source session
+    source_session = await session_service.get_session(
+        app_name=app_name,
+        user_id=source_user_id,
+        session_id=source_session_id,
+    )
+    
+    if source_session is None:
+        log.warning(
+            "%s Cannot clone session - source session '%s' (user '%s') not found in ADK. "
+            "Forked session will start with empty history.",
+            log_identifier, source_session_id, source_user_id
+        )
+        return None
+    
+    source_events = getattr(source_session, "events", None)
+    if source_events is None:
+        source_events = getattr(source_session, "history", None) or []
+    if not source_events:
+        log.info(
+            "%s Source session '%s' has no events to clone.",
+            log_identifier, source_session_id
+        )
+        return None
+    
+    log.info(
+        "%s Cloning %d events from session '%s' (user '%s') to session '%s' (user '%s').",
+        log_identifier, len(source_events),
+        source_session_id, source_user_id,
+        target_session_id, target_user_id
+    )
+    
+    # Create the target session (strip compaction_time — it references source timestamps)
+    clone_state = None
+    if hasattr(source_session, "state") and source_session.state:
+        clone_state = {k: v for k, v in source_session.state.items() if k != "compaction_time"}
+    target_session = await session_service.create_session(
+        app_name=app_name,
+        user_id=target_user_id,
+        session_id=target_session_id,
+        state=clone_state,
+    )
+    
+    # Copy events one by one (same pattern as RUN_BASED session copy)
+    for event_to_copy in source_events:
+        await append_event_with_retry(
+            session_service=session_service,
+            session=target_session,
+            event=event_to_copy,
+            app_name=app_name,
+            user_id=target_user_id,
+            session_id=target_session_id,
+            log_identifier=f"{log_identifier}[ForkClone]",
+        )
+
+    # Fetch final session state once after all events are appended
+    target_session = await session_service.get_session(
+        app_name=app_name,
+        user_id=target_user_id,
+        session_id=target_session_id,
+    )
+    
+    log.info(
+        "%s Successfully cloned %d events to forked session '%s'.",
+        log_identifier, len(source_events), target_session_id
+    )
+    
+    return target_session
+
+
 def initialize_artifact_service(component) -> BaseArtifactService:
     """
     Initializes the ADK Artifact Service based on configuration.
@@ -532,11 +647,40 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 f"{component.log_identifier} 'bucket_name' is required for GCS artifact service."
             )
         try:
-            gcs_args = {
-                k: v
-                for k, v in config.items()
-                if k not in ["type", "bucket_name", "artifact_scope"]
-            }
+            valid_gcs_params = [
+                "project",
+                "credentials",
+                "client_info",
+                "client_options",
+            ]
+
+            gcs_args = {}
+            for key in valid_gcs_params:
+                val = config.get(key)
+                if val is not None:
+                    gcs_args[key] = val
+
+            project = config.get("project") or os.environ.get("GCS_PROJECT")
+            if project:
+                gcs_args.setdefault("project", project)
+
+            credentials_json = os.environ.get("GCS_CREDENTIALS_JSON")
+            if credentials_json and "credentials" not in gcs_args:
+                import json
+
+                from google.oauth2 import service_account
+
+                try:
+                    info = json.loads(credentials_json)
+                except json.JSONDecodeError as e:
+                    raise ValueError(
+                        f"GCS_CREDENTIALS_JSON contains invalid JSON: {e}. "
+                        "Ensure the value is a valid JSON string, not base64-encoded."
+                    ) from e
+                gcs_args["credentials"] = (
+                    service_account.Credentials.from_service_account_info(info)
+                )
+
             concrete_service = GcsArtifactService(bucket_name=bucket_name, **gcs_args)
         except ImportError:
             log.error(
@@ -619,6 +763,39 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 "%s Failed to initialize S3ArtifactService: %s",
                 component.log_identifier,
                 e,
+            )
+            raise
+    elif service_type == "azure":
+        container_name = config.get("container_name") or config.get("bucket_name")
+        if not container_name or not container_name.strip():
+            raise ValueError(
+                f"{component.log_identifier} 'container_name' is required for Azure artifact service."
+            )
+        try:
+            from .artifacts.azure_artifact_service import AzureArtifactService
+
+            azure_config = {}
+            for key, env_var in [
+                ("connection_string", "AZURE_STORAGE_CONNECTION_STRING"),
+                ("account_name", "AZURE_STORAGE_ACCOUNT_NAME"),
+                ("account_key", "AZURE_STORAGE_ACCOUNT_KEY"),
+            ]:
+                azure_config[key] = config.get(key) or os.environ.get(env_var)
+
+            azure_config_cleaned = {k: v for k, v in azure_config.items() if v is not None}
+            concrete_service = AzureArtifactService(
+                container_name=container_name, **azure_config_cleaned
+            )
+        except ImportError as e:
+            log.error(
+                "%s Azure dependencies not available: %s",
+                component.log_identifier, e,
+            )
+            raise
+        except Exception as e:
+            log.error(
+                "%s Failed to initialize AzureArtifactService: %s",
+                component.log_identifier, e,
             )
             raise
     elif service_type == "test_in_memory":

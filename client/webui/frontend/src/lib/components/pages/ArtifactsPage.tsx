@@ -173,18 +173,27 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
         // Track if component is still mounted
         let isMounted = true;
         const abortController = new AbortController();
+        let imageBlobUrl: string | null = null;
 
         const loadPreview = async () => {
             // Get the correct API URL for this artifact (handles both session and project artifacts)
             const artifactApiUrl = getArtifactApiUrl(artifact);
 
             if (isImageType(artifact.mime_type)) {
-                // For images, create a thumbnail URL
+                // For images, fetch via authenticated API client and create a blob URL.
                 try {
-                    const url = api.webui.getFullUrl(artifactApiUrl);
-                    if (isMounted) setImagePreviewUrl(url);
+                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
+                    if (abortController.signal.aborted) return;
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        if (abortController.signal.aborted) return;
+                        imageBlobUrl = URL.createObjectURL(blob);
+                        if (isMounted) setImagePreviewUrl(imageBlobUrl);
+                    }
                 } catch (error) {
-                    console.error("Error creating image preview URL:", error);
+                    if (!abortController.signal.aborted) {
+                        console.error("Error loading image preview:", error);
+                    }
                 }
             } else if (canAttemptDocumentThumbnail) {
                 // For PDF, DOCX, PPTX, etc. - check cache first, then fetch content for thumbnail
@@ -276,6 +285,10 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
         return () => {
             isMounted = false;
             abortController.abort();
+            // Revoke any blob URL created for image preview to free memory
+            if (imageBlobUrl) {
+                URL.revokeObjectURL(imageBlobUrl);
+            }
         };
     }, [artifact.sessionId, artifact.filename, artifact.mime_type, canAttemptDocumentThumbnail, isVisible]);
 

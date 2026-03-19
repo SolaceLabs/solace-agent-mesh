@@ -356,3 +356,123 @@ async def copy_project_artifacts_to_session(
     except Exception as e:
         log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
         return 0, []
+
+
+async def copy_session_artifacts(
+    source_user_id: str,
+    source_session_id: str,
+    target_user_id: str,
+    target_session_id: str,
+    component: "WebUIBackendComponent",
+    log_prefix: str = "",
+) -> int:
+    """
+    Copy all artifacts from one session to another.
+    Used when forking/copying a collaborative session.
+
+    Args:
+        source_user_id: Owner user ID of the source session
+        source_session_id: Source session ID
+        target_user_id: User ID for the target session
+        target_session_id: Target session ID
+        component: WebUIBackendComponent for accessing artifact service
+        log_prefix: Optional prefix for log messages
+
+    Returns:
+        Number of artifacts copied
+    """
+    try:
+        artifact_service = component.get_shared_artifact_service()
+        if not artifact_service:
+            log.debug("%sArtifact service not available, skipping artifact copy", log_prefix)
+            return 0
+
+        app_name = component.get_config("name", "A2A_WebUI_App")
+
+        # Get list of artifacts in the source session
+        source_artifacts = await get_artifact_info_list(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=source_user_id,
+            session_id=source_session_id,
+        )
+
+        if not source_artifacts:
+            log.debug("%sNo artifacts found in source session %s", log_prefix, source_session_id)
+            return 0
+
+        log.info(
+            "%sCopying %d artifacts from session %s (user %s) to session %s (user %s)",
+            log_prefix,
+            len(source_artifacts),
+            source_session_id,
+            source_user_id,
+            target_session_id,
+            target_user_id,
+        )
+
+        artifacts_copied = 0
+        for artifact_info in source_artifacts:
+            try:
+                # Load artifact content
+                loaded = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=source_user_id,
+                    session_id=source_session_id,
+                    filename=artifact_info.filename,
+                    return_raw_bytes=True,
+                    version="latest",
+                )
+
+                # Load metadata
+                loaded_meta = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=source_user_id,
+                    session_id=source_session_id,
+                    filename=artifact_info.filename,
+                    load_metadata_only=True,
+                    version="latest",
+                )
+
+                if loaded.get("status") == "success":
+                    metadata = (
+                        loaded_meta.get("metadata", {})
+                        if loaded_meta.get("status") == "success"
+                        else {}
+                    )
+
+                    await save_artifact_with_metadata(
+                        artifact_service=artifact_service,
+                        app_name=app_name,
+                        user_id=target_user_id,
+                        session_id=target_session_id,
+                        filename=artifact_info.filename,
+                        content_bytes=loaded.get("raw_bytes"),
+                        mime_type=loaded.get("mime_type"),
+                        metadata_dict=metadata,
+                        timestamp=datetime.now(timezone.utc),
+                    )
+                    artifacts_copied += 1
+                else:
+                    log.warning(
+                        "%sFailed to load artifact %s: %s",
+                        log_prefix,
+                        artifact_info.filename,
+                        loaded.get("message", "unknown error"),
+                    )
+            except Exception as e:
+                log.error(
+                    "%sError copying artifact %s: %s",
+                    log_prefix,
+                    artifact_info.filename,
+                    e,
+                )
+
+        log.info("%sCopied %d/%d artifacts to forked session", log_prefix, artifacts_copied, len(source_artifacts))
+        return artifacts_copied
+
+    except Exception as e:
+        log.warning("%sFailed to copy session artifacts: %s", log_prefix, e)
+        return 0
