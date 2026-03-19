@@ -76,7 +76,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const isDeleted = useMemo(() => {
         if (props.status !== "completed") return false;
         if (artifact) return false; // Found in list, not deleted
-        // If we have a fileAttachment, the artifact exists on backend (just not fetched yet)
+        // If we have a fileAttachment, the artifact exists on backend (URI is still resolving)
         if (fileAttachment) return false;
         return true; // Completed, not in list, no fileAttachment = likely deleted
     }, [props.status, artifact, fileAttachment]);
