@@ -47,7 +47,7 @@
     "@rollup/rollup-linux-x64-gnu": "4.36.0"
   },
   "overrides": {
-    "undici": ">=6.23.0"
+    "undici": ">=6.24.0"
   },
   "engines": {
     "node": ">=25.5.0 <26"
