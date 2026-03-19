@@ -12,15 +12,15 @@ import { getUserInitials } from "@/lib/utils/userFormatting";
 
 // Sequential accent colors from our design system (n1-n9)
 export const USER_AVATAR_COLORS = [
-    "bg-(--color-accent-n1-wMain) text-white",
-    "bg-(--color-accent-n2-wMain) text-white",
-    "bg-(--color-accent-n3-wMain) text-white",
-    "bg-(--color-accent-n4-wMain) text-white",
-    "bg-(--color-accent-n5-wMain) text-white",
-    "bg-(--color-accent-n6-wMain) text-white",
-    "bg-(--color-accent-n7-wMain) text-white",
-    "bg-(--color-accent-n8-wMain) text-white",
-    "bg-(--color-accent-n9-wMain) text-white",
+    "bg-(--accent-n1-wMain) text-(--darkSurface-text)",
+    "bg-(--accent-n2-wMain) text-(--darkSurface-text)",
+    "bg-(--accent-n3-wMain) text-(--darkSurface-text)",
+    "bg-(--accent-n4-wMain) text-(--darkSurface-text)",
+    "bg-(--accent-n5-wMain) text-(--darkSurface-text)",
+    "bg-(--accent-n6-wMain) text-(--darkSurface-text)",
+    "bg-(--accent-n7-wMain) text-(--darkSurface-text)",
+    "bg-(--accent-n8-wMain) text-(--darkSurface-text)",
+    "bg-(--accent-n9-wMain) text-(--darkSurface-text)",
 ];
 
 interface UserAvatarProps {

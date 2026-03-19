@@ -2,4 +2,4 @@ export { api, getErrorFromResponse, refreshToken, scheduleProactiveRefresh, canc
 export * from "./people";
 export * from "./projects";
 export * from "./sessions";
-export * from "./shareApi";
+export * from "./share";

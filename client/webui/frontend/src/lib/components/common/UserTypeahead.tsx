@@ -178,11 +178,11 @@ export const UserTypeahead: FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, 
 const classForTypeaheadItem = cva(["w-full", "px-3", "py-2", "text-left", "transition-colors"], {
     variants: {
         active: {
-            true: "bg-(--accent)",
+            true: "bg-(--primary-w10)",
             false: "",
         },
         hoverEnabled: {
-            true: "hover:bg-(--accent)",
+            true: "hover:bg-(--primary-w10)",
             false: "",
         },
     },
@@ -192,7 +192,7 @@ const classForTypeaheadItem = cva(["w-full", "px-3", "py-2", "text-left", "trans
 const classForTypeaheadInput = cva(["h-9", "pr-9"], {
     variants: {
         error: {
-            true: "border-(--destructive)",
+            true: "border-(--error-wMain)",
             false: "",
         },
     },

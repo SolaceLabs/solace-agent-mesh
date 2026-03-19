@@ -1,8 +1,11 @@
 /**
- * API client for chat sharing operations
+ * API service functions for chat sharing operations
+ *
+ * The backend returns snake_case JSON. This service maps responses
+ * to the camelCase FE types defined in types/share.ts.
  */
 
-import { api } from "./client";
+import { api } from "../client";
 import type {
     ShareLink,
     CreateShareLinkRequest,
@@ -16,20 +19,31 @@ import type {
     BatchDeleteShareUsersResponse,
     SharedWithMeItem,
     ForkSharedChatResponse,
-} from "../types/share";
+} from "../../types/share";
 
 const SHARE_BASE = "/api/v1/share";
 
-/**
- * Create a share link for a session
- */
-export async function createShareLink(sessionId: string, options: CreateShareLinkRequest = {}): Promise<ShareLink> {
-    return api.webui.post<ShareLink>(`${SHARE_BASE}/${sessionId}`, options);
+/** Recursively converts snake_case object keys to camelCase */
+function toCamelCase<T>(obj: unknown): T {
+    if (Array.isArray(obj)) {
+        return obj.map(item => toCamelCase(item)) as T;
+    }
+    if (obj !== null && typeof obj === "object" && !(obj instanceof Blob) && !(obj instanceof Date)) {
+        const result: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+            const camelKey = key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+            result[camelKey] = toCamelCase(value);
+        }
+        return result as T;
+    }
+    return obj as T;
 }
 
-/**
- * Get existing share link for a session
- */
+export async function createShareLink(sessionId: string, options: CreateShareLinkRequest = {}): Promise<ShareLink> {
+    const raw = await api.webui.post(`${SHARE_BASE}/${sessionId}`, options);
+    return toCamelCase<ShareLink>(raw);
+}
+
 export async function getShareLinkForSession(sessionId: string): Promise<ShareLink | null> {
     const response = await api.webui.get(`${SHARE_BASE}/link/${sessionId}`, { fullResponse: true });
     if (response.status === 404) {
@@ -39,12 +53,10 @@ export async function getShareLinkForSession(sessionId: string): Promise<ShareLi
         const error = await response.json().catch(() => ({ detail: "Failed to get share link" }));
         throw new Error(error.detail || "Failed to get share link");
     }
-    return response.json();
+    const raw = await response.json();
+    return toCamelCase<ShareLink>(raw);
 }
 
-/**
- * List all share links created by the user
- */
 export async function listShareLinks(
     params: {
         page?: number;
@@ -58,36 +70,24 @@ export async function listShareLinks(
     if (params.search) queryParams.append("search", params.search);
 
     const qs = queryParams.toString();
-    return api.webui.get<ShareLinksListResponse>(`${SHARE_BASE}${qs ? `?${qs}` : ""}`);
+    const raw = await api.webui.get(`${SHARE_BASE}${qs ? `?${qs}` : ""}`);
+    return toCamelCase<ShareLinksListResponse>(raw);
 }
 
-/**
- * View a shared session (sends credentials for auth-required shares)
- */
 export async function viewSharedSession(shareId: string): Promise<SharedSessionView> {
-    return api.webui.get<SharedSessionView>(`${SHARE_BASE}/${shareId}`, { credentials: "include" });
+    const raw = await api.webui.get(`${SHARE_BASE}/${shareId}`, { credentials: "include" });
+    return toCamelCase<SharedSessionView>(raw);
 }
 
-/**
- * Update share link settings
- */
 export async function updateShareLink(shareId: string, options: UpdateShareLinkRequest): Promise<ShareLink> {
-    return api.webui.patch<ShareLink>(`${SHARE_BASE}/${shareId}`, options);
+    const raw = await api.webui.patch(`${SHARE_BASE}/${shareId}`, options);
+    return toCamelCase<ShareLink>(raw);
 }
 
-/**
- * Delete a share link
- */
 export async function deleteShareLink(shareId: string): Promise<void> {
     await api.webui.delete(`${SHARE_BASE}/${shareId}`);
 }
 
-/**
- * Get artifact content from a shared session
- * @param shareId - The share ID
- * @param filename - The artifact filename
- * @returns Promise with content (base64) and mimeType
- */
 export async function getSharedArtifactContent(shareId: string, filename: string): Promise<{ content: string; mimeType: string }> {
     const encodedFilename = encodeURIComponent(filename);
     const response = await api.webui.get(`${SHARE_BASE}/${shareId}/artifacts/${encodedFilename}`, { fullResponse: true, credentials: "include" });
@@ -111,9 +111,6 @@ export async function getSharedArtifactContent(shareId: string, filename: string
     return { content, mimeType };
 }
 
-/**
- * Download a shared artifact as a blob (for direct download)
- */
 export async function downloadSharedArtifact(shareId: string, filename: string): Promise<Blob> {
     const encodedFilename = encodeURIComponent(filename);
     const response = await api.webui.get(`${SHARE_BASE}/${shareId}/artifacts/${encodedFilename}`, { fullResponse: true, credentials: "include" });
@@ -125,29 +122,17 @@ export async function downloadSharedArtifact(shareId: string, filename: string):
     return response.blob();
 }
 
-// Share User Management APIs
-
-/**
- * Get users with access to a share link
- */
 export async function getShareUsers(shareId: string): Promise<ShareUsersResponse> {
-    return api.webui.get<ShareUsersResponse>(`${SHARE_BASE}/${shareId}/users`);
+    const raw = await api.webui.get(`${SHARE_BASE}/${shareId}/users`);
+    return toCamelCase<ShareUsersResponse>(raw);
 }
 
-/**
- * Add users to a share link
- */
 export async function addShareUsers(shareId: string, data: BatchAddShareUsersRequest): Promise<BatchAddShareUsersResponse> {
-    return api.webui.post<BatchAddShareUsersResponse>(`${SHARE_BASE}/${shareId}/users`, data);
+    const raw = await api.webui.post(`${SHARE_BASE}/${shareId}/users`, data);
+    return toCamelCase<BatchAddShareUsersResponse>(raw);
 }
 
-/**
- * Remove users from a share link
- */
 export async function deleteShareUsers(shareId: string, data: BatchDeleteShareUsersRequest): Promise<BatchDeleteShareUsersResponse> {
-    // ApiClient.delete() doesn't support a request body in its type signature,
-    // but the backend DELETE endpoint requires one. Use the fullResponse overload
-    // and pass body via a type assertion (the runtime accepts it fine).
     const opts = {
         fullResponse: true as const,
         headers: { "Content-Type": "application/json" },
@@ -159,31 +144,22 @@ export async function deleteShareUsers(shareId: string, data: BatchDeleteShareUs
         const error = await response.json().catch(() => ({ detail: "Failed to delete share users" }));
         throw new Error(error.detail || "Failed to delete share users");
     }
-    return response.json();
+    const raw = await response.json();
+    return toCamelCase<BatchDeleteShareUsersResponse>(raw);
 }
 
-// Shared-with-me APIs
-
-/**
- * List all chats shared with the current user
- */
 export async function listSharedWithMe(): Promise<SharedWithMeItem[]> {
-    return api.webui.get<SharedWithMeItem[]>(`${SHARE_BASE}/shared-with-me`);
+    const raw = await api.webui.get(`${SHARE_BASE}/shared-with-me`);
+    return toCamelCase<SharedWithMeItem[]>(raw);
 }
 
-/**
- * Update the snapshot timestamp for a share.
- * - Without userEmail: updates the current user's own snapshot (viewer use case).
- * - With userEmail: owner updates a specific user's snapshot.
- */
-export async function updateShareSnapshot(shareId: string, userEmail?: string): Promise<{ snapshot_time: number }> {
+export async function updateShareSnapshot(shareId: string, userEmail?: string): Promise<{ snapshotTime: number }> {
     const body = userEmail ? { user_email: userEmail } : undefined;
-    return api.webui.post<{ snapshot_time: number }>(`${SHARE_BASE}/${shareId}/update-snapshot`, body);
+    const raw = await api.webui.post(`${SHARE_BASE}/${shareId}/update-snapshot`, body);
+    return toCamelCase<{ snapshotTime: number }>(raw);
 }
 
-/**
- * Fork a shared chat into the user's own sessions
- */
 export async function forkSharedChat(shareId: string): Promise<ForkSharedChatResponse> {
-    return api.webui.post<ForkSharedChatResponse>(`${SHARE_BASE}/${shareId}/fork`);
+    const raw = await api.webui.post(`${SHARE_BASE}/${shareId}/fork`);
+    return toCamelCase<ForkSharedChatResponse>(raw);
 }

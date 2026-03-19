@@ -1,5 +1,8 @@
 /**
  * TypeScript types for chat sharing feature
+ *
+ * FE-facing types use camelCase. Request types sent to the backend use snake_case
+ * to match the API contract. The service layer handles mapping where needed.
  */
 
 import type { MessageBubble, TaskMetadata } from "./storage";
@@ -7,27 +10,27 @@ import type { MessageBubble, TaskMetadata } from "./storage";
 export type ShareAccessType = "public" | "authenticated" | "domain-restricted";
 
 export interface ShareLink {
-    share_id: string;
-    session_id: string;
+    shareId: string;
+    sessionId: string;
     title: string;
-    is_public: boolean;
-    require_authentication: boolean;
-    allowed_domains: string[];
-    access_type: ShareAccessType;
-    created_time: number;
-    share_url: string;
+    isPublic: boolean;
+    requireAuthentication: boolean;
+    allowedDomains: string[];
+    accessType: ShareAccessType;
+    createdTime: number;
+    shareUrl: string;
 }
 
 export interface ShareLinkItem {
-    share_id: string;
-    session_id: string;
+    shareId: string;
+    sessionId: string;
     title: string;
-    is_public: boolean;
-    require_authentication: boolean;
-    allowed_domains: string[];
-    access_type: ShareAccessType;
-    created_time: number;
-    message_count: number;
+    isPublic: boolean;
+    requireAuthentication: boolean;
+    allowedDomains: string[];
+    accessType: ShareAccessType;
+    createdTime: number;
+    messageCount: number;
 }
 
 export interface CreateShareLinkRequest {
@@ -41,59 +44,59 @@ export interface UpdateShareLinkRequest {
 }
 
 export interface SharedTaskEvents {
-    task_id: string;
+    taskId: string;
     events: SharedTaskEvent[];
-    initial_request_text?: string;
+    initialRequestText?: string;
 }
 
 export interface SharedTaskEvent {
-    event_type: string;
+    eventType: string;
     timestamp: string;
-    solace_topic: string;
+    solaceTopic: string;
     direction: string;
-    source_entity: string;
-    target_entity: string;
-    message_id: string | null;
-    task_id: string;
-    payload_summary: {
+    sourceEntity: string;
+    targetEntity: string;
+    messageId: string | null;
+    taskId: string;
+    payloadSummary: {
         method: string;
-        params_preview: string | null;
+        paramsPreview: string | null;
     };
-    full_payload: Record<string, unknown>;
+    fullPayload: Record<string, unknown>;
 }
 
 export interface SharedSessionView {
-    share_id: string;
+    shareId: string;
     title: string;
-    created_time: number;
-    access_type: ShareAccessType;
+    createdTime: number;
+    accessType: ShareAccessType;
     tasks: SharedTask[];
     artifacts: SharedArtifact[];
-    task_events?: Record<string, SharedTaskEvents> | null;
-    is_owner?: boolean;
-    session_id?: string | null;
-    snapshot_time?: number | null;
+    taskEvents?: Record<string, SharedTaskEvents> | null;
+    isOwner?: boolean;
+    sessionId?: string | null;
+    snapshotTime?: number | null;
 }
 
 export interface SharedTask {
     id: string;
-    session_id: string;
-    user_id: string;
-    user_message?: string;
-    message_bubbles: MessageBubble[];
-    task_metadata?: TaskMetadata | null;
-    created_time: number;
+    sessionId: string;
+    userId: string;
+    userMessage?: string;
+    messageBubbles: MessageBubble[];
+    taskMetadata?: TaskMetadata | null;
+    createdTime: number;
     /** A2A task ID for workflow lookup (may differ from chat task id) */
-    workflow_task_id?: string;
+    workflowTaskId?: string;
 }
 
 export interface SharedArtifact {
     filename: string;
-    mime_type: string;
+    mimeType: string;
     size: number;
-    last_modified?: string | null;
+    lastModified?: string | null;
     version?: number | null;
-    version_count?: number | null;
+    versionCount?: number | null;
     description?: string | null;
     source?: string | null;
 }
@@ -110,16 +113,16 @@ export interface ShareLinksListResponse {
 // User-specific sharing types
 
 export interface SharedLinkUserInfo {
-    user_email: string;
-    access_level: string;
-    added_at: number;
-    original_access_level?: string | null;
-    original_added_at?: number | null;
+    userEmail: string;
+    accessLevel: string;
+    addedAt: number;
+    originalAccessLevel?: string | null;
+    originalAddedAt?: number | null;
 }
 
 export interface ShareUsersResponse {
-    share_id: string;
-    owner_email: string;
+    shareId: string;
+    ownerEmail: string;
     users: SharedLinkUserInfo[];
 }
 
@@ -133,7 +136,7 @@ export interface BatchAddShareUsersRequest {
 }
 
 export interface BatchAddShareUsersResponse {
-    added_count: number;
+    addedCount: number;
     users: SharedLinkUserInfo[];
 }
 
@@ -142,23 +145,23 @@ export interface BatchDeleteShareUsersRequest {
 }
 
 export interface BatchDeleteShareUsersResponse {
-    deleted_count: number;
+    deletedCount: number;
 }
 
 // Shared-with-me types
 
 export interface SharedWithMeItem {
-    share_id: string;
+    shareId: string;
     title: string;
-    owner_email: string;
-    access_level: string;
-    shared_at: number; // epoch ms
-    share_url: string;
-    session_id?: string | null; // Original session ID
+    ownerEmail: string;
+    accessLevel: string;
+    sharedAt: number; // epoch ms
+    shareUrl: string;
+    sessionId?: string | null; // Original session ID
 }
 
 export interface ForkSharedChatResponse {
-    session_id: string;
-    session_name: string;
+    sessionId: string;
+    sessionName: string;
     message: string;
 }
