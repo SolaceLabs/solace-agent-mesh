@@ -5,6 +5,10 @@ from solace_agent_mesh.shared.outbox.models import OutboxEventModel  # noqa: F40
 
 config = context.config
 
+# Import Base and all models to register them with the metadata
+from solace_agent_mesh.services.platform.models.base import Base
+from solace_agent_mesh.services.platform.models.model_configuration import ModelConfiguration  # noqa: F401
+
 target_metadata = Base.metadata
 
 SQLALCHEMY_URL_KEY = "sqlalchemy.url"
