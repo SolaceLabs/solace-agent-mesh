@@ -5,23 +5,30 @@
  * artifact conversion logic that both shared-session views need.
  */
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { viewSharedSession, downloadSharedArtifact, forkSharedChat } from "@/lib/api/shareApi";
-import type { SharedSessionView, SharedArtifact } from "@/lib/types/share";
+import { useSharedSessionView, useForkSharedChat } from "@/lib/api/share";
+import { downloadSharedArtifact } from "@/lib/api/share";
+import type { SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
 import type { MessageFE, RAGSearchResult, ArtifactInfo, ArtifactPart, PartFE } from "@/lib/types";
 import { downloadBlob } from "@/lib/utils/download";
+import { formatTimestamp } from "@/lib/utils/format";
+
+/** Format epoch ms as YYYY/MM/DD */
+export function formatDateYMD(epochMs: number): string {
+    return formatTimestamp(new Date(epochMs).toISOString(), "date");
+}
 
 /** Convert a SharedArtifact to ArtifactInfo for unified component use. */
 function convertToArtifactInfo(artifact: SharedArtifact): ArtifactInfo {
     return {
         filename: artifact.filename,
-        mime_type: artifact.mime_type,
+        mime_type: artifact.mimeType,
         size: artifact.size,
-        last_modified: artifact.last_modified || new Date().toISOString(),
+        last_modified: artifact.lastModified || new Date().toISOString(),
         version: artifact.version ?? undefined,
-        versionCount: artifact.version_count ?? undefined,
+        versionCount: artifact.versionCount ?? undefined,
         description: artifact.description,
         source: artifact.source ?? undefined,
     };
@@ -30,27 +37,20 @@ function convertToArtifactInfo(artifact: SharedArtifact): ArtifactInfo {
 export function useSharedSession() {
     const { shareId } = useParams<{ shareId: string }>();
     const navigate = useNavigate();
-    const [session, setSession] = useState<SharedSessionView | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+
+    // React Query for data fetching
+    const sessionQuery = useSharedSessionView(shareId || "");
+    const forkMutation = useForkSharedChat();
+
+    const session = sessionQuery.data ?? null;
+    const loading = sessionQuery.isLoading;
+    const error = sessionQuery.error ? (sessionQuery.error instanceof Error ? sessionQuery.error.message : "Failed to load shared session") : null;
+    const isForking = forkMutation.isPending;
+
+    // UI-only local state
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(true);
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "sources">("files");
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-    const [isForking, setIsForking] = useState(false);
-
-    // Load shared session data
-    const loadSharedSession = useCallback(async (id: string) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const data = await viewSharedSession(id);
-            setSession(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load shared session");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
 
     // Custom download handler for shared artifacts using the share API
     const handleSharedArtifactDownload = useCallback(
@@ -59,8 +59,8 @@ export function useSharedSession() {
             try {
                 const blob = await downloadSharedArtifact(shareId, artifact.filename);
                 downloadBlob(blob, artifact.filename);
-            } catch (error) {
-                console.error("Failed to download artifact:", error);
+            } catch (err) {
+                console.error("Failed to download artifact:", err);
             }
         },
         [shareId],
@@ -70,10 +70,9 @@ export function useSharedSession() {
     const handleForkChat = useCallback(async () => {
         if (!shareId || isForking) return;
 
-        setIsForking(true);
         try {
-            const result = await forkSharedChat(shareId);
-            const newSessionId = result?.session_id;
+            const result = await forkMutation.mutateAsync(shareId);
+            const newSessionId = result?.sessionId;
             navigate("/chat");
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent("new-chat-session"));
@@ -83,16 +82,8 @@ export function useSharedSession() {
             }, 200);
         } catch (err) {
             console.error("Failed to fork chat:", err);
-        } finally {
-            setIsForking(false);
         }
-    }, [shareId, isForking, navigate]);
-
-    useEffect(() => {
-        if (shareId) {
-            loadSharedSession(shareId);
-        }
-    }, [shareId, loadSharedSession]);
+    }, [shareId, isForking, navigate, forkMutation]);
 
     // Extract RAG data from all tasks
     const ragData = useMemo(() => {
@@ -101,9 +92,9 @@ export function useSharedSession() {
         const allRagData: RAGSearchResult[] = [];
 
         for (const task of session.tasks) {
-            const taskId = task.workflow_task_id || task.id;
+            const taskId = task.workflowTaskId || task.id;
 
-            let taskMetadata = task.task_metadata;
+            let taskMetadata = task.taskMetadata;
             if (typeof taskMetadata === "string") {
                 try {
                     taskMetadata = JSON.parse(taskMetadata);
@@ -138,8 +129,8 @@ export function useSharedSession() {
 
         for (const task of session.tasks) {
             try {
-                const taskId = task.workflow_task_id || task.id;
-                const bubbles = typeof task.message_bubbles === "string" ? JSON.parse(task.message_bubbles) : task.message_bubbles;
+                const taskId = task.workflowTaskId || task.id;
+                const bubbles = typeof task.messageBubbles === "string" ? JSON.parse(task.messageBubbles) : task.messageBubbles;
 
                 if (!Array.isArray(bubbles)) continue;
 
@@ -202,7 +193,7 @@ export function useSharedSession() {
 
                     result.push({
                         taskId,
-                        createdTime: task.created_time,
+                        createdTime: task.createdTime,
                         role: isUser ? "user" : "agent",
                         isUser,
                         isComplete: true,
@@ -210,13 +201,13 @@ export function useSharedSession() {
                         displayHtml: bubble.displayHtml,
                         contextQuote: bubble.contextQuote,
                         contextQuoteSourceId: bubble.contextQuoteSourceId,
-                        senderDisplayName: bubble.sender_display_name,
-                        senderEmail: bubble.sender_email,
+                        senderDisplayName: bubble.senderDisplayName,
+                        senderEmail: bubble.senderEmail,
                         uploadedFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined,
                         parts,
                         metadata: {
                             messageId: bubble.id,
-                            sessionId: task.session_id,
+                            sessionId: task.sessionId,
                         },
                     });
                 });
@@ -250,7 +241,7 @@ export function useSharedSession() {
     }, []);
 
     // Session ID for the SharedChatProvider
-    const sessionIdForProvider = session?.tasks[0]?.session_id || session?.share_id || "";
+    const sessionIdForProvider = session?.tasks[0]?.sessionId || session?.shareId || "";
 
     // Callback for SharedChatProvider's onOpenSidePanelTab
     const handleProviderTabOpen = useCallback(
