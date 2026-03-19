@@ -13,6 +13,7 @@ import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useError
 import { useSseErrorRecovery } from "@/lib/hooks/useSseErrorRecovery";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
+import { filterContentParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -1401,21 +1402,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return false;
             });
 
-            const newContentParts =
-                messageToProcess?.parts?.filter(p => {
-                    // Keep deep_research_progress and compaction_notification data parts
-                    if (p.kind === "data") {
-                        const dataPart = p as DataPart;
-                        const dataType = dataPart.data && (dataPart.data as any).type;
-                        return dataType === "deep_research_progress" || dataType === "compaction_notification";
-                    }
-                    // Filter out text parts if we have deep research progress (to show progress-only)
-                    if (p.kind === "text" && hasDeepResearchProgress) {
-                        return false;
-                    }
-                    // Keep files and artifacts
-                    return true;
-                }) || [];
+            const newContentParts = filterContentParts(messageToProcess?.parts || [], !!hasDeepResearchProgress);
             const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
             // Check if this is a failed task
@@ -1449,14 +1436,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         },
                     };
                     newMessages[newMessages.length - 1] = updatedMessage;
-                } else if (
-                    lastMessage &&
-                    !lastMessage.isUser &&
-                    lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
-                    newContentParts.length === 1 &&
-                    newContentParts[0].kind === "data" &&
-                    (newContentParts[0] as DataPart).data?.type === "compaction_notification"
-                ) {
+                } else if (isCompactionNotificationBubble(lastMessage, (result as TaskStatusUpdateEvent).taskId, newContentParts)) {
                     // Always create a new bubble for compaction notifications
                     // so they don't get appended to the response text bubble
                     // (ChatMessage early-returns <CompactionNotification/> when it sees this part,
@@ -1489,16 +1469,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 } else {
                     // For failed tasks, always create a message bubble even if there are no content parts
                     // For other cases, only create a new bubble if there is visible content to render.
-                    // Include deep_research_progress data parts as visible content
-                    const hasVisibleContent =
-                        isTaskFailed ||
-                        newContentParts.some(
-                            p =>
-                                (p.kind === "text" && (p as TextPart).text.trim()) ||
-                                p.kind === "file" ||
-                                (p.kind === "data" && (p as DataPart).data && ((p as DataPart).data.type === "deep_research_progress" || (p as DataPart).data.type === "compaction_notification"))
-                        );
-                    if (hasVisibleContent) {
+                    if (checkHasVisibleContent(newContentParts, isTaskFailed)) {
                         const newBubble: MessageFE = {
                             role: "agent",
                             parts: newContentParts,
