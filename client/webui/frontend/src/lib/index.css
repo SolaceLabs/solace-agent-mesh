@@ -26,7 +26,7 @@
 }
 
 :root {
-    --radius: 0.625rem;
+    --radius: 0.5rem;
     /* Semantic theme variables are set by ThemeProvider via inline styles */
     --tw-shadow-colored: 0 4px 6px -1px var(--primary-w90), 0 2px 4px -2px var(--primary-w90);
 }
