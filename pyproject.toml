@@ -80,12 +80,15 @@ dependencies = [
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "google-cloud-storage==3.9.0",
+    "azure-identity>=1.17.0",
     "azure-storage-blob==12.28.0",
-    "authlib==1.6.7",
+    "authlib>=1.6.9",  # [CVE-2026-27962] Security fix: GHSA-wvwj-cvrp-7pv5 JWK Header Injection
+    "pyasn1>=0.6.3",  # [CVE-2026-30922] Security fix: Prevents DoS via unbounded recursion in ASN.1 decoder
     "cachetools==7.0.1",
     "openfeature-sdk==0.8.4",
     "filelock==3.20.3",
     "uuid-utils>=0.11.1",
+    "nanoid==2.0.0",
 ]
 
 [project.optional-dependencies]
