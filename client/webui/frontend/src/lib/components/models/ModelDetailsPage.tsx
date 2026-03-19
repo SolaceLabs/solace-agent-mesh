@@ -43,7 +43,7 @@ export const ModelDetailsPage = () => {
             },
         ];
         return actions;
-    }, [modelToView]);
+    }, []);
 
     const headerButtons = useMemo(() => {
         return [
