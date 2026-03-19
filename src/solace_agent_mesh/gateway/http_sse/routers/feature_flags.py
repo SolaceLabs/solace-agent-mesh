@@ -46,7 +46,7 @@ async def get_feature_flags(
                 release_phase=defn.release_phase.value,
                 resolved=checker.is_enabled(defn.key),
                 has_env_override=checker.has_env_override(defn.key),
-                registry_default=defn.default_enabled,
+                registry_default=defn.default,
                 description=defn.description,
             )
             for defn in checker.registry.all()

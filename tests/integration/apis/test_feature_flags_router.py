@@ -54,7 +54,7 @@ class TestGetFeatureFlagsEndpoint:
         flag = next(
             f for f in response.json() if f["key"] == "background_tasks"
         )
-        assert flag["release_phase"] == "ga"
+        assert flag["release_phase"] == "general_availability"
         assert flag["registry_default"] is False
 
     def test_no_env_override_by_default(self, api_client: TestClient, monkeypatch):

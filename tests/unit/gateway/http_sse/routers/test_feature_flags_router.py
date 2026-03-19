@@ -23,15 +23,15 @@ def _defn(
     key: str,
     name: str = "",
     default: bool = False,
-    release_phase: ReleasePhase = ReleasePhase.GA,
+    release_phase: ReleasePhase = ReleasePhase.GENERAL_AVAILABILITY,
     description: str = "",
 ) -> FeatureDefinition:
     return FeatureDefinition(
         key=key,
         name=name or key.replace("_", " ").title(),
         release_phase=release_phase,
-        default_enabled=default,
-        jira_epic="DATAGO-99999",
+        default=default,
+        jira="DATAGO-99999",
         description=description,
     )
 
@@ -106,14 +106,14 @@ class TestFeatureFlagResponseDto:
         dto = FeatureFlagResponse(
             key="my_flag",
             name="My Flag",
-            release_phase="ga",
+            release_phase="general_availability",
             resolved=True,
             has_env_override=False,
             registry_default=True,
             description="A description",
         )
         assert dto.key == "my_flag"
-        assert dto.release_phase == "ga"
+        assert dto.release_phase == "general_availability"
         assert dto.resolved is True
         assert dto.has_env_override is False
         assert dto.registry_default is True
@@ -152,7 +152,7 @@ class TestGetFeatureFlagsLogic:
                 release_phase=d.release_phase.value,
                 resolved=checker.is_enabled(d.key),
                 has_env_override=checker.has_env_override(d.key),
-                registry_default=d.default_enabled,
+                registry_default=d.default,
                 description=d.description,
             )
             for d in checker.registry.all()
@@ -164,7 +164,7 @@ class TestGetFeatureFlagsLogic:
             "bg",
             name="Background Tasks",
             default=False,
-            release_phase=ReleasePhase.GA,
+            release_phase=ReleasePhase.GENERAL_AVAILABILITY,
             description="Run tasks in background",
         )
         component = self._build_mock_component(defn)
@@ -174,7 +174,7 @@ class TestGetFeatureFlagsLogic:
         dto = result[0]
         assert dto.key == "bg"
         assert dto.name == "Background Tasks"
-        assert dto.release_phase == "ga"
+        assert dto.release_phase == "general_availability"
         assert dto.resolved is False
         assert dto.has_env_override is False
         assert dto.registry_default is False
@@ -193,10 +193,12 @@ class TestGetFeatureFlagsLogic:
     def test_release_phase_serialised_as_string_value(self, monkeypatch):
         monkeypatch.delenv("SAM_FEATURE_F", raising=False)
         for phase, expected in [
+            (ReleasePhase.EXPERIMENTAL, "experimental"),
             (ReleasePhase.EARLY_ACCESS, "early_access"),
             (ReleasePhase.BETA, "beta"),
-            (ReleasePhase.EXPERIMENTAL, "experimental"),
-            (ReleasePhase.GA, "ga"),
+            (ReleasePhase.CONTROLLED_AVAILABILITY, "controlled_availability"),
+            (ReleasePhase.GENERAL_AVAILABILITY, "general_availability"),
+            (ReleasePhase.DEPRECATED, "deprecated"),
         ]:
             defn = _defn("f", release_phase=phase)
             component = self._build_mock_component(defn)

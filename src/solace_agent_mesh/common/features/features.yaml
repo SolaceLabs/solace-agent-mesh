@@ -16,17 +16,20 @@
 #                   Example: Background Tasks
 #
 #   release_phase   (string, required)
-#                   Lifecycle stage of the feature. One of:
-#                     early_access   - Limited release to specific customers for early feedback.
-#                     beta           - Broadly available but not yet fully stabilised.
-#                     experimental   - Proof-of-concept; may change or disappear at any time.
-#                     ga             - Generally available; stable and supported.
+#                   Lifecycle stage of the feature. Aligned with Solace Cloud release stages
+#                   (https://docs.solace.com/Cloud/stages_concept.htm). One of:
+#                     experimental          - Limited availability; proof-of-concept only.
+#                     early_access          - Closed group of testers; may change incompatibly.
+#                     beta                  - Broadly available; complete but may have open issues.
+#                     controlled_availability - Fully functional; available on request.
+#                     general_availability  - Open to all; production-ready with full SLA coverage.
+#                     deprecated            - Scheduled for removal.
 #
-#   default_enabled (boolean, required)
+#   default         (boolean, required)
 #                   Baseline on/off state. In effect when no SAM_FEATURE_<KEY>
 #                   environment variable is set.
 #
-#   jira_epic       (string, required)
+#   jira            (string, required)
 #                   Jira epic key that owns this feature (e.g. DATAGO-118673).
 #                   Required so that every flag can be traced back to its product work.
 #
@@ -36,7 +39,7 @@
 # EVALUATION PRIORITY (highest wins)
 # -----------------------------------
 #   1. SAM_FEATURE_<UPPER_KEY> environment variable  (e.g. SAM_FEATURE_BACKGROUND_TASKS=true)
-#   2. default_enabled
+#   2. default
 #
 # ENTERPRISE EXTENSIONS
 # ----------------------
@@ -50,9 +53,9 @@ features:
   # Example flag — additional flags are registered in DATAGO-126647 (flag migration story).
   - key: background_tasks
     name: Background Tasks
-    release_phase: ga
-    default_enabled: false
-    jira_epic: DATAGO-126647
+    release_phase: general_availability
+    default: false
+    jira: DATAGO-126647
     description: >
       Run long-running agent tasks in the background and receive results
       when they complete.

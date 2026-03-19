@@ -42,9 +42,9 @@ def _make_checker(*flags: tuple[str, bool]) -> FeatureChecker:
             FeatureDefinition(
                 key=key,
                 name=key.replace("_", " ").title(),
-                release_phase=ReleasePhase.GA,
-                default_enabled=default,
-                jira_epic="DATAGO-99999",
+                release_phase=ReleasePhase.GENERAL_AVAILABILITY,
+                default=default,
+                jira="DATAGO-99999",
             )
         )
     return FeatureChecker(registry=reg)
@@ -54,9 +54,9 @@ def _minimal_flag_yaml(**overrides) -> dict:
     base = {
         "key": "f",
         "name": "F",
-        "release_phase": "ga",
-        "default_enabled": False,
-        "jira_epic": "DATAGO-99999",
+        "release_phase": "general_availability",
+        "default": False,
+        "jira": "DATAGO-99999",
     }
     base.update(overrides)
     return base
@@ -154,7 +154,7 @@ class TestLoadFlagsFromYaml:
         monkeypatch.delenv("SAM_FEATURE_F", raising=False)
         provider = SamFeatureProvider(_make_checker(("f", False)))
         p = tmp_path / "override.yaml"
-        p.write_text(yaml.dump({"features": [_minimal_flag_yaml(name="F Override", default_enabled=True)]}))
+        p.write_text(yaml.dump({"features": [_minimal_flag_yaml(name="F Override", default=True)]}))
         provider.load_flags_from_yaml(p)
         assert provider._checker.is_enabled("f") is True
 
