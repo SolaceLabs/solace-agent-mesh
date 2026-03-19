@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2, UserSearch, GitFork, ExternalLink } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { listSharedWithMe, forkSharedChat } from "@/lib/api/shareApi";
+import { listSharedWithMe, forkSharedChat } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
@@ -272,16 +272,16 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         async (item: SharedWithMeItem) => {
             if (forkingShareId) return;
 
-            setForkingShareId(item.share_id);
+            setForkingShareId(item.shareId);
             try {
-                const result = await forkSharedChat(item.share_id);
+                const result = await forkSharedChat(item.shareId);
                 addNotification?.(`Chat forked: "${result.session_name}"`, "success");
 
                 // Refresh sessions list to show the new forked session
                 fetchSessions(1, false);
 
                 // Switch to the new session
-                await handleSwitchSession(result.session_id);
+                await handleSwitchSession(result.sessionId);
             } catch (error) {
                 displayError({ title: "Failed to Fork Chat", error: getErrorMessage(error, "An unknown error occurred while forking the chat.") });
             } finally {
@@ -294,10 +294,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const handleViewSharedChat = useCallback(
         (item: SharedWithMeItem) => {
             // For editors with session_id, navigate directly to the chat page
-            if (item.access_level === "RESOURCE_EDITOR" && item.session_id) {
-                handleSwitchSession(item.session_id);
+            if (item.accessLevel === "RESOURCE_EDITOR" && item.sessionId) {
+                handleSwitchSession(item.sessionId);
             } else {
-                navigate(`/shared-chat/${item.share_id}`);
+                navigate(`/shared-chat/${item.shareId}`);
             }
         },
         [navigate, handleSwitchSession]
@@ -682,9 +682,9 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                         </div>
                         <ul>
                             {sharedWithMe.map(item => {
-                                const isEditor = item.access_level === "RESOURCE_EDITOR" && item.session_id;
+                                const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
                                 return (
-                                    <li key={item.share_id} className="group my-2">
+                                    <li key={item.shareId} className="group my-2">
                                         <div className="hover:bg-muted/50 flex items-center gap-2 rounded-sm px-2 py-2">
                                             <button onClick={() => handleViewSharedChat(item)} className="min-w-0 flex-1 cursor-pointer text-left">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -693,7 +693,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                         {isEditor && <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">Editor</span>}
                                                     </div>
                                                     <span className="text-muted-foreground truncate text-xs">
-                                                        from {item.owner_email} • {formatTimestamp(String(item.shared_at))}
+                                                        from {item.ownerEmail} • {formatTimestamp(String(item.sharedAt))}
                                                     </span>
                                                 </div>
                                             </button>
@@ -721,13 +721,13 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 className="h-8 w-8 p-0"
-                                                                disabled={forkingShareId === item.share_id}
+                                                                disabled={forkingShareId === item.shareId}
                                                                 onClick={e => {
                                                                     e.stopPropagation();
                                                                     handleForkChat(item);
                                                                 }}
                                                             >
-                                                                {forkingShareId === item.share_id ? <Loader2 size={16} className="animate-spin" /> : <GitFork size={16} />}
+                                                                {forkingShareId === item.shareId ? <Loader2 size={16} className="animate-spin" /> : <GitFork size={16} />}
                                                             </Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent>Fork to my chats</TooltipContent>

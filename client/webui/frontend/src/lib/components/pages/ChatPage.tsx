@@ -11,7 +11,7 @@ import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
-import { getShareLinkForSession, getShareUsers } from "@/lib/api/shareApi";
+import { getShareLinkForSession, getShareUsers } from "@/lib/api/share";
 import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
@@ -96,7 +96,7 @@ export function ChatPage() {
         try {
             // Use the sessions API to create a copy
             const response = await api.webui.post(`/api/v1/sessions/${sessionId}/fork`);
-            const newSessionId = response?.session_id || response?.data?.session_id;
+            const newSessionId = response?.sessionId || response?.session_id || response?.data?.sessionId || response?.data?.session_id;
             if (newSessionId) {
                 // Refresh the session list to show the new forked session
                 window.dispatchEvent(new CustomEvent("new-chat-session"));
@@ -132,7 +132,7 @@ export function ChatPage() {
             .then(async link => {
                 if (link) {
                     try {
-                        const usersResponse = await getShareUsers(link.share_id);
+                        const usersResponse = await getShareUsers(link.shareId);
                         const users = usersResponse.users || [];
                         if (users.length === 0) {
                             setShareNotifications([]);
@@ -158,30 +158,30 @@ export function ChatPage() {
                         const changeGroupMap = new Map<string, ShareNotif & { variant: "role-changed" }>();
 
                         for (const user of users) {
-                            const displayName = toDisplayName(user.user_email);
+                            const displayName = toDisplayName(user.userEmail);
 
-                            if (user.original_access_level && user.original_added_at) {
+                            if (user.originalAccessLevel && user.originalAddedAt) {
                                 // User had their access changed — emit original share event
-                                const origLevel = user.original_access_level === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
-                                const oKey = origGroupKey(user.original_added_at, user.original_access_level);
+                                const origLevel = user.originalAccessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                                const oKey = origGroupKey(user.originalAddedAt, user.originalAccessLevel);
                                 if (!origGroupMap.has(oKey)) {
-                                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.original_added_at, names: [], accessLevel: origLevel });
+                                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.originalAddedAt, names: [], accessLevel: origLevel });
                                 }
                                 origGroupMap.get(oKey)!.names.push(displayName);
 
                                 // Emit role-changed event at the current added_at time
-                                const newLevel = user.access_level === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
-                                const cKey = changeGroupKey(user.added_at, user.original_access_level, user.access_level);
+                                const newLevel = user.accessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                                const cKey = changeGroupKey(user.addedAt, user.originalAccessLevel, user.accessLevel);
                                 if (!changeGroupMap.has(cKey)) {
-                                    changeGroupMap.set(cKey, { variant: "role-changed", timestamp: user.added_at, names: [], fromAccessLevel: origLevel, toAccessLevel: newLevel });
+                                    changeGroupMap.set(cKey, { variant: "role-changed", timestamp: user.addedAt, names: [], fromAccessLevel: origLevel, toAccessLevel: newLevel });
                                 }
                                 changeGroupMap.get(cKey)!.names.push(displayName);
                             } else {
                                 // Normal share — no access change history
-                                const level = user.access_level === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
-                                const oKey = origGroupKey(user.added_at, user.access_level);
+                                const level = user.accessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                                const oKey = origGroupKey(user.addedAt, user.accessLevel);
                                 if (!origGroupMap.has(oKey)) {
-                                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.added_at, names: [], accessLevel: level });
+                                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.addedAt, names: [], accessLevel: level });
                                 }
                                 origGroupMap.get(oKey)!.names.push(displayName);
                             }
@@ -191,14 +191,14 @@ export function ChatPage() {
                         setShareNotifications(notifications);
                         // Build editor users list for presence avatars (owner's view)
                         const editorUsers: CollaborativeUser[] = users
-                            .filter(u => u.access_level === "RESOURCE_EDITOR")
+                            .filter(u => u.accessLevel === "RESOURCE_EDITOR")
                             .map(u => {
-                                const emailName = u.user_email.split("@")[0] || u.user_email;
+                                const emailName = u.userEmail.split("@")[0] || u.userEmail;
                                 const name = emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
                                 return {
-                                    id: u.user_email.toLowerCase(),
+                                    id: u.userEmail.toLowerCase(),
                                     name,
-                                    email: u.user_email,
+                                    email: u.userEmail,
                                     role: "collaborator" as const,
                                     isOnline: true,
                                 };
