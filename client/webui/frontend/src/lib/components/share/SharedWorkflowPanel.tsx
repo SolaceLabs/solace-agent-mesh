@@ -22,16 +22,16 @@ interface SharedWorkflowPanelProps {
  */
 function convertToA2AEvent(event: SharedTaskEvent): A2AEventSSEPayload {
     return {
-        event_type: event.event_type,
+        event_type: event.eventType,
         timestamp: event.timestamp,
-        solace_topic: event.solace_topic,
+        solace_topic: event.solaceTopic,
         direction: event.direction,
-        source_entity: event.source_entity,
-        target_entity: event.target_entity,
-        message_id: event.message_id || undefined,
-        task_id: event.task_id,
-        payload_summary: event.payload_summary,
-        full_payload: event.full_payload,
+        source_entity: event.sourceEntity,
+        target_entity: event.targetEntity,
+        message_id: event.messageId || undefined,
+        task_id: event.taskId,
+        payload_summary: event.payloadSummary,
+        full_payload: event.fullPayload,
     } as A2AEventSSEPayload;
 }
 
@@ -44,7 +44,7 @@ function convertToTaskFE(taskId: string, taskData: SharedTaskEvents): TaskFE {
     return {
         taskId,
         events,
-        initialRequestText: taskData.initial_request_text || "",
+        initialRequestText: taskData.initialRequestText || "",
         firstSeen: new Date(events[0]?.timestamp || Date.now()),
         lastUpdated: new Date(events[events.length - 1]?.timestamp || Date.now()),
     } as TaskFE;
@@ -72,7 +72,7 @@ function findRootTaskId(taskEvents: Record<string, SharedTaskEvents>): string | 
 
     // Look for a task that has a request event from "User"
     for (const [taskId, taskData] of Object.entries(taskEvents)) {
-        const hasUserRequest = taskData.events.some(event => event.direction === "request" && event.source_entity === "User");
+        const hasUserRequest = taskData.events.some(event => event.direction === "request" && event.sourceEntity === "User");
         if (hasUserRequest) {
             return taskId;
         }

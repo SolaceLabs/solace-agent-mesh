@@ -11,7 +11,7 @@
 import { useState, useRef, useMemo, useCallback, useEffect, type ReactNode } from "react";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts/ChatContext";
 import type { ArtifactInfo, FileAttachment, RAGSearchResult } from "@/lib/types";
-import { getSharedArtifactContent } from "@/lib/api/shareApi";
+import { getSharedArtifactContent } from "@/lib/api/share";
 
 interface SharedChatProviderProps {
     children: ReactNode;
