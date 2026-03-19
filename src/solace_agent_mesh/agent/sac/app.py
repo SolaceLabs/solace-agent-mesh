@@ -301,7 +301,7 @@ class SamAgentAppConfig(SamConfigBase):
     )
     model: Optional[Union[str, Dict[str, Any]]] = Field(
         default=None,
-        description="ADK model name (string) or BaseLlm config dict. "
+        description="ADK model name (string) or BaseLlm config dict."
     )
     model_provider: Optional[List[str]] = Field(
         default=None,

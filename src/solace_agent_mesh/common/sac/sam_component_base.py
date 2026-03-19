@@ -684,9 +684,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
             )
         return None
 
-    def _initialize_model(self) -> Union[str, BaseLlm]:
+    def _initialize_model(self) -> BaseLlm:
         model_config = self.get_config("model")
-        adk_model_instance: Union[str, BaseLlm]
+        adk_model_instance: BaseLlm
         if self.model_provider and self._lazy_model_mode:
             # Lazy model mode: create LiteLlm with placeholder
             adk_model_instance = LiteLlm(
