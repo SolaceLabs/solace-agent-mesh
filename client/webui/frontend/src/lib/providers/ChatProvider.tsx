@@ -1449,6 +1449,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         },
                     };
                     newMessages[newMessages.length - 1] = updatedMessage;
+                } else if (
+                    lastMessage &&
+                    !lastMessage.isUser &&
+                    lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
+                    newContentParts.length === 1 &&
+                    newContentParts[0].kind === "data" &&
+                    (newContentParts[0] as DataPart).data?.type === "compaction_notification"
+                ) {
+                    // Always create a new bubble for compaction notifications
+                    // so they don't get appended to the response text bubble
+                    // (ChatMessage early-returns <CompactionNotification/> when it sees this part,
+                    // which would hide the streamed text if they shared a bubble)
+                    newMessages.push({
+                        role: "agent",
+                        parts: newContentParts,
+                        taskId: currentTaskIdFromResult,
+                        isUser: false,
+                        isComplete: isFinalEvent,
+                        metadata: {
+                            messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                            sessionId: (result as TaskStatusUpdateEvent).contextId,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
+                    });
                 } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
                     // Regular append for non-progress updates
                     const updatedMessage: MessageFE = {
