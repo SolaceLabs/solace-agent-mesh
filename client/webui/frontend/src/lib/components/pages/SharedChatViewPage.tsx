@@ -16,7 +16,7 @@ import { Header } from "@/lib/components/header";
 import { ChatMessage } from "@/lib/components/chat";
 import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
 import { SharedSidePanel } from "@/lib/components/share/SharedSidePanel";
-import { useSharedSession } from "@/lib/hooks/useSharedSession";
+import { useSharedSession, formatDateYMD } from "@/lib/hooks/useSharedSession";
 
 export function SharedChatViewPage() {
     const shared = useSharedSession();
@@ -72,31 +72,20 @@ export function SharedChatViewPage() {
                     </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                    Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on{" "}
-                    <span className="font-bold">
-                        {(() => {
-                            const d = new Date(session.created_time);
-                            return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-                        })()}
-                    </span>
+                    Shared by <span className="font-bold">{session.tasks[0]?.userId || "Unknown"}</span> on{" "}
+                    <span className="font-bold">{formatDateYMD(session.createdTime)}</span>
                 </TooltipContent>
             </Tooltip>
             <span className="text-muted-foreground text-xs">Viewer</span>
-            {session.snapshot_time && (
+            {session.snapshotTime && (
                 <>
                     <div className="bg-border h-4 w-px" />
-                    <span className="text-muted-foreground text-xs">
-                        Snapshot from{" "}
-                        {(() => {
-                            const d = new Date(session.snapshot_time);
-                            return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-                        })()}
-                    </span>
+                    <span className="text-muted-foreground text-xs">Snapshot from {formatDateYMD(session.snapshotTime)}</span>
                 </>
             )}
         </div>,
-        session?.is_owner && session?.session_id ? (
-            <Button key="go-to-chat" variant="outline" size="sm" onClick={() => shared.navigate(`/chat?sessionId=${session.session_id}`)}>
+        session?.isOwner && session?.sessionId ? (
+            <Button key="go-to-chat" variant="outline" size="sm" onClick={() => shared.navigate(`/chat?sessionId=${session.sessionId}`)}>
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Go to Chat
             </Button>
@@ -146,7 +135,7 @@ export function SharedChatViewPage() {
                                             <div className="bg-muted/50 border-border mx-auto flex max-w-3xl items-center gap-3 rounded-lg border px-4 py-3 shadow-sm backdrop-blur-sm">
                                                 <Info className="text-muted-foreground h-5 w-5 flex-shrink-0" />
                                                 <span className="text-muted-foreground text-sm">This chat is read-only. To build off of it, continue a new conversation.</span>
-                                                {!(session?.is_owner && session?.session_id) && (
+                                                {!(session?.isOwner && session?.sessionId) && (
                                                     <Button variant="outline" size="sm" onClick={shared.handleForkChat} disabled={shared.isForking} className="ml-auto flex-shrink-0">
                                                         {shared.isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
                                                         Continue in New Chat

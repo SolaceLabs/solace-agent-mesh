@@ -9,7 +9,7 @@ import { Button, Spinner, ResizablePanelGroup, ResizablePanel, ResizableHandle, 
 import { ChatMessage } from "@/lib/components/chat";
 import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
 import { SharedSidePanel } from "@/lib/components/share/SharedSidePanel";
-import { useSharedSession } from "@/lib/hooks/useSharedSession";
+import { useSharedSession, formatDateYMD } from "@/lib/hooks/useSharedSession";
 
 export function SharedSessionPage() {
     const shared = useSharedSession();
@@ -92,25 +92,14 @@ export function SharedSessionPage() {
                                 </Tooltip>
                                 <span>Viewer</span>
                                 <div className="bg-border h-4 w-px" />
-                                {session.snapshot_time ? (
+                                {session.snapshotTime ? (
                                     <span>
-                                        Snapshot from{" "}
-                                        <span className="font-bold">
-                                            {(() => {
-                                                const d = new Date(session.snapshot_time);
-                                                return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-                                            })()}
-                                        </span>
+                                        Snapshot from <span className="font-bold">{formatDateYMD(session.snapshotTime)}</span>
                                     </span>
                                 ) : (
                                     <span>
-                                        Shared by <span className="font-bold">{session.tasks[0]?.user_id || "Unknown"}</span> on{" "}
-                                        <span className="font-bold">
-                                            {(() => {
-                                                const d = new Date(session.created_time);
-                                                return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-                                            })()}
-                                        </span>
+                                        Shared by <span className="font-bold">{session.tasks[0]?.userId || "Unknown"}</span> on{" "}
+                                        <span className="font-bold">{formatDateYMD(session.createdTime)}</span>
                                     </span>
                                 )}
                             </div>
