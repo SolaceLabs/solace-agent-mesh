@@ -68,29 +68,11 @@ export const ModelEditPage = () => {
         return getAllProviders();
     }, []);
 
-    // Fetch models for a provider (used when creating new models)
-    const handleProviderChange = async (provider: string) => {
-        // Only fetch if not already cached
-        if (modelsByProvider[provider]) {
-            return;
-        }
-
-        setIsFetchingModels(true);
-        try {
-            const models = await fetchSupportedModelsByProvider(provider);
-            setModelsByProvider(prev => ({
-                ...prev,
-                [provider]: models,
-            }));
-        } catch (error) {
-            console.error(`Error fetching models for provider ${provider}:`, error);
-            setModelsByProvider(prev => ({
-                ...prev,
-                [provider]: [],
-            }));
-        } finally {
-            setIsFetchingModels(false);
-        }
+    // Don't fetch models when provider changes
+    // Models are only fetched when the Model Name dropdown opens (in ModelEdit)
+    // at that point we have authentication credentials filled in
+    const handleProviderChange = async () => {
+        // No-op: models will be fetched on-demand when dropdown opens
     };
 
     // When editing an existing model, fetch models for its provider using stored credentials

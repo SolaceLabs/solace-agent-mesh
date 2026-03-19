@@ -99,3 +99,49 @@ class ModelConfigurationUpdateRequest(CamelCaseModel):
         None,
         description="Description of this model configuration",
     )
+
+
+class SupportedModelsRequest(CamelCaseModel):
+    """Request model for querying supported models from a provider.
+
+    Supports two modes:
+    1. Editing mode: provide model_alias to use stored credentials
+    2. Creating mode: provide auth_type and appropriate credentials
+    """
+
+    provider: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Provider ID (e.g., 'openai', 'anthropic', 'openai_compatible')",
+    )
+    model_alias: Optional[str] = Field(
+        None,
+        description="Model alias for editing mode (uses stored credentials from database)",
+    )
+    api_base: Optional[str] = Field(
+        None,
+        max_length=2048,
+        description="API base URL for custom endpoints (required for openai_compatible in creating mode)",
+    )
+    auth_type: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="Authentication type ('apikey', 'oauth2', 'none')",
+    )
+    api_key: Optional[str] = Field(
+        None,
+        description="API key for apikey authentication",
+    )
+    client_id: Optional[str] = Field(
+        None,
+        description="OAuth2 client ID",
+    )
+    client_secret: Optional[str] = Field(
+        None,
+        description="OAuth2 client secret",
+    )
+    token_url: Optional[str] = Field(
+        None,
+        description="OAuth2 token URL",
+    )

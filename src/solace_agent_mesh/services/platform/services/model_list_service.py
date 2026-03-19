@@ -1,20 +1,14 @@
 """
 Service for managing supported LLM models per provider.
-This service uses the LiteLLM library to fetch available models for each provider.
-For dynamic providers like OpenAI-compatible, the platform service acts as a proxy
-to fetch available models at runtime via the provider's API.
+Queries provider APIs directly to fetch available models at runtime.
+Supports both stored credentials (from database) and request-provided credentials.
 """
 import logging
-import re
 from typing import List, Dict, Optional
 import httpx
 
-try:
-    import litellm
-except ImportError:
-    litellm = None
-
 log = logging.getLogger(__name__)
+
 
 # Provider ID constants
 class ModelProviders:
@@ -31,190 +25,7 @@ class ModelProviders:
 
 
 class ModelListService:
-    """Service for managing supported LLM models using LiteLLM."""
-
-    def get_all_models(self) -> List[Dict[str, str]]:
-        """
-        Get all supported models for our known providers only.
-        Returns models from these providers only:
-        - OpenAI, Anthropic, Google AI Studio, Vertex AI, Azure OpenAI, Bedrock, Ollama
-        Returns:
-            List of supported models with id, label, and provider.
-        """
-        if not litellm:
-            log.warning("LiteLLM not available, returning empty model list")
-            return []
-
-        try:
-            models = []
-
-            # Our known providers
-            known_providers = [
-                ModelProviders.OPENAI,
-                ModelProviders.ANTHROPIC,
-                ModelProviders.GOOGLE_AI_STUDIO,
-                ModelProviders.VERTEX_AI,
-                ModelProviders.AZURE_OPENAI,
-                ModelProviders.BEDROCK,
-                ModelProviders.OLLAMA,
-            ]
-
-            # Fetch models for each known provider
-            for provider in known_providers:
-                provider_models = self.get_models_by_provider(provider)
-                models.extend(provider_models)
-
-            log.info(f"Fetched {len(models)} models from {len(known_providers)} known providers")
-            return models
-        except Exception as e:
-            log.error(f"Error fetching models from LiteLLM: {e}")
-            return []
-
-    def get_models_by_provider(self, provider: str) -> List[Dict[str, str]]:
-        """
-        Get supported models for a specific provider.
-        Uses litellm.models_by_provider which organizes models by provider type.
-        Args:
-            provider: Provider type (e.g., "openai", "anthropic")
-        Returns:
-            List of supported models for the provider with id, label, and provider.
-        """
-        if not litellm:
-            log.warning("LiteLLM not available, returning empty model list")
-            return []
-
-        try:
-            # Map our provider names to LiteLLM provider keys
-            litellm_provider = self._map_provider_to_litellm_key(provider)
-
-            # Get models for this provider from litellm.models_by_provider
-            models_by_provider = litellm.models_by_provider
-            provider_models = models_by_provider.get(litellm_provider, [])
-
-            # Convert to list of dicts with id, label, and provider
-            filtered_models = []
-            for model in provider_models:
-                filtered_models.append({
-                    "id": model,
-                    "label": self._format_model_label(model),
-                    "provider": provider
-                })
-
-            log.info(f"Fetched {len(filtered_models)} models for provider {provider}")
-            return filtered_models
-        except Exception as e:
-            log.error(f"Error fetching models for provider {provider}: {e}")
-            return []
-
-    def _map_provider_to_litellm_key(self, provider: str) -> str:
-        """
-        Map our provider names to LiteLLM's provider keys.
-        Args:
-            provider: Our provider type
-        Returns:
-            LiteLLM provider key (e.g., "openai", "anthropic")
-        """
-        mapping = {
-            ModelProviders.OPENAI: "openai",
-            ModelProviders.ANTHROPIC: "anthropic",
-            ModelProviders.GOOGLE_AI_STUDIO: "gemini",
-            ModelProviders.VERTEX_AI: "vertex_ai",
-            ModelProviders.AZURE_OPENAI: "azure",
-            ModelProviders.BEDROCK: "bedrock",
-            ModelProviders.OLLAMA: "ollama",
-        }
-        return mapping.get(provider, provider)
-
-    def _format_model_label(self, model: str) -> str:
-        """
-        Format a model ID into a human-readable label.
-        Preserves variant information (quality, resolution, dates) to avoid duplicates.
-        Args:
-            model: Model ID (e.g., "gpt-4", "medium/1024-x-1536/gpt-image-1.5-2025-12-16")
-        Returns:
-            Formatted label (e.g., "GPT-4", "GPT-image-1.5 (Medium, 1024x1536)")
-        """
-        original_model = model
-        variant_info = []
-
-        # Extract quality/resolution prefix (e.g., "low/", "medium/", "high/", "hd/", "standard/")
-        quality_prefixes = ["low", "medium", "high", "hd", "standard"]
-        for prefix in quality_prefixes:
-            if model.startswith(f"{prefix}/"):
-                variant_info.append(prefix.title())
-                model = model[len(prefix) + 1:]
-                break
-
-        # Extract resolution dimensions if present (e.g., "1024-x-1536/")
-        resolution_match = re.match(r"(\d+)[_-]x[_-](\d+)/", model)
-        if resolution_match:
-            width, height = resolution_match.groups()
-            variant_info.append(f"{width}x{height}")
-            model = model[resolution_match.end():]
-
-        # Handle models with provider prefixes (e.g., "openai/gpt-4")
-        if "/" in model:
-            parts = model.split("/")
-            model = parts[-1]
-
-        # Handle AWS/Bedrock provider prefixes (e.g., "us.anthropic.claude-3-haiku...")
-        if "." in model and not model[0].isalpha():
-            # Looks like an AWS ARN, skip the provider prefix
-            pass
-        elif "." in model:
-            # Model ID like "eu.anthropic.claude-3-haiku-..."
-            # Extract the part after the last dot if it looks like a model name
-            parts = model.split(".")
-            for part in reversed(parts):
-                if any(keyword in part.lower() for keyword in ["claude", "gpt", "gemini", "llama", "mistral"]):
-                    model = part
-                    break
-
-        # Extract version/date suffix before removing it (preserves distinction)
-        # e.g., "gpt-image-1.5-2025-12-16" → keep "2025-12-16" as variant
-        version_date = None
-        date_match = re.search(r"-(\d{4}-\d{2}-\d{2})$", model)
-        if date_match:
-            version_date = date_match.group(1)
-            variant_info.append(f"v{version_date}")
-
-        # Remove AWS/Bedrock ARN-like suffixes (e.g., ":0")
-        if ":" in model:
-            model = model.split(":")[0]
-
-        # Common model name patterns - apply specific formatting
-        if model.startswith("gpt-"):
-            label = "GPT-" + model[4:]
-        elif model.startswith("claude-"):
-            label = "Claude " + model[7:].replace("-", " ").title()
-        elif model.startswith("gemini-"):
-            label = "Gemini " + model[7:].replace("-", " ").title()
-        elif model.startswith("mistral-"):
-            label = "Mistral " + model[8:].replace("-", " ").title()
-        elif model.lower().startswith("llama"):
-            rest = model[5:].lstrip("-_")
-            label = "Llama " + rest.replace("-", " ").replace("_", " ").title()
-        else:
-            # Generic formatting for other models
-            label = model.replace("-", " ").replace("_", " ").title()
-
-        # Append variant information to avoid duplicates
-        if variant_info:
-            label += f" ({', '.join(variant_info)})"
-
-        return label.strip()
-
-    def is_dynamic_provider(self, provider: str) -> bool:
-        """
-        Check if a provider requires dynamic model fetching.
-        Some providers like OpenAI-compatible need API credentials and base URL
-        to fetch available models at runtime.
-        Args:
-            provider: Provider type
-        Returns:
-            True if provider requires dynamic model fetching, False if static list is used.
-        """
-        return provider in [ModelProviders.OPENAI_COMPATIBLE, ModelProviders.CUSTOM]
+    """Service for managing supported LLM models by querying provider APIs directly."""
 
     def get_models_by_provider_with_config(
         self,
@@ -224,78 +35,157 @@ class ModelListService:
         auth_config: Dict[str, any],
     ) -> List[Dict[str, str]]:
         """
-        Fetch models from an OpenAI-compatible provider using stored credentials.
-        Acts as a proxy to fetch models securely server-to-server.
+        Fetch models from a provider by querying their API directly.
+        Supports all provider types with appropriate authentication headers.
 
         Args:
-            provider: Provider type (should be "openai_compatible")
-            api_base: API base URL for the provider
-            auth_type: Authentication type ("apikey", "oauth2", or "none")
-            auth_config: Authentication configuration dict
+            provider: Provider type (e.g., 'openai', 'anthropic', 'openai_compatible')
+            api_base: API base URL (required for openai_compatible, optional for others)
+            auth_type: Authentication type ('apikey', 'oauth2', or 'none')
+            auth_config: Authentication configuration dict with provider-specific credentials
 
         Returns:
             List of models with id, label, and provider
-        """
-        if provider != ModelProviders.OPENAI_COMPATIBLE:
-            log.warning(f"get_models_by_provider_with_config called with non-openai_compatible provider: {provider}")
-            return []
 
+        Raises:
+            RuntimeError: Provider API errors, authentication errors, network issues
+        """
+        # Determine the API base URL and extract credentials
         if not api_base:
-            log.warning("API base URL required for openai_compatible provider")
-            return []
+            api_base = self._get_provider_api_base(provider)
 
         try:
-            # Normalize the base URL
-            base_url = api_base.rstrip("/")
+            # Set up headers with authentication
+            headers = self._build_auth_headers(provider, auth_type, auth_config)
 
-            # Prepare headers based on auth type
-            headers = {"Content-Type": "application/json"}
+            # Make the API call to fetch models
+            models_response = self._fetch_models_from_provider(provider, api_base, headers, auth_type, auth_config)
 
-            if auth_type == "apikey" and auth_config:
-                api_key = auth_config.get("api_key") or auth_config.get("apiKey")
-                if api_key:
+            # Convert to our format
+            models = []
+            for model_id in models_response:
+                models.append({
+                    "id": model_id,
+                    "label": model_id,
+                    "provider": provider,
+                })
+
+            log.info(f"Fetched {len(models)} models from {provider}")
+            return models
+
+        except Exception as e:
+            log.error(f"Failed to fetch models from {provider}: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Failed to fetch models from {provider}: {str(e)}")
+
+    def _get_provider_api_base(self, provider: str) -> str:
+        """Get the default API base URL for a provider."""
+        api_bases = {
+            ModelProviders.OPENAI: "https://api.openai.com/v1",
+            ModelProviders.ANTHROPIC: "https://api.anthropic.com",
+            ModelProviders.GOOGLE_AI_STUDIO: "https://generativelanguage.googleapis.com/v1beta/models",
+            ModelProviders.AZURE_OPENAI: None,  # Requires custom api_base
+            ModelProviders.OLLAMA: "http://localhost:11434/api",
+        }
+        return api_bases.get(provider)
+
+    def _build_auth_headers(self, provider: str, auth_type: str, auth_config: Dict) -> Dict[str, str]:
+        """Build HTTP headers with authentication and provider-specific requirements."""
+        headers = {}
+
+        if auth_type == "apikey":
+            api_key = auth_config.get("api_key")
+            if api_key:
+                # Provider-specific header formats
+                if provider == ModelProviders.ANTHROPIC:
+                    headers["X-API-Key"] = api_key
+                elif provider != ModelProviders.GOOGLE_AI_STUDIO:
+                    # Google AI Studio uses query params, not headers
+                    # OpenAI, Azure, Ollama, etc. use Bearer token
                     headers["Authorization"] = f"Bearer {api_key}"
 
-            # Make request to the models endpoint
+        # Add provider-specific headers
+        if provider == ModelProviders.ANTHROPIC:
+            headers["anthropic-version"] = "2023-06-01"
+
+        return headers
+
+    def _fetch_models_from_provider(self, provider: str, api_base: str, headers: Dict, auth_type: str, auth_config: Dict) -> List[str]:
+        """
+        Fetch the list of models from the provider's API.
+
+        Args:
+            provider: Provider type
+            api_base: API base URL
+            headers: Authentication headers
+            auth_type: Authentication type
+            auth_config: Authentication configuration
+
+        Returns:
+            List of model IDs
+
+        Raises:
+            RuntimeError: If API call fails
+        """
+        if not api_base:
+            raise RuntimeError(f"API base URL not configured for provider {provider}")
+
+        # Build endpoint URL and prepare query params based on provider
+        query_params = {}
+        if provider == ModelProviders.OPENAI or provider == ModelProviders.OPENAI_COMPATIBLE:
+            endpoint = f"{api_base}/models"
+        elif provider == ModelProviders.ANTHROPIC:
+            endpoint = f"{api_base}/v1/models"
+        elif provider == ModelProviders.GOOGLE_AI_STUDIO:
+            # Google AI Studio endpoint - api_key goes in query params
+            endpoint = f"{api_base}"
+            if auth_type == "apikey":
+                api_key = auth_config.get("api_key")
+                if api_key:
+                    query_params["key"] = api_key
+                else:
+                    raise RuntimeError("API key required for Google AI Studio")
+        elif provider == ModelProviders.OLLAMA:
+            endpoint = f"{api_base}/tags"
+        else:
+            raise RuntimeError(f"Unsupported provider for model listing: {provider}")
+
+        try:
             with httpx.Client() as client:
-                response = client.get(
-                    f"{base_url}/v1/models",
-                    headers=headers,
-                    timeout=10.0,
-                )
+                response = client.get(endpoint, headers=headers, params=query_params, timeout=10.0)
+                response.raise_for_status()
 
-                if not response.is_success:
-                    log.error(f"Failed to fetch models from {api_base}: {response.status_code}")
-                    return []
+                # Parse response based on provider format
+                if provider == ModelProviders.OPENAI or provider == ModelProviders.OPENAI_COMPATIBLE:
+                    data = response.json()
+                    return [model["id"] for model in data.get("data", [])]
 
-                data = response.json()
+                elif provider == ModelProviders.ANTHROPIC:
+                    data = response.json()
+                    # Anthropic returns models under "data" key
+                    models = []
+                    for item in data.get("data", []):
+                        if item.get("type") == "model":
+                            models.append(item["id"])
+                    return models
 
-                # Handle different response formats
-                models = []
-                if isinstance(data, dict):
-                    if "data" in data and isinstance(data["data"], list):
-                        models = [m.get("id") for m in data["data"] if m.get("id")]
-                    elif "models" in data and isinstance(data["models"], list):
-                        models = [m.get("id") or m.get("name") for m in data["models"] if m.get("id") or m.get("name")]
-                elif isinstance(data, list):
-                    models = [m.get("id") or m.get("name") for m in data if m.get("id") or m.get("name")]
+                elif provider == ModelProviders.GOOGLE_AI_STUDIO:
+                    data = response.json()
+                    # Google returns models in "models" array
+                    models = []
+                    for model in data.get("models", []):
+                        model_id = model.get("name", "")
+                        # Model name is like "models/gemini-pro", extract the model name part
+                        if "/" in model_id:
+                            model_id = model_id.split("/")[-1]
+                        if model_id:
+                            models.append(model_id)
+                    return models
 
-                # Convert to response format
-                result = []
-                for model_id in models:
-                    if model_id:
-                        result.append({
-                            "id": model_id,
-                            "label": self._format_model_label(model_id),
-                            "provider": provider,
-                        })
+                elif provider == ModelProviders.OLLAMA:
+                    data = response.json()
+                    return [model["name"].split(":")[0] for model in data.get("models", [])]
 
-                log.info(f"Fetched {len(result)} models from {api_base}")
-                return result
-
-        except httpx.RequestError as e:
-            log.error(f"Network error fetching models from {api_base}: {e}")
-            return []
+        except httpx.HTTPError as e:
+            raise RuntimeError(f"HTTP error fetching models from {provider}: {str(e)}")
         except Exception as e:
-            log.error(f"Error fetching models from {api_base}: {e}")
-            return []
+            raise RuntimeError(f"Error fetching models from {provider}: {str(e)}")

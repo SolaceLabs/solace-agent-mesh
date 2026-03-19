@@ -6,7 +6,7 @@ import { Plus } from "lucide-react";
 import type { ModelConfig } from "@/lib/api/models";
 import { PAGE_COMMON_CLASSES, PageLabel, PageSection, PageLabelWithValue, ErrorLabel } from "../common/PageCommon";
 import { getProviderConfig, AUTH_FIELDS, COMMON_MODEL_PARAMS, type AuthType, type ProviderField, type SupportedModel, type ModelProvider } from "./modelProviderUtils";
-import { fetchModelsFromCustomEndpoint } from "@/lib/api/models/service";
+import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { DropDown } from "../common/DropDown";
 import { KeyValuePairList } from "../common/KeyValuePairList";
@@ -129,8 +129,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     }, [selectedProvider, isNew, modelToEdit]);
 
     // Fetch models when dropdown opens
-    // For new openai_compatible models, fetch directly from the endpoint
-    // For editing, models are already provided via modelsByProvider from ModelEditPage
+    // For editing: use cached models from database (via modelsByProvider)
+    // For creating: fetch from provider API using credentials from form
     const handleModelDropdownOpen = useCallback(async () => {
         if (!selectedProvider) return;
 
@@ -140,40 +140,24 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             return;
         }
 
-        // For new openai_compatible models, fetch directly from browser
-        if (selectedProvider === "openai_compatible") {
-            // Only fetch if we have both apiBase and auth credentials
-            if (!apiBase) {
-                setDynamicModels([]);
-                return;
-            }
-
+        // For creating new models, fetch from provider using form credentials
+        if (isNew) {
             const authType = selectedAuthType || "apikey";
-            if (authType === "apikey" && !apiKey) {
-                setDynamicModels([]);
-                return;
-            }
 
             try {
-                const models = await fetchModelsFromCustomEndpoint(
-                    apiBase,
+                const models = await fetchSupportedModelsByProvider(selectedProvider, undefined, {
+                    apiBase: selectedProvider === "openai_compatible" ? apiBase : undefined,
                     authType,
-                    authType === "apikey" ? apiKey : undefined,
-                    authType === "oauth2" ? (getValues("clientId") as string) : undefined,
-                    authType === "oauth2" ? (getValues("clientSecret") as string) : undefined,
-                    authType === "oauth2" ? (getValues("tokenUrl") as string) : undefined
-                );
+                    apiKey: authType === "apikey" ? apiKey : undefined,
+                    clientId: authType === "oauth2" ? (getValues("clientId") as string) : undefined,
+                    clientSecret: authType === "oauth2" ? (getValues("clientSecret") as string) : undefined,
+                    tokenUrl: authType === "oauth2" ? (getValues("tokenUrl") as string) : undefined,
+                });
                 setDynamicModels(models);
             } catch (error) {
                 console.error("Error fetching models:", error);
                 setDynamicModels([]);
             }
-            return;
-        }
-
-        // For other providers, use cached models if available
-        if (modelsByProvider[selectedProvider]) {
-            setDynamicModels(modelsByProvider[selectedProvider]);
         }
     }, [selectedProvider, isNew, apiBase, apiKey, selectedAuthType, modelsByProvider, getValues]);
 
@@ -343,35 +327,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                         {/* Provider-specific fields only shown after provider selection */}
                         {selectedProvider && providerConfig && (
                             <>
-                                {/* Model Name - Always comes right after Provider */}
-                                <PageLabelWithValue>
-                                    <PageLabel required>Model Name</PageLabel>
-                                    <Controller
-                                        name="modelName"
-                                        control={control}
-                                        rules={{ required: "Model name is required" }}
-                                        render={({ field }) => {
-                                            // Use dynamic models if available, otherwise use cached models from modelsByProvider
-                                            const cachedModels = modelsByProvider[selectedProvider] || [];
-                                            const modelItems = dynamicModels.length > 0 ? dynamicModels : cachedModels;
-                                            return (
-                                                <DropDown
-                                                    value={field.value}
-                                                    onValueChange={field.onChange}
-                                                    items={modelItems.map((model: { id: string; label: string }) => ({
-                                                        id: model.id,
-                                                        label: model.id, // Display model ID in input field
-                                                    }))}
-                                                    placeholder="Select a model..."
-                                                    invalid={!!errors.modelName}
-                                                    onOpen={handleModelDropdownOpen}
-                                                />
-                                            );
-                                        }}
-                                    />
-                                    {errors.modelName && <ErrorLabel>{getErrorMessage(errors.modelName)}</ErrorLabel>}
-                                </PageLabelWithValue>
-
                                 {/* API Base (conditional) */}
                                 {providerConfig.showApiBase && (
                                     <PageLabelWithValue>
@@ -420,6 +375,35 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
                                 {/* Render auth credential fields based on selected auth type */}
                                 {selectedAuthType && AUTH_FIELDS[selectedAuthType as AuthType] && <>{AUTH_FIELDS[selectedAuthType as AuthType].map((field: ProviderField) => renderField(field))}</>}
+
+                                {/* Model Name - Shown after authentication is configured */}
+                                <PageLabelWithValue>
+                                    <PageLabel required>Model Name</PageLabel>
+                                    <Controller
+                                        name="modelName"
+                                        control={control}
+                                        rules={{ required: "Model name is required" }}
+                                        render={({ field }) => {
+                                            // Use dynamic models if available, otherwise use cached models from modelsByProvider
+                                            const cachedModels = modelsByProvider[selectedProvider] || [];
+                                            const modelItems = dynamicModels.length > 0 ? dynamicModels : cachedModels;
+                                            return (
+                                                <DropDown
+                                                    value={field.value}
+                                                    onValueChange={field.onChange}
+                                                    items={modelItems.map((model: { id: string; label: string }) => ({
+                                                        id: model.id,
+                                                        label: model.id, // Display model ID in input field
+                                                    }))}
+                                                    placeholder="Select a model..."
+                                                    invalid={!!errors.modelName}
+                                                    onOpen={handleModelDropdownOpen}
+                                                />
+                                            );
+                                        }}
+                                    />
+                                    {errors.modelName && <ErrorLabel>{getErrorMessage(errors.modelName)}</ErrorLabel>}
+                                </PageLabelWithValue>
 
                                 {/* Advanced Parameters Section - Collapsible */}
                                 <details className="group border-t pt-4">
