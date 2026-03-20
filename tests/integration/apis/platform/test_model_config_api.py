@@ -189,7 +189,7 @@ class TestModelConfigurationAPI:
         # Assert: Response contains error detail
         data = response.json()
         assert "detail" in data
-        assert "not found" in data["detail"].lower()
+        assert "could not find" in data["detail"].lower()
 
     def test_list_models_returns_correct_structure(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
         """Test that GET /models returns a list with correct structure and camelCase fields."""
@@ -409,7 +409,7 @@ class TestModelConfigurationAPI:
         # Assert: Response contains error detail
         data = response.json()
         assert "detail" in data
-        assert "not found" in data["detail"].lower()
+        assert "could not find" in data["detail"].lower()
 
     def test_delete_model_success(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
         """Test that DELETE /models/{alias} deletes a model configuration."""
@@ -463,4 +463,4 @@ class TestModelConfigurationAPI:
         # Assert: Response contains error detail
         data = response.json()
         assert "detail" in data
-        assert "not found" in data["detail"].lower()
+        assert "could not find" in data["detail"].lower()

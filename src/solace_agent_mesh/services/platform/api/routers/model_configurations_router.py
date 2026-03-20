@@ -9,7 +9,6 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
   Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
-import logging
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -27,8 +26,6 @@ from solace_agent_mesh.services.platform.api.routers.dto.requests import (
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.auth.dependencies import get_current_user
 from solace_agent_mesh.shared.api.response_utils import create_data_response
-
-log = logging.getLogger(__name__)
 
 
 router = APIRouter()
@@ -65,15 +62,6 @@ async def list_models(
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[ModelConfigurationResponse]]:
-    """
-    Retrieve all model configurations.
-
-    Sensitive information (API keys, OAuth client secrets) is excluded from the response.
-    Only the authentication type (apikey, oauth2, or none) is returned.
-
-    Returns:
-        DataResponse with list of model configurations with safe data
-    """
     configurations = service.list_all(db)
     return create_data_response(configurations)
 
@@ -90,29 +78,7 @@ async def get_model(
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
-    """
-    Retrieve a model configuration by alias.
-
-    The alias lookup is case-sensitive. Sensitive information (API keys, OAuth
-    client secrets) is excluded from the response.
-
-    Args:
-        alias: The model alias to look up
-
-    Returns:
-        DataResponse with model configuration data
-
-    Raises:
-        HTTPException: 404 if configuration not found
-    """
     config = service.get_by_alias(db, alias)
-
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Model configuration with alias '{alias}' not found",
-        )
-
     return create_data_response(config)
 
 
@@ -130,35 +96,9 @@ async def create_model(
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
-    """
-    Create a new model configuration.
-
-    Args:
-        request: Model configuration details
-        user: Authenticated user (from OAuth middleware)
-
-    Returns:
-        DataResponse with the created model configuration
-
-    Raises:
-        HTTPException: 400 if alias is invalid, 409 if alias already exists, 500 on server error
-    """
-    try:
-        created_by = user.get("id", "unknown")
-        config = service.create(db, request, created_by=created_by)
-        return create_data_response(config)
-    except ValueError as e:
-        log.warning(f"Invalid model creation request: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e),
-        )
-    except Exception as e:
-        log.error(f"Failed to create model configuration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create model configuration",
-        )
+    created_by = user.get("id", "unknown")
+    config = service.create(db, request, created_by=created_by)
+    return create_data_response(config)
 
 @router.put(
     "/models/{alias}",
@@ -174,46 +114,9 @@ async def update_model(
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
-    """
-    Update an existing model configuration.
-
-    Args:
-        alias: The model alias to update
-        request: Fields to update (only non-None fields are modified)
-        user: Authenticated user (from OAuth middleware)
-
-    Returns:
-        DataResponse with the updated model configuration
-
-    Raises:
-        HTTPException: 404 if not found, 409 if new alias conflicts, 500 on server error
-    """
-    try:
-        updated_by = user.get("id", "unknown")
-        config = service.update(db, alias, request, updated_by=updated_by)
-
-        if not config:
-            log.debug(f"Model configuration not found with alias: {alias}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Model configuration with alias '{alias}' not found",
-            )
-
-        return create_data_response(config)
-    except ValueError as e:
-        log.warning(f"Invalid model update request: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to update model configuration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update model configuration",
-        )
+    updated_by = user.get("id", "unknown")
+    config = service.update(db, alias, request, updated_by=updated_by)
+    return create_data_response(config)
 
 
 @router.delete(
@@ -229,30 +132,4 @@ async def delete_model(
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> None:
-    """
-    Delete a model configuration.
-
-    Args:
-        alias: The model alias to delete
-        user: Authenticated user (from OAuth middleware)
-
-    Raises:
-        HTTPException: 404 if not found, 500 on server error
-    """
-    try:
-        deleted = service.delete(db, alias)
-
-        if not deleted:
-            log.debug(f"Model configuration not found with alias: {alias}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Model configuration with alias '{alias}' not found",
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to delete model configuration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete model configuration",
-        )
+    service.delete(db, alias)

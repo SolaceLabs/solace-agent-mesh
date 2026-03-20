@@ -1,7 +1,7 @@
 """Service layer for model configuration business logic."""
 
 import logging
-from typing import List, Optional
+from typing import List
 from sqlalchemy.orm import Session
 
 from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
@@ -15,6 +15,10 @@ from solace_agent_mesh.services.platform.api.routers.dto.requests import (
 )
 from solace_agent_mesh.shared.utils.secret_redactor import redact_auth_config
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from solace_agent_mesh.shared.exceptions.exceptions import (
+    EntityAlreadyExistsError,
+    EntityNotFoundError,
+)
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +64,7 @@ class ModelConfigService:
         db_configs = self.repository.get_all(db)
         return [self._to_response(config) for config in db_configs]
 
-    def get_by_alias(self, db: Session, alias: str) -> Optional[ModelConfigurationResponse]:
+    def get_by_alias(self, db: Session, alias: str) -> ModelConfigurationResponse:
         """
         Retrieve a model configuration by alias (case-sensitive exact match).
 
@@ -69,12 +73,15 @@ class ModelConfigService:
             alias: Model alias to look up
 
         Returns:
-            ModelConfigurationResponse if found, None otherwise
+            ModelConfigurationResponse if found
+
+        Raises:
+            EntityNotFoundError: If no configuration found with the given alias
         """
         db_config = self.repository.get_by_alias(db, alias)
 
         if not db_config:
-            return None
+            raise EntityNotFoundError("ModelConfiguration", alias)
 
         return self._to_response(db_config)
 
@@ -95,11 +102,11 @@ class ModelConfigService:
             ModelConfigurationResponse for the created configuration
 
         Raises:
-            ValueError: If alias already exists (case-sensitive, matches unique index)
+            EntityAlreadyExistsError: If alias already exists (case-sensitive, matches unique index)
         """
         # Check for duplicate alias (case-sensitive, matches unique index)
         if self.repository.exists_by_alias(db, request.alias):
-            raise ValueError(f"Model configuration with alias '{request.alias}' already exists")
+            raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
 
         # Auto-fill api_base for known providers if not provided
         api_base = request.api_base
@@ -132,7 +139,7 @@ class ModelConfigService:
         alias: str,
         request: ModelConfigurationUpdateRequest,
         updated_by: str,
-    ) -> Optional[ModelConfigurationResponse]:
+    ) -> ModelConfigurationResponse:
         """
         Update an existing model configuration.
 
@@ -147,20 +154,21 @@ class ModelConfigService:
             updated_by: User or system identifier performing the update
 
         Returns:
-            ModelConfigurationResponse if found and updated, None if not found
+            ModelConfigurationResponse for the updated configuration
 
         Raises:
-            ValueError: If new alias already exists (case-sensitive)
+            EntityNotFoundError: If no configuration found with the given alias
+            EntityAlreadyExistsError: If new alias already exists (case-sensitive)
         """
         db_config = self.repository.get_by_alias(db, alias)
 
         if not db_config:
-            return None
+            raise EntityNotFoundError("ModelConfiguration", alias)
 
         # If updating alias, check for case-sensitive collision with other configs
         if request.alias is not None and request.alias != alias:
             if self.repository.exists_by_alias(db, request.alias):
-                raise ValueError(f"Model configuration with alias '{request.alias}' already exists")
+                raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
 
         # Update only provided fields
         if request.alias is not None:
@@ -192,7 +200,7 @@ class ModelConfigService:
 
         return self._to_response(db_config)
 
-    def delete(self, db: Session, alias: str) -> bool:
+    def delete(self, db: Session, alias: str) -> None:
         """
         Delete a model configuration by alias.
 
@@ -200,17 +208,15 @@ class ModelConfigService:
             db: SQLAlchemy database session
             alias: Model alias to delete
 
-        Returns:
-            True if configuration was found and deleted, False otherwise
+        Raises:
+            EntityNotFoundError: If no configuration found with the given alias
         """
         db_config = self.repository.get_by_alias(db, alias)
 
         if not db_config:
-            return False
+            raise EntityNotFoundError("ModelConfiguration", alias)
 
         self.repository.delete(db, db_config)
-
-        return True
 
     @staticmethod
     def _to_response(db_model: ModelConfiguration) -> ModelConfigurationResponse:
