@@ -4,7 +4,7 @@ export const PageLabel = ({ children, required, className = "" }: { children: Re
     return (
         <div className={`text-sm font-medium text-(--secondary-text-wMain) ${className}`}>
             {children}
-            {required && <span className="ml-1 text-(--accent-w100)">*</span>}
+            {required && <span className="ml-1 text-(--brand-w100)">*</span>}
         </div>
     );
 };
