@@ -3,6 +3,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { Loader2 } from "lucide-react";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { cn, createLruCache } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
@@ -113,21 +114,11 @@ export function DocumentThumbnail({ content, filename, mimeType, width = 52, hei
     // Check if binary artifact preview is enabled via feature flag
     const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
 
-    // Convert Office document to PDF using the backend service
-    // Note: Using raw fetch here instead of api.webui because the document conversion
-    // endpoint requires specific handling (POST with JSON body) that the api wrapper
-    // doesn't handle correctly for this use case.
+    // Convert Office document to PDF using the backend service.
     const convertToPdf = useCallback(
         async (base64Content: string): Promise<string | null> => {
             try {
-                const response = await fetch("/api/v1/document-conversion/to-pdf", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        content: base64Content,
-                        filename: filename,
-                    }),
-                });
+                const response = await api.webui.post("/api/v1/document-conversion/to-pdf", { content: base64Content, filename: filename }, { fullResponse: true });
 
                 if (!response.ok) {
                     console.warn("Document conversion failed:", response.status);

@@ -22,7 +22,7 @@ export const solace: ThemePalette = {
         text: {
             wMain: "#273749",
             w100: "#000000",
-            w10: "#CCCCCC",
+            w10: "#FFFFFF",
         },
     },
 

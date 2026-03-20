@@ -32,6 +32,7 @@ from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationCreateRequest,
     ModelConfigurationUpdateRequest,
     ModelConfigurationTestRequest,
+    SupportedModelsRequest
 )
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.auth.dependencies import get_current_user
@@ -302,40 +303,49 @@ async def delete_model(
             detail="Failed to delete model configuration",
         )
 
-@router.get(
-    "/supported-models/{provider}",
+@router.post(
+    "/supported-models",
     response_model=DataResponse[list[dict]],
     summary="List supported models for a provider",
-    description="Retrieve supported models for a specific provider. For openai_compatible, optionally pass model_alias to use stored credentials.",
+    description="Retrieve supported models by querying the provider API directly. Use model_alias for editing (stored credentials) or provide credentials for creating new models.",
 )
 async def list_supported_models_by_provider(
-    provider: str,
-    model_alias: Optional[str] = None,
+    request: SupportedModelsRequest,
     _: None = Depends(_require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelListService = Depends(get_model_list_service),
     config_service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[dict]]:
     """
-    Retrieve supported models for a specific provider.
+    Retrieve supported models for a provider by querying the provider API.
 
-    For standard providers, uses LiteLLM to fetch available models.
-    For openai_compatible providers with model_alias, acts as a proxy:
-      - Looks up the model config by alias
-      - Uses stored API base and credentials to fetch models from that endpoint
-      - Returns models securely without exposing credentials
+    Two modes of operation:
+    1. **Editing mode** (model_alias provided):
+       - Uses stored credentials from the database
+       - Safe for editing existing model configs
+
+    2. **Creating mode** (credentials provided):
+       - Uses credentials from request body
+       - Requires auth_type and appropriate credential fields
+       - Returns 400 if required credentials are missing
 
     Args:
-        provider: The provider ID (e.g., 'openai', 'anthropic', 'openai_compatible')
-        model_alias: Optional. For openai_compatible, the model alias to look up for stored credentials
+        request: SupportedModelsRequest containing provider and auth details
 
     Returns:
         DataResponse with list of supported models for the provider
+
+    Raises:
+        400: If neither model_alias nor required credentials provided
+        404: If model_alias not found
+        500: If provider API query fails
     """
     try:
-        # For openai_compatible with model_alias, use stored credentials
-        if provider == "openai_compatible" and model_alias:
-            # Use raw unredacted config for backend proxy calls
+        provider = request.provider
+        model_alias = request.model_alias
+
+        # Mode 1: Editing - use stored credentials from database
+        if model_alias:
             raw_config = config_service.get_raw_config_by_alias(db, model_alias)
             if not raw_config:
                 raise HTTPException(
@@ -343,23 +353,89 @@ async def list_supported_models_by_provider(
                     detail=f"Model configuration with alias '{model_alias}' not found",
                 )
 
-            # Use the service to fetch models from the configured endpoint
             models = service.get_models_by_provider_with_config(
-                provider=provider,
+                provider=raw_config.provider,
                 api_base=raw_config.api_base,
                 auth_type=raw_config.model_auth_type,
                 auth_config=raw_config.model_auth_config,
+                model_params=raw_config.model_params or {},
             )
             return DataResponse.create(models)
 
-        # Standard LiteLLM provider
-        models = service.get_models_by_provider(provider)
+        # Mode 2: Creating - use credentials from request
+        if not request.auth_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either model_alias (for editing) or auth_type with credentials (for creating) is required",
+            )
+
+        # Validate and build auth_config based on auth_type
+        auth_config = {}
+
+        if request.auth_type == "apikey":
+            if not request.api_key:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="api_key is required for apikey authentication",
+                )
+            auth_config["api_key"] = request.api_key
+
+        elif request.auth_type == "oauth2":
+            if not (request.client_id and request.client_secret and request.token_url):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="client_id, client_secret, and token_url are required for oauth2 authentication",
+                )
+            auth_config["client_id"] = request.client_id
+            auth_config["client_secret"] = request.client_secret
+            auth_config["token_url"] = request.token_url
+
+        elif request.auth_type == "aws_iam":
+            if not (request.aws_access_key_id and request.aws_secret_access_key):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="aws_access_key_id and aws_secret_access_key are required for aws_iam authentication",
+                )
+            auth_config["aws_access_key_id"] = request.aws_access_key_id
+            auth_config["aws_secret_access_key"] = request.aws_secret_access_key
+            if request.aws_session_token:
+                auth_config["aws_session_token"] = request.aws_session_token
+
+        elif request.auth_type == "gcp_service_account":
+            if not request.gcp_service_account_json:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="gcp_service_account_json is required for gcp_service_account authentication",
+                )
+            auth_config["service_account_json"] = request.gcp_service_account_json
+
+        elif request.auth_type == "none":
+            pass  # No credentials needed
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported auth_type: {request.auth_type}",
+            )
+
+        # Query provider with provided credentials
+        models = service.get_models_by_provider_with_config(
+            provider=provider,
+            api_base=request.api_base,
+            auth_type=request.auth_type,
+            auth_config=auth_config,
+            model_params=request.model_params or {},
+        )
+
+        if not models:
+            log.warning(f"No models returned from provider {provider}. This may indicate invalid credentials or network issues.")
+
         return DataResponse.create(models)
+
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"Failed to retrieve supported models for provider {provider}: {e}", exc_info=True)
+        log.error(f"Failed to retrieve supported models for provider {request.provider}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve supported models for provider {provider}",
+            detail=f"Failed to retrieve supported models from provider: {str(e)}",
         )

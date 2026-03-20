@@ -2,10 +2,9 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/lib/components/ui";
-import { EmptyState } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 
-import { PageFooter, PageContentWrapper } from "../common/PageCommon";
+import { Footer, PageContentWrapper, EmptyState } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { getProviderConfig, getAllProviders } from "./modelProviderUtils";
 import { fetchModelByAlias, fetchSupportedModelsByProvider, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
@@ -25,6 +24,10 @@ interface FormData {
     tokenUrl?: string;
     oauthScope?: string;
     oauthTokenRefreshBufferSeconds?: string;
+    awsAccessKeyId?: string;
+    awsSecretAccessKey?: string;
+    awsSessionToken?: string;
+    gcpServiceAccountJson?: string;
     temperature?: string;
     maxTokens?: string;
     customParams?: Array<{ key: string; value: string }>;
@@ -68,29 +71,11 @@ export const ModelEditPage = () => {
         return getAllProviders();
     }, []);
 
-    // Fetch models for a provider (used when creating new models)
-    const handleProviderChange = async (provider: string) => {
-        // Only fetch if not already cached
-        if (modelsByProvider[provider]) {
-            return;
-        }
-
-        setIsFetchingModels(true);
-        try {
-            const models = await fetchSupportedModelsByProvider(provider);
-            setModelsByProvider(prev => ({
-                ...prev,
-                [provider]: models,
-            }));
-        } catch (error) {
-            console.error(`Error fetching models for provider ${provider}:`, error);
-            setModelsByProvider(prev => ({
-                ...prev,
-                [provider]: [],
-            }));
-        } finally {
-            setIsFetchingModels(false);
-        }
+    // Don't fetch models when provider changes
+    // Models are only fetched when the Model Name dropdown opens (in ModelEdit)
+    // at that point we have authentication credentials filled in
+    const handleProviderChange = async () => {
+        // No-op: models will be fetched on-demand when dropdown opens
     };
 
     // When editing an existing model, fetch models for its provider using stored credentials
@@ -185,6 +170,22 @@ export const ModelEditPage = () => {
                 if (data.oauthTokenRefreshBufferSeconds) {
                     authConfig.token_refresh_buffer_seconds = Number(data.oauthTokenRefreshBufferSeconds);
                 }
+            } else if (data.authType === "aws_iam") {
+                authConfig = { type: "aws_iam" };
+                if (data.awsAccessKeyId) {
+                    authConfig.aws_access_key_id = data.awsAccessKeyId;
+                }
+                if (data.awsSecretAccessKey) {
+                    authConfig.aws_secret_access_key = data.awsSecretAccessKey;
+                }
+                if (data.awsSessionToken) {
+                    authConfig.aws_session_token = data.awsSessionToken;
+                }
+            } else if (data.authType === "gcp_service_account") {
+                authConfig = { type: "gcp_service_account" };
+                if (data.gcpServiceAccountJson) {
+                    authConfig.service_account_json = data.gcpServiceAccountJson;
+                }
             } else {
                 authConfig = { type: "none" };
             }
@@ -263,14 +264,14 @@ export const ModelEditPage = () => {
                 />
             </PageContentWrapper>
 
-            <PageFooter>
+            <Footer>
                 <Button variant="outline" title="Cancel" onClick={handleCancel} disabled={isLoading}>
                     Cancel
                 </Button>
                 <Button type="submit" form="model-form" disabled={!isFormValid || isLoading} title={isNew ? "Add Model" : "Save Model"}>
                     {isLoading ? "Saving..." : isNew ? "Add" : "Save"}
                 </Button>
-            </PageFooter>
+            </Footer>
         </div>
     );
 };

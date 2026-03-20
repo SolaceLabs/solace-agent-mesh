@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { useNavigate } from "react-router-dom";
 
@@ -19,6 +20,7 @@ export function AgentMeshPage() {
     const { agents, agentsLoading, agentsError, agentsRefetch } = useChatContext();
     const { data: modelConfigs = [] } = useModelConfigs();
     const [searchParams, setSearchParams] = useSearchParams();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
 
     // Read active tab from URL, default to "agents"
     const activeTab: AgentMeshTab = (searchParams.get("tab") as AgentMeshTab) || "agents";
@@ -53,12 +55,16 @@ export function AgentMeshPage() {
             onClick: () => setActiveTab("workflows"),
             badge: "EXPERIMENTAL",
         },
-        {
-            id: "models",
-            label: "Models",
-            isActive: activeTab === "models",
-            onClick: () => setActiveTab("models"),
-        },
+        ...(modelConfigUiEnabled
+            ? [
+                  {
+                      id: "models",
+                      label: "Models",
+                      isActive: activeTab === "models",
+                      onClick: () => setActiveTab("models"),
+                  },
+              ]
+            : []),
     ];
 
     const headerButtons = useMemo(() => {

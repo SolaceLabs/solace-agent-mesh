@@ -2,7 +2,7 @@
  * API functions for model configuration management.
  */
 
-import { api } from "@/lib/api/client";
+import { api } from "@/lib/api";
 import type { ModelConfig } from "./types";
 
 interface ModelData {
@@ -14,12 +14,6 @@ interface ModelData {
     authType: string;
     authConfig: Record<string, unknown>;
     modelParams: Record<string, unknown>;
-}
-
-interface ModelResponse {
-    id?: string;
-    data?: Array<{ id?: string; name?: string; label?: string }>;
-    models?: Array<{ id: string; name?: string }>;
 }
 
 /**
@@ -40,84 +34,79 @@ export async function fetchModelByAlias(alias: string): Promise<ModelConfig> {
 
 /**
  * Fetch supported models for a specific provider.
- * For openai_compatible providers, optionally pass modelAlias to use stored credentials (edit mode).
+ *
+ * Two modes:
+ * 1. Editing (modelAlias provided): Uses stored credentials from database
+ * 2. Creating (credentials provided): Uses credentials from request
  */
-export async function fetchSupportedModelsByProvider(provider: string, modelAlias?: string): Promise<Array<{ id: string; label: string }>> {
-    let url = `/api/v1/platform/supported-models/${provider}`;
-    if (modelAlias) {
-        url += `?model_alias=${encodeURIComponent(modelAlias)}`;
+export async function fetchSupportedModelsByProvider(
+    provider: string,
+    modelAlias?: string,
+    options?: {
+        apiBase?: string;
+        authType?: string;
+        apiKey?: string;
+        clientId?: string;
+        clientSecret?: string;
+        tokenUrl?: string;
+        awsAccessKeyId?: string;
+        awsSecretAccessKey?: string;
+        awsSessionToken?: string;
+        gcpServiceAccountJson?: string;
+        modelParams?: Record<string, unknown>;
     }
-    const response = await api.platform.get(url);
+): Promise<Array<{ id: string; label: string }>> {
+    const body: Record<string, unknown> = {
+        provider,
+    };
+
+    if (modelAlias) {
+        body.modelAlias = modelAlias;
+    } else if (options?.authType) {
+        // Creating mode - pass credentials
+        body.authType = options.authType;
+
+        if (options.apiBase) {
+            body.apiBase = options.apiBase;
+        }
+
+        if (options.modelParams) {
+            body.modelParams = options.modelParams;
+        }
+
+        if (options.authType === "apikey" && options.apiKey) {
+            body.apiKey = options.apiKey;
+        } else if (options.authType === "oauth2") {
+            if (options.clientId) body.clientId = options.clientId;
+            if (options.clientSecret) body.clientSecret = options.clientSecret;
+            if (options.tokenUrl) body.tokenUrl = options.tokenUrl;
+        } else if (options.authType === "aws_iam") {
+            if (options.awsAccessKeyId) body.awsAccessKeyId = options.awsAccessKeyId;
+            if (options.awsSecretAccessKey) body.awsSecretAccessKey = options.awsSecretAccessKey;
+            if (options.awsSessionToken) body.awsSessionToken = options.awsSessionToken;
+        } else if (options.authType === "gcp_service_account") {
+            if (options.gcpServiceAccountJson) body.gcpServiceAccountJson = options.gcpServiceAccountJson;
+        }
+    }
+
+    const response = await api.platform.post("/api/v1/platform/supported-models", body);
     return response.data || [];
 }
 
 /**
- * Fetch models from an OpenAI-compatible endpoint directly from the browser.
- * Used for new model creation before saving.
+ * Fetch models from an OpenAI-compatible endpoint via the backend.
+ * Used for new model creation with user-provided credentials.
+ * Credentials are sent to the backend which queries the provider directly.
  */
 export async function fetchModelsFromCustomEndpoint(apiBase: string, authType: string, apiKey?: string, clientId?: string, clientSecret?: string, tokenUrl?: string): Promise<Array<{ id: string; label: string }>> {
-    try {
-        const baseUrl = apiBase.endsWith("/") ? apiBase : `${apiBase}/`;
-
-        // Prepare headers based on auth type
-        const headers: HeadersInit = {
-            "Content-Type": "application/json",
-        };
-
-        if (authType === "apikey" && apiKey) {
-            headers["Authorization"] = `Bearer ${apiKey}`;
-        } else if (authType === "oauth2" && clientId && clientSecret && tokenUrl) {
-            // For OAuth2, we'd need to get a token from tokenUrl first
-            // For now, we can't support OAuth2 directly from browser without a proxy
-            console.warn("OAuth2 model fetching not supported directly from browser");
-            return [];
-        }
-
-        const response = await fetch(`${baseUrl}v1/models`, {
-            method: "GET",
-            headers,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch models: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        // Handle different response formats
-        const modelResponse = data as ModelResponse;
-        let models: Array<{ id: string; label: string }> = [];
-
-        if (modelResponse.data && Array.isArray(modelResponse.data)) {
-            // Extract id from objects, use label if available, fall back to id as label
-            models = modelResponse.data
-                .filter(item => item.id ?? item.name)
-                .map(item => ({
-                    id: (item.id ?? item.name) as string,
-                    label: item.label ?? item.id ?? item.name ?? "",
-                }));
-        } else if (modelResponse.models && Array.isArray(modelResponse.models)) {
-            models = modelResponse.models
-                .filter(model => model.id ?? model.name)
-                .map(model => ({
-                    id: model.id ?? (model.name as string),
-                    label: model.id ?? (model.name as string),
-                }));
-        } else if (Array.isArray(data)) {
-            const arrayData = data as Array<{ id?: string; name?: string }>;
-            models = arrayData
-                .filter(model => model.id ?? model.name)
-                .map(model => ({
-                    id: (model.id ?? model.name) as string,
-                    label: (model.id ?? model.name) as string,
-                }));
-        }
-
-        return models;
-    } catch (error) {
-        console.error("Error fetching models from custom endpoint:", error);
-        return [];
-    }
+    return fetchSupportedModelsByProvider("openai_compatible", undefined, {
+        apiBase,
+        authType,
+        apiKey,
+        clientId,
+        clientSecret,
+        tokenUrl,
+    });
 }
 
 /**

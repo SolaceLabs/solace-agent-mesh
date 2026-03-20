@@ -13,6 +13,15 @@ from .sse_event_buffer_model import SSEEventBufferModel
 from .task_event_model import TaskEventModel
 from .task_model import TaskModel
 from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
+from .share_model import (
+    SharedLinkModel,
+    SharedArtifactModel,
+    CreateShareLinkRequest,
+    UpdateShareLinkRequest,
+    ShareLinkResponse,
+    ShareLinkItem,
+    SharedSessionView,
+)
 
 __all__ = [
     "Base",
@@ -35,4 +44,11 @@ __all__ = [
     "PromptGroupModel",
     "PromptModel",
     "PromptGroupUserModel",
+    "SharedLinkModel",
+    "SharedArtifactModel",
+    "CreateShareLinkRequest",
+    "UpdateShareLinkRequest",
+    "ShareLinkResponse",
+    "ShareLinkItem",
+    "SharedSessionView",
 ]

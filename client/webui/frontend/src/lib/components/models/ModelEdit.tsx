@@ -4,9 +4,9 @@ import { Input, Textarea, Button } from "@/lib/components/ui";
 import { Plus } from "lucide-react";
 
 import type { ModelConfig } from "@/lib/api/models";
-import { PAGE_COMMON_CLASSES, PageLabel, PageSection, PageLabelWithValue, ErrorLabel } from "../common/PageCommon";
+import { PageLabel, PageSection, PageLabelWithValue, ErrorLabel } from "../common/PageCommon";
 import { getProviderConfig, AUTH_FIELDS, COMMON_MODEL_PARAMS, type AuthType, type ProviderField, type SupportedModel, type ModelProvider } from "./modelProviderUtils";
-import { fetchModelsFromCustomEndpoint } from "@/lib/api/models/service";
+import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { DropDown } from "../common/DropDown";
 import { KeyValuePairList } from "../common/KeyValuePairList";
@@ -120,8 +120,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             resetField("temperature");
             resetField("maxTokens");
 
-            // Set default auth type to apikey
-            setValue("authType", "apikey");
+            // Set default auth type to first allowed type for this provider
+            setValue("authType", config.allowedAuthTypes[0]);
             // Reset custom params
             resetField("customParams");
         }
@@ -129,8 +129,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     }, [selectedProvider, isNew, modelToEdit]);
 
     // Fetch models when dropdown opens
-    // For new openai_compatible models, fetch directly from the endpoint
-    // For editing, models are already provided via modelsByProvider from ModelEditPage
+    // For editing: use cached models from database (via modelsByProvider)
+    // For creating: fetch from provider API using credentials from form
     const handleModelDropdownOpen = useCallback(async () => {
         if (!selectedProvider) return;
 
@@ -140,42 +140,41 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             return;
         }
 
-        // For new openai_compatible models, fetch directly from browser
-        if (selectedProvider === "openai_compatible") {
-            // Only fetch if we have both apiBase and auth credentials
-            if (!apiBase) {
-                setDynamicModels([]);
-                return;
-            }
-
+        // For creating new models, fetch from provider using form credentials
+        if (isNew) {
             const authType = selectedAuthType || "apikey";
-            if (authType === "apikey" && !apiKey) {
-                setDynamicModels([]);
-                return;
+
+            // Collect provider-specific model params from form
+            const currentProviderConfig = providerConfig || getProviderConfig(selectedProvider);
+            const modelParams: Record<string, unknown> = {};
+            for (const field of currentProviderConfig.fields) {
+                const val = getValues(field.name);
+                if (val != null && val !== "") {
+                    modelParams[field.name] = val;
+                }
             }
 
             try {
-                const models = await fetchModelsFromCustomEndpoint(
-                    apiBase,
+                const models = await fetchSupportedModelsByProvider(selectedProvider, undefined, {
+                    apiBase: apiBase || undefined,
                     authType,
-                    authType === "apikey" ? apiKey : undefined,
-                    authType === "oauth2" ? (getValues("clientId") as string) : undefined,
-                    authType === "oauth2" ? (getValues("clientSecret") as string) : undefined,
-                    authType === "oauth2" ? (getValues("tokenUrl") as string) : undefined
-                );
+                    apiKey: authType === "apikey" ? apiKey : undefined,
+                    clientId: authType === "oauth2" ? (getValues("clientId") as string) : undefined,
+                    clientSecret: authType === "oauth2" ? (getValues("clientSecret") as string) : undefined,
+                    tokenUrl: authType === "oauth2" ? (getValues("tokenUrl") as string) : undefined,
+                    awsAccessKeyId: authType === "aws_iam" ? (getValues("awsAccessKeyId") as string) : undefined,
+                    awsSecretAccessKey: authType === "aws_iam" ? (getValues("awsSecretAccessKey") as string) : undefined,
+                    awsSessionToken: authType === "aws_iam" ? (getValues("awsSessionToken") as string) : undefined,
+                    gcpServiceAccountJson: authType === "gcp_service_account" ? (getValues("gcpServiceAccountJson") as string) : undefined,
+                    modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
+                });
                 setDynamicModels(models);
             } catch (error) {
                 console.error("Error fetching models:", error);
                 setDynamicModels([]);
             }
-            return;
         }
-
-        // For other providers, use cached models if available
-        if (modelsByProvider[selectedProvider]) {
-            setDynamicModels(modelsByProvider[selectedProvider]);
-        }
-    }, [selectedProvider, isNew, apiBase, apiKey, selectedAuthType, modelsByProvider, getValues]);
+    }, [selectedProvider, isNew, apiBase, apiKey, selectedAuthType, modelsByProvider, getValues, providerConfig]);
 
     useEffect(() => {
         if (!isNew && modelToEdit) {
@@ -242,38 +241,49 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     // Helper function to render a single field
     const renderField = (field: ProviderField) => {
         // For auth fields during edit, make them optional (credentials are stored server-side)
-        // Only auth credential fields (apiKey, clientSecret) are truly optional;
-        // structural fields (clientId, tokenUrl) remain required for OAuth2 setup
-        const isAuthCredentialField = field.storageTarget === "auth" && (field.name === "apiKey" || field.name === "clientSecret");
+        // Only auth credential fields are truly optional;
+        // structural fields (clientId, tokenUrl, etc.) remain required for setup
+        const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "gcpServiceAccountJson"].includes(field.name);
         const isRequiredField = field.required && (!isAuthCredentialField || isNew);
 
         return (
             <PageLabelWithValue key={field.name}>
                 <PageLabel required={isRequiredField}>{field.label}</PageLabel>
-                <Input
-                    type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
-                    inputMode={field.type === "number" ? "decimal" : undefined}
-                    placeholder={field.placeholder}
-                    step={field.type === "number" ? field.step : undefined}
-                    {...register(field.name, {
-                        required: isRequiredField ? `${field.label} is required` : false,
-                        ...(field.type === "number" &&
-                            field.min !== undefined && {
-                                min: {
-                                    value: field.min,
-                                    message: `${field.label} must be at least ${field.min}`,
-                                },
-                            }),
-                        ...(field.type === "number" &&
-                            field.max !== undefined && {
-                                max: {
-                                    value: field.max,
-                                    message: `${field.label} must not exceed ${field.max}`,
-                                },
-                            }),
-                    })}
-                    aria-invalid={!!errors[field.name]}
-                />
+                {field.type === "textarea" ? (
+                    <Textarea
+                        rows={6}
+                        placeholder={field.placeholder}
+                        {...register(field.name, {
+                            required: isRequiredField ? `${field.label} is required` : false,
+                        })}
+                        aria-invalid={!!errors[field.name]}
+                    />
+                ) : (
+                    <Input
+                        type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
+                        inputMode={field.type === "number" ? "decimal" : undefined}
+                        placeholder={field.placeholder}
+                        step={field.type === "number" ? field.step : undefined}
+                        {...register(field.name, {
+                            required: isRequiredField ? `${field.label} is required` : false,
+                            ...(field.type === "number" &&
+                                field.min !== undefined && {
+                                    min: {
+                                        value: field.min,
+                                        message: `${field.label} must be at least ${field.min}`,
+                                    },
+                                }),
+                            ...(field.type === "number" &&
+                                field.max !== undefined && {
+                                    max: {
+                                        value: field.max,
+                                        message: `${field.label} must not exceed ${field.max}`,
+                                    },
+                                }),
+                        })}
+                        aria-invalid={!!errors[field.name]}
+                    />
+                )}
                 {field.helpText && <div className="text-secondary-foreground text-xs">{field.helpText}</div>}
                 {errors[field.name] && <ErrorLabel>{getErrorMessage(errors[field.name])}</ErrorLabel>}
             </PageLabelWithValue>
@@ -297,11 +307,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         apikey: "API Key",
         oauth2: "OAuth",
         none: "None",
+        aws_iam: "AWS IAM",
+        gcp_service_account: "GCP Service Account",
     };
 
     return (
         <FormProvider {...methods}>
-            <div className={PAGE_COMMON_CLASSES}>
+            <div>
                 <form id="model-form" onSubmit={handleSubmit(onFormSubmit)}>
                     <PageSection className="gap-6">
                         {/* Display Name / Alias - Always Visible */}
@@ -343,7 +355,56 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                         {/* Provider-specific fields only shown after provider selection */}
                         {selectedProvider && providerConfig && (
                             <>
-                                {/* Model Name - Always comes right after Provider */}
+                                {/* API Base (conditional) */}
+                                {providerConfig.showApiBase && (
+                                    <PageLabelWithValue>
+                                        <PageLabel required={providerConfig.apiBaseRequired}>API Base URL</PageLabel>
+                                        <Input
+                                            {...register("apiBase", {
+                                                required: providerConfig.apiBaseRequired ? "API Base URL is required" : false,
+                                            })}
+                                            aria-invalid={!!errors.apiBase}
+                                        />
+                                        {errors.apiBase && <ErrorLabel>{getErrorMessage(errors.apiBase)}</ErrorLabel>}
+                                    </PageLabelWithValue>
+                                )}
+
+                                {/* Provider-specific fields */}
+                                {providerConfig.fields.length > 0 && <>{providerConfig.fields.map((field: ProviderField) => renderField(field))}</>}
+
+                                {/* Authentication Type - Show only provider's allowed auth types */}
+                                <div>
+                                    <PageLabel required>Authentication Type</PageLabel>
+                                    <Controller
+                                        name="authType"
+                                        control={control}
+                                        rules={{ required: "Authentication type is required" }}
+                                        render={({ field }) => (
+                                            <div className="mt-2 flex gap-4">
+                                                {providerConfig?.allowedAuthTypes.map(authType => (
+                                                    <label key={authType} className="flex cursor-pointer items-center gap-2">
+                                                        <input
+                                                            type="radio"
+                                                            value={authType}
+                                                            checked={field.value === authType}
+                                                            onChange={() => {
+                                                                console.log("[ModelEdit] Auth type changed to:", authType);
+                                                                field.onChange(authType);
+                                                            }}
+                                                        />
+                                                        <span className="text-sm">{authTypeLabels[authType as AuthType]}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+                                    />
+                                    {errors.authType && <ErrorLabel>{getErrorMessage(errors.authType)}</ErrorLabel>}
+                                </div>
+
+                                {/* Render auth credential fields based on selected auth type */}
+                                {selectedAuthType && AUTH_FIELDS[selectedAuthType as AuthType] && <>{AUTH_FIELDS[selectedAuthType as AuthType].map((field: ProviderField) => renderField(field))}</>}
+
+                                {/* Model Name - Shown after authentication is configured */}
                                 <PageLabelWithValue>
                                     <PageLabel required>Model Name</PageLabel>
                                     <Controller
@@ -371,55 +432,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                     />
                                     {errors.modelName && <ErrorLabel>{getErrorMessage(errors.modelName)}</ErrorLabel>}
                                 </PageLabelWithValue>
-
-                                {/* API Base (conditional) */}
-                                {providerConfig.showApiBase && (
-                                    <PageLabelWithValue>
-                                        <PageLabel required={providerConfig.apiBaseRequired}>API Base URL</PageLabel>
-                                        <Input
-                                            {...register("apiBase", {
-                                                required: providerConfig.apiBaseRequired ? "API Base URL is required" : false,
-                                            })}
-                                            aria-invalid={!!errors.apiBase}
-                                        />
-                                        {errors.apiBase && <ErrorLabel>{getErrorMessage(errors.apiBase)}</ErrorLabel>}
-                                    </PageLabelWithValue>
-                                )}
-
-                                {/* Provider-specific fields */}
-                                {providerConfig.fields.length > 0 && <>{providerConfig.fields.map((field: ProviderField) => renderField(field))}</>}
-
-                                {/* Authentication Type - Always show all auth type options */}
-                                <div>
-                                    <PageLabel required>Authentication Type</PageLabel>
-                                    <Controller
-                                        name="authType"
-                                        control={control}
-                                        rules={{ required: "Authentication type is required" }}
-                                        render={({ field }) => (
-                                            <div className="mt-2 flex gap-4">
-                                                {Object.keys(authTypeLabels).map(authType => (
-                                                    <label key={authType} className="flex cursor-pointer items-center gap-2">
-                                                        <input
-                                                            type="radio"
-                                                            value={authType}
-                                                            checked={field.value === authType}
-                                                            onChange={() => {
-                                                                console.log("[ModelEdit] Auth type changed to:", authType);
-                                                                field.onChange(authType);
-                                                            }}
-                                                        />
-                                                        <span className="text-sm">{authTypeLabels[authType as AuthType]}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        )}
-                                    />
-                                    {errors.authType && <ErrorLabel>{getErrorMessage(errors.authType)}</ErrorLabel>}
-                                </div>
-
-                                {/* Render auth credential fields based on selected auth type */}
-                                {selectedAuthType && AUTH_FIELDS[selectedAuthType as AuthType] && <>{AUTH_FIELDS[selectedAuthType as AuthType].map((field: ProviderField) => renderField(field))}</>}
 
                                 {/* Advanced Parameters Section - Collapsible */}
                                 <details className="group border-t pt-4">

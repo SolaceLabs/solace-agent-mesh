@@ -1,11 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within } from "storybook/test";
+import { within, expect } from "storybook/test";
 import { http, HttpResponse, delay } from "msw";
 import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { AgentMeshPage } from "@/lib/components/pages";
 import { modelKeys } from "@/lib/api/models";
+import { mockModelConfigs } from "../data/models";
+import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
+
+const OpenFeatureDecorator = createOpenFeatureDecorator({ flags: { model_config_ui: true } });
 
 const InvalidateCacheDecorator = (Story: React.ComponentType) => {
     const queryClient = useQueryClient();
@@ -16,159 +20,6 @@ const InvalidateCacheDecorator = (Story: React.ComponentType) => {
 
     return <Story />;
 };
-
-const mockModelConfigs = [
-    {
-        id: "1",
-        alias: "planning",
-        provider: "anthropic",
-        modelName: "claude-3-5-sonnet",
-        apiBase: "https://api.anthropic.com",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: { temperature: 0.1, max_tokens: 4096 },
-        description: "Planning model for strategic tasks",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "2",
-        alias: "general",
-        provider: "openai",
-        modelName: "gpt-4",
-        apiBase: "https://api.openai.com",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: {},
-        description: "General purpose model",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "3",
-        alias: "image_gen",
-        provider: "openai",
-        modelName: "dall-e-3",
-        apiBase: "https://api.openai.com",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: {},
-        description: "Image generation model",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "4",
-        alias: "compatible",
-        provider: "openai_compatible",
-        modelName: "llama2",
-        apiBase: "http://localhost:8000",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: {},
-        description: "OpenAI-compatible API",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "5",
-        alias: "gemini",
-        provider: "google_ai_studio",
-        modelName: "gemini-2.0-flash",
-        apiBase: "https://generativelanguage.googleapis.com",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: {},
-        description: "Google AI Studio Gemini model",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "6",
-        alias: "vertex",
-        provider: "vertex_ai",
-        modelName: "gemini-1.5-pro",
-        apiBase: "https://vertex.googleapis.com",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: {},
-        description: "Google Vertex AI model",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "7",
-        alias: "azure",
-        provider: "azure_openai",
-        modelName: "gpt-4",
-        apiBase: "https://myresource.openai.azure.com",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: {},
-        description: "Azure OpenAI deployment",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "8",
-        alias: "aws",
-        provider: "bedrock",
-        modelName: "claude-3-sonnet",
-        apiBase: "https://bedrock.amazonaws.com",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: {},
-        description: "AWS Bedrock model",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "9",
-        alias: "local",
-        provider: "ollama",
-        modelName: "mistral",
-        apiBase: "http://localhost:11434",
-        authType: "none",
-        authConfig: { type: "none" },
-        modelParams: {},
-        description: "Local Ollama model",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-    {
-        id: "10",
-        alias: "custom_model",
-        provider: "custom",
-        modelName: "unknown-provider-model",
-        apiBase: "https://custom.api.com",
-        authType: "apikey",
-        authConfig: { type: "apikey" },
-        modelParams: {},
-        description: "Custom provider model (fallback icon test)",
-        createdBy: "system",
-        updatedBy: "system",
-        createdTime: Date.now(),
-        updatedTime: Date.now(),
-    },
-];
 
 const successHandlers = [
     http.get("*/api/v1/platform/models", () => {
@@ -207,6 +58,7 @@ const meta = {
         },
     },
     decorators: [
+        OpenFeatureDecorator,
         InvalidateCacheDecorator,
         Story => (
             <div style={{ height: "100vh", width: "100vw" }}>
@@ -225,7 +77,21 @@ export const Default: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByRole("tab", { name: /Models/i }).then((tab: HTMLElement) => tab.click());
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Verify table renders with data
+        await canvas.findByText("planning");
+        await canvas.findByText("general");
+        await canvas.findByText("image_gen");
+
+        // Verify columns exist
+        expect(canvas.getByText("Name")).toBeInTheDocument();
+        expect(canvas.getByText("Model")).toBeInTheDocument();
+        expect(canvas.getByText("Model Provider")).toBeInTheDocument();
+
+        // Verify pagination controls don't show (only 8 models fit on one page)
+        expect(canvas.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
     },
 };
 
@@ -235,7 +101,12 @@ export const Loading: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByRole("tab", { name: /Models/i }).then((tab: HTMLElement) => tab.click());
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Verify loading state is shown
+        await canvas.findByText("Loading Models...");
+        expect(canvas.getByText("Loading Models...")).toBeInTheDocument();
     },
 };
 
@@ -245,7 +116,12 @@ export const Empty: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByRole("tab", { name: /Models/i }).then((tab: HTMLElement) => tab.click());
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Verify empty state is shown
+        await canvas.findByText("Match AI Models to Your Team's Workflows");
+        expect(canvas.getByText("Match AI Models to Your Team's Workflows")).toBeInTheDocument();
     },
 };
 
@@ -255,7 +131,12 @@ export const Error: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByRole("tab", { name: /Models/i }).then((tab: HTMLElement) => tab.click());
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Verify error state is shown
+        await canvas.findByText(/Error loading models/);
+        expect(canvas.getByText(/Error loading models/)).toBeInTheDocument();
     },
 };
 
@@ -289,6 +170,16 @@ export const WithPagination: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByRole("tab", { name: /Models/i }).then((tab: HTMLElement) => tab.click());
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Verify pagination renders with first page of 45 models
+        await canvas.findByText("model-0");
+        await canvas.findByText("model-19");
+        expect(canvas.getByText("model-0")).toBeInTheDocument();
+
+        // Verify pagination controls ARE visible (45 models exceed one page)
+        const paginationNav = canvas.getByRole("navigation", { name: /pagination/i });
+        expect(paginationNav).toBeInTheDocument();
     },
 };
