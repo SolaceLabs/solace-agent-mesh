@@ -189,7 +189,7 @@ class TestModelConfigurationAPI:
         # Assert: Response contains error detail
         data = response.json()
         assert "detail" in data
-        assert "not found" in data["detail"].lower()
+        assert "could not find" in data["detail"].lower()
 
     def test_list_models_returns_correct_structure(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
         """Test that GET /models returns a list with correct structure and camelCase fields."""
@@ -257,3 +257,209 @@ class TestModelConfigurationAPI:
             data = response.json()
             assert "detail" in data
             assert "not enabled" in data["detail"].lower()
+
+    def test_create_model_success(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that POST /models creates a new model configuration."""
+        # Arrange: Prepare request data
+        request_data = {
+            "alias": "test-create-gpt4",
+            "provider": "openai",
+            "modelName": "gpt-4",
+            "apiBase": "https://api.openai.com/v1",
+            "authConfig": {"api_key": "sk-secret-key", "type": "apikey"},
+            "modelParams": {"temperature": 0.8, "max_tokens": 4096},
+            "description": "Test created model"
+        }
+
+        # Act: Create the model
+        response = platform_api_client.post("/api/v1/platform/models", json=request_data)
+
+        # Assert: Status code is 201
+        assert response.status_code == 201
+
+        # Assert: Response has correct structure and values
+        response_data = response.json()
+        data = response_data["data"]
+        assert data["alias"] == "test-create-gpt4"
+        assert data["provider"] == "openai"
+        assert data["modelName"] == "gpt-4"
+        assert data["apiBase"] == "https://api.openai.com/v1"
+        assert data["authType"] == "apikey"
+        assert data["modelParams"]["temperature"] == 0.8
+        assert data["modelParams"]["max_tokens"] == 4096
+        assert data["description"] == "Test created model"
+
+        # Assert: Server-assigned fields are present
+        assert "id" in data
+        assert "createdBy" in data
+        assert "updatedBy" in data
+        assert "createdTime" in data
+        assert "updatedTime" in data
+
+        # Assert: Secret is redacted
+        assert "api_key" not in data["authConfig"]
+        assert "sk-secret-key" not in response.text
+
+    def test_create_model_duplicate_alias_returns_409(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Test that POST /models returns 409 when alias already exists (case-sensitive)."""
+        # Setup: Create an existing model
+        db = platform_db_session_factory()
+        try:
+            model_config = ModelConfiguration(
+                id=str(uuid.uuid4()),
+                alias="existing-model",
+                provider="openai",
+                model_name="gpt-4",
+                api_base="https://api.openai.com/v1",
+                model_auth_type="none",
+                model_auth_config={"type": "none"},
+                model_params={},
+                created_by="test_user",
+                updated_by="test_user",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            # Arrange: Prepare request with same alias (case-sensitive)
+            request_data = {
+                "alias": "existing-model",  # Exact case match (case-sensitive)
+                "provider": "openai",
+                "modelName": "gpt-4",
+                "apiBase": "https://api.openai.com/v1"
+            }
+
+            # Act: Try to create with duplicate alias
+            response = platform_api_client.post("/api/v1/platform/models", json=request_data)
+
+            # Assert: Status code is 409
+            assert response.status_code == 409
+
+            # Assert: Response contains error detail
+            data = response.json()
+            assert "detail" in data
+            assert "already exists" in data["detail"].lower()
+
+        finally:
+            db.close()
+
+    def test_update_model_success(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Test that PUT /models/{alias} updates an existing model configuration."""
+        # Setup: Create a model to update
+        db = platform_db_session_factory()
+        try:
+            model_config = ModelConfiguration(
+                id=str(uuid.uuid4()),
+                alias="test-update-model",
+                provider="openai",
+                model_name="gpt-4",
+                api_base="https://api.openai.com/v1",
+                model_auth_type="apikey",
+                model_auth_config={"api_key": "sk-old-key", "type": "apikey"},
+                model_params={"temperature": 0.5},
+                description="Original description",
+                created_by="test_user",
+                updated_by="test_user",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            # Arrange: Prepare update request
+            request_data = {
+                "description": "Updated description",
+                "modelParams": {"temperature": 0.7, "max_tokens": 2000}
+            }
+
+            # Act: Update the model
+            response = platform_api_client.put("/api/v1/platform/models/test-update-model", json=request_data)
+
+            # Assert: Status code is 200
+            assert response.status_code == 200
+
+            # Assert: Response has updated values
+            response_data = response.json()
+            data = response_data["data"]
+            assert data["alias"] == "test-update-model"  # Unchanged
+            assert data["description"] == "Updated description"
+            assert data["modelParams"]["temperature"] == 0.7
+            assert data["modelParams"]["max_tokens"] == 2000
+
+            # Assert: Old fields are preserved
+            assert data["provider"] == "openai"
+            assert data["modelName"] == "gpt-4"
+
+        finally:
+            db.close()
+
+    def test_update_model_not_found_returns_404(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that PUT /models/{alias} returns 404 when model doesn't exist."""
+        # Arrange: Prepare update request for non-existent model
+        request_data = {"description": "Updated description"}
+
+        # Act: Try to update non-existent model
+        response = platform_api_client.put("/api/v1/platform/models/nonexistent", json=request_data)
+
+        # Assert: Status code is 404
+        assert response.status_code == 404
+
+        # Assert: Response contains error detail
+        data = response.json()
+        assert "detail" in data
+        assert "could not find" in data["detail"].lower()
+
+    def test_delete_model_success(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Test that DELETE /models/{alias} deletes a model configuration."""
+        # Setup: Create a model to delete
+        db = platform_db_session_factory()
+        try:
+            model_config = ModelConfiguration(
+                id=str(uuid.uuid4()),
+                alias="test-delete-model",
+                provider="openai",
+                model_name="gpt-4",
+                api_base="https://api.openai.com/v1",
+                model_auth_type="none",
+                model_auth_config={"type": "none"},
+                model_params={},
+                created_by="test_user",
+                updated_by="test_user",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            # Act: Delete the model
+            response = platform_api_client.delete("/api/v1/platform/models/test-delete-model")
+
+            # Assert: Status code is 204 (No Content)
+            assert response.status_code == 204
+
+            # Assert: Response body is empty
+            assert response.text == ""
+
+            # Verify: Model is actually deleted
+            db.expire_all()  # Clear cache
+            deleted_model = db.query(ModelConfiguration).filter(
+                ModelConfiguration.alias == "test-delete-model"
+            ).first()
+            assert deleted_model is None
+
+        finally:
+            db.close()
+
+    def test_delete_model_not_found_returns_404(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that DELETE /models/{alias} returns 404 when model doesn't exist."""
+        # Act: Try to delete non-existent model
+        response = platform_api_client.delete("/api/v1/platform/models/nonexistent")
+
+        # Assert: Status code is 404
+        assert response.status_code == 404
+
+        # Assert: Response contains error detail
+        data = response.json()
+        assert "detail" in data
+        assert "could not find" in data["detail"].lower()

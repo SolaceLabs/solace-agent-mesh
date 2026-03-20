@@ -45,9 +45,49 @@ class ModelConfigurationRepository:
             ModelConfiguration.alias == alias
         ).first()
 
+    def create(self, db: Session, model: ModelConfiguration) -> ModelConfiguration:
+        """
+        Create a new model configuration.
+
+        Args:
+            db: SQLAlchemy database session
+            model: ModelConfiguration ORM model to persist
+
+        Returns:
+            The persisted ModelConfiguration with ID populated
+        """
+        db.add(model)
+        db.flush()
+        return model
+
+    def update(self, db: Session, model: ModelConfiguration) -> ModelConfiguration:
+        """
+        Update an existing model configuration.
+
+        Args:
+            db: SQLAlchemy database session
+            model: ModelConfiguration ORM model with updated values
+
+        Returns:
+            The updated ModelConfiguration
+        """
+        db.flush()
+        return model
+
+    def delete(self, db: Session, model: ModelConfiguration) -> None:
+        """
+        Delete a model configuration.
+
+        Args:
+            db: SQLAlchemy database session
+            model: ModelConfiguration ORM model to delete
+        """
+        db.delete(model)
+        db.flush()
+
     def get_by_alias_or_id(self, db: Session, alias: str) -> Optional[ModelConfiguration]:
         """
-        Retrieve a model configuration by alias (case-sensitive exact match) or ID.
+        Retrieve a model configuration by alias or ID.
 
         Args:
             db: SQLAlchemy database session
@@ -57,6 +97,21 @@ class ModelConfigurationRepository:
             ModelConfiguration ORM model if found, None otherwise
         """
         return db.query(ModelConfiguration).filter(
-            or_(ModelConfiguration.alias == alias, cast(ModelConfiguration.id, String) == alias)
+            or_(
+                ModelConfiguration.alias == alias,
+                cast(ModelConfiguration.id, String) == alias,
+            )
         ).first()
-    
+
+    def exists_by_alias(self, db: Session, alias: str) -> bool:
+        """
+        Check if a model configuration exists with case-sensitive alias match.
+
+        Args:
+            db: SQLAlchemy database session
+            alias: Model alias to check
+
+        Returns:
+            True if configuration exists, False otherwise
+        """
+        return self.get_by_alias(db, alias) is not None

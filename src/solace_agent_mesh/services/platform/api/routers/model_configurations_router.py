@@ -10,7 +10,7 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
 """
 
 import os
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from solace_agent_mesh.services.platform.services import ModelConfigService
@@ -20,9 +20,15 @@ from solace_agent_mesh.services.platform.api.dependencies import (
     get_component_instance,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
+from solace_agent_mesh.services.platform.api.routers.dto.requests import (
+    ModelConfigurationCreateRequest,
+    ModelConfigurationUpdateRequest,
+)
 from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_model_config_update_topic
 from solace_agent_mesh.shared.api.pagination import DataResponse
+from solace_agent_mesh.shared.auth.dependencies import get_current_user
 from solace_agent_mesh.shared.api.response_utils import create_data_response
+
 
 router = APIRouter()
 
@@ -47,67 +53,6 @@ def _require_model_config_ui_enabled() -> bool:
     return True
 
 
-@router.get(
-    "/models",
-    response_model=DataResponse[list[ModelConfigurationResponse]],
-    summary="List all model configurations",
-    description="Retrieve all model configurations. Sensitive authentication information (API keys, secrets) is excluded.",
-)
-async def list_models(
-    _: None = Depends(_require_model_config_ui_enabled),
-    db: Session = Depends(get_platform_db),
-    service: ModelConfigService = Depends(get_model_config_service),
-) -> DataResponse[list[ModelConfigurationResponse]]:
-    """
-    Retrieve all model configurations.
-
-    Sensitive information (API keys, OAuth client secrets) is excluded from the response.
-    Only the authentication type (apikey, oauth2, or none) is returned.
-
-    Returns:
-        DataResponse with list of model configurations with safe data
-    """
-    configurations = service.list_all(db)
-    return create_data_response(configurations)
-
-
-@router.get(
-    "/models/{alias}",
-    response_model=DataResponse[ModelConfigurationResponse],
-    summary="Get model configuration by alias",
-    description="Retrieve a model configuration by alias (e.g., 'gpt-4', 'claude-3'). Sensitive authentication information is excluded.",
-)
-async def get_model(
-    alias: str,
-    _: None = Depends(_require_model_config_ui_enabled),
-    db: Session = Depends(get_platform_db),
-    service: ModelConfigService = Depends(get_model_config_service),
-) -> DataResponse[ModelConfigurationResponse]:
-    """
-    Retrieve a model configuration by alias.
-
-    The alias lookup is case-sensitive. Sensitive information (API keys, OAuth
-    client secrets) is excluded from the response.
-
-    Args:
-        alias: The model alias to look up
-
-    Returns:
-        DataResponse with model configuration data
-
-    Raises:
-        HTTPException: 404 if configuration not found
-    """
-    config = service.get_by_alias(db, alias)
-
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Model configuration with alias '{alias}' not found",
-        )
-
-    return create_data_response(config)
-
 def _emit_model_config_update(component, model_id: str, alias: str, model_config: dict | None):
     """Emit model config update events on both ID and alias topics.
 
@@ -131,53 +76,93 @@ def _emit_model_config_update(component, model_id: str, alias: str, model_config
     topic_by_alias = get_model_config_update_topic(component.namespace, alias)
     component.publish_a2a_message(payload=payload, topic=topic_by_alias)
 
+
+@router.get(
+    "/models",
+    response_model=DataResponse[list[ModelConfigurationResponse]],
+    summary="List all model configurations",
+    description="Retrieve all model configurations. Sensitive authentication information (API keys, secrets) is excluded.",
+)
+async def list_models(
+    _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> DataResponse[list[ModelConfigurationResponse]]:
+    configurations = service.list_all(db)
+    return create_data_response(configurations)
+
+@router.get(
+    "/models/{alias}",
+    response_model=DataResponse[ModelConfigurationResponse],
+    summary="Get model configuration by alias",
+    description="Retrieve a model configuration by alias (e.g., 'gpt-4', 'claude-3'). Sensitive authentication information is excluded.",
+)
+async def get_model(
+    alias: str,
+    _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> DataResponse[ModelConfigurationResponse]:
+    config = service.get_by_alias(db, alias)
+    return create_data_response(config)
+
 @router.post(
     "/models",
-    summary="Create model configuration (placeholder)",
-    description="Placeholder for creating a model configuration. Emits A2A update events.",
+    response_model=DataResponse[ModelConfigurationResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a model configuration",
+    description="Create a new model configuration. The alias must be unique (case-sensitive).",
 )
 async def create_model(
-    body: dict = Body(...),
+    request: ModelConfigurationCreateRequest,
     _: None = Depends(_require_model_config_ui_enabled),
-     db: Session = Depends(get_platform_db),
+    db: Session = Depends(get_platform_db),
+    user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
     component=Depends(get_component_instance),
-):
-    # TODO: Implement actual creation logic (persist to DB, generate ID, etc.)
-    model_config = body.get("model_config")
-    model_id = body.get("id", "")
-    alias = body.get("alias", "")
-
-    if model_config and model_id and alias:
-        _emit_model_config_update(component, model_id, alias, model_config)
-
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
-    )
-
+) -> DataResponse[ModelConfigurationResponse]:
+    created_by = user.get("id", "unknown")
+    config = service.create(db, request, created_by=created_by)
+    raw_config = service.get_by_alias(db, config.alias, raw=True)
+    _emit_model_config_update(component, config.id, config.alias, raw_config)
+    return create_data_response(config)
 
 @router.put(
     "/models/{alias}",
-    summary="Update model configuration (placeholder)",
-    description="Placeholder for updating a model configuration. Emits A2A update events.",
+    response_model=DataResponse[ModelConfigurationResponse],
+    summary="Update a model configuration",
+    description="Update an existing model configuration by alias. Only provided fields are updated.",
 )
 async def update_model(
     alias: str,
-    body: dict = Body(...),
+    request: ModelConfigurationUpdateRequest,
     _: None = Depends(_require_model_config_ui_enabled),
-    service: ModelConfigService = Depends(get_model_config_service),
     db: Session = Depends(get_platform_db),
+    user: dict = Depends(get_current_user),
+    service: ModelConfigService = Depends(get_model_config_service),
     component=Depends(get_component_instance),
-):
-    # TODO: Implement actual update logic (persist changes to DB, etc.)
-    model_config = body.get("model_config")
-    model_id = body.get("id", "")
+) -> DataResponse[ModelConfigurationResponse]:
+    updated_by = user.get("id", "unknown")
+    config = service.update(db, alias, request, updated_by=updated_by)
+    raw_config = service.get_by_alias(db, config.alias, raw=True)
+    _emit_model_config_update(component, config.id, config.alias, raw_config)
+    return create_data_response(config)
 
-    if model_config and model_id:
-        _emit_model_config_update(component, model_id, alias, model_config)
 
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Not yet implemented",
-    )
+@router.delete(
+    "/models/{alias}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a model configuration",
+    description="Delete a model configuration by alias. This action cannot be undone.",
+)
+async def delete_model(
+    alias: str,
+    _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
+    user: dict = Depends(get_current_user),
+    service: ModelConfigService = Depends(get_model_config_service),
+    component=Depends(get_component_instance),
+) -> None:
+    config = service.get_by_alias(db, alias)
+    service.delete(db, alias)
+    _emit_model_config_update(component, config.id, alias, None)
