@@ -1,10 +1,11 @@
 """
 Unit tests for BaseRepository.delete().
 
-All tests use SQLite in-memory. The behaviours under test (relationship expiry,
-cascade walking, with_for_update() invocation) are SQLAlchemy ORM-layer
-concerns — they run in Python before any SQL is sent, so SQLite covers all
-dialects.
+All tests use an in-memory SQLite database. The behaviours under test
+(relationship expiry, cascade walking, with_for_update() invocation) are
+exercised via SQLAlchemy's ORM API. These tests validate ORM calls and
+high-level behaviour using SQLite; they do not attempt to cover or assert
+dialect-specific locking or cascade semantics.
 
 Two concrete behaviours are tested:
 
