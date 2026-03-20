@@ -4,8 +4,8 @@ Dynamic Model Provider for enterprise model configuration.
 
 from typing import Any, Dict, Union
 import asyncio
-from solace_ai_connector.components.component_base import ComponentBase as SamComponentBase
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.message import Message as SolaceMessage
 import logging
 
@@ -53,7 +53,7 @@ _receiver_info = {
 }
 
 
-class ModelConfigReceiverComponent(SamComponentBase):
+class ModelConfigReceiverComponent(ComponentBase):
     """
     A SAC component that receives model configuration messages and updates
     the DynamicModelProvider accordingly.
@@ -128,7 +128,7 @@ class ModelConfigReceiverComponent(SamComponentBase):
 
 class DynamicModelProvider:
 
-    def __init__(self, component: SamComponentBase, litellm_instance: LiteLlm, model_id: str):
+    def __init__(self, component: ComponentBase, litellm_instance: LiteLlm, model_id: str):
         self._component = component
         self._litellm_instance = litellm_instance
         self._model_id = model_id
@@ -363,7 +363,7 @@ class DynamicModelProvider:
         self._broker_input = None
 
 
-async def start_model_listener(litellm_instance: LiteLlm, component: SamComponentBase, model_provider_id: str):
+async def start_model_listener(litellm_instance: LiteLlm, component: ComponentBase, model_provider_id: str):
     """
     Start a model configuration listener for the given LiteLlm instance.
 
