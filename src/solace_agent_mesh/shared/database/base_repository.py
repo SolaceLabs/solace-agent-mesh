@@ -8,6 +8,7 @@ for database session management and transaction handling.
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 from ..exceptions.exceptions import EntityNotFoundError
@@ -167,14 +168,34 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Raises:
             EntityNotFoundError: If entity not found
         """
+        # with_for_update() acquires a row lock before the DELETE:
+        #   - Ensures the selected row is locked against concurrent conflicting writes.
+        #   - Helps prevent concurrent sessions from inserting child rows (e.g. deployments)
+        #     that reference this entity until the transaction completes, reducing the risk of
+        #     orphaned FK rows that would block the parent DELETE on MySQL.
+        # Note: with_for_update() does not by itself bypass the identity map or force a state
+        # refresh for already-loaded instances; relationship collections are explicitly expired
+        # below before the cascade is walked. On SQLite, with_for_update() is effectively a
+        # no-op (file-level locking only), but it is safe to call on all dialects.
         model_instance = (
             session.query(self.model_class)
             .filter(self.model_class.id == str(entity_id))
+            .with_for_update()
             .first()
         )
 
         if not model_instance:
             raise EntityNotFoundError(self.entity_name, entity_id)
+
+        # Expire all relationship collections (uselist=True) so SQLAlchemy
+        # re-fetches them before walking the cascade. Covers same-session
+        # staleness: if a child row was added later in the same session, it may
+        # only exist in the session's pending state and not in the cached
+        # collection, causing the cascade to miss it and the FK to block the
+        # parent DELETE.
+        for rel in inspect(type(model_instance)).relationships:
+            if rel.uselist:
+                session.expire(model_instance, [rel.key])
 
         session.delete(model_instance)
         session.flush()  # Flush to validate constraints

@@ -1,6 +1,8 @@
 import logging
 import uuid as uuid_module
+from typing import Annotated
 
+from pydantic import BeforeValidator
 from sqlalchemy import String, TypeDecorator
 from sqlalchemy.dialects.mysql import BINARY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -21,6 +23,12 @@ def coerce_uuid(value) -> str | None:
     if isinstance(value, bytes):
         return str(uuid_module.UUID(bytes=value))
     return str(value)
+
+
+# Annotated type for Pydantic entity fields backed by OptimizedUUID columns.
+# Coerces raw bytes (MySQL BINARY(16) after flush()) to a hyphenated UUID string.
+# Use `id: UUIDStr` instead of `id: str` + a manual field_validator.
+UUIDStr = Annotated[str, BeforeValidator(coerce_uuid)]
 
 
 class OptimizedUUID(TypeDecorator):
@@ -73,7 +81,7 @@ class OptimizedUUID(TypeDecorator):
         try:
             uuid_obj = uuid_module.UUID(value)
         except ValueError:
-            logger.warning(f"OptimizedUUID: invalid UUID in filter, returning NULL: {value!r}")
+            logger.error(f"OptimizedUUID: invalid UUID in filter, returning NULL: {value!r}")
             return None
 
         if dialect_name in ('mysql', 'mariadb'):
