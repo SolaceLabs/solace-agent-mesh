@@ -4,7 +4,8 @@ Service for generating chat session titles using LLM.
 import asyncio
 import logging
 from typing import Optional
-from litellm import acompletion
+from google.adk.models import BaseLlm
+from ....agent.adk.models.lite_llm import LiteLlm
 
 from .title_generation_constants import (
     MAX_USER_MESSAGE_LENGTH,
@@ -22,18 +23,21 @@ class TitleGenerationService:
     Generates concise, meaningful titles for chat sessions using LiteLLM.
     """
 
-    def __init__(self, model_config: dict):
-        # Get model configuration
-        self.model = model_config.get("model")
-        self.api_base = model_config.get("api_base")
-        self.api_key = model_config.get("api_key", "dummy")
-        
+    def __init__(self, model_config: dict, llm: BaseLlm):
+ 
         # Use title-specific model if available, fallback to general model
         title_model = model_config.get("llm_service_title_model_name")
         if title_model:
-            self.model = title_model
-        
-        log.info(f"TitleGenerationService initialized with model: {self.model}")
+            # Filter out keys that conflict with explicit args or are not LiteLlm params
+            litellm_config = {
+                k: v
+                for k, v in model_config.items()
+                if k not in ("model", "llm_service_title_model_name")
+            }
+            self.llm = LiteLlm(model=title_model, **litellm_config)
+        else:
+            self.llm = llm
+        log.info(f"TitleGenerationService initialized with LiteLLM instance")
 
     async def generate_title_async(
         self,
@@ -113,12 +117,11 @@ class TitleGenerationService:
         agent_response: str,
     ) -> str:
         """Call LiteLLM to generate title."""
-        log.info(f"[_call_litellm] Starting LiteLLM call with model: {self.model}")
-        
+        log.info(f"[_call_litellm] Starting LiteLLM call")
+
         # Truncate messages to avoid token limits
         user_text = self._truncate_text(user_message, MAX_USER_MESSAGE_LENGTH)
         response_text = self._truncate_text(agent_response, MAX_AGENT_RESPONSE_LENGTH)
-        
         log.debug(f"[_call_litellm] User text (truncated): {user_text}")
         log.debug(f"[_call_litellm] Agent response (truncated): {response_text}")
 
@@ -133,23 +136,29 @@ Agent: "{response_text}"
 Title:'''
 
         try:
-            # Build completion arguments (avoid max_tokens for Gemini compatibility)
-            completion_args = {
-                "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": DEFAULT_TEMPERATURE,
-            }
-            
-            if self.api_base:
-                completion_args["api_base"] = self.api_base
-            if self.api_key:
-                completion_args["api_key"] = self.api_key
-            
-            # Call LiteLLM
-            response = await acompletion(**completion_args)
-            
-            # Extract title from response (handle None content)
-            content = response.choices[0].message.content
+            from google.genai import types
+            from google.adk.models.llm_request import LlmRequest
+
+            llm_request = LlmRequest(
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=prompt)],
+                    )
+                ],
+                config=types.GenerateContentConfig(
+                    temperature=DEFAULT_TEMPERATURE,
+                ),
+            )
+
+            # Call LiteLLM via generate_content_async
+            content = None
+            async for llm_response in self.llm.generate_content_async(llm_request):
+                if llm_response.content and llm_response.content.parts:
+                    for part in llm_response.content.parts:
+                        if part.text:
+                            content = part.text
+                            break
             if content is None:
                 log.warning("[_call_litellm] LiteLLM returned None content, using fallback")
                 return self._fallback_title(user_message)
