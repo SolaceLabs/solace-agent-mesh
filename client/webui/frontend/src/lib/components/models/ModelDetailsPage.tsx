@@ -33,7 +33,6 @@ export const ModelDetailsPage = () => {
                 icon: <Trash2 />,
                 iconPosition: "left",
                 disabled: true,
-                // TODO: Enable delete in PR #5 after implementing backend DELETE endpoint
             },
         ];
         return actions;
