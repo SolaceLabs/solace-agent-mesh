@@ -2,6 +2,7 @@ import { type ReactNode, Fragment, useRef, useState, useLayoutEffect, useEffect,
 import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
+import { clickableNodeProps } from "@/lib/components/utils";
 
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, ACTIVITY_NODE_LAYOUT, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, CONTAINER_CHILDREN_CLASSES, CONNECTOR_STROKE_CLASSES } from "../utils/nodeStyles";
@@ -290,14 +291,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
     // Collapsed view
     if (isCollapsed) {
         return (
-            <div
-                className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
-                style={{ width: `${WORKFLOW_WIDTH}px` }}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
-            >
+            <div {...clickableNodeProps(() => onClick?.(node))} className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`} style={{ width: `${WORKFLOW_WIDTH}px` }}>
                 <div className="flex min-w-0 items-center gap-2">
                     <Workflow className="h-4 w-4 flex-shrink-0 text-(--brand-wMain)" />
                     <div className="truncate text-sm font-semibold">{node.data.label}</div>
@@ -325,14 +319,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
     return (
         <div className={`flex flex-col px-4 ${haloClass}`} style={{ minWidth: `${WORKFLOW_WIDTH + 72}px` }}>
             {/* Solid Header Box - positioned at top, centered with fixed width */}
-            <div
-                className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} z-20`}
-                style={{ width: `${WORKFLOW_WIDTH}px` }}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
-            >
+            <div {...clickableNodeProps(() => onClick?.(node))} className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} z-20`} style={{ width: `${WORKFLOW_WIDTH}px` }}>
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex min-w-0 items-center gap-2">
                         <Workflow className="h-4 w-4 flex-shrink-0 text-(--brand-wMain)" />

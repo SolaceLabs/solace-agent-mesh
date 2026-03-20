@@ -1,5 +1,6 @@
 import React, { useCallback } from "react";
 import { NODE_BASE_STYLES, NODE_SELECTED_CLASS_COMPACT, type NodeProps } from "../utils/types";
+import { clickableNodeProps } from "@/lib/components/utils/nodeInteraction";
 import { getValidNodeReferences } from "../utils/expressionParser";
 
 /**
@@ -32,14 +33,11 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
 
     return (
         <div
+            {...clickableNodeProps(() => onClick?.(node))}
             className={`${NODE_BASE_STYLES.CONDITION_PILL} text-(--secondary-text-wMain) ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
             style={{
                 width: isDefault ? "auto" : `${node.width}px`,
                 height: `${node.height}px`,
-            }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
