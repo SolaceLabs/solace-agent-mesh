@@ -32,6 +32,7 @@ from ...gateway.http_sse.sse_manager import SSEManager
 from . import dependencies
 from .components import VisualizationForwarderComponent
 from .components.task_logger_forwarder import TaskLoggerForwarderComponent
+from .components.scheduler_result_forwarder import SchedulerResultForwarderComponent
 from .services.task_logger_service import TaskLoggerService
 from .sse_event_buffer import SSEEventBuffer
 
@@ -273,6 +274,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self.background_task_monitor = None
         self._background_task_monitor_timer_id = None
 
+        # Scheduler result handler infrastructure
+        self._scheduler_result_internal_app: SACApp | None = None
+        self._scheduler_result_broker_input: BrokerInput | None = None
+        self._scheduler_result_queue: queue.Queue = queue.Queue(maxsize=100)
+        self._scheduler_result_processor_task: asyncio.Task | None = None
+
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
 
@@ -328,6 +335,28 @@ class WebUIBackendComponent(BaseGatewayComponent):
         else:
             log.info(
                 "%s Data retention is disabled via configuration.", self.log_identifier
+            )
+
+        # Initialize scheduler service if enabled
+        self.scheduler_service = None
+        scheduler_config = self.get_config("scheduler_service", {})
+        if scheduler_config.get("enabled", False):
+            if not self.database_url:
+                log.error(
+                    "%s Scheduler service requires SQL session storage. "
+                    "Either set session_service.type='sql' with a valid database_url, "
+                    "or disable scheduler_service.enabled.",
+                    self.log_identifier
+                )
+                raise ValueError("Scheduler service requires database persistence")
+
+            log.info(
+                "%s Scheduler service is enabled. Will initialize after database setup...",
+                self.log_identifier,
+            )
+        else:
+            log.info(
+                "%s Scheduler service is disabled via configuration.", self.log_identifier
             )
 
         # Initialize system (including any installed plugins/enterprise features)
@@ -716,6 +745,129 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._task_logger_internal_app = None
             self._task_logger_broker_input = None
             raise
+
+    def _ensure_scheduler_result_flow_is_running(self) -> None:
+        """Ensures the internal SAC flow for scheduler result handling is created and running."""
+        log_id_prefix = f"{self.log_identifier}[EnsureSchedulerResultFlow]"
+        if self._scheduler_result_internal_app is not None:
+            log.debug("%s Scheduler result flow already running.", log_id_prefix)
+            return
+
+        if not self.scheduler_service:
+            log.debug("%s Scheduler service not enabled, skipping result flow.", log_id_prefix)
+            return
+
+        log.info("%s Initializing internal scheduler result handler flow...", log_id_prefix)
+        try:
+            main_app = self.get_app()
+            if not main_app or not main_app.connector:
+                raise RuntimeError("Main app or connector not available for internal flow creation.")
+
+            main_broker_config = main_app.app_info.get("broker", {})
+            if not main_broker_config:
+                raise ValueError("Main app broker configuration is missing.")
+
+            subscriptions = [{"topic": f"{self.namespace}a2a/v1/scheduler/response/>"}]
+
+            broker_input_cfg = {
+                "component_module": "broker_input",
+                "component_name": f"{self.gateway_id}_scheduler_result_broker_input",
+                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/scheduler_result/{self.gateway_id}",
+                "create_queue_on_start": True,
+                "component_config": {
+                    "broker_url": main_broker_config.get("broker_url"),
+                    "broker_username": main_broker_config.get("broker_username"),
+                    "broker_password": main_broker_config.get("broker_password"),
+                    "broker_vpn": main_broker_config.get("broker_vpn"),
+                    "trust_store_path": main_broker_config.get("trust_store_path"),
+                    "dev_mode": main_broker_config.get("dev_mode"),
+                    "broker_subscriptions": subscriptions,
+                    "reconnection_strategy": main_broker_config.get("reconnection_strategy"),
+                    "retry_interval": main_broker_config.get("retry_interval"),
+                    "retry_count": main_broker_config.get("retry_count"),
+                    "temporary_queue": main_broker_config.get("temporary_queue", True),
+                },
+            }
+
+            forwarder_cfg = {
+                "component_class": SchedulerResultForwarderComponent,
+                "component_name": f"{self.gateway_id}_scheduler_result_forwarder",
+                "component_config": {"target_queue_ref": self._scheduler_result_queue},
+            }
+
+            flow_config = {
+                "name": f"{self.gateway_id}_scheduler_result_flow",
+                "components": [broker_input_cfg, forwarder_cfg],
+            }
+
+            internal_app_broker_config = main_broker_config.copy()
+            internal_app_broker_config["input_enabled"] = True
+            internal_app_broker_config["output_enabled"] = False
+
+            self._scheduler_result_internal_app = main_app.connector.create_internal_app(
+                app_name=f"{self.gateway_id}_scheduler_result_internal_app",
+                flows=[flow_config],
+            )
+
+            if not self._scheduler_result_internal_app or not self._scheduler_result_internal_app.flows:
+                raise RuntimeError("Internal scheduler result app/flow creation failed.")
+
+            self._scheduler_result_internal_app.run()
+            log.info("%s Internal scheduler result app started.", log_id_prefix)
+
+            flow_instance = self._scheduler_result_internal_app.flows[0]
+            if flow_instance.component_groups and flow_instance.component_groups[0]:
+                self._scheduler_result_broker_input = flow_instance.component_groups[0][0]
+                if not isinstance(self._scheduler_result_broker_input, BrokerInput):
+                    raise RuntimeError("Scheduler result flow setup error: BrokerInput not found.")
+            else:
+                raise RuntimeError("Scheduler result flow setup error: BrokerInput instance not accessible.")
+
+        except Exception as e:
+            log.exception("%s Failed to ensure scheduler result flow is running: %s", log_id_prefix, e)
+            if self._scheduler_result_internal_app:
+                try:
+                    self._scheduler_result_internal_app.cleanup()
+                except Exception as cleanup_err:
+                    log.error("%s Error during cleanup: %s", log_id_prefix, cleanup_err)
+            self._scheduler_result_internal_app = None
+            self._scheduler_result_broker_input = None
+            raise
+
+    async def _scheduler_result_loop(self) -> None:
+        """Consumes messages from _scheduler_result_queue and passes to ResultHandler."""
+        log_id_prefix = f"{self.log_identifier}[SchedulerResultLoop]"
+        log.info("%s Starting scheduler result handler loop...", log_id_prefix)
+        loop = asyncio.get_running_loop()
+
+        while not self.stop_signal.is_set():
+            msg_data = None
+            try:
+                msg_data = await loop.run_in_executor(
+                    None, self._scheduler_result_queue.get, True, 1.0,
+                )
+
+                if msg_data is None:
+                    break
+
+                if self.scheduler_service and self.scheduler_service.result_handler:
+                    await self.scheduler_service.result_handler.handle_response(msg_data)
+                else:
+                    log.warning("%s Scheduler service or result handler not available.", log_id_prefix)
+
+                self._scheduler_result_queue.task_done()
+
+            except queue.Empty:
+                continue
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                log.exception("%s Error in scheduler result loop: %s", log_id_prefix, e)
+                if msg_data and self._scheduler_result_queue:
+                    self._scheduler_result_queue.task_done()
+                await asyncio.sleep(1)
+
+        log.info("%s Scheduler result loop finished.", log_id_prefix)
 
     def _resolve_session_config(self) -> dict:
         """
@@ -1427,7 +1579,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Services dependent on database session factory have been initialized.",
                 self.log_identifier,
             )
-            
+
+            # Initialize scheduler service if enabled (requires session_factory)
+            scheduler_config = self.get_config("scheduler_service", {})
+            if scheduler_config.get("enabled", False) and session_factory:
+                from .services.scheduler import SchedulerService
+                import uuid as _uuid
+
+                instance_id = scheduler_config.get("instance_id") or str(_uuid.uuid4())[:8]
+                self.scheduler_service = SchedulerService(
+                    session_factory=session_factory,
+                    namespace=self.namespace,
+                    instance_id=instance_id,
+                    publish_func=self.publish_a2a,
+                    core_a2a_service=self.core_a2a_service,
+                    config=scheduler_config,
+                    sse_manager=self.sse_manager,
+                )
+                log.info(
+                    "%s Scheduler service initialized (instance_id=%s).",
+                    self.log_identifier,
+                    instance_id,
+                )
+
             # Initialize background task monitor if task logging is enabled
             if self.database_url and task_logging_config.get("enabled", False):
                 from .services.background_task_monitor import BackgroundTaskMonitor
@@ -1566,6 +1740,51 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             log.info(
                                 "%s Task logging is disabled.", self.log_identifier
                             )
+
+                        # Start scheduler result flow, processor, and service
+                        if self.scheduler_service:
+                            log.info(
+                                "%s Scheduler service enabled. Starting result flow and service...",
+                                self.log_identifier,
+                            )
+                            self._ensure_scheduler_result_flow_is_running()
+
+                            if (
+                                self._scheduler_result_processor_task is None
+                                or self._scheduler_result_processor_task.done()
+                            ):
+                                self._scheduler_result_processor_task = (
+                                    self.fastapi_event_loop.create_task(
+                                        self._scheduler_result_loop()
+                                    )
+                                )
+                                log.info(
+                                    "%s Scheduler result processor task started.",
+                                    self.log_identifier,
+                                )
+
+                            await self.scheduler_service.start()
+                            log.info(
+                                "%s Scheduler service started.", self.log_identifier
+                            )
+
+                            # Register scheduler backend for built-in scheduling tools
+                            try:
+                                from ...agent.tools.scheduling_tools import register_scheduler_backend
+                                register_scheduler_backend(
+                                    scheduler_service=self.scheduler_service,
+                                    session_factory=session_factory,
+                                    namespace=self.namespace,
+                                )
+                            except Exception as reg_err:
+                                log.warning(
+                                    "%s Failed to register scheduling tools backend: %s",
+                                    self.log_identifier, reg_err,
+                                )
+                        else:
+                            log.info(
+                                "%s Scheduler service is disabled.", self.log_identifier
+                            )
                     else:
                         log.error(
                             "%s FastAPI event loop not captured. Cannot start visualization processor.",
@@ -1670,6 +1889,33 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.background_task_monitor = None
             log.info("%s Background task monitor cleaned up.", self.log_identifier)
 
+        # Stop scheduler service
+        if self.scheduler_service:
+            # Unregister scheduling tools backend
+            try:
+                from ...agent.tools.scheduling_tools import unregister_scheduler_backend
+                unregister_scheduler_backend()
+            except Exception:
+                pass
+            log.info("%s Stopping scheduler service...", self.log_identifier)
+            try:
+                if self.fastapi_event_loop and self.fastapi_event_loop.is_running():
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.scheduler_service.stop(), self.fastapi_event_loop
+                    )
+                    future.result(timeout=10)
+                else:
+                    asyncio.run(self.scheduler_service.stop())
+                log.info("%s Scheduler service stopped.", self.log_identifier)
+            except Exception as e:
+                log.error(
+                    "%s Error stopping scheduler service: %s",
+                    self.log_identifier,
+                    e,
+                    exc_info=True,
+                )
+            self.scheduler_service = None
+
         self.cancel_timer(self.health_check_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
@@ -1702,6 +1948,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         self.log_identifier,
                         e,
                     )
+        # Send shutdown signal to scheduler result queue (thread-safe queue.Queue)
+        if self._scheduler_result_queue:
+            try:
+                self._scheduler_result_queue.put_nowait(None)
+            except Exception as e:
+                log.warning(
+                    "%s Failed to send shutdown signal to scheduler result queue: %s",
+                    self.log_identifier,
+                    e,
+                )
 
         tasks_to_await: list[asyncio.Task] = []
         if (
@@ -1721,6 +1977,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.info("%s Cancelling task logger processor task...", self.log_identifier)
             self._task_logger_processor_task.cancel()
             tasks_to_await.append(self._task_logger_processor_task)
+
+        if (
+            self._scheduler_result_processor_task
+            and not self._scheduler_result_processor_task.done()
+        ):
+            log.info("%s Cancelling scheduler result processor task...", self.log_identifier)
+            self._scheduler_result_processor_task.cancel()
+            tasks_to_await.append(self._scheduler_result_processor_task)
 
         # Wait for cancelled tasks to finish before clearing shared dicts to
         # avoid RuntimeError from mutating dicts while the processor loop is
@@ -1765,6 +2029,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
             except Exception as e:
                 log.error(
                     "%s Error cleaning up internal task logger app: %s",
+                    self.log_identifier,
+                    e,
+                )
+
+        if self._scheduler_result_internal_app:
+            log.info("%s Cleaning up internal scheduler result app...", self.log_identifier)
+            try:
+                self._scheduler_result_internal_app.cleanup()
+            except Exception as e:
+                log.error(
+                    "%s Error cleaning up internal scheduler result app: %s",
                     self.log_identifier,
                     e,
                 )

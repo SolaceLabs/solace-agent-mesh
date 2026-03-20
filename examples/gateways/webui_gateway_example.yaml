@@ -237,6 +237,17 @@ apps:
       #       playbackRate: 1.0
       #       cacheTTS: true
 
+      # --- Scheduled Tasks Configuration (Optional) ---
+      # scheduler_service:
+      #   enabled: true  # Enable scheduled tasks
+      #   instance_id: "${SCHEDULER_INSTANCE_ID}"  # Optional: auto-generated if not provided
+      #   leader_election:
+      #     enabled: true
+      #     heartbeat_interval_seconds: 30
+      #     lease_duration_seconds: 60
+      #   default_timeout_seconds: 3600
+      #   max_concurrent_executions: 10
+
       # # --- Data Retention Configuration ---
       # # Automatic cleanup of old data (tasks, task events, feedback, and buffered SSE events to prevent unbounded database growth)
       # data_retention:

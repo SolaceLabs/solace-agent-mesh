@@ -1266,6 +1266,84 @@ async def get_specific_artifact_version(
 
 
 @router.get(
+    "/scheduled/{session_id}/{filename}",
+    summary="Get Scheduled Task Artifact",
+    description="Retrieves artifact content from a scheduled task execution session.",
+)
+async def get_scheduled_task_artifact(
+    session_id: str = Path(..., title="Session ID", description="The scheduler session ID"),
+    filename: str = Path(..., title="Filename", description="The name of the artifact"),
+    download: bool = Query(False, description="Force download (true) or inline view (false)"),
+    artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
+    user_id: str = Depends(get_user_id),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
+):
+    """
+    Retrieves artifact content from a scheduled task execution.
+    Bypasses normal session validation since scheduler sessions are system-managed.
+    """
+    log_prefix = f"[ArtifactRouter:Scheduled:{filename}] User={user_id}, Session={session_id} -"
+    log.info("%s Request received.", log_prefix)
+
+    if artifact_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Artifact service is not configured.",
+        )
+
+    if not session_id.startswith("scheduled_"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid scheduler session ID format.",
+        )
+
+    try:
+        app_name = component.get_config("name", "A2A_WebUI_App")
+
+        artifact_part = await artifact_service.load_artifact(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+        )
+
+        if artifact_part is None or artifact_part.inline_data is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Artifact '{filename}' not found or is empty.",
+            )
+
+        data_bytes = artifact_part.inline_data.data
+        mime_type = artifact_part.inline_data.mime_type or "application/octet-stream"
+
+        filename_encoded = quote(filename)
+        disposition = "attachment" if download else "inline"
+
+        return StreamingResponse(
+            io.BytesIO(data_bytes),
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": f"{disposition}; filename*=UTF-8''{filename_encoded}"
+            },
+        )
+
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Artifact '{filename}' not found.",
+        )
+    except Exception as e:
+        log.exception("%s Error loading artifact: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load artifact: {str(e)}",
+        )
+
+
+@router.get(
     "/by-uri",
     response_class=StreamingResponse,
     summary="Get Artifact by URI",

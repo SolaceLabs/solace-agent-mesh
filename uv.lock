@@ -235,6 +235,20 @@ wheels = [
 ]
 
 [[package]]
+name = "apscheduler"
+version = "3.10.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytz" },
+    { name = "six" },
+    { name = "tzlocal" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/34/5dcb368cf89f93132d9a31bd3747962a9dc874480e54333b0c09fa7d56ac/APScheduler-3.10.4.tar.gz", hash = "sha256:e6df071b27d9be898e486bc7940a7be50b4af2e9da7c08f0744a96d4bd4cef4a", size = 100832, upload-time = "2023-08-19T16:44:58.293Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/13/b5/7af0cb920a476dccd612fbc9a21a3745fb29b1fcd74636078db8f7ba294c/APScheduler-3.10.4-py3-none-any.whl", hash = "sha256:fb91e8a768632a4756a585f79ec834e0e27aad5860bac7eaa523d9ccefd87661", size = 59303, upload-time = "2023-08-19T16:44:56.814Z" },
+]
+
+[[package]]
 name = "asteval"
 version = "1.0.6"
 source = { registry = "https://pypi.org/simple" }
@@ -848,6 +862,19 @@ wheels = [
 [package.optional-dependencies]
 toml = [
     { name = "tomli", marker = "python_full_version <= '3.11'" },
+]
+
+[[package]]
+name = "croniter"
+version = "2.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/76/85/b342e887810cb59c7a1e0edd6b06aef3e9ad35988d3be21c426a89f15882/croniter-2.0.5.tar.gz", hash = "sha256:f1f8ca0af64212fbe99b1bee125ee5a1b53a9c1b433968d8bca8817b79d237f3", size = 47450, upload-time = "2024-04-20T17:55:38.474Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/ce/1c532b78d43c2eaadc8e900d9686999ff99dd459bc51fcdf855305e57ed9/croniter-2.0.5-py2.py3-none-any.whl", hash = "sha256:fdbb44920944045cc323db54599b321325141d82d14fa7453bc0699826bbe9ed", size = 20254, upload-time = "2024-04-20T17:55:35.592Z" },
 ]
 
 [[package]]
@@ -3072,6 +3099,15 @@ wheels = [
 ]
 
 [[package]]
+name = "nanoid"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b7/9d/0250bf5935d88e214df469d35eccc0f6ff7e9db046fc8a9aeb4b2a192775/nanoid-2.0.0.tar.gz", hash = "sha256:5a80cad5e9c6e9ae3a41fa2fb34ae189f7cb420b2a5d8f82bd9d23466e4efa68", size = 3290, upload-time = "2018-11-20T14:45:51.578Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2e/0d/8630f13998638dc01e187fadd2e5c6d42d127d08aeb4943d231664d6e539/nanoid-2.0.0-py3-none-any.whl", hash = "sha256:90aefa650e328cffb0893bbd4c236cfd44c48bc1f2d0b525ecc53c3187b653bb", size = 5844, upload-time = "2018-11-20T14:45:50.165Z" },
+]
+
+[[package]]
 name = "narwhals"
 version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -4855,15 +4891,18 @@ source = { editable = "." }
 dependencies = [
     { name = "a2a-sdk", extra = ["http-server"] },
     { name = "alembic" },
+    { name = "apscheduler" },
     { name = "asteval" },
     { name = "authlib" },
     { name = "azure-cognitiveservices-speech" },
+    { name = "azure-identity" },
     { name = "azure-storage-blob" },
     { name = "beautifulsoup4" },
     { name = "bm25s" },
     { name = "boto3" },
     { name = "cachetools" },
     { name = "click" },
+    { name = "croniter" },
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "filelock" },
@@ -4885,6 +4924,7 @@ dependencies = [
     { name = "markdownify" },
     { name = "markitdown", extra = ["all"] },
     { name = "mermaid-cli" },
+    { name = "nanoid" },
     { name = "numpy" },
     { name = "openai" },
     { name = "openfeature-sdk" },
@@ -4951,16 +4991,19 @@ requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = "==0.3.7" },
     { name = "aiosqlite", marker = "extra == 'test'" },
     { name = "alembic", specifier = "==1.16.5" },
+    { name = "apscheduler", specifier = "==3.10.4" },
     { name = "asteval", specifier = "==1.0.6" },
     { name = "asyncpg", marker = "extra == 'test'" },
     { name = "authlib", specifier = ">=1.6.9" },
     { name = "azure-cognitiveservices-speech", specifier = "==1.41.1" },
+    { name = "azure-identity", specifier = ">=1.17.0" },
     { name = "azure-storage-blob", specifier = "==12.28.0" },
     { name = "beautifulsoup4", specifier = "==4.13.5" },
     { name = "bm25s", specifier = "==0.2.14" },
     { name = "boto3", specifier = "==1.40.37" },
     { name = "cachetools", specifier = "==7.0.1" },
     { name = "click", specifier = "==8.1.8" },
+    { name = "croniter", specifier = "==2.0.5" },
     { name = "cryptography", specifier = "==46.0.5" },
     { name = "fastapi", specifier = "==0.120.1" },
     { name = "fastmcp", marker = "extra == 'test'", specifier = "==2.11.2" },
@@ -4986,6 +5029,7 @@ requires-dist = [
     { name = "markdownify", specifier = "==1.2.0" },
     { name = "markitdown", extras = ["all"], specifier = "==0.1.4" },
     { name = "mermaid-cli", specifier = "==0.1.2" },
+    { name = "nanoid", specifier = "==2.0.0" },
     { name = "numpy", specifier = "==2.2.6" },
     { name = "openai", specifier = "==1.99.9" },
     { name = "openfeature-sdk", specifier = "==0.8.4" },
