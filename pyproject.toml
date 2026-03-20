@@ -40,6 +40,7 @@ dependencies = [
     "kaleido==0.2.1",
     "PyYAML==6.0.2",
     "python-multipart==0.0.22",
+    "pip>=26.0",  # [CVE-2026-1703] Security fix: addresses path traversal vulnerability in wheel extraction
     "wheel==0.46.2",
     "jaraco.context==6.1.0",
     "protobuf==6.33.5",
