@@ -751,7 +751,7 @@ async def _submit_task(
         # Gated on project_indexing feature flag and BM25 index existence — the agent callback
         # injects index_search when it sees project_id, so only pass it when the tool is usable.
         if project_id:
-            indexing_enabled = component.feature_checker.is_enabled("project_indexing")
+            indexing_enabled = openfeature_api.get_client().get_boolean_value("project_indexing", False)
             if indexing_enabled and project:
                 has_index = await _check_project_has_bm25_index(
                     project=project,

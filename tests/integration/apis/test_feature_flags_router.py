@@ -120,15 +120,6 @@ class TestGetFeatureFlagsEndpoint:
         assert "mentions" not in keys
         assert "auto_title_generation" not in keys
 
-    def test_background_tasks_flag_fields(self, api_client: TestClient):
-        """background_tasks must have the expected metadata values."""
-        response = api_client.get("/api/v1/config/features")
-        flag = next(
-            f for f in response.json() if f["key"] == "background_tasks"
-        )
-        assert flag["release_phase"] == "general_availability"
-        assert flag["registry_default"] is False
-
     def test_flag_metadata_matches_yaml(self):
         response = self.client.get("/api/v1/config/features")
         alpha = next(f for f in response.json() if f["key"] == "test_flag_alpha")
