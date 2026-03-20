@@ -880,6 +880,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 task_data.status.state.value,
             )
             await self.adapter.handle_error(sam_error, response_context)
+            # handle_task_complete ensures the adapter finishes any pending operations
+            # (e.g., waiting for message queues) and performs cleanup
             await self.adapter.handle_task_complete(response_context)
             return
 
