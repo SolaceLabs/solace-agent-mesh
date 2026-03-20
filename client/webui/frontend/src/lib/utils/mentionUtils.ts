@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import type { Person, Mention } from "@/lib/types/people";
 
 /**
@@ -166,9 +167,12 @@ export function internalToDisplayText(text: string): string {
  * This is used for copying user messages to clipboard
  */
 export function extractDisplayTextFromHTML(html: string): string {
+    // Sanitize input HTML to prevent XSS during parsing
+    const sanitizedHtml = DOMPurify.sanitize(html);
+
     // Create a temporary div to parse the HTML
     const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = html;
+    tempDiv.innerHTML = sanitizedHtml;
 
     // Walk through the DOM and build plain text
     const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
