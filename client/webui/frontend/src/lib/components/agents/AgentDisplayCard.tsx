@@ -92,7 +92,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
         <div className="h-[400px] w-full flex-shrink-0 cursor-pointer rounded-lg bg-(--background-w10) sm:w-[380px]" onClick={onToggleExpand} role="button" tabIndex={0} aria-expanded={isExpanded}>
             {/* Front face */}
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
-                <div className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
+                <div className="card-surface absolute flex h-full w-full flex-col overflow-hidden rounded-lg" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
                     <div className="flex items-center p-4">
                         <div className="flex min-w-0 flex-1 items-center">
                             {isWorkflow ? <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-(--brand-wMain)" /> : <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-(--brand-wMain)" />}
@@ -108,13 +108,13 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         <DetailItem label="Version" value={agent.version} icon={<GitMerge size={14} />} />
                         {agent.capabilities && Object.keys(agent.capabilities).length > 0 && <DetailItem label="Key Capabilities" value={renderCapabilities(agent.capabilities as { [key: string]: unknown })} icon={<Key size={14} />} fullWidthValue />}
                     </div>
-                    <div data-testid="clickForDetails" className="border-t p-2 text-center text-sm text-(--secondary-text-wMain)">
+                    <div data-testid="clickForDetails" className="border-t border-(--secondary-w20) p-2 text-center text-sm text-(--secondary-text-wMain)">
                         Click for details
                     </div>
                 </div>
 
                 {/* Back face */}
-                <div className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
+                <div className="card-surface absolute flex h-full w-full flex-col overflow-hidden rounded-lg" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
                     <div className="flex items-center p-3">
                         <h3 className="text-md truncate font-semibold" title={agent.name}>
                             Details: {agent.displayName || agent.name}
@@ -160,7 +160,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             <DetailItem label="A2A Protocol" value={agent.protocolVersion} />
                         </div>
                     </div>
-                    <div className="border-t p-2 text-center text-sm text-(--secondary-text-wMain)">Click for summary</div>
+                    <div className="border-t border-(--secondary-w20) p-2 text-center text-sm text-(--secondary-text-wMain)">Click for summary</div>
                 </div>
             </div>
         </div>

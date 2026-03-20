@@ -32,7 +32,7 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
 
     return (
         <div
-            className={`${NODE_BASE_STYLES.CONDITION_PILL} border border-(--secondary-w20) bg-(--background-w10) text-(--secondary-text-wMain) ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
+            className={`${NODE_BASE_STYLES.CONDITION_PILL} text-(--secondary-text-wMain) ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
             style={{
                 width: isDefault ? "auto" : `${node.width}px`,
                 height: `${node.height}px`,

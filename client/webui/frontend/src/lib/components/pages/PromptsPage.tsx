@@ -356,7 +356,7 @@ export const PromptsPage: React.FC = () => {
             {isLoading ? (
                 <EmptyState title="Loading prompts..." variant="loading" />
             ) : (
-                <div className="relative flex-1 bg-(--background-w20) p-4">
+                <div className="relative flex-1 p-4">
                     <PromptCards
                         prompts={promptGroups}
                         onManualCreate={() => navigate("/prompts/new?mode=manual")}

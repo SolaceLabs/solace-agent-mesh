@@ -16,9 +16,7 @@ const UserNode: FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
             className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-            style={{
-                width: `${USER_WIDTH}px`,
-            }}
+            style={{ width: `${USER_WIDTH}px` }}
             onClick={e => {
                 e.stopPropagation();
                 onClick?.(node);

@@ -73,6 +73,15 @@
     scrollbar-color: var(--secondary-w70) transparent;
 }
 
+.card-surface {
+    border: 1px solid var(--secondary-w20);
+    box-shadow: 0px 1px 4px 0px var(--stateLayer-w10);
+}
+
+.card-surface-hover:hover {
+    box-shadow: 0px 4px 12px 0px var(--stateLayer-w10);
+}
+
 .overlay-backdrop {
     background-color: rgb(0 0 0 / 0.5);
 }
@@ -114,7 +123,7 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to top, transparent, var(--background-w20));
+        background: linear-gradient(to top, transparent, var(--background-w10));
         pointer-events: none;
         z-index: 10;
     }
@@ -126,7 +135,7 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to bottom, transparent, var(--background-w20));
+        background: linear-gradient(to bottom, transparent, var(--background-w10));
         pointer-events: none;
         z-index: 10;
     }

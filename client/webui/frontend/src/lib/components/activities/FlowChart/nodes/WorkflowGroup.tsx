@@ -292,9 +292,7 @@ const WorkflowGroup = ({ node, isSelected, onClick, onChildClick, onExpand, onCo
         return (
             <div
                 className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
-                style={{
-                    width: `${WORKFLOW_WIDTH}px`,
-                }}
+                style={{ width: `${WORKFLOW_WIDTH}px` }}
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
