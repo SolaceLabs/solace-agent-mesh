@@ -276,12 +276,12 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                     />
                                 </ConditionalTooltip>
                                 {!isCollapsed && item.hasSubmenu && expandedMenus[item.id] && item.children && (
-                                    <div className="pl-8">
+                                    <div className="pl-10">
                                         {item.children.map(child => {
                                             const isChildActive = activeItem === child.id;
                                             return (
                                                 <div key={child.id} className="group relative">
-                                                    <div className={cn("absolute top-0 left-0 h-full bg-(--brand-w60) transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
+                                                    <div className={cn("absolute top-0 left-0 h-full bg-(--brand-w60) transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30")} />
                                                     <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
                                                 </div>
                                             );
