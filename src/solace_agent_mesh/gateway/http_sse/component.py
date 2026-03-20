@@ -354,14 +354,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
 
-    def _init_feature_checker(self) -> None:
-        """Log the feature flag count after base-class initialization has run."""
-        log.info(
-            "%s Feature flags initialised (%d flags).",
-            self.log_identifier,
-            len(feature_flags.get_registry().keys()),
-        )
-
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
             timer_id = event.data.get("timer_id")
@@ -1367,7 +1359,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             setup_dependencies(self)
 
-            self._init_feature_checker()
+            log.info(
+                "%s Feature flags initialised (%d flags).",
+                self.log_identifier,
+                len(feature_flags.get_registry().keys()),
+            )
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.

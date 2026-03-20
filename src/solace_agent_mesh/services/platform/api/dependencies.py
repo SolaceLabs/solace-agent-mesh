@@ -14,8 +14,6 @@ from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from ....common.features.fastapi import get_feature_value, require_feature  # noqa: F401 — re-exported for platform service routers
-
 if TYPE_CHECKING:
     from ..component import PlatformServiceComponent
     from ..services import ModelConfigService
