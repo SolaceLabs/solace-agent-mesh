@@ -204,9 +204,9 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const textAnimBase = "overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-200";
 
     return (
-        <nav className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg) transition-[width] duration-200 ease-out", isCollapsed ? "w-16" : "w-64")}>
+        <nav className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg) transition-[width] duration-200 ease-out", isCollapsed ? "w-20" : "w-64")}>
             {/* Header */}
-            <div className="relative flex min-h-[80px] w-full items-center border-b border-(--secondary-w70) py-3 pr-4 pl-4">
+            <div className="relative flex min-h-[80px] w-full items-center border-b border-(--secondary-w70) py-3 pr-4 pl-7">
                 <div className="flex items-center gap-2">{renderHeader()}</div>
                 {!hideCollapseButton &&
                     (isCollapsed ? (
@@ -298,7 +298,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
             {showRecentChats && (
                 <div className={cn("flex min-h-0 flex-col transition-[opacity] duration-200", isCollapsed ? "pointer-events-none h-0 min-h-0 flex-none overflow-hidden opacity-0" : "flex-1 opacity-100")}>
                     <div className="border-t border-(--secondary-w70)" />
-                    <div className="mb-2 flex items-center justify-between pt-4 pr-6 pl-6">
+                    <div className="mb-2 flex items-center justify-between pt-6 pr-6 pl-6">
                         <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
                         {/** Hard-code colours to avoid extra variables in the theme for a single usage, may reconsider if there is greater usage */}
                         <Link to="/chat" state={{ openSessionsPanel: true }} className="cursor-pointer text-sm text-[#679DB4] no-underline hover:text-[#E6EFF2]">

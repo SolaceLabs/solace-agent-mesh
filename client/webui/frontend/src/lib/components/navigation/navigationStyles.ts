@@ -3,7 +3,7 @@ import { cva } from "class-variance-authority";
 export const HOVER_BG = "hover:bg-(--darkSurface-bgActive)";
 export const ACTIVE_BG = "bg-(--darkSurface-bgActive)";
 
-export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "justify-start", "transition-colors", "py-6", "w-full", "pl-4", "pr-4", "text-sm", "font-normal", "no-underline", HOVER_BG], {
+export const navButtonStyles = cva(["flex", "h-10", "cursor-pointer", "items-center", "justify-start", "transition-colors", "py-6", "w-full", "pl-6", "pr-4", "text-sm", "font-normal", "no-underline", HOVER_BG], {
     variants: {
         active: {
             true: ACTIVE_BG,
