@@ -156,3 +156,23 @@ export const mockModelConfigs: ModelConfig[] = [
         updatedTime: Date.now(),
     },
 ];
+
+// ============================================================================
+// Individual Model Configurations (for specific story use cases)
+// ============================================================================
+
+export const anthropicModelConfig: ModelConfig = {
+    id: "1",
+    alias: "anthropic-model",
+    provider: "anthropic",
+    modelName: "claude-3-5-sonnet",
+    apiBase: "https://api.anthropic.com",
+    authType: "apikey",
+    authConfig: { type: "apikey", keyName: "x-api-key" },
+    modelParams: { temperature: 0.1, max_tokens: 4096, system_prompt_caching: true },
+    description: "Enterprise-grade planning model with prompt caching for cost optimization",
+    createdBy: "admin@company.com",
+    updatedBy: "admin@company.com",
+    createdTime: 1704067200000, // 2024-01-01
+    updatedTime: 1710806400000, // 2024-03-19
+};

@@ -1,11 +1,14 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge } from "@/lib/components/ui";
+import { Ellipsis } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 
 import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelProviderIcon } from "./ModelProviderIcon";
+import { PROVIDER_DISPLAY_NAMES } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
 const MODELS_HEADER = "Your Models Are Now Accessible to Your Team";
@@ -14,23 +17,12 @@ const MODELS_DESCRIPTION =
 const MODELS_LEARN_MORE_TEXT = "Learn about managing models";
 const MODELS_URL = "#"; // TODO: Add documentation URL
 
-const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-    anthropic: "Anthropic",
-    openai: "OpenAI",
-    openai_compatible: "OpenAI Compatible",
-    google_ai_studio: "Google AI Studio",
-    vertex_ai: "Google Vertex AI",
-    azure_openai: "Azure OpenAI",
-    bedrock: "Amazon Bedrock",
-    ollama: "Ollama",
-    custom: "Custom",
-};
-
 const EMPTY_STATE_TITLE = "Match AI Models to Your Team's Workflows";
 const EMPTY_STATE_DESCRIPTION =
     "Different models specialize in different use cases. Organize your models by use case and assign to agents based on what the agent needs. Start with our suggested names or create your own. The 'General' model is required but you can customize everything else to fit your workflow.";
 
 export const ModelsView: React.FC = () => {
+    const navigate = useNavigate();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading, error: modelConfigsErrorObj } = useModelConfigs();
     const [currentPage, setCurrentPage] = useState<number>(1);
 
@@ -47,9 +39,29 @@ export const ModelsView: React.FC = () => {
     const currentModels = modelConfigs?.slice(startIndex, endIndex) || [];
 
     const handleSelectModel = (model: ModelConfig) => {
-        // TODO: Navigate to model details page
-        console.log("Selected model:", model.alias);
+        navigate(`/models/${model.alias}`);
     };
+
+    const getRowMenuActions = (model: ModelConfig): MenuAction[] => [
+        {
+            id: "open-details",
+            label: "Open Details",
+            onClick: () => handleSelectModel(model),
+        },
+        {
+            id: "edit",
+            label: "Edit",
+            onClick: () => {},
+            disabled: true,
+        },
+        {
+            id: "delete",
+            label: "Delete",
+            onClick: () => {},
+            disabled: true,
+            divider: true,
+        },
+    ];
 
     // Loading state
     if (modelConfigsLoading) {
@@ -79,6 +91,7 @@ export const ModelsView: React.FC = () => {
                                         </TableHead>
                                         <TableHead className="font-semibold">Model</TableHead>
                                         <TableHead className="font-semibold">Model Provider</TableHead>
+                                        <TableHead className="w-12"></TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -93,6 +106,18 @@ export const ModelsView: React.FC = () => {
                                             </TableCell>
                                             <TableCell>{model.modelName}</TableCell>
                                             <TableCell>{PROVIDER_DISPLAY_NAMES[model.provider] || model.provider}</TableCell>
+                                            <TableCell className="pr-4 text-right">
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button variant="ghost" size="sm" title="Actions">
+                                                            <Ellipsis className="h-5 w-5" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent align="end" side="bottom" className="w-auto" sideOffset={0}>
+                                                        <Menu actions={getRowMenuActions(model)} />
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
