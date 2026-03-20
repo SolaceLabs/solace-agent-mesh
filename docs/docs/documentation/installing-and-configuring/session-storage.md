@@ -368,6 +368,67 @@ agents:
     session_service: *default_session_service
 ```
 
+## Managing Session History with Auto-Compaction
+
+Long conversations can exceed the token limits of language models, causing processing failures and interrupted conversations. Auto-compaction automatically summarizes older portions of conversation history when sessions grow too large, allowing conversations to continue seamlessly.
+
+Auto-compaction is an agent-level feature. When enabled on an agent, the system monitors conversation size and proactively compacts older messages into summaries before reaching the model's token limit. Users receive a notification with the summary when compaction occurs, and the conversation continues normally.
+
+Auto-compaction is disabled by default and can be enabled per agent. This feature is not available for gateways.
+
+### Configuration
+
+Auto-compaction is configured in your agent's YAML configuration file.
+
+```yaml
+session_service:
+  type: "sql"
+  database_url: "${AGENT_DATABASE_URL, sqlite:///agent-session.db}"
+  default_behavior: "PERSISTENT"
+
+auto_summarization:
+  enabled: true
+  compaction_percentage: 0.25
+```
+
+Parameters:
+- `enabled`: Enable or disable automatic conversation history compaction (default: `false`)
+- `compaction_percentage`: Percentage of conversation history to compact when triggered, value between 0.0 and 1.0 (default: `0.25`)
+
+Disable auto-compaction:
+
+```yaml
+auto_summarization:
+  enabled: false
+```
+
+Compact more aggressively (80% of history):
+
+```yaml
+auto_summarization:
+  enabled: true
+  compaction_percentage: 0.8
+```
+
+Compact more conservatively (10% of history):
+
+```yaml
+auto_summarization:
+  enabled: true
+  compaction_percentage: 0.1
+```
+
+### How Compaction Works
+
+When auto-compaction triggers:
+
+1. The system identifies older conversation turns to summarize
+2. An AI-generated summary is created from the compacted messages
+3. Users receive a notification in the chat interface showing the summary
+4. The conversation continues normally with the recent context preserved
+
+Compacted messages remain in the database for audit purposes but are replaced with summaries in the active conversation context.
+
 ## Migrating from Ephemeral to Persistent
 
 Moving from ephemeral mode to persistent mode can be done without losing active sessions.
