@@ -13,11 +13,11 @@ import { NavItemButton } from "./NavItemButton";
 import { navButtonStyles, iconWrapperStyles, iconStyles, navTextStyles } from "./navigationStyles";
 import type { NavItem } from "./types";
 
-/** Wraps children in a Tooltip when collapsed, renders children directly when expanded */
-const ConditionalTooltip: React.FC<{ show: boolean; label: string; children: React.ReactElement }> = ({ show, label, children }) => (
+/** Wraps children in a Tooltip when collapsed or when a custom tooltip is provided */
+const ConditionalTooltip: React.FC<{ show: boolean; label: string; tooltip?: string; children: React.ReactElement }> = ({ show, label, tooltip, children }) => (
     <Tooltip>
         <TooltipTrigger asChild>{children}</TooltipTrigger>
-        {show && <TooltipContent side="right">{label}</TooltipContent>}
+        {(show || tooltip) && <TooltipContent side="right">{show ? label : tooltip}</TooltipContent>}
     </Tooltip>
 );
 
@@ -248,7 +248,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         const hasActiveChild = item.children?.some(child => activeItem === child.id) ?? false;
                         return (
                             <div key={item.id}>
-                                <ConditionalTooltip show={isCollapsed} label={item.label}>
+                                <ConditionalTooltip show={isCollapsed} label={item.label} tooltip={item.tooltip}>
                                     <NavItemButton
                                         item={item}
                                         isActive={activeItem === item.id}
@@ -282,7 +282,9 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                             return (
                                                 <div key={child.id} className="group relative">
                                                     <div className={cn("absolute top-0 left-0 h-full bg-(--brand-w60) transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
-                                                    <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
+                                                    <ConditionalTooltip show={false} label={child.label} tooltip={child.tooltip}>
+                                                        <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
+                                                    </ConditionalTooltip>
                                                 </div>
                                             );
                                         })}
