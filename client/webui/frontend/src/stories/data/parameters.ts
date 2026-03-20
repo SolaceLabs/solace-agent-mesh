@@ -63,7 +63,7 @@ export const withProjectSharingEnabled = {
     configContext: {
         configUseAuthorization: true,
         configFeatureEnablement: {
-            projectSharingEnabled: true,
+            project_sharing: true,
         },
     },
 };
