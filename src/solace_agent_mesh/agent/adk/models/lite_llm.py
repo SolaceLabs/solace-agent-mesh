@@ -858,11 +858,10 @@ class LiteLlm(BaseLlm):
     """The LLM client to use for the model."""
 
     _model_config: Dict[str, Any] = PrivateAttr(default_factory=dict)
-
-    _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
-    _cache_strategy: str = "5m"  # Default to 5-minute ephemeral cache
-    _status: str = "ready"  # "none" | "initializing" | "ready"
-    _on_status_change: Optional[Callable] = None  # Callback: (old_status, new_status) -> None
+    _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = PrivateAttr(default=None)
+    _cache_strategy: str = PrivateAttr(default="5m") # Default to 5-minute ephemeral cache
+    _status: str = PrivateAttr(default="ready") # "none" | "initializing" | "ready"
+    _on_status_change: Optional[Callable] = PrivateAttr(default=None) # Callback: (old_status, new_status) -> None
 
     def __init__(
         self,

@@ -1,7 +1,9 @@
 """Service layer for model configuration business logic."""
 
 import logging
-from typing import List
+
+from typing import Dict, List, Optional
+
 from sqlalchemy.orm import Session
 
 from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
@@ -64,16 +66,17 @@ class ModelConfigService:
         db_configs = self.repository.get_all(db)
         return [self._to_response(config) for config in db_configs]
 
-    def get_by_alias(self, db: Session, alias: str) -> ModelConfigurationResponse:
+    def get_by_alias(self, db: Session, alias: str, raw=False) -> ModelConfigurationResponse:
         """
         Retrieve a model configuration by alias (case-sensitive exact match).
 
         Args:
             db: SQLAlchemy database session
             alias: Model alias to look up
+            raw: If True, return unredacted LiteLlm config dict instead of response model
 
         Returns:
-            ModelConfigurationResponse if found
+            ModelConfigurationResponse if found, or dict if raw=True
 
         Raises:
             EntityNotFoundError: If no configuration found with the given alias
@@ -83,6 +86,29 @@ class ModelConfigService:
         if not db_config:
             raise EntityNotFoundError("ModelConfiguration", alias)
 
+        if raw:
+            return self._to_raw_litellm_config(db_config)
+        return self._to_response(db_config)
+    
+    def get_by_alias_or_id(self, db: Session, alias: str, raw=False) -> Optional[Dict]:
+        """
+        Retrieve a model configuration by alias (case-sensitive exact match) or ID.
+
+        Args:
+            db: SQLAlchemy database session
+            alias: Model alias or ID to look up
+            raw: If True, return unredacted LiteLlm config dict instead of response model
+
+        Returns:
+            ModelConfigurationResponse if found, None otherwise
+        """
+        db_config = self.repository.get_by_alias_or_id(db, alias)
+
+        if not db_config:
+            return None
+
+        if raw:
+            return self._to_raw_litellm_config(db_config)
         return self._to_response(db_config)
 
     def create(
@@ -258,3 +284,19 @@ class ModelConfigService:
             created_time=db_model.created_time,
             updated_time=db_model.updated_time,
         )
+
+    @staticmethod
+    def _to_raw_litellm_config(db_model: ModelConfiguration) -> Dict:
+        """Build an unredacted LiteLlm config dict from a DB record."""
+        config = {"model": db_model.model_name}
+        if db_model.api_base:
+            config["api_base"] = db_model.api_base
+        # Merge auth credentials (unredacted)
+        if db_model.model_auth_config:
+            auth_config = dict(db_model.model_auth_config)
+            auth_config.pop("type", None)
+            config.update(auth_config)
+        # Merge model params
+        if db_model.model_params:
+            config.update(db_model.model_params)
+        return config
