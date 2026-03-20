@@ -219,6 +219,22 @@ class ArtifactServiceConfig(SamConfigBase):
         default=None,
         description="Custom identifier for artifact scope (required if artifact_scope is 'custom').",
     )
+    container_name: Optional[str] = Field(
+        default=None,
+        description="Azure Blob Storage container name (required for type 'azure').",
+    )
+    account_name: Optional[str] = Field(
+        default=None,
+        description="Azure Storage account name (for type 'azure').",
+    )
+    connection_string: Optional[str] = Field(
+        default=None,
+        description="Azure Storage connection string (for type 'azure').",
+    )
+    account_key: Optional[str] = Field(
+        default=None,
+        description="Azure Storage account key (for type 'azure').",
+    )
 
     @model_validator(mode="after")
     def check_artifact_scope(self) -> "ArtifactServiceConfig":
