@@ -537,6 +537,7 @@ class WorkflowDefinition(BaseModel):
 class WorkflowAppConfig(SamAgentAppConfig):
     """Workflow app configuration extends agent config."""
 
+    agent_type: Literal["workflow"] = "workflow"
 
     # Rename agent_name to name for clarity in workflow context
     name: str = Field(..., description="Unique name for this workflow instance.")
