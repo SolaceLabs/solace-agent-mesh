@@ -40,14 +40,7 @@ export const ModelDetailsPage = () => {
 
     const headerButtons = useMemo(() => {
         return [
-            <Button
-                key="edit"
-                variant="ghost"
-                onClick={() => {}}
-                title="Edit Model"
-                disabled={true}
-                // TODO: Enable edit in PR #4
-            >
+            <Button key="edit" variant="ghost" onClick={() => {}} title="Edit Model" disabled={true}>
                 <Pencil />
                 Edit
             </Button>,
