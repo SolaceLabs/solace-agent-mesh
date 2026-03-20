@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Part, DataPart, TextPart } from "@/lib/types/be";
 import type { MessageFE } from "@/lib/types/fe";
-import { filterContentParts, checkHasVisibleContent, isCompactionNotificationBubble } from "./messageProcessing";
+import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "./messageProcessing";
 
 // --- helpers ---
 
@@ -21,43 +21,43 @@ function agentMessage(taskId: string, parts: Part[] = []): MessageFE {
     return { isUser: false, taskId, parts, role: "agent" } as MessageFE;
 }
 
-// --- filterContentParts ---
+// --- filterRenderableDataParts ---
 
-describe("filterContentParts", () => {
+describe("filterRenderableDataParts", () => {
     it("keeps compaction_notification data parts", () => {
         const parts: Part[] = [dataPart("compaction_notification")];
-        expect(filterContentParts(parts, false)).toEqual(parts);
+        expect(filterRenderableDataParts(parts, false)).toEqual(parts);
     });
 
     it("keeps deep_research_progress data parts", () => {
         const parts: Part[] = [dataPart("deep_research_progress")];
-        expect(filterContentParts(parts, false)).toEqual(parts);
+        expect(filterRenderableDataParts(parts, false)).toEqual(parts);
     });
 
     it("filters out generic data parts", () => {
         const parts: Part[] = [dataPart("agent_progress")];
-        expect(filterContentParts(parts, false)).toEqual([]);
+        expect(filterRenderableDataParts(parts, false)).toEqual([]);
     });
 
     it("keeps text parts when no deep research", () => {
         const parts: Part[] = [textPart("hello")];
-        expect(filterContentParts(parts, false)).toEqual(parts);
+        expect(filterRenderableDataParts(parts, false)).toEqual(parts);
     });
 
     it("filters text parts when deep research present", () => {
         const drp = dataPart("deep_research_progress");
         const parts: Part[] = [textPart("hello"), drp];
-        expect(filterContentParts(parts, true)).toEqual([drp]);
+        expect(filterRenderableDataParts(parts, true)).toEqual([drp]);
     });
 
     it("keeps file parts always", () => {
         const parts: Part[] = [filePart()];
-        expect(filterContentParts(parts, false)).toEqual(parts);
-        expect(filterContentParts(parts, true)).toEqual(parts);
+        expect(filterRenderableDataParts(parts, false)).toEqual(parts);
+        expect(filterRenderableDataParts(parts, true)).toEqual(parts);
     });
 
     it("returns empty array for empty input", () => {
-        expect(filterContentParts([], false)).toEqual([]);
+        expect(filterRenderableDataParts([], false)).toEqual([]);
     });
 
     it("handles mixed parts correctly", () => {
@@ -65,7 +65,7 @@ describe("filterContentParts", () => {
         const txt = textPart("response");
         const generic = dataPart("tool_result");
         const file = filePart();
-        const result = filterContentParts([cn, txt, generic, file], false);
+        const result = filterRenderableDataParts([cn, txt, generic, file], false);
         expect(result).toEqual([cn, txt, file]);
     });
 });
@@ -74,35 +74,31 @@ describe("filterContentParts", () => {
 
 describe("checkHasVisibleContent", () => {
     it("returns true for compaction_notification", () => {
-        expect(checkHasVisibleContent([dataPart("compaction_notification")], false)).toBe(true);
+        expect(checkHasVisibleContent([dataPart("compaction_notification")])).toBe(true);
     });
 
     it("returns true for deep_research_progress", () => {
-        expect(checkHasVisibleContent([dataPart("deep_research_progress")], false)).toBe(true);
+        expect(checkHasVisibleContent([dataPart("deep_research_progress")])).toBe(true);
     });
 
     it("returns true for non-empty text", () => {
-        expect(checkHasVisibleContent([textPart("hello")], false)).toBe(true);
+        expect(checkHasVisibleContent([textPart("hello")])).toBe(true);
     });
 
     it("returns false for whitespace-only text", () => {
-        expect(checkHasVisibleContent([textPart("   ")], false)).toBe(false);
-    });
-
-    it("returns true when isTaskFailed", () => {
-        expect(checkHasVisibleContent([], true)).toBe(true);
+        expect(checkHasVisibleContent([textPart("   ")])).toBe(false);
     });
 
     it("returns true for file part", () => {
-        expect(checkHasVisibleContent([filePart()], false)).toBe(true);
+        expect(checkHasVisibleContent([filePart()])).toBe(true);
     });
 
-    it("returns false for empty parts when not failed", () => {
-        expect(checkHasVisibleContent([], false)).toBe(false);
+    it("returns false for empty parts", () => {
+        expect(checkHasVisibleContent([])).toBe(false);
     });
 
     it("returns false for generic data part only", () => {
-        expect(checkHasVisibleContent([dataPart("tool_result")], false)).toBe(false);
+        expect(checkHasVisibleContent([dataPart("tool_result")])).toBe(false);
     });
 });
 

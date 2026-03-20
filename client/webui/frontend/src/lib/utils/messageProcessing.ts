@@ -2,11 +2,11 @@ import type { Part, DataPart, TextPart } from "@/lib/types/be";
 import type { MessageFE } from "@/lib/types/fe";
 
 /**
- * Filters message parts to only those relevant for rendering.
+ * Filters message parts to only renderable data parts and visible content.
  * Keeps: compaction_notification, deep_research_progress data parts, files, artifacts.
  * Keeps text parts only when there is no deep research progress.
  */
-export function filterContentParts(parts: Part[], hasDeepResearchProgress: boolean): Part[] {
+export function filterRenderableDataParts(parts: Part[], hasDeepResearchProgress: boolean): Part[] {
     return parts.filter(p => {
         // Keep deep_research_progress and compaction_notification data parts
         if (p.kind === "data") {
@@ -25,18 +25,11 @@ export function filterContentParts(parts: Part[], hasDeepResearchProgress: boole
 
 /**
  * Determines whether filtered parts contain visible content worth creating a message bubble for.
- * Failed tasks always have visible content. Otherwise checks for non-empty text, files,
- * or renderable data parts (deep_research_progress, compaction_notification).
+ * Checks for non-empty text, files, or renderable data parts (deep_research_progress, compaction_notification).
  */
-export function checkHasVisibleContent(parts: Part[], isTaskFailed: boolean): boolean {
-    return (
-        isTaskFailed ||
-        parts.some(
-            p =>
-                (p.kind === "text" && (p as TextPart).text.trim()) ||
-                p.kind === "file" ||
-                (p.kind === "data" && (p as DataPart).data && ((p as DataPart).data.type === "deep_research_progress" || (p as DataPart).data.type === "compaction_notification"))
-        )
+export function checkHasVisibleContent(parts: Part[]): boolean {
+    return parts.some(
+        p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && ((p as DataPart).data.type === "deep_research_progress" || (p as DataPart).data.type === "compaction_notification"))
     );
 }
 

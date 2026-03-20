@@ -13,7 +13,7 @@ import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useError
 import { useSseErrorRecovery } from "@/lib/hooks/useSseErrorRecovery";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
-import { filterContentParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
+import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -1402,7 +1402,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return false;
             });
 
-            const newContentParts = filterContentParts(messageToProcess?.parts || [], !!hasDeepResearchProgress);
+            const newContentParts = filterRenderableDataParts(messageToProcess?.parts || [], !!hasDeepResearchProgress);
             const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
             // Check if this is a failed task
@@ -1469,7 +1469,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 } else {
                     // For failed tasks, always create a message bubble even if there are no content parts
                     // For other cases, only create a new bubble if there is visible content to render.
-                    if (checkHasVisibleContent(newContentParts, isTaskFailed)) {
+                    if (isTaskFailed || checkHasVisibleContent(newContentParts)) {
                         const newBubble: MessageFE = {
                             role: "agent",
                             parts: newContentParts,
