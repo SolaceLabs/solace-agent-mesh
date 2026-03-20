@@ -1,6 +1,9 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import { AgentMeshPage } from "@/lib";
+import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
+
+const OpenFeatureDecorator = createOpenFeatureDecorator({ flags: { model_config_ui: false } });
 
 const meta = {
     title: "Pages/Agents/AgentsPage",
@@ -14,6 +17,7 @@ const meta = {
         },
     },
     decorators: [
+        OpenFeatureDecorator,
         (Story: StoryFn, context: StoryContext) => {
             const storyResult = Story(context.args, context);
 
