@@ -33,7 +33,6 @@ export const ModelDetailsPage = () => {
                 icon: <Trash2 />,
                 iconPosition: "left",
                 disabled: true,
-                // TODO: Enable delete in PR #5 after implementing backend DELETE endpoint
             },
         ];
         return actions;
@@ -41,14 +40,7 @@ export const ModelDetailsPage = () => {
 
     const headerButtons = useMemo(() => {
         return [
-            <Button
-                key="edit"
-                variant="ghost"
-                onClick={() => {}}
-                title="Edit Model"
-                disabled={true}
-                // TODO: Enable edit in PR #4
-            >
+            <Button key="edit" variant="ghost" onClick={() => {}} title="Edit Model" disabled={true}>
                 <Pencil />
                 Edit
             </Button>,
@@ -63,7 +55,7 @@ export const ModelDetailsPage = () => {
                 </PopoverContent>
             </Popover>,
         ];
-    }, []);
+    }, [menuActions]);
 
     const title = modelToView ? modelToView.alias : "N/A";
 
@@ -80,13 +72,13 @@ export const ModelDetailsPage = () => {
                     <PageSection className="gap-4">
                         <div className="font-semibold">Model Details</div>
                         {modelToView.description && (
-                            <PageLabelWithValue className="flex gap-2">
+                            <PageLabelWithValue>
                                 <PageLabel>Description</PageLabel>
                                 <PageValue className="whitespace-pre-wrap">{modelToView.description}</PageValue>
                             </PageLabelWithValue>
                         )}
 
-                        <PageLabelWithValue className="flex gap-2">
+                        <PageLabelWithValue>
                             <PageLabel>Model Provider</PageLabel>
                             <PageValue className="flex items-center gap-2">
                                 <ModelProviderIcon provider={modelToView.provider} size="xs" />
@@ -97,25 +89,25 @@ export const ModelDetailsPage = () => {
 
                     <PageSection className="gap-4">
                         <div className="pt-6 font-semibold">Model Connection Details</div>
-                        <PageLabelWithValue className="flex gap-2">
+                        <PageLabelWithValue>
                             <PageLabel>Model Name</PageLabel>
                             <PageValue>{modelToView.modelName}</PageValue>
                         </PageLabelWithValue>
 
                         {modelToView.apiBase && (
-                            <PageLabelWithValue className="flex gap-2">
+                            <PageLabelWithValue>
                                 <PageLabel>URL</PageLabel>
                                 <PageValue>{modelToView.apiBase}</PageValue>
                             </PageLabelWithValue>
                         )}
 
-                        <PageLabelWithValue className="flex gap-2">
+                        <PageLabelWithValue>
                             <PageLabel>Authentication</PageLabel>
                             <PageValue>{AUTH_TYPE_LABELS[modelToView.authType ?? "none"] ?? modelToView.authType}</PageValue>
                         </PageLabelWithValue>
 
                         {Object.keys(modelToView.modelParams).length > 0 && (
-                            <PageLabelWithValue className="flex gap-2">
+                            <PageLabelWithValue>
                                 <PageLabel>Model Parameters</PageLabel>
                                 <PageValue className="space-y-1">
                                     {Object.entries(modelToView.modelParams).map(([key, value]) => (

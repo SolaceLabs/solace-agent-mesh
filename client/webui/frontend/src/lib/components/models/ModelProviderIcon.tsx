@@ -8,19 +8,16 @@ interface ModelProviderIconProps {
 const sizeConfig = {
     xs: {
         container: "h-5 w-5",
-        margin: "mr-1",
         image: "h-4 w-4",
         text: "text-xs",
     },
     sm: {
         container: "h-8 w-8",
-        margin: "mr-2",
         image: "h-7 w-7",
         text: "text-xs",
     },
     md: {
         container: "h-12 w-12",
-        margin: "mr-4",
         image: "h-10 w-10",
         text: "text-sm",
     },
@@ -48,14 +45,14 @@ export const ModelProviderIcon = ({ provider, size = "md" }: ModelProviderIconPr
 
     if (!iconPath || imageError) {
         return (
-            <div className={`${config.margin} flex bg-[#CFD3D9] ${config.container} items-center justify-center rounded-full`}>
+            <div className={`flex bg-[#CFD3D9] ${config.container} items-center justify-center rounded-full`}>
                 <span className={`text-(--secondary-text-w50) ${config.text} font-semibold`}>{provider.charAt(0).toUpperCase()}</span>
             </div>
         );
     }
 
     return (
-        <div className={`${config.margin} flex ${config.container} items-center justify-center rounded-xs`}>
+        <div className={`flex ${config.container} items-center justify-center rounded-xs`}>
             <img src={iconPath} alt={provider} className={`${config.image} object-contain`} onError={() => setImageError(true)} />
         </div>
     );
