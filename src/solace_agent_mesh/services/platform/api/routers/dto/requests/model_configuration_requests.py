@@ -127,7 +127,7 @@ class SupportedModelsRequest(CamelCaseModel):
     auth_type: Optional[str] = Field(
         None,
         max_length=50,
-        description="Authentication type ('apikey', 'oauth2', 'none')",
+        description="Authentication type ('apikey', 'oauth2', 'none', 'aws_iam', 'gcp_service_account')",
     )
     api_key: Optional[str] = Field(
         None,
@@ -144,4 +144,24 @@ class SupportedModelsRequest(CamelCaseModel):
     token_url: Optional[str] = Field(
         None,
         description="OAuth2 token URL",
+    )
+    aws_access_key_id: Optional[str] = Field(
+        None,
+        description="AWS Access Key ID for aws_iam authentication",
+    )
+    aws_secret_access_key: Optional[str] = Field(
+        None,
+        description="AWS Secret Access Key for aws_iam authentication",
+    )
+    aws_session_token: Optional[str] = Field(
+        None,
+        description="AWS Session Token for aws_iam authentication (optional, for temporary credentials)",
+    )
+    gcp_service_account_json: Optional[str] = Field(
+        None,
+        description="GCP Service Account JSON key for gcp_service_account authentication",
+    )
+    model_params: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Provider-specific parameters (e.g., awsRegionName, vertexProject, vertexLocation, apiVersion)",
     )

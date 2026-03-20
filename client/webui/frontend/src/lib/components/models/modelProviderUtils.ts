@@ -13,8 +13,8 @@ interface ModelResponseItem {
     name?: string;
 }
 
-export type FieldType = "text" | "password" | "number";
-export type AuthType = "apikey" | "oauth2" | "none";
+export type FieldType = "text" | "password" | "number" | "textarea";
+export type AuthType = "apikey" | "oauth2" | "none" | "aws_iam" | "gcp_service_account";
 
 export interface ProviderField {
     name: string; // react-hook-form field key
@@ -43,6 +43,7 @@ export interface ProviderConfig {
     fields: ProviderField[]; // provider-specific required/optional fields
     modelNamePlaceholder: string; // example shown in model name input
     hideCommonParams?: boolean; // if true, hide temperature/max_tokens (e.g., for custom provider)
+    allowedAuthTypes: AuthType[]; // which auth types this provider supports
 }
 
 // ============================================================================
@@ -144,6 +145,41 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
         },
     ],
     none: [],
+    aws_iam: [
+        {
+            name: "awsAccessKeyId",
+            label: "AWS Access Key ID",
+            type: "text",
+            required: true,
+            storageTarget: "auth",
+        },
+        {
+            name: "awsSecretAccessKey",
+            label: "AWS Secret Access Key",
+            type: "password",
+            required: true,
+            helpText: "Leave unchanged to keep current value when editing.",
+            storageTarget: "auth",
+        },
+        {
+            name: "awsSessionToken",
+            label: "AWS Session Token",
+            type: "password",
+            required: false,
+            helpText: "Optional. Required for temporary credentials (STS). Leave unchanged to keep current value when editing.",
+            storageTarget: "auth",
+        },
+    ],
+    gcp_service_account: [
+        {
+            name: "gcpServiceAccountJson",
+            label: "Service Account JSON",
+            type: "textarea",
+            required: true,
+            helpText: "Paste the full JSON key file contents. Leave unchanged to keep current value when editing.",
+            storageTarget: "auth",
+        },
+    ],
 };
 
 // ============================================================================
@@ -184,6 +220,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         showApiBase: false,
         fields: [],
         modelNamePlaceholder: "gpt-4o-mini",
+        allowedAuthTypes: ["apikey"],
     },
     anthropic: {
         id: "anthropic",
@@ -191,6 +228,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         showApiBase: false,
         fields: [],
         modelNamePlaceholder: "claude-3-5-sonnet-20241022",
+        allowedAuthTypes: ["apikey"],
     },
     azure_openai: {
         id: "azure_openai",
@@ -200,6 +238,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         apiBasePlaceholder: "https://<your-resource>.openai.azure.com/",
         fields: AZURE_OPENAI_FIELDS,
         modelNamePlaceholder: "azure/<deployment-name>",
+        allowedAuthTypes: ["apikey", "oauth2"],
     },
     google_ai_studio: {
         id: "google_ai_studio",
@@ -207,6 +246,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         showApiBase: false,
         fields: [],
         modelNamePlaceholder: "gemini/gemini-1.5-pro",
+        allowedAuthTypes: ["apikey"],
     },
     vertex_ai: {
         id: "vertex_ai",
@@ -214,6 +254,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         showApiBase: false,
         fields: VERTEX_AI_FIELDS,
         modelNamePlaceholder: "vertex_ai/gemini-1.5-pro",
+        allowedAuthTypes: ["gcp_service_account"],
     },
     bedrock: {
         id: "bedrock",
@@ -221,6 +262,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         showApiBase: false,
         fields: BEDROCK_FIELDS,
         modelNamePlaceholder: "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
+        allowedAuthTypes: ["aws_iam"],
     },
     ollama: {
         id: "ollama",
@@ -230,6 +272,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         apiBasePlaceholder: "http://localhost:11434",
         fields: [],
         modelNamePlaceholder: "ollama/llama2",
+        allowedAuthTypes: ["apikey", "none"],
     },
     openai_compatible: {
         id: "openai_compatible",
@@ -239,6 +282,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         apiBasePlaceholder: "https://api.example.com/v1",
         fields: [],
         modelNamePlaceholder: "gpt-4o, claude-3-5-sonnet",
+        allowedAuthTypes: ["apikey", "oauth2", "none"],
     },
     custom: {
         id: "custom",
@@ -249,6 +293,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         fields: [],
         modelNamePlaceholder: "my-model-id",
         hideCommonParams: true,
+        allowedAuthTypes: ["apikey", "oauth2", "none"],
     },
 };
 

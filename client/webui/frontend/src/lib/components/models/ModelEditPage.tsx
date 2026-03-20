@@ -24,6 +24,10 @@ interface FormData {
     tokenUrl?: string;
     oauthScope?: string;
     oauthTokenRefreshBufferSeconds?: string;
+    awsAccessKeyId?: string;
+    awsSecretAccessKey?: string;
+    awsSessionToken?: string;
+    gcpServiceAccountJson?: string;
     temperature?: string;
     maxTokens?: string;
     customParams?: Array<{ key: string; value: string }>;
@@ -165,6 +169,22 @@ export const ModelEditPage = () => {
                 }
                 if (data.oauthTokenRefreshBufferSeconds) {
                     authConfig.token_refresh_buffer_seconds = Number(data.oauthTokenRefreshBufferSeconds);
+                }
+            } else if (data.authType === "aws_iam") {
+                authConfig = { type: "aws_iam" };
+                if (data.awsAccessKeyId) {
+                    authConfig.aws_access_key_id = data.awsAccessKeyId;
+                }
+                if (data.awsSecretAccessKey) {
+                    authConfig.aws_secret_access_key = data.awsSecretAccessKey;
+                }
+                if (data.awsSessionToken) {
+                    authConfig.aws_session_token = data.awsSessionToken;
+                }
+            } else if (data.authType === "gcp_service_account") {
+                authConfig = { type: "gcp_service_account" };
+                if (data.gcpServiceAccountJson) {
+                    authConfig.service_account_json = data.gcpServiceAccountJson;
                 }
             } else {
                 authConfig = { type: "none" };

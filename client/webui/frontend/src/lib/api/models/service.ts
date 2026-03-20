@@ -49,6 +49,11 @@ export async function fetchSupportedModelsByProvider(
         clientId?: string;
         clientSecret?: string;
         tokenUrl?: string;
+        awsAccessKeyId?: string;
+        awsSecretAccessKey?: string;
+        awsSessionToken?: string;
+        gcpServiceAccountJson?: string;
+        modelParams?: Record<string, unknown>;
     }
 ): Promise<Array<{ id: string; label: string }>> {
     const body: Record<string, unknown> = {
@@ -65,12 +70,22 @@ export async function fetchSupportedModelsByProvider(
             body.apiBase = options.apiBase;
         }
 
+        if (options.modelParams) {
+            body.modelParams = options.modelParams;
+        }
+
         if (options.authType === "apikey" && options.apiKey) {
             body.apiKey = options.apiKey;
         } else if (options.authType === "oauth2") {
             if (options.clientId) body.clientId = options.clientId;
             if (options.clientSecret) body.clientSecret = options.clientSecret;
             if (options.tokenUrl) body.tokenUrl = options.tokenUrl;
+        } else if (options.authType === "aws_iam") {
+            if (options.awsAccessKeyId) body.awsAccessKeyId = options.awsAccessKeyId;
+            if (options.awsSecretAccessKey) body.awsSecretAccessKey = options.awsSecretAccessKey;
+            if (options.awsSessionToken) body.awsSessionToken = options.awsSessionToken;
+        } else if (options.authType === "gcp_service_account") {
+            if (options.gcpServiceAccountJson) body.gcpServiceAccountJson = options.gcpServiceAccountJson;
         }
     }
 

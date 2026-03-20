@@ -120,8 +120,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             resetField("temperature");
             resetField("maxTokens");
 
-            // Set default auth type to apikey
-            setValue("authType", "apikey");
+            // Set default auth type to first allowed type for this provider
+            setValue("authType", config.allowedAuthTypes[0]);
             // Reset custom params
             resetField("customParams");
         }
@@ -144,14 +144,29 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         if (isNew) {
             const authType = selectedAuthType || "apikey";
 
+            // Collect provider-specific model params from form
+            const currentProviderConfig = providerConfig || getProviderConfig(selectedProvider);
+            const modelParams: Record<string, unknown> = {};
+            for (const field of currentProviderConfig.fields) {
+                const val = getValues(field.name);
+                if (val != null && val !== "") {
+                    modelParams[field.name] = val;
+                }
+            }
+
             try {
                 const models = await fetchSupportedModelsByProvider(selectedProvider, undefined, {
-                    apiBase: selectedProvider === "openai_compatible" ? apiBase : undefined,
+                    apiBase: apiBase || undefined,
                     authType,
                     apiKey: authType === "apikey" ? apiKey : undefined,
                     clientId: authType === "oauth2" ? (getValues("clientId") as string) : undefined,
                     clientSecret: authType === "oauth2" ? (getValues("clientSecret") as string) : undefined,
                     tokenUrl: authType === "oauth2" ? (getValues("tokenUrl") as string) : undefined,
+                    awsAccessKeyId: authType === "aws_iam" ? (getValues("awsAccessKeyId") as string) : undefined,
+                    awsSecretAccessKey: authType === "aws_iam" ? (getValues("awsSecretAccessKey") as string) : undefined,
+                    awsSessionToken: authType === "aws_iam" ? (getValues("awsSessionToken") as string) : undefined,
+                    gcpServiceAccountJson: authType === "gcp_service_account" ? (getValues("gcpServiceAccountJson") as string) : undefined,
+                    modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
                 });
                 setDynamicModels(models);
             } catch (error) {
@@ -159,7 +174,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                 setDynamicModels([]);
             }
         }
-    }, [selectedProvider, isNew, apiBase, apiKey, selectedAuthType, modelsByProvider, getValues]);
+    }, [selectedProvider, isNew, apiBase, apiKey, selectedAuthType, modelsByProvider, getValues, providerConfig]);
 
     useEffect(() => {
         if (!isNew && modelToEdit) {
@@ -226,38 +241,49 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     // Helper function to render a single field
     const renderField = (field: ProviderField) => {
         // For auth fields during edit, make them optional (credentials are stored server-side)
-        // Only auth credential fields (apiKey, clientSecret) are truly optional;
-        // structural fields (clientId, tokenUrl) remain required for OAuth2 setup
-        const isAuthCredentialField = field.storageTarget === "auth" && (field.name === "apiKey" || field.name === "clientSecret");
+        // Only auth credential fields are truly optional;
+        // structural fields (clientId, tokenUrl, etc.) remain required for setup
+        const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "gcpServiceAccountJson"].includes(field.name);
         const isRequiredField = field.required && (!isAuthCredentialField || isNew);
 
         return (
             <PageLabelWithValue key={field.name}>
                 <PageLabel required={isRequiredField}>{field.label}</PageLabel>
-                <Input
-                    type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
-                    inputMode={field.type === "number" ? "decimal" : undefined}
-                    placeholder={field.placeholder}
-                    step={field.type === "number" ? field.step : undefined}
-                    {...register(field.name, {
-                        required: isRequiredField ? `${field.label} is required` : false,
-                        ...(field.type === "number" &&
-                            field.min !== undefined && {
-                                min: {
-                                    value: field.min,
-                                    message: `${field.label} must be at least ${field.min}`,
-                                },
-                            }),
-                        ...(field.type === "number" &&
-                            field.max !== undefined && {
-                                max: {
-                                    value: field.max,
-                                    message: `${field.label} must not exceed ${field.max}`,
-                                },
-                            }),
-                    })}
-                    aria-invalid={!!errors[field.name]}
-                />
+                {field.type === "textarea" ? (
+                    <Textarea
+                        rows={6}
+                        placeholder={field.placeholder}
+                        {...register(field.name, {
+                            required: isRequiredField ? `${field.label} is required` : false,
+                        })}
+                        aria-invalid={!!errors[field.name]}
+                    />
+                ) : (
+                    <Input
+                        type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
+                        inputMode={field.type === "number" ? "decimal" : undefined}
+                        placeholder={field.placeholder}
+                        step={field.type === "number" ? field.step : undefined}
+                        {...register(field.name, {
+                            required: isRequiredField ? `${field.label} is required` : false,
+                            ...(field.type === "number" &&
+                                field.min !== undefined && {
+                                    min: {
+                                        value: field.min,
+                                        message: `${field.label} must be at least ${field.min}`,
+                                    },
+                                }),
+                            ...(field.type === "number" &&
+                                field.max !== undefined && {
+                                    max: {
+                                        value: field.max,
+                                        message: `${field.label} must not exceed ${field.max}`,
+                                    },
+                                }),
+                        })}
+                        aria-invalid={!!errors[field.name]}
+                    />
+                )}
                 {field.helpText && <div className="text-secondary-foreground text-xs">{field.helpText}</div>}
                 {errors[field.name] && <ErrorLabel>{getErrorMessage(errors[field.name])}</ErrorLabel>}
             </PageLabelWithValue>
@@ -281,6 +307,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         apikey: "API Key",
         oauth2: "OAuth",
         none: "None",
+        aws_iam: "AWS IAM",
+        gcp_service_account: "GCP Service Account",
     };
 
     return (
@@ -344,7 +372,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 {/* Provider-specific fields */}
                                 {providerConfig.fields.length > 0 && <>{providerConfig.fields.map((field: ProviderField) => renderField(field))}</>}
 
-                                {/* Authentication Type - Always show all auth type options */}
+                                {/* Authentication Type - Show only provider's allowed auth types */}
                                 <div>
                                     <PageLabel required>Authentication Type</PageLabel>
                                     <Controller
@@ -353,7 +381,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                         rules={{ required: "Authentication type is required" }}
                                         render={({ field }) => (
                                             <div className="mt-2 flex gap-4">
-                                                {Object.keys(authTypeLabels).map(authType => (
+                                                {providerConfig?.allowedAuthTypes.map(authType => (
                                                     <label key={authType} className="flex cursor-pointer items-center gap-2">
                                                         <input
                                                             type="radio"

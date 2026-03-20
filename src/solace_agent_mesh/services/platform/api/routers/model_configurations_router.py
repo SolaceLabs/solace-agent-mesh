@@ -315,6 +315,7 @@ async def list_supported_models_by_provider(
                 api_base=raw_config.api_base,
                 auth_type=raw_config.model_auth_type,
                 auth_config=raw_config.model_auth_config,
+                model_params=raw_config.model_params or {},
             )
             return DataResponse.create(models)
 
@@ -346,6 +347,25 @@ async def list_supported_models_by_provider(
             auth_config["client_secret"] = request.client_secret
             auth_config["token_url"] = request.token_url
 
+        elif request.auth_type == "aws_iam":
+            if not (request.aws_access_key_id and request.aws_secret_access_key):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="aws_access_key_id and aws_secret_access_key are required for aws_iam authentication",
+                )
+            auth_config["aws_access_key_id"] = request.aws_access_key_id
+            auth_config["aws_secret_access_key"] = request.aws_secret_access_key
+            if request.aws_session_token:
+                auth_config["aws_session_token"] = request.aws_session_token
+
+        elif request.auth_type == "gcp_service_account":
+            if not request.gcp_service_account_json:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="gcp_service_account_json is required for gcp_service_account authentication",
+                )
+            auth_config["service_account_json"] = request.gcp_service_account_json
+
         elif request.auth_type == "none":
             pass  # No credentials needed
         else:
@@ -360,6 +380,7 @@ async def list_supported_models_by_provider(
             api_base=request.api_base,
             auth_type=request.auth_type,
             auth_config=auth_config,
+            model_params=request.model_params or {},
         )
 
         if not models:

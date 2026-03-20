@@ -3,6 +3,7 @@ Service for managing supported LLM models per provider.
 Queries provider APIs directly to fetch available models at runtime.
 Supports both stored credentials (from database) and request-provided credentials.
 """
+import json
 import logging
 from typing import List, Dict, Optional
 import httpx
@@ -33,6 +34,7 @@ class ModelListService:
         api_base: Optional[str],
         auth_type: str,
         auth_config: Dict[str, any],
+        model_params: Optional[Dict[str, any]] = None,
     ) -> List[Dict[str, str]]:
         """
         Fetch models from a provider by querying their API directly.
@@ -41,8 +43,9 @@ class ModelListService:
         Args:
             provider: Provider type (e.g., 'openai', 'anthropic', 'openai_compatible')
             api_base: API base URL (required for openai_compatible, optional for others)
-            auth_type: Authentication type ('apikey', 'oauth2', or 'none')
+            auth_type: Authentication type ('apikey', 'oauth2', 'none', 'aws_iam', 'gcp_service_account')
             auth_config: Authentication configuration dict with provider-specific credentials
+            model_params: Provider-specific parameters (e.g., aws_region, vertex_project, api_version)
 
         Returns:
             List of models with id, label, and provider
@@ -50,6 +53,9 @@ class ModelListService:
         Raises:
             RuntimeError: Provider API errors, authentication errors, network issues
         """
+        if model_params is None:
+            model_params = {}
+
         # Determine the API base URL and extract credentials
         if not api_base:
             api_base = self._get_provider_api_base(provider)
@@ -59,7 +65,7 @@ class ModelListService:
             headers = self._build_auth_headers(provider, auth_type, auth_config)
 
             # Make the API call to fetch models
-            models_response = self._fetch_models_from_provider(provider, api_base, headers, auth_type, auth_config)
+            models_response = self._fetch_models_from_provider(provider, api_base, headers, auth_type, auth_config, model_params)
 
             # Convert to our format
             models = []
@@ -109,7 +115,7 @@ class ModelListService:
 
         return headers
 
-    def _fetch_models_from_provider(self, provider: str, api_base: str, headers: Dict, auth_type: str, auth_config: Dict) -> List[str]:
+    def _fetch_models_from_provider(self, provider: str, api_base: str, headers: Dict, auth_type: str, auth_config: Dict, model_params: Dict = None) -> List[str]:
         """
         Fetch the list of models from the provider's API.
 
@@ -119,6 +125,7 @@ class ModelListService:
             headers: Authentication headers
             auth_type: Authentication type
             auth_config: Authentication configuration
+            model_params: Provider-specific parameters
 
         Returns:
             List of model IDs
@@ -126,6 +133,17 @@ class ModelListService:
         Raises:
             RuntimeError: If API call fails
         """
+        if model_params is None:
+            model_params = {}
+
+        # Providers that use their own SDK instead of httpx
+        if provider == ModelProviders.BEDROCK:
+            return self._fetch_bedrock_models(auth_config, model_params)
+        if provider == ModelProviders.VERTEX_AI:
+            return self._fetch_vertex_ai_models(auth_config, model_params)
+        if provider == ModelProviders.AZURE_OPENAI:
+            return self._fetch_azure_openai_models(api_base, headers, model_params)
+
         if not api_base:
             raise RuntimeError(f"API base URL not configured for provider {provider}")
 
@@ -189,3 +207,80 @@ class ModelListService:
             raise RuntimeError(f"HTTP error fetching models from {provider}: {str(e)}")
         except Exception as e:
             raise RuntimeError(f"Error fetching models from {provider}: {str(e)}")
+
+    def _fetch_bedrock_models(self, auth_config: Dict, model_params: Dict) -> List[str]:
+        """Fetch available models from AWS Bedrock using boto3."""
+        import boto3
+
+        region = model_params.get("awsRegionName", "us-east-1")
+        client = boto3.client(
+            "bedrock",
+            region_name=region,
+            aws_access_key_id=auth_config.get("aws_access_key_id"),
+            aws_secret_access_key=auth_config.get("aws_secret_access_key"),
+            aws_session_token=auth_config.get("aws_session_token"),
+        )
+
+        response = client.list_foundation_models()
+        return [m["modelId"] for m in response.get("modelSummaries", [])]
+
+    def _fetch_vertex_ai_models(self, auth_config: Dict, model_params: Dict) -> List[str]:
+        """Fetch available models from Google Vertex AI using service account credentials."""
+        from google.oauth2 import service_account
+        import google.auth.transport.requests
+
+        service_account_json = auth_config.get("service_account_json")
+        if not service_account_json:
+            raise RuntimeError("Service account JSON is required for Vertex AI")
+
+        # Parse the service account JSON (could be a string or already a dict)
+        if isinstance(service_account_json, str):
+            sa_info = json.loads(service_account_json)
+        else:
+            sa_info = service_account_json
+
+        project = model_params.get("vertexProject") or sa_info.get("project_id")
+        location = model_params.get("vertexLocation", "us-central1")
+
+        if not project:
+            raise RuntimeError("GCP project ID is required for Vertex AI")
+
+        # Get an access token from the service account
+        credentials = service_account.Credentials.from_service_account_info(
+            sa_info,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+        credentials.refresh(google.auth.transport.requests.Request())
+
+        # Call Vertex AI API to list models
+        endpoint = f"https://{location}-aiplatform.googleapis.com/v1/publishers/google/models"
+        with httpx.Client() as client:
+            response = client.get(
+                endpoint,
+                headers={"Authorization": f"Bearer {credentials.token}"},
+                timeout=10.0,
+            )
+            response.raise_for_status()
+
+        data = response.json()
+        return [m["name"].split("/")[-1] for m in data.get("publisherModels", []) if m.get("name")]
+
+    def _fetch_azure_openai_models(self, api_base: str, headers: Dict, model_params: Dict) -> List[str]:
+        """Fetch available models from Azure OpenAI."""
+        if not api_base:
+            raise RuntimeError("API base URL is required for Azure OpenAI")
+
+        api_version = model_params.get("apiVersion", "2024-10-21")
+        endpoint = f"{api_base.rstrip('/')}/openai/models"
+
+        with httpx.Client() as client:
+            response = client.get(
+                endpoint,
+                headers=headers,
+                params={"api-version": api_version},
+                timeout=10.0,
+            )
+            response.raise_for_status()
+
+        data = response.json()
+        return [model["id"] for model in data.get("data", [])]
