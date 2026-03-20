@@ -289,7 +289,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                                                     <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
                                                                 </div>
                                                             </TooltipTrigger>
-                                                            <TooltipContent side="top">{child.tooltip}</TooltipContent>
+                                                            <TooltipContent side="right">{child.tooltip}</TooltipContent>
                                                         </Tooltip>
                                                     ) : (
                                                         <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
