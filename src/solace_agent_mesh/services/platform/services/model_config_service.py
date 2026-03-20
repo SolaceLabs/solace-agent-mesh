@@ -113,14 +113,18 @@ class ModelConfigService:
         if not api_base and request.provider in _DEFAULT_API_BASES:
             api_base = _DEFAULT_API_BASES[request.provider]
 
+        # Extract auth_type from auth_config['type'], default to 'none'
+        auth_config = request.auth_config or {}
+        auth_type = auth_config.get("type", "none")
+
         # Create new configuration
         db_config = ModelConfiguration(
             alias=request.alias,
             provider=request.provider,
             model_name=request.model_name,
             api_base=api_base,
-            model_auth_type=request.auth_type,
-            model_auth_config=request.auth_config or {},
+            model_auth_type=auth_type,
+            model_auth_config=auth_config,
             model_params=request.model_params or {},
             description=request.description,
             created_by=created_by,
@@ -182,12 +186,14 @@ class ModelConfigService:
         elif request.provider is not None and request.provider in _DEFAULT_API_BASES:
             # Auto-fill api_base if provider changed to a known provider
             db_config.api_base = _DEFAULT_API_BASES[request.provider]
-        if request.auth_type is not None:
-            db_config.model_auth_type = request.auth_type
         if request.auth_config is not None:
             # Merge with existing auth config (preserve existing secrets)
             existing_config = db_config.model_auth_config or {}
-            db_config.model_auth_config = {**existing_config, **request.auth_config}
+            merged_config = {**existing_config, **request.auth_config}
+            db_config.model_auth_config = merged_config
+            # Update auth_type from the merged config's 'type' field
+            if "type" in merged_config:
+                db_config.model_auth_type = merged_config["type"]
         if request.model_params is not None:
             db_config.model_params = request.model_params
         if request.description is not None:

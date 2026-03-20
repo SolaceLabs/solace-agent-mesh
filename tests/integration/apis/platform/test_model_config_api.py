@@ -266,7 +266,6 @@ class TestModelConfigurationAPI:
             "provider": "openai",
             "modelName": "gpt-4",
             "apiBase": "https://api.openai.com/v1",
-            "authType": "apikey",
             "authConfig": {"api_key": "sk-secret-key", "type": "apikey"},
             "modelParams": {"temperature": 0.8, "max_tokens": 4096},
             "description": "Test created model"
