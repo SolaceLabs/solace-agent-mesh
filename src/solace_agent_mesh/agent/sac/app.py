@@ -496,6 +496,8 @@ class SamAgentAppConfig(SamConfigBase):
 
     @model_validator(mode="after")
     def _validate_model_requirement(self) -> "SamAgentAppConfig":
+        if self.agent_type == "workflow":
+            return self
         if self.model is None and not (os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"):
             raise ValueError(
                 "Missing required field: 'model'. Provide a model config"
