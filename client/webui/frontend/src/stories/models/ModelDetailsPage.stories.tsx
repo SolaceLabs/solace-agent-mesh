@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen } from "storybook/test";
 import { http, HttpResponse } from "msw";
-import React from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { ModelDetailsPage } from "@/lib/components/models";
-import { modelKeys } from "@/lib/api/models";
 import { anthropicModelConfig } from "../data/models";
+import { InvalidateModelCacheDecorator } from "../decorators/InvalidateModelCacheDecorator";
 
 /**
  * Mock model data for stories
@@ -31,19 +29,6 @@ const notFoundHandlers = [
     }),
 ];
 
-/**
- * Wrapper that clears cache on mount
- */
-const CacheInvalidator: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const queryClient = useQueryClient();
-
-    React.useLayoutEffect(() => {
-        queryClient.removeQueries({ queryKey: modelKeys.lists() });
-    }, [queryClient]);
-
-    return <>{children}</>;
-};
-
 const meta = {
     title: "Pages/Models/ModelDetailsPage",
     component: ModelDetailsPage,
@@ -56,12 +41,11 @@ const meta = {
         },
     },
     decorators: [
+        InvalidateModelCacheDecorator,
         Story => (
-            <CacheInvalidator>
-                <div style={{ height: "100vh", width: "100vw" }}>
-                    <Story />
-                </div>
-            </CacheInvalidator>
+            <div style={{ height: "100vh", width: "100vw" }}>
+                <Story />
+            </div>
         ),
     ],
 } satisfies Meta<typeof ModelDetailsPage>;
