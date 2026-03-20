@@ -43,14 +43,16 @@ class TestUvicornConfig:
         
         with patch('solace_agent_mesh.gateway.http_sse.component.dependencies') as mock_deps:
             with patch('solace_agent_mesh.gateway.http_sse.component.log'):
-                mock_main = MagicMock()
-                mock_main.app = MagicMock()
-                mock_main.setup_dependencies = MagicMock()
-                
-                mock_deps.SessionLocal = None
-                
-                with patch('builtins.__import__', side_effect=lambda name, *args, **kwargs: mock_main if 'main' in name else __import__(name, *args, **kwargs)):
-                    WebUIBackendComponent._start_fastapi_server(component)
+                with patch('solace_agent_mesh.gateway.http_sse.component.feature_flags') as mock_ff:
+                    mock_ff.get_registry.return_value.keys.return_value = []
+                    mock_main = MagicMock()
+                    mock_main.app = MagicMock()
+                    mock_main.setup_dependencies = MagicMock()
+
+                    mock_deps.SessionLocal = None
+
+                    with patch('builtins.__import__', side_effect=lambda name, *args, **kwargs: mock_main if 'main' in name else __import__(name, *args, **kwargs)):
+                        WebUIBackendComponent._start_fastapi_server(component)
 
                     assert mock_uvicorn_config.called, 'uvicorn.Config should have been called'
                     

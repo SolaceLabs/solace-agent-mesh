@@ -1360,7 +1360,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             setup_dependencies(self)
 
             log.info(
-                "%s Feature flags initialised (%d flags).",
+                "%s Feature flags ready (%d flags).",
                 self.log_identifier,
                 len(feature_flags.get_registry().keys()),
             )
