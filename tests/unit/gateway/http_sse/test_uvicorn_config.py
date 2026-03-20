@@ -41,25 +41,23 @@ class TestUvicornConfig:
         component.platform_database_url = None
         component.get_config = MagicMock(return_value={})
         
+        mock_main = MagicMock()
+
         with patch('solace_agent_mesh.gateway.http_sse.component.dependencies') as mock_deps:
             with patch('solace_agent_mesh.gateway.http_sse.component.log'):
                 with patch('solace_agent_mesh.gateway.http_sse.component.feature_flags') as mock_ff:
                     mock_ff.get_registry.return_value.keys.return_value = []
-                    mock_main = MagicMock()
-                    mock_main.app = MagicMock()
-                    mock_main.setup_dependencies = MagicMock()
-
                     mock_deps.SessionLocal = None
 
-                    with patch('builtins.__import__', side_effect=lambda name, *args, **kwargs: mock_main if 'main' in name else __import__(name, *args, **kwargs)):
+                    with patch.dict('sys.modules', {'solace_agent_mesh.gateway.http_sse.main': mock_main}):
                         WebUIBackendComponent._start_fastapi_server(component)
 
-                    assert mock_uvicorn_config.called, 'uvicorn.Config should have been called'
-                    
-                    call_args = mock_uvicorn_config.call_args
-                    kwargs = call_args.kwargs if call_args.kwargs else call_args[1]
-                    
-                    assert 'log_config' in kwargs, 'log_config not found in uvicorn.Config arguments'
-                    assert kwargs['log_config'] is None, (
-                        'log_config should be None, but got ' + str(kwargs['log_config'])
-                    )
+        assert mock_uvicorn_config.called, 'uvicorn.Config should have been called'
+
+        call_args = mock_uvicorn_config.call_args
+        kwargs = call_args.kwargs if call_args.kwargs else call_args[1]
+
+        assert 'log_config' in kwargs, 'log_config not found in uvicorn.Config arguments'
+        assert kwargs['log_config'] is None, (
+            'log_config should be None, but got ' + str(kwargs['log_config'])
+        )
