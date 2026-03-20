@@ -11,7 +11,7 @@ const meta = {
     },
     decorators: [
         Story => (
-            <div className="h-full w-full bg-(--background-w10) p-8">
+            <div className="h-full w-full bg-(--background-w20) p-8">
                 <Story />
             </div>
         ),

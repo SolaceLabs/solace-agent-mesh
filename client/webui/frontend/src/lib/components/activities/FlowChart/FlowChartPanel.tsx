@@ -205,7 +205,7 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
     }, []);
 
     return (
-        <div style={{ height: "100%", width: "100%" }} className="relative">
+        <div style={{ height: "100%", width: "100%" }} className="relative bg-(--background-w20)">
             {/* Controls bar - Show Detail toggle and Re-center button */}
             <div className="absolute top-4 right-4 z-50 flex items-center gap-3 rounded-sm border bg-(--background-w10) px-4 py-2">
                 {/* Re-center button */}
