@@ -31,8 +31,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
     - Publishing A2A messages with built-in size validation.
     """
     adk_model_instance: LiteLlm | None = None
-
-    adk_model_instance: LiteLlm | None = None
     _component_id: str
 
     def __init__(self, info: dict[str, Any], **kwargs: Any):

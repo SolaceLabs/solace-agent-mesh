@@ -6,7 +6,6 @@ from typing import Any, Dict, Union
 import asyncio
 from solace_ai_connector.components.component_base import ComponentBase as SamComponentBase
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
-from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.message import Message as SolaceMessage
 import logging
 
@@ -17,6 +16,9 @@ from .dynamic_model_provider_topics import (
 )
 
 log = logging.getLogger(__name__)
+
+_MAX_BOOTSTRAP_RETRIES = 3
+_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 5
 
 
 # SAC Component Info for ModelConfigReceiverComponent
@@ -51,7 +53,7 @@ _receiver_info = {
 }
 
 
-class ModelConfigReceiverComponent(ComponentBase):
+class ModelConfigReceiverComponent(SamComponentBase):
     """
     A SAC component that receives model configuration messages and updates
     the DynamicModelProvider accordingly.
@@ -146,9 +148,9 @@ class DynamicModelProvider:
         await self.listen_for_model_config_change()
 
         # Call request_model_config up to 3 times, once every 5 seconds, until initialized
-        for i in range(3):
+        for i in range(_MAX_BOOTSTRAP_RETRIES):
             await self.request_model_config()
-            await asyncio.sleep(5)
+            await asyncio.sleep(_BOOTSTRAP_RETRY_INTERVAL_SECONDS)
             if self._initialized:
                 break
         
