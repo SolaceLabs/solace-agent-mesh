@@ -109,7 +109,7 @@
     /* Firefox */
     * {
         scrollbar-width: thin;
-        scrollbar-color: var(--primary-w20) var(--background-w20);
+        scrollbar-color: var(--primary-w20) var(--background-w10);
     }
 
     .fade-both-mask {
@@ -146,7 +146,7 @@
     }
 
     *::-webkit-scrollbar-track {
-        background-color: var(--background-w20);
+        background-color: var(--background-w10);
     }
 
     *::-webkit-scrollbar-thumb {

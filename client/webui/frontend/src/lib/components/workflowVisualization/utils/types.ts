@@ -109,7 +109,7 @@ export interface NodeProps {
  * Shared CSS classes for node highlighting when referenced in expressions
  * Used by all node components to ensure consistent highlight styling
  */
-export const NODE_HIGHLIGHT_CLASSES = "ring-1 ring-(--warning-wMain) ring-offset-2";
+export const NODE_HIGHLIGHT_CLASSES = "ring-2 ring-(--warning-wMain)";
 
 /**
  * Common base styles for different node types

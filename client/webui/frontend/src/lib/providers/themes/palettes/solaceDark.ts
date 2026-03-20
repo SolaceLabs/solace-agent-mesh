@@ -86,8 +86,8 @@ export const solaceDark: ThemePalette = {
     },
 
     stateLayer: {
-        w10: "#3C4652",
-        w20: "#c5ced9",
+        w10: "#c5ced91a",
+        w20: "#c5ced933",
     },
 
     accent: {
