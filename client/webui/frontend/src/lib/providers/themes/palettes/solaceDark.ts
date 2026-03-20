@@ -157,7 +157,6 @@ export const solaceDark: ThemePalette = {
         w10: "#0a1621",
     },
 
-    // common to solace.ts except for bg => background-w10 to reduce the number of very close dark blue shades
     darkSurface: {
         bg: "#03223B",
         bgHover: "#021B2F",
