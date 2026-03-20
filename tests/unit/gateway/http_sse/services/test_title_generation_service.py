@@ -153,7 +153,7 @@ class TestTitleGenerationService:
             MockLiteLlm.return_value = title_llm
             service = TitleGenerationService(model_config=model_config, llm=mock_llm)
 
-            MockLiteLlm.assert_called_once_with(model="gpt-3.5-turbo", **model_config)
+            MockLiteLlm.assert_called_once_with(model="gpt-3.5-turbo", api_key="k")
             assert service.llm is title_llm
             assert service.llm is not mock_llm
 

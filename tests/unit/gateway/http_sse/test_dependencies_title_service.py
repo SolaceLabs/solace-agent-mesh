@@ -42,7 +42,7 @@ class TestGetTitleGenerationService:
             service = get_title_generation_service(component=mock_component)
 
             # A new LiteLlm should be created for the title-specific model
-            MockLiteLlm.assert_called_once_with(model="gpt-3.5-turbo", **model_config)
+            MockLiteLlm.assert_called_once_with(model="gpt-3.5-turbo", api_key="test-key")
             assert service.llm is title_llm
 
     def test_creates_service_with_empty_config(self):
