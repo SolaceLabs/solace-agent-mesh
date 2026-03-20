@@ -9,7 +9,6 @@ Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
   Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
-import logging
 import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +20,7 @@ from solace_agent_mesh.services.platform.api.dependencies import (
     get_model_config_service,
     get_model_list_service,
     get_platform_db,
+    get_component_instance,
 )
 
 from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
@@ -29,11 +29,10 @@ from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationUpdateRequest,
     SupportedModelsRequest,
 )
+from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_model_config_update_topic
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.auth.dependencies import get_current_user
 from solace_agent_mesh.shared.api.response_utils import create_data_response
-
-log = logging.getLogger(__name__)
 
 
 router = APIRouter()
@@ -59,6 +58,30 @@ def _require_model_config_ui_enabled() -> bool:
     return True
 
 
+def _emit_model_config_update(component, model_id: str, alias: str, model_config: dict | None):
+    """Emit model config update events on both ID and alias topics.
+
+    Publishes to get_model_config_update_topic twice: once with the model's database ID
+    and once with the model's alias. This ensures agents subscribing by either
+    identifier receive the update.
+
+    Args:
+        component: PlatformServiceComponent instance for publishing.
+        model_id: The model's database UUID.
+        alias: The model's alias string.
+        model_config: The full LiteLlm config dict, or None to unconfigure.
+    """
+    payload = {"model_config": model_config}
+
+    # Emit by ID
+    topic_by_id = get_model_config_update_topic(component.namespace, model_id)
+    component.publish_a2a_message(payload=payload, topic=topic_by_id)
+
+    # Emit by alias
+    topic_by_alias = get_model_config_update_topic(component.namespace, alias)
+    component.publish_a2a_message(payload=payload, topic=topic_by_alias)
+
+
 @router.get(
     "/models",
     response_model=DataResponse[list[ModelConfigurationResponse]],
@@ -70,15 +93,6 @@ async def list_models(
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[ModelConfigurationResponse]]:
-    """
-    Retrieve all model configurations.
-
-    Sensitive information (API keys, OAuth client secrets) is excluded from the response.
-    Only the authentication type (apikey, oauth2, or none) is returned.
-
-    Returns:
-        DataResponse with list of model configurations with safe data
-    """
     configurations = service.list_all(db)
     return create_data_response(configurations)
 
@@ -94,30 +108,13 @@ async def get_model(
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
-    """
-    Retrieve a model configuration by alias.
-
-    The alias lookup is case-sensitive. Sensitive information (API keys, OAuth
-    client secrets) is excluded from the response.
-
-    Args:
-        alias: The model alias to look up
-
-    Returns:
-        DataResponse with model configuration data
-
-    Raises:
-        HTTPException: 404 if configuration not found
-    """
     config = service.get_by_alias(db, alias)
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Model configuration with alias '{alias}' not found",
         )
-
     return create_data_response(config)
-
 
 @router.post(
     "/models",
@@ -132,36 +129,13 @@ async def create_model(
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
+    component=Depends(get_component_instance),
 ) -> DataResponse[ModelConfigurationResponse]:
-    """
-    Create a new model configuration.
-
-    Args:
-        request: Model configuration details
-        user: Authenticated user (from OAuth middleware)
-
-    Returns:
-        DataResponse with the created model configuration
-
-    Raises:
-        HTTPException: 400 if alias is invalid, 409 if alias already exists, 500 on server error
-    """
-    try:
-        created_by = user.get("id", "unknown")
-        config = service.create(db, request, created_by=created_by)
-        return create_data_response(config)
-    except ValueError as e:
-        log.warning(f"Invalid model creation request: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e),
-        )
-    except Exception as e:
-        log.error(f"Failed to create model configuration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create model configuration",
-        )
+    created_by = user.get("id", "unknown")
+    config = service.create(db, request, created_by=created_by)
+    raw_config = service.get_by_alias(db, config.alias, raw=True)
+    _emit_model_config_update(component, config.id, config.alias, raw_config)
+    return create_data_response(config)
 
 @router.put(
     "/models/{alias}",
@@ -176,47 +150,13 @@ async def update_model(
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
+    component=Depends(get_component_instance),
 ) -> DataResponse[ModelConfigurationResponse]:
-    """
-    Update an existing model configuration.
-
-    Args:
-        alias: The model alias to update
-        request: Fields to update (only non-None fields are modified)
-        user: Authenticated user (from OAuth middleware)
-
-    Returns:
-        DataResponse with the updated model configuration
-
-    Raises:
-        HTTPException: 404 if not found, 409 if new alias conflicts, 500 on server error
-    """
-    try:
-        updated_by = user.get("id", "unknown")
-        config = service.update(db, alias, request, updated_by=updated_by)
-
-        if not config:
-            log.debug(f"Model configuration not found with alias: {alias}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Model configuration with alias '{alias}' not found",
-            )
-
-        return create_data_response(config)
-    except ValueError as e:
-        log.warning(f"Invalid model update request: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to update model configuration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update model configuration",
-        )
+    updated_by = user.get("id", "unknown")
+    config = service.update(db, alias, request, updated_by=updated_by)
+    raw_config = service.get_by_alias(db, config.alias, raw=True)
+    _emit_model_config_update(component, config.id, config.alias, raw_config)
+    return create_data_response(config)
 
 
 @router.delete(
@@ -231,34 +171,12 @@ async def delete_model(
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
+    component=Depends(get_component_instance),
 ) -> None:
-    """
-    Delete a model configuration.
+    config = service.get_by_alias(db, alias)
+    service.delete(db, alias)
+    _emit_model_config_update(component, config.id, alias, None)
 
-    Args:
-        alias: The model alias to delete
-        user: Authenticated user (from OAuth middleware)
-
-    Raises:
-        HTTPException: 404 if not found, 500 on server error
-    """
-    try:
-        deleted = service.delete(db, alias)
-
-        if not deleted:
-            log.debug(f"Model configuration not found with alias: {alias}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Model configuration with alias '{alias}' not found",
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to delete model configuration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete model configuration",
-        )
 
 @router.post(
     "/supported-models",
@@ -273,126 +191,89 @@ async def list_supported_models_by_provider(
     service: ModelListService = Depends(get_model_list_service),
     config_service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[dict]]:
-    """
-    Retrieve supported models for a provider by querying the provider API.
+    provider = request.provider
+    model_alias = request.model_alias
 
-    Two modes of operation:
-    1. **Editing mode** (model_alias provided):
-       - Uses stored credentials from the database
-       - Safe for editing existing model configs
-
-    2. **Creating mode** (credentials provided):
-       - Uses credentials from request body
-       - Requires auth_type and appropriate credential fields
-       - Returns 400 if required credentials are missing
-
-    Args:
-        request: SupportedModelsRequest containing provider and auth details
-
-    Returns:
-        DataResponse with list of supported models for the provider
-
-    Raises:
-        400: If neither model_alias nor required credentials provided
-        404: If model_alias not found
-        500: If provider API query fails
-    """
-    try:
-        provider = request.provider
-        model_alias = request.model_alias
-
-        # Mode 1: Editing - use stored credentials from database
-        if model_alias:
-            raw_config = config_service.get_raw_config_by_alias(db, model_alias)
-            if not raw_config:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Model configuration with alias '{model_alias}' not found",
-                )
-
-            models = service.get_models_by_provider_with_config(
-                provider=raw_config.provider,
-                api_base=raw_config.api_base,
-                auth_type=raw_config.model_auth_type,
-                auth_config=raw_config.model_auth_config,
-                model_params=raw_config.model_params or {},
-            )
-            return DataResponse.create(models)
-
-        # Mode 2: Creating - use credentials from request
-        if not request.auth_type:
+    # Mode 1: Editing - use stored credentials from database
+    if model_alias:
+        raw_config = config_service.get_raw_config_by_alias(db, model_alias)
+        if not raw_config:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either model_alias (for editing) or auth_type with credentials (for creating) is required",
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Model configuration with alias '{model_alias}' not found",
             )
 
-        # Validate and build auth_config based on auth_type
-        auth_config = {}
-
-        if request.auth_type == "apikey":
-            if not request.api_key:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="api_key is required for apikey authentication",
-                )
-            auth_config["api_key"] = request.api_key
-
-        elif request.auth_type == "oauth2":
-            if not (request.client_id and request.client_secret and request.token_url):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="client_id, client_secret, and token_url are required for oauth2 authentication",
-                )
-            auth_config["client_id"] = request.client_id
-            auth_config["client_secret"] = request.client_secret
-            auth_config["token_url"] = request.token_url
-
-        elif request.auth_type == "aws_iam":
-            if not (request.aws_access_key_id and request.aws_secret_access_key):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="aws_access_key_id and aws_secret_access_key are required for aws_iam authentication",
-                )
-            auth_config["aws_access_key_id"] = request.aws_access_key_id
-            auth_config["aws_secret_access_key"] = request.aws_secret_access_key
-            if request.aws_session_token:
-                auth_config["aws_session_token"] = request.aws_session_token
-
-        elif request.auth_type == "gcp_service_account":
-            if not request.gcp_service_account_json:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="gcp_service_account_json is required for gcp_service_account authentication",
-                )
-            auth_config["service_account_json"] = request.gcp_service_account_json
-
-        elif request.auth_type == "none":
-            pass  # No credentials needed
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported auth_type: {request.auth_type}",
-            )
-
-        # Query provider with provided credentials
         models = service.get_models_by_provider_with_config(
-            provider=provider,
-            api_base=request.api_base,
-            auth_type=request.auth_type,
-            auth_config=auth_config,
-            model_params=request.model_params or {},
+            provider=raw_config.provider,
+            api_base=raw_config.api_base,
+            auth_type=raw_config.model_auth_type,
+            auth_config=raw_config.model_auth_config,
+            model_params=raw_config.model_params or {},
         )
-
-        if not models:
-            log.warning(f"No models returned from provider {provider}. This may indicate invalid credentials or network issues.")
-
         return DataResponse.create(models)
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to retrieve supported models for provider {request.provider}: {e}", exc_info=True)
+    # Mode 2: Creating - use credentials from request
+    if not request.auth_type:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve supported models from provider: {str(e)}",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either model_alias (for editing) or auth_type with credentials (for creating) is required",
         )
+
+    # Validate and build auth_config based on auth_type
+    auth_config = {}
+
+    if request.auth_type == "apikey":
+        if not request.api_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="api_key is required for apikey authentication",
+            )
+        auth_config["api_key"] = request.api_key
+
+    elif request.auth_type == "oauth2":
+        if not (request.client_id and request.client_secret and request.token_url):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="client_id, client_secret, and token_url are required for oauth2 authentication",
+            )
+        auth_config["client_id"] = request.client_id
+        auth_config["client_secret"] = request.client_secret
+        auth_config["token_url"] = request.token_url
+
+    elif request.auth_type == "aws_iam":
+        if not (request.aws_access_key_id and request.aws_secret_access_key):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="aws_access_key_id and aws_secret_access_key are required for aws_iam authentication",
+            )
+        auth_config["aws_access_key_id"] = request.aws_access_key_id
+        auth_config["aws_secret_access_key"] = request.aws_secret_access_key
+        if request.aws_session_token:
+            auth_config["aws_session_token"] = request.aws_session_token
+
+    elif request.auth_type == "gcp_service_account":
+        if not request.gcp_service_account_json:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="gcp_service_account_json is required for gcp_service_account authentication",
+            )
+        auth_config["service_account_json"] = request.gcp_service_account_json
+
+    elif request.auth_type == "none":
+        pass  # No credentials needed
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported auth_type: {request.auth_type}",
+        )
+
+    # Query provider with provided credentials
+    models = service.get_models_by_provider_with_config(
+        provider=provider,
+        api_base=request.api_base,
+        auth_type=request.auth_type,
+        auth_config=auth_config,
+        model_params=request.model_params or {},
+    )
+
+    return DataResponse.create(models)

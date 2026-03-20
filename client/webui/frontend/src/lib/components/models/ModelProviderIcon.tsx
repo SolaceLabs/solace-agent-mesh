@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 interface ModelProviderIconProps {
     provider: string;
@@ -8,19 +9,16 @@ interface ModelProviderIconProps {
 const sizeConfig = {
     xs: {
         container: "h-5 w-5",
-        margin: "mr-1",
         image: "h-4 w-4",
         text: "text-xs",
     },
     sm: {
         container: "h-8 w-8",
-        margin: "mr-2",
         image: "h-7 w-7",
         text: "text-xs",
     },
     md: {
         container: "h-12 w-12",
-        margin: "mr-4",
         image: "h-10 w-10",
         text: "text-sm",
     },
@@ -48,15 +46,15 @@ export const ModelProviderIcon = ({ provider, size = "md" }: ModelProviderIconPr
 
     if (!iconPath || imageError) {
         return (
-            <div className={`${config.margin} flex bg-[#CFD3D9] ${config.container} items-center justify-center rounded-full`}>
-                <span className={`text-(--secondary-text-w50) ${config.text} font-semibold`}>{provider.charAt(0).toUpperCase()}</span>
+            <div className={cn("flex items-center justify-center rounded-full bg-[#CFD3D9]", config.container)}>
+                <span className={cn("font-semibold text-(--secondary-text-w50)", config.text)}>{provider.charAt(0).toUpperCase()}</span>
             </div>
         );
     }
 
     return (
-        <div className={`${config.margin} flex ${config.container} items-center justify-center rounded-xs`}>
-            <img src={iconPath} alt={provider} className={`${config.image} object-contain`} onError={() => setImageError(true)} />
+        <div className={cn("flex items-center justify-center rounded-xs", config.container)}>
+            <img src={iconPath} alt={provider} className={cn("object-contain", config.image)} onError={() => setImageError(true)} />
         </div>
     );
 };

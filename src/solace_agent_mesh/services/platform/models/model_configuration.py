@@ -11,7 +11,7 @@ from solace_agent_mesh.shared.database.id_generators import generate_uuidv7
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.services.platform.constants import MODEL_CONFIGURATION_CONSTRAINTS
 
-from .base import Base
+from solace_agent_mesh.shared.database.base import Base
 
 
 class ModelConfiguration(Base):

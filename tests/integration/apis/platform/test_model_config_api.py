@@ -189,7 +189,7 @@ class TestModelConfigurationAPI:
         # Assert: Response contains error detail
         data = response.json()
         assert "detail" in data
-        assert "not found" in data["detail"].lower()
+        assert "could not find" in data["detail"].lower()
 
     def test_list_models_returns_correct_structure(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
         """Test that GET /models returns a list with correct structure and camelCase fields."""
@@ -266,7 +266,6 @@ class TestModelConfigurationAPI:
             "provider": "openai",
             "modelName": "gpt-4",
             "apiBase": "https://api.openai.com/v1",
-            "authType": "apikey",
             "authConfig": {"api_key": "sk-secret-key", "type": "apikey"},
             "modelParams": {"temperature": 0.8, "max_tokens": 4096},
             "description": "Test created model"
@@ -409,7 +408,7 @@ class TestModelConfigurationAPI:
         # Assert: Response contains error detail
         data = response.json()
         assert "detail" in data
-        assert "not found" in data["detail"].lower()
+        assert "could not find" in data["detail"].lower()
 
     def test_delete_model_success(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
         """Test that DELETE /models/{alias} deletes a model configuration."""
@@ -527,3 +526,4 @@ class TestSupportedModelsAPI:
             data = response.json()
             assert "detail" in data
             assert "not enabled" in data["detail"].lower()
+

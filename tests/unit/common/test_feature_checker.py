@@ -20,9 +20,9 @@ def _flag(key: str, default: bool) -> FeatureDefinition:
     return FeatureDefinition(
         key=key,
         name=key.replace("_", " ").title(),
-        release_phase=ReleasePhase.GA,
-        default_enabled=default,
-        jira_epic="DATAGO-99999",
+        release_phase=ReleasePhase.GENERAL_AVAILABILITY,
+        default=default,
+        jira="DATAGO-99999",
     )
 
 
