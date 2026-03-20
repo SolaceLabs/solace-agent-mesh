@@ -17,6 +17,7 @@ from a2a.types import (
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi import Request as FastAPIRequest
+from openfeature import api as openfeature_api
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as DBSession
 
@@ -290,9 +291,7 @@ async def _inject_project_context(
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
             try:
-                # Get feature flag value
-                feature_flags = component.get_config("frontend_feature_enablement", {})
-                indexing_enabled = feature_flags.get("projectIndexing", False)
+                indexing_enabled = openfeature_api.get_client().get_boolean_value("project_indexing", False)
 
                 artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
                     project_id=project_id,
@@ -749,12 +748,10 @@ async def _submit_task(
                 )
 
         # Pass project_id to agent for project-context-aware tool injection (e.g., index_search).
-        # Gated on frontend_feature_enablement.projectIndexing and BM25 index existence —
-        # the agent callback injects index_search when it sees project_id, so only pass it
-        # when the tool is usable.
+        # Gated on project_indexing feature flag and BM25 index existence — the agent callback
+        # injects index_search when it sees project_id, so only pass it when the tool is usable.
         if project_id:
-            feature_flags = component.get_config("frontend_feature_enablement", {})
-            indexing_enabled = feature_flags.get("projectIndexing", False)
+            indexing_enabled = openfeature_api.get_client().get_boolean_value("project_indexing", False)
             if indexing_enabled and project:
                 has_index = await _check_project_has_bm25_index(
                     project=project,
