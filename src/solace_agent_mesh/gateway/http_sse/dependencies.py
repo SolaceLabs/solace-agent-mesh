@@ -839,3 +839,4 @@ def get_indexing_task_service(
         sse_manager=sse_manager,
         project_service=project_service
     )
+
