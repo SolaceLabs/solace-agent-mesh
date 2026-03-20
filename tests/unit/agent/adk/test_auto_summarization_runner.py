@@ -922,10 +922,11 @@ class TestSendTruncationNotification:
 
     @pytest.mark.asyncio
     async def test_sends_interactive_notification_with_warning(self):
-        """Should send notification with warning emoji for interactive tasks."""
+        """Should send structured data signal for interactive tasks."""
         component = Mock()
         component._publish_a2a_event = Mock()
         component.get_config = Mock(return_value="test-namespace")
+        component.agent_name = "TestAgent"
 
         a2a_context = {
             "logical_task_id": "task1",
@@ -935,8 +936,7 @@ class TestSendTruncationNotification:
         }
 
         with patch('solace_agent_mesh.agent.adk.runner.a2a') as mock_a2a:
-            mock_a2a.create_agent_text_message.return_value = {"type": "text"}
-            mock_a2a.create_status_update.return_value = {"type": "status"}
+            mock_a2a.create_data_signal_event.return_value = {"type": "data_signal"}
             mock_a2a.create_success_response.return_value = Mock(model_dump=Mock(return_value={}))
             mock_a2a.get_client_response_topic.return_value = "response/topic"
 
@@ -948,22 +948,22 @@ class TestSendTruncationNotification:
                 log_identifier="[Test]"
             )
 
-            # Verify message was created with interactive warning
-            call_args = mock_a2a.create_agent_text_message.call_args
-            notification_text = call_args[1]['text']
-            assert "ℹ️" in notification_text
-            assert "Your conversation history reached the limit" in notification_text
-            assert "Test summary of conversation" in notification_text
+            # Verify data signal was created with correct CompactionNotificationData
+            call_args = mock_a2a.create_data_signal_event.call_args
+            signal_data = call_args[1]['signal_data']
+            assert signal_data.summary == "Test summary of conversation"
+            assert signal_data.is_background is False
 
             # Verify publish was called
             assert component._publish_a2a_event.called
 
     @pytest.mark.asyncio
     async def test_sends_background_notification_with_info(self):
-        """Should send notification with info emoji for background tasks."""
+        """Should send structured data signal for background tasks."""
         component = Mock()
         component._publish_a2a_event = Mock()
         component.get_config = Mock(return_value="test-namespace")
+        component.agent_name = "TestAgent"
 
         a2a_context = {
             "logical_task_id": "task1",
@@ -973,10 +973,8 @@ class TestSendTruncationNotification:
         }
 
         with patch('solace_agent_mesh.agent.adk.runner.a2a') as mock_a2a:
-            mock_a2a.create_agent_text_message.return_value = {"type": "text"}
-            mock_a2a.create_status_update.return_value = {"type": "status"}
+            mock_a2a.create_data_signal_event.return_value = {"type": "data_signal"}
             mock_a2a.create_success_response.return_value = Mock(model_dump=Mock(return_value={}))
-            mock_a2a.get_client_response_topic.return_value = "response/topic"
 
             await _send_truncation_notification(
                 component=component,
@@ -986,15 +984,15 @@ class TestSendTruncationNotification:
                 log_identifier="[Test]"
             )
 
-            # Verify message was created with background info
-            call_args = mock_a2a.create_agent_text_message.call_args
-            notification_text = call_args[1]['text']
-            assert "ℹ️" in notification_text
-            assert "Note:" in notification_text
-            assert "Background task summary" in notification_text
+            # Verify data signal was created with correct CompactionNotificationData
+            call_args = mock_a2a.create_data_signal_event.call_args
+            signal_data = call_args[1]['signal_data']
+            assert signal_data.summary == "Background task summary"
+            assert signal_data.is_background is True
 
-            # Verify publish was called
-            assert component._publish_a2a_event.called
+            # Verify publish used replyToTopic (peer route) instead of client topic
+            publish_args = component._publish_a2a_event.call_args
+            assert publish_args[0][1] == "agent/peer/responses"
 
 class TestCreateCompactionEvent:
     """Tests for _create_compaction_event function - progressive summarization."""

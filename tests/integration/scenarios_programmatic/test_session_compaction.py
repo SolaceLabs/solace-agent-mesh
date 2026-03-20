@@ -168,9 +168,9 @@ async def test_session_compaction_triggers_and_filters(
         response_text = aggregated_text or terminal_text
         assert response_text is not None, "Agent should respond after compaction"
 
-        # Verify summary notification was sent
-        assert "summarized" in response_text.lower() or "token limit" in response_text.lower() or "Summary" in response_text, \
-            f"Response should contain compaction summary notification"
+        # Verify the agent's response text matches expected LLM output
+        assert "dell xps 15" in response_text.lower(), \
+            f"Response should contain the LLM's answer about the replacement, got: {response_text}"
 
 
 async def test_compaction_cutoff_before_30_percent(
@@ -603,6 +603,6 @@ async def test_session_compaction_with_binary_content(
         response_text = aggregated_text or terminal_text
         assert response_text is not None, "Agent should respond after compaction with binary content"
 
-        # Verify summary notification includes context about continuation
-        assert "Continuing" in response_text or "summarized" in response_text.lower(), \
-            f"Response should indicate continuation after compaction, got: {response_text}"
+        # Verify the agent's response text matches expected LLM output
+        assert "preferences" in response_text.lower(), \
+            f"Response should contain the LLM's answer about preferences, got: {response_text}"
