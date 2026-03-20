@@ -1780,11 +1780,18 @@ class SamAgentComponent(SamComponentBase):
             )
 
             if resolved_text:
-                await self._publish_text_as_partial_a2a_status_update(
-                    resolved_text,
-                    a2a_context,
-                    is_stream_terminating_content=False,
-                )
+                is_run_based = a2a_context.get("is_run_based_session", False)
+                if is_run_based:
+                    with self.active_tasks_lock:
+                        tc = self.active_tasks.get(logical_task_id)
+                    if tc:
+                        tc.append_to_run_based_buffer(resolved_text)
+                else:
+                    await self._publish_text_as_partial_a2a_status_update(
+                        resolved_text,
+                        a2a_context,
+                        is_stream_terminating_content=False,
+                    )
                 log.debug(
                     "%s Successfully flushed and published buffer content (resolved: %d bytes).",
                     log_identifier,
