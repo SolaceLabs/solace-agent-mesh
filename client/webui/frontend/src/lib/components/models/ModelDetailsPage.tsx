@@ -63,7 +63,7 @@ export const ModelDetailsPage = () => {
                 </PopoverContent>
             </Popover>,
         ];
-    }, []);
+    }, [menuActions]);
 
     const title = modelToView ? modelToView.alias : "N/A";
 

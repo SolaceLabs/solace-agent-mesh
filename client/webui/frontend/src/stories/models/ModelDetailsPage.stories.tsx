@@ -6,27 +6,12 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { ModelDetailsPage } from "@/lib/components/models";
 import { modelKeys } from "@/lib/api/models";
+import { anthropicModelConfig } from "../data/models";
 
 /**
  * Mock model data for stories
  */
-const mockModelConfigs = [
-    {
-        id: "1",
-        alias: "anthropic-model",
-        provider: "anthropic",
-        modelName: "claude-3-5-sonnet",
-        apiBase: "https://api.anthropic.com",
-        authType: "apikey",
-        authConfig: { type: "apikey", keyName: "x-api-key" },
-        modelParams: { temperature: 0.1, max_tokens: 4096, system_prompt_caching: true },
-        description: "Enterprise-grade planning model with prompt caching for cost optimization",
-        createdBy: "admin@company.com",
-        updatedBy: "admin@company.com",
-        createdTime: 1704067200000, // 2024-01-01
-        updatedTime: 1710806400000, // 2024-03-19
-    },
-];
+const mockModelConfigs = [anthropicModelConfig];
 
 /**
  * Mock handlers for successful API responses
@@ -97,7 +82,8 @@ export const WithAPIKeyAuth: Story = {
     },
     play: async () => {
         // Model alias displayed in header and breadcrumb
-        await expect(await screen.findByText("anthropic-model")).toBeInTheDocument();
+        const aliasElements = await screen.findAllByText("anthropic-model");
+        await expect(aliasElements.length).toBeGreaterThan(0);
 
         // Provider shown with display name
         await expect(await screen.findByText("Anthropic")).toBeInTheDocument();
