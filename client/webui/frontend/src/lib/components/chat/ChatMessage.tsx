@@ -27,6 +27,7 @@ import { decodeBase64Content } from "./preview/previewUtils";
 import { downloadFile } from "@/lib/utils/download";
 import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
+import { CompactionNotification, type CompactionNotificationData } from "./CompactionNotification";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
 
@@ -651,6 +652,12 @@ const getChatBubble = (
                 {getChatBubble(messageWithoutProgress, chatContext, isLastWithTaskId)}
             </>
         );
+    }
+
+    // Check for compaction notification data
+    const compactionPart = message.parts?.find(p => p.kind === "data" && (p as DataPart).data?.type === "compaction_notification") as DataPart | undefined;
+    if (compactionPart) {
+        return <CompactionNotification data={compactionPart.data as unknown as CompactionNotificationData} />;
     }
 
     // Group contiguous parts to handle interleaving of text and files

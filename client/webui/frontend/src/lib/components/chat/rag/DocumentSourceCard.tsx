@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-import { AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui/accordion";
+import { AccordionCard } from "@/lib/components/ui/accordion-card";
 import { FileIcon } from "@/lib/components/chat/file/FileIcon";
 import { useSessionArtifactContent } from "@/lib/api/artifacts";
 import { useChatContext } from "@/lib/hooks";
@@ -66,50 +66,46 @@ export const DocumentSourceCard: React.FC<DocumentSourceCardProps> = ({ document
 
     return (
         <>
-            <div className="overflow-hidden rounded-[4px] border bg-(--background-w10)">
-                <AccordionItem value={`document-${sourceIndex}`} className="border-none">
-                    <AccordionTrigger className="items-center gap-2 p-4 hover:no-underline [&>svg:last-child]:hidden [&[data-state=open]>svg:first-child]:rotate-90">
-                        <ChevronRight className="h-4 w-4 shrink-0 self-center text-(--primary-wMain) transition-transform duration-200" />
-
-                        <FileIcon filename={filename} variant="compact" />
-
-                        <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-                            <span className="truncate text-sm font-medium text-(--primary-text-wMain)">{filename}</span>
-                            <span className="truncate text-sm text-(--secondary-text-wMain)">
-                                {fileExtension.toUpperCase()} file | {totalCitations} citation
-                                {totalCitations !== 1 ? "s" : ""}
-                            </span>
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="border-t px-4 pb-3">
-                        {isLoadingArtifact || !previewCheck ? (
-                            <div className="flex items-center justify-center py-8 text-(--secondary-text-wMain)">
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                            </div>
-                        ) : !previewCheck.canPreview ? (
-                            <div className="py-4">
-                                <ArtifactPreviewDownload
-                                    artifact={
-                                        {
-                                            filename,
-                                            mime_type: artifactData?.mimeType || "",
-                                            size: artifactData?.content ? Math.floor(artifactData.content.length * 0.75) : 0,
-                                            last_modified: "",
-                                        } as ArtifactInfo
-                                    }
-                                    message={previewCheck.reason || "Preview not available"}
-                                />
-                            </div>
-                        ) : (
-                            <div className="pt-4">
-                                {locations.map(location => (
-                                    <LocationCitationItem key={location.sortKey} locationLabel={location.locationLabel} citationCount={location.citationCount} onView={() => setSelectedLocation(location)} />
-                                ))}
-                            </div>
-                        )}
-                    </AccordionContent>
-                </AccordionItem>
-            </div>
+            <AccordionCard
+                value={`document-${sourceIndex}`}
+                standalone={false}
+                icon={<FileIcon filename={filename} variant="compact" />}
+                trigger={
+                    <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+                        <span className="truncate text-sm font-medium text-(--primary-text-wMain)">{filename}</span>
+                        <span className="truncate text-sm text-(--secondary-text-wMain)">
+                            {fileExtension.toUpperCase()} file | {totalCitations} citation
+                            {totalCitations !== 1 ? "s" : ""}
+                        </span>
+                    </div>
+                }
+            >
+                {isLoadingArtifact || !previewCheck ? (
+                    <div className="flex items-center justify-center py-8 text-(--secondary-text-wMain)">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                ) : !previewCheck.canPreview ? (
+                    <div className="py-4">
+                        <ArtifactPreviewDownload
+                            artifact={
+                                {
+                                    filename,
+                                    mime_type: artifactData?.mimeType || "",
+                                    size: artifactData?.content ? Math.floor(artifactData.content.length * 0.75) : 0,
+                                    last_modified: "",
+                                } as ArtifactInfo
+                            }
+                            message={previewCheck.reason || "Preview not available"}
+                        />
+                    </div>
+                ) : (
+                    <div className="pt-4">
+                        {locations.map(location => (
+                            <LocationCitationItem key={location.sortKey} locationLabel={location.locationLabel} citationCount={location.citationCount} onView={() => setSelectedLocation(location)} />
+                        ))}
+                    </div>
+                )}
+            </AccordionCard>
 
             <CitationPreviewModal
                 isOpen={!!selectedLocation}

@@ -3,7 +3,7 @@ FeatureChecker: two-tier feature flag evaluation.
 
 Evaluation priority (highest to lowest):
   1. Environment variable  SAM_FEATURE_<UPPER_KEY>=true|false
-  2. Registry default      FeatureDefinition.default_enabled
+  2. Registry default      FeatureDefinition.default
 """
 
 from __future__ import annotations
@@ -57,9 +57,9 @@ class FeatureChecker:
         logger.debug(
             "Feature '%s' resolved from registry default: %s",
             key,
-            definition.default_enabled,
+            definition.default,
         )
-        return definition.default_enabled
+        return definition.default
 
     def all_flags(self) -> dict[str, bool]:
         """Return {key: is_enabled(key)} for every registered feature."""
