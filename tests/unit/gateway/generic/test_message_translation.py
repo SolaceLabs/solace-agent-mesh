@@ -580,3 +580,64 @@ def test_task_to_sam_error_default_message_when_no_status(component):
     assert sam_error.message == "Task failed"
     assert sam_error.category == "FAILED"
     assert sam_error.code == -32000
+
+
+# --- Tests for _send_final_response_to_external ---
+
+
+@pytest.fixture
+def minimal_adapter():
+    """Create a MinimalAdapter that captures errors and completions."""
+    from tests.integration.gateway.generic.fixtures.mock_adapters import MinimalAdapter
+    return MinimalAdapter()
+
+
+@pytest.fixture
+def gateway_component(minimal_adapter):
+    """Create a minimal GenericGatewayComponent with MinimalAdapter."""
+    comp = GenericGatewayComponent.__new__(GenericGatewayComponent)
+    comp.adapter = minimal_adapter
+    comp.log_identifier = "[TestGateway]"
+    return comp
+
+
+@pytest.mark.asyncio
+async def test_send_final_response_failed_task_routes_through_handle_error(
+    gateway_component, minimal_adapter
+):
+    """Failed task produces error with FAILED category and completes task."""
+    # Arrange
+    external_context = {
+        "a2a_task_id_for_event": "test-task-123",
+        "a2a_session_id": "test-session",
+        "user_identity": {"id": "test-user@example.com"},
+        "is_streaming": False,
+    }
+    failed_task = Task(
+        id="test-task-123",
+        contextId="context-001",
+        status=TaskStatus(
+            state=TaskState.failed,
+            message=Message(
+                messageId="msg-001",
+                role="agent",
+                parts=[TextPart(type="text", text="LLM call failed")],
+            ),
+        ),
+    )
+
+    # Act
+    await gateway_component._send_final_response_to_external(external_context, failed_task)
+
+    # Assert - error was captured with correct category and message
+    assert len(minimal_adapter.errors) == 1
+    sam_error, response_context = minimal_adapter.errors[0]
+    assert sam_error.category == "FAILED"
+    assert sam_error.message == "LLM call failed"
+    assert response_context.task_id == "test-task-123"
+
+    # Assert - task was marked complete
+    assert "test-task-123" in minimal_adapter.completed_tasks
+
+    # Assert - no updates were sent
+    assert len(minimal_adapter.received_updates) == 0
