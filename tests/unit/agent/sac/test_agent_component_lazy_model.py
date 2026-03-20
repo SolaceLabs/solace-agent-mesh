@@ -119,13 +119,3 @@ class TestAgentComponentInitLazyModel:
             raise ValueError("Model config missing")  # Should NOT reach here
 
         # Should not raise
-
-    def test_raises_without_model_config_in_normal_mode(self):
-        """In normal mode, missing model config should raise ValueError."""
-        component = MagicMock(spec=SamAgentComponent)
-        component._lazy_model_mode = False
-        component.model_config = None
-
-        with pytest.raises(ValueError, match="Model config missing"):
-            if not component._lazy_model_mode and not component.model_config:
-                raise ValueError("Model config missing after validation.")

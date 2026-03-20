@@ -993,45 +993,52 @@ async def get_artifact_counts_batch(
 ) -> Dict[str, int]:
     """
     Get artifact counts for multiple sessions in a batch operation.
-    
+
     Args:
         artifact_service: The artifact service instance.
         app_name: The application name.
         user_id: The user ID.
         session_ids: List of session IDs to get counts for.
-    
+
     Returns:
         Dict mapping session_id to artifact_count (excluding internal/generated files)
     """
+    import asyncio
+
     log_prefix = f"[ArtifactHelper:get_counts_batch] App={app_name}, User={user_id} -"
-    counts: Dict[str, int] = {}
-    
+
+    if not session_ids:
+        return {}
+
     try:
         list_keys_method = getattr(artifact_service, "list_artifact_keys")
-        
-        for session_id in session_ids:
-            try:
-                keys = await list_keys_method(
-                    app_name=app_name, user_id=user_id, session_id=session_id
-                )
-                # Count only user-uploaded files (exclude metadata, converted text, and index files)
-                # NOTE: list_artifact_keys() may also return user-scoped keys (prefixed
-                # with "user:") which are shared across sessions. Currently no code path
-                # creates user-scoped artifacts, but if that changes, these keys should
-                # be filtered out here to avoid inflating per-project counts.
-                count = sum(1 for key in keys if not is_internal_artifact(key))
-                counts[session_id] = count
-                log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
-            except Exception as e:
-                log.warning("%s Failed to get count for session %s: %s", log_prefix, session_id, e)
-                counts[session_id] = 0
-                
-    except Exception as e:
-        log.exception("%s Error in batch count operation: %s", log_prefix, e)
-        # Return 0 for all sessions on error
+    except AttributeError:
+        log.exception("%s artifact_service has no list_artifact_keys method", log_prefix)
         return {session_id: 0 for session_id in session_ids}
-    
-    return counts
+
+    async def _count_session(session_id: str) -> tuple[str, int]:
+        try:
+            keys = await list_keys_method(
+                app_name=app_name, user_id=user_id, session_id=session_id
+            )
+            # Count only user-uploaded files (exclude metadata, converted text, and index files)
+            # NOTE: list_artifact_keys() may also return user-scoped keys (prefixed
+            # with "user:") which are shared across sessions. Currently no code path
+            # creates user-scoped artifacts, but if that changes, these keys should
+            # be filtered out here to avoid inflating per-project counts.
+            count = sum(1 for key in keys if not is_internal_artifact(key))
+            log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
+            return session_id, count
+        except Exception as e:
+            log.warning("%s Failed to get count for session %s: %s", log_prefix, session_id, e)
+            return session_id, 0
+
+    try:
+        results = await asyncio.gather(*(_count_session(sid) for sid in session_ids))
+        return dict(results)
+    except Exception as e:
+        log.exception("%s Error in concurrent batch count operation: %s", log_prefix, e)
+        return {session_id: 0 for session_id in session_ids}
 
 
 async def get_artifact_info_list(

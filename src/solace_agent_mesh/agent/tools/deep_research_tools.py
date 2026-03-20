@@ -220,6 +220,9 @@ def _get_model_for_phase(
     inv_context = tool_context._invocation_context
     agent = getattr(inv_context, 'agent', None)
     host_component = getattr(agent, "host_component", None)
+    
+    if not host_component:
+        raise ValueError(f"{log_identifier} No host component found on agent, cannot determine default model")
     default_model = host_component.get_lite_llm_model()
 
     

@@ -531,7 +531,7 @@ class TestGetModelForPhase:
 
         tool_context = self._create_mock_tool_context(agent=mock_agent)
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValueError):
             _get_model_for_phase("query_generation", tool_context, None)
 
     def test_raises_error_when_no_agent(self):
@@ -541,7 +541,7 @@ class TestGetModelForPhase:
         mock_inv_context.agent = None
         mock_context._invocation_context = mock_inv_context
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValueError):
             _get_model_for_phase("query_generation", mock_context, None)
     
     def test_returns_default_model_when_no_tool_config(self):

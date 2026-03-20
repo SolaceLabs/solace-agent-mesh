@@ -15,6 +15,7 @@ from solace_ai_connector.components.component_base import ComponentBase
 from ...agent.adk.models.lite_llm import LiteLlm
 from ...agent.adk.models.dynamic_model_provider import start_model_listener
 from ..exceptions import ComponentInitializationError, MessageSizeExceededError
+from ..features import core as feature_flags
 from ..utils.message_utils import validate_message_size
 
 log = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
     - Managing a dedicated asyncio event loop running in a separate thread.
     - Publishing A2A messages with built-in size validation.
     """
+    adk_model_instance: LiteLlm | None = None
 
     adk_model_instance: LiteLlm | None = None
     _component_id: str
@@ -71,13 +73,14 @@ class SamComponentBase(ComponentBase, abc.ABC):
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
 
+        feature_flags.initialize()
+
         model_provider_config = self.get_config("model_provider") or []
         self.model_provider = model_provider_config[0] if model_provider_config and isinstance(model_provider_config, list) else None
-        
+
         self._lazy_model_mode = (
             os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"
         )
-
         log.info("%s Initialized SamComponentBase", self.log_identifier)
 
     def get_component_id(self) -> str:
@@ -717,7 +720,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         if self.model_provider and self._lazy_model_mode:
             # Lazy model mode: create LiteLlm with placeholder
             adk_model_instance = LiteLlm(
-                model=None,
+                model=model_config,
                 on_status_change=self._on_model_status_change,
             )
         elif isinstance(model_config, str):

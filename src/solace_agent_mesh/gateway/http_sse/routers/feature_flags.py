@@ -9,15 +9,13 @@ environment variable; there are no write endpoints.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
-from ....gateway.http_sse.dependencies import get_sac_component
+from openfeature import api as openfeature_api
+
+from ....common.features.core import get_registry, has_env_override
 from .dto.responses.feature_flag_responses import FeatureFlagResponse
-
-if TYPE_CHECKING:
-    from ..component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
@@ -25,9 +23,7 @@ router = APIRouter()
 
 
 @router.get("/config/features", response_model=list[FeatureFlagResponse])
-async def get_feature_flags(
-    component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> list[FeatureFlagResponse]:
+async def get_feature_flags() -> list[FeatureFlagResponse]:
     """
     Return the evaluated state of every registered feature flag.
 
@@ -38,18 +34,18 @@ async def get_feature_flags(
     log.debug("%sRequest received.", log_prefix)
 
     try:
-        checker = component.feature_checker
+        client = openfeature_api.get_client()
         result = [
             FeatureFlagResponse(
                 key=defn.key,
                 name=defn.name,
                 release_phase=defn.release_phase.value,
-                resolved=checker.is_enabled(defn.key),
-                has_env_override=checker.has_env_override(defn.key),
-                registry_default=defn.default_enabled,
+                resolved=client.get_boolean_value(defn.key, False),
+                has_env_override=has_env_override(defn.key),
+                registry_default=defn.default,
                 description=defn.description,
             )
-            for defn in checker.registry.all()
+            for defn in get_registry().all()
         ]
         log.debug("%sReturning %d flag(s).", log_prefix, len(result))
         return result
