@@ -963,7 +963,7 @@ async def get_task_events(
         # Transform task events into A2AEventSSEPayload format for the frontend
         # Need to reconstruct the SSE structure from stored data
         formatted_events = []
-        
+
         for event in events:
             # event.payload contains the raw A2A JSON-RPC message
             # event.created_time is epoch milliseconds

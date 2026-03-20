@@ -4,7 +4,7 @@ Pydantic configuration models for proxy applications.
 
 from typing import List, Literal, Optional
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from ....common.utils.pydantic_utils import SamConfigBase
 
@@ -55,6 +55,24 @@ class ProxiedAgentConfig(SamConfigBase):
         default=None,
         description="Optional timeout override for this specific agent.",
     )
+    stream_batching_threshold_bytes: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Override the global stream_batching_threshold_bytes for this specific agent. If not set, uses the global value.",
+    )
+
+    @field_validator("stream_batching_threshold_bytes")
+    @classmethod
+    def validate_batching_threshold(cls, v: Optional[int]) -> Optional[int]:
+        """Warn if batching threshold is unusually large."""
+        if v is not None and v > 10240:  # 10KB
+            from solace_ai_connector.common.log import log
+            log.warning(
+                "Configuration Warning: Per-agent stream_batching_threshold_bytes is set to %d bytes (> 10KB). "
+                "Large thresholds may cause delays in status updates.",
+                v
+            )
+        return v
 
 
 class BaseProxyAppConfig(SamConfigBase):
@@ -83,3 +101,21 @@ class BaseProxyAppConfig(SamConfigBase):
         gt=0,
         description="Default timeout in seconds for requests to downstream agents.",
     )
+    stream_batching_threshold_bytes: int = Field(
+        default=100,
+        ge=0,
+        description="Minimum size in bytes for accumulated text from downstream agent streams before forwarding a status update. Set to 0 to disable batching.",
+    )
+
+    @field_validator("stream_batching_threshold_bytes")
+    @classmethod
+    def validate_batching_threshold(cls, v: int) -> int:
+        """Warn if batching threshold is unusually large."""
+        if v > 10240:  # 10KB
+            from solace_ai_connector.common.log import log
+            log.warning(
+                "Configuration Warning: stream_batching_threshold_bytes is set to %d bytes (> 10KB). "
+                "Large thresholds may cause delays in status updates.",
+                v
+            )
+        return v
