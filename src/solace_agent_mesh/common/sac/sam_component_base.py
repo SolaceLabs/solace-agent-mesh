@@ -5,14 +5,15 @@ Base Component class for SAM implementations in the Solace AI Connector.
 import logging
 import abc
 import asyncio
-import concurrent.futures
+import os
 import threading
 import functools
 import time
-from typing import Any, Optional
-
+from typing import Any, Optional, Union
+from google.adk.models import BaseLlm
 from solace_ai_connector.components.component_base import ComponentBase
-
+from ...agent.adk.models.lite_llm import LiteLlm
+from ...agent.adk.models.dynamic_model_provider import start_model_listener
 from ..exceptions import ComponentInitializationError, MessageSizeExceededError
 from ..utils.message_utils import validate_message_size
 
@@ -28,6 +29,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
     - Managing a dedicated asyncio event loop running in a separate thread.
     - Publishing A2A messages with built-in size validation.
     """
+    adk_model_instance: LiteLlm | None = None
+
+    adk_model_instance: LiteLlm | None = None
+    _component_id: str
 
     def __init__(self, info: dict[str, Any], **kwargs: Any):
         super().__init__(info, **kwargs)
@@ -67,7 +72,36 @@ class SamComponentBase(ComponentBase, abc.ABC):
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
 
+        model_provider_config = self.get_config("model_provider") or []
+        self.model_provider = model_provider_config[0] if model_provider_config and isinstance(model_provider_config, list) else None
+        
+        self._lazy_model_mode = (
+            os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"
+        )
         log.info("%s Initialized SamComponentBase", self.log_identifier)
+
+    def get_component_id(self) -> str:
+        """Returns the unique identifier for this component instance."""
+        component_id = getattr(self, "_component_id", None)
+        if component_id:
+            return component_id
+
+        component_id = (
+            getattr(self, "agent_name", None)
+            or getattr(self, "gateway_id", None)
+            or getattr(self, "workflow_name", None)
+        )
+
+        if not component_id:
+            component_id = f"component_{id(self)}"
+            log.warning(
+                "%s Could not determine specific component identifier. Falling back to generic identifier: %s",
+                self.log_identifier,
+                component_id,
+            )
+
+        self._component_id = component_id
+        return component_id
 
     def add_timer(
         self,
@@ -677,6 +711,86 @@ class SamComponentBase(ComponentBase, abc.ABC):
             )
         return None
 
+    def _initialize_model(self) -> BaseLlm:
+        model_config = self.get_config("model")
+        adk_model_instance: BaseLlm
+        if self.model_provider and self._lazy_model_mode:
+            # Lazy model mode: create LiteLlm with placeholder
+            adk_model_instance = LiteLlm(
+                model=model_config,
+                on_status_change=self._on_model_status_change,
+            )
+        elif isinstance(model_config, str):
+            adk_model_instance = LiteLlm(
+                model=model_config,
+                on_status_change=self._on_model_status_change,
+            )
+        elif isinstance(model_config, dict):
+            # Use setdefault to add keys only if they are not already present in the YAML
+            if model_config.get("type") is None:
+                model_config.setdefault("num_retries", 3)
+                model_config.setdefault("timeout", 120)
+                log.info(
+                    "%s Applying default resilience settings for LiteLlm model (num_retries=%s, timeout=%s). These can be overridden in YAML.",
+                    self.log_identifier,
+                    model_config["num_retries"],
+                    model_config["timeout"],
+                )
+
+            adk_model_instance = LiteLlm(
+                on_status_change=self._on_model_status_change,
+                **model_config,
+            )
+        else:
+            raise ValueError(
+                f"{self.log_identifier} Invalid 'model' configuration type: {type(model_config)}"
+            )
+        log.info(
+            "%s Initialized LiteLlm model",
+            self.log_identifier,
+        )
+        self.adk_model_instance = adk_model_instance
+        return adk_model_instance
+
+    def get_lite_llm_model(self) -> Optional[BaseLlm]:
+        """Returns a LiteLlm model instance."""
+        if not self.adk_model_instance:
+            if not self.model_provider and not self.get_config("model"):
+                log.warning(
+                    "%s No LLM provider configured for %s component. Returning None.",
+                    self.log_identifier,
+                    self.get_component_id(),
+                )
+                return None
+            self._initialize_model()
+        return self.adk_model_instance
+
+    def _on_model_status_change(self, old_status: str, new_status: str):
+        """Callback invoked by LiteLlm on any status transition.
+        """
+        pass
+
+    async def _start_model_listener(self):
+        """Start the model configuration listener."""
+        if not self.model_provider:
+            log.info(
+                "%s LLM Model Provider not configured. Skipping model listener setup.",
+                self.log_identifier,
+            )
+            return
+
+        # Try enterprise model listener
+        try:
+            litellm_instance = self.get_lite_llm_model()
+            await start_model_listener(litellm_instance, self, self.model_provider)
+            log.info("%s Enterprise model listener started.", self.log_identifier)
+        except Exception as e:
+            log.warning(
+                "%s Enterprise model listener failed: %s",
+                self.log_identifier,
+                e,
+            )
+
     @abc.abstractmethod
     def _get_component_id(self) -> str:
         """
@@ -727,6 +841,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 # Trust Manager failure should not prevent component startup
                 # Set to None to disable trust manager for this session
                 self.trust_manager = None
+
+        if self._lazy_model_mode and self.model_provider:
+            asyncio.create_task(self._start_model_listener())
 
     @abc.abstractmethod
     def _pre_async_cleanup(self) -> None:

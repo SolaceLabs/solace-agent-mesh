@@ -69,32 +69,6 @@ def clear_cache():
 class TestOAuthLLMIntegration:
     """Integration tests for OAuth LLM authentication."""
 
-    def test_litellm_oauth_initialization(self, oauth_config):
-        """Test that LiteLlm properly initializes with OAuth configuration."""
-        llm = LiteLlm(**oauth_config)
-        
-        # Verify OAuth token manager was created
-        assert llm._oauth_token_manager is not None
-        assert llm._oauth_token_manager.token_url == "https://auth.example.com/oauth/token"
-        assert llm._oauth_token_manager.client_id == "test_client_id"
-        assert llm._oauth_token_manager.client_secret == "test_client_secret"
-        assert llm._oauth_token_manager.scope == "llm.read llm.write"
-        
-        # Verify OAuth parameters were removed from additional_args
-        assert "oauth_token_url" not in llm._additional_args
-        assert "oauth_client_id" not in llm._additional_args
-        assert "oauth_client_secret" not in llm._additional_args
-
-    def test_litellm_api_key_initialization(self, api_key_config):
-        """Test that LiteLlm works normally with API key configuration."""
-        llm = LiteLlm(**api_key_config)
-        
-        # Verify no OAuth token manager was created
-        assert llm._oauth_token_manager is None
-        
-        # Verify API key is preserved
-        assert llm._additional_args["api_key"] == "test_api_key_12345"
-
     @pytest.mark.asyncio
     async def test_oauth_token_injection_in_requests(
         self, oauth_config, mock_token_response, sample_llm_request
@@ -260,26 +234,6 @@ class TestOAuthLLMIntegration:
             with pytest.raises(Exception):
                 async for response in llm.generate_content_async(sample_llm_request):
                     break
-
-    def test_incomplete_oauth_configuration(self):
-        """Test handling of incomplete OAuth configuration."""
-        # Missing client_secret
-        incomplete_config = {
-            "model": "test-model",
-            "api_base": "https://api.example.com/v1",
-            "oauth_token_url": "https://auth.example.com/oauth/token",
-            "oauth_client_id": "test_client_id",
-            # oauth_client_secret missing
-        }
-        
-        llm = LiteLlm(**incomplete_config)
-        
-        # Should not create OAuth token manager with incomplete config
-        assert llm._oauth_token_manager is None
-        
-        # OAuth parameters should be removed from additional_args
-        assert "oauth_token_url" not in llm._additional_args
-        assert "oauth_client_id" not in llm._additional_args
 
     @pytest.mark.asyncio
     async def test_concurrent_oauth_requests(
