@@ -167,38 +167,47 @@ class TestBootstrapRequestListenerGetModelConfig:
             comp.log_identifier = "[test]"
             return comp
 
-    @patch("solace_agent_mesh.services.platform.api.dependencies.PlatformSessionLocal")
-    @patch("solace_agent_mesh.services.platform.services.ModelConfigService")
-    def test_get_model_config_calls_service(self, MockService, MockSessionLocal):
-        """_get_model_config creates a DB session, calls service, and closes session."""
+    @patch(
+        "solace_agent_mesh.services.platform.components.dynamic_model_provider_listener.get_model_config_service"
+    )
+    @patch(
+        "solace_agent_mesh.services.platform.components.dynamic_model_provider_listener.get_platform_db"
+    )
+    def test_get_model_config_calls_service(self, mock_get_db, mock_get_service):
+        """_get_model_config gets a db session and service, then calls get_by_alias_or_id."""
         comp = self._make_component()
 
         mock_db = Mock()
-        MockSessionLocal.return_value = mock_db
+        mock_get_db.return_value = mock_db
 
         expected_config = {"model": "gpt-4"}
-        MockService.return_value.get_by_alias_or_id.return_value = expected_config
+        mock_service = Mock()
+        mock_service.get_by_alias_or_id.return_value = expected_config
+        mock_get_service.return_value = mock_service
 
         result = comp._get_model_config("my-model")
 
         assert result == expected_config
-        MockService.return_value.get_by_alias_or_id.assert_called_once_with(
+        mock_get_db.assert_called_once()
+        mock_get_service.assert_called_once()
+        mock_service.get_by_alias_or_id.assert_called_once_with(
             mock_db, "my-model", raw=True
         )
-        mock_db.close.assert_called_once()
 
-    @patch("solace_agent_mesh.services.platform.api.dependencies.PlatformSessionLocal")
-    @patch("solace_agent_mesh.services.platform.services.ModelConfigService")
-    def test_get_model_config_closes_session_on_error(self, MockService, MockSessionLocal):
-        """DB session is closed even when service raises."""
+    @patch(
+        "solace_agent_mesh.services.platform.components.dynamic_model_provider_listener.get_model_config_service"
+    )
+    @patch(
+        "solace_agent_mesh.services.platform.components.dynamic_model_provider_listener.get_platform_db"
+    )
+    def test_get_model_config_raises_on_service_error(self, mock_get_db, mock_get_service):
+        """Exception from service propagates up."""
         comp = self._make_component()
 
-        mock_db = Mock()
-        MockSessionLocal.return_value = mock_db
-
-        MockService.return_value.get_by_alias_or_id.side_effect = RuntimeError("DB fail")
+        mock_get_db.return_value = Mock()
+        mock_service = Mock()
+        mock_service.get_by_alias_or_id.side_effect = RuntimeError("DB fail")
+        mock_get_service.return_value = mock_service
 
         with pytest.raises(RuntimeError):
             comp._get_model_config("my-model")
-
-        mock_db.close.assert_called_once()
