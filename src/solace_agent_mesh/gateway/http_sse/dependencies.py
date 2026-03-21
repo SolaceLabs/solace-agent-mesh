@@ -155,6 +155,8 @@ def get_sac_component() -> "WebUIBackendComponent":
 _ADK_SESSION_SERVICE_UNSET = object()
 _adk_session_service = _ADK_SESSION_SERVICE_UNSET
 _adk_session_service_lock = asyncio.Lock()
+_adk_init_last_failure: float = 0.0
+_ADK_INIT_RETRY_COOLDOWN = 30.0  # seconds between retry attempts
 
 
 async def get_adk_session_service(
@@ -176,8 +178,12 @@ async def get_adk_session_service(
     Returns ``None`` when no ``adk_session_service`` is configured, which causes
     token-counting endpoints to return empty/zero results gracefully.
     """
-    global _adk_session_service
+    import time as _time
+    global _adk_session_service, _adk_init_last_failure
     if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
+        # Skip retry if a recent attempt failed (cooldown to avoid hammering DB)
+        if _adk_init_last_failure and (_time.monotonic() - _adk_init_last_failure) < _ADK_INIT_RETRY_COOLDOWN:
+            return None
         async with _adk_session_service_lock:
             if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
                 adk_cfg = component.get_config("adk_session_service")
@@ -199,12 +205,18 @@ async def get_adk_session_service(
                         )
                         log.info("ADK Session Service initialized for gateway.")
                     except Exception as e:
+                        # Log only the exception type to avoid leaking database
+                        # URLs with embedded credentials from connection errors.
                         log.warning(
                             "Failed to initialize ADK Session Service for gateway: %s. "
                             "Token-counting features will return empty results.",
-                            e,
+                            type(e).__name__,
                         )
-                        _adk_session_service = None
+                        # Don't cache None on failure — leave as _ADK_SESSION_SERVICE_UNSET
+                        # so the next request retries (transient DB errors will self-heal).
+                        _adk_init_last_failure = _time.monotonic()
+    if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
+        return None
     return _adk_session_service
 
 
