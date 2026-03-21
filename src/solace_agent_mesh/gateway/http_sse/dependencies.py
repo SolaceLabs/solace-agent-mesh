@@ -150,8 +150,10 @@ def get_sac_component() -> "WebUIBackendComponent":
     return sac_component_instance
 
 
-# Lazy-initialized ADK session service for gateway-level access to conversation events
-_adk_session_service = None
+# Lazy-initialized ADK session service for gateway-level access to conversation events.
+# Sentinel object to distinguish "not yet initialized" from "initialized to None".
+_ADK_SESSION_SERVICE_UNSET = object()
+_adk_session_service = _ADK_SESSION_SERVICE_UNSET
 _adk_session_service_lock = asyncio.Lock()
 
 
@@ -160,16 +162,49 @@ async def get_adk_session_service(
 ):
     """FastAPI dependency to get a shared ADK session service for the gateway.
 
-    Lazily initializes an ADK session service using the same config as agent components,
-    allowing the gateway to access conversation events for token counting and compaction.
+    Lazily initializes an ADK session service using the component's dedicated
+    ``adk_session_service`` config key.  This config must point at the **same**
+    database that the ADK agent uses (which has the ADK ``sessions`` / ``events``
+    schema).  It must NOT reuse the WebUI gateway's own ``session_service`` config
+    because that database uses a completely different schema.
+
+    Supports all ADK session service backends (memory, sql, vertex) via the
+    shared ``create_session_service_from_config`` factory.  For SQL backends the
+    ``database_url`` may point at SQLite, PostgreSQL, or MySQL — any URL that
+    SQLAlchemy / Google ADK supports.
+
+    Returns ``None`` when no ``adk_session_service`` is configured, which causes
+    token-counting endpoints to return empty/zero results gracefully.
     """
     global _adk_session_service
-    if _adk_session_service is None:
+    if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
         async with _adk_session_service_lock:
-            if _adk_session_service is None:
-                from ...agent.adk.services import initialize_session_service
-                _adk_session_service = initialize_session_service(component)
-                log.info("ADK Session Service initialized for gateway.")
+            if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
+                adk_cfg = component.get_config("adk_session_service")
+                if not adk_cfg:
+                    log.info(
+                        "No 'adk_session_service' configured on the WebUI gateway component. "
+                        "Token-counting / context-usage features will return empty results."
+                    )
+                    _adk_session_service = None
+                else:
+                    try:
+                        from ...agent.adk.services import create_session_service_from_config
+                        # The gateway only reads ADK sessions — no migrations needed here
+                        # (migrations are run by the ADK agent on its own startup).
+                        _adk_session_service = create_session_service_from_config(
+                            adk_cfg,
+                            log_identifier="[WebUI Gateway ADK Session]",
+                            run_db_migrations=False,
+                        )
+                        log.info("ADK Session Service initialized for gateway.")
+                    except Exception as e:
+                        log.warning(
+                            "Failed to initialize ADK Session Service for gateway: %s. "
+                            "Token-counting features will return empty results.",
+                            e,
+                        )
+                        _adk_session_service = None
     return _adk_session_service
 
 
