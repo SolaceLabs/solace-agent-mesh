@@ -462,67 +462,102 @@ class FilteringSessionService(BaseSessionService):
         """Delegate to wrapped service."""
         return await self._wrapped.append_event(session, event)
 
-def initialize_session_service(component) -> BaseSessionService:
+def create_session_service_from_config(
+    config,
+    log_identifier: str = "[SessionService]",
+    run_db_migrations: bool = False,
+    migration_component=None,
+) -> BaseSessionService:
     """
-    Initializes the ADK Session Service based on configuration.
+    Create an ADK BaseSessionService from a raw config dict or config object.
 
-    The returned service is automatically wrapped with FilteringSessionService
-    to provide transparent ghost event filtering on all get_session() calls.
+    This is the low-level factory that works with any supported backend
+    (memory, sql/SQLite/PostgreSQL/MySQL, vertex) without requiring a full
+    component instance.  It is used both by ``initialize_session_service``
+    (agent startup path) and by the WebUI gateway's ``get_adk_session_service``
+    dependency (read-only token-tracking path).
+
+    Args:
+        config: A dict or config object with at minimum a ``type`` key.
+                For ``sql`` type, a ``database_url`` key is also required.
+        log_identifier: String prefix used in log messages.
+        run_db_migrations: When True, run Alembic migrations after creating a
+                           SQL service.  Requires ``migration_component``.
+        migration_component: Component instance passed to ``run_migrations``
+                             when ``run_db_migrations`` is True.
+
+    Returns:
+        A BaseSessionService instance (never wrapped with FilteringSessionService
+        — callers that need filtering should wrap the result themselves).
     """
-    config = component.get_config("session_service", {})
-
-    # Handle both dict and SessionServiceConfig object
+    # Normalise config to a plain dict for uniform access
     if hasattr(config, "type"):
         service_type = config.type.lower()
         db_url = getattr(config, "database_url", None)
     else:
-        service_type = config.get("type", "memory").lower()
-        db_url = config.get("database_url")
+        service_type = (config or {}).get("type", "memory").lower()
+        db_url = (config or {}).get("database_url")
 
-    log.info(
-        "%s Initializing Session Service of type: %s",
-        component.log_identifier,
-        service_type,
-    )
-
-    # Create the base service
-    base_service: BaseSessionService
+    log.info("%s Initializing Session Service of type: %s", log_identifier, service_type)
 
     if service_type == "memory":
-        base_service = InMemorySessionService()
-    elif service_type == "sql":
+        return InMemorySessionService()
+
+    if service_type == "sql":
         if not db_url:
             raise ValueError(
-                f"{component.log_identifier} 'database_url' is required for sql session service."
+                f"{log_identifier} 'database_url' is required for sql session service."
             )
         try:
             base_service = DatabaseSessionService(db_url=db_url)
-            run_migrations(base_service, component)
         except ImportError:
             log.error(
                 "%s SQLAlchemy not installed. Please install 'google-adk[database]' or 'sqlalchemy'.",
-                component.log_identifier,
+                log_identifier,
             )
             raise
-    elif service_type == "vertex":
+        if run_db_migrations and migration_component is not None:
+            run_migrations(base_service, migration_component)
+        return base_service
+
+    if service_type == "vertex":
         project = os.environ.get("GOOGLE_CLOUD_PROJECT")
         location = os.environ.get("GOOGLE_CLOUD_LOCATION")
         if not project or not location:
             raise ValueError(
-                f"{component.log_identifier} GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION env vars required for vertex session service."
+                f"{log_identifier} GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION env vars "
+                "required for vertex session service."
             )
-        base_service = VertexAiSessionService(project=project, location=location)
-    else:
-        raise ValueError(
-            f"{component.log_identifier} Unsupported session service type: {service_type}"
-        )
+        return VertexAiSessionService(project=project, location=location)
 
-    # Check if auto-summarization is enabled from component config
-    auto_sum_config = component.auto_summarization_config
+    raise ValueError(f"{log_identifier} Unsupported session service type: {service_type}")
+
+
+def initialize_session_service(component) -> BaseSessionService:
+    """
+    Initializes the ADK Session Service based on the component's configuration.
+
+    Reads the ``session_service`` config key from the component, creates the
+    appropriate backend via ``create_session_service_from_config``, runs DB
+    migrations for SQL backends, and optionally wraps the result with
+    ``FilteringSessionService`` when auto-summarization is enabled.
+    """
+    config = component.get_config("session_service", {})
+
+    base_service = create_session_service_from_config(
+        config,
+        log_identifier=component.log_identifier,
+        run_db_migrations=True,
+        migration_component=component,
+    )
+
+    # Check if auto-summarization is enabled from component config.
+    # Use getattr with a default so this works when called from components
+    # that don't have auto_summarization_config (e.g. WebUIBackendComponent).
+    auto_sum_config = getattr(component, "auto_summarization_config", {})
     if auto_sum_config.get("enabled", False):
-        # Wrap with FilteringSessionService to automatically filter ghost events
-        # This ensures ALL get_session() calls across the codebase get filtered sessions
-        # There is a risk of spilling summary events in case if flag flips between True/False - and no filtering.
+        # Wrap with FilteringSessionService to automatically filter ghost events.
+        # This ensures ALL get_session() calls across the codebase get filtered sessions.
         log.info(
             "%s Wrapping session service with FilteringSessionService for automatic compaction filtering.",
             component.log_identifier,

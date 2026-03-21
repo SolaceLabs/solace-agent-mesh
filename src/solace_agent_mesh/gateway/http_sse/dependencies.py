@@ -4,6 +4,7 @@ managed by the WebUIBackendComponent.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -147,6 +148,76 @@ def get_sac_component() -> "WebUIBackendComponent":
             detail="Backend component not yet initialized.",
         )
     return sac_component_instance
+
+
+# Lazy-initialized ADK session service for gateway-level access to conversation events.
+# Sentinel object to distinguish "not yet initialized" from "initialized to None".
+_ADK_SESSION_SERVICE_UNSET = object()
+_adk_session_service = _ADK_SESSION_SERVICE_UNSET
+_adk_session_service_lock = asyncio.Lock()
+_adk_init_last_failure: float = 0.0
+_ADK_INIT_RETRY_COOLDOWN = 30.0  # seconds between retry attempts
+
+
+async def get_adk_session_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+):
+    """FastAPI dependency to get a shared ADK session service for the gateway.
+
+    Lazily initializes an ADK session service using the component's dedicated
+    ``adk_session_service`` config key.  This config must point at the **same**
+    database that the ADK agent uses (which has the ADK ``sessions`` / ``events``
+    schema).  It must NOT reuse the WebUI gateway's own ``session_service`` config
+    because that database uses a completely different schema.
+
+    Supports all ADK session service backends (memory, sql, vertex) via the
+    shared ``create_session_service_from_config`` factory.  For SQL backends the
+    ``database_url`` may point at SQLite, PostgreSQL, or MySQL — any URL that
+    SQLAlchemy / Google ADK supports.
+
+    Returns ``None`` when no ``adk_session_service`` is configured, which causes
+    token-counting endpoints to return empty/zero results gracefully.
+    """
+    import time as _time
+    global _adk_session_service, _adk_init_last_failure
+    if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
+        # Skip retry if a recent attempt failed (cooldown to avoid hammering DB)
+        if _adk_init_last_failure and (_time.monotonic() - _adk_init_last_failure) < _ADK_INIT_RETRY_COOLDOWN:
+            return None
+        async with _adk_session_service_lock:
+            if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
+                adk_cfg = component.get_config("adk_session_service")
+                if not adk_cfg:
+                    log.info(
+                        "No 'adk_session_service' configured on the WebUI gateway component. "
+                        "Token-counting / context-usage features will return empty results."
+                    )
+                    _adk_session_service = None
+                else:
+                    try:
+                        from ...agent.adk.services import create_session_service_from_config
+                        # The gateway only reads ADK sessions — no migrations needed here
+                        # (migrations are run by the ADK agent on its own startup).
+                        _adk_session_service = create_session_service_from_config(
+                            adk_cfg,
+                            log_identifier="[WebUI Gateway ADK Session]",
+                            run_db_migrations=False,
+                        )
+                        log.info("ADK Session Service initialized for gateway.")
+                    except Exception as e:
+                        # Log only the exception type to avoid leaking database
+                        # URLs with embedded credentials from connection errors.
+                        log.warning(
+                            "Failed to initialize ADK Session Service for gateway: %s. "
+                            "Token-counting features will return empty results.",
+                            type(e).__name__,
+                        )
+                        # Don't cache None on failure — leave as _ADK_SESSION_SERVICE_UNSET
+                        # so the next request retries (transient DB errors will self-heal).
+                        _adk_init_last_failure = _time.monotonic()
+    if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
+        return None
+    return _adk_session_service
 
 
 def get_api_config() -> dict[str, Any]:
