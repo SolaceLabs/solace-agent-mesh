@@ -1070,8 +1070,7 @@ class ContextUsageResponse(BaseModel):
     total_events: int = Field(alias="totalEvents")
     has_compaction: bool = Field(alias="hasCompaction")
 
-    class Config:
-        populate_by_name = True
+    model_config = {"populate_by_name": True}
 
 
 class CompactSessionRequest(BaseModel):
@@ -1092,8 +1091,14 @@ class CompactSessionResponse(BaseModel):
     remaining_events: int = Field(alias="remainingEvents")
     remaining_tokens: int = Field(alias="remainingTokens")
 
-    class Config:
-        populate_by_name = True
+    model_config = {"populate_by_name": True}
+
+
+def _get_adk_imports():
+    """Lazily import ADK internals to avoid startup failures in gateway-only deployments."""
+    from ....agent.adk.runner import _calculate_session_context_tokens, _create_compaction_event
+    from ....agent.adk.models.lite_llm import _calculate_content_tokens
+    return _calculate_content_tokens, _calculate_session_context_tokens, _create_compaction_event
 
 
 def _get_model_context_limit(model_name: str) -> int:
@@ -1104,6 +1109,36 @@ def _get_model_context_limit(model_name: str) -> int:
         return info.get("max_input_tokens", DEFAULT_CONTEXT_LIMIT)
     except Exception:
         return DEFAULT_CONTEXT_LIMIT
+
+
+async def _load_adk_session(
+    session_id: str,
+    user_id: str,
+    agent_name: Optional[str],
+    session_service: SessionService,
+    adk_session_service,
+    db: Session,
+):
+    """Load and validate a gateway session and its corresponding ADK session.
+
+    Returns (gateway_session, app_name, adk_session).
+    Raises HTTPException on validation failures.
+    """
+    gateway_session = session_service.get_session_details(db, session_id, user_id)
+    if not gateway_session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    app_name = agent_name or gateway_session.agent_id
+    if not app_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No agent associated with this session. Provide agent_name parameter.",
+        )
+
+    adk_session = await adk_session_service.get_session(
+        app_name=app_name, user_id=user_id, session_id=session_id,
+    )
+    return gateway_session, app_name, adk_session
 
 
 @router.get("/sessions/{session_id}/context-usage", response_model=ContextUsageResponse)
@@ -1125,22 +1160,8 @@ async def get_session_context_usage(
     user_id = user.get("id")
 
     try:
-        # Get gateway session to find agent info
-        gateway_session = session_service.get_session_details(db, session_id, user_id)
-        if not gateway_session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-
-        # Determine the agent name (app_name for ADK session)
-        app_name = agent_name or gateway_session.agent_id
-        if not app_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No agent associated with this session. Provide agent_name parameter.",
-            )
-
-        # Load ADK session
-        adk_session = await adk_session_service.get_session(
-            app_name=app_name, user_id=user_id, session_id=session_id,
+        _gateway_session, app_name, adk_session = await _load_adk_session(
+            session_id, user_id, agent_name, session_service, adk_session_service, db,
         )
         if not adk_session or not adk_session.events:
             return ContextUsageResponse(
@@ -1158,8 +1179,7 @@ async def get_session_context_usage(
         effective_model = model or DEFAULT_MODEL
 
         # Calculate token counts per role (user=prompt/sent, model=completion/received)
-        from ....agent.adk.runner import _calculate_session_context_tokens
-        from ....agent.adk.models.lite_llm import _calculate_content_tokens
+        _calculate_content_tokens, _, _ = _get_adk_imports()
 
         has_compaction = False
         non_compaction_events = []
@@ -1173,7 +1193,8 @@ async def get_session_context_usage(
                 if event.content:
                     try:
                         tokens = _calculate_content_tokens(event.content, model=effective_model)
-                    except Exception:
+                    except Exception as e:
+                        log.debug("Failed to calculate tokens for event in session %s: %s", session_id, e)
                         tokens = 0
                     role = getattr(event.content, "role", None)
                     if role == "user":
@@ -1211,6 +1232,7 @@ async def get_session_context_usage(
 async def compact_session(
     session_id: str,
     request: CompactSessionRequest = Body(default=CompactSessionRequest()),
+    agent_name: Optional[str] = None,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
@@ -1228,19 +1250,8 @@ async def compact_session(
     user_id = user.get("id")
 
     try:
-        gateway_session = session_service.get_session_details(db, session_id, user_id)
-        if not gateway_session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-
-        app_name = gateway_session.agent_id
-        if not app_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No agent associated with this session.",
-            )
-
-        adk_session = await adk_session_service.get_session(
-            app_name=app_name, user_id=user_id, session_id=session_id,
+        _gateway_session, app_name, adk_session = await _load_adk_session(
+            session_id, user_id, agent_name, session_service, adk_session_service, db,
         )
         if not adk_session or not adk_session.events:
             raise HTTPException(
@@ -1263,9 +1274,9 @@ async def compact_session(
                         self.model = m
                 self.adk_agent = _Agent(model_name)
 
-        adapter = _CompactionAdapter(adk_session_service, effective_model, app_name)
+        _, _calculate_session_context_tokens, _create_compaction_event = _get_adk_imports()
 
-        from ....agent.adk.runner import _create_compaction_event
+        adapter = _CompactionAdapter(adk_session_service, effective_model, app_name)
 
         events_compacted, summary = await _create_compaction_event(
             component=adapter,
@@ -1286,8 +1297,6 @@ async def compact_session(
         )
 
         remaining_events = len(reloaded.events) if reloaded and reloaded.events else 0
-
-        from ....agent.adk.runner import _calculate_session_context_tokens
 
         remaining_non_compaction = [
             e for e in (reloaded.events or [])
@@ -1313,5 +1322,5 @@ async def compact_session(
         log.error("Error compacting session %s: %s", session_id, e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to compact session: {str(e)}",
+            detail="Failed to compact session",
         )
