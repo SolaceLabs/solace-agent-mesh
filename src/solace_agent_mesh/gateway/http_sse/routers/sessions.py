@@ -1054,6 +1054,9 @@ async def trigger_title_generation(
 # Context Usage & Manual Compaction Endpoints
 # =============================================================================
 
+# Fallback model used for token counting when neither the request nor the
+# component config specifies a model.  Callers should prefer the component's
+# configured model (component.model_config) over this constant.
 DEFAULT_MODEL = "claude-sonnet-4-5"
 DEFAULT_CONTEXT_LIMIT = 200_000
 
@@ -1177,6 +1180,7 @@ async def get_session_context_usage(
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
     adk_session_service=Depends(get_adk_session_service),
+    component=Depends(get_sac_component),
 ):
     """
     Get context window usage for a session.
@@ -1190,6 +1194,15 @@ async def get_session_context_usage(
         _gateway_session, app_name, adk_session = await _load_adk_session(
             session_id, user_id, agent_name, session_service, adk_session_service, db,
         )
+        # Resolve the model to use for token counting:
+        # 1. Explicit model from request query param
+        # 2. Model configured on the gateway component
+        # 3. Hardcoded fallback constant
+        component_model = None
+        if hasattr(component, "model_config") and isinstance(component.model_config, dict):
+            component_model = component.model_config.get("model")
+        resolved_default_model = component_model or DEFAULT_MODEL
+
         if not adk_session or not adk_session.events:
             return ContextUsageResponse(
                 sessionId=session_id,
@@ -1198,12 +1211,12 @@ async def get_session_context_usage(
                 completionTokens=0,
                 maxInputTokens=DEFAULT_CONTEXT_LIMIT,
                 usagePercentage=0.0,
-                model=model or DEFAULT_MODEL,
+                model=model or resolved_default_model,
                 totalEvents=0,
                 hasCompaction=False,
             )
 
-        effective_model = model or DEFAULT_MODEL
+        effective_model = model or resolved_default_model
 
         # Calculate token counts per role (user=prompt/sent, model=completion/received)
         _calculate_content_tokens, _, _ = _get_adk_imports()
