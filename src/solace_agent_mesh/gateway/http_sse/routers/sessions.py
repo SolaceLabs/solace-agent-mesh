@@ -1100,9 +1100,9 @@ class CompactSessionResponse(BaseModel):
 
 def _get_adk_imports():
     """Lazily import ADK internals to avoid startup failures in gateway-only deployments."""
-    from ....agent.adk.runner import _calculate_session_context_tokens, _create_compaction_event
-    from ....agent.adk.models.lite_llm import _calculate_content_tokens
-    return _calculate_content_tokens, _calculate_session_context_tokens, _create_compaction_event
+    from ....agent.adk.runner import calculate_session_context_tokens, create_compaction_event
+    from ....agent.adk.models.lite_llm import calculate_content_tokens
+    return calculate_content_tokens, calculate_session_context_tokens, create_compaction_event
 
 
 class _CompactionAdapter:
