@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from ....common.utils.embeds import (
@@ -14,7 +14,7 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.templates import resolve_template_blocks_in_string
-from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component, get_adk_session_service
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -1050,4 +1050,268 @@ async def trigger_title_generation(
         ) from e
 
 
+# =============================================================================
+# Context Usage & Manual Compaction Endpoints
+# =============================================================================
 
+DEFAULT_MODEL = "claude-sonnet-4-5"
+DEFAULT_CONTEXT_LIMIT = 200_000
+
+
+class ContextUsageResponse(BaseModel):
+    """Response model for session context window usage."""
+    session_id: str = Field(alias="sessionId")
+    current_context_tokens: int = Field(alias="currentContextTokens")
+    prompt_tokens: int = Field(alias="promptTokens")
+    completion_tokens: int = Field(alias="completionTokens")
+    max_input_tokens: int = Field(alias="maxInputTokens")
+    usage_percentage: float = Field(alias="usagePercentage")
+    model: str
+    total_events: int = Field(alias="totalEvents")
+    has_compaction: bool = Field(alias="hasCompaction")
+
+    class Config:
+        populate_by_name = True
+
+
+class CompactSessionRequest(BaseModel):
+    """Request model for manual session compaction."""
+    model: Optional[str] = Field(None, description="LLM model name for token counting and summarization")
+    compaction_percentage: float = Field(
+        default=0.25,
+        ge=0.1,
+        le=0.9,
+        description="Percentage of conversation to compact (0.1 - 0.9)",
+    )
+
+
+class CompactSessionResponse(BaseModel):
+    """Response model for session compaction."""
+    events_compacted: int = Field(alias="eventsCompacted")
+    summary: str
+    remaining_events: int = Field(alias="remainingEvents")
+    remaining_tokens: int = Field(alias="remainingTokens")
+
+    class Config:
+        populate_by_name = True
+
+
+def _get_model_context_limit(model_name: str) -> int:
+    """Get model context window limit using LiteLLM, with fallback."""
+    try:
+        from litellm import get_model_info
+        info = get_model_info(model_name)
+        return info.get("max_input_tokens", DEFAULT_CONTEXT_LIMIT)
+    except Exception:
+        return DEFAULT_CONTEXT_LIMIT
+
+
+@router.get("/sessions/{session_id}/context-usage", response_model=ContextUsageResponse)
+async def get_session_context_usage(
+    session_id: str,
+    model: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+    adk_session_service=Depends(get_adk_session_service),
+):
+    """
+    Get context window usage for a session.
+
+    Returns the current token count, model context limit, and usage percentage.
+    Used by the frontend to display context usage indicators.
+    """
+    user_id = user.get("id")
+
+    try:
+        # Get gateway session to find agent info
+        gateway_session = session_service.get_session_details(db, session_id, user_id)
+        if not gateway_session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+        # Determine the agent name (app_name for ADK session)
+        app_name = agent_name or gateway_session.agent_id
+        if not app_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No agent associated with this session. Provide agent_name parameter.",
+            )
+
+        # Load ADK session
+        adk_session = await adk_session_service.get_session(
+            app_name=app_name, user_id=user_id, session_id=session_id,
+        )
+        if not adk_session or not adk_session.events:
+            return ContextUsageResponse(
+                sessionId=session_id,
+                currentContextTokens=0,
+                promptTokens=0,
+                completionTokens=0,
+                maxInputTokens=DEFAULT_CONTEXT_LIMIT,
+                usagePercentage=0.0,
+                model=model or DEFAULT_MODEL,
+                totalEvents=0,
+                hasCompaction=False,
+            )
+
+        effective_model = model or DEFAULT_MODEL
+
+        # Calculate token counts per role (user=prompt/sent, model=completion/received)
+        from ....agent.adk.runner import _calculate_session_context_tokens
+        from ....agent.adk.models.lite_llm import _calculate_content_tokens
+
+        has_compaction = False
+        non_compaction_events = []
+        prompt_tokens = 0
+        completion_tokens = 0
+        for event in adk_session.events:
+            if event.actions and event.actions.compaction:
+                has_compaction = True
+            else:
+                non_compaction_events.append(event)
+                if event.content:
+                    try:
+                        tokens = _calculate_content_tokens(event.content, model=effective_model)
+                    except Exception:
+                        tokens = 0
+                    role = getattr(event.content, "role", None)
+                    if role == "user":
+                        prompt_tokens += tokens
+                    else:
+                        completion_tokens += tokens
+
+        current_tokens = prompt_tokens + completion_tokens
+        max_input_tokens = _get_model_context_limit(effective_model)
+        usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 else 0.0
+
+        return ContextUsageResponse(
+            sessionId=session_id,
+            currentContextTokens=current_tokens,
+            promptTokens=prompt_tokens,
+            completionTokens=completion_tokens,
+            maxInputTokens=max_input_tokens,
+            usagePercentage=usage_pct,
+            model=effective_model,
+            totalEvents=len(adk_session.events),
+            hasCompaction=has_compaction,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error getting context usage for session %s: %s", session_id, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get context usage",
+        )
+
+
+@router.post("/sessions/{session_id}/compact", response_model=CompactSessionResponse)
+async def compact_session(
+    session_id: str,
+    request: CompactSessionRequest = Body(default=CompactSessionRequest()),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+    adk_session_service=Depends(get_adk_session_service),
+):
+    """
+    Manually compact a session's conversation history.
+
+    Uses the same progressive summarization logic as auto-compaction:
+    - Finds optimal cutoff at user turn boundaries
+    - Creates LLM-generated summary of older events
+    - Appends compaction event (DB remains append-only)
+    - Subsequent reads automatically filter compacted events
+    """
+    user_id = user.get("id")
+
+    try:
+        gateway_session = session_service.get_session_details(db, session_id, user_id)
+        if not gateway_session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+        app_name = gateway_session.agent_id
+        if not app_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No agent associated with this session.",
+            )
+
+        adk_session = await adk_session_service.get_session(
+            app_name=app_name, user_id=user_id, session_id=session_id,
+        )
+        if not adk_session or not adk_session.events:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session has no conversation history to compact.",
+            )
+
+        effective_model = request.model or DEFAULT_MODEL
+        log_id = f"[MANUAL_COMPACT/{session_id}]"
+
+        # Lightweight adapter providing what _create_compaction_event needs from component
+        class _CompactionAdapter:
+            def __init__(self, session_svc, model_name, agent_name_val):
+                self.session_service = session_svc
+                self.agent_name = agent_name_val
+                self.log_identifier = log_id
+
+                class _Agent:
+                    def __init__(self, m):
+                        self.model = m
+                self.adk_agent = _Agent(model_name)
+
+        adapter = _CompactionAdapter(adk_session_service, effective_model, app_name)
+
+        from ....agent.adk.runner import _create_compaction_event
+
+        events_compacted, summary = await _create_compaction_event(
+            component=adapter,
+            session=adk_session,
+            compaction_threshold=request.compaction_percentage,
+            log_identifier=log_id,
+        )
+
+        if events_compacted == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Not enough conversation turns to compact. Need at least 2 user turns.",
+            )
+
+        # Reload session to get filtered state
+        reloaded = await adk_session_service.get_session(
+            app_name=app_name, user_id=user_id, session_id=session_id,
+        )
+
+        remaining_events = len(reloaded.events) if reloaded and reloaded.events else 0
+
+        from ....agent.adk.runner import _calculate_session_context_tokens
+
+        remaining_non_compaction = [
+            e for e in (reloaded.events or [])
+            if not (e.actions and e.actions.compaction)
+        ]
+        remaining_tokens = _calculate_session_context_tokens(remaining_non_compaction, model=effective_model)
+
+        log.info(
+            "%s Manual compaction complete: %d events compacted, %d remaining (%d tokens)",
+            log_id, events_compacted, remaining_events, remaining_tokens,
+        )
+
+        return CompactSessionResponse(
+            eventsCompacted=events_compacted,
+            summary=summary[:500] if len(summary) > 500 else summary,
+            remainingEvents=remaining_events,
+            remainingTokens=remaining_tokens,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error compacting session %s: %s", session_id, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to compact session: {str(e)}",
+        )
