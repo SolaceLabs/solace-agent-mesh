@@ -25,13 +25,6 @@ function getUsageColor(percentage: number): string {
     return "text-(--success-wMain)";
 }
 
-function getUsageBgColor(percentage: number): string {
-    if (percentage >= 90) return "bg-(--error-w10)";
-    if (percentage >= 75) return "bg-(--warning-w10)";
-    if (percentage >= 50) return "bg-(--warning-w10)";
-    return "bg-(--secondary-w5)";
-}
-
 const CompressionIcon = ({ className }: { className?: string }) => (
     <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
         <path d="M8 1V6M8 6L5.5 3.5M8 6L10.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -51,11 +44,8 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const containerRef = useRef<HTMLDivElement>(null);
     const { selectedAgentName } = useChatContext();
 
-    const isCompactingRef = useRef(false);
-
     const fetchUsage = useCallback(async () => {
         if (!sessionId) return;
-        if (isCompactingRef.current) return;
         setIsLoading(true);
         try {
             const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
@@ -94,7 +84,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
 
     const pct = usage?.usagePercentage ?? 0;
     const colorClass = getUsageColor(pct);
-    const bgColorClass = getUsageBgColor(pct);
     const formattedCurrent = formatTokenCount(usage?.currentContextTokens ?? 0);
     const formattedLimit = formatTokenCount(usage?.maxInputTokens ?? 0);
 
@@ -103,20 +92,16 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
 
     const handleCompress = async () => {
         setIsCompacting(true);
-        isCompactingRef.current = true;
         setCompactError(null);
         setCompactSuccess(null);
         try {
             const result = await compactSession(sessionId);
             setCompactSuccess(`Compacted ${result.eventsCompacted} events. ${result.remainingTokens > 0 ? `${formatTokenCount(result.remainingTokens)} tokens remaining.` : ""}`);
-            // Refresh usage data — clear the guard so fetchUsage can run
-            isCompactingRef.current = false;
             await fetchUsage();
             onCompacted?.();
         } catch (err) {
             setCompactError(err instanceof Error ? err.message : "Failed to compact session");
         } finally {
-            isCompactingRef.current = false;
             setIsCompacting(false);
         }
     };
@@ -125,52 +110,10 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     if (!usage) return null; // Still loading or API failed — hide silently
 
     return (
-        <div ref={containerRef} className="inline-block">
-            <div className={`rounded-lg border shadow-lg ${bgColorClass} backdrop-blur-sm transition-all duration-200 ${isExpanded ? "w-64" : "w-auto"}`}>
-                {/* Compact View */}
-                {!isExpanded && (
-                    <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                            <div className="cursor-pointer p-2" onClick={() => setIsExpanded(true)}>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-28 space-y-1">
-                                        <Progress value={pct} className="h-1.5" />
-                                        <div className={`text-center font-mono text-[10px] ${colorClass}`}>
-                                            {formattedCurrent}/{formattedLimit}
-                                        </div>
-                                    </div>
-                                    {(shouldShowCompressButton || isCompacting) && (
-                                        <Tooltip delayDuration={300}>
-                                            <TooltipTrigger asChild>
-                                                <div
-                                                    className="text-muted-foreground hover:text-foreground animate-pulse cursor-pointer p-1"
-                                                    onClick={e => {
-                                                        e.stopPropagation();
-                                                        if (!isCompacting) handleCompress();
-                                                    }}
-                                                >
-                                                    {isCompacting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CompressionIcon className="h-4 w-4" />}
-                                                </div>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top">
-                                                <p>{isCompacting ? "Compacting..." : "Compact conversation"}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    )}
-                                </div>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="left">
-                            <p className="font-semibold">Context Window Usage</p>
-                            <p className="text-xs">
-                                {formattedCurrent} / {formattedLimit} tokens ({pct}%)
-                            </p>
-                        </TooltipContent>
-                    </Tooltip>
-                )}
-
-                {/* Expanded View */}
-                {isExpanded && (
+        <div ref={containerRef} className="relative inline-block">
+            {/* Expanded panel — floats above the toolbar via absolute positioning */}
+            {isExpanded && (
+                <div className="absolute right-0 bottom-full z-50 mb-1 w-64 rounded-lg border bg-(--background-wMain) shadow-lg">
                     <div className="space-y-3 p-3">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-semibold">Context Window Usage</span>
@@ -188,7 +131,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                         </div>
 
                         <div className="space-y-2 text-xs">
-                            {/* Token Breakdown: Sent vs Received */}
                             <div className="flex items-center justify-between border-t pt-2">
                                 <span className="text-muted-foreground">Tokens</span>
                                 <div className="flex items-center gap-3 font-mono text-xs">
@@ -218,7 +160,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                             )}
                         </div>
 
-                        {/* Compression Section */}
                         {shouldShowCompressButton && (
                             <div className="space-y-2 border-t pt-3">
                                 {compactSuccess && <div className="rounded bg-(--success-w10) p-2 text-xs text-(--success-wMain)">{compactSuccess}</div>}
@@ -240,11 +181,52 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                             </div>
                         )}
 
-                        {/* Warning Messages */}
                         {pct >= 90 && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">Approaching context limit! Consider compacting the conversation.</div>}
                         {pct >= 75 && pct < 90 && <div className="rounded bg-(--warning-w10) p-2 text-xs text-(--warning-wMain)">Context usage is high. Consider compacting soon.</div>}
                     </div>
-                )}
+                </div>
+            )}
+
+            {/* Compact trigger — always visible in the toolbar, never changes size */}
+            <div className="rounded-lg border bg-(--background-wMain)">
+                <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                        <div className="cursor-pointer p-2" onClick={() => setIsExpanded(prev => !prev)}>
+                            <div className="flex items-center gap-2">
+                                <div className="w-28 space-y-1">
+                                    <Progress value={pct} className="h-1.5" />
+                                    <div className={`text-center font-mono text-[10px] ${colorClass}`}>
+                                        {formattedCurrent}/{formattedLimit}
+                                    </div>
+                                </div>
+                                {(shouldShowCompressButton || isCompacting) && (
+                                    <Tooltip delayDuration={300}>
+                                        <TooltipTrigger asChild>
+                                            <div
+                                                className="text-muted-foreground hover:text-foreground animate-pulse cursor-pointer p-1"
+                                                onClick={e => {
+                                                    e.stopPropagation();
+                                                    if (!isCompacting) handleCompress();
+                                                }}
+                                            >
+                                                {isCompacting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CompressionIcon className="h-4 w-4" />}
+                                            </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">
+                                            <p>{isCompacting ? "Compacting..." : "Compact conversation"}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                )}
+                            </div>
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                        <p className="font-semibold">Context Window Usage</p>
+                        <p className="text-xs">
+                            {formattedCurrent} / {formattedLimit} tokens ({pct}%)
+                        </p>
+                    </TooltipContent>
+                </Tooltip>
             </div>
         </div>
     );
