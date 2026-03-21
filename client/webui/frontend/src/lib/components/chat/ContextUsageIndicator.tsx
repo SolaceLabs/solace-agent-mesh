@@ -45,7 +45,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const [isExpanded, setIsExpanded] = useState(false);
     const [usage, setUsage] = useState<ContextUsage | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [isCompacting, setIsCompacting] = useState(false);
     const [compactError, setCompactError] = useState<string | null>(null);
     const [compactSuccess, setCompactSuccess] = useState<string | null>(null);
@@ -55,12 +54,11 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const fetchUsage = useCallback(async () => {
         if (!sessionId) return;
         setIsLoading(true);
-        setError(null);
         try {
             const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
             setUsage(data);
         } catch {
-            setError("Failed to load");
+            // Silently ignore errors — the indicator hides itself when usage is null
         } finally {
             setIsLoading(false);
         }
@@ -117,7 +115,8 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         }
     };
 
-    if (!sessionId || !usage) return null;
+    if (!sessionId) return null;
+    if (!usage) return null; // Still loading or API failed — hide silently
 
     return (
         <div ref={containerRef} className="inline-block">
@@ -174,76 +173,70 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                             </Button>
                         </div>
 
-                        {error ? (
-                            <div className="text-xs text-(--error-wMain)">{error}</div>
-                        ) : (
-                            <>
-                                <div className="space-y-1">
-                                    <Progress value={pct} className="h-2" />
-                                    <div className="text-muted-foreground flex justify-between text-xs">
-                                        <span>{formattedCurrent} used</span>
-                                        <span>{formattedLimit} limit</span>
-                                    </div>
-                                </div>
+                        <div className="space-y-1">
+                            <Progress value={pct} className="h-2" />
+                            <div className="text-muted-foreground flex justify-between text-xs">
+                                <span>{formattedCurrent} used</span>
+                                <span>{formattedLimit} limit</span>
+                            </div>
+                        </div>
 
-                                <div className="space-y-2 text-xs">
-                                    {/* Token Breakdown: Sent vs Received */}
-                                    <div className="flex items-center justify-between border-t pt-2">
-                                        <span className="text-muted-foreground">Tokens</span>
-                                        <div className="flex items-center gap-3 font-mono text-xs">
-                                            <span className="flex items-center gap-1" title="Sent (prompt tokens)">
-                                                <ArrowUp className="text-muted-foreground h-3 w-3" />
-                                                {formatTokenCount(usage.promptTokens)}
-                                            </span>
-                                            <span className="flex items-center gap-1" title="Received (completion tokens)">
-                                                <ArrowDown className="text-muted-foreground h-3 w-3" />
-                                                {formatTokenCount(usage.completionTokens)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Model:</span>
-                                        <span className="font-mono font-semibold">{usage.model}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between border-t pt-2">
-                                        <span className="text-muted-foreground">Events</span>
-                                        <span className="font-mono">{usage.totalEvents}</span>
-                                    </div>
-                                    {usage.hasCompaction && (
-                                        <div className="text-muted-foreground flex items-center gap-1">
-                                            <CompressionIcon className="h-3 w-3" />
-                                            <span>Previously compacted</span>
-                                        </div>
+                        <div className="space-y-2 text-xs">
+                            {/* Token Breakdown: Sent vs Received */}
+                            <div className="flex items-center justify-between border-t pt-2">
+                                <span className="text-muted-foreground">Tokens</span>
+                                <div className="flex items-center gap-3 font-mono text-xs">
+                                    <span className="flex items-center gap-1" title="Sent (prompt tokens)">
+                                        <ArrowUp className="text-muted-foreground h-3 w-3" />
+                                        {formatTokenCount(usage.promptTokens)}
+                                    </span>
+                                    <span className="flex items-center gap-1" title="Received (completion tokens)">
+                                        <ArrowDown className="text-muted-foreground h-3 w-3" />
+                                        {formatTokenCount(usage.completionTokens)}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Model:</span>
+                                <span className="font-mono font-semibold">{usage.model}</span>
+                            </div>
+                            <div className="flex items-center justify-between border-t pt-2">
+                                <span className="text-muted-foreground">Events</span>
+                                <span className="font-mono">{usage.totalEvents}</span>
+                            </div>
+                            {usage.hasCompaction && (
+                                <div className="text-muted-foreground flex items-center gap-1">
+                                    <CompressionIcon className="h-3 w-3" />
+                                    <span>Previously compacted</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Compression Section */}
+                        {shouldShowCompressButton && (
+                            <div className="space-y-2 border-t pt-3">
+                                {compactSuccess && <div className="rounded bg-(--success-w10) p-2 text-xs text-(--success-wMain)">{compactSuccess}</div>}
+                                {compactError && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">{compactError}</div>}
+                                <Button variant="outline" size="sm" className="w-full" onClick={handleCompress} disabled={isCompacting}>
+                                    {isCompacting ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                            Compacting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="mr-2 h-3 w-3" />
+                                            Compact Conversation
+                                        </>
                                     )}
-                                </div>
-
-                                {/* Compression Section */}
-                                {shouldShowCompressButton && (
-                                    <div className="space-y-2 border-t pt-3">
-                                        {compactSuccess && <div className="rounded bg-(--success-w10) p-2 text-xs text-(--success-wMain)">{compactSuccess}</div>}
-                                        {compactError && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">{compactError}</div>}
-                                        <Button variant="outline" size="sm" className="w-full" onClick={handleCompress} disabled={isCompacting}>
-                                            {isCompacting ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                                    Compacting...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles className="mr-2 h-3 w-3" />
-                                                    Compact Conversation
-                                                </>
-                                            )}
-                                        </Button>
-                                        <p className="text-muted-foreground mt-1 text-center text-xs">Summarize older messages to free context space</p>
-                                    </div>
-                                )}
-
-                                {/* Warning Messages */}
-                                {pct >= 90 && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">Approaching context limit! Consider compacting the conversation.</div>}
-                                {pct >= 75 && pct < 90 && <div className="rounded bg-(--warning-w10) p-2 text-xs text-(--warning-wMain)">Context usage is high. Consider compacting soon.</div>}
-                            </>
+                                </Button>
+                                <p className="text-muted-foreground mt-1 text-center text-xs">Summarize older messages to free context space</p>
+                            </div>
                         )}
+
+                        {/* Warning Messages */}
+                        {pct >= 90 && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">Approaching context limit! Consider compacting the conversation.</div>}
+                        {pct >= 75 && pct < 90 && <div className="rounded bg-(--warning-w10) p-2 text-xs text-(--warning-wMain)">Context usage is high. Consider compacting soon.</div>}
                     </div>
                 )}
             </div>
