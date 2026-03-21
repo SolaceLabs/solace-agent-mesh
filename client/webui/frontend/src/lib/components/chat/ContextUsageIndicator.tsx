@@ -12,6 +12,12 @@ interface ContextUsageIndicatorProps {
     messageCount?: number;
 }
 
+function formatModelName(model: string): string {
+    // Strip LiteLLM provider prefix (e.g. "openai/vertex-claude-4-5-sonnet" → "vertex-claude-4-5-sonnet")
+    const slashIdx = model.lastIndexOf("/");
+    return slashIdx >= 0 ? model.slice(slashIdx + 1) : model;
+}
+
 function formatTokenCount(tokens: number): string {
     if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
     if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
@@ -113,7 +119,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         <div ref={containerRef} className="relative inline-block">
             {/* Expanded panel — floats above the toolbar via absolute positioning */}
             {isExpanded && (
-                <div className="absolute right-0 bottom-full z-50 mb-1 w-64 rounded-lg border bg-(--background-wMain) shadow-lg">
+                <div className="absolute right-0 bottom-full z-50 mb-1 w-64 rounded-lg border bg-(--background-w10) text-(--primary-text-wMain) shadow-lg">
                     <div className="space-y-3 p-3">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-semibold">Context Window Usage</span>
@@ -146,7 +152,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Model:</span>
-                                <span className="font-mono font-semibold">{usage.model}</span>
+                                <span className="font-mono font-semibold">{formatModelName(usage.model)}</span>
                             </div>
                             <div className="flex items-center justify-between border-t pt-2">
                                 <span className="text-muted-foreground">Events</span>
@@ -188,7 +194,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
             )}
 
             {/* Compact trigger — always visible in the toolbar, never changes size */}
-            <div className="rounded-lg border bg-(--background-wMain)">
+            <div className="rounded-lg border bg-(--background-w10)">
                 <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
                         <div className="cursor-pointer p-2" onClick={() => setIsExpanded(prev => !prev)}>
