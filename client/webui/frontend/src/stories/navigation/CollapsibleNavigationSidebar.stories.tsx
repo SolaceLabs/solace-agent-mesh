@@ -8,6 +8,8 @@ import { LifecycleBadge } from "@/lib/components/ui";
 import type { NavItemConfig } from "@/lib/types/fe";
 import { sessions } from "../data/sessions";
 
+const experimentalBadge = <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>;
+
 const defaultItems: NavItemConfig[] = [
     {
         id: "projects",
@@ -29,7 +31,7 @@ const defaultItems: NavItemConfig[] = [
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                badge: experimentalBadge,
             },
             {
                 id: "artifacts",
@@ -37,7 +39,7 @@ const defaultItems: NavItemConfig[] = [
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                badge: experimentalBadge,
             },
         ],
     },

@@ -7,6 +7,7 @@ the is_pinned status of a project.
 
 import pytest
 from unittest.mock import patch
+from sqlalchemy.exc import IntegrityError
 from fastapi.testclient import TestClient
 from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
 
@@ -316,3 +317,109 @@ class TestProjectsPin:
             response2 = secondary_api_client.patch(f"/api/v1/projects/{project_id}/pin")
             assert response2.status_code == 200
             assert response2.json()["isPinned"] is False
+
+    def test_pin_cleanup_on_project_soft_delete(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test that soft-deleting a project removes its pin records."""
+        import sqlalchemy as sa
+
+        project_id = "pin-cleanup-soft-delete"
+        gateway_adapter.seed_project(
+            project_id=project_id,
+            name="Cleanup Test Project",
+            user_id="sam_dev_user",
+        )
+
+        # Pin the project
+        pin_resp = api_client.patch(f"/api/v1/projects/{project_id}/pin")
+        assert pin_resp.status_code == 200
+        assert pin_resp.json()["isPinned"] is True
+
+        # Delete the project (soft delete via API)
+        delete_resp = api_client.delete(f"/api/v1/projects/{project_id}")
+        assert delete_resp.status_code == 200
+
+        # Verify pin record is gone by checking the database directly
+        with gateway_adapter.db_manager.get_gateway_connection() as conn:
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            pins_table = metadata.tables["project_user_pins"]
+            result = conn.execute(
+                sa.select(pins_table).where(pins_table.c.project_id == project_id)
+            ).fetchall()
+            assert len(result) == 0, "Pin records should be removed after soft delete"
+
+    def test_concurrent_pin_integrity_error_returns_pinned(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test that a concurrent insert (IntegrityError) during pin still returns pinned state."""
+        from solace_agent_mesh.gateway.http_sse.repository.project_repository import ProjectRepository
+
+        project_id = "pin-integrity-error-test"
+        gateway_adapter.seed_project(
+            project_id=project_id,
+            name="Integrity Error Project",
+            user_id="sam_dev_user",
+        )
+
+        original_toggle = ProjectRepository.toggle_user_pin
+
+        call_count = 0
+
+        def patched_toggle(self, project_id, user_id):
+            nonlocal call_count
+            call_count += 1
+            # On the first call, simulate IntegrityError on the flush inside the savepoint
+            if call_count == 1:
+                original_flush = self.db.flush
+
+                flush_call_count = 0
+
+                def flush_that_raises(*args, **kwargs):
+                    nonlocal flush_call_count
+                    flush_call_count += 1
+                    # First flush is the delete check (not called since no existing pin)
+                    # The flush inside the savepoint try block is the one we want to fail
+                    if flush_call_count == 1:
+                        # This is the flush inside the savepoint — raise IntegrityError
+                        raise IntegrityError("duplicate", {}, None)
+                    return original_flush(*args, **kwargs)
+
+                with patch.object(self.db, "flush", side_effect=flush_that_raises):
+                    return original_toggle(self, project_id, user_id)
+            return original_toggle(self, project_id, user_id)
+
+        with patch.object(ProjectRepository, "toggle_user_pin", patched_toggle):
+            response = api_client.patch(f"/api/v1/projects/{project_id}/pin")
+            assert response.status_code == 200
+            # Even though IntegrityError was raised, the result should be pinned
+            assert response.json()["isPinned"] is True
+
+    def test_update_project_preserves_pin_state(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test that editing a pinned project still returns is_pinned=True."""
+        project_id = "pin-update-preserve"
+        gateway_adapter.seed_project(
+            project_id=project_id,
+            name="Update Pin Preserve",
+            user_id="sam_dev_user",
+            description="Original description",
+        )
+
+        # Pin the project
+        pin_resp = api_client.patch(f"/api/v1/projects/{project_id}/pin")
+        assert pin_resp.status_code == 200
+        assert pin_resp.json()["isPinned"] is True
+
+        # Update the project name
+        update_resp = api_client.put(
+            f"/api/v1/projects/{project_id}",
+            json={"name": "Updated Pin Preserve"},
+        )
+        assert update_resp.status_code == 200
+        assert update_resp.json()["isPinned"] is True, (
+            "Editing a pinned project should still return is_pinned=True"
+        )
+        assert update_resp.json()["name"] == "Updated Pin Preserve"

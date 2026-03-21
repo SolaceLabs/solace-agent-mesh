@@ -35,7 +35,7 @@ class ProjectRepository(IProjectRepository):
         )
         return {row[0] for row in rows}
 
-    def toggle_user_pin(self, project_id: str, user_id: str, _retried: bool = False) -> bool:
+    def toggle_user_pin(self, project_id: str, user_id: str) -> bool:
         """
         Toggle the per-user pin for *project_id* / *user_id*.
 
@@ -67,9 +67,8 @@ class ProjectRepository(IProjectRepository):
         except IntegrityError:
             # Concurrent insert won the race — rollback only to savepoint
             savepoint.rollback()
-            if _retried:
-                raise
-            return self.toggle_user_pin(project_id, user_id, _retried=True)
+            # The other transaction already pinned; return True (pinned)
+            return True
         return True
 
     def is_pinned_by_user(self, project_id: str, user_id: str) -> bool:

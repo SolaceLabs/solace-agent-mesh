@@ -970,6 +970,8 @@ class ProjectService:
 
         if updated_project:
             self.logger.info(f"Successfully updated project {project_id}")
+            # Re-fetch with pin state via repository (skip access check — already verified above)
+            return project_repository.get_by_id_for_user(project_id, user_id)
 
         return updated_project
 

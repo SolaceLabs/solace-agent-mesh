@@ -21,7 +21,6 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from solace_ai_connector.common.log import log
-from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 from ..dependencies import (
     get_project_service,
@@ -949,7 +948,13 @@ async def toggle_pin_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to toggle pin status"
-        )
+        ) from e
+    except Exception as e:
+        log.error("Unexpected error toggling pin for project %s for user %s: %s", project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to toggle pin status"
+        ) from e
 
 
 @router.get("/projects/{project_id}/export")

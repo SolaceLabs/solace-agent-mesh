@@ -14,6 +14,8 @@ interface UseNavigationItemsProps {
     onLogoutClick: () => void;
 }
 
+const experimentalBadge = <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>;
+
 export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
     const location = useLocation();
 
@@ -41,7 +43,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                badge: experimentalBadge,
             });
         }
 
@@ -52,7 +54,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                badge: experimentalBadge,
             });
         }
 
