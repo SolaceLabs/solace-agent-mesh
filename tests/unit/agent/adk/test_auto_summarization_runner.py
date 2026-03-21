@@ -994,6 +994,69 @@ class TestSendTruncationNotification:
             publish_args = component._publish_a2a_event.call_args
             assert publish_args[0][1] == "agent/peer/responses"
 
+class TestCreateCompactionEventLlmArg:
+    """Regression test: LlmEventSummarizer must receive component.adk_agent, not .model."""
+
+    @pytest.mark.asyncio
+    async def test_summarizer_receives_adk_agent_not_model(self):
+        """Verify llm= is component.adk_agent (BaseLlm), not component.adk_agent.model (str)."""
+        component = Mock()
+        component.adk_agent = Mock()
+        component.adk_agent.model = "gpt-4o"  # string — wrong type for llm=
+        component.get_config = Mock(return_value="test-namespace")
+        component.session_service = AsyncMock()
+        component.session_service.append_event = AsyncMock(return_value=None)
+
+        events = [
+            ADKEvent(
+                invocation_id="evt1", author="user", timestamp=1.0,
+                content=adk_types.Content(role="user", parts=[adk_types.Part(text="Hi")])
+            ),
+            ADKEvent(
+                invocation_id="evt2", author="model", timestamp=2.0,
+                content=adk_types.Content(role="model", parts=[adk_types.Part(text="Hello")])
+            ),
+            ADKEvent(
+                invocation_id="evt3", author="user", timestamp=3.0,
+                content=adk_types.Content(role="user", parts=[adk_types.Part(text="More")])
+            ),
+            ADKEvent(
+                invocation_id="evt4", author="model", timestamp=4.0,
+                content=adk_types.Content(role="model", parts=[adk_types.Part(text="Sure")])
+            ),
+        ]
+        session = ADKSession(
+            id="test_session", user_id="test_user", app_name="test_app", events=events,
+        )
+
+        with patch("solace_agent_mesh.agent.adk.runner.LlmEventSummarizer") as mock_cls:
+            mock_instance = AsyncMock()
+            mock_cls.return_value = mock_instance
+            compaction_event = ADKEvent(
+                invocation_id="c1", author="system", timestamp=2.0,
+                actions=EventActions(
+                    compaction=EventCompaction(
+                        start_timestamp=0.0, end_timestamp=2.0,
+                        compacted_content=adk_types.Content(
+                            role="model", parts=[adk_types.Part(text="Summary")]
+                        ),
+                    )
+                ),
+            )
+            mock_instance.maybe_summarize_events.return_value = compaction_event
+
+            await _create_compaction_event(
+                component=component, session=session,
+                compaction_threshold=0.5, log_identifier="[Test]",
+            )
+
+            # The critical assertion: llm must be the BaseLlm object, not its .model string
+            mock_cls.assert_called_once()
+            call_kwargs = mock_cls.call_args
+            assert call_kwargs[1]["llm"] is component.adk_agent
+            assert call_kwargs[1]["llm"] is not component.adk_agent.model
+
+
 class TestCreateCompactionEvent:
     """Tests for _create_compaction_event function - progressive summarization."""
 

@@ -42,6 +42,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const [compactError, setCompactError] = useState<string | null>(null);
     const [compactSuccess, setCompactSuccess] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const compactingRef = useRef(false);
     const { selectedAgentName } = useChatContext();
 
     const fetchUsage = useCallback(async () => {
@@ -50,8 +51,10 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         try {
             const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
             setUsage(data);
-        } catch {
-            // Silently ignore errors — the indicator hides itself when usage is null
+        } catch (err) {
+            if (process.env.NODE_ENV === "development") {
+                console.warn("ContextUsageIndicator: failed to fetch usage", err);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -85,6 +88,8 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const shouldShowCompressButton = useMemo(() => messageCount >= 15 || pct >= 70, [messageCount, pct]);
 
     const handleCompress = async () => {
+        if (compactingRef.current) return;
+        compactingRef.current = true;
         setIsCompacting(true);
         setCompactError(null);
         setCompactSuccess(null);
@@ -96,6 +101,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         } catch (err) {
             setCompactError(err instanceof Error ? err.message : "Failed to compact session");
         } finally {
+            compactingRef.current = false;
             setIsCompacting(false);
         }
     };
@@ -194,22 +200,16 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                     </div>
                                 </div>
                                 {(shouldShowCompressButton || isCompacting) && (
-                                    <Tooltip delayDuration={300}>
-                                        <TooltipTrigger asChild>
-                                            <div
-                                                className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
-                                                onClick={e => {
-                                                    e.stopPropagation();
-                                                    if (!isCompacting) handleCompress();
-                                                }}
-                                            >
-                                                {isCompacting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CompressionIcon className="h-4 w-4" />}
-                                            </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">
-                                            <p>{isCompacting ? "Compacting..." : "Compact conversation"}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
+                                    <div
+                                        className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
+                                        title={isCompacting ? "Compacting..." : "Compact conversation"}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            if (!isCompacting) handleCompress();
+                                        }}
+                                    >
+                                        {isCompacting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CompressionIcon className="h-4 w-4" />}
+                                    </div>
                                 )}
                             </div>
                         </div>
