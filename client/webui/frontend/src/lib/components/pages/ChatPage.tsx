@@ -11,7 +11,7 @@ import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurn
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ContextUsageIndicator, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { PageLayout } from "@/lib/components/layout";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
@@ -673,7 +673,12 @@ export function ChatPage() {
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
                                                 {!inlineActivityTimelineEnabled && isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                                <div className="flex items-end gap-2">
+                                                    <div className="flex-1">
+                                                        <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                                    </div>
+                                                    {sessionId && <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />}
+                                                </div>
                                             </div>
                                         </>
                                     )}
