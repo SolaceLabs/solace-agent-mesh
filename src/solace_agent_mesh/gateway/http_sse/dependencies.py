@@ -4,6 +4,7 @@ managed by the WebUIBackendComponent.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -151,9 +152,10 @@ def get_sac_component() -> "WebUIBackendComponent":
 
 # Lazy-initialized ADK session service for gateway-level access to conversation events
 _adk_session_service = None
+_adk_session_service_lock = asyncio.Lock()
 
 
-def get_adk_session_service(
+async def get_adk_session_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
     """FastAPI dependency to get a shared ADK session service for the gateway.
@@ -163,9 +165,11 @@ def get_adk_session_service(
     """
     global _adk_session_service
     if _adk_session_service is None:
-        from ...agent.adk.services import initialize_session_service
-        _adk_session_service = initialize_session_service(component)
-        log.info("ADK Session Service initialized for gateway.")
+        async with _adk_session_service_lock:
+            if _adk_session_service is None:
+                from ...agent.adk.services import initialize_session_service
+                _adk_session_service = initialize_session_service(component)
+                log.info("ADK Session Service initialized for gateway.")
     return _adk_session_service
 
 
