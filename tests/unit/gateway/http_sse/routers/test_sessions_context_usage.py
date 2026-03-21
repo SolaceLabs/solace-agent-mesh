@@ -754,3 +754,210 @@ class TestCompactSession:
             assert result.summary == "Summary of events"
             assert result.remaining_events == 1
             assert result.remaining_tokens == 500
+
+
+class TestLoadAdkSessionNoneService:
+    """Tests for _load_adk_session when adk_session_service is None."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def mock_session_service(self):
+        return MagicMock()
+
+    @pytest.mark.asyncio
+    async def test_returns_none_adk_session_when_service_is_none(
+        self, mock_db, mock_session_service
+    ):
+        """When adk_session_service is None, adk_session should be None (no error)."""
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+
+        from solace_agent_mesh.gateway.http_sse.routers.sessions import _load_adk_session
+
+        gateway_session, app_name, adk_session = await _load_adk_session(
+            session_id="test-session-id",
+            user_id="user-1",
+            agent_name=None,
+            session_service=mock_session_service,
+            adk_session_service=None,
+            db=mock_db,
+        )
+
+        assert gateway_session is mock_session
+        assert app_name == "test-agent"
+        assert adk_session is None
+
+
+class TestContextUsageModelResolution:
+    """Tests for model resolution in get_session_context_usage."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def mock_session_service(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def mock_adk_session_service(self):
+        svc = MagicMock()
+        svc.get_session = AsyncMock()
+        return svc
+
+    @pytest.mark.asyncio
+    async def test_uses_component_model_config_as_default(
+        self, mock_db, mock_session_service, mock_adk_session_service
+    ):
+        """When no model param given, should use component.model_config['model']."""
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+
+        adk_session = MagicMock()
+        adk_session.events = []
+        adk_session.user_id = "user-1"
+        mock_adk_session_service.get_session.return_value = adk_session
+
+        mock_component = MagicMock()
+        mock_component.model_config = {"model": "my-custom-model"}
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=mock_component,
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                get_session_context_usage,
+            )
+
+            result = await get_session_context_usage(
+                session_id="test-session-id",
+                model=None,
+                agent_name=None,
+                db=mock_db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                adk_session_service=mock_adk_session_service,
+                component=mock_component,
+            )
+
+        # Empty events → returns zero response with resolved model
+        assert result.model == "my-custom-model"
+
+    @pytest.mark.asyncio
+    async def test_explicit_model_param_overrides_component_config(
+        self, mock_db, mock_session_service, mock_adk_session_service
+    ):
+        """Explicit model query param should take priority over component.model_config."""
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+
+        adk_session = MagicMock()
+        adk_session.events = []
+        adk_session.user_id = "user-1"
+        mock_adk_session_service.get_session.return_value = adk_session
+
+        mock_component = MagicMock()
+        mock_component.model_config = {"model": "component-model"}
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=mock_component,
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                get_session_context_usage,
+            )
+
+            result = await get_session_context_usage(
+                session_id="test-session-id",
+                model="explicit-model",
+                agent_name=None,
+                db=mock_db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                adk_session_service=mock_adk_session_service,
+                component=mock_component,
+            )
+
+        assert result.model == "explicit-model"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_default_model_when_no_config(
+        self, mock_db, mock_session_service, mock_adk_session_service
+    ):
+        """Falls back to DEFAULT_MODEL when component has no model_config."""
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+
+        adk_session = MagicMock()
+        adk_session.events = []
+        adk_session.user_id = "user-1"
+        mock_adk_session_service.get_session.return_value = adk_session
+
+        mock_component = MagicMock()
+        mock_component.model_config = None  # No model configured
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=mock_component,
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                get_session_context_usage,
+                DEFAULT_MODEL,
+            )
+
+            result = await get_session_context_usage(
+                session_id="test-session-id",
+                model=None,
+                agent_name=None,
+                db=mock_db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                adk_session_service=mock_adk_session_service,
+                component=mock_component,
+            )
+
+        assert result.model == DEFAULT_MODEL
+
+
+class TestCreateSessionServiceFromConfig:
+    """Tests for create_session_service_from_config in services.py."""
+
+    def test_memory_type_returns_in_memory_service(self):
+        from solace_agent_mesh.agent.adk.services import create_session_service_from_config
+        from google.adk.sessions import InMemorySessionService
+
+        svc = create_session_service_from_config({"type": "memory"})
+        assert isinstance(svc, InMemorySessionService)
+
+    def test_defaults_to_memory_when_no_type(self):
+        from solace_agent_mesh.agent.adk.services import create_session_service_from_config
+        from google.adk.sessions import InMemorySessionService
+
+        svc = create_session_service_from_config({})
+        assert isinstance(svc, InMemorySessionService)
+
+    def test_sql_type_raises_without_database_url(self):
+        from solace_agent_mesh.agent.adk.services import create_session_service_from_config
+
+        with pytest.raises(ValueError, match="database_url"):
+            create_session_service_from_config({"type": "sql"})
+
+    def test_unsupported_type_raises(self):
+        from solace_agent_mesh.agent.adk.services import create_session_service_from_config
+
+        with pytest.raises(ValueError, match="Unsupported"):
+            create_session_service_from_config({"type": "unknown_backend"})
+
+    def test_none_config_defaults_to_memory(self):
+        from solace_agent_mesh.agent.adk.services import create_session_service_from_config
+        from google.adk.sessions import InMemorySessionService
+
+        svc = create_session_service_from_config(None)
+        assert isinstance(svc, InMemorySessionService)
