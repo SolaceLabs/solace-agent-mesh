@@ -149,6 +149,26 @@ def get_sac_component() -> "WebUIBackendComponent":
     return sac_component_instance
 
 
+# Lazy-initialized ADK session service for gateway-level access to conversation events
+_adk_session_service = None
+
+
+def get_adk_session_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+):
+    """FastAPI dependency to get a shared ADK session service for the gateway.
+
+    Lazily initializes an ADK session service using the same config as agent components,
+    allowing the gateway to access conversation events for token counting and compaction.
+    """
+    global _adk_session_service
+    if _adk_session_service is None:
+        from ...agent.adk.services import initialize_session_service
+        _adk_session_service = initialize_session_service(component)
+        log.info("ADK Session Service initialized for gateway.")
+    return _adk_session_service
+
+
 def get_api_config() -> dict[str, Any]:
     """FastAPI dependency to get the API configuration."""
     if api_config is None:
