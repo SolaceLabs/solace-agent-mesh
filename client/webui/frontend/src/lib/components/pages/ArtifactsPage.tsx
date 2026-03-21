@@ -38,6 +38,7 @@ import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
 import { Header } from "@/lib/components/header/Header";
+import { LifecycleBadge } from "@/lib/components/ui";
 import type { FileAttachment } from "@/lib/types";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
 
@@ -972,7 +973,13 @@ export function ArtifactsPage() {
     return (
         <div className="flex h-full flex-col">
             {/* Page Header - using shared Header component for consistent styling */}
-            <Header title="Artifacts" />
+            <Header
+                title={
+                    <>
+                        Artifacts <LifecycleBadge>EXPERIMENTAL</LifecycleBadge>
+                    </>
+                }
+            />
 
             {/* Content area with optional preview panel */}
             <div className="flex min-h-0 flex-1">
