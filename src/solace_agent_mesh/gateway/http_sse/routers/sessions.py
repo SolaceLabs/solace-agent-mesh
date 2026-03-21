@@ -1123,6 +1123,7 @@ async def _load_adk_session(
 
     Returns (gateway_session, app_name, adk_session).
     Raises HTTPException on validation failures.
+    When adk_session_service is None (not configured), adk_session is returned as None.
     """
     gateway_session = session_service.get_session_details(db, session_id, user_id)
     if not gateway_session:
@@ -1134,6 +1135,9 @@ async def _load_adk_session(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No agent associated with this session. Provide agent_name parameter.",
         )
+
+    if adk_session_service is None:
+        return gateway_session, app_name, None
 
     adk_session = await adk_session_service.get_session(
         app_name=app_name, user_id=user_id, session_id=session_id,
@@ -1237,6 +1241,7 @@ async def compact_session(
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
     adk_session_service=Depends(get_adk_session_service),
+    component=Depends(get_sac_component),
 ):
     """
     Manually compact a session's conversation history.
@@ -1262,21 +1267,33 @@ async def compact_session(
         effective_model = request.model or DEFAULT_MODEL
         log_id = f"[MANUAL_COMPACT/{session_id}]"
 
-        # Lightweight adapter providing what _create_compaction_event needs from component
+        # Lightweight adapter providing what _create_compaction_event needs from component.
+        # adk_agent must be a BaseLlm instance (not a plain string) because
+        # LlmEventSummarizer calls self._llm.model on it.
+        # We use the gateway component's full model_config so the LiteLlm instance
+        # has the correct api_base, api_key, etc. to make actual LLM calls.
         class _CompactionAdapter:
-            def __init__(self, session_svc, model_name, agent_name_val):
+            def __init__(self, session_svc, model_cfg, agent_name_val):
                 self.session_service = session_svc
                 self.agent_name = agent_name_val
                 self.log_identifier = log_id
 
-                class _Agent:
-                    def __init__(self, m):
-                        self.model = m
-                self.adk_agent = _Agent(model_name)
+                from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+                if isinstance(model_cfg, dict):
+                    model_name = model_cfg.get("model", "")
+                    extra = {k: v for k, v in model_cfg.items() if k != "model"}
+                    self.adk_agent = LiteLlm(model=model_name, **extra)
+                else:
+                    # Fallback: model_cfg is already a string model name
+                    self.adk_agent = LiteLlm(model=str(model_cfg) if model_cfg else "")
 
         _, _calculate_session_context_tokens, _create_compaction_event = _get_adk_imports()
 
-        adapter = _CompactionAdapter(adk_session_service, effective_model, app_name)
+        # Use the gateway's full model_config (with api_base, api_key, etc.) so the
+        # LiteLlm instance can actually call the LLM for summarization.
+        # Fall back to effective_model string if no model_config is set.
+        model_cfg = getattr(component, "model_config", None) or effective_model
+        adapter = _CompactionAdapter(adk_session_service, model_cfg, app_name)
 
         events_compacted, summary = await _create_compaction_event(
             component=adapter,

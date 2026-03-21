@@ -164,6 +164,47 @@ def _setup_alembic_config(database_url: str) -> Config:
     return alembic_cfg
 
 
+# Known ADK revision IDs that may have been incorrectly written to the
+# shared alembic_version table before the version_table separation fix.
+_ADK_REVISION_IDS = {"e2902798564d"}
+
+
+def _repair_adk_revision_contamination(engine) -> bool:
+    """
+    Detect and repair databases where ADK migration revision IDs were
+    incorrectly written to the shared alembic_version table.
+
+    This can happen when the ADK agent and WebUI gateway share the same
+    SQLite database file and both used the default alembic_version table
+    before the version_table separation fix was applied.
+
+    Returns True if a repair was performed, False otherwise.
+    """
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                sa.text("SELECT version_num FROM alembic_version")
+            )
+            rows = result.fetchall()
+            contaminated = [row[0] for row in rows if row[0] in _ADK_REVISION_IDS]
+            if contaminated:
+                log.warning(
+                    "[WebUI Gateway] Detected ADK revision(s) in alembic_version table: %s. "
+                    "Removing to allow WebUI gateway migrations to run correctly.",
+                    contaminated,
+                )
+                for rev in contaminated:
+                    conn.execute(
+                        sa.text("DELETE FROM alembic_version WHERE version_num = :rev"),
+                        {"rev": rev},
+                    )
+                conn.commit()
+                return True
+    except Exception as e:
+        log.debug("[WebUI Gateway] Could not check alembic_version for ADK contamination: %s", e)
+    return False
+
+
 def _run_community_migrations(database_url: str) -> None:
     """
     Run Alembic migrations for the community database schema.
@@ -182,6 +223,11 @@ def _run_community_migrations(database_url: str) -> None:
         engine = create_engine(database_url)
         inspector = sa.inspect(engine)
         existing_tables = inspector.get_table_names()
+
+        # Repair databases contaminated by ADK revisions in the shared
+        # alembic_version table (pre version_table separation fix).
+        if "alembic_version" in existing_tables:
+            _repair_adk_revision_contamination(engine)
 
         alembic_cfg = _setup_alembic_config(database_url)
         if not existing_tables or "sessions" not in existing_tables:
