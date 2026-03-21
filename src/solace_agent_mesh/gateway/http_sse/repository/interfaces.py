@@ -209,13 +209,21 @@ class IProjectRepository(ABC):
         pass
 
     @abstractmethod
-    def get_accessible_projects(self, user_email: str, shared_project_ids: list[str] = None) -> list[Project]:
+    def get_accessible_projects(
+        self,
+        user_email: str,
+        shared_project_ids: list[str] = None,
+        pinned_project_ids: set = None,
+    ) -> list[Project]:
         """
         Get all accessible projects for a user (owned + shared).
 
         Args:
             user_email: User's email (used for ownership check)
             shared_project_ids: Optional list of project IDs user has shared access to
+            pinned_project_ids: Optional set of project IDs the user has pinned.
+                                 When provided, ``project.is_pinned`` is resolved
+                                 per-user from this set instead of from the DB column.
 
         Returns:
             List of accessible projects (owned + shared)

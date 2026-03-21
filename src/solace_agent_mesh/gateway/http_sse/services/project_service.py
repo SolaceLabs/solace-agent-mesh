@@ -413,9 +413,9 @@ class ProjectService:
         if not self._has_view_access(db, project_id, user_id):
             return None
 
-        # Convert to domain entity
+        # Convert to domain entity with per-user pin state
         project_repository = self._get_repositories(db)
-        return project_repository._model_to_entity(project_model)
+        return project_repository.get_by_id_for_user(project_id, user_id)
 
     def get_user_projects(self, db, user_email: str) -> List[Project]:
         """
@@ -437,9 +437,10 @@ class ProjectService:
             resource_type=ResourceType.PROJECT
         )
 
-        # Get all accessible projects (owned + shared)
+        # Get all accessible projects (owned + shared) with per-user pin state
         project_repository = self._get_repositories(db)
-        return project_repository.get_accessible_projects(user_email, shared_project_ids)
+        pinned_project_ids = project_repository.get_pinned_project_ids_for_user(user_email)
+        return project_repository.get_accessible_projects(user_email, shared_project_ids, pinned_project_ids)
 
     async def get_user_projects_with_counts(self, db, user_email: str) -> List[tuple[Project, int]]:
         """

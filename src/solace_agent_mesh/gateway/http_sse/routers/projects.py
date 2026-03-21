@@ -321,7 +321,7 @@ async def get_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
-            is_pinned=getattr(project, 'is_pinned', False) or False,
+            is_pinned=project.is_pinned,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -901,41 +901,37 @@ async def delete_project(
 async def toggle_pin_project(
     project_id: str,
     user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
-    Toggle the pin (star) status of a project for the authenticated user.
-    Only the project owner can pin/unpin a project.
+    Toggle the per-user pin (star) status of a project for the authenticated user.
+    Any user with view access (owner or shared collaborator) can pin/unpin independently.
     """
+    from ..repository.project_repository import ProjectRepository
+
     user_id = user.get("id")
     log.info("User %s toggling pin for project %s", user_id, project_id)
 
     try:
-        project = db.query(ProjectModel).filter(
-            ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id,
-            ProjectModel.deleted_at.is_(None),
-        ).first()
-
+        # Verify the project exists and the user has access (owner OR shared)
+        project = project_service.get_project(db=db, project_id=project_id, user_id=user_id)
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found."
             )
 
-        # Toggle pin status
-        current_pinned = getattr(project, 'is_pinned', False) or False
-        project.is_pinned = not current_pinned
-        project.updated_at = now_epoch_ms()
-
+        # Toggle the per-user pin in the project_user_pins table
+        repo = ProjectRepository(db)
+        new_pinned = repo.toggle_user_pin(project_id=project_id, user_id=user_id)
         db.commit()
-        db.refresh(project)
 
         log.info(
             "Project %s pin status toggled to %s by user %s",
             project_id,
-            project.is_pinned,
+            new_pinned,
             user_id,
         )
 
@@ -946,7 +942,7 @@ async def toggle_pin_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
-            is_pinned=project.is_pinned,
+            is_pinned=new_pinned,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
