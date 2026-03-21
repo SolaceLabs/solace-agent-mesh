@@ -10,6 +10,7 @@ import os
 from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
+from sqlalchemy.exc import SQLAlchemyError
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_counts_batch,
@@ -124,11 +125,9 @@ class ProjectService:
         Returns the updated Project entity with refreshed pin state,
         or None if the project is not found or the user lacks access.
         """
-        from sqlalchemy.exc import SQLAlchemyError
-
         repo = self._get_repositories(db)
 
-        # Single call handles both existence and access check
+        # Check existence first, then access (two separate checks)
         if repo.get_by_id(project_id) is None:
             return None
         if not self._has_view_access(db, project_id, user_id):

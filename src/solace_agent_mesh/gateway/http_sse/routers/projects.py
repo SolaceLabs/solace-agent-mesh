@@ -19,6 +19,7 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from solace_ai_connector.common.log import log
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
@@ -908,11 +909,10 @@ async def toggle_pin_project(
     """
     Toggle the per-user pin (star) status of a project for the authenticated user.
     Any user with view access (owner or shared collaborator) can pin/unpin independently.
+    The service layer owns the commit/rollback for this operation.
     """
     user_id = user.get("id")
     log.info("User %s toggling pin for project %s", user_id, project_id)
-
-    from sqlalchemy.exc import SQLAlchemyError
 
     try:
         project = project_service.toggle_pin(db=db, project_id=project_id, user_id=user_id)
@@ -942,10 +942,9 @@ async def toggle_pin_project(
         )
 
     except HTTPException:
-        db.rollback()
         raise
     except SQLAlchemyError as e:
-        db.rollback()
+        # Service already rolled back; just surface a clean HTTP error
         log.error("Error toggling pin for project %s for user %s: %s", project_id, user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

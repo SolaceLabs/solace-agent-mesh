@@ -234,7 +234,12 @@ class ProjectRepository(IProjectRepository):
         return self._model_to_entity(model)
 
     def delete(self, project_id: str) -> bool:
-        """Delete a project by its ID."""
+        """Delete a project by its ID (hard delete). Also removes all per-user pin records."""
+        # Clean up pin records first to avoid orphaned rows
+        self.db.query(ProjectUserPinModel).filter(
+            ProjectUserPinModel.project_id == project_id
+        ).delete(synchronize_session=False)
+
         result = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id
         ).delete()
@@ -242,7 +247,7 @@ class ProjectRepository(IProjectRepository):
         return result > 0
 
     def soft_delete(self, project_id: str, deleted_by_user_id: str) -> bool:
-        """Soft delete a project by its ID."""
+        """Soft delete a project by its ID. Also removes all per-user pin records."""
         model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
             ProjectModel.deleted_at.is_(None)  # Only delete if not already deleted
@@ -250,6 +255,11 @@ class ProjectRepository(IProjectRepository):
 
         if not model:
             return False
+
+        # Clean up pin records — deleted projects should not appear pinned for anyone
+        self.db.query(ProjectUserPinModel).filter(
+            ProjectUserPinModel.project_id == project_id
+        ).delete(synchronize_session=False)
 
         model.deleted_at = now_epoch_ms()
         model.deleted_by = deleted_by_user_id
@@ -267,16 +277,13 @@ class ProjectRepository(IProjectRepository):
 
         Args:
             model: The SQLAlchemy ProjectModel instance.
-            pinned_project_ids: When provided, ``is_pinned`` is resolved from
-                this set (per-user semantics).  When None, falls back to the
-                legacy ``projects.is_pinned`` column so that callers that don't
-                pass a user context still get a sensible value.
+            pinned_project_ids: Set of project IDs the requesting user has pinned.
+                When provided (the normal path), ``is_pinned`` is resolved from
+                this set.  When None (e.g. internal/admin callers with no user
+                context), ``is_pinned`` defaults to False — the legacy
+                ``projects.is_pinned`` column no longer exists.
         """
-        if pinned_project_ids is not None:
-            is_pinned = model.id in pinned_project_ids
-        else:
-            raw_pinned = getattr(model, 'is_pinned', False)
-            is_pinned = bool(raw_pinned) if isinstance(raw_pinned, (bool, int)) else False
+        is_pinned = (model.id in pinned_project_ids) if pinned_project_ids is not None else False
 
         return Project(
             id=model.id,
