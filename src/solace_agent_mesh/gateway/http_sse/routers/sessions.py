@@ -1101,6 +1101,27 @@ def _get_adk_imports():
     return _calculate_content_tokens, _calculate_session_context_tokens, _create_compaction_event
 
 
+class _CompactionAdapter:
+    """Lightweight adapter providing what _create_compaction_event needs from a component.
+
+    adk_agent must be a BaseLlm instance (not a plain string) because
+    LlmEventSummarizer calls self._llm.model on it.
+    """
+
+    def __init__(self, session_svc, model_cfg, agent_name_val, log_identifier):
+        self.session_service = session_svc
+        self.agent_name = agent_name_val
+        self.log_identifier = log_identifier
+
+        from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+        if isinstance(model_cfg, dict):
+            model_name = model_cfg.get("model", "")
+            extra = {k: v for k, v in model_cfg.items() if k != "model"}
+            self.adk_agent = LiteLlm(model=model_name, **extra)
+        else:
+            self.adk_agent = LiteLlm(model=str(model_cfg) if model_cfg else "")
+
+
 def _get_model_context_limit(model_name: str) -> int:
     """Get model context window limit using LiteLLM, with fallback."""
     try:
@@ -1108,6 +1129,7 @@ def _get_model_context_limit(model_name: str) -> int:
         info = get_model_info(model_name)
         return info.get("max_input_tokens", DEFAULT_CONTEXT_LIMIT)
     except Exception:
+        log.debug("Could not retrieve model info for %s, using default", model_name)
         return DEFAULT_CONTEXT_LIMIT
 
 
@@ -1185,15 +1207,18 @@ async def get_session_context_usage(
         # Calculate token counts per role (user=prompt/sent, model=completion/received)
         _calculate_content_tokens, _, _ = _get_adk_imports()
 
+        # Filter ghost events (pre-compaction originals) so token counts
+        # reflect only the live conversation, matching FilteringSessionService.
+        from ....agent.adk.services import _filter_session_by_latest_compaction
+        adk_session = _filter_session_by_latest_compaction(adk_session, log_identifier=f"[CTX_USAGE/{session_id}]")
+
         has_compaction = False
-        non_compaction_events = []
         prompt_tokens = 0
         completion_tokens = 0
         for event in adk_session.events:
             if event.actions and event.actions.compaction:
                 has_compaction = True
             else:
-                non_compaction_events.append(event)
                 if event.content:
                     try:
                         tokens = _calculate_content_tokens(event.content, model=effective_model)
@@ -1267,33 +1292,14 @@ async def compact_session(
         effective_model = request.model or DEFAULT_MODEL
         log_id = f"[MANUAL_COMPACT/{session_id}]"
 
-        # Lightweight adapter providing what _create_compaction_event needs from component.
-        # adk_agent must be a BaseLlm instance (not a plain string) because
-        # LlmEventSummarizer calls self._llm.model on it.
-        # We use the gateway component's full model_config so the LiteLlm instance
-        # has the correct api_base, api_key, etc. to make actual LLM calls.
-        class _CompactionAdapter:
-            def __init__(self, session_svc, model_cfg, agent_name_val):
-                self.session_service = session_svc
-                self.agent_name = agent_name_val
-                self.log_identifier = log_id
-
-                from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
-                if isinstance(model_cfg, dict):
-                    model_name = model_cfg.get("model", "")
-                    extra = {k: v for k, v in model_cfg.items() if k != "model"}
-                    self.adk_agent = LiteLlm(model=model_name, **extra)
-                else:
-                    # Fallback: model_cfg is already a string model name
-                    self.adk_agent = LiteLlm(model=str(model_cfg) if model_cfg else "")
-
         _, _calculate_session_context_tokens, _create_compaction_event = _get_adk_imports()
 
-        # Use the gateway's full model_config (with api_base, api_key, etc.) so the
-        # LiteLlm instance can actually call the LLM for summarization.
-        # Fall back to effective_model string if no model_config is set.
-        model_cfg = getattr(component, "model_config", None) or effective_model
-        adapter = _CompactionAdapter(adk_session_service, model_cfg, app_name)
+        # Source model config from the ADK session service config key on the
+        # gateway component — this mirrors the ADK agent's own model settings
+        # (credentials, endpoint, model name) rather than the gateway's model.
+        adk_cfg = component.get_config("adk_session_service") or {}
+        model_cfg = adk_cfg.get("model_config") or getattr(component, "model_config", None) or effective_model
+        adapter = _CompactionAdapter(adk_session_service, model_cfg, app_name, log_id)
 
         events_compacted, summary = await _create_compaction_event(
             component=adapter,
@@ -1308,10 +1314,13 @@ async def compact_session(
                 detail="Not enough conversation turns to compact. Need at least 2 user turns.",
             )
 
-        # Reload session to get filtered state
+        # Reload session and filter ghost events (raw DatabaseSessionService
+        # does not filter automatically like FilteringSessionService does).
+        from ....agent.adk.services import _filter_session_by_latest_compaction
         reloaded = await adk_session_service.get_session(
             app_name=app_name, user_id=user_id, session_id=session_id,
         )
+        reloaded = _filter_session_by_latest_compaction(reloaded, log_identifier=log_id)
 
         remaining_events = len(reloaded.events) if reloaded and reloaded.events else 0
 
