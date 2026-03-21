@@ -89,11 +89,11 @@ class TestProjectsPin:
         response = api_client.patch("/api/v1/projects/nonexistent-project-id/pin")
         assert response.status_code == 404
 
-    def test_toggle_pin_returns_404_for_other_users_project(
+    def test_toggle_pin_returns_403_for_other_users_project(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
     ):
-        """Test PATCH /api/v1/projects/{id}/pin returns 404 for another user's project"""
-        # Setup: Create a project owned by a different user
+        """Test PATCH /api/v1/projects/{id}/pin returns 403 for a project the user cannot access"""
+        # Setup: Create a project owned by a different user (not shared with sam_dev_user)
         project_id = "pin-test-project-other-user"
         gateway_adapter.seed_project(
             project_id=project_id,
@@ -104,8 +104,8 @@ class TestProjectsPin:
         # Act: Try to pin as sam_dev_user (the default test user)
         response = api_client.patch(f"/api/v1/projects/{project_id}/pin")
 
-        # Assert: Should return 404 (project not found for this user)
-        assert response.status_code == 404
+        # Assert: Should return 403 (project exists but user lacks access)
+        assert response.status_code == 403
 
     def test_toggle_pin_response_includes_all_project_fields(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -161,6 +161,65 @@ class TestProjectsPin:
         assert our_project is not None
         assert "isPinned" in our_project
         assert our_project["isPinned"] is False
+
+    def test_get_projects_list_shows_per_user_pin_state(
+        self,
+        api_client: TestClient,
+        secondary_api_client: TestClient,
+        gateway_adapter: GatewayAdapter,
+    ):
+        """Test that GET /api/v1/projects returns different isPinned for different users on a shared project."""
+        from unittest.mock import patch
+        from solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
+        from solace_agent_mesh.common.services.default_resource_sharing_service import DefaultResourceSharingService
+        from solace_agent_mesh.services.resource_sharing_service import ResourceType
+
+        project_id = "pin-list-per-user"
+        gateway_adapter.seed_project(
+            project_id=project_id,
+            name="List Per-User Pin Project",
+            user_id="sam_dev_user",
+        )
+
+        # Grant secondary_user view access via both _has_view_access and get_shared_resource_ids
+        original_has_view_access = ProjectService._has_view_access
+        original_get_shared = DefaultResourceSharingService.get_shared_resource_ids
+
+        def _patched_has_view_access(self, db, pid, uid):
+            if pid == project_id and uid == "secondary_user":
+                return True
+            return original_has_view_access(self, db, pid, uid)
+
+        def _patched_get_shared(self, session, user_email, resource_type):
+            result = original_get_shared(self, session=session, user_email=user_email, resource_type=resource_type)
+            if user_email == "secondary_user" and resource_type == ResourceType.PROJECT:
+                result = list(result) + [project_id]
+            return result
+
+        with patch.object(ProjectService, "_has_view_access", _patched_has_view_access), \
+             patch.object(DefaultResourceSharingService, "get_shared_resource_ids", _patched_get_shared):
+            # User A pins the project
+            pin_resp = api_client.patch(f"/api/v1/projects/{project_id}/pin")
+            assert pin_resp.status_code == 200
+            assert pin_resp.json()["isPinned"] is True
+
+            # User A list shows pinned
+            list_a = api_client.get("/api/v1/projects")
+            assert list_a.status_code == 200
+            proj_a = next(
+                (p for p in list_a.json()["projects"] if p["id"] == project_id), None
+            )
+            assert proj_a is not None
+            assert proj_a["isPinned"] is True
+
+            # User B list shows unpinned for the same project
+            list_b = secondary_api_client.get("/api/v1/projects")
+            assert list_b.status_code == 200
+            proj_b = next(
+                (p for p in list_b.json()["projects"] if p["id"] == project_id), None
+            )
+            assert proj_b is not None
+            assert proj_b["isPinned"] is False
 
     def test_per_user_pin_isolation_on_shared_project(
         self,

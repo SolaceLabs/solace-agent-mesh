@@ -213,7 +213,7 @@ class IProjectRepository(ABC):
         self,
         user_email: str,
         shared_project_ids: list[str] = None,
-        pinned_project_ids: set = None,
+        pinned_project_ids: set[str] = None,
     ) -> list[Project]:
         """
         Get all accessible projects for a user (owned + shared).

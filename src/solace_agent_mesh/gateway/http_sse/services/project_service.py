@@ -121,26 +121,29 @@ class ProjectService:
         """
         Toggle the per-user pin for a project.
 
-        Returns the updated Project entity with refreshed pin state and updated_at,
-        or None if the project is not found or the user lacks access.
-        """
-        from ..repository.models import ProjectModel
-        from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+        Returns the updated Project entity with refreshed pin state,
+        or None if the project is not found.
 
-        # Verify access
-        if not self._has_view_access(db, project_id, user_id):
+        Raises:
+            PermissionError: If the project exists but the user lacks access.
+        """
+        repo = self._get_repositories(db)
+
+        # Check project existence first
+        project = repo.get_by_id(project_id)
+        if project is None:
             return None
 
-        repo = self._get_repositories(db)
-        new_pinned = repo.toggle_user_pin(project_id=project_id, user_id=user_id)
+        # Check access — raise distinct error so the caller can return 403
+        if not self._has_view_access(db, project_id, user_id):
+            raise PermissionError("User does not have access to this project")
 
-        # Update updated_at so the response reflects the toggle time
-        model = db.query(ProjectModel).filter_by(id=project_id).first()
-        if model:
-            model.updated_at = now_epoch_ms()
-            db.flush()
-
-        db.commit()
+        try:
+            repo.toggle_user_pin(project_id=project_id, user_id=user_id)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
         # Re-fetch with per-user pin state
         return repo.get_by_id_for_user(project_id, user_id)

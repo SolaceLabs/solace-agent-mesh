@@ -939,6 +939,12 @@ async def toggle_pin_project(
             updated_at=project.updated_at,
         )
 
+    except PermissionError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this project."
+        )
     except HTTPException:
         db.rollback()
         raise

@@ -1,7 +1,7 @@
 """
 Repository implementation for project data access operations.
 """
-from typing import List, Optional, Set
+from typing import List, Optional
 import uuid
 
 from sqlalchemy.orm import Session as DBSession
@@ -25,7 +25,7 @@ class ProjectRepository(IProjectRepository):
     # Per-user pin helpers
     # ------------------------------------------------------------------
 
-    def get_pinned_project_ids_for_user(self, user_id: str) -> Set[str]:
+    def get_pinned_project_ids_for_user(self, user_id: str) -> set[str]:
         """Return the set of project IDs that *user_id* has pinned."""
         rows = (
             self.db.query(ProjectUserPinModel.project_id)
@@ -99,7 +99,7 @@ class ProjectRepository(IProjectRepository):
         self,
         user_email: str,
         shared_project_ids: List[str] = None,
-        pinned_project_ids: Set[str] = None,
+        pinned_project_ids: set[str] = None,
     ) -> List[Project]:
         """
         Get all accessible projects for a user (owned + shared).
@@ -151,7 +151,7 @@ class ProjectRepository(IProjectRepository):
 
         return [self._model_to_entity(model, pinned_project_ids) for model in models]
 
-    def get_all_projects(self, pinned_project_ids: Optional[Set[str]] = None) -> List[Project]:
+    def get_all_projects(self, pinned_project_ids: Optional[set[str]] = None) -> List[Project]:
         """
         Get all projects.
 
@@ -168,7 +168,7 @@ class ProjectRepository(IProjectRepository):
 
         return [self._model_to_entity(model, pinned_project_ids) for model in models]
 
-    def get_filtered_projects(self, project_filter: ProjectFilter, pinned_project_ids: Optional[Set[str]] = None) -> List[Project]:
+    def get_filtered_projects(self, project_filter: ProjectFilter, pinned_project_ids: Optional[set[str]] = None) -> List[Project]:
         """Get projects based on filter criteria."""
         query = self.db.query(ProjectModel).filter(
             ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
@@ -251,7 +251,7 @@ class ProjectRepository(IProjectRepository):
     def _model_to_entity(
         self,
         model: ProjectModel,
-        pinned_project_ids: Optional[Set[str]] = None,
+        pinned_project_ids: Optional[set[str]] = None,
     ) -> Project:
         """
         Convert SQLAlchemy model to domain entity.
