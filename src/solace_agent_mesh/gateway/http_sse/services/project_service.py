@@ -117,6 +117,34 @@ class ProjectService:
         from ..repository.project_repository import ProjectRepository
         return ProjectRepository(db)
 
+    def toggle_pin(self, db, project_id: str, user_id: str) -> Optional[Project]:
+        """
+        Toggle the per-user pin for a project.
+
+        Returns the updated Project entity with refreshed pin state,
+        or None if the project is not found or the user lacks access.
+        """
+        from sqlalchemy.exc import SQLAlchemyError
+
+        repo = self._get_repositories(db)
+
+        # Single call handles both existence and access check
+        if repo.get_by_id(project_id) is None:
+            return None
+        if not self._has_view_access(db, project_id, user_id):
+            # Return None so caller cannot distinguish "not found" from "no access"
+            return None
+
+        try:
+            repo.toggle_user_pin(project_id=project_id, user_id=user_id)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            raise
+
+        # Re-fetch with per-user pin state
+        return repo.get_by_id_for_user(project_id, user_id)
+
     def is_persistence_enabled(self) -> bool:
         """Checks if the service is configured with a persistent backend."""
         return self.component and self.component.database_url is not None
@@ -413,9 +441,9 @@ class ProjectService:
         if not self._has_view_access(db, project_id, user_id):
             return None
 
-        # Convert to domain entity
+        # Convert to domain entity with per-user pin state
         project_repository = self._get_repositories(db)
-        return project_repository._model_to_entity(project_model)
+        return project_repository.get_by_id_for_user(project_id, user_id)
 
     def get_user_projects(self, db, user_email: str) -> List[Project]:
         """
@@ -437,9 +465,10 @@ class ProjectService:
             resource_type=ResourceType.PROJECT
         )
 
-        # Get all accessible projects (owned + shared)
+        # Get all accessible projects (owned + shared) with per-user pin state
         project_repository = self._get_repositories(db)
-        return project_repository.get_accessible_projects(user_email, shared_project_ids)
+        pinned_project_ids = project_repository.get_pinned_project_ids_for_user(user_email)
+        return project_repository.get_accessible_projects(user_email, shared_project_ids, pinned_project_ids)
 
     async def get_user_projects_with_counts(self, db, user_email: str) -> List[tuple[Project, int]]:
         """
