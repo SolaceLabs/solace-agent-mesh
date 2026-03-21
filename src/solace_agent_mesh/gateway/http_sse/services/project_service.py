@@ -117,6 +117,34 @@ class ProjectService:
         from ..repository.project_repository import ProjectRepository
         return ProjectRepository(db)
 
+    def toggle_pin(self, db, project_id: str, user_id: str) -> Optional[Project]:
+        """
+        Toggle the per-user pin for a project.
+
+        Returns the updated Project entity with refreshed pin state and updated_at,
+        or None if the project is not found or the user lacks access.
+        """
+        from ..repository.models import ProjectModel
+        from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+
+        # Verify access
+        if not self._has_view_access(db, project_id, user_id):
+            return None
+
+        repo = self._get_repositories(db)
+        new_pinned = repo.toggle_user_pin(project_id=project_id, user_id=user_id)
+
+        # Update updated_at so the response reflects the toggle time
+        model = db.query(ProjectModel).filter_by(id=project_id).first()
+        if model:
+            model.updated_at = now_epoch_ms()
+            db.flush()
+
+        db.commit()
+
+        # Re-fetch with per-user pin state
+        return repo.get_by_id_for_user(project_id, user_id)
+
     def is_persistence_enabled(self) -> bool:
         """Checks if the service is configured with a persistent backend."""
         return self.component and self.component.database_url is not None

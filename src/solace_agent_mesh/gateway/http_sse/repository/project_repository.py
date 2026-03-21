@@ -151,9 +151,13 @@ class ProjectRepository(IProjectRepository):
 
         return [self._model_to_entity(model, pinned_project_ids) for model in models]
 
-    def get_all_projects(self) -> List[Project]:
+    def get_all_projects(self, pinned_project_ids: Optional[Set[str]] = None) -> List[Project]:
         """
         Get all projects.
+
+        Args:
+            pinned_project_ids: When provided, ``is_pinned`` is resolved per-user
+                from this set instead of from the legacy DB column.
 
         Returns:
             List[Project]: List of all non-deleted projects.
@@ -162,9 +166,9 @@ class ProjectRepository(IProjectRepository):
             ProjectModel.deleted_at.is_(None)
         ).all()
 
-        return [self._model_to_entity(model) for model in models]
+        return [self._model_to_entity(model, pinned_project_ids) for model in models]
 
-    def get_filtered_projects(self, project_filter: ProjectFilter) -> List[Project]:
+    def get_filtered_projects(self, project_filter: ProjectFilter, pinned_project_ids: Optional[Set[str]] = None) -> List[Project]:
         """Get projects based on filter criteria."""
         query = self.db.query(ProjectModel).filter(
             ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
@@ -174,7 +178,7 @@ class ProjectRepository(IProjectRepository):
             query = query.filter(ProjectModel.user_id == project_filter.user_id)
 
         models = query.all()
-        return [self._model_to_entity(model) for model in models]
+        return [self._model_to_entity(model, pinned_project_ids) for model in models]
 
     def get_by_id(self, project_id: str) -> Optional[Project]:
         """
@@ -196,7 +200,8 @@ class ProjectRepository(IProjectRepository):
         ).first()
         if not model:
             return None
-        pinned_ids = self.get_pinned_project_ids_for_user(user_id)
+        is_pinned = self.is_pinned_by_user(project_id, user_id)
+        pinned_ids = {project_id} if is_pinned else set()
         return self._model_to_entity(model, pinned_ids)
 
     def update(self, project_id: str, update_data: dict) -> Optional[Project]:

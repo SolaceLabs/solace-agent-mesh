@@ -6,6 +6,8 @@ Create Date: 2026-03-20 00:00:00.000000
 
 Migrates existing owner pins from projects.is_pinned into the new table.
 """
+import time
+import uuid
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
@@ -42,21 +44,13 @@ def upgrade() -> None:
     if 'projects' in existing_tables:
         projects_columns = [col['name'] for col in inspector.get_columns('projects')]
         if 'is_pinned' in projects_columns:
-            # Use a dialect-agnostic approach via raw SQL
-            dialect_name = bind.dialect.name
-            if dialect_name == 'sqlite':
-                true_val = '1'
-            else:
-                true_val = 'true'
-
-            # Fetch pinned projects
+            # Fetch pinned projects using a bound parameter for dialect safety
             result = bind.execute(
-                text(f"SELECT id, user_id FROM projects WHERE is_pinned = {true_val} AND deleted_at IS NULL")
+                text("SELECT id, user_id FROM projects WHERE is_pinned = :val AND deleted_at IS NULL"),
+                {"val": True}
             )
             pinned_rows = result.fetchall()
 
-            import uuid
-            import time
             now_ms = int(time.time() * 1000)
 
             for row in pinned_rows:

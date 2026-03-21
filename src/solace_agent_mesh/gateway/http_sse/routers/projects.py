@@ -909,29 +909,21 @@ async def toggle_pin_project(
     Toggle the per-user pin (star) status of a project for the authenticated user.
     Any user with view access (owner or shared collaborator) can pin/unpin independently.
     """
-    from ..repository.project_repository import ProjectRepository
-
     user_id = user.get("id")
     log.info("User %s toggling pin for project %s", user_id, project_id)
 
     try:
-        # Verify the project exists and the user has access (owner OR shared)
-        project = project_service.get_project(db=db, project_id=project_id, user_id=user_id)
+        project = project_service.toggle_pin(db=db, project_id=project_id, user_id=user_id)
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found."
             )
 
-        # Toggle the per-user pin in the project_user_pins table
-        repo = ProjectRepository(db)
-        new_pinned = repo.toggle_user_pin(project_id=project_id, user_id=user_id)
-        db.commit()
-
         log.info(
             "Project %s pin status toggled to %s by user %s",
             project_id,
-            new_pinned,
+            project.is_pinned,
             user_id,
         )
 
@@ -942,7 +934,7 @@ async def toggle_pin_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
-            is_pinned=new_pinned,
+            is_pinned=project.is_pinned,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
