@@ -1064,6 +1064,7 @@ class ContextUsageResponse(BaseModel):
     current_context_tokens: int = Field(alias="currentContextTokens")
     prompt_tokens: int = Field(alias="promptTokens")
     completion_tokens: int = Field(alias="completionTokens")
+    cached_tokens: int = Field(default=0, alias="cachedTokens")
     max_input_tokens: int = Field(alias="maxInputTokens")
     usage_percentage: float = Field(alias="usagePercentage")
     model: str
@@ -1235,11 +1236,15 @@ async def get_session_context_usage(
         max_input_tokens = _get_model_context_limit(effective_model)
         usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 else 0.0
 
+        # Note: cached_tokens requires LLM response metadata (prompt caching stats)
+        # which isn't available from ADK session events alone. Will be populated
+        # when UsageTrackingService integration is added.
         return ContextUsageResponse(
             sessionId=session_id,
             currentContextTokens=current_tokens,
             promptTokens=prompt_tokens,
             completionTokens=completion_tokens,
+            cachedTokens=0,
             maxInputTokens=max_input_tokens,
             usagePercentage=usage_pct,
             model=effective_model,

@@ -7,6 +7,7 @@ export interface ContextUsage {
     currentContextTokens: number;
     promptTokens: number;
     completionTokens: number;
+    cachedTokens: number;
     maxInputTokens: number;
     usagePercentage: number;
     model: string;
