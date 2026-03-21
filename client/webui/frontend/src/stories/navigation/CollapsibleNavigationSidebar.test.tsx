@@ -67,4 +67,12 @@ describe("CollapsibleNavigationSidebar", () => {
         expect(userAccountButton).toBeInTheDocument();
         expect(userAccountButton.tagName).toBe("BUTTON");
     });
+
+    test("experimental badge renders for prompts and artifacts in expanded sidebar", async () => {
+        const Story = composeStory(Expanded, meta);
+        render(<Story />);
+
+        const badges = screen.getAllByText("EXPERIMENTAL");
+        expect(badges.length).toBeGreaterThanOrEqual(2);
+    });
 });

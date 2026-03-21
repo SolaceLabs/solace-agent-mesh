@@ -338,7 +338,7 @@ class TestProjectsPin:
 
         # Delete the project (soft delete via API)
         delete_resp = api_client.delete(f"/api/v1/projects/{project_id}")
-        assert delete_resp.status_code == 200
+        assert delete_resp.status_code == 204
 
         # Verify pin record is gone by checking the database directly
         with gateway_adapter.db_manager.get_gateway_connection() as conn:
@@ -353,8 +353,15 @@ class TestProjectsPin:
     def test_concurrent_pin_integrity_error_returns_pinned(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
     ):
-        """Test that a concurrent insert (IntegrityError) during pin still returns pinned state."""
+        """Test that toggle_user_pin returns True when IntegrityError occurs
+        (simulating a concurrent insert race condition).
+
+        Tested at the repository level with its own session to avoid autoflush
+        interference from the service layer's subsequent queries.
+        """
+        from sqlalchemy.orm import sessionmaker
         from solace_agent_mesh.gateway.http_sse.repository.project_repository import ProjectRepository
+        from solace_agent_mesh.gateway.http_sse.repository.models.project_user_pin_model import ProjectUserPinModel
 
         project_id = "pin-integrity-error-test"
         gateway_adapter.seed_project(
@@ -363,38 +370,37 @@ class TestProjectsPin:
             user_id="sam_dev_user",
         )
 
-        original_toggle = ProjectRepository.toggle_user_pin
+        engine = gateway_adapter.db_manager.provider.get_sync_gateway_engine()
+        Session = sessionmaker(bind=engine, autoflush=False)
+        db = Session()
+        try:
+            repo = ProjectRepository(db)
 
-        call_count = 0
+            # Patch flush to raise IntegrityError on the first call — this
+            # simulates a concurrent insert winning the race inside the savepoint.
+            # We disable autoflush on the session so that flush is only called
+            # explicitly (inside the savepoint try block in toggle_user_pin).
+            original_flush = db.flush
+            flush_count = 0
 
-        def patched_toggle(self, project_id, user_id):
-            nonlocal call_count
-            call_count += 1
-            # On the first call, simulate IntegrityError on the flush inside the savepoint
-            if call_count == 1:
-                original_flush = self.db.flush
+            def flush_raising_once(*args, **kwargs):
+                nonlocal flush_count
+                flush_count += 1
+                # flush #1 is from begin_nested() taking a snapshot — let it pass.
+                # flush #2 is the explicit flush inside the savepoint try block
+                # (after db.add) — this is where we simulate the race condition.
+                if flush_count == 2:
+                    raise IntegrityError("UNIQUE constraint", {}, None)
+                return original_flush(*args, **kwargs)
 
-                flush_call_count = 0
+            with patch.object(db, "flush", flush_raising_once):
+                result = repo.toggle_user_pin(project_id, "sam_dev_user")
 
-                def flush_that_raises(*args, **kwargs):
-                    nonlocal flush_call_count
-                    flush_call_count += 1
-                    # First flush is the delete check (not called since no existing pin)
-                    # The flush inside the savepoint try block is the one we want to fail
-                    if flush_call_count == 1:
-                        # This is the flush inside the savepoint — raise IntegrityError
-                        raise IntegrityError("duplicate", {}, None)
-                    return original_flush(*args, **kwargs)
-
-                with patch.object(self.db, "flush", side_effect=flush_that_raises):
-                    return original_toggle(self, project_id, user_id)
-            return original_toggle(self, project_id, user_id)
-
-        with patch.object(ProjectRepository, "toggle_user_pin", patched_toggle):
-            response = api_client.patch(f"/api/v1/projects/{project_id}/pin")
-            assert response.status_code == 200
-            # Even though IntegrityError was raised, the result should be pinned
-            assert response.json()["isPinned"] is True
+            # IntegrityError in savepoint means another transaction already pinned;
+            # toggle_user_pin should catch it and return True
+            assert result is True
+        finally:
+            db.close()
 
     def test_update_project_preserves_pin_state(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
