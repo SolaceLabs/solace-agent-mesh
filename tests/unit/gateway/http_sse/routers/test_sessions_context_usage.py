@@ -88,7 +88,7 @@ class TestLoadAdkSession:
         mock_session = MagicMock()
         mock_session.agent_id = "gateway-agent"
         mock_session_service.get_session_details.return_value = mock_session
-        mock_adk_session_service.get_session.return_value = MagicMock()
+        mock_adk_session_service.get_session.return_value = MagicMock(user_id="user-1")
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
@@ -115,13 +115,47 @@ class TestLoadAdkSession:
             )
 
     @pytest.mark.asyncio
+    async def test_returns_404_when_adk_session_user_id_mismatch(
+        self, mock_db, mock_session_service, mock_adk_session_service
+    ):
+        """IDOR guard: reject when ADK session belongs to a different user."""
+        from fastapi import HTTPException
+
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+        # ADK returns a session owned by a different user
+        mock_adk_session_service.get_session.return_value = MagicMock(user_id="other-user")
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=MagicMock(),
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                _load_adk_session,
+            )
+
+            with pytest.raises(HTTPException) as exc_info:
+                await _load_adk_session(
+                    session_id="test-session-id",
+                    user_id="user-1",
+                    agent_name="test-agent",
+                    session_service=mock_session_service,
+                    adk_session_service=mock_adk_session_service,
+                    db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 404
+            assert "not found" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
     async def test_falls_back_to_gateway_agent_id(
         self, mock_db, mock_session_service, mock_adk_session_service
     ):
         mock_session = MagicMock()
         mock_session.agent_id = "gateway-agent"
         mock_session_service.get_session_details.return_value = mock_session
-        mock_adk_session_service.get_session.return_value = MagicMock()
+        mock_adk_session_service.get_session.return_value = MagicMock(user_id="user-1")
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
@@ -312,6 +346,7 @@ class TestGetSessionContextUsage:
 
         adk_session = MagicMock()
         adk_session.events = [user_event, model_event]
+        adk_session.user_id = "user-1"
         mock_adk_session_service.get_session.return_value = adk_session
 
         with patch(
@@ -345,6 +380,107 @@ class TestGetSessionContextUsage:
             assert result.completion_tokens == 100
             assert result.current_context_tokens == 200
             assert result.total_events == 2
+
+
+    @pytest.mark.asyncio
+    async def test_compaction_events_excluded_from_token_counts(
+        self, mock_db, mock_session_service, mock_adk_session_service
+    ):
+        """Compaction events set has_compaction=True but are excluded from token counts."""
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+
+        # Regular user event
+        user_event = MagicMock()
+        user_event.actions = None
+        user_event.content = MagicMock()
+        user_event.content.role = "user"
+
+        # Compaction event (should not be counted)
+        compaction_event = MagicMock()
+        compaction_event.actions = MagicMock()
+        compaction_event.actions.compaction = MagicMock()  # truthy
+        compaction_event.content = MagicMock()
+        compaction_event.content.role = "model"
+
+        # Regular model event
+        model_event = MagicMock()
+        model_event.actions = None
+        model_event.content = MagicMock()
+        model_event.content.role = "model"
+
+        adk_session = MagicMock()
+        adk_session.events = [user_event, compaction_event, model_event]
+        adk_session.user_id = "user-1"
+        mock_adk_session_service.get_session.return_value = adk_session
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=MagicMock(),
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.routers.sessions._get_adk_imports",
+            return_value=(lambda content, model: 100, None, None),
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.routers.sessions._get_model_context_limit",
+            return_value=200_000,
+        ), patch(
+            "solace_agent_mesh.agent.adk.services._filter_session_by_latest_compaction",
+            side_effect=lambda session, **kwargs: session,
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                get_session_context_usage,
+            )
+
+            result = await get_session_context_usage(
+                session_id="test-session-id",
+                model="test-model",
+                agent_name=None,
+                db=mock_db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                adk_session_service=mock_adk_session_service,
+            )
+
+            assert result.has_compaction is True
+            # Only user_event (100) + model_event (100); compaction_event excluded
+            assert result.prompt_tokens == 100
+            assert result.completion_tokens == 100
+            assert result.current_context_tokens == 200
+            assert result.total_events == 3
+
+    @pytest.mark.asyncio
+    async def test_returns_zeros_when_adk_session_service_is_none(
+        self, mock_db, mock_session_service
+    ):
+        """When ADK is not configured (adk_session_service=None), return zero tokens."""
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=MagicMock(),
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                get_session_context_usage,
+            )
+
+            result = await get_session_context_usage(
+                session_id="test-session-id",
+                model=None,
+                agent_name=None,
+                db=mock_db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                adk_session_service=None,
+            )
+
+            assert result.current_context_tokens == 0
+            assert result.prompt_tokens == 0
+            assert result.completion_tokens == 0
+            assert result.total_events == 0
+            assert result.has_compaction is False
 
 
 class TestCompactSession:
@@ -472,6 +608,7 @@ class TestCompactSession:
 
         adk_session = MagicMock()
         adk_session.events = [MagicMock()]
+        adk_session.user_id = "user-1"
         mock_adk_session_service.get_session.return_value = adk_session
 
         mock_create_compaction = AsyncMock(return_value=(0, ""))
@@ -518,6 +655,7 @@ class TestCompactSession:
 
         adk_session = MagicMock()
         adk_session.events = [MagicMock()]
+        adk_session.user_id = "user-1"
         mock_adk_session_service.get_session.return_value = adk_session
 
         mock_create_compaction = AsyncMock(
@@ -566,6 +704,7 @@ class TestCompactSession:
 
         adk_session = MagicMock()
         adk_session.events = [MagicMock(), MagicMock(), MagicMock()]
+        adk_session.user_id = "user-1"
         mock_adk_session_service.get_session.return_value = adk_session
 
         mock_create_compaction = AsyncMock(return_value=(2, "Summary of events"))
@@ -575,6 +714,7 @@ class TestCompactSession:
         reloaded_event.actions = None
         reloaded_session = MagicMock()
         reloaded_session.events = [reloaded_event]
+        reloaded_session.user_id = "user-1"
 
         # get_session returns adk_session first (for load), then reloaded_session (after compact)
         mock_adk_session_service.get_session = AsyncMock(
