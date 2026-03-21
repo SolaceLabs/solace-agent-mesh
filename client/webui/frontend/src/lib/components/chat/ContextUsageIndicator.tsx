@@ -51,8 +51,11 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const containerRef = useRef<HTMLDivElement>(null);
     const { selectedAgentName } = useChatContext();
 
+    const isCompactingRef = useRef(false);
+
     const fetchUsage = useCallback(async () => {
         if (!sessionId) return;
+        if (isCompactingRef.current) return;
         setIsLoading(true);
         try {
             const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
@@ -100,17 +103,20 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
 
     const handleCompress = async () => {
         setIsCompacting(true);
+        isCompactingRef.current = true;
         setCompactError(null);
         setCompactSuccess(null);
         try {
             const result = await compactSession(sessionId);
             setCompactSuccess(`Compacted ${result.eventsCompacted} events. ${result.remainingTokens > 0 ? `${formatTokenCount(result.remainingTokens)} tokens remaining.` : ""}`);
-            // Refresh usage data
+            // Refresh usage data — clear the guard so fetchUsage can run
+            isCompactingRef.current = false;
             await fetchUsage();
             onCompacted?.();
         } catch (err) {
             setCompactError(err instanceof Error ? err.message : "Failed to compact session");
         } finally {
+            isCompactingRef.current = false;
             setIsCompacting(false);
         }
     };

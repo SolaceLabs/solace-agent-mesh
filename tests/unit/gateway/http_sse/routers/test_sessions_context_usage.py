@@ -323,6 +323,9 @@ class TestGetSessionContextUsage:
         ), patch(
             "solace_agent_mesh.gateway.http_sse.routers.sessions._get_model_context_limit",
             return_value=200_000,
+        ), patch(
+            "solace_agent_mesh.agent.adk.services._filter_session_by_latest_compaction",
+            side_effect=lambda session, **kwargs: session,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.sessions import (
                 get_session_context_usage,
@@ -472,10 +475,12 @@ class TestCompactSession:
         mock_adk_session_service.get_session.return_value = adk_session
 
         mock_create_compaction = AsyncMock(return_value=(0, ""))
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = {"model_config": {"model": "test-model"}}
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
-            return_value=MagicMock(),
+            return_value=mock_component,
         ), patch(
             "solace_agent_mesh.gateway.http_sse.routers.sessions._get_adk_imports",
             return_value=(None, None, mock_create_compaction),
@@ -494,6 +499,7 @@ class TestCompactSession:
                     user={"id": "user-1"},
                     session_service=mock_session_service,
                     adk_session_service=mock_adk_session_service,
+                    component=mock_component,
                 )
 
             assert exc_info.value.status_code == 400
@@ -518,9 +524,12 @@ class TestCompactSession:
             side_effect=RuntimeError("secret internal error detail")
         )
 
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = {"model_config": {"model": "test-model"}}
+
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
-            return_value=MagicMock(),
+            return_value=mock_component,
         ), patch(
             "solace_agent_mesh.gateway.http_sse.routers.sessions._get_adk_imports",
             return_value=(None, None, mock_create_compaction),
@@ -539,8 +548,69 @@ class TestCompactSession:
                     user={"id": "user-1"},
                     session_service=mock_session_service,
                     adk_session_service=mock_adk_session_service,
+                    component=mock_component,
                 )
 
             assert exc_info.value.status_code == 500
             assert "secret" not in exc_info.value.detail
             assert exc_info.value.detail == "Failed to compact session"
+
+    @pytest.mark.asyncio
+    async def test_happy_path_compaction(
+        self, mock_db, mock_session_service, mock_adk_session_service
+    ):
+        """Verify the success path: compaction, reload, filtering, response."""
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+
+        adk_session = MagicMock()
+        adk_session.events = [MagicMock(), MagicMock(), MagicMock()]
+        mock_adk_session_service.get_session.return_value = adk_session
+
+        mock_create_compaction = AsyncMock(return_value=(2, "Summary of events"))
+
+        # Reloaded session after compaction (1 compaction event + 1 remaining)
+        reloaded_event = MagicMock()
+        reloaded_event.actions = None
+        reloaded_session = MagicMock()
+        reloaded_session.events = [reloaded_event]
+
+        # get_session returns adk_session first (for load), then reloaded_session (after compact)
+        mock_adk_session_service.get_session = AsyncMock(
+            side_effect=[adk_session, reloaded_session]
+        )
+
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = {"model_config": {"model": "test-model"}}
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=mock_component,
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.routers.sessions._get_adk_imports",
+            return_value=(None, lambda events, model: 500, mock_create_compaction),
+        ), patch(
+            "solace_agent_mesh.agent.adk.services._filter_session_by_latest_compaction",
+            side_effect=lambda session, **kwargs: session,
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                compact_session,
+                CompactSessionRequest,
+            )
+
+            result = await compact_session(
+                session_id="test-session-id",
+                request=CompactSessionRequest(),
+                agent_name=None,
+                db=mock_db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                adk_session_service=mock_adk_session_service,
+                component=mock_component,
+            )
+
+            assert result.events_compacted == 2
+            assert result.summary == "Summary of events"
+            assert result.remaining_events == 1
+            assert result.remaining_tokens == 500
