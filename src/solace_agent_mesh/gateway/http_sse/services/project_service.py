@@ -122,26 +122,23 @@ class ProjectService:
         Toggle the per-user pin for a project.
 
         Returns the updated Project entity with refreshed pin state,
-        or None if the project is not found.
-
-        Raises:
-            PermissionError: If the project exists but the user lacks access.
+        or None if the project is not found or the user lacks access.
         """
+        from sqlalchemy.exc import SQLAlchemyError
+
         repo = self._get_repositories(db)
 
-        # Check project existence first
-        project = repo.get_by_id(project_id)
-        if project is None:
+        # Single call handles both existence and access check
+        if repo.get_by_id(project_id) is None:
             return None
-
-        # Check access — raise distinct error so the caller can return 403
         if not self._has_view_access(db, project_id, user_id):
-            raise PermissionError("User does not have access to this project")
+            # Return None so caller cannot distinguish "not found" from "no access"
+            return None
 
         try:
             repo.toggle_user_pin(project_id=project_id, user_id=user_id)
             db.commit()
-        except Exception:
+        except SQLAlchemyError:
             db.rollback()
             raise
 

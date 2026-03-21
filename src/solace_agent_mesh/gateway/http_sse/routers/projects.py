@@ -912,6 +912,8 @@ async def toggle_pin_project(
     user_id = user.get("id")
     log.info("User %s toggling pin for project %s", user_id, project_id)
 
+    from sqlalchemy.exc import SQLAlchemyError
+
     try:
         project = project_service.toggle_pin(db=db, project_id=project_id, user_id=user_id)
         if not project:
@@ -939,16 +941,10 @@ async def toggle_pin_project(
             updated_at=project.updated_at,
         )
 
-    except PermissionError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have access to this project."
-        )
     except HTTPException:
         db.rollback()
         raise
-    except Exception as e:
+    except SQLAlchemyError as e:
         db.rollback()
         log.error("Error toggling pin for project %s for user %s: %s", project_id, user_id, e)
         raise HTTPException(

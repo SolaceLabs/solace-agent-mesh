@@ -6,8 +6,18 @@ the is_pinned status of a project.
 """
 
 import pytest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
+
+
+def _make_patched_has_view_access(project_id, user_id, original):
+    """Factory that returns a patched _has_view_access granting *user_id* view access to *project_id*."""
+    def _patched(self, db, pid, uid):
+        if pid == project_id and uid == user_id:
+            return True
+        return original(self, db, pid, uid)
+    return _patched
 
 
 class TestProjectsPin:
@@ -89,10 +99,10 @@ class TestProjectsPin:
         response = api_client.patch("/api/v1/projects/nonexistent-project-id/pin")
         assert response.status_code == 404
 
-    def test_toggle_pin_returns_403_for_other_users_project(
+    def test_toggle_pin_returns_404_for_other_users_project(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
     ):
-        """Test PATCH /api/v1/projects/{id}/pin returns 403 for a project the user cannot access"""
+        """Test PATCH /api/v1/projects/{id}/pin returns 404 for a project the user cannot access (prevents ID enumeration)"""
         # Setup: Create a project owned by a different user (not shared with sam_dev_user)
         project_id = "pin-test-project-other-user"
         gateway_adapter.seed_project(
@@ -104,8 +114,8 @@ class TestProjectsPin:
         # Act: Try to pin as sam_dev_user (the default test user)
         response = api_client.patch(f"/api/v1/projects/{project_id}/pin")
 
-        # Assert: Should return 403 (project exists but user lacks access)
-        assert response.status_code == 403
+        # Assert: Should return 404 (same as non-existent to prevent ID enumeration)
+        assert response.status_code == 404
 
     def test_toggle_pin_response_includes_all_project_fields(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -169,7 +179,6 @@ class TestProjectsPin:
         gateway_adapter: GatewayAdapter,
     ):
         """Test that GET /api/v1/projects returns different isPinned for different users on a shared project."""
-        from unittest.mock import patch
         from solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
         from solace_agent_mesh.common.services.default_resource_sharing_service import DefaultResourceSharingService
         from solace_agent_mesh.services.resource_sharing_service import ResourceType
@@ -182,13 +191,7 @@ class TestProjectsPin:
         )
 
         # Grant secondary_user view access via both _has_view_access and get_shared_resource_ids
-        original_has_view_access = ProjectService._has_view_access
         original_get_shared = DefaultResourceSharingService.get_shared_resource_ids
-
-        def _patched_has_view_access(self, db, pid, uid):
-            if pid == project_id and uid == "secondary_user":
-                return True
-            return original_has_view_access(self, db, pid, uid)
 
         def _patched_get_shared(self, session, user_email, resource_type):
             result = original_get_shared(self, session=session, user_email=user_email, resource_type=resource_type)
@@ -196,7 +199,8 @@ class TestProjectsPin:
                 result = list(result) + [project_id]
             return result
 
-        with patch.object(ProjectService, "_has_view_access", _patched_has_view_access), \
+        patched_access = _make_patched_has_view_access(project_id, "secondary_user", ProjectService._has_view_access)
+        with patch.object(ProjectService, "_has_view_access", patched_access), \
              patch.object(DefaultResourceSharingService, "get_shared_resource_ids", _patched_get_shared):
             # User A pins the project
             pin_resp = api_client.patch(f"/api/v1/projects/{project_id}/pin")
@@ -232,7 +236,6 @@ class TestProjectsPin:
         User A owns the project and shares it with User B.
         User A pins it — User B should still see it unpinned.
         """
-        from unittest.mock import patch
         from solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
 
         project_id = "pin-isolation-shared"
@@ -243,14 +246,9 @@ class TestProjectsPin:
         )
 
         # Simulate shared access: grant secondary_user view access to this project
-        original_has_view_access = ProjectService._has_view_access
+        patched_access = _make_patched_has_view_access(project_id, "secondary_user", ProjectService._has_view_access)
 
-        def _patched_has_view_access(self, db, pid, uid):
-            if pid == project_id and uid == "secondary_user":
-                return True
-            return original_has_view_access(self, db, pid, uid)
-
-        with patch.object(ProjectService, "_has_view_access", _patched_has_view_access):
+        with patch.object(ProjectService, "_has_view_access", patched_access):
             # Both users can see the project and it starts unpinned for both
             resp_a = api_client.get(f"/api/v1/projects/{project_id}")
             assert resp_a.status_code == 200
@@ -295,7 +293,6 @@ class TestProjectsPin:
         gateway_adapter: GatewayAdapter,
     ):
         """Test that a shared collaborator (non-owner) can toggle pin and gets 200."""
-        from unittest.mock import patch
         from solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
 
         project_id = "pin-test-shared-collaborator"
@@ -306,14 +303,9 @@ class TestProjectsPin:
         )
 
         # Simulate shared access for secondary_user
-        original_has_view_access = ProjectService._has_view_access
+        patched_access = _make_patched_has_view_access(project_id, "secondary_user", ProjectService._has_view_access)
 
-        def _patched_has_view_access(self, db, pid, uid):
-            if pid == project_id and uid == "secondary_user":
-                return True
-            return original_has_view_access(self, db, pid, uid)
-
-        with patch.object(ProjectService, "_has_view_access", _patched_has_view_access):
+        with patch.object(ProjectService, "_has_view_access", patched_access):
             # Non-owner collaborator toggles pin — should succeed with 200
             response = secondary_api_client.patch(f"/api/v1/projects/{project_id}/pin")
             assert response.status_code == 200

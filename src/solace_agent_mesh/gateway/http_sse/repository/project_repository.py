@@ -6,6 +6,7 @@ import uuid
 
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from .interfaces import IProjectRepository
 from .models import ProjectModel
@@ -34,7 +35,7 @@ class ProjectRepository(IProjectRepository):
         )
         return {row[0] for row in rows}
 
-    def toggle_user_pin(self, project_id: str, user_id: str) -> bool:
+    def toggle_user_pin(self, project_id: str, user_id: str, _retried: bool = False) -> bool:
         """
         Toggle the per-user pin for *project_id* / *user_id*.
 
@@ -52,16 +53,24 @@ class ProjectRepository(IProjectRepository):
             self.db.delete(existing)
             self.db.flush()
             return False
-        else:
-            pin = ProjectUserPinModel(
-                id=str(uuid.uuid4()),
-                project_id=project_id,
-                user_id=user_id,
-                pinned_at=now_epoch_ms(),
-            )
+
+        pin = ProjectUserPinModel(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            user_id=user_id,
+            pinned_at=now_epoch_ms(),
+        )
+        savepoint = self.db.begin_nested()
+        try:
             self.db.add(pin)
             self.db.flush()
-            return True
+        except IntegrityError:
+            # Concurrent insert won the race — rollback only to savepoint
+            savepoint.rollback()
+            if _retried:
+                raise
+            return self.toggle_user_pin(project_id, user_id, _retried=True)
+        return True
 
     def is_pinned_by_user(self, project_id: str, user_id: str) -> bool:
         """Return True if *user_id* has pinned *project_id*."""
