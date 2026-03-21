@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { RefreshCw, Sparkles, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, Progress } from "@/lib/components/ui";
@@ -19,17 +19,17 @@ function formatTokenCount(tokens: number): string {
 }
 
 function getUsageColor(percentage: number): string {
-    if (percentage >= 90) return "text-red-600 dark:text-red-400";
-    if (percentage >= 75) return "text-orange-600 dark:text-orange-400";
-    if (percentage >= 50) return "text-yellow-600 dark:text-yellow-400";
-    return "text-green-600 dark:text-green-400";
+    if (percentage >= 90) return "text-(--error-wMain)";
+    if (percentage >= 75) return "text-(--warning-wMain)";
+    if (percentage >= 50) return "text-(--warning-w70)";
+    return "text-(--success-wMain)";
 }
 
 function getUsageBgColor(percentage: number): string {
-    if (percentage >= 90) return "bg-red-100 dark:bg-red-900/20";
-    if (percentage >= 75) return "bg-orange-100 dark:bg-orange-900/20";
-    if (percentage >= 50) return "bg-yellow-100 dark:bg-yellow-900/20";
-    return "bg-gray-100 dark:bg-gray-800/50";
+    if (percentage >= 90) return "bg-(--error-w10)";
+    if (percentage >= 75) return "bg-(--warning-w10)";
+    if (percentage >= 50) return "bg-(--warning-w10)";
+    return "bg-(--secondary-w5)";
 }
 
 const CompressionIcon = ({ className }: { className?: string }) => (
@@ -41,7 +41,7 @@ const CompressionIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ sessionId, onCompacted, messageCount = 0 }) => {
+export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0 }: ContextUsageIndicatorProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [usage, setUsage] = useState<ContextUsage | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -175,7 +175,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                         </div>
 
                         {error ? (
-                            <div className="text-xs text-red-600 dark:text-red-400">{error}</div>
+                            <div className="text-xs text-(--error-wMain)">{error}</div>
                         ) : (
                             <>
                                 <div className="space-y-1">
@@ -220,8 +220,8 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                                 {/* Compression Section */}
                                 {shouldShowCompressButton && (
                                     <div className="space-y-2 border-t pt-3">
-                                        {compactSuccess && <div className="rounded bg-green-50 p-2 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-300">{compactSuccess}</div>}
-                                        {compactError && <div className="rounded bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">{compactError}</div>}
+                                        {compactSuccess && <div className="rounded bg-(--success-w10) p-2 text-xs text-(--success-wMain)">{compactSuccess}</div>}
+                                        {compactError && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">{compactError}</div>}
                                         <Button variant="outline" size="sm" className="w-full" onClick={handleCompress} disabled={isCompacting}>
                                             {isCompacting ? (
                                                 <>
@@ -240,8 +240,8 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                                 )}
 
                                 {/* Warning Messages */}
-                                {pct >= 90 && <div className="rounded bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">Approaching context limit! Consider compacting the conversation.</div>}
-                                {pct >= 75 && pct < 90 && <div className="rounded bg-orange-50 p-2 text-xs text-orange-600 dark:bg-orange-900/20 dark:text-orange-400">Context usage is high. Consider compacting soon.</div>}
+                                {pct >= 90 && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">Approaching context limit! Consider compacting the conversation.</div>}
+                                {pct >= 75 && pct < 90 && <div className="rounded bg-(--warning-w10) p-2 text-xs text-(--warning-wMain)">Context usage is high. Consider compacting soon.</div>}
                             </>
                         )}
                     </div>
@@ -249,4 +249,4 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
             </div>
         </div>
     );
-};
+}
