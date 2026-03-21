@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time as _time
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -154,7 +155,7 @@ def get_sac_component() -> "WebUIBackendComponent":
 # Sentinel object to distinguish "not yet initialized" from "initialized to None".
 _ADK_SESSION_SERVICE_UNSET = object()
 _adk_session_service = _ADK_SESSION_SERVICE_UNSET
-_adk_session_service_lock = asyncio.Lock()
+_adk_session_service_lock: asyncio.Lock | None = None
 _adk_init_last_failure: float = 0.0
 _ADK_INIT_RETRY_COOLDOWN = 30.0  # seconds between retry attempts
 
@@ -178,13 +179,14 @@ async def get_adk_session_service(
     Returns ``None`` when no ``adk_session_service`` is configured, which causes
     token-counting endpoints to return empty/zero results gracefully.
     """
-    import time as _time
-    global _adk_session_service, _adk_init_last_failure
+    global _adk_session_service, _adk_init_last_failure, _adk_session_service_lock
     if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
-        # Skip retry if a recent attempt failed (cooldown to avoid hammering DB)
-        if _adk_init_last_failure and (_time.monotonic() - _adk_init_last_failure) < _ADK_INIT_RETRY_COOLDOWN:
-            return None
+        if _adk_session_service_lock is None:
+            _adk_session_service_lock = asyncio.Lock()
         async with _adk_session_service_lock:
+            # Cooldown check inside the lock to prevent concurrent bypass
+            if _adk_init_last_failure and (_time.monotonic() - _adk_init_last_failure) < _ADK_INIT_RETRY_COOLDOWN:
+                return None
             if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
                 adk_cfg = component.get_config("adk_session_service")
                 if not adk_cfg:

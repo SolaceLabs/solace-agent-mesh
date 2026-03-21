@@ -120,7 +120,7 @@ def _is_test_mode_trigger_enabled() -> bool:
     return _get_test_token_threshold() > 0
 
 
-def _calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-4-vision") -> int:
+def calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-4-vision") -> int:
     """
     Calculate total tokens the LLM will receive for this session.
 
@@ -173,6 +173,10 @@ def _calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-
     return total_tokens
 
 
+# Backward-compatible alias for existing internal/test callers
+_calculate_session_context_tokens = calculate_session_context_tokens
+
+
 def _test_and_trigger_compaction(
     test_token_threshold: int,
     adk_session: ADKSession,
@@ -192,7 +196,7 @@ def _test_and_trigger_compaction(
     Raises:
         BadRequestError: If token count exceeds threshold (triggers compaction retry loop)
     """
-    total_tokens = _calculate_session_context_tokens(adk_session.events, model=str(component.adk_agent.model))
+    total_tokens = calculate_session_context_tokens(adk_session.events, model=str(component.adk_agent.model))
     log.info(
         "%s Proactive compaction check: total_tokens=%d, threshold=%d, exceeds=%s",
         component.log_identifier,
@@ -321,7 +325,7 @@ def _find_compaction_cutoff(
 
     return best_cutoff_idx, best_token_count
 
-async def _create_compaction_event(
+async def create_compaction_event(
     component: "SamAgentComponent",
     session: ADKSession,
     compaction_threshold: float = 0.25,
@@ -372,7 +376,7 @@ async def _create_compaction_event(
     # 2. Calculate total token count and target compaction size
     # Use non_compaction_events (includes system + conversation) for consistency
     # with proactive trigger logic
-    total_tokens = _calculate_session_context_tokens(non_compaction_events, model=str(component.adk_agent.model))
+    total_tokens = calculate_session_context_tokens(non_compaction_events, model=str(component.adk_agent.model))
     target_tokens = int(total_tokens * compaction_threshold)
 
     log.info(
@@ -934,7 +938,7 @@ async def _perform_session_compaction(
     original_event_count = len(session.events) if session.events else 0
 
     # Create compaction event
-    events_removed, summary = await _create_compaction_event(
+    events_removed, summary = await create_compaction_event(
         component=component,
         session=session,
         compaction_threshold=compaction_threshold,

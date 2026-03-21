@@ -298,7 +298,7 @@ def _get_content(
     return content_objects
 
 
-def _calculate_content_tokens(
+def calculate_content_tokens(
     content: types.Content,
     model: str = "gpt-4o"
 ) -> int:
@@ -383,6 +383,10 @@ def _calculate_content_tokens(
         video_tokens
     )
     return total
+
+
+# Backward-compatible alias for existing internal callers
+_calculate_content_tokens = calculate_content_tokens
 
 
 def _to_litellm_role(role: Optional[str]) -> Literal["user", "assistant"]:

@@ -1168,6 +1168,16 @@ async def _load_adk_session(
     adk_session = await adk_session_service.get_session(
         app_name=app_name, user_id=user_id, session_id=session_id,
     )
+
+    # Explicit ownership assertion: the ADK backend may not enforce user-scoped
+    # access, so verify the returned session belongs to the requesting user.
+    if adk_session is not None and getattr(adk_session, "user_id", None) != user_id:
+        log.warning(
+            "ADK session %s returned for user %s but belongs to user %s — rejecting",
+            session_id, user_id, getattr(adk_session, "user_id", "<unknown>"),
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
     return gateway_session, app_name, adk_session
 
 
@@ -1229,6 +1239,7 @@ async def get_session_context_usage(
         has_compaction = False
         prompt_tokens = 0
         completion_tokens = 0
+        _token_calc_warned = False
         for event in adk_session.events:
             if event.actions and event.actions.compaction:
                 has_compaction = True
@@ -1237,7 +1248,11 @@ async def get_session_context_usage(
                     try:
                         tokens = _calculate_content_tokens(event.content, model=effective_model)
                     except Exception as e:
-                        log.debug("Failed to calculate tokens for event in session %s: %s", session_id, e)
+                        if not _token_calc_warned:
+                            log.warning("Failed to calculate tokens for event in session %s: %s", session_id, e)
+                            _token_calc_warned = True
+                        else:
+                            log.debug("Failed to calculate tokens for event in session %s: %s", session_id, e)
                         tokens = 0
                     role = getattr(event.content, "role", None)
                     if role == "user":
