@@ -57,17 +57,11 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         }
     }, [sessionId, selectedAgentName]);
 
-    // Initial fetch and refresh on sessionId change
+    // Fetch on mount and whenever a new message arrives (messageCount changes).
+    // No polling needed — token counts only change when messages are sent/received.
     useEffect(() => {
         fetchUsage();
-    }, [fetchUsage]);
-
-    // Auto-refresh every 5 seconds
-    useEffect(() => {
-        if (!sessionId) return;
-        const interval = setInterval(fetchUsage, 5000);
-        return () => clearInterval(interval);
-    }, [sessionId, fetchUsage]);
+    }, [fetchUsage, messageCount]);
 
     // Click outside to collapse
     useEffect(() => {
@@ -203,7 +197,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                     <Tooltip delayDuration={300}>
                                         <TooltipTrigger asChild>
                                             <div
-                                                className="text-muted-foreground hover:text-foreground animate-pulse cursor-pointer p-1"
+                                                className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
                                                 onClick={e => {
                                                     e.stopPropagation();
                                                     if (!isCompacting) handleCompress();
