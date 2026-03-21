@@ -11,8 +11,8 @@ from google.adk.sessions import Session as ADKSession
 from google.genai import types as adk_types
 from litellm.exceptions import BadRequestError
 from solace_agent_mesh.agent.adk.runner import (
-    _calculate_session_context_tokens,
-    _create_compaction_event,
+    calculate_session_context_tokens as _calculate_session_context_tokens,
+    create_compaction_event as _create_compaction_event,
     _find_compaction_cutoff,
     _is_context_limit_error,
     _is_background_task,
