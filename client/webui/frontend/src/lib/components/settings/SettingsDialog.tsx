@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import type { ReactNode } from "react";
 import { Info, Settings, Type, Volume2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -9,19 +10,20 @@ import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type SettingsSection = "general" | "speech" | "about" | string;
+type BuiltInSection = "general" | "speech" | "about";
+type SettingsSection = BuiltInSection | (string & {});
 
 export interface ExtraSettingsTab {
     id: string;
     label: string;
-    icon: React.ReactNode;
-    content: React.ReactNode;
+    icon: ReactNode;
+    content: ReactNode;
     /** "top" = above the divider (default), "bottom" = below divider, above About */
     position?: "top" | "bottom";
 }
 
 interface SidebarItemProps {
-    icon: React.ReactNode;
+    icon: ReactNode;
     label: string;
     active: boolean;
     onClick: () => void;
@@ -43,7 +45,7 @@ interface SettingsDialogProps {
     extraTabs?: ExtraSettingsTab[];
 }
 
-export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange, extraTabs = [] }) => {
+export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenChange, extraTabs = [] }: SettingsDialogProps) {
     const { configFeatureEnablement } = useConfigContext();
     const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
@@ -162,4 +164,4 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
             </DialogContent>
         </Dialog>
     );
-};
+}
