@@ -377,6 +377,13 @@ async def get_execution_by_a2a_task_id(
         execution = repo.find_execution_by_a2a_task_id(db, a2a_task_id)
         if not execution:
             raise HTTPException(status_code=404, detail="Execution not found for this A2A task ID")
+
+        # Verify ownership: look up the parent task and check created_by matches the requesting user.
+        # Return 404 (not 403) to avoid confirming existence to unauthorized users.
+        task = repo.find_by_id(db, execution.scheduled_task_id)
+        if not task or task.created_by != user.get("sub"):
+            raise HTTPException(status_code=404, detail="Execution not found for this A2A task ID")
+
         return ExecutionResponse.from_orm(execution)
     except HTTPException:
         raise

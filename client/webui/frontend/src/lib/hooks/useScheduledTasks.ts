@@ -8,14 +8,28 @@ import type { ScheduledTask, ScheduledTaskListResponse, CreateScheduledTaskReque
 import { transformApiTask, transformApiExecution, transformTaskToApi, transformUpdateToApi } from "@/lib/types/scheduled-tasks";
 
 export function useScheduledTasks() {
-    const [isLoading, setIsLoading] = useState(false);
+    // Use a counter instead of a boolean so that concurrent operations don't
+    // prematurely clear the loading state when one finishes before another.
+    const [loadingCount, setLoadingCount] = useState(0);
+    const isLoading = loadingCount > 0;
+
+    // Separate query vs mutation loading so callers can distinguish list
+    // refreshes from in-flight mutations.
+    const [isQueryLoading, setIsQueryLoading] = useState(false);
+    const [isMutating, setIsMutating] = useState(false);
+
     const [error, setError] = useState<string | null>(null);
+
+    /** Increment/decrement the shared loading counter. */
+    const startLoading = () => setLoadingCount(c => c + 1);
+    const stopLoading = () => setLoadingCount(c => Math.max(0, c - 1));
 
     /**
      * Fetch all scheduled tasks
      */
     const fetchTasks = useCallback(async (pageNumber: number = 1, pageSize: number = 20, enabledOnly: boolean = false, includeNamespaceTasks: boolean = true): Promise<ScheduledTaskListResponse | null> => {
-        setIsLoading(true);
+        startLoading();
+        setIsQueryLoading(true);
         setError(null);
 
         try {
@@ -38,7 +52,8 @@ export function useScheduledTasks() {
             console.error("Error fetching scheduled tasks:", err);
             return null;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsQueryLoading(false);
         }
     }, []);
 
@@ -46,7 +61,8 @@ export function useScheduledTasks() {
      * Fetch a single scheduled task
      */
     const fetchTask = useCallback(async (taskId: string): Promise<ScheduledTask | null> => {
-        setIsLoading(true);
+        startLoading();
+        setIsQueryLoading(true);
         setError(null);
 
         try {
@@ -59,7 +75,8 @@ export function useScheduledTasks() {
             console.error("Error fetching scheduled task:", err);
             return null;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsQueryLoading(false);
         }
     }, []);
 
@@ -67,7 +84,8 @@ export function useScheduledTasks() {
      * Create a new scheduled task
      */
     const createTask = useCallback(async (taskData: CreateScheduledTaskRequest): Promise<ScheduledTask | null> => {
-        setIsLoading(true);
+        startLoading();
+        setIsMutating(true);
         setError(null);
 
         try {
@@ -83,7 +101,8 @@ export function useScheduledTasks() {
             console.error("Error creating scheduled task:", err);
             return null;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsMutating(false);
         }
     }, []);
 
@@ -91,7 +110,8 @@ export function useScheduledTasks() {
      * Update a scheduled task
      */
     const updateTask = useCallback(async (taskId: string, updates: UpdateScheduledTaskRequest): Promise<ScheduledTask | null> => {
-        setIsLoading(true);
+        startLoading();
+        setIsMutating(true);
         setError(null);
 
         try {
@@ -107,7 +127,8 @@ export function useScheduledTasks() {
             console.error("Error updating scheduled task:", err);
             return null;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsMutating(false);
         }
     }, []);
 
@@ -115,7 +136,8 @@ export function useScheduledTasks() {
      * Delete a scheduled task
      */
     const deleteTask = useCallback(async (taskId: string): Promise<boolean> => {
-        setIsLoading(true);
+        startLoading();
+        setIsMutating(true);
         setError(null);
 
         try {
@@ -127,7 +149,8 @@ export function useScheduledTasks() {
             console.error("Error deleting scheduled task:", err);
             return false;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsMutating(false);
         }
     }, []);
 
@@ -135,7 +158,8 @@ export function useScheduledTasks() {
      * Enable a scheduled task
      */
     const enableTask = useCallback(async (taskId: string): Promise<boolean> => {
-        setIsLoading(true);
+        startLoading();
+        setIsMutating(true);
         setError(null);
 
         try {
@@ -147,7 +171,8 @@ export function useScheduledTasks() {
             console.error("Error enabling scheduled task:", err);
             return false;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsMutating(false);
         }
     }, []);
 
@@ -155,7 +180,8 @@ export function useScheduledTasks() {
      * Disable a scheduled task
      */
     const disableTask = useCallback(async (taskId: string): Promise<boolean> => {
-        setIsLoading(true);
+        startLoading();
+        setIsMutating(true);
         setError(null);
 
         try {
@@ -167,7 +193,8 @@ export function useScheduledTasks() {
             console.error("Error disabling scheduled task:", err);
             return false;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsMutating(false);
         }
     }, []);
 
@@ -175,7 +202,8 @@ export function useScheduledTasks() {
      * Fetch execution history for a task
      */
     const fetchExecutions = useCallback(async (taskId: string, pageNumber: number = 1, pageSize: number = 20): Promise<ExecutionListResponse | null> => {
-        setIsLoading(true);
+        startLoading();
+        setIsQueryLoading(true);
         setError(null);
 
         try {
@@ -196,7 +224,8 @@ export function useScheduledTasks() {
             console.error("Error fetching executions:", err);
             return null;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsQueryLoading(false);
         }
     }, []);
 
@@ -204,7 +233,8 @@ export function useScheduledTasks() {
      * Fetch recent executions across all tasks
      */
     const fetchRecentExecutions = useCallback(async (limit: number = 50): Promise<ExecutionListResponse | null> => {
-        setIsLoading(true);
+        startLoading();
+        setIsQueryLoading(true);
         setError(null);
 
         try {
@@ -220,7 +250,8 @@ export function useScheduledTasks() {
             console.error("Error fetching recent executions:", err);
             return null;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsQueryLoading(false);
         }
     }, []);
 
@@ -228,7 +259,8 @@ export function useScheduledTasks() {
      * Fetch scheduler status
      */
     const fetchSchedulerStatus = useCallback(async (): Promise<SchedulerStatus | null> => {
-        setIsLoading(true);
+        startLoading();
+        setIsQueryLoading(true);
         setError(null);
 
         try {
@@ -260,12 +292,15 @@ export function useScheduledTasks() {
             console.error("Error fetching scheduler status:", err);
             return null;
         } finally {
-            setIsLoading(false);
+            stopLoading();
+            setIsQueryLoading(false);
         }
     }, []);
 
     return {
         isLoading,
+        isQueryLoading,
+        isMutating,
         error,
         fetchTasks,
         fetchTask,

@@ -123,12 +123,16 @@ class StatelessResultCollector:
                     ])
                 )
                 execution = session.execute(stmt).scalar_one_or_none()
-                
+
                 if execution:
                     log.debug(
                         f"{self.log_prefix} Found execution {execution.id} for A2A task {a2a_task_id}"
                     )
-                
+                    # Expunge the object before the session closes so that callers
+                    # can safely access its eagerly-loaded attributes after the
+                    # session context exits (avoids DetachedInstanceError).
+                    session.expunge(execution)
+
                 return execution
 
         except Exception as e:

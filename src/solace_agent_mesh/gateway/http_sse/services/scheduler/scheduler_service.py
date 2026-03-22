@@ -175,6 +175,7 @@ class SchedulerService:
         )
 
         self._stale_cleanup_task: Optional[asyncio.Task] = None
+        self._monitor_task: Optional[asyncio.Task] = None
 
         log.info(
             f"[SchedulerService:{instance_id}] Initialized for namespace '{namespace}' "
@@ -189,7 +190,7 @@ class SchedulerService:
         self.scheduler.start()
         log.info(f"[SchedulerService:{self.instance_id}] APScheduler started")
 
-        asyncio.create_task(self._monitor_leadership())
+        self._monitor_task = asyncio.create_task(self._monitor_leadership())
 
         self._stale_cleanup_task = asyncio.create_task(self._stale_cleanup_loop())
         log.info(f"[SchedulerService:{self.instance_id}] Stale cleanup task started")
@@ -200,6 +201,13 @@ class SchedulerService:
 
         await self.leader_election.stop()
         self.scheduler.shutdown(wait=False)
+
+        if self._monitor_task and not self._monitor_task.done():
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
 
         if self._stale_cleanup_task and not self._stale_cleanup_task.done():
             self._stale_cleanup_task.cancel()
@@ -315,6 +323,15 @@ class SchedulerService:
 
     async def _on_lose_leadership(self):
         try:
+            # Cancel in-flight executions to prevent duplicate execution when a new
+            # leader picks up the same tasks.
+            async with self._execution_lock:
+                for exec_id in list(self.running_executions.keys()):
+                    log.warning(
+                        f"[SchedulerService:{self.instance_id}] Cancelling orphaned execution "
+                        f"{exec_id} due to leadership loss"
+                    )
+                self.running_executions.clear()
             await self._unload_all_tasks()
         except Exception as e:
             log.error(
@@ -488,124 +505,132 @@ class SchedulerService:
         else:
             return int(interval_str)
 
-    async def _execute_scheduled_task(self, task_id: str, retry_count: int = 0):
-        """Execute a scheduled task by submitting it to the agent mesh."""
+    async def _execute_scheduled_task(self, task_id: str):
+        """Execute a scheduled task by submitting it to the agent mesh.
+
+        Retries are handled iteratively (not recursively) to avoid deep call
+        stacks and unnecessary resource retention between attempts.
+        """
         log.info(
-            f"[SchedulerService:{self.instance_id}] Executing scheduled task: {task_id} (attempt {retry_count + 1})"
+            f"[SchedulerService:{self.instance_id}] Executing scheduled task: {task_id}"
         )
 
-        execution_id = None
+        # Read task config once before the retry loop
         timeout_seconds = self.default_timeout_seconds
         max_retries = 0
         retry_delay_seconds = 60
-        task_name = None
 
-        try:
-            # Check max concurrent executions
-            async with self._execution_lock:
-                current_running = len(self.running_executions)
-                if current_running >= self.max_concurrent_executions:
-                    log.warning(
-                        f"[SchedulerService:{self.instance_id}] Max concurrent executions reached, skipping task {task_id}"
-                    )
-                    with self.session_factory() as session:
-                        task = session.get(ScheduledTaskModel, task_id)
-                        if task:
-                            execution = ScheduledTaskExecutionModel(
-                                id=str(uuid.uuid4()),
-                                scheduled_task_id=task.id,
-                                status=ExecutionStatus.SKIPPED,
-                                scheduled_for=now_epoch_ms(),
-                                completed_at=now_epoch_ms(),
-                                error_message=f"Skipped: max concurrent executions ({self.max_concurrent_executions}) reached",
-                            )
-                            session.add(execution)
-                            session.commit()
-                    return
+        with self.session_factory() as session:
+            task = session.get(ScheduledTaskModel, task_id)
+            if not task:
+                log.warning(f"[SchedulerService:{self.instance_id}] Task {task_id} not found")
+                return
+            timeout_seconds = task.timeout_seconds or self.default_timeout_seconds
+            max_retries = task.max_retries or 0
+            retry_delay_seconds = task.retry_delay_seconds or 60
 
-            with self.session_factory() as session:
-                task = session.get(ScheduledTaskModel, task_id)
-                if not task or not task.enabled or task.deleted_at:
-                    log.warning(f"[SchedulerService:{self.instance_id}] Task {task_id} not found, disabled, or deleted")
-                    return
-
-                # Skip tasks in error state
-                if task.status == "error":
-                    log.warning(f"[SchedulerService:{self.instance_id}] Task {task_id} is in error state, skipping")
-                    return
-
-                timeout_seconds = task.timeout_seconds
-                max_retries = task.max_retries or 0
-                retry_delay_seconds = task.retry_delay_seconds or 60
-                task_name = task.name
-
-                execution_id = str(uuid.uuid4())
-                current_time = now_epoch_ms()
-
-                execution = ScheduledTaskExecutionModel(
-                    id=execution_id,
-                    scheduled_task_id=task.id,
-                    status=ExecutionStatus.PENDING,
-                    scheduled_for=current_time,
-                    retry_count=retry_count,
-                )
-                session.add(execution)
-                task.last_run_at = current_time
-                session.commit()
-
-            execution_task = asyncio.create_task(
-                self._submit_task_to_agent_mesh(task_id, execution_id)
-            )
-
-            async with self._execution_lock:
-                self.running_executions[execution_id] = execution_task
-
-            execution_failed = False
-            error_message = None
+        for attempt in range(max_retries + 1):
+            execution_id = None
             try:
-                await asyncio.wait_for(execution_task, timeout=timeout_seconds)
+                # Check max concurrent executions
+                async with self._execution_lock:
+                    current_running = len(self.running_executions)
+                    if current_running >= self.max_concurrent_executions:
+                        log.warning(
+                            f"[SchedulerService:{self.instance_id}] Max concurrent executions reached, skipping task {task_id}"
+                        )
+                        with self.session_factory() as session:
+                            task = session.get(ScheduledTaskModel, task_id)
+                            if task:
+                                execution = ScheduledTaskExecutionModel(
+                                    id=str(uuid.uuid4()),
+                                    scheduled_task_id=task.id,
+                                    status=ExecutionStatus.SKIPPED,
+                                    scheduled_for=now_epoch_ms(),
+                                    completed_at=now_epoch_ms(),
+                                    error_message=f"Skipped: max concurrent executions ({self.max_concurrent_executions}) reached",
+                                )
+                                session.add(execution)
+                                session.commit()
+                        return
 
                 with self.session_factory() as session:
-                    execution = session.get(ScheduledTaskExecutionModel, execution_id)
                     task = session.get(ScheduledTaskModel, task_id)
-                    if execution and execution.status == ExecutionStatus.FAILED:
-                        execution_failed = True
-                        error_message = execution.error_message
-                    elif execution and execution.status == ExecutionStatus.COMPLETED:
-                        # Phase 3.1: Reset failure count on success
-                        if task:
-                            task.consecutive_failure_count = 0
-                            task.run_count = (task.run_count or 0) + 1
-                            if task.status == "error":
-                                task.status = "active"
-                            session.commit()
-                            await self.notification_service.notify_execution_complete(
-                                execution=execution, task=task,
-                            )
+                    if not task or not task.enabled or task.deleted_at:
+                        log.warning(f"[SchedulerService:{self.instance_id}] Task {task_id} not found, disabled, or deleted")
+                        return
 
-            except asyncio.TimeoutError:
-                log.error(f"[SchedulerService:{self.instance_id}] Execution {execution_id} timed out")
-                await self._handle_execution_timeout(execution_id)
-                execution_failed = True
-                error_message = "Execution timed out"
-            finally:
+                    # Skip tasks in error state
+                    if task.status == "error":
+                        log.warning(f"[SchedulerService:{self.instance_id}] Task {task_id} is in error state, skipping")
+                        return
+
+                    execution_id = str(uuid.uuid4())
+                    current_time = now_epoch_ms()
+
+                    execution = ScheduledTaskExecutionModel(
+                        id=execution_id,
+                        scheduled_task_id=task.id,
+                        status=ExecutionStatus.PENDING,
+                        scheduled_for=current_time,
+                        retry_count=attempt,
+                    )
+                    session.add(execution)
+                    task.last_run_at = current_time
+                    session.commit()
+
+                execution_task = asyncio.create_task(
+                    self._submit_task_to_agent_mesh(task_id, execution_id)
+                )
+
                 async with self._execution_lock:
-                    self.running_executions.pop(execution_id, None)
+                    self.running_executions[execution_id] = execution_task
 
-            # Handle failure tracking and retries
-            if execution_failed:
+                execution_failed = False
+                try:
+                    await asyncio.wait_for(execution_task, timeout=timeout_seconds)
+
+                    with self.session_factory() as session:
+                        execution = session.get(ScheduledTaskExecutionModel, execution_id)
+                        task = session.get(ScheduledTaskModel, task_id)
+                        if execution and execution.status == ExecutionStatus.FAILED:
+                            execution_failed = True
+                        elif execution and execution.status == ExecutionStatus.COMPLETED:
+                            # Phase 3.1: Reset failure count on success
+                            if task:
+                                task.consecutive_failure_count = 0
+                                task.run_count = (task.run_count or 0) + 1
+                                if task.status == "error":
+                                    task.status = "active"
+                                session.commit()
+                                await self.notification_service.notify_execution_complete(
+                                    execution=execution, task=task,
+                                )
+
+                except asyncio.TimeoutError:
+                    log.error(f"[SchedulerService:{self.instance_id}] Execution {execution_id} timed out")
+                    await self._handle_execution_timeout(execution_id)
+                    execution_failed = True
+                finally:
+                    async with self._execution_lock:
+                        self.running_executions.pop(execution_id, None)
+
+                if not execution_failed:
+                    # Success — exit the retry loop
+                    break
+
+                # Execution failed
                 await self._track_failure(task_id)
 
-                if retry_count < max_retries:
+                if attempt < max_retries:
                     log.info(
-                        f"[SchedulerService:{self.instance_id}] Scheduling retry {retry_count + 1}/{max_retries} "
+                        f"[SchedulerService:{self.instance_id}] Scheduling retry {attempt + 1}/{max_retries} "
                         f"for task {task_id} in {retry_delay_seconds}s"
                     )
                     await asyncio.sleep(retry_delay_seconds)
-                    await self._execute_scheduled_task(task_id, retry_count + 1)
                 else:
                     log.error(
-                        f"[SchedulerService:{self.instance_id}] Task {task_id} failed after {retry_count + 1} attempts"
+                        f"[SchedulerService:{self.instance_id}] Task {task_id} failed after {attempt + 1} attempt(s)"
                     )
                     with self.session_factory() as session:
                         execution = session.get(ScheduledTaskExecutionModel, execution_id)
@@ -615,21 +640,24 @@ class SchedulerService:
                                 execution=execution, task=task,
                             )
 
-            # Execution history bounds: keep only last 100 (runs after every execution)
-            await self._enforce_execution_history_bounds(task_id)
+            except Exception as e:
+                log.error(
+                    f"[SchedulerService:{self.instance_id}] Failed to execute scheduled task {task_id} "
+                    f"(attempt {attempt + 1}): {e}",
+                    exc_info=True,
+                )
+                if execution_id:
+                    await self._handle_execution_failure(execution_id, str(e))
+                    await self._track_failure(task_id)
 
-        except Exception as e:
-            log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to execute scheduled task {task_id}: {e}",
-                exc_info=True,
-            )
-            if execution_id:
-                await self._handle_execution_failure(execution_id, str(e))
-                await self._track_failure(task_id)
-
-                if retry_count < max_retries:
+                if attempt < max_retries:
                     await asyncio.sleep(retry_delay_seconds)
-                    await self._execute_scheduled_task(task_id, retry_count + 1)
+                else:
+                    break
+
+            finally:
+                # Execution history bounds: keep only last 100 (runs after every attempt)
+                await self._enforce_execution_history_bounds(task_id)
 
     async def _track_failure(self, task_id: str):
         """Phase 3.1: Track consecutive failures and transition to error state."""
@@ -726,11 +754,16 @@ class SchedulerService:
                     metadata=message_metadata,
                 )
 
-                # Build A2A request
+                # Build A2A request — filter task_metadata through the same allowlist
+                # used for message-level metadata to prevent injection of protocol keys.
+                filtered_task_metadata = {
+                    k: v for k, v in (task.task_metadata or {}).items()
+                    if k in _SAFE_METADATA_KEYS
+                }
                 request = a2a.create_send_streaming_message_request(
                     message=a2a_message,
                     task_id=a2a_task_id,
-                    metadata=task.task_metadata,
+                    metadata=filtered_task_metadata,
                 )
                 payload = request.model_dump(by_alias=True, exclude_none=True)
 

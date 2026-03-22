@@ -262,6 +262,24 @@ class ScheduledTaskRepository:
             )
         ).scalar_one_or_none()
 
+    def find_execution_by_session_id(
+        self,
+        session: DBSession,
+        session_id: str,
+    ) -> Optional[ScheduledTaskExecutionModel]:
+        """Find an execution by its scheduler session ID (context_id).
+
+        Scheduler session IDs are stored as the context_id on the execution
+        and follow the pattern ``scheduled_{execution_id}``.
+        """
+        # The context_id used when submitting to the agent mesh is
+        # f"scheduled_{execution_id}", which is stored in the execution record.
+        # We derive the execution_id from the session_id prefix.
+        if not session_id.startswith("scheduled_"):
+            return None
+        execution_id = session_id[len("scheduled_"):]
+        return session.get(ScheduledTaskExecutionModel, execution_id)
+
     def find_executions_by_task(
         self,
         session: DBSession,

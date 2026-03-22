@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+// useRef is used for hasInitializedRef and hasActiveRef (stable polling interval)
 import { MoreHorizontal, FileText, Download, ArrowLeft, ChevronRight, ChevronLeft } from "lucide-react";
 import type { ScheduledTask, TaskExecution, ArtifactInfo } from "@/lib/types/scheduled-tasks";
 import { transformApiExecution } from "@/lib/types/scheduled-tasks";
@@ -68,21 +69,27 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         fetchExecutions();
     }, [fetchExecutions]);
 
-    // Smart polling: fast when executions are running, slow otherwise, paused when tab hidden
+    // Keep a ref that tracks whether any execution is active so the polling
+    // effect below doesn't need `executions` in its dependency array (which
+    // would tear down and re-create the timer on every poll response).
+    const hasActiveRef = useRef(false);
+    useEffect(() => {
+        hasActiveRef.current = executions.some(e => e.status === "running" || e.status === "pending");
+    }, [executions]);
+
+    // Smart polling: fast when executions are running, slow otherwise, paused when tab hidden.
+    // Stable effect — only depends on fetchExecutions (which is memoised with useCallback).
     useEffect(() => {
         let timerId: ReturnType<typeof setTimeout>;
-
-        const hasActiveExecutions = executions.some(e => e.status === "running" || e.status === "pending");
-        const interval = hasActiveExecutions ? 5_000 : 30_000;
 
         const poll = () => {
             if (!document.hidden) {
                 fetchExecutions(false);
             }
-            timerId = setTimeout(poll, interval);
+            timerId = setTimeout(poll, hasActiveRef.current ? 5_000 : 30_000);
         };
 
-        timerId = setTimeout(poll, interval);
+        timerId = setTimeout(poll, hasActiveRef.current ? 5_000 : 30_000);
 
         // Resume polling immediately when tab becomes visible
         const onVisibilityChange = () => {
@@ -96,7 +103,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
             clearTimeout(timerId);
             document.removeEventListener("visibilitychange", onVisibilityChange);
         };
-    }, [fetchExecutions, executions]);
+    }, [fetchExecutions]);
 
     const formatTimestamp = (timestamp: number) => {
         // Check if timestamp is in seconds (< year 3000 in seconds) or milliseconds
@@ -419,7 +426,24 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                         </div>
                                     </div>
                                     <div className="whitespace-nowrap">
-                                        <Button variant="ghost" size="sm" onClick={() => window.open(`${previewArtifact.uri}?download=true`, "_blank")} tooltip="Download">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                // Restrict to same-origin URLs to prevent open redirect.
+                                                try {
+                                                    const url = new URL(previewArtifact.uri, window.location.origin);
+                                                    if (url.origin !== window.location.origin) {
+                                                        console.warn("Blocked external artifact URL:", previewArtifact.uri);
+                                                        return;
+                                                    }
+                                                    window.open(`${url.href}?download=true`, "_blank");
+                                                } catch {
+                                                    // Malformed URI — silently ignore
+                                                }
+                                            }}
+                                            tooltip="Download"
+                                        >
                                             <Download />
                                         </Button>
                                     </div>
