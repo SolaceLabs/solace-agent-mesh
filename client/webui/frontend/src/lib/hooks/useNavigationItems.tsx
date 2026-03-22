@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { FolderOpen, BookOpenText, Bot, User, LogOut, Files } from "lucide-react";
-import { LifecycleBadge } from "@/lib/components/ui";
 import type { NavItemConfig } from "@/lib/types/fe";
 
 interface UseNavigationItemsProps {
@@ -13,8 +12,6 @@ interface UseNavigationItemsProps {
     onUserAccountClick: () => void;
     onLogoutClick: () => void;
 }
-
-const experimentalBadge = <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>;
 
 export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
     const location = useLocation();
@@ -43,7 +40,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                badge: experimentalBadge,
+                tooltip: "Experimental Feature",
             });
         }
 
@@ -54,7 +51,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                badge: experimentalBadge,
+                tooltip: "Experimental Feature",
             });
         }
 

@@ -1,10 +1,10 @@
 /// <reference types="@testing-library/jest-dom" />
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { composeStory } from "@storybook/react";
 import { describe, test, expect, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
-import meta, { Expanded, Collapsed } from "./CollapsibleNavigationSidebar.stories";
+import meta, { Expanded, Collapsed, WithSubmenus } from "./CollapsibleNavigationSidebar.stories";
 
 expect.extend(matchers);
 
@@ -68,11 +68,41 @@ describe("CollapsibleNavigationSidebar", () => {
         expect(userAccountButton.tagName).toBe("BUTTON");
     });
 
-    test("experimental badge renders for prompts and artifacts in expanded sidebar", async () => {
-        const Story = composeStory(Expanded, meta);
+    test("child items with tooltip show tooltip on hover", async () => {
+        const user = userEvent.setup();
+        const Story = composeStory(WithSubmenus, meta);
         render(<Story />);
 
-        const badges = screen.getAllByText("EXPERIMENTAL");
-        expect(badges.length).toBeGreaterThanOrEqual(2);
+        // Verify submenu children are visible
+        const promptsLink = screen.getByRole("link", { name: /prompts/i });
+        expect(promptsLink).toBeInTheDocument();
+
+        // Hover over the Prompts nav item to trigger tooltip
+        await user.hover(promptsLink);
+
+        // Wait for the tooltip to appear (Radix tooltip has a 500ms delay)
+        // Radix renders tooltip content in multiple DOM nodes (visible + accessibility), so use getAllByText
+        await waitFor(
+            () => {
+                const tooltipElements = screen.getAllByText("Experimental Feature");
+                expect(tooltipElements.length).toBeGreaterThan(0);
+            },
+            { timeout: 2000 }
+        );
+
+        // Verify the tooltip role element exists
+        expect(screen.getByRole("tooltip")).toHaveTextContent("Experimental Feature");
+    });
+
+    test("child items with tooltip do not render badge in nav", async () => {
+        const Story = composeStory(WithSubmenus, meta);
+        render(<Story />);
+
+        // Verify submenu children are visible
+        expect(screen.getByText("Prompts")).toBeInTheDocument();
+        expect(screen.getByText("Artifacts")).toBeInTheDocument();
+
+        // Verify no EXPERIMENTAL badge is rendered in the nav
+        expect(screen.queryByText("EXPERIMENTAL")).not.toBeInTheDocument();
     });
 });
