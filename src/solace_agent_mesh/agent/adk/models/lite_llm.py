@@ -21,6 +21,7 @@ import logging
 from typing import (
     Any,
     AsyncGenerator,
+    Callable,
     Dict,
     Generator,
     Iterable,
@@ -36,6 +37,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+from litellm.exceptions import BadRequestError
 from litellm import (
     ChatCompletionAssistantMessage,
     ChatCompletionAssistantToolCall,
@@ -55,7 +57,7 @@ from litellm import (
     completion,
     token_counter,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from typing_extensions import override
 
 from .oauth2_token_manager import OAuth2ClientCredentialsTokenManager
@@ -823,6 +825,11 @@ Functions:
 -----------------------------------------------------------
 """
 
+VALID_CACHE_STRATEGIES = ["none", "5m", "1h"]
+"""
+Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
+Defaults to "5m" for backward compatibility.
+"""
 
 class LiteLlm(BaseLlm):
     """Wrapper around litellm.
@@ -850,55 +857,45 @@ class LiteLlm(BaseLlm):
     llm_client: LiteLLMClient = Field(default_factory=LiteLLMClient)
     """The LLM client to use for the model."""
 
-    _additional_args: Dict[str, Any] = None
-    _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
-    _cache_strategy: str = "5m"  # Default to 5-minute ephemeral cache
+    _model_config: Dict[str, Any] = PrivateAttr(default_factory=dict)
+    _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = PrivateAttr(default=None)
+    _cache_strategy: str = PrivateAttr(default="5m") # Default to 5-minute ephemeral cache
+    _status: str = PrivateAttr(default="ready") # "none" | "initializing" | "ready"
+    _on_status_change: Optional[Callable] = PrivateAttr(default=None) # Callback: (old_status, new_status) -> None
 
-    def __init__(self, model: str, cache_strategy: str = "5m", **kwargs):
+    def __init__(
+        self,
+        model: str,
+        on_status_change: Optional[Callable] = None,
+        **kwargs,
+    ):
         """Initializes the LiteLlm class.
 
         Args:
           model: The name of the LiteLlm model.
-          cache_strategy: Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
-                         Defaults to "5m" for backward compatibility.
+          on_status_change: Optional callback invoked on status transitions: (old_status, new_status) -> None.
           **kwargs: Additional arguments to pass to the litellm completion api.
                    Can include OAuth configuration parameters.
         """
-        super().__init__(model=model, **kwargs)
-        self._additional_args = kwargs.copy()
+        super().__init__(model=model if model else "__pending_initialization__", **kwargs)
+        self._status = "initializing"
+        self._on_status_change = on_status_change
 
         # Remove handlers added by LiteLLM as they produce duplicate and misformatted logs.
         # Logging is an application concern and libraries should not set handlers/formatters.
         for logger_name in ["LiteLLM", "LiteLLM Proxy", "LiteLLM Router", "litellm"]:
             logging.getLogger(logger_name).handlers.clear()
 
-        # Validate and store cache strategy
-        valid_strategies = ["none", "5m", "1h"]
-        if cache_strategy not in valid_strategies:
-            logger.warning(
-                "Invalid cache_strategy '%s'. Valid options are: %s. Defaulting to '5m'.",
-                cache_strategy,
-                valid_strategies,
-            )
-            cache_strategy = "5m"
-        self._cache_strategy = cache_strategy
-        logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
-
-        # Extract OAuth configuration if present
-        oauth_config = self._extract_oauth_config(self._additional_args)
-        if oauth_config:
-            self._oauth_token_manager = OAuth2ClientCredentialsTokenManager(**oauth_config)
-            logger.info("OAuth2 token manager initialized for model: %s", model)
-        else:
-            self._oauth_token_manager = None
-
+        _additional_args = kwargs.copy()
         # preventing generation call with llm_client
         # and overriding messages, tools and stream which are managed internally
-        self._additional_args.pop("llm_client", None)
-        self._additional_args.pop("messages", None)
-        self._additional_args.pop("tools", None)
+        _additional_args.pop("llm_client", None)
+        _additional_args.pop("messages", None)
+        _additional_args.pop("tools", None)
         # public api called from runner determines to stream or not
-        self._additional_args.pop("stream", None)
+        _additional_args.pop("stream", None)
+
+        self.configure_model({"model": model, **_additional_args})
 
     def _extract_oauth_config(self, kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract OAuth configuration from kwargs.
@@ -942,6 +939,84 @@ class LiteLlm(BaseLlm):
 
         return None
 
+    @property
+    def status(self) -> str:
+        """Current model status: 'none', 'initializing', or 'ready'."""
+        return self._status
+
+    def _set_status(self, new_status: str):
+        """Internal helper to update status and invoke the on_status_change callback."""
+        old_status = self._status
+        if old_status == new_status:
+            return
+        self._status = new_status
+        logger.info(
+            "LiteLlm model status changed: %s -> %s (model=%s)",
+            old_status,
+            new_status,
+            self.model,
+        )
+        if self._on_status_change:
+            try:
+                self._on_status_change(old_status, new_status)
+            except Exception as e:
+                logger.error("Error in on_status_change callback: %s", e)
+
+    def configure_model(self, model_config: Dict[str, Any]):
+        """Update the model configuration and transition status to 'ready'.
+
+        Called by the enterprise DynamicModelProvider when model config arrives.
+        Triggers the on_status_change callback.
+
+        Args:
+            model_config: LiteLlm config dict.
+        """
+        if not isinstance(model_config, dict):
+            raise ValueError(f"Invalid model config type: {type(model_config)}")
+        
+        model_name = model_config.get("model")
+        if not model_name:
+            logger.warning("Cannot initialize LiteLlm without a model name in the configuration.")
+            self._set_status("initializing")
+            return
+
+        self.model = model_name
+        copied_model_config = model_config.copy()
+        if copied_model_config.get("type") is None:
+            copied_model_config.setdefault("num_retries", 3)
+            copied_model_config.setdefault("timeout", 120)
+        
+        cache_strategy = copied_model_config.get("cache_strategy", "5m").lower()
+        copied_model_config.pop("cache_strategy", None)
+        if cache_strategy not in VALID_CACHE_STRATEGIES:
+            logger.warning(
+                "Invalid cache_strategy '%s'. Valid options are: %s. Defaulting to '5m'.",
+                cache_strategy,
+                VALID_CACHE_STRATEGIES,
+            )
+            cache_strategy = "5m"
+        self._cache_strategy = cache_strategy
+        logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
+
+        # Extract OAuth configuration if present
+        oauth_config = self._extract_oauth_config(copied_model_config)
+        if oauth_config:
+            self._oauth_token_manager = OAuth2ClientCredentialsTokenManager(**oauth_config)
+            logger.info("OAuth2 token manager initialized for model: %s", model_name)
+        else:
+            self._oauth_token_manager = None
+    
+        self._model_config = copied_model_config
+        self._set_status("ready")
+
+    def unconfigure_model(self):
+        """Reset status to 'none' for hot-reload teardown.
+
+        Triggers the on_status_change callback so the component can
+        cancel agent card publishing and reject incoming tasks.
+        """
+        self._set_status("none")
+
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse, None]:
@@ -955,6 +1030,15 @@ class LiteLlm(BaseLlm):
           LlmResponse: The model response.
         """
 
+        if self._status != "ready":
+            logger.warning(
+                "Received generate_content_async call while model is not ready. Current status: %s. Rejecting request.",
+                self._status,
+            )
+            raise BadRequestError(
+                "Error: This component's LLM model has not been configured yet.", None, None
+            )
+
         if not llm_request.contents or llm_request.contents[-1].role not in [
             "user",
             "tool",
@@ -966,13 +1050,12 @@ class LiteLlm(BaseLlm):
             llm_request, self._cache_strategy
         )
         completion_args = {
-            "model": self.model,
             "messages": messages,
             "tools": tools,
             "response_format": response_format,
             "stream_options": {"include_usage": True},
         }
-        completion_args.update(self._additional_args)
+        completion_args.update(self._model_config)
 
         # Inject OAuth token if OAuth is configured
         if self._oauth_token_manager:

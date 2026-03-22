@@ -801,7 +801,7 @@ async def extract_content_from_artifact(
     source_artifact_content_bytes = source_artifact_data.get("raw_bytes")
     source_mime_type = source_artifact_data.get("mime_type", "application/octet-stream")
     actual_source_version = source_artifact_data.get("version", "unknown")
-
+    host_component = getattr(inv_context.agent, "host_component", None)
     chosen_llm = None
     try:
         if model_config_for_extraction:
@@ -824,9 +824,9 @@ async def extract_content_from_artifact(
                     "%s Invalid 'model' config for extraction tool. Falling back to agent default.",
                     log_identifier,
                 )
-                chosen_llm = inv_context.agent.canonical_model
+                chosen_llm = host_component.get_lite_llm_model()
         else:
-            chosen_llm = inv_context.agent.canonical_model
+            chosen_llm = host_component.get_lite_llm_model()
             log.info(
                 "%s Using agent's default LLM: %s", log_identifier, chosen_llm.model
             )

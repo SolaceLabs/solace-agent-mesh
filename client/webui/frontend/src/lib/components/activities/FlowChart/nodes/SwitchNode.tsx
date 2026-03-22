@@ -3,6 +3,7 @@ import { GitBranch } from "lucide-react";
 
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS } from "../utils/nodeStyles";
+import { clickableNodeProps } from "@/lib/components/utils";
 
 interface SwitchNodeProps {
     node: LayoutNode;
@@ -17,14 +18,7 @@ const SwitchNode: FC<SwitchNodeProps> = ({ node, isSelected, onClick }) => {
     const selectedBranch = node.data.selectedBranch;
 
     return (
-        <div
-            className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-            style={{ width: "fit-content", minWidth: "280px" }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
-        >
+        <div {...clickableNodeProps(() => onClick?.(node))} className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`} style={{ width: "fit-content", minWidth: "280px" }}>
             {/* Header row */}
             <div className="flex items-center gap-4 px-4 py-2">
                 <div className="flex items-center gap-2">

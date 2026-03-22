@@ -868,6 +868,23 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
     ) -> None:
         """Translates a final A2A Task object to SAM types and calls the adapter."""
         response_context = self._create_response_context(external_request_context)
+
+        # Check if the task completed with a failure state.
+        # Failed tasks (e.g., LLM call errors) are routed through handle_error().
+        if task_data.status and task_data.status.state == TaskState.failed:
+            sam_error = self._task_to_sam_error(task_data)
+            log.debug(
+                "%s Task %s completed with state '%s'. Routing to handle_error().",
+                self.log_identifier,
+                response_context.task_id,
+                task_data.status.state.value,
+            )
+            await self.adapter.handle_error(sam_error, response_context)
+            # handle_task_complete ensures the adapter finishes any pending operations
+            # (e.g., waiting for message queues) and performs cleanup
+            await self.adapter.handle_task_complete(response_context)
+            return
+
         sam_update = SamUpdate(is_final=True)
 
         all_final_parts: List[a2a.ContentPart] = []
@@ -1022,5 +1039,43 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         return SamError(
             message=error.message,
             code=error.code,
+            category=category,
+        )
+
+    def _task_to_sam_error(self, task_data: Task) -> SamError:
+        """Converts a failed Task to a SamError.
+
+        This handles the case where an agent sends a Task with status.state="failed"
+        instead of a JSONRPCError. The error message is extracted from
+        the task's status message or artifacts.
+
+        Note: This method only handles failed tasks, not canceled tasks.
+        Canceled tasks are user-initiated and should not be treated as errors.
+        """
+        # Category is always FAILED - canceled tasks should not reach here
+        category = "FAILED"
+
+        # Extract error message from task status message or artifacts
+        error_message = "Task failed"
+
+        if task_data.status and task_data.status.message:
+            # Try to extract text from the status message
+            parts = a2a.get_parts_from_message(task_data.status.message)
+            text_parts = [p.text for p in parts if isinstance(p, TextPart)]
+            if text_parts:
+                error_message = " ".join(text_parts)
+
+        # If no message from status, check artifacts for error info
+        if error_message == "Task failed" and task_data.artifacts:
+            for artifact in task_data.artifacts:
+                artifact_parts = a2a.get_parts_from_artifact(artifact)
+                text_parts = [p.text for p in artifact_parts if isinstance(p, TextPart)]
+                if text_parts:
+                    error_message = " ".join(text_parts)
+                    break
+
+        return SamError(
+            message=error_message,
+            code=-32000,  # Generic error code for failed tasks
             category=category,
         )

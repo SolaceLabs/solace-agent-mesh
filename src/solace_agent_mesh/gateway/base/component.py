@@ -2269,6 +2269,8 @@ class BaseGatewayComponent(SamComponentBase):
 
         log.info("%s Message processor loop finished.", self.log_identifier)
 
+
+
     @abstractmethod
     async def _extract_initial_claims(
         self, external_event_data: Any

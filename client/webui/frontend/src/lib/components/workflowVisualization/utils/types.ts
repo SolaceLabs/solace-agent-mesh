@@ -109,7 +109,7 @@ export interface NodeProps {
  * Shared CSS classes for node highlighting when referenced in expressions
  * Used by all node components to ensure consistent highlight styling
  */
-export const NODE_HIGHLIGHT_CLASSES = "ring-1 ring-amber-400 ring-offset-2 shadow-lg shadow-(--warning-w100)/50";
+export const NODE_HIGHLIGHT_CLASSES = "ring-2 ring-(--warning-wMain)";
 
 /**
  * Common base styles for different node types
@@ -120,17 +120,17 @@ export const NODE_BASE_STYLES = {
     /** Rectangular node style - used by Agent, Workflow, Switch nodes
      * Figma Card: rounded (4px), shadow, 16px padding
      */
-    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded bg-(--background-w10) px-4 py-3 shadow-md shadow-(--secondary-w8040) transition-all duration-200 ease-in-out hover:shadow-lg",
+    RECTANGULAR: "card-surface group relative flex cursor-pointer items-center justify-between rounded bg-(--background-w10) px-4 py-3 transition-all duration-200 ease-in-out card-surface-hover",
     /** Rectangular compact style - used by Loop/Map collapsed nodes */
-    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded bg-(--background-w10) px-3 py-2 shadow-md shadow-(--secondary-w8040) transition-all duration-200 hover:shadow-lg",
+    RECTANGULAR_COMPACT: "card-surface group relative flex cursor-pointer items-center justify-between rounded bg-(--background-w10) px-3 py-2 transition-all duration-200 card-surface-hover",
     /** Pill-shaped node style - used by Start/End nodes (non-interactive) */
-    PILL: "flex items-center justify-center gap-2 rounded-full bg-(--primary-w10) px-4 py-2 shadow-sm shadow-(--secondary-w8040)",
+    PILL: "card-surface flex items-center justify-center gap-2 rounded-full bg-(--primary-w10) px-4 py-2",
     /** Container header style - used by Loop/Map expanded header */
-    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded bg-(--background-w10) shadow-md shadow-(--secondary-w8040) transition-all duration-200 hover:shadow-lg",
+    CONTAINER_HEADER: "card-surface group relative mx-auto w-fit cursor-pointer rounded bg-(--background-w10) transition-all duration-200 card-surface-hover",
     /** Condition pill style - used by Switch condition pills */
-    CONDITION_PILL: "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm shadow-(--secondary-w8040) transition-all duration-200 bg-(--background-w10)",
+    CONDITION_PILL: "card-surface flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-all duration-200 bg-(--background-w10) card-surface-hover",
     /** Switch node style - similar to rectangular but without justify-between */
-    SWITCH: "group relative cursor-pointer rounded bg-(--background-w10) shadow-md shadow-(--secondary-w8040) transition-all duration-200 hover:shadow-lg",
+    SWITCH: "card-surface group relative cursor-pointer rounded bg-(--background-w10) transition-all duration-200 card-surface-hover",
 } as const;
 
 /**
