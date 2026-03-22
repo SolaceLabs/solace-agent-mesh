@@ -43,9 +43,9 @@ def upgrade() -> None:
     if 'project_user_pins' not in existing_tables:
         op.create_table(
             'project_user_pins',
-            sa.Column('id', sa.String(), nullable=False),
-            sa.Column('project_id', sa.String(), nullable=False),
-            sa.Column('user_id', sa.String(), nullable=False),
+            sa.Column('id', sa.String(36), nullable=False),
+            sa.Column('project_id', sa.String(36), nullable=False),
+            sa.Column('user_id', sa.String(255), nullable=False),
             sa.Column('pinned_at', sa.BigInteger(), nullable=False),
             sa.PrimaryKeyConstraint('id'),
             sa.UniqueConstraint('project_id', 'user_id', name='uq_project_user_pin'),
