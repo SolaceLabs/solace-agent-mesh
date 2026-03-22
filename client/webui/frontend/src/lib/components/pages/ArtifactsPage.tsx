@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useContext, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle, ArrowUp, ArrowDown, EyeOff } from "lucide-react";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, EyeOff, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import {
     Button,
     Input,
@@ -30,7 +30,7 @@ import { useChatContext } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent } from "@/lib/utils";
-import { hasWorkingTag, SHOW_WORKING_ARTIFACTS_STORAGE_KEY } from "@/lib/constants";
+import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
 import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
@@ -753,8 +753,10 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
     { value: "size", label: "Size" },
 ];
 
+const SHOW_INTERNAL_ARTIFACTS_KEY = "sam_show_internal_artifacts";
+
 function isInternalArtifact(artifact: ArtifactWithSession): boolean {
-    return hasWorkingTag(artifact.tags);
+    return artifact.tags?.some(t => t.toLowerCase() === ARTIFACT_TAG_WORKING.toLowerCase()) ?? false;
 }
 
 export function ArtifactsPage() {
@@ -769,7 +771,7 @@ export function ArtifactsPage() {
     const [deleteConfirmArtifact, setDeleteConfirmArtifact] = useState<ArtifactWithSession | null>(null);
     const [showInternalArtifacts, setShowInternalArtifacts] = useState<boolean>(() => {
         try {
-            return localStorage.getItem(SHOW_WORKING_ARTIFACTS_STORAGE_KEY) === "true";
+            return localStorage.getItem(SHOW_INTERNAL_ARTIFACTS_KEY) === "true";
         } catch {
             return false;
         }
@@ -779,7 +781,7 @@ export function ArtifactsPage() {
         setShowInternalArtifacts(prev => {
             const next = !prev;
             try {
-                localStorage.setItem(SHOW_WORKING_ARTIFACTS_STORAGE_KEY, String(next));
+                localStorage.setItem(SHOW_INTERNAL_ARTIFACTS_KEY, String(next));
             } catch {
                 // ignore
             }
@@ -892,7 +894,7 @@ export function ArtifactsPage() {
         });
 
         return filtered;
-    }, [artifacts, selectedProject, searchQuery, sortBy, sortDirection]);
+    }, [artifacts, selectedProject, searchQuery, sortBy, sortDirection, showInternalArtifacts]);
 
     // Toggle sort direction or change sort field
     const handleSortChange = useCallback(
@@ -1080,7 +1082,7 @@ export function ArtifactsPage() {
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button variant={showInternalArtifacts ? "secondary" : "ghost"} size="sm" onClick={toggleShowInternalArtifacts} className="flex items-center gap-1.5">
-                                            <EyeOff className="h-4 w-4" />
+                                            {showInternalArtifacts ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                             {showInternalArtifacts ? "Hide Internal" : `Show Internal (${internalArtifactCount})`}
                                         </Button>
                                     </TooltipTrigger>
