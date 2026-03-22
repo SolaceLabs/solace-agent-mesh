@@ -20,19 +20,6 @@ interface UseArtifactsReturn {
 }
 
 /**
- * Checks if an artifact is an intermediate web content artifact from deep research.
- * These are temporary files that should not be shown in the files tab.
- *
- * @param filename The filename of the artifact to check.
- * @returns True if the artifact is an intermediate web content artifact.
- */
-const isIntermediateWebContentArtifact = (filename: string | undefined): boolean => {
-    if (!filename) return false;
-    // Skip web_content_ artifacts (temporary files from deep research)
-    return filename.startsWith("web_content_");
-};
-
-/**
  * Checks if an artifact has the working system tag (case-insensitive).
  * Working artifacts are hidden from users by default.
  *
@@ -75,10 +62,9 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
 
             type RawArtifactInfo = Omit<ArtifactInfo, "sourceProjectId"> & { source_project_id?: string };
             const data: RawArtifactInfo[] = await api.webui.get(endpoint);
-            // Filter out intermediate web content artifacts from deep research
-            // Note: Working artifacts are NOT filtered here - they are filtered in the useMemo below
-            const filteredData = data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
-            const artifactsWithUris = filteredData.map(({ source_project_id, ...artifact }) => ({
+            // Note: web_content_ artifacts are now tagged with __working on the backend,
+            // so they are hidden via the working-tag filter below rather than filename matching.
+            const artifactsWithUris = data.map(({ source_project_id, ...artifact }) => ({
                 ...artifact,
                 sourceProjectId: source_project_id,
                 uri: artifact.uri || `artifact://${sessionId}/${artifact.filename}`,
