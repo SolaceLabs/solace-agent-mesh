@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryContext, StoryFn } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
+import { Plug } from "lucide-react";
 
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { NavigationList } from "@/lib/components/navigation/NavigationList";
@@ -194,6 +195,38 @@ export const Logout = {
         await within(document.body).findByText(/Story Username/i);
         const logoutButton = await within(document.body).findByRole("menuitem", { name: "Log Out" });
         await expect(logoutButton).toBeInTheDocument();
+    },
+};
+
+export const WithExtraTab = {
+    render: () => (
+        <SettingsDialog
+            open={true}
+            onOpenChange={() => {}}
+            extraTabs={[
+                {
+                    id: "integrations",
+                    label: "Integrations",
+                    icon: <Plug className="size-4" />,
+                    content: <div>Integrations content</div>,
+                },
+            ]}
+        />
+    ),
+    play: async () => {
+        const dialog = await within(document.body).findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        // Extra tab appears in the sidebar
+        await dialogContent.findByRole("button", { name: "Integrations" });
+
+        // Clicking it shows its content
+        await userEvent.click(dialogContent.getByRole("button", { name: "Integrations" }));
+        await dialogContent.findByText("Integrations content");
+
+        // Built-in tabs still present
+        await dialogContent.findByRole("button", { name: "General" });
+        await dialogContent.findByRole("button", { name: "About" });
     },
 };
 
