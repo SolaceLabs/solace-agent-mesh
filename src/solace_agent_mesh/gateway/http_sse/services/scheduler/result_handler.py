@@ -37,9 +37,10 @@ class ResultHandler:
 
         self.pending_executions: Dict[str, str] = {}
         self.execution_sessions: Dict[str, str] = {}
+        self.completion_events: Dict[str, asyncio.Event] = {}
         self.pending_executions_lock = asyncio.Lock()
 
-        log.info(f"{self.log_prefix} Initialized")
+        log.info("%s Initialized", self.log_prefix)
 
     async def register_execution(self, execution_id: str, a2a_task_id: str, session_id: str = None):
         """Register an execution to track its A2A task."""
@@ -47,6 +48,16 @@ class ResultHandler:
             self.pending_executions[a2a_task_id] = execution_id
             if session_id:
                 self.execution_sessions[execution_id] = session_id
+            event = asyncio.Event()
+            self.completion_events[execution_id] = event
+        return event
+
+    async def wait_for_completion(self, execution_id: str):
+        """Wait for an execution to complete (signalled by handle_response)."""
+        async with self.pending_executions_lock:
+            event = self.completion_events.get(execution_id)
+        if event:
+            await event.wait()
 
     async def handle_response(self, message_data: Dict[str, Any]):
         """Handle an A2A response message."""
@@ -81,11 +92,11 @@ class ResultHandler:
                 self.pending_executions.pop(a2a_task_id, None)
 
         except Exception as e:
-            log.error(f"{self.log_prefix} Error handling response: {e}", exc_info=True)
+            log.error("%s Error handling response: %s", self.log_prefix, e, exc_info=True)
 
     async def _handle_success(self, execution_id: str, result: Any):
         """Handle successful task completion."""
-        log.info(f"{self.log_prefix} Handling success for execution {execution_id}")
+        log.info("%s Handling success for execution %s", self.log_prefix, execution_id)
 
         try:
             result_summary = {}
@@ -154,25 +165,35 @@ class ResultHandler:
                 repo.update_execution(session, execution_id, update_data)
                 session.commit()
 
-            # FIX: Clean up session tracking (was only done on success before,
-            # now also done in _handle_error to prevent memory leak)
+            # Clean up session tracking and signal completion
             self.execution_sessions.pop(execution_id, None)
+            async with self.pending_executions_lock:
+                event = self.completion_events.pop(execution_id, None)
+            if event:
+                event.set()
 
             log.info(
-                f"{self.log_prefix} Execution {execution_id} completed with "
-                f"{len(messages)} messages and {len(artifacts)} artifacts"
+                "%s Execution %s completed with %s messages and %s artifacts",
+                self.log_prefix, execution_id, len(messages), len(artifacts),
             )
 
         except Exception as e:
+            # Signal completion even on handler error so caller doesn't hang
+            async with self.pending_executions_lock:
+                event = self.completion_events.pop(execution_id, None)
+            if event:
+                event.set()
             log.error(
-                f"{self.log_prefix} Error handling success for execution {execution_id}: {e}",
+                "%s Error handling success for execution %s: %s",
+                self.log_prefix, execution_id, e,
                 exc_info=True,
             )
 
     async def _handle_error(self, execution_id: str, error: JSONRPCError):
         """Handle task execution error."""
         log.warning(
-            f"{self.log_prefix} Handling error for execution {execution_id}: {error.message}"
+            "%s Handling error for execution %s: %s",
+            self.log_prefix, execution_id, error.message,
         )
 
         try:
@@ -187,14 +208,24 @@ class ResultHandler:
                 repo.update_execution(session, execution_id, update_data)
                 session.commit()
 
-            # FIX: Clean up execution_sessions dict on error too (prevents memory leak)
+            # Clean up session tracking and signal completion
             self.execution_sessions.pop(execution_id, None)
+            async with self.pending_executions_lock:
+                event = self.completion_events.pop(execution_id, None)
+            if event:
+                event.set()
 
-            log.info(f"{self.log_prefix} Execution {execution_id} marked as failed")
+            log.info("%s Execution %s marked as failed", self.log_prefix, execution_id)
 
         except Exception as e:
+            # Signal completion even on handler error so caller doesn't hang
+            async with self.pending_executions_lock:
+                event = self.completion_events.pop(execution_id, None)
+            if event:
+                event.set()
             log.error(
-                f"{self.log_prefix} Error handling error for execution {execution_id}: {e}",
+                "%s Error handling error for execution %s: %s",
+                self.log_prefix, execution_id, e,
                 exc_info=True,
             )
 
@@ -231,12 +262,16 @@ class ResultHandler:
                         async with self.pending_executions_lock:
                             self.pending_executions.pop(execution.a2a_task_id, None)
                             self.execution_sessions.pop(execution.id, None)
+                            event = self.completion_events.pop(execution.id, None)
+                        if event:
+                            event.set()
 
                 session.commit()
 
         except Exception as e:
             log.error(
-                f"{self.log_prefix} Error cleaning up stale executions: {e}",
+                "%s Error cleaning up stale executions: %s",
+                self.log_prefix, e,
                 exc_info=True,
             )
 

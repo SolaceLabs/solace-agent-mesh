@@ -208,7 +208,7 @@ REMEMBER:
                 available_agents
             )
         except Exception as e:
-            logger.error(f"Error processing message: {e}", exc_info=True)
+            logger.error("Error processing message: %s", e, exc_info=True)
             return TaskBuilderResponse(
                 message="I encountered an error. Could you please rephrase that?",
                 confidence=0.0,
@@ -233,13 +233,29 @@ REMEMBER:
         # Add conversation history
         messages.extend(conversation_history)
         
-        # Add current message with task context and available agents
-        task_context = f"\n\nCurrent Task Configuration:\n{json.dumps(current_task, indent=2)}"
-        
+        # Add current message with task context and available agents.
+        # Sanitize current_task to only include expected fields and truncate
+        # values to prevent prompt injection via user-controlled task fields.
+        _ALLOWED_TASK_FIELDS = {
+            "name", "description", "schedule_type", "schedule_expression",
+            "target_agent_name", "target_type", "task_message", "timezone",
+            "enabled", "max_retries", "timeout_seconds",
+        }
+        sanitized_task = {}
+        for key, value in current_task.items():
+            if key not in _ALLOWED_TASK_FIELDS:
+                continue
+            if isinstance(value, str):
+                sanitized_task[key] = value[:500]
+            else:
+                sanitized_task[key] = value
+
+        task_context = f"\n\nCurrent Task Configuration:\n{json.dumps(sanitized_task, indent=2)}"
+
         if available_agents:
             agents_context = f"\n\nAvailable Agents (ONLY use these):\n{json.dumps(available_agents, indent=2)}"
             task_context += agents_context
-        
+
         messages.append({
             "role": "user",
             "content": user_message + task_context
@@ -263,7 +279,7 @@ REMEMBER:
             
             # Parse response
             content = response.choices[0].message.content
-            logger.info(f"LLM Response: {content}")
+            logger.info("LLM Response: %s", content)
 
             # Strip markdown code fences that LLMs commonly wrap JSON in
             stripped = content.strip()
@@ -277,8 +293,8 @@ REMEMBER:
             try:
                 parsed = json.loads(stripped)
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse LLM response as JSON: {e}")
-                logger.error(f"Response content: {content}")
+                logger.error("Failed to parse LLM response as JSON: %s", e)
+                logger.error("Response content: %s", content)
                 # Try to extract JSON from response
                 json_match = re.search(r'\{.*\}', content, re.DOTALL)
                 if json_match:
@@ -294,7 +310,7 @@ REMEMBER:
             # Validate message
             message = parsed.get("message", "")
             if not message or message.strip().lower() in ["i understand", "i understand.", "ok", "okay"]:
-                logger.warning(f"LLM returned generic/empty message: '{message}'")
+                logger.warning("LLM returned generic/empty message: '%s'", message)
                 message = "I'll help you create that scheduled task. Could you provide more details about when it should run and what it should do?"
             
             return TaskBuilderResponse(
@@ -305,7 +321,7 @@ REMEMBER:
             )
             
         except Exception as e:
-            logger.error(f"LLM call failed: {e}", exc_info=True)
+            logger.error("LLM call failed: %s", e, exc_info=True)
             # Fallback response
             return TaskBuilderResponse(
                 message="I'm having trouble processing that. Could you describe what you'd like this scheduled task to do? For example, what should it do and when should it run?",

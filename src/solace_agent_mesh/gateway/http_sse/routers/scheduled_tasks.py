@@ -110,7 +110,7 @@ async def task_builder_chat(
             ready_to_save=response.ready_to_save,
         )
     except Exception as e:
-        log.error(f"Error in task builder chat: {e}", exc_info=True)
+        log.error("Error in task builder chat: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process task builder message"
@@ -131,7 +131,7 @@ async def get_task_builder_greeting(
             ready_to_save=response.ready_to_save,
         )
     except Exception as e:
-        log.error(f"Error getting task builder greeting: {e}", exc_info=True)
+        log.error("Error getting task builder greeting: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get task builder greeting"
@@ -192,7 +192,7 @@ async def preview_schedule(
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"Error previewing schedule: {e}", exc_info=True)
+        log.error("Error previewing schedule: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to preview schedule") from e
 
 
@@ -210,7 +210,7 @@ async def create_scheduled_task(
 ):
     """Create a new scheduled task."""
     user_id = user.get("id")
-    log.info(f"User {user_id} creating scheduled task: {request.name}")
+    log.info("User %s creating scheduled task: %s", user_id, request.name)
 
     # Phase 2.2: Block namespace-level tasks for non-admin users
     if not request.user_level and "admin" not in user.get("roles", []):
@@ -274,7 +274,7 @@ async def create_scheduled_task(
             try:
                 await scheduler_service._schedule_task(task)
             except Exception as e:
-                log.error(f"Failed to schedule task {task.id}: {e}")
+                log.error("Failed to schedule task %s: %s", task.id, e)
 
         return ScheduledTaskResponse.from_orm(task)
 
@@ -283,7 +283,7 @@ async def create_scheduled_task(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        log.error(f"Error creating scheduled task: {e}", exc_info=True)
+        log.error("Error creating scheduled task: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to create scheduled task") from e
 
 
@@ -330,7 +330,7 @@ async def list_scheduled_tasks(
         )
 
     except Exception as e:
-        log.error(f"Error listing scheduled tasks: {e}", exc_info=True)
+        log.error("Error listing scheduled tasks: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to list scheduled tasks") from e
 
 
@@ -359,7 +359,7 @@ async def get_recent_executions(
             limit=limit,
         )
     except Exception as e:
-        log.error(f"Error fetching recent executions: {e}", exc_info=True)
+        log.error("Error fetching recent executions: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch recent executions") from e
 
 
@@ -381,24 +381,28 @@ async def get_execution_by_a2a_task_id(
         # Verify ownership: look up the parent task and check created_by matches the requesting user.
         # Return 404 (not 403) to avoid confirming existence to unauthorized users.
         task = repo.find_by_id(db, execution.scheduled_task_id)
-        if not task or task.created_by != user.get("sub"):
+        if not task or task.created_by != user.get("id"):
             raise HTTPException(status_code=404, detail="Execution not found for this A2A task ID")
 
         return ExecutionResponse.from_orm(execution)
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"Error fetching execution by A2A task ID: {e}", exc_info=True)
+        log.error("Error fetching execution by A2A task ID: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch execution") from e
 
 
-# FIX: Add auth to /scheduler/status endpoint
 @router.get("/scheduler/status", response_model=SchedulerStatusResponse)
 async def get_scheduler_status(
     user: dict = Depends(get_current_user),
     scheduler_service=Depends(get_scheduler_service),
 ):
-    """Get current scheduler status."""
+    """Get current scheduler status. Requires admin role."""
+    if "admin" not in user.get("roles", []):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can view scheduler status"
+        )
     try:
         status_info = {
             "instance_id": getattr(scheduler_service, 'instance_id', 'unknown'),
@@ -411,8 +415,8 @@ async def get_scheduler_status(
         }
         return SchedulerStatusResponse(**status_info)
     except Exception as e:
-        log.error(f"Error fetching scheduler status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch scheduler status: {str(e)}") from e
+        log.error("Error fetching scheduler status: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch scheduler status") from e
 
 
 @router.get("/{task_id}", response_model=ScheduledTaskResponse)
@@ -432,14 +436,14 @@ async def get_scheduled_task(
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
 
         if task.user_id and task.user_id != user_id:
-            raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
+            raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
 
         return ScheduledTaskResponse.from_orm(task)
 
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"Error fetching scheduled task {task_id}: {e}", exc_info=True)
+        log.error("Error fetching scheduled task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch scheduled task") from e
 
 
@@ -465,6 +469,8 @@ async def update_scheduled_task(
 
         if existing_task.user_id and existing_task.user_id != user_id:
             raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
+        elif not existing_task.user_id and "admin" not in user.get("roles", []):
+            raise HTTPException(status_code=403, detail="Only administrators can modify namespace-level tasks")
 
         # Phase 3.5: Config-sourced tasks are read-only except enable/disable
         if existing_task.source == "config":
@@ -514,7 +520,7 @@ async def update_scheduled_task(
                 await scheduler_service._unschedule_task(task_id)
                 await scheduler_service._schedule_task(updated_task)
             except Exception as e:
-                log.error(f"Failed to reschedule task {task_id}: {e}")
+                log.error("Failed to reschedule task %s: %s", task_id, e)
 
         return ScheduledTaskResponse.from_orm(updated_task)
 
@@ -522,7 +528,7 @@ async def update_scheduled_task(
         raise
     except Exception as e:
         db.rollback()
-        log.error(f"Error updating scheduled task {task_id}: {e}", exc_info=True)
+        log.error("Error updating scheduled task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to update scheduled task") from e
 
 
@@ -544,6 +550,8 @@ async def delete_scheduled_task(
 
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
+        elif not task.user_id and "admin" not in user.get("roles", []):
+            raise HTTPException(status_code=403, detail="Only administrators can modify namespace-level tasks")
 
         deleted = repo.soft_delete(db, task_id, user_id)
         db.commit()
@@ -555,13 +563,13 @@ async def delete_scheduled_task(
             try:
                 await scheduler_service._unschedule_task(task_id)
             except Exception as e:
-                log.error(f"Failed to unschedule task {task_id}: {e}")
+                log.error("Failed to unschedule task %s: %s", task_id, e)
 
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        log.error(f"Error deleting scheduled task {task_id}: {e}", exc_info=True)
+        log.error("Error deleting scheduled task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to delete scheduled task") from e
 
 
@@ -581,6 +589,8 @@ async def enable_scheduled_task(
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
+        elif not task.user_id and "admin" not in user.get("roles", []):
+            raise HTTPException(status_code=403, detail="Only administrators can modify namespace-level tasks")
 
         enabled_task = repo.enable_task(db, task_id)
         db.commit()
@@ -589,7 +599,7 @@ async def enable_scheduled_task(
             try:
                 await scheduler_service._schedule_task(enabled_task)
             except Exception as e:
-                log.error(f"Failed to schedule task {task_id}: {e}")
+                log.error("Failed to schedule task %s: %s", task_id, e)
 
         return TaskActionResponse(success=True, message="Task enabled successfully", task_id=task_id)
 
@@ -597,7 +607,7 @@ async def enable_scheduled_task(
         raise
     except Exception as e:
         db.rollback()
-        log.error(f"Error enabling scheduled task {task_id}: {e}", exc_info=True)
+        log.error("Error enabling scheduled task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to enable scheduled task") from e
 
 
@@ -617,6 +627,8 @@ async def disable_scheduled_task(
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
+        elif not task.user_id and "admin" not in user.get("roles", []):
+            raise HTTPException(status_code=403, detail="Only administrators can modify namespace-level tasks")
 
         disabled_task = repo.disable_task(db, task_id)
         db.commit()
@@ -625,7 +637,7 @@ async def disable_scheduled_task(
             try:
                 await scheduler_service._unschedule_task(task_id)
             except Exception as e:
-                log.error(f"Failed to unschedule task {task_id}: {e}")
+                log.error("Failed to unschedule task %s: %s", task_id, e)
 
         return TaskActionResponse(success=True, message="Task disabled successfully", task_id=task_id)
 
@@ -633,7 +645,7 @@ async def disable_scheduled_task(
         raise
     except Exception as e:
         db.rollback()
-        log.error(f"Error disabling scheduled task {task_id}: {e}", exc_info=True)
+        log.error("Error disabling scheduled task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to disable scheduled task") from e
 
 
@@ -654,6 +666,8 @@ async def reactivate_scheduled_task(
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
+        elif not task.user_id and "admin" not in user.get("roles", []):
+            raise HTTPException(status_code=403, detail="Only administrators can modify namespace-level tasks")
 
         if task.status != "error":
             raise HTTPException(status_code=400, detail="Task is not in error state")
@@ -672,7 +686,7 @@ async def reactivate_scheduled_task(
                 if refreshed:
                     await scheduler_service._schedule_task(refreshed)
             except Exception as e:
-                log.error(f"Failed to reschedule reactivated task {task_id}: {e}")
+                log.error("Failed to reschedule reactivated task %s: %s", task_id, e)
 
         return TaskActionResponse(success=True, message="Task reactivated successfully", task_id=task_id)
 
@@ -680,7 +694,7 @@ async def reactivate_scheduled_task(
         raise
     except Exception as e:
         db.rollback()
-        log.error(f"Error reactivating task {task_id}: {e}", exc_info=True)
+        log.error("Error reactivating task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reactivate task") from e
 
 
@@ -719,5 +733,5 @@ async def get_task_executions(
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"Error fetching executions for task {task_id}: {e}", exc_info=True)
+        log.error("Error fetching executions for task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch task executions") from e

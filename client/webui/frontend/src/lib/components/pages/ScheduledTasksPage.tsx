@@ -117,9 +117,6 @@ export function ScheduledTasksPage() {
                     editingTask={editingTask}
                     isEditing={!!editingTask}
                 />
-
-                {/* Generate Task Dialog */}
-                <GenerateTaskDialog isOpen={showGenerateDialog} onClose={() => setShowGenerateDialog(false)} onGenerate={handleGenerateTask} />
             </>
         );
     }

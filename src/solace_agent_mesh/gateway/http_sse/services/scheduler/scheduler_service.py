@@ -113,7 +113,8 @@ class SchedulerService:
         self.result_handler: Union[ResultHandler, StatelessResultCollector]
         if self.use_stateless_collector:
             log.info(
-                f"[SchedulerService:{instance_id}] Using StatelessResultCollector for K8s horizontal scaling"
+                "[SchedulerService:%s] Using StatelessResultCollector for K8s horizontal scaling",
+                instance_id,
             )
             self.result_handler = StatelessResultCollector(
                 session_factory=session_factory,
@@ -140,8 +141,9 @@ class SchedulerService:
 
                 if not executor_image:
                     log.warning(
-                        f"[SchedulerService:{instance_id}] K8s enabled but no executor_image configured. "
-                        "K8s CronJob management will be disabled."
+                        "[SchedulerService:%s] K8s enabled but no executor_image configured. "
+                        "K8s CronJob management will be disabled.",
+                        instance_id,
                     )
                 else:
                     self.k8s_manager = K8SCronJobManager(
@@ -152,16 +154,19 @@ class SchedulerService:
                         a2a_namespace=namespace,
                     )
                     log.info(
-                        f"[SchedulerService:{instance_id}] K8s CronJob manager initialized "
-                        f"(namespace: {k8s_namespace}, image: {executor_image})"
+                        "[SchedulerService:%s] K8s CronJob manager initialized "
+                        "(namespace: %s, image: %s)",
+                        instance_id, k8s_namespace, executor_image,
                     )
             except ImportError as e:
                 log.warning(
-                    f"[SchedulerService:{instance_id}] K8s enabled but kubernetes package not installed: {e}"
+                    "[SchedulerService:%s] K8s enabled but kubernetes package not installed: %s",
+                    instance_id, e,
                 )
             except Exception as e:
                 log.error(
-                    f"[SchedulerService:{instance_id}] Failed to initialize K8s manager: {e}",
+                    "[SchedulerService:%s] Failed to initialize K8s manager: %s",
+                    instance_id, e,
                     exc_info=True,
                 )
 
@@ -178,26 +183,27 @@ class SchedulerService:
         self._monitor_task: Optional[asyncio.Task] = None
 
         log.info(
-            f"[SchedulerService:{instance_id}] Initialized for namespace '{namespace}' "
-            f"(stateless_collector={self.use_stateless_collector}, k8s_enabled={self.k8s_enabled})"
+            "[SchedulerService:%s] Initialized for namespace '%s' "
+            "(stateless_collector=%s, k8s_enabled=%s)",
+            instance_id, namespace, self.use_stateless_collector, self.k8s_enabled,
         )
 
     async def start(self):
         """Start the scheduler service."""
-        log.info(f"[SchedulerService:{self.instance_id}] Starting scheduler service")
+        log.info("[SchedulerService:%s] Starting scheduler service", self.instance_id)
 
         await self.leader_election.start()
         self.scheduler.start()
-        log.info(f"[SchedulerService:{self.instance_id}] APScheduler started")
+        log.info("[SchedulerService:%s] APScheduler started", self.instance_id)
 
         self._monitor_task = asyncio.create_task(self._monitor_leadership())
 
         self._stale_cleanup_task = asyncio.create_task(self._stale_cleanup_loop())
-        log.info(f"[SchedulerService:{self.instance_id}] Stale cleanup task started")
+        log.info("[SchedulerService:%s] Stale cleanup task started", self.instance_id)
 
     async def stop(self):
         """Stop the scheduler service."""
-        log.info(f"[SchedulerService:{self.instance_id}] Stopping scheduler service")
+        log.info("[SchedulerService:%s] Stopping scheduler service", self.instance_id)
 
         await self.leader_election.stop()
         self.scheduler.shutdown(wait=False)
@@ -217,11 +223,11 @@ class SchedulerService:
                 pass
 
         for execution_id, task in list(self.running_executions.items()):
-            log.info(f"[SchedulerService:{self.instance_id}] Cancelling execution {execution_id}")
+            log.info("[SchedulerService:%s] Cancelling execution %s", self.instance_id, execution_id)
             task.cancel()
 
         await self.notification_service.cleanup()
-        log.info(f"[SchedulerService:{self.instance_id}] Stopped")
+        log.info("[SchedulerService:%s] Stopped", self.instance_id)
 
     async def _stale_cleanup_loop(self):
         """Periodically clean up stale executions."""
@@ -229,13 +235,14 @@ class SchedulerService:
             try:
                 await asyncio.sleep(self.stale_cleanup_interval_seconds)
                 if await self.leader_election.is_leader():
-                    log.info(f"[SchedulerService:{self.instance_id}] Running stale execution cleanup")
+                    log.info("[SchedulerService:%s] Running stale execution cleanup", self.instance_id)
                     await self._cleanup_stale_executions()
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 log.error(
-                    f"[SchedulerService:{self.instance_id}] Error in stale cleanup loop: {e}",
+                    "[SchedulerService:%s] Error in stale cleanup loop: %s",
+                    self.instance_id, e,
                     exc_info=True,
                 )
                 await asyncio.sleep(60)
@@ -258,7 +265,8 @@ class SchedulerService:
 
                 for execution in stale_executions:
                     log.warning(
-                        f"[SchedulerService:{self.instance_id}] Found stale execution {execution.id}, marking as timeout"
+                        "[SchedulerService:%s] Found stale execution %s, marking as timeout",
+                        self.instance_id, execution.id,
                     )
                     execution.status = ExecutionStatus.TIMEOUT
                     execution.completed_at = now_epoch_ms()
@@ -268,19 +276,23 @@ class SchedulerService:
                         if hasattr(self.result_handler, 'pending_executions_lock'):
                             async with self.result_handler.pending_executions_lock:
                                 self.result_handler.pending_executions.pop(execution.a2a_task_id, None)
-                                # FIX: Also clean up execution_sessions to prevent memory leak
                                 self.result_handler.execution_sessions.pop(execution.id, None)
+                                event = self.result_handler.completion_events.pop(execution.id, None)
+                            if event:
+                                event.set()
 
                 session.commit()
 
                 if stale_executions:
                     log.info(
-                        f"[SchedulerService:{self.instance_id}] Cleaned up {len(stale_executions)} stale executions"
+                        "[SchedulerService:%s] Cleaned up %s stale executions",
+                        self.instance_id, len(stale_executions),
                     )
 
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Error cleaning up stale executions: {e}",
+                "[SchedulerService:%s] Error cleaning up stale executions: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
 
@@ -293,11 +305,11 @@ class SchedulerService:
                 is_leader = await self.leader_election.is_leader()
 
                 if is_leader and not was_leader:
-                    log.info(f"[SchedulerService:{self.instance_id}] Became leader, loading tasks")
+                    log.info("[SchedulerService:%s] Became leader, loading tasks", self.instance_id)
                     await self._on_become_leader()
                     was_leader = True
                 elif not is_leader and was_leader:
-                    log.warning(f"[SchedulerService:{self.instance_id}] Lost leadership, unloading tasks")
+                    log.warning("[SchedulerService:%s] Lost leadership, unloading tasks", self.instance_id)
                     await self._on_lose_leadership()
                     was_leader = False
 
@@ -307,7 +319,8 @@ class SchedulerService:
                 break
             except Exception as e:
                 log.error(
-                    f"[SchedulerService:{self.instance_id}] Error monitoring leadership: {e}",
+                    "[SchedulerService:%s] Error monitoring leadership: %s",
+                    self.instance_id, e,
                     exc_info=True,
                 )
                 await asyncio.sleep(5)
@@ -317,7 +330,8 @@ class SchedulerService:
             await self._load_scheduled_tasks()
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to load tasks on becoming leader: {e}",
+                "[SchedulerService:%s] Failed to load tasks on becoming leader: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
 
@@ -328,20 +342,22 @@ class SchedulerService:
             async with self._execution_lock:
                 for exec_id in list(self.running_executions.keys()):
                     log.warning(
-                        f"[SchedulerService:{self.instance_id}] Cancelling orphaned execution "
-                        f"{exec_id} due to leadership loss"
+                        "[SchedulerService:%s] Cancelling orphaned execution "
+                        "%s due to leadership loss",
+                        self.instance_id, exec_id,
                     )
                 self.running_executions.clear()
             await self._unload_all_tasks()
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to unload tasks on losing leadership: {e}",
+                "[SchedulerService:%s] Failed to unload tasks on losing leadership: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
 
     async def _load_scheduled_tasks(self):
         """Load all enabled scheduled tasks from database and schedule them."""
-        log.info(f"[SchedulerService:{self.instance_id}] Loading scheduled tasks from database")
+        log.info("[SchedulerService:%s] Loading scheduled tasks from database", self.instance_id)
 
         try:
             with self.session_factory() as session:
@@ -357,20 +373,22 @@ class SchedulerService:
                 )
                 tasks = session.execute(stmt).scalars().all()
 
-                log.info(f"[SchedulerService:{self.instance_id}] Found {len(tasks)} enabled tasks")
+                log.info("[SchedulerService:%s] Found %s enabled tasks", self.instance_id, len(tasks))
 
                 for task in tasks:
                     try:
                         await self._schedule_task(task)
                     except Exception as e:
                         log.error(
-                            f"[SchedulerService:{self.instance_id}] Failed to schedule task {task.id}: {e}",
+                            "[SchedulerService:%s] Failed to schedule task %s: %s",
+                            self.instance_id, task.id, e,
                             exc_info=True,
                         )
 
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to load scheduled tasks: {e}",
+                "[SchedulerService:%s] Failed to load scheduled tasks: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
 
@@ -381,7 +399,8 @@ class SchedulerService:
                 await self._unschedule_task(task_id)
             except Exception as e:
                 log.error(
-                    f"[SchedulerService:{self.instance_id}] Failed to unschedule task {task_id}: {e}",
+                    "[SchedulerService:%s] Failed to unschedule task %s: %s",
+                    self.instance_id, task_id, e,
                     exc_info=True,
                 )
 
@@ -390,8 +409,9 @@ class SchedulerService:
         job_id = f"scheduled_task_{task.id}"
 
         log.info(
-            f"[SchedulerService:{self.instance_id}] Scheduling task '{task.name}' "
-            f"(ID: {task.id}, Type: {task.schedule_type})"
+            "[SchedulerService:%s] Scheduling task '%s' "
+            "(ID: %s, Type: %s)",
+            self.instance_id, task.name, task.id, task.schedule_type,
         )
 
         try:
@@ -406,7 +426,8 @@ class SchedulerService:
                     }
                     return
                 log.warning(
-                    f"[SchedulerService:{self.instance_id}] Failed to sync task to K8s, falling back to APScheduler"
+                    "[SchedulerService:%s] Failed to sync task to K8s, falling back to APScheduler",
+                    self.instance_id,
                 )
 
             trigger = self._create_trigger(task)
@@ -436,12 +457,14 @@ class SchedulerService:
                         session.commit()
 
             log.info(
-                f"[SchedulerService:{self.instance_id}] Scheduled task '{task.name}', next run: {job.next_run_time}"
+                "[SchedulerService:%s] Scheduled task '%s', next run: %s",
+                self.instance_id, task.name, job.next_run_time,
             )
 
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to schedule task {task.id}: {e}",
+                "[SchedulerService:%s] Failed to schedule task %s: %s",
+                self.instance_id, task.id, e,
                 exc_info=True,
             )
             raise
@@ -461,7 +484,8 @@ class SchedulerService:
                     return
                 except Exception as e:
                     log.error(
-                        f"[SchedulerService:{self.instance_id}] Failed to delete K8s CronJob for task {task_id}: {e}",
+                        "[SchedulerService:%s] Failed to delete K8s CronJob for task %s: %s",
+                        self.instance_id, task_id, e,
                         exc_info=True,
                     )
 
@@ -512,7 +536,8 @@ class SchedulerService:
         stacks and unnecessary resource retention between attempts.
         """
         log.info(
-            f"[SchedulerService:{self.instance_id}] Executing scheduled task: {task_id}"
+            "[SchedulerService:%s] Executing scheduled task: %s",
+            self.instance_id, task_id,
         )
 
         # Read task config once before the retry loop
@@ -523,7 +548,7 @@ class SchedulerService:
         with self.session_factory() as session:
             task = session.get(ScheduledTaskModel, task_id)
             if not task:
-                log.warning(f"[SchedulerService:{self.instance_id}] Task {task_id} not found")
+                log.warning("[SchedulerService:%s] Task %s not found", self.instance_id, task_id)
                 return
             timeout_seconds = task.timeout_seconds or self.default_timeout_seconds
             max_retries = task.max_retries or 0
@@ -537,7 +562,8 @@ class SchedulerService:
                     current_running = len(self.running_executions)
                     if current_running >= self.max_concurrent_executions:
                         log.warning(
-                            f"[SchedulerService:{self.instance_id}] Max concurrent executions reached, skipping task {task_id}"
+                            "[SchedulerService:%s] Max concurrent executions reached, skipping task %s",
+                            self.instance_id, task_id,
                         )
                         with self.session_factory() as session:
                             task = session.get(ScheduledTaskModel, task_id)
@@ -557,12 +583,12 @@ class SchedulerService:
                 with self.session_factory() as session:
                     task = session.get(ScheduledTaskModel, task_id)
                     if not task or not task.enabled or task.deleted_at:
-                        log.warning(f"[SchedulerService:{self.instance_id}] Task {task_id} not found, disabled, or deleted")
+                        log.warning("[SchedulerService:%s] Task %s not found, disabled, or deleted", self.instance_id, task_id)
                         return
 
                     # Skip tasks in error state
                     if task.status == "error":
-                        log.warning(f"[SchedulerService:{self.instance_id}] Task {task_id} is in error state, skipping")
+                        log.warning("[SchedulerService:%s] Task %s is in error state, skipping", self.instance_id, task_id)
                         return
 
                     execution_id = str(uuid.uuid4())
@@ -608,7 +634,7 @@ class SchedulerService:
                                 )
 
                 except asyncio.TimeoutError:
-                    log.error(f"[SchedulerService:{self.instance_id}] Execution {execution_id} timed out")
+                    log.error("[SchedulerService:%s] Execution %s timed out", self.instance_id, execution_id)
                     await self._handle_execution_timeout(execution_id)
                     execution_failed = True
                 finally:
@@ -624,13 +650,15 @@ class SchedulerService:
 
                 if attempt < max_retries:
                     log.info(
-                        f"[SchedulerService:{self.instance_id}] Scheduling retry {attempt + 1}/{max_retries} "
-                        f"for task {task_id} in {retry_delay_seconds}s"
+                        "[SchedulerService:%s] Scheduling retry %s/%s "
+                        "for task %s in %ss",
+                        self.instance_id, attempt + 1, max_retries, task_id, retry_delay_seconds,
                     )
                     await asyncio.sleep(retry_delay_seconds)
                 else:
                     log.error(
-                        f"[SchedulerService:{self.instance_id}] Task {task_id} failed after {attempt + 1} attempt(s)"
+                        "[SchedulerService:%s] Task %s failed after %s attempt(s)",
+                        self.instance_id, task_id, attempt + 1,
                     )
                     with self.session_factory() as session:
                         execution = session.get(ScheduledTaskExecutionModel, execution_id)
@@ -642,12 +670,13 @@ class SchedulerService:
 
             except Exception as e:
                 log.error(
-                    f"[SchedulerService:{self.instance_id}] Failed to execute scheduled task {task_id} "
-                    f"(attempt {attempt + 1}): {e}",
+                    "[SchedulerService:%s] Failed to execute scheduled task %s "
+                    "(attempt %s): %s",
+                    self.instance_id, task_id, attempt + 1, e,
                     exc_info=True,
                 )
                 if execution_id:
-                    await self._handle_execution_failure(execution_id, str(e))
+                    await self._handle_execution_failure(execution_id, "Execution failed due to an internal error")
                     await self._track_failure(task_id)
 
                 if attempt < max_retries:
@@ -669,13 +698,15 @@ class SchedulerService:
                     if task.consecutive_failure_count >= 5:
                         task.status = "error"
                         log.warning(
-                            f"[SchedulerService:{self.instance_id}] Task {task_id} reached 5 consecutive failures, "
-                            "transitioning to error state"
+                            "[SchedulerService:%s] Task %s reached 5 consecutive failures, "
+                            "transitioning to error state",
+                            self.instance_id, task_id,
                         )
                     session.commit()
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to track failure for task {task_id}: {e}",
+                "[SchedulerService:%s] Failed to track failure for task %s: %s",
+                self.instance_id, task_id, e,
                 exc_info=True,
             )
 
@@ -689,11 +720,13 @@ class SchedulerService:
                 if deleted > 0:
                     session.commit()
                     log.info(
-                        f"[SchedulerService:{self.instance_id}] Pruned {deleted} old executions for task {task_id}"
+                        "[SchedulerService:%s] Pruned %s old executions for task %s",
+                        self.instance_id, deleted, task_id,
                     )
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to enforce execution history bounds: {e}",
+                "[SchedulerService:%s] Failed to enforce execution history bounds: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
 
@@ -702,84 +735,106 @@ class SchedulerService:
 
         Uses simple str.replace() — no Jinja2 for security.
         """
+        return self._render_template_variables_from_fields(
+            text, task.name, task.run_count, execution_id
+        )
+
+    def _render_template_variables_from_fields(
+        self, text: str, task_name: str, run_count: int, execution_id: str,
+    ) -> str:
+        """Render template variables using extracted field values (no ORM object needed)."""
         now = datetime.now(timezone.utc).isoformat()
-        text = text.replace("{{schedule.name}}", task.name or "")
+        text = text.replace("{{schedule.name}}", task_name or "")
         text = text.replace("{{schedule.run_date}}", now)
-        text = text.replace("{{schedule.run_count}}", str(task.run_count or 0))
+        text = text.replace("{{schedule.run_count}}", str(run_count or 0))
         text = text.replace("{{execution.id}}", execution_id)
         return text
 
     async def _submit_task_to_agent_mesh(self, task_id: str, execution_id: str):
-        """Submit the scheduled task to the agent mesh via A2A protocol."""
+        """Submit the scheduled task to the agent mesh via A2A protocol.
+
+        Reads task data and closes the DB session before performing any async
+        I/O (publish, register, wait) so that a connection is not held open
+        during network operations.
+        """
         log.info(
-            f"[SchedulerService:{self.instance_id}] Submitting execution {execution_id} to agent mesh"
+            "[SchedulerService:%s] Submitting execution %s to agent mesh",
+            self.instance_id, execution_id,
         )
 
         try:
+            # --- Step 1: Read task data and build message (DB session scoped) ---
             with self.session_factory() as session:
                 task = session.get(ScheduledTaskModel, task_id)
                 if not task:
-                    raise ValueError(f"Task {task_id} not found")
+                    raise ValueError("Task %s not found" % task_id)
 
-                # Phase 3.3: Render template variables in message parts
-                message_parts = []
-                for part in task.task_message:
-                    if part.get("type") == "text":
-                        rendered_text = self._render_template_variables(
-                            part["text"], task, execution_id
-                        )
-                        message_parts.append(a2a.create_text_part(rendered_text))
-                    elif part.get("type") == "file":
-                        message_parts.append(a2a.create_file_part_from_uri(part["uri"]))
+                # Extract all fields needed after session closes
+                task_message_raw = task.task_message
+                task_name = task.name
+                task_run_count = task.run_count
+                task_metadata_raw = task.task_metadata
+                target_agent_name = task.target_agent_name
+                task_user_id = task.user_id
+                task_created_by = task.created_by
 
-                session_id = f"scheduler_{task.id}"
-                context_id = f"scheduled_{execution_id}"
-                a2a_task_id = f"task-{uuid.uuid4().hex}"
+            # --- Step 2: Build A2A message (no session held) ---
+            # Phase 3.3: Render template variables in message parts
+            message_parts = []
+            for part in task_message_raw:
+                if part.get("type") == "text":
+                    rendered_text = self._render_template_variables_from_fields(
+                        part["text"], task_name, task_run_count, execution_id
+                    )
+                    message_parts.append(a2a.create_text_part(rendered_text))
+                elif part.get("type") == "file":
+                    message_parts.append(a2a.create_file_part_from_uri(part["uri"]))
 
-                # FIX: Filter task_metadata to safe keys only, prevent override of
-                # sessionBehavior/returnArtifacts
-                message_metadata = {}
-                if task.task_metadata:
-                    message_metadata = {
-                        k: v for k, v in task.task_metadata.items()
-                        if k in _SAFE_METADATA_KEYS
-                    }
-                message_metadata["sessionBehavior"] = "RUN_BASED"
-                message_metadata["returnArtifacts"] = True
+            session_id = f"scheduler_{task_id}"
+            context_id = f"scheduled_{execution_id}"
+            a2a_task_id = f"task-{uuid.uuid4().hex}"
 
-                a2a_message = a2a.create_user_message(
-                    parts=message_parts,
-                    context_id=context_id,
-                    task_id=a2a_task_id,
-                    metadata=message_metadata,
-                )
-
-                # Build A2A request — filter task_metadata through the same allowlist
-                # used for message-level metadata to prevent injection of protocol keys.
-                filtered_task_metadata = {
-                    k: v for k, v in (task.task_metadata or {}).items()
+            # Filter task_metadata to safe keys only
+            message_metadata = {}
+            if task_metadata_raw:
+                message_metadata = {
+                    k: v for k, v in task_metadata_raw.items()
                     if k in _SAFE_METADATA_KEYS
                 }
-                request = a2a.create_send_streaming_message_request(
-                    message=a2a_message,
-                    task_id=a2a_task_id,
-                    metadata=filtered_task_metadata,
-                )
-                payload = request.model_dump(by_alias=True, exclude_none=True)
+            message_metadata["sessionBehavior"] = "RUN_BASED"
+            message_metadata["returnArtifacts"] = True
 
-                target_topic = a2a.get_agent_request_topic(self.namespace, task.target_agent_name)
-                reply_to_topic = f"{self.namespace}a2a/v1/scheduler/response/{self.instance_id}"
-                status_topic = f"{self.namespace}a2a/v1/scheduler/status/{self.instance_id}"
+            a2a_message = a2a.create_user_message(
+                parts=message_parts,
+                context_id=context_id,
+                task_id=a2a_task_id,
+                metadata=message_metadata,
+            )
 
-                # FIX: Use creator identity for execution
-                user_props = {
-                    "replyTo": reply_to_topic,
-                    "a2aStatusTopic": status_topic,
-                    "clientId": f"scheduler_{self.instance_id}",
-                    "userId": task.user_id or task.created_by or "system-scheduler",
-                }
+            filtered_task_metadata = {
+                k: v for k, v in (task_metadata_raw or {}).items()
+                if k in _SAFE_METADATA_KEYS
+            }
+            request = a2a.create_send_streaming_message_request(
+                message=a2a_message,
+                task_id=a2a_task_id,
+                metadata=filtered_task_metadata,
+            )
+            payload = request.model_dump(by_alias=True, exclude_none=True)
 
-                # Update execution record
+            target_topic = a2a.get_agent_request_topic(self.namespace, target_agent_name)
+            reply_to_topic = f"{self.namespace}a2a/v1/scheduler/response/{self.instance_id}"
+            status_topic = f"{self.namespace}a2a/v1/scheduler/status/{self.instance_id}"
+
+            user_props = {
+                "replyTo": reply_to_topic,
+                "a2aStatusTopic": status_topic,
+                "clientId": f"scheduler_{self.instance_id}",
+                "userId": task_user_id or task_created_by or "system-scheduler",
+            }
+
+            # --- Step 3: Update execution status (brief session) ---
+            with self.session_factory() as session:
                 execution = session.get(ScheduledTaskExecutionModel, execution_id)
                 if execution:
                     execution.status = ExecutionStatus.RUNNING
@@ -787,24 +842,30 @@ class SchedulerService:
                     execution.started_at = now_epoch_ms()
                     session.commit()
 
-                # FIX: Register execution BEFORE publish to prevent race condition
-                # where response arrives before registration
-                if hasattr(self.result_handler, 'register_execution'):
-                    await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
+            # --- Step 4: Register, publish, and wait (no session held) ---
+            if hasattr(self.result_handler, 'register_execution'):
+                await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
 
-                # Publish to broker
-                self.publish_func(target_topic, payload, user_props)
+            self.publish_func(target_topic, payload, user_props)
 
-                log.info(
-                    f"[SchedulerService:{self.instance_id}] Submitted execution {execution_id} as A2A task {a2a_task_id}"
-                )
+            log.info(
+                "[SchedulerService:%s] Submitted execution %s as A2A task %s",
+                self.instance_id, execution_id, a2a_task_id,
+            )
+
+            # Wait for the result handler to signal completion so the caller
+            # sees the final execution status (COMPLETED / FAILED) rather than
+            # the stale RUNNING state.
+            if hasattr(self.result_handler, 'wait_for_completion'):
+                await self.result_handler.wait_for_completion(execution_id)
 
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to submit execution {execution_id}: {e}",
+                "[SchedulerService:%s] Failed to submit execution %s: %s",
+                self.instance_id, execution_id, e,
                 exc_info=True,
             )
-            await self._handle_execution_failure(execution_id, str(e))
+            await self._handle_execution_failure(execution_id, "Execution failed due to an internal error")
             raise
 
     async def _handle_execution_failure(self, execution_id: str, error_message: str):
@@ -819,7 +880,8 @@ class SchedulerService:
                     session.commit()
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to mark execution {execution_id} as failed: {e}",
+                "[SchedulerService:%s] Failed to mark execution %s as failed: %s",
+                self.instance_id, execution_id, e,
                 exc_info=True,
             )
 
@@ -835,7 +897,8 @@ class SchedulerService:
                     session.commit()
         except Exception as e:
             log.error(
-                f"[SchedulerService:{self.instance_id}] Failed to mark execution {execution_id} as timeout: {e}",
+                "[SchedulerService:%s] Failed to mark execution %s as timeout: %s",
+                self.instance_id, execution_id, e,
                 exc_info=True,
             )
 

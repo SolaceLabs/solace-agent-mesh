@@ -190,9 +190,9 @@ async def schedule_create(
                 try:
                     await scheduler_service._schedule_task(task)
                 except Exception as e:
-                    log.error(f"{tag} Failed to activate schedule for {task_id}: {e}")
+                    log.error("%s Failed to activate schedule for %s: %s", tag, task_id, e)
 
-            log.info(f"{tag} Created task '{name}' (id={task_id}) by user {user_id}")
+            log.info("%s Created task '%s' (id=%s) by user %s", tag, name, task_id, user_id)
 
             # Build human-friendly schedule description
             if schedule_type == "cron":
@@ -223,7 +223,7 @@ async def schedule_create(
     except ValueError as e:
         return ToolResult.error(str(e), code="CONFLICT")
     except Exception as e:
-        log.error(f"{tag} Error creating task: {e}", exc_info=True)
+        log.error("%s Error creating task: %s", tag, e, exc_info=True)
         return ToolResult.error(
             f"Failed to create scheduled task: {e}",
             code="CREATE_FAILED",
@@ -316,7 +316,7 @@ async def schedule_list(
             )
 
     except Exception as e:
-        log.error(f"{tag} Error listing tasks: {e}", exc_info=True)
+        log.error("%s Error listing tasks: %s", tag, e, exc_info=True)
         return ToolResult.error(
             f"Failed to list scheduled tasks: {e}",
             code="LIST_FAILED",
@@ -381,9 +381,9 @@ async def schedule_delete(
             try:
                 await scheduler_service._unschedule_task(task_id)
             except Exception as e:
-                log.warning(f"{tag} Failed to unschedule task {task_id}: {e}")
+                log.warning("%s Failed to unschedule task %s: %s", tag, task_id, e)
 
-            log.info(f"{tag} Deleted task '{task_name}' (id={task_id}) by user {user_id}")
+            log.info("%s Deleted task '%s' (id=%s) by user %s", tag, task_name, task_id, user_id)
 
             return ToolResult.ok(
                 f"Scheduled task '{task_name}' (ID: {task_id}) has been deleted.",
@@ -391,7 +391,7 @@ async def schedule_delete(
             )
 
     except Exception as e:
-        log.error(f"{tag} Error deleting task: {e}", exc_info=True)
+        log.error("%s Error deleting task: %s", tag, e, exc_info=True)
         return ToolResult.error(
             f"Failed to delete scheduled task: {e}",
             code="DELETE_FAILED",

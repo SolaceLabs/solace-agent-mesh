@@ -42,14 +42,12 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                 const executionsList = (data.executions || []).map(transformApiExecution);
                 setExecutions(executionsList);
 
-                // Auto-select the first execution on initial load
-                if (executionsList.length > 0 && !hasInitializedRef.current) {
-                    hasInitializedRef.current = true;
-                    setSelectedExecution(executionsList[0]);
-                }
-
-                // Update selected execution with fresh data if it's still in the list
+                // Auto-select first on initial load, or refresh the currently selected execution
                 setSelectedExecution(prev => {
+                    if (!prev && executionsList.length > 0 && !hasInitializedRef.current) {
+                        hasInitializedRef.current = true;
+                        return executionsList[0];
+                    }
                     if (!prev) return prev;
                     const updated = executionsList.find((e: TaskExecution) => e.id === prev.id);
                     return updated || prev;

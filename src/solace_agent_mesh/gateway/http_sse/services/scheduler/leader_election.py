@@ -51,8 +51,8 @@ class LeaderElection:
         self._stop_event = asyncio.Event()
 
         log.info(
-            f"[LeaderElection:{instance_id}] Initialized with heartbeat={heartbeat_interval_seconds}s, "
-            f"lease={lease_duration_seconds}s"
+            "[LeaderElection:%s] Initialized with heartbeat=%ss, lease=%ss",
+            instance_id, heartbeat_interval_seconds, lease_duration_seconds
         )
 
     async def start(self):
@@ -60,13 +60,13 @@ class LeaderElection:
         if self._election_task is not None:
             return
 
-        log.info(f"[LeaderElection:{self.instance_id}] Starting leader election")
+        log.info("[LeaderElection:%s] Starting leader election", self.instance_id)
         self._stop_event.clear()
         self._election_task = asyncio.create_task(self._election_loop())
 
     async def stop(self):
         """Stop participating in leader election and release leadership if held."""
-        log.info(f"[LeaderElection:{self.instance_id}] Stopping leader election")
+        log.info("[LeaderElection:%s] Stopping leader election", self.instance_id)
         self._stop_event.set()
 
         if self._election_task:
@@ -91,13 +91,13 @@ class LeaderElection:
                 if await self._try_acquire_leadership():
                     if not self._is_leader:
                         self._is_leader = True
-                        log.info(f"[LeaderElection:{self.instance_id}] Acquired leadership")
+                        log.info("[LeaderElection:%s] Acquired leadership", self.instance_id)
 
                     await self._maintain_leadership()
                 else:
                     if self._is_leader:
                         self._is_leader = False
-                        log.warning(f"[LeaderElection:{self.instance_id}] Lost leadership")
+                        log.warning("[LeaderElection:%s] Lost leadership", self.instance_id)
 
                     await asyncio.sleep(self.heartbeat_interval)
 
@@ -105,7 +105,8 @@ class LeaderElection:
                 break
             except Exception as e:
                 log.error(
-                    f"[LeaderElection:{self.instance_id}] Error in election loop: {e}",
+                    "[LeaderElection:%s] Error in election loop: %s",
+                    self.instance_id, e,
                     exc_info=True,
                 )
                 self._is_leader = False
@@ -157,7 +158,8 @@ class LeaderElection:
 
         except Exception as e:
             log.error(
-                f"[LeaderElection:{self.instance_id}] Failed to acquire leadership: {e}",
+                "[LeaderElection:%s] Failed to acquire leadership: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
             return False
@@ -174,7 +176,8 @@ class LeaderElection:
                 break
             except Exception as e:
                 log.error(
-                    f"[LeaderElection:{self.instance_id}] Error maintaining leadership: {e}",
+                    "[LeaderElection:%s] Error maintaining leadership: %s",
+                    self.instance_id, e,
                     exc_info=True,
                 )
                 break
@@ -191,7 +194,7 @@ class LeaderElection:
                 lock = session.execute(stmt).scalar_one_or_none()
 
                 if lock is None or lock.leader_id != self.instance_id:
-                    log.warning(f"[LeaderElection:{self.instance_id}] Lost lock during heartbeat")
+                    log.warning("[LeaderElection:%s] Lost lock during heartbeat", self.instance_id)
                     return False
 
                 current_time = now_epoch_ms()
@@ -202,7 +205,8 @@ class LeaderElection:
 
         except Exception as e:
             log.error(
-                f"[LeaderElection:{self.instance_id}] Failed to send heartbeat: {e}",
+                "[LeaderElection:%s] Failed to send heartbeat: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
             return False
@@ -221,11 +225,12 @@ class LeaderElection:
                 if lock and lock.leader_id == self.instance_id:
                     lock.expires_at = now_epoch_ms()
                     session.commit()
-                    log.info(f"[LeaderElection:{self.instance_id}] Released leadership")
+                    log.info("[LeaderElection:%s] Released leadership", self.instance_id)
 
         except Exception as e:
             log.error(
-                f"[LeaderElection:{self.instance_id}] Failed to release leadership: {e}",
+                "[LeaderElection:%s] Failed to release leadership: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
 
@@ -252,7 +257,8 @@ class LeaderElection:
 
         except Exception as e:
             log.error(
-                f"[LeaderElection:{self.instance_id}] Failed to get leader info: {e}",
+                "[LeaderElection:%s] Failed to get leader info: %s",
+                self.instance_id, e,
                 exc_info=True,
             )
             return None
