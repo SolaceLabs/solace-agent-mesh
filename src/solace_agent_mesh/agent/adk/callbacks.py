@@ -217,7 +217,7 @@ async def process_artifact_blocks_callback(
     parser: FencedBlockStreamParser = session.state.get(parser_state_key)
     if parser is None:
         log.debug("%s New turn. Creating new FencedBlockStreamParser.", log_identifier)
-        parser = FencedBlockStreamParser(progress_update_interval_bytes=50)
+        parser = FencedBlockStreamParser(progress_update_interval_bytes=250)
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
@@ -440,9 +440,9 @@ async def process_artifact_blocks_callback(
                         )
                         save_result = await wrapped_creator(**kwargs_for_call)
 
-                        if save_result.get("status") in ["success", "partial_success"]:
+                        if save_result.status in ["success", "partial"]:
                             status_for_tool = "success"
-                            version_for_tool = save_result.get("data_version", 1)
+                            version_for_tool = save_result.data.get("data_version", 1) if save_result.data else 1
                             try:
                                 logical_task_id = a2a_context.get("logical_task_id")
                                 if logical_task_id:
@@ -863,7 +863,7 @@ def repair_history_callback(
     while i < len(llm_request.contents):
         content = llm_request.contents[i]
         function_calls = []
-        if content.role == "model" and content.parts:
+        if content and content.role == "model" and content.parts:
             function_calls = [p.function_call for p in content.parts if p.function_call]
 
         if function_calls:
@@ -1285,6 +1285,9 @@ Use {{ issue.fields.description | truncate: 200 }} instead of slicing with [:200
 Do not use Jekyll-specific tags or filters (e.g., `{{% assign %}}`, `{{% capture %}}`, `where`, `sort`, `where_exp`, etc.)
 
 The rendered output will appear inline in your response automatically.
+
+**IMPORTANT - No Math Embeds Inside template_liquid:**
+Never place math embeds (e.g., `{open_delim}math:...{close_delim}`) inside a `template_liquid` block. Math embeds are resolved at a different stage and will not work correctly within Liquid templates. If you need to perform calculations on data, do the math outside the template_liquid block using separate math embeds, or use Liquid's built-in arithmetic filters (e.g., `| plus:`, `| minus:`, `| times:`, `| divided_by:`).
 """
 
 
@@ -1421,8 +1424,16 @@ def _generate_examples_instruction() -> str:
 def _generate_embed_instruction(
     include_artifact_content: bool,
     log_identifier: str,
+    suppress_artifact_return: bool = False,
 ) -> Optional[str]:
-    """Generates the instruction text for using embeds."""
+    """Generates the instruction text for using embeds.
+
+    Args:
+        include_artifact_content: Whether to include artifact_content embed instructions.
+        log_identifier: Logging prefix.
+        suppress_artifact_return: If True, omit artifact_return directives (used in SI mode
+            where only the result embed matters).
+    """
     open_delim = EMBED_DELIMITER_OPEN
     close_delim = EMBED_DELIMITER_CLOSE
     chain_delim = EMBED_CHAIN_DELIMITER
@@ -1451,7 +1462,10 @@ This host resolves the following embed types *early* (before sending to the LLM 
 Examples:
 - `{open_delim}status_update:Analyzing data...{close_delim}` (Shows 'Analyzing data...' as a status update)
 - `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
+"""
 
+    if not suppress_artifact_return:
+        base_instruction += f"""\
 The following embeds are resolved *late* (by the gateway before final display):
 - `{open_delim}artifact_return:filename[:version]{close_delim}`: Attaches an artifact to your message so the user receives the file. The embed itself is removed from the text.
 
@@ -1678,6 +1692,23 @@ If a plan is created:
 """
     injected_instructions.append(planning_instruction)
 
+    # Inject LLM self-awareness: tell the agent which model it is running as.
+    _model_config = host_component.get_config("model", {})
+    if isinstance(_model_config, dict):
+        _llm_model_name = _model_config.get("model", "")
+    elif isinstance(_model_config, str):
+        _llm_model_name = _model_config
+    else:
+        _llm_model_name = ""
+    if _llm_model_name:
+        _llm_model_name_display = _llm_model_name.rsplit("/", 1)[-1]
+        injected_instructions.append(
+            f"**Your LLM Identity:**\n"
+            f"You are running as the `{_llm_model_name_display}` language model. "
+            "If a user asks which AI model or LLM you are, you may truthfully state this."
+        )
+        log.debug("%s Injected LLM self-awareness instruction (model: %s).", log_identifier, _llm_model_name_display)
+
     # Add the consolidated block instructions
     injected_instructions.append(_generate_fenced_artifact_instruction())
     injected_instructions.append(_generate_inline_template_instruction())
@@ -1738,8 +1769,20 @@ If a plan is created:
         include_artifact_content_instr = host_component.get_config(
             "enable_artifact_content_instruction", True
         )
+        # In structured invocation mode, suppress artifact_return directives
+        # since only the result embed matters
+        is_si_mode = False
+        a2a_context = callback_context.state.get("a2a_context")
+        if a2a_context:
+            logical_task_id = a2a_context.get("logical_task_id")
+            if logical_task_id:
+                with host_component.active_tasks_lock:
+                    task_context = host_component.active_tasks.get(logical_task_id)
+                if task_context:
+                    is_si_mode = task_context.get_flag("structured_invocation", False)
         instruction = _generate_embed_instruction(
-            include_artifact_content_instr, log_identifier
+            include_artifact_content_instr, log_identifier,
+            suppress_artifact_return=is_si_mode,
         )
         if instruction:
             injected_instructions.append(instruction)
@@ -1771,6 +1814,16 @@ If a plan is created:
         injected_instructions.append(peer_instructions)
         log.debug(
             "%s Injected peer discovery instructions from callback state.",
+            log_identifier,
+        )
+
+    project_tool_instructions = callback_context.state.get(
+        "project_tool_instructions"
+    )
+    if project_tool_instructions and isinstance(project_tool_instructions, str):
+        injected_instructions.append(project_tool_instructions)
+        log.debug(
+            "%s Injected project tool instructions from callback state.",
             log_identifier,
         )
 

@@ -40,6 +40,7 @@ export interface ChatState {
     // RAG State
     ragData: RAGSearchResult[];
     ragEnabled: boolean;
+    expandedDocumentFilename: string | null;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
     activeSidePanelTab: "files" | "activity" | "rag";
@@ -115,6 +116,9 @@ export interface ChatActions {
 
     /** Background Task Monitoring Actions */
     isTaskRunningInBackground: (taskId: string) => boolean;
+
+    /** RAG Panel State Actions */
+    setExpandedDocumentFilename: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

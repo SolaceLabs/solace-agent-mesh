@@ -402,6 +402,49 @@ class TestCopyProjectArtifactsToSession:
             assert names == ["new_file1.txt", "new_file2.txt"], f"Expected specific names, got {names}"
 
     @pytest.mark.asyncio
+    async def test_copy_project_artifacts_overwrite_existing(
+        self, mock_project_service, mock_component, mock_db, mock_project
+    ):
+        """Test that overwrite_existing=True re-copies artifacts already in session."""
+        mock_artifact_service = Mock()
+        mock_component.get_shared_artifact_service.return_value = mock_artifact_service
+        mock_project_service.get_project.return_value = mock_project
+
+        project_artifact = Mock(filename="file1.txt")
+        session_artifact = Mock(filename="file1.txt")
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.utils.artifact_copy_utils.get_artifact_info_list"
+        ) as mock_get_list, patch(
+            "solace_agent_mesh.gateway.http_sse.utils.artifact_copy_utils.load_artifact_content_or_metadata"
+        ) as mock_load, patch(
+            "solace_agent_mesh.gateway.http_sse.utils.artifact_copy_utils.save_artifact_with_metadata"
+        ) as mock_save:
+            # Project has file1.txt, session already has file1.txt
+            mock_get_list.side_effect = [[project_artifact], [session_artifact]]
+            mock_load.side_effect = [
+                {"status": "success", "raw_bytes": b"updated", "mime_type": "text/plain"},
+                {"status": "success", "metadata": {"existing_key": "val"}},
+            ]
+
+            count, names = await copy_project_artifacts_to_session(
+                project_id="project123",
+                user_id="user123",
+                session_id="session456",
+                project_service=mock_project_service,
+                component=mock_component,
+                db=mock_db,
+                overwrite_existing=True,
+            )
+
+            assert count == 1
+            assert names == ["file1.txt"]
+            assert mock_save.call_count == 1
+            saved_metadata = mock_save.call_args[1]["metadata_dict"]
+            assert saved_metadata["project_context_pending"] is True
+            assert saved_metadata["existing_key"] == "val"
+
+    @pytest.mark.asyncio
     async def test_copy_project_artifacts_no_project(
         self, mock_project_service, mock_component, mock_db
     ):

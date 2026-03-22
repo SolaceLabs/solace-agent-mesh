@@ -20,10 +20,11 @@ class ProjectModel(Base):
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
     default_agent_id = Column(String, nullable=True)
+    is_pinned = Column(Boolean, default=False, nullable=False, server_default='false')
     created_at = Column(BigInteger, nullable=False)
-    updated_at = Column(BigInteger, nullable=True)  
-    deleted_at = Column(BigInteger, nullable=True)   
-    deleted_by = Column(String, nullable=True)       
+    updated_at = Column(BigInteger, nullable=True)
+    deleted_at = Column(BigInteger, nullable=True)
+    deleted_by = Column(String, nullable=True)
     
     # Relationships
     sessions = relationship("SessionModel", back_populates="project")

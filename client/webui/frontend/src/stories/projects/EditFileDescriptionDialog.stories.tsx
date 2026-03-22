@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { EditFileDescriptionDialog } from "@/lib";
 import { pdfArtifact, jsonArtifact } from "../data/artifactInfo";
 
@@ -38,6 +38,30 @@ export const Default: Story = {
         expect(await dialogContent.findByText("API reference documentation")).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Discard Changes" })).toBeInTheDocument();
+    },
+};
+
+/**
+ * Description exceeds the max length limit — validation error shown, Save button disabled
+ */
+export const DescriptionOverLimit: Story = {
+    args: {
+        isOpen: true,
+        artifact: jsonArtifact,
+        onClose: () => {},
+        onSave: async () => {},
+        isSaving: false,
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        const descriptionBox = await dialogContent.findByRole("textbox");
+        await userEvent.click(descriptionBox);
+        await userEvent.paste("a".repeat(1001));
+
+        expect(await dialogContent.findByText(/exceeds the maximum of/i)).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Save" })).toBeDisabled();
     },
 };
 

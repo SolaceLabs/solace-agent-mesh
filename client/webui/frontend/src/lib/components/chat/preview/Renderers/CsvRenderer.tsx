@@ -104,7 +104,7 @@ export const CsvRenderer: React.FC<BaseRendererProps> = ({ content, setRenderErr
                     </thead>
                     <tbody>
                         {rows.slice(1).map((row, i) => (
-                            <tr key={`row-${i}`} className={i % 2 === 0 ? "bg-muted dark:bg-gray-700" : ""}>
+                            <tr key={`row-${i}`} className={i % 2 === 0 ? "bg-(--secondary-w10)" : ""}>
                                 {row.map((cell, j) => (
                                     <td key={`cell-${i}-${j}`} className="min-w-0 border-b p-2 align-top break-words" title={cell}>
                                         {cell?.trim() || ""}

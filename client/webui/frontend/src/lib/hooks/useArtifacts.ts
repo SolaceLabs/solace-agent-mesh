@@ -73,12 +73,14 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
                 return;
             }
 
-            const data: ArtifactInfo[] = await api.webui.get(endpoint);
+            type RawArtifactInfo = Omit<ArtifactInfo, "sourceProjectId"> & { source_project_id?: string };
+            const data: RawArtifactInfo[] = await api.webui.get(endpoint);
             // Filter out intermediate web content artifacts from deep research
             // Note: Working artifacts are NOT filtered here - they are filtered in the useMemo below
             const filteredData = data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
-            const artifactsWithUris = filteredData.map(artifact => ({
+            const artifactsWithUris = filteredData.map(({ source_project_id, ...artifact }) => ({
                 ...artifact,
+                sourceProjectId: source_project_id,
                 uri: artifact.uri || `artifact://${sessionId}/${artifact.filename}`,
             }));
             setArtifacts(artifactsWithUris);

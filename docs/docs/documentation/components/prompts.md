@@ -21,7 +21,7 @@ The Prompt Library lets you create reusable prompt templates with variables, acc
 
 2. **Variable Substitution**: Use `{{Variable Name}}` placeholders in your prompts to create flexible templates that adapt to different contexts.
 
-3. **Version Management**: Track changes to your prompts over time with automatic versioning, and designate specific versions as "Active" for active use.
+3. **Version Management**: Track changes to your prompts over time with automatic versioning. The latest version is always the active version.
 
 4. **Organization**: Tag prompts by topic (Development, Analysis, Documentation, etc.) and assign custom chat shortcuts for even faster access.
 
@@ -37,16 +37,24 @@ A prompt group is a container that holds multiple versions of a prompt template.
 - **Description**: Optional details about the prompt's purpose
 - **Tag**: Organizational label (e.g., "Development", "Analysis", "Documentation")
 - **Shortcut**: Optional shortcut for quick access (e.g., typing `/review` instantly finds your code review prompt)
-- **Active Version**: The currently active version of the prompt that appears when you use the shortcut
+
+:::note[Latest Version is Always Active]
+The latest version (highest version number) is always the active version. There is no need to manually designate which version is active.
+:::
 
 ### Prompt Versions
 
-Each time you modify a prompt, a new version is created automatically. This allows you to:
+Prompts support two types of updates:
+
+- **Save**: Updates the current version in-place without creating a new version
+- **Save New Version**: Creates a new version, preserving the previous version in history
+
+This allows you to:
 
 - Track the evolution of your prompts over time
-- Revert to previous versions if needed
+- Revert to previous versions by restoring them as a new version
 - Compare different approaches
-- Designate which version is "active"
+- Make quick edits without cluttering version history
 
 ### Variables
 

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
+    is_internal_artifact,
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
 )
@@ -91,6 +92,7 @@ async def copy_project_artifacts_to_session(
     db: "DbSession",
     log_prefix: str = "",
     indexing_enabled: bool = False,
+    overwrite_existing: bool = False,
 ) -> tuple[int, list[str]]:
     """
     Copy artifacts from a project to a session.
@@ -104,8 +106,8 @@ async def copy_project_artifacts_to_session(
     This function handles:
     - Loading artifacts from the project storage
     - Filtering based on indexing feature flag
-    - Checking which artifacts already exist in the session
     - Copying new artifacts to the session
+    - Optionally overwriting artifacts that already exist in the session
     - Preserving all metadata (conversion info, citations, etc.)
     - Setting the 'project_context_pending' flag for context injection
 
@@ -120,9 +122,12 @@ async def copy_project_artifacts_to_session(
         indexing_enabled: Whether BM25 indexing is enabled. When False, only
             original files are copied. When True, converted text files and
             BM25 index are also copied. Defaults to False for backward compatibility.
+        overwrite_existing: When True, overwrite artifacts that already exist
+            in the session with the latest version from the project. When False,
+            skip artifacts that already exist. Defaults to False.
 
     Returns:
-        Tuple of (artifacts_copied_count, list_of_new_artifact_names)
+        Tuple of (artifacts_copied_count, list_of_copied_artifact_names)
 
     Raises:
         Exception: If project or artifact service is not available
@@ -175,44 +180,27 @@ async def copy_project_artifacts_to_session(
             project.id,
         )
 
+        # Find original files
+        original_artifacts = [
+            artifact for artifact in project_artifacts
+            if not is_internal_artifact(artifact.filename)
+        ]
+        original_artifact_count = len(original_artifacts)
+        internal_artifact_count = len(project_artifacts) - original_artifact_count
+
         # Filter artifacts based on indexing feature flag
         if not indexing_enabled:
-            # When indexing is disabled, only copy original user files
-            # Skip converted text files and BM25 index
-            original_only_artifacts = [
-                artifact for artifact in project_artifacts
-                if not artifact.filename.endswith('.converted.txt')
-                and artifact.filename != 'project_bm25_index.zip'
-            ]
-            log.info(
-                "%sIndexing disabled: filtering to %d original artifacts (excluded %d generated files)",
-                log_prefix,
-                len(original_only_artifacts),
-                len(project_artifacts) - len(original_only_artifacts),
-            )
-            project_artifacts = original_only_artifacts
-
-        # Categorize artifacts for logging and visibility
-        original_artifacts = []
-        converted_artifacts = []
-        index_artifacts = []
-
-        for artifact in project_artifacts:
-            if artifact.filename.endswith('.converted.txt'):
-                converted_artifacts.append(artifact)
-            elif artifact.filename == 'project_bm25_index.zip':
-                index_artifacts.append(artifact)
-            else:
-                original_artifacts.append(artifact)
+            # When indexing is disabled, only copy original user files and skip internal files
+            log.info("%sIndexing disabled: filtering to %d original artifacts", log_prefix, original_artifact_count)
+            project_artifacts = original_artifacts
 
         log.info(
-            "%sProject %s artifact breakdown (indexing_enabled=%s): %d original, %d converted, %d index",
+            "%sProject %s artifacts (indexing_enabled=%s): %d original, %d internal",
             log_prefix,
             project.id,
             indexing_enabled,
-            len(original_artifacts),
-            len(converted_artifacts),
-            len(index_artifacts),
+            original_artifact_count,
+            internal_artifact_count,
         )
 
         try:
@@ -238,34 +226,39 @@ async def copy_project_artifacts_to_session(
             session_artifact_names = set()
 
         artifacts_copied = 0
-        new_artifact_names = []
+        copied_artifact_names = []
 
         for artifact_info in project_artifacts:
-            # Skip if artifact already exists in session
-            if artifact_info.filename in session_artifact_names:
+            already_exists = artifact_info.filename in session_artifact_names
+            artifact_type = "internal" if is_internal_artifact(artifact_info.filename) else "original"
+
+            if already_exists and not overwrite_existing:
                 log.debug(
-                    "%sSkipping artifact %s - already exists in session",
+                    "%sSkipping %s artifact %s - already exists in session",
                     log_prefix,
+                    artifact_type,
                     artifact_info.filename,
                 )
                 continue
 
-            new_artifact_names.append(artifact_info.filename)
+            if already_exists:
+                log.info(
+                    "%sOverwriting %s artifact %s in session %s with latest from project",
+                    log_prefix,
+                    artifact_type,
+                    artifact_info.filename,
+                    session_id,
+                )
+            else:
+                log.info(
+                    "%sCopying %s artifact %s to session %s",
+                    log_prefix,
+                    artifact_type,
+                    artifact_info.filename,
+                    session_id,
+                )
 
-            # Identify artifact type for logging
-            artifact_type = "original"
-            if artifact_info.filename.endswith('.converted.txt'):
-                artifact_type = "converted"
-            elif artifact_info.filename == 'project_bm25_index.zip':
-                artifact_type = "index"
-
-            log.info(
-                "%sCopying %s artifact %s to session %s",
-                log_prefix,
-                artifact_type,
-                artifact_info.filename,
-                session_id,
-            )
+            copied_artifact_names.append(artifact_info.filename)
 
             try:
                 # Load artifact content from project storage
@@ -334,34 +327,152 @@ async def copy_project_artifacts_to_session(
                     artifact_info.filename,
                     e,
                 )
-                
+
         if artifacts_copied > 0:
-            # Count by type for summary
+            # NOTE: copied_artifact_names tracks attempted copies, so these counts
+            # may exceed artifacts_copied if any individual copies failed.
             copied_original = sum(
-                1 for name in new_artifact_names
-                if not name.endswith('.converted.txt')
-                and name != 'project_bm25_index.zip'
+                1 for name in copied_artifact_names
+                if not is_internal_artifact(name)
             )
-            copied_converted = sum(
-                1 for name in new_artifact_names
-                if name.endswith('.converted.txt')
+            copied_internal = sum(
+                1 for name in copied_artifact_names
+                if is_internal_artifact(name)
             )
-            copied_index = 1 if 'project_bm25_index.zip' in new_artifact_names else 0
 
             log.info(
-                "%sCopied %d artifacts to session %s: %d original, %d converted, %d index",
+                "%sCopied %d artifacts to session %s: %d original, %d internal",
                 log_prefix,
                 artifacts_copied,
                 session_id,
                 copied_original,
-                copied_converted,
-                copied_index,
+                copied_internal,
             )
         else:
-            log.debug("%sNo new artifacts to copy to session %s", log_prefix, session_id)
+            log.debug("%sNo artifacts to copy to session %s", log_prefix, session_id)
 
-        return artifacts_copied, new_artifact_names
+        return artifacts_copied, copied_artifact_names
 
     except Exception as e:
         log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
         return 0, []
+
+
+async def copy_session_artifacts(
+    source_user_id: str,
+    source_session_id: str,
+    target_user_id: str,
+    target_session_id: str,
+    component: "WebUIBackendComponent",
+    log_prefix: str = "",
+) -> int:
+    """
+    Copy all artifacts from one session to another.
+    Used when forking/copying a collaborative session.
+
+    Args:
+        source_user_id: Owner user ID of the source session
+        source_session_id: Source session ID
+        target_user_id: User ID for the target session
+        target_session_id: Target session ID
+        component: WebUIBackendComponent for accessing artifact service
+        log_prefix: Optional prefix for log messages
+
+    Returns:
+        Number of artifacts copied
+    """
+    try:
+        artifact_service = component.get_shared_artifact_service()
+        if not artifact_service:
+            log.debug("%sArtifact service not available, skipping artifact copy", log_prefix)
+            return 0
+
+        app_name = component.get_config("name", "A2A_WebUI_App")
+
+        # Get list of artifacts in the source session
+        source_artifacts = await get_artifact_info_list(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=source_user_id,
+            session_id=source_session_id,
+        )
+
+        if not source_artifacts:
+            log.debug("%sNo artifacts found in source session %s", log_prefix, source_session_id)
+            return 0
+
+        log.info(
+            "%sCopying %d artifacts from session %s (user %s) to session %s (user %s)",
+            log_prefix,
+            len(source_artifacts),
+            source_session_id,
+            source_user_id,
+            target_session_id,
+            target_user_id,
+        )
+
+        artifacts_copied = 0
+        for artifact_info in source_artifacts:
+            try:
+                # Load artifact content
+                loaded = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=source_user_id,
+                    session_id=source_session_id,
+                    filename=artifact_info.filename,
+                    return_raw_bytes=True,
+                    version="latest",
+                )
+
+                # Load metadata
+                loaded_meta = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=source_user_id,
+                    session_id=source_session_id,
+                    filename=artifact_info.filename,
+                    load_metadata_only=True,
+                    version="latest",
+                )
+
+                if loaded.get("status") == "success":
+                    metadata = (
+                        loaded_meta.get("metadata", {})
+                        if loaded_meta.get("status") == "success"
+                        else {}
+                    )
+
+                    await save_artifact_with_metadata(
+                        artifact_service=artifact_service,
+                        app_name=app_name,
+                        user_id=target_user_id,
+                        session_id=target_session_id,
+                        filename=artifact_info.filename,
+                        content_bytes=loaded.get("raw_bytes"),
+                        mime_type=loaded.get("mime_type"),
+                        metadata_dict=metadata,
+                        timestamp=datetime.now(timezone.utc),
+                    )
+                    artifacts_copied += 1
+                else:
+                    log.warning(
+                        "%sFailed to load artifact %s: %s",
+                        log_prefix,
+                        artifact_info.filename,
+                        loaded.get("message", "unknown error"),
+                    )
+            except Exception as e:
+                log.error(
+                    "%sError copying artifact %s: %s",
+                    log_prefix,
+                    artifact_info.filename,
+                    e,
+                )
+
+        log.info("%sCopied %d/%d artifacts to forked session", log_prefix, artifacts_copied, len(source_artifacts))
+        return artifacts_copied
+
+    except Exception as e:
+        log.warning("%sFailed to copy session artifacts: %s", log_prefix, e)
+        return 0

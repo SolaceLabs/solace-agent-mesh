@@ -7,6 +7,7 @@ import type { WorkflowConfig } from "@/lib/utils/agentUtils";
 import { getAgentSchemas } from "@/lib/utils/agentUtils";
 import type { AgentCardInfo } from "@/lib/types";
 import { Button } from "@/lib/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/lib/components/ui/tabs";
 import { JSONViewer, type JSONValue } from "@/lib/components/jsonViewer";
 import InputMappingViewer from "./InputMappingViewer";
 import { buildWorkflowNavigationUrl } from "./WorkflowVisualizationPage";
@@ -66,16 +67,6 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
         }
     }, [nodeConfig]);
 
-    // Handle switching to code view
-    const handleInspectCode = useCallback(() => {
-        setShowCodeView(true);
-    }, []);
-
-    // Handle switching to details view
-    const handleShowDetails = useCallback(() => {
-        setShowCodeView(false);
-    }, []);
-
     // Navigate to nested workflow in a new tab
     // When opening in a new tab, don't include parent path - the new tab should start fresh
     // without breadcrumb navigation back to the previous workflow
@@ -133,15 +124,15 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
             case "end":
                 return <CheckCircle className="h-6 w-6" />;
             case "agent":
-                return <Bot className="h-6 w-6 text-(--color-brand-wMain)" />;
+                return <Bot className="h-6 w-6 text-(--brand-wMain)" />;
             case "workflow":
-                return <Workflow className="h-6 w-6 text-(--color-brand-wMain)" />;
+                return <Workflow className="h-6 w-6 text-(--brand-wMain)" />;
             case "switch":
-                return <GitBranch className="h-6 w-6 text-(--color-accent-n0-wMain)" />;
+                return <GitBranch className="h-6 w-6 text-(--accent-n0-wMain)" />;
             case "map":
-                return <Repeat2 className="h-6 w-6 text-(--color-accent-n0-wMain)" />;
+                return <Repeat2 className="h-6 w-6 text-(--accent-n0-wMain)" />;
             case "loop":
-                return <RefreshCw className="h-6 w-6 text-(--color-accent-n0-wMain)" />;
+                return <RefreshCw className="h-6 w-6 text-(--accent-n0-wMain)" />;
             default:
                 return null;
         }
@@ -175,7 +166,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
         const isOnline = !!agentInfo;
         return (
             <span className="inline-flex items-center gap-1 text-sm font-medium">
-                <span className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-400"}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-(--brand-wMain)" : "bg-(--secondary-w40)"}`} />
                 {isOnline ? "Running" : "Offline"}
             </span>
         );
@@ -184,20 +175,20 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     // Render YAML code view
     const renderCodeView = () => {
         if (!nodeConfig) {
-            return <div className="bg-card-background flex h-full items-center justify-center">There is no code associated with this node.</div>;
+            return <div className="flex h-full items-center justify-center">There is no code associated with this node.</div>;
         }
         try {
             const yamlStr = yaml.dump(nodeConfig, { indent: 2, lineWidth: -1 });
             return (
                 <div className="relative h-full">
                     <Button variant="ghost" size="icon" onClick={handleCopy} tooltip={isCopied ? "Copied!" : "Copy"} className="absolute top-2 right-2 z-10 h-8 w-8">
-                        {isCopied ? <Check className="h-4 w-4 text-(--color-success-wMain)" /> : <Copy className="h-4 w-4" />}
+                        {isCopied ? <Check className="h-4 w-4 text-(--success-wMain)" /> : <Copy className="h-4 w-4" />}
                     </Button>
-                    <pre className="scrollbar-themed bg-card-background h-full overflow-auto rounded-lg p-3 font-mono text-sm dark:border">{yamlStr}</pre>
+                    <pre className="scrollbar-themed h-full overflow-auto rounded-lg p-3 font-mono text-sm">{yamlStr}</pre>
                 </div>
             );
         } catch {
-            return <div className="text-muted-foreground text-sm">Unable to display YAML</div>;
+            return <div className="text-sm text-(--secondary-text-wMain)">Unable to display YAML</div>;
         }
     };
 
@@ -243,7 +234,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     }
 
     return (
-        <div className="bg-background flex h-full flex-col">
+        <div className="flex h-full flex-col bg-(--background-w10)" role="complementary" aria-label="Node details panel">
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4">
                 <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -254,26 +245,16 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                 </div>
                 <div className="flex items-center gap-2">
                     {/* View toggle */}
-                    <div className="flex overflow-hidden rounded-md border">
-                        <button
-                            onClick={handleShowDetails}
-                            className={`flex items-center justify-center px-3 py-1.5 ${
-                                !showCodeView ? "bg-(--color-brand-wMain)/10 text-gray-700 dark:text-gray-200" : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-                            }`}
-                            title="Details view"
-                        >
-                            <FileText className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={handleInspectCode}
-                            className={`flex items-center justify-center border-l border-gray-300 px-3 py-1.5 dark:border-gray-600 ${
-                                showCodeView ? "bg-(--color-brand-wMain)/10 text-gray-700 dark:text-gray-200" : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-                            }`}
-                            title="Code view"
-                        >
-                            <Code className="h-4 w-4" />
-                        </button>
-                    </div>
+                    <Tabs value={showCodeView ? "code" : "details"} onValueChange={v => setShowCodeView(v === "code")}>
+                        <TabsList className="bg-transparent p-0">
+                            <TabsTrigger value="details" title="Details view" className="rounded-l-md rounded-r-none border-r-0">
+                                <FileText className="h-4 w-4" />
+                            </TabsTrigger>
+                            <TabsTrigger value="code" title="Code view" className="rounded-l-none rounded-r-md">
+                                <Code className="h-4 w-4" />
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
                 </div>
             </div>
 
@@ -285,7 +266,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                     <div className="p-4">
                         {/* Node ID */}
                         <div className="mb-4">
-                            <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Node ID</label>
+                            <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Node ID</label>
                             <code className="font-mono text-sm">{node.id}</code>
                         </div>
 
@@ -293,11 +274,11 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {node.type === "agent" && (
                             <div className="mb-4 grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Status</label>
+                                    <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Status</label>
                                     {renderStatusBadge()}
                                 </div>
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Node Type</label>
+                                    <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Node Type</label>
                                     <div className="text-sm">{getTypeLabel()}</div>
                                 </div>
                             </div>
@@ -306,7 +287,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {/* Node Type (for non-agent nodes) */}
                         {node.type !== "agent" && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Node Type</label>
+                                <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Node Type</label>
                                 <div className="text-sm">{getTypeLabel()}</div>
                             </div>
                         )}
@@ -314,7 +295,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {/* Description (for logic nodes) */}
                         {(node.type === "map" || node.type === "switch" || node.type === "loop") && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Description</label>
+                                <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Description</label>
                                 <div className="text-sm">{LOGIC_NODE_DESCRIPTIONS[node.type]}</div>
                             </div>
                         )}
@@ -322,7 +303,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {/* Description (from agent card) */}
                         {agentDescription && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Description</label>
+                                <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Description</label>
                                 <div className="text-sm">{agentDescription}</div>
                             </div>
                         )}
@@ -330,7 +311,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {/* Instruction (for agent nodes) */}
                         {nodeConfig?.instruction && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Instruction</label>
+                                <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Instruction</label>
                                 <div className="text-sm">{nodeConfig.instruction}</div>
                             </div>
                         )}
@@ -348,7 +329,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {/* Max Iterations (for loop nodes) */}
                         {node.data.maxIterations && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Max Iterations</label>
+                                <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Max Iterations</label>
                                 <div className="text-sm">{node.data.maxIterations}</div>
                             </div>
                         )}
@@ -356,7 +337,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {/* Delay (for loop nodes) */}
                         {node.data.delay && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Delay</label>
+                                <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Delay</label>
                                 <div className="text-sm">{node.data.delay}</div>
                             </div>
                         )}
@@ -364,21 +345,21 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {/* Condition (for loop nodes) */}
                         {node.data.condition && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Condition</label>
-                                <div className="rounded bg-gray-100 p-2 font-mono text-xs dark:bg-gray-700">{node.data.condition}</div>
+                                <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Condition</label>
+                                <div className="rounded bg-(--secondary-w10) p-2 font-mono text-xs">{node.data.condition}</div>
                             </div>
                         )}
 
                         {/* Cases (for switch nodes) */}
                         {node.data.cases && node.data.cases.length > 0 && (
                             <div className="mb-4">
-                                <label className="mb-2 block text-sm font-normal text-(--color-secondary-text-wMain)">Cases</label>
+                                <label className="mb-2 block text-sm font-normal text-(--secondary-text-wMain)">Cases</label>
                                 <div className="space-y-2">
                                     {node.data.cases.map((caseItem, index) => (
                                         <div key={index} className="grid grid-cols-[auto_1fr] gap-3">
                                             <div className="flex h-8 w-[30px] items-center justify-center rounded border text-sm">{index + 1}</div>
                                             <div className="mb-2">
-                                                <div className="text-secondary-foreground mb-1 min-h-[32px] rounded bg-(--color-secondary-w10) p-2 font-mono text-xs dark:bg-(--color-secondary-w80)">{caseItem.condition}</div>
+                                                <div className="mb-1 min-h-[32px] rounded bg-(--secondary-w10) p-2 font-mono text-xs text-(--secondary-text-wMain)">{caseItem.condition}</div>
                                                 <div className="text-sm">→ {getNodeDisplayName(caseItem.node)}</div>
                                             </div>
                                         </div>
@@ -386,7 +367,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                     {node.data.defaultCase && (
                                         <div className="grid grid-cols-[auto_1fr] gap-3">
                                             <div className="flex h-8 w-[30px] items-center justify-center rounded border">{node.data.cases.length + 1}</div>
-                                            <div className="text-secondary-foreground flex min-h-[32px] items-center rounded bg-(--color-secondary-w10) p-2 dark:bg-(--color-secondary-w80)">
+                                            <div className="flex min-h-[32px] items-center rounded bg-(--secondary-w10) p-2 text-(--secondary-text-wMain)">
                                                 <span className="text-sm">default → {getNodeDisplayName(node.data.defaultCase)}</span>
                                             </div>
                                         </div>
@@ -398,8 +379,8 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {/* Items (for map nodes) */}
                         {node.data.items && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Items</label>
-                                <div className="rounded bg-gray-100 p-2 font-mono text-xs dark:bg-gray-700">{node.data.items}</div>
+                                <label className="mb-1 block text-sm font-medium text-(--secondary-text-wMain)">Items</label>
+                                <div className="rounded bg-(--secondary-w10) p-2 font-mono text-xs">{node.data.items}</div>
                             </div>
                         )}
 
@@ -407,13 +388,13 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                         {hasSchemas && (
                             <div className="mt-8">
                                 {/* Tab Headers */}
-                                <div className="mb-4 flex border-b border-gray-200 dark:border-gray-700" role="tablist">
+                                <div className="mb-4 flex border-b border-(--secondary-w20)" role="tablist">
                                     <button
                                         role="tab"
                                         aria-selected={activeTab === "input"}
                                         onClick={() => setActiveTab("input")}
                                         className={`px-4 pb-2 font-medium transition-colors ${
-                                            activeTab === "input" ? "border-b-2 border-(--color-brand-wMain) font-semibold text-gray-900 dark:text-gray-100" : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                                            activeTab === "input" ? "border-b-2 border-(--brand-wMain) font-semibold text-(--primary-text-wMain)" : "text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)"
                                         }`}
                                     >
                                         Input
@@ -423,7 +404,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                         aria-selected={activeTab === "output"}
                                         onClick={() => setActiveTab("output")}
                                         className={`ml-6 px-4 pb-2 font-medium transition-colors ${
-                                            activeTab === "output" ? "border-b-2 border-(--color-brand-wMain) font-semibold text-gray-900 dark:text-gray-100" : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                                            activeTab === "output" ? "border-b-2 border-(--brand-wMain) font-semibold text-(--primary-text-wMain)" : "text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)"
                                         }`}
                                     >
                                         Output
@@ -438,7 +419,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                                 {/* Input Mapping */}
                                                 {getInputMapping() && (
                                                     <div>
-                                                        <label className="mb-4 block text-sm font-medium text-(--color-secondary-text-wMain)">Mapping</label>
+                                                        <label className="mb-4 block text-sm font-medium text-(--secondary-text-wMain)">Mapping</label>
                                                         <InputMappingViewer mapping={getInputMapping() as Record<string, unknown>} onHighlightNodes={onHighlightNodes} knownNodeIds={knownNodeIds} onNavigateToNode={onNavigateToNode} />
                                                     </div>
                                                 )}
@@ -446,9 +427,9 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                                 {/* Input Schema */}
                                                 {getInputSchema() && (
                                                     <div>
-                                                        <label className="mb-2 block text-sm font-medium text-(--color-secondary-text-wMain)">
+                                                        <label className="mb-2 block text-sm font-medium text-(--secondary-text-wMain)">
                                                             Schema
-                                                            {isInputSchemaFromAgent && <span className="ml-2 font-normal text-gray-400 dark:text-gray-500">(from agent)</span>}
+                                                            {isInputSchemaFromAgent && <span className="ml-2 font-normal text-(--secondary-text-wMain)">(from agent)</span>}
                                                         </label>
                                                         <div className="max-h-48 overflow-auto rounded-lg border">
                                                             <JSONViewer data={getInputSchema() as JSONValue} maxDepth={3} className="border-none text-xs" />
@@ -457,7 +438,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                                 )}
                                             </>
                                         ) : (
-                                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">No input defined</div>
+                                            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-(--secondary-text-wMain)">No input defined</div>
                                         )}
                                     </div>
                                 )}
@@ -466,16 +447,16 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                                     <div>
                                         {getOutputSchema() ? (
                                             <div>
-                                                <label className="mb-2 block text-sm font-medium text-(--color-secondary-text-wMain)">
+                                                <label className="mb-2 block text-sm font-medium text-(--secondary-text-wMain)">
                                                     Schema
-                                                    {isOutputSchemaFromAgent && <span className="ml-2 font-normal text-gray-400 dark:text-gray-500">(from agent)</span>}
+                                                    {isOutputSchemaFromAgent && <span className="ml-2 font-normal text-(--secondary-text-wMain)">(from agent)</span>}
                                                 </label>
                                                 <div className="max-h-64 overflow-auto rounded-lg border">
                                                     <JSONViewer data={getOutputSchema() as JSONValue} maxDepth={3} className="border-none text-xs" />
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">No output schema defined</div>
+                                            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-(--secondary-text-wMain)">No output schema defined</div>
                                         )}
                                     </div>
                                 )}

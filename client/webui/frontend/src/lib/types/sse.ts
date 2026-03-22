@@ -23,6 +23,7 @@ export interface SSETask {
  *
  * @property endpoint - SSE endpoint. null = don't connect
  * @property taskId - Optional task ID for status-check-on-reconnect behavior
+ * @property eventType - SSE event type to listen for (default: "message"). Use custom types like "index_message" for specific event streams.
  * @property onMessage - Called when message received
  * @property onError - Called on error
  * @property onTaskAlreadyCompleted - Called if task completed while component was unmounted (requires taskId)
@@ -30,6 +31,7 @@ export interface SSETask {
 export interface SSESubscriptionOptions {
     endpoint: string | null;
     taskId?: string;
+    eventType?: string;
     onMessage?: (event: MessageEvent) => void;
     onError?: (event: Event) => void;
     onTaskAlreadyCompleted?: () => void;

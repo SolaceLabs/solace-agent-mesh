@@ -1,0 +1,83 @@
+test_case_id: "artifact_preload_mixed_params_001"
+description: |
+  Verifies that a tool with mixed Artifact and regular parameters works
+  correctly. The Artifact param gets pre-loaded while regular params
+  are passed through unchanged.
+skip_intermediate_events: true
+tags: ["all", "agent", "tools", "dynamic_tools", "artifact_preloading"]
+
+setup_artifacts:
+  - filename: "data_to_process.txt"
+    mime_type: "text/plain"
+    content: "This is a longer piece of content that might need truncation based on parameters."
+    metadata:
+      description: "Data file for mixed params test"
+
+gateway_input:
+  target_agent_name: "ArtifactContentAgent"
+  user_identity: "artifact_test_user@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process data_to_process.txt with max length 20 and save to output.txt"
+  external_context:
+    a2a_session_id: "session_artifact_preload_mixed_001"
+
+llm_interactions:
+  - step_id: "llm_calls_process_mixed_params"
+    expected_request:
+      expected_tool_declarations_contain:
+        - name: "process_mixed_params"
+          description_contains: "mixed Artifact and regular parameters"
+    static_response:
+      id: "chatcmpl-mixed-params-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mixed_1"
+                type: "function"
+                function:
+                  name: "process_mixed_params"
+                  arguments: '{"input_content": "data_to_process.txt", "output_filename": "output.txt", "max_length": 20, "include_metadata": true}'
+          finish_reason: "tool_calls"
+
+  - step_id: "llm_sees_mixed_result"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            # Content was truncated to max_length (first 20 chars)
+            received_content: "This is a longer pie"
+            received_output_filename: "output.txt"
+            received_max_length: 20
+            received_include_metadata: true
+            was_truncated: true
+    static_response:
+      id: "chatcmpl-mixed-params-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Processed the artifact with truncation. Output saved to output.txt."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: "*"
+    contextId: "session_artifact_preload_mixed_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: "*"
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Processed"
+              - "output.txt"

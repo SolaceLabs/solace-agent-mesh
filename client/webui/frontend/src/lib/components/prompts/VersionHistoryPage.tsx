@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Check, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Prompt, PromptGroup } from "@/lib/types/prompts";
 import { Header } from "@/lib/components/header";
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Label } from "@/lib/components/ui";
+import { Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Label } from "@/lib/components/ui";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { MessageBanner } from "@/lib/components/common";
 import { getErrorMessage } from "@/lib/utils/api";
@@ -15,7 +15,7 @@ interface VersionHistoryPageProps {
     onBackToPromptDetail: () => void;
     onEdit: (group: PromptGroup) => void;
     onDeleteAll: (id: string, name: string) => void;
-    onRestoreVersion: (promptId: string) => Promise<void>;
+    onRestoreVersion: (promptId: string, groupId: string) => Promise<void>;
 }
 
 export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, onBack, onEdit, onDeleteAll, onRestoreVersion }) => {
@@ -126,8 +126,9 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
     const handleDeleteVersion = async () => {
         if (!selectedVersion) return;
 
-        // Prevent deleting the active version
-        if (selectedVersion.id === currentGroup.productionPromptId) {
+        // Prevent deleting the latest/active version (highest version number)
+        const latestVersion = versions.reduce((max, v) => (v.version > max.version ? v : max), versions[0]);
+        if (selectedVersion.id === latestVersion?.id) {
             setShowDeleteActiveError(true);
             setTimeout(() => setShowDeleteActiveError(false), 5000);
             return;
@@ -146,16 +147,23 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
     };
 
     const handleRestoreVersion = async () => {
-        if (selectedVersion && selectedVersion.id !== currentGroup.productionPromptId) {
-            await onRestoreVersion(selectedVersion.id);
-            // Refresh group data to get updated production_prompt_id
-            await fetchGroupData();
-            // Refetch versions to update the UI, preserving the current selection
-            await fetchVersions(true);
+        // Restore creates a new version with the selected version's content
+        // The new version becomes the latest (and thus active) version
+        if (selectedVersion) {
+            const latestVersion = versions.reduce((max, v) => (v.version > max.version ? v : max), versions[0]);
+            if (selectedVersion.id !== latestVersion?.id) {
+                await onRestoreVersion(selectedVersion.id, currentGroup.id);
+                // Refresh group data
+                await fetchGroupData();
+                // Refetch versions to show the new version
+                await fetchVersions(true);
+            }
         }
     };
 
-    const isActiveVersion = selectedVersion?.id === currentGroup.productionPromptId;
+    // Latest version (highest version number) is always the active version
+    const latestVersion = versions.length > 0 ? versions.reduce((max, v) => (v.version > max.version ? v : max), versions[0]) : null;
+    const isActiveVersion = selectedVersion?.id === latestVersion?.id;
 
     return (
         <div className="flex h-full flex-col">
@@ -181,31 +189,36 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
             />
 
             {/* Error Banner */}
-            {showDeleteActiveError && <MessageBanner variant="error" message="Cannot delete the active version. Please make another version active first." />}
+            {showDeleteActiveError && <MessageBanner variant="error" message="Cannot delete the latest version. To use an older version, restore it to create a new version." />}
 
             {/* Content */}
             <div className="flex min-h-0 flex-1">
                 {/* Left Sidebar - Version List */}
                 <div className="w-[300px] overflow-y-auto border-r">
                     <div className="p-4">
-                        <h3 className="text-muted-foreground mb-3 text-sm font-semibold">Versions</h3>
+                        <h3 className="mb-3 text-sm font-semibold text-(--secondary-text-wMain)">Versions</h3>
                         {isLoading ? (
                             <div className="flex items-center justify-center p-8">
-                                <div className="border-primary size-6 animate-spin rounded-full border-2 border-t-transparent" />
+                                <div className="size-6 animate-spin rounded-full border-2 border-(--primary-wMain) border-t-transparent" />
                             </div>
                         ) : (
                             <div className="space-y-2">
                                 {versions.map(version => {
-                                    const isActive = version.id === currentGroup.productionPromptId;
+                                    const isActive = version.id === latestVersion?.id;
                                     const isSelected = selectedVersion?.id === version.id;
 
                                     return (
-                                        <button data-testid={version.id} key={version.id} onClick={() => setSelectedVersion(version)} className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}>
+                                        <button
+                                            data-testid={version.id}
+                                            key={version.id}
+                                            onClick={() => setSelectedVersion(version)}
+                                            className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-(--secondary-w10)" : "hover:bg-(--primary-w10)"}`}
+                                        >
                                             <div className="mb-1 flex items-center justify-between">
                                                 <span className="text-sm font-medium">Version {version.version}</span>
-                                                {isActive && <span className="rounded-full bg-[var(--color-success-w20)] px-2 py-0.5 text-xs text-[var(--color-success-wMain)]">Active</span>}
+                                                {isActive && <Badge>Active</Badge>}
                                             </div>
-                                            <span className="text-muted-foreground text-xs">{formatPromptDate(version.createdAt)}</span>
+                                            <span className="text-xs text-(--secondary-text-wMain)">{formatPromptDate(version.createdAt)}</span>
                                         </button>
                                     );
                                 })}
@@ -223,7 +236,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                 <div className="flex items-center justify-between">
                                     <h2 className="text-lg font-semibold">Version {selectedVersion.version} Details</h2>
                                     <div className="flex items-center gap-2">
-                                        <Button variant="ghost" size="sm" onClick={handleEditVersion}>
+                                        <Button variant="ghost" size="sm" onClick={handleEditVersion} disabled={!isActiveVersion} tooltip={!isActiveVersion ? "Only the latest version can be edited. Restore this version to edit it." : undefined}>
                                             <Pencil className="h-4 w-4" />
                                             Edit
                                         </Button>
@@ -237,7 +250,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                                 {!isActiveVersion && (
                                                     <DropdownMenuItem onClick={handleRestoreVersion}>
                                                         <Check size={14} className="mr-2" />
-                                                        Make Active Version
+                                                        Restore as New Version
                                                     </DropdownMenuItem>
                                                 )}
                                                 <DropdownMenuItem onClick={handleDeleteVersion}>
@@ -253,14 +266,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                 <div className="space-y-6">
                                     {/* Template Name */}
                                     <div className="space-y-2">
-                                        <Label className="text-[var(--color-secondaryText-wMain)]">Name</Label>
+                                        <Label className="text-(--secondary-text-wMain)">Name</Label>
                                         <div className="rounded p-3 text-sm break-words whitespace-pre-wrap">{selectedVersion.name || currentGroup.name}</div>
                                     </div>
 
                                     {/* Description */}
                                     {(selectedVersion.description || currentGroup.description) && (
                                         <div className="space-y-2">
-                                            <Label className="text-[var(--color-secondaryText-wMain)]">Description</Label>
+                                            <Label className="text-(--secondary-text-wMain)">Description</Label>
                                             <div className="rounded p-3 text-sm break-words whitespace-pre-wrap">{selectedVersion.description || currentGroup.description}</div>
                                         </div>
                                     )}
@@ -268,9 +281,9 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                     {/* Chat Shortcut */}
                                     {(selectedVersion.command || currentGroup.command) && (
                                         <div className="space-y-2">
-                                            <Label className="text-[var(--color-secondaryText-wMain)]">Chat Shortcut</Label>
+                                            <Label className="text-(--secondary-text-wMain)">Chat Shortcut</Label>
                                             <div className="rounded p-3 text-sm">
-                                                <span className="text-primary font-mono">/{selectedVersion.command || currentGroup.command}</span>
+                                                <span className="font-mono text-(--primary-wMain)">/{selectedVersion.command || currentGroup.command}</span>
                                             </div>
                                         </div>
                                     )}
@@ -278,19 +291,19 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                     {/* Tag */}
                                     {(selectedVersion.category || currentGroup.category) && (
                                         <div className="space-y-2">
-                                            <Label className="text-[var(--color-secondaryText-wMain)]">Tag</Label>
+                                            <Label className="text-(--secondary-text-wMain)">Tag</Label>
                                             <div className="rounded p-3 text-sm">{selectedVersion.category || currentGroup.category}</div>
                                         </div>
                                     )}
 
                                     {/* Prompt Text */}
                                     <div className="space-y-2">
-                                        <Label className="text-[var(--color-secondaryText-wMain)]">Content</Label>
+                                        <Label className="text-(--secondary-text-wMain)">Content</Label>
                                         <div className="rounded p-3 font-mono text-sm break-words whitespace-pre-wrap">
                                             {selectedVersion.promptText.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
                                                 if (part.match(/\{\{[^}]+\}\}/)) {
                                                     return (
-                                                        <span key={index} className="bg-primary/20 text-primary rounded px-1 font-medium">
+                                                        <span key={index} className="rounded bg-(--info-w20) px-1 font-medium text-(--info-wMain)">
                                                             {part}
                                                         </span>
                                                     );
@@ -302,14 +315,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
 
                                     {/* Metadata */}
                                     <div className="border-t pt-4">
-                                        <div className="text-muted-foreground text-xs">Created: {formatPromptDate(selectedVersion.createdAt)}</div>
+                                        <div className="text-xs text-(--secondary-text-wMain)">Created: {formatPromptDate(selectedVersion.createdAt)}</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     ) : (
                         <div className="flex h-full items-center justify-center">
-                            <p className="text-muted-foreground">Select a version to view details</p>
+                            <p className="text-(--secondary-text-wMain)">Select a version to view details</p>
                         </div>
                     )}
                 </div>

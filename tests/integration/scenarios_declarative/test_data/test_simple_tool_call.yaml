@@ -47,9 +47,11 @@ llm_interactions:
           tool_call_id_matches_prior_request_index: 0
           response_contains: "sunny"
           response_json_matches:
-            condition: "sunny"
-            temperature: "22"
-            unit: "celsius"
+            status: "success"
+            data:
+              condition: "sunny"
+              temperature: "22"
+              unit: "celsius"
     static_response:
       id: "chatcmpl-test-toolcallresp"
       object: "chat.completion"

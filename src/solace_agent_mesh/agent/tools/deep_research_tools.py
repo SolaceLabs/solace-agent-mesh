@@ -28,6 +28,7 @@ from .tool_definition import BuiltinTool
 from .registry import tool_registry
 from .web_search_tools import web_search_google
 from .web_tools import web_request
+from ...agent.adk.models.lite_llm import LiteLlm
 from ...common import a2a
 from ...common.rag_dto import create_rag_source, create_rag_search_result
 
@@ -218,23 +219,12 @@ def _get_model_for_phase(
     # Get agent's default model 
     inv_context = tool_context._invocation_context
     agent = getattr(inv_context, 'agent', None)
-    default_model = agent.canonical_model if agent else None
+    host_component = getattr(agent, "host_component", None)
     
-    # If canonical_model is not available, try to get model from host_component config
-    if not default_model:
-        host_component = getattr(agent, "host_component", None) if agent else None
-        if host_component:
-            model_config_from_component = host_component.get_config("model")
-            if model_config_from_component:
-                log.info(
-                    "%s canonical_model not available, falling back to host_component model config",
-                    log_identifier,
-                )
-                from ...agent.adk.models.lite_llm import LiteLlm
-                if isinstance(model_config_from_component, str):
-                    default_model = LiteLlm(model=model_config_from_component)
-                elif isinstance(model_config_from_component, dict):
-                    default_model = LiteLlm(**model_config_from_component)
+    if not host_component:
+        raise ValueError(f"{log_identifier} No host component found on agent, cannot determine default model")
+    default_model = host_component.get_lite_llm_model()
+
     
     if not default_model:
         raise ValueError(f"{log_identifier} No default model available")
@@ -271,7 +261,6 @@ def _get_model_for_phase(
         model_name = models_config[phase]
         if isinstance(model_name, str):
             log.info("%s Using phase-specific model: %s", log_identifier, model_name)
-            from ...agent.adk.models.lite_llm import LiteLlm
             # Inherit base config from default model (API keys, etc.)
             base_config = _get_base_config_from_default()
             return LiteLlm(model=model_name, **base_config)
@@ -286,7 +275,6 @@ def _get_model_for_phase(
                     log_identifier, model_name,
                     model_config.get("temperature", 0.7),
                     model_config.get("max_tokens", "default"))
-            from ...agent.adk.models.lite_llm import LiteLlm
             # Inherit base config from default model, but allow override
             base_config = _get_base_config_from_default()
             # Merge: base_config first, then model_config (model_config takes precedence)
@@ -1939,10 +1927,11 @@ async def deep_research(
         from ..utils.context_helpers import get_original_session_id
         
         # Generate filename from research question using utility function
+        # Use "_deep_research_report.md" suffix to clearly identify deep research reports
         artifact_filename = sanitize_to_filename(
             research_question,
             max_length=50,
-            suffix="_report.md"
+            suffix="_deep_research_report.md"
         )
         # Get artifact service from invocation context
         inv_context = tool_context._invocation_context

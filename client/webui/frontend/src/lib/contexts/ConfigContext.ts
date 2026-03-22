@@ -4,6 +4,7 @@ export interface ValidationLimits {
     projectNameMax?: number;
     projectDescriptionMax?: number;
     projectInstructionsMax?: number;
+    projectFileDescriptionMax?: number;
     maxPerFileUploadSizeBytes?: number;
     maxBatchUploadSizeBytes?: number;
     maxZipUploadSizeBytes?: number;
@@ -73,6 +74,13 @@ export interface ConfigContextValue {
      * When null, Identity Service is not configured.
      */
     identityServiceType: string | null;
+
+    /**
+     * Whether binary artifact preview is enabled.
+     * When true, Office documents can be previewed in the browser via PDF conversion.
+     * Requires LibreOffice to be installed on the server.
+     */
+    binaryArtifactPreviewEnabled?: boolean;
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);

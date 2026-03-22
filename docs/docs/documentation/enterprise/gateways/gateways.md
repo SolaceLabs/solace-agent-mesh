@@ -13,7 +13,7 @@ Agent Mesh Enterprise provides multiple gateway types, each integrating with a d
 
 ### Event Mesh Gateway
 
-Event Mesh gateways connect Agent Mesh to Solace PubSub+ Event Mesh brokers, enabling agents to process or enrich events in real time. You can configure event rules that subscribe to topics and route incoming events to specific agents, with optional response publishing back to the event mesh. For detailed information about creating and configuring Event Mesh gateways, see [Event Mesh Gateway](event-mesh-gateway.md).
+Event Mesh gateways connect Agent Mesh to Solace Event Mesh brokers, enabling agents to process or enrich events in real time. You can configure event rules that subscribe to topics and route incoming events to specific agents, with optional response publishing back to the event mesh. For detailed information about creating and configuring Event Mesh gateways, see [Event Mesh Gateway](event-mesh-gateway.md).
 
 ### Slack Gateway
 

@@ -853,8 +853,8 @@ function insertConditionPills(nodes: LayoutNode[], nodeMap: Map<string, Processe
             const pillWidth = calculatedWidth;
             const pillHeight = NODE_HEIGHTS.CONDITION_PILL;
 
-            // Position pill closer to the target node (with small gap above target)
-            const pillGapAboveTarget = 12; // Small gap between pill and target
+            // Position pill above the target node with enough gap for the arrowhead (12px) to be fully visible
+            const pillGapAboveTarget = 30; // Gap between pill bottom and target top
             const pillY = targetNode.y - pillHeight - pillGapAboveTarget;
             const pillX = targetNode.x + targetNode.width / 2 - pillWidth / 2;
 

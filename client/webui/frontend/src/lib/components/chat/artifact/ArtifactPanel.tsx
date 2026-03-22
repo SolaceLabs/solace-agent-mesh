@@ -148,18 +148,18 @@ export function ArtifactPanel() {
                                 <div className="space-y-2 text-sm">
                                     {previewArtifact.description && (
                                         <div>
-                                            <span className="text-secondary-foreground">Description:</span>
+                                            <span className="text-(--secondary-text-wMain)">Description:</span>
                                             <div className="mt-1">{previewArtifact.description}</div>
                                         </div>
                                     )}
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <span className="text-secondary-foreground">Size:</span>
+                                            <span className="text-(--secondary-text-wMain)">Size:</span>
                                             <div>{formatBytes(previewArtifact.size)}</div>
                                         </div>
                                         <div>
-                                            <span className="text-secondary-foreground">Type:</span>
-                                            <div>{previewArtifact.mime_type || 'Unknown'}</div>
+                                            <span className="text-(--secondary-text-wMain)">Type:</span>
+                                            <div>{previewArtifact.mime_type || "Unknown"}</div>
                                         </div>
                                     </div>
                                 </div>

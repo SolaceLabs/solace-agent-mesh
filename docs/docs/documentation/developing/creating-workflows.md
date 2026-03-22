@@ -15,7 +15,7 @@ This guide walks through building workflows that orchestrate multiple agents. Yo
 
 Before creating workflows, you need:
 - A running Solace Agent Mesh instance
-- The shared configuration file [`examples/shared_config.yaml`](https://github.com/SolaceDev/solace-agent-mesh/blob/main/examples/shared_config.yaml) which defines broker connections, LLM models, and service configurations
+- The shared configuration file [`examples/shared_config.yaml`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/examples/shared_config.yaml) which defines broker connections, LLM models, and service configurations
 - Familiarity with YAML configuration files
 
 ## Your First Workflow
@@ -946,8 +946,8 @@ Test workflows incrementally:
 
 The repository includes complete example workflows:
 
-- [`examples/agents/all_node_types_workflow.yaml`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/examples/agents/all_node_types_workflow.yaml) - Comprehensive example demonstrating all node types in an order processing pipeline
-- [`examples/agents/jira_bug_triage_workflow.yaml`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/examples/agents/jira_bug_triage_workflow.yaml) - Real-world example of a bug triage workflow with conditional branching
+- [`examples/workflows/all_node_types_workflow.yaml`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/examples/workflows/all_node_types_workflow.yaml) - Comprehensive example demonstrating all node types in an order processing pipeline
+- [`examples/workflows/jira_bug_triage_workflow.yaml`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/examples/workflows/jira_bug_triage_workflow.yaml) - Real-world example of a bug triage workflow with conditional branching
 
 ## Reference
 

@@ -24,6 +24,12 @@ apps:
       namespace: ${NAMESPACE} # Namespace for A2A communication
       database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}" # Platform database (agents, connectors, deployments)
 
+      model:
+        <<: *general_model
+  
+      model_provider:
+        - general
+
       # --- FastAPI Server Configuration ---
       fastapi_host: ${PLATFORM_API_HOST, localhost}
       fastapi_port: ${PLATFORM_API_PORT, 8001}

@@ -27,7 +27,7 @@ export const Default: Story = {
         isOpen: true,
         files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
         onClose: () => alert("Will close the dialog."),
-        onConfirm: () => {},
+        onConfirm: async () => {},
         isSubmitting: false,
     },
     play: async () => {
@@ -51,7 +51,7 @@ export const MultipleFiles: Story = {
         isOpen: true,
         files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf"), createMockFile("architecture-diagram.png", 204800, "image/png"), createMockFile("package.json", 1024, "application/json")]),
         onClose: () => alert("Will close the dialog."),
-        onConfirm: () => {},
+        onConfirm: async () => {},
         isSubmitting: false,
     },
     play: async () => {
@@ -67,6 +67,30 @@ export const MultipleFiles: Story = {
 };
 
 /**
+ * Description exceeds the max length limit — validation error shown, upload button disabled
+ */
+export const DescriptionOverLimit: Story = {
+    args: {
+        isOpen: true,
+        files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
+        onClose: () => {},
+        onConfirm: async () => {},
+        isSubmitting: false,
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        const descriptionBox = await dialogContent.findByRole("textbox");
+        await userEvent.click(descriptionBox);
+        await userEvent.paste("a".repeat(1001));
+
+        expect(await dialogContent.findByText(/exceeds the maximum of/i)).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Upload 1 File(s)" })).toBeDisabled();
+    },
+};
+
+/**
  * Loading state while uploading
  */
 export const Loading: Story = {
@@ -74,7 +98,7 @@ export const Loading: Story = {
         isOpen: true,
         files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
         onClose: () => alert("Will close the dialog."),
-        onConfirm: () => {},
+        onConfirm: async () => {},
         isSubmitting: true,
     },
     play: async () => {

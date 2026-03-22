@@ -7,7 +7,7 @@ import { EmptyState } from "../common";
 import { SearchInput } from "@/lib/components/ui";
 import { Bot } from "lucide-react";
 
-const AgentImage = <Bot className="text-muted-foreground" size={64} />;
+const AgentImage = <Bot className="text-(--secondary-text-wMain)" size={64} />;
 
 interface AgentMeshCardsProps {
     agents: AgentCardInfo[];
@@ -28,7 +28,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
             {agents.length === 0 ? (
                 <EmptyState image={AgentImage} title="No agents found" subtitle="No agents discovered in the current namespace." />
             ) : (
-                <div className="bg-card-background flex h-full w-full flex-col pt-6 pb-6 pl-6">
+                <div className="flex h-full w-full flex-col pt-6 pb-6 pl-6">
                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="agentSearchInput" className="mb-4 w-xs flex-shrink-0" />
 
                     {filteredAgents.length === 0 && searchQuery ? (

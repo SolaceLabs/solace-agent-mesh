@@ -4,12 +4,13 @@ import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
+import { useLocation, useNavigate } from "react-router-dom";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -32,8 +33,9 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const { activeProject } = useProjectContext();
-    const { currentTheme } = useThemeContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
+    const location = useLocation();
+    const navigate = useNavigate();
     const {
         agents,
         sessionId,
@@ -212,6 +214,16 @@ export function ChatPage() {
         };
     }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
 
+    // Handle opening sessions panel from navigation state
+    useEffect(() => {
+        const state = location.state as { openSessionsPanel?: boolean } | null;
+        if (state?.openSessionsPanel) {
+            setIsSessionSidePanelCollapsed(false);
+            // Clear the state to prevent reopening on browser back button
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location.state, location.pathname, navigate]);
+
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
         const handleWindowFocus = () => {
@@ -246,7 +258,7 @@ export function ChatPage() {
                                     <p>{pageTitle}</p>
                                 </TooltipContent>
                             </Tooltip>
-                            {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[200px]" />}
+                            {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[360px]" />}
                         </div>
                     }
                     breadcrumbs={breadcrumbs}
@@ -267,19 +279,13 @@ export function ChatPage() {
             <div className="flex min-h-0 flex-1">
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
-                        <ResizablePanel
-                            defaultSize={chatPanelSizes.default}
-                            minSize={chatPanelSizes.min}
-                            maxSize={chatPanelSizes.max}
-                            id="chat-panel"
-                            style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}
-                        >
+                        <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col">
                                 <div className="flex min-h-0 flex-1 flex-col py-6">
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">
                                             <Spinner size="medium" variant="primary">
-                                                <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
+                                                <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading session...</p>
                                             </Spinner>
                                         </div>
                                     ) : (

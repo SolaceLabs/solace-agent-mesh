@@ -12,25 +12,25 @@
     },
     "llm_models": [
         {
-            "name": "gpt-4-1",
+            "name": "azure-gpt-4o",
             "env": {
-                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/azure-gpt-4-1",
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/azure-gpt-4o",
                 "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
                 "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
             }
         },
         {
-            "name": "gemini-2.5-pro",
+            "name": "gemini-3-pro-preview",
             "env": {
-                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-2.5-pro",
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-3-pro-preview",
                 "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
                 "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
             }
         },
         {
-            "name": "gemini-2.5-flash",
+            "name": "gemini-3-flash-preview",
             "env": {
-                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-2.5-flash",
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-3-flash-preview",
                 "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
                 "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY",
                 "MAX_TOKENS": "8000"
@@ -61,7 +61,7 @@
         "llm_evaluator": {
             "enabled": true,
             "env": {
-                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-2.5-pro",
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-3-pro-preview",
                 "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
                 "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
             }

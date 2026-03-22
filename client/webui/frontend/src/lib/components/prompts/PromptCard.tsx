@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 
-import { Pencil, Trash2, NotepadText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
+import { Pencil, Trash2, NotepadText, Tag, History, MoreHorizontal, MessageSquare, Download } from "lucide-react";
 
-import { GridCard } from "@/lib/components/common";
+import { GridCard, PinButton } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { useConfigContext } from "@/lib/hooks";
@@ -74,7 +74,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
             <div className="flex h-full w-full flex-col">
                 <div className="flex items-center justify-between px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <NotepadText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <NotepadText className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
                         <div className="min-w-0">
                             <h2 className="truncate text-lg font-semibold" title={prompt.name}>
                                 {prompt.name}
@@ -82,11 +82,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                         </div>
                     </div>
                     <div className="flex items-center gap-1">
-                        {onTogglePin && (
-                            <Button variant="ghost" size="icon" onClick={handleTogglePin} className={prompt.isPinned ? "text-primary" : "text-muted-foreground"} tooltip={prompt.isPinned ? "Remove from favorites" : "Add to favorites"}>
-                                <Star size={16} fill={prompt.isPinned ? "currentColor" : "none"} />
-                            </Button>
-                        )}
+                        {onTogglePin && <PinButton isPinned={prompt.isPinned} onClick={handleTogglePin} />}
                         <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                             <DropdownMenuTrigger asChild>
                                 <Button
@@ -134,13 +130,13 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                     </div>
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
-                    <div className="text-muted-foreground mb-2 text-xs">By {prompt.authorName || prompt.userId}</div>
-                    <div className="mb-3 line-clamp-2 text-sm leading-5">{prompt.description || "No description provided."}</div>
+                    <div className="mb-2 text-xs text-(--secondary-text-wMain)">By {prompt.authorName || prompt.userId}</div>
+                    <div className="mb-3 line-clamp-2 text-sm leading-5">{prompt.productionPrompt?.description || prompt.description || "No description provided."}</div>
                     <div className="mt-auto">
                         <div className="flex flex-wrap items-center gap-2">
-                            {prompt.command && <span className="text-primary bg-primary/10 inline-block rounded px-2 py-0.5 font-mono text-xs">/{prompt.command}</span>}
+                            {prompt.command && <span className="inline-block rounded bg-(--primary-w10) px-2 py-0.5 font-mono text-xs text-(--info-wMain)">/{prompt.command}</span>}
                             {prompt.category && (
-                                <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-(--primary-w10) px-2.5 py-0.5 text-xs font-medium text-(--info-wMain)">
                                     <Tag size={12} />
                                     {prompt.category}
                                 </span>

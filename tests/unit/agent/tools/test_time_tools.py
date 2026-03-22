@@ -20,6 +20,7 @@ from src.solace_agent_mesh.agent.tools.time_tools import (
     CATEGORY_NAME,
     CATEGORY_DESCRIPTION,
 )
+from src.solace_agent_mesh.agent.tools.tool_result import ToolResult
 
 
 class TestGetCurrentTime:
@@ -29,20 +30,22 @@ class TestGetCurrentTime:
     async def test_get_current_time_missing_context(self):
         """Test error when tool context is missing"""
         result = await get_current_time(tool_context=None)
-        
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+
+        assert isinstance(result, ToolResult)
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
     @pytest.mark.asyncio
     async def test_get_current_time_missing_invocation_context(self):
         """Test error when invocation context is not available"""
         mock_context = Mock()
         mock_context._invocation_context = None
-        
+
         result = await get_current_time(tool_context=mock_context)
-        
-        assert result["status"] == "error"
-        assert "InvocationContext is not available" in result["message"]
+
+        assert isinstance(result, ToolResult)
+        assert result.status == "error"
+        assert "InvocationContext is not available" in result.message
 
     @pytest.mark.asyncio
     async def test_get_current_time_success_utc(self):
@@ -51,22 +54,23 @@ class TestGetCurrentTime:
         mock_inv_context = Mock()
         mock_inv_context.user_timezone = "UTC"
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "UTC"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            assert result["timezone"] == "UTC"
-            assert "current_time" in result
-            assert "formatted_time" in result
-            assert "timestamp" in result
-            assert "date" in result
-            assert "time" in result
-            assert "day_of_week" in result
-            assert "timezone_offset" in result
-            assert "timezone_abbreviation" in result
+
+            assert isinstance(result, ToolResult)
+            assert result.status == "success"
+            assert result.data["timezone"] == "UTC"
+            assert "current_time" in result.data
+            assert "formatted_time" in result.data
+            assert "timestamp" in result.data
+            assert "date" in result.data
+            assert "time" in result.data
+            assert "day_of_week" in result.data
+            assert "timezone_offset" in result.data
+            assert "timezone_abbreviation" in result.data
 
     @pytest.mark.asyncio
     async def test_get_current_time_success_america_toronto(self):
@@ -75,18 +79,19 @@ class TestGetCurrentTime:
         mock_inv_context = Mock()
         mock_inv_context.user_timezone = "America/Toronto"
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "America/Toronto"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            assert result["timezone"] == "America/Toronto"
-            assert "current_time" in result
-            assert "formatted_time" in result
-            assert ":" in result["timezone_offset"]
-            assert result["timezone_offset"].startswith(("+", "-"))
+
+            assert isinstance(result, ToolResult)
+            assert result.status == "success"
+            assert result.data["timezone"] == "America/Toronto"
+            assert "current_time" in result.data
+            assert "formatted_time" in result.data
+            assert ":" in result.data["timezone_offset"]
+            assert result.data["timezone_offset"].startswith(("+", "-"))
 
     @pytest.mark.asyncio
     async def test_get_current_time_invalid_timezone_fallback(self):
@@ -95,15 +100,16 @@ class TestGetCurrentTime:
         mock_inv_context = Mock()
         mock_inv_context.user_timezone = "Invalid/Timezone"
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "Invalid/Timezone"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            assert result["timezone"] == "UTC"
-            assert "current_time" in result
+
+            assert isinstance(result, ToolResult)
+            assert result.status == "success"
+            assert result.data["timezone"] == "UTC"
+            assert "current_time" in result.data
 
     @pytest.mark.asyncio
     async def test_get_current_time_timezone_offset_format(self):
@@ -111,14 +117,14 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "America/New_York"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            offset = result["timezone_offset"]
+
+            assert result.status == "success"
+            offset = result.data["timezone_offset"]
             assert len(offset) == 6
             assert offset[0] in ["+", "-"]
             assert offset[3] == ":"
@@ -131,14 +137,14 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "UTC"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            current_time_str = result["current_time"]
+
+            assert result.status == "success"
+            current_time_str = result.data["current_time"]
             parsed_time = datetime.fromisoformat(current_time_str)
             assert isinstance(parsed_time, datetime)
 
@@ -148,14 +154,14 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "UTC"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            date_str = result["date"]
+
+            assert result.status == "success"
+            date_str = result.data["date"]
             assert len(date_str) == 10
             assert date_str[4] == "-"
             assert date_str[7] == "-"
@@ -167,14 +173,14 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "UTC"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            time_str = result["time"]
+
+            assert result.status == "success"
+            time_str = result.data["time"]
             assert len(time_str) == 8
             assert time_str[2] == ":"
             assert time_str[5] == ":"
@@ -186,14 +192,14 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "UTC"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            day = result["day_of_week"]
+
+            assert result.status == "success"
+            day = result.data["day_of_week"]
             valid_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
             assert day in valid_days
 
@@ -203,16 +209,16 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "UTC"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            assert isinstance(result["timestamp"], int)
-            assert result["timestamp"] > 1577836800
-            assert result["timestamp"] < 4102444800
+
+            assert result.status == "success"
+            assert isinstance(result.data["timestamp"], int)
+            assert result.data["timestamp"] > 1577836800
+            assert result.data["timestamp"] < 4102444800
 
     @pytest.mark.asyncio
     async def test_get_current_time_message_format(self):
@@ -220,16 +226,15 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "America/Toronto"
-            
+
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "success"
-            message = result["message"]
-            assert "America/Toronto" in message
-            assert "Current time" in message
+
+            assert result.status == "success"
+            assert "America/Toronto" in result.message
+            assert "Current time" in result.message
 
     @pytest.mark.asyncio
     async def test_get_current_time_with_tool_config(self):
@@ -237,18 +242,18 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         tool_config = {"some_config": "value"}
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone') as mock_get_tz:
             mock_get_tz.return_value = "UTC"
-            
+
             result = await get_current_time(
                 tool_context=mock_context,
                 tool_config=tool_config
             )
-            
-            assert result["status"] == "success"
+
+            assert result.status == "success"
 
     @pytest.mark.asyncio
     async def test_get_current_time_exception_handling(self):
@@ -256,12 +261,12 @@ class TestGetCurrentTime:
         mock_context = Mock()
         mock_inv_context = Mock()
         mock_context._invocation_context = mock_inv_context
-        
+
         with patch('src.solace_agent_mesh.agent.tools.time_tools.get_user_timezone', side_effect=Exception("Unexpected error")):
             result = await get_current_time(tool_context=mock_context)
-            
-            assert result["status"] == "error"
-            assert "unexpected error" in result["message"].lower()
+
+            assert result.status == "error"
+            assert "unexpected error" in result.message.lower()
 
 
 class TestToolDefinition:

@@ -2,6 +2,8 @@ import logging
 import sys
 import os
 
+from ...common.a2a.protocol import get_agent_discovery_topic
+
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 )
@@ -297,8 +299,15 @@ class SamAgentAppConfig(SamConfigBase):
         default=None,
         description="Deployment tracking information for rolling updates and version control.",
     )
-    model: Union[str, Dict[str, Any]] = Field(
-        ..., description="ADK model name (string) or BaseLlm config dict."
+    model: Optional[Union[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="ADK model name (string) or BaseLlm config dict."
+    )
+    model_provider: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Optional dynamic model provider configuration. this will overwrite the 'model' field if provided. "
+        )
     )
     agent_identity: Optional[AgentIdentityConfig] = Field(
         default_factory=lambda: AgentIdentityConfig(key_mode="auto"),
@@ -345,6 +354,13 @@ class SamAgentAppConfig(SamConfigBase):
     memory_service: Dict[str, Any] = Field(
         default={"type": "memory"},
         description="Configuration for ADK Memory Service (defaults to memory).",
+    )
+    auto_summarization: Dict[str, Any] = Field(
+        default={
+            "enabled": False,
+            "compaction_percentage": 0.25
+        },
+        description="Configuration for automatic conversation history summarization to prevent token limit errors.",
     )
     credential_service: Optional[CredentialServiceConfig] = Field(
         default=None,
@@ -478,6 +494,20 @@ class SamAgentAppConfig(SamConfigBase):
         description="Configuration for intelligent processing of MCP tool responses.",
     )
 
+    @model_validator(mode="after")
+    def _validate_model_requirement(self) -> "SamAgentAppConfig":
+        if self.agent_type == "workflow":
+            return self
+        if self.model is None and not (os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"):
+            raise ValueError(
+                "Missing required field: 'model'. Provide a model config"
+            )
+        if (os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true") and (not self.model_provider and not self.model):
+            raise ValueError(
+                "Invalid configuration: 'model_provider' or 'model' must be provided."
+            )
+        return self
+
 
 class SamAgentApp(SamAppBase):
     """
@@ -495,6 +525,18 @@ class SamAgentApp(SamAppBase):
         log.debug("Initializing A2A_ADK_App...")
 
         app_config_dict = app_info.get("app_config", {})
+
+        agent_name = app_config_dict.get("agent_name", "")
+        # The agent name must be alphanumeric and underscore only
+        if not all(c.isalnum() or c == "_" for c in agent_name):
+            # Converting to a valid format by replacing invalid characters with underscores
+            valid_agent_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in agent_name)
+            log.warning(
+                "Agent name '%s' contains invalid characters. Converted to '%s'",
+                agent_name,
+                valid_agent_name,
+            )
+            app_config_dict["agent_name"] = valid_agent_name
 
         try:
             # Validate the raw dict, cleaning None values to allow defaults to apply
@@ -522,7 +564,7 @@ class SamAgentApp(SamAppBase):
 
         required_topics = [
             get_agent_request_topic(namespace, agent_name),
-            get_discovery_subscription_topic(namespace),
+            get_agent_discovery_topic(namespace),
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
@@ -551,7 +593,9 @@ class SamAgentApp(SamAppBase):
         component_definition = {
             "name": f"{agent_name}_host",
             "component_class": SamAgentComponent,
-            "component_config": {},
+            "component_config": {
+                "component_name": f"{agent_name}_host",
+            },
             "subscriptions": generated_subs,
         }
         if broker_request_response:

@@ -13,7 +13,6 @@ const stripGatewayTimestamp = (text: string): string => {
 
 interface SubscriptionResponse {
     stream_id: string;
-    sse_endpoint_url: string;
 }
 
 interface TaskProviderProps {
@@ -161,7 +160,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             }
             const subscriptionData: SubscriptionResponse = await subscribeResponse.json();
             setTaskMonitorSseStreamId(subscriptionData.stream_id);
-            const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? api.webui.getFullUrl(subscriptionData.sse_endpoint_url) : subscriptionData.sse_endpoint_url;
+            const sseUrl = api.webui.getFullUrl(`/api/v1/visualization/${subscriptionData.stream_id}/events`);
 
             if (taskMonitorEventSourceRef.current) taskMonitorEventSourceRef.current.close();
             const accessToken = getApiBearerToken();
@@ -318,10 +317,14 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 loadedTasks[tid] = taskFE;
             }
 
-            setMonitoredTasks(prevTasks => ({
-                ...prevTasks,
-                ...loadedTasks,
-            }));
+            setMonitoredTasks(prevTasks => {
+                const updated = { ...prevTasks };
+                for (const [tid, loadedTask] of Object.entries(loadedTasks)) {
+                    const existing = prevTasks[tid];
+                    updated[tid] = existing ? { ...existing, ...loadedTask, initialRequestText: loadedTask.initialRequestText || existing.initialRequestText } : loadedTask;
+                }
+                return updated;
+            });
 
             setMonitoredTaskOrder(prevOrder => {
                 if (prevOrder.includes(taskId)) {

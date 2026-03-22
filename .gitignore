@@ -8,6 +8,7 @@ __pycache__/
 *.a2a*
 *.jsonl
 .claude/
+.worktrees/
 
 
 # C extensions
@@ -60,11 +61,14 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+.configs/
 
 # Translations
 *.mo
 *.pot
 *.db
+*.db-wal
+*.db-shm
 
 # Django stuff:
 *.log
@@ -171,3 +175,5 @@ client/webui/frontend/static/ui-version.json
 requirements.txt
 data/artifacts/
 CLAUDE.md
+!client/webui/frontend/.claude/
+!client/webui/frontend/.claude/CLAUDE.md

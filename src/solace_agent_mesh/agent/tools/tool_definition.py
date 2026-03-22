@@ -48,6 +48,10 @@ class BuiltinTool(BaseModel):
         default_factory=list,
         description="A list of argument names that should be passed as raw strings without embed pre-resolution.",
     )
+    artifact_args: List[str] = Field(
+        default_factory=list,
+        description="A list of argument names that represent artifact filenames and should be pre-loaded as Artifact objects.",
+    )
 
     class Config:
         arbitrary_types_allowed = True
