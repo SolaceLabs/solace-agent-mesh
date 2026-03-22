@@ -10,8 +10,7 @@ import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type BuiltInSection = "general" | "speech" | "about";
-type SettingsSection = BuiltInSection | (string & {});
+type SettingsSection = "general" | "speech" | "about" | string;
 
 export interface ExtraSettingsTab {
     id: string;
@@ -45,7 +44,7 @@ interface SettingsDialogProps {
     extraTabs?: ExtraSettingsTab[];
 }
 
-export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenChange, extraTabs = [] }: SettingsDialogProps) {
+export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenChange, extraTabs = [] }: Readonly<SettingsDialogProps>) {
     const { configFeatureEnablement } = useConfigContext();
     const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
