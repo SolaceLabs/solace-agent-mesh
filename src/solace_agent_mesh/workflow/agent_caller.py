@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 from a2a.types import MessageSendParams, SendMessageRequest, Message as A2AMessage
 
 from ..common import a2a
+from ..common.constants import ARTIFACT_TAG_WORKING
 from ..common.data_parts import StructuredInvocationRequest
 from ..common.agent_card_utils import get_schemas_from_agent_card
 from ..agent.utils.artifact_helpers import (
@@ -392,6 +393,7 @@ This is MANDATORY for the workflow to continue.
                         "source": "workflow_execution",
                     },
                     timestamp=datetime.now(timezone.utc),
+                    tags=[ARTIFACT_TAG_WORKING],
                 )
 
                 if save_result["status"] == "success":
