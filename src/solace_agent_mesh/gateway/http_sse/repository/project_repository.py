@@ -168,6 +168,8 @@ class ProjectRepository(IProjectRepository):
 
     def _model_to_entity(self, model: ProjectModel) -> Project:
         """Convert SQLAlchemy model to domain entity."""
+        raw_pinned = getattr(model, 'is_pinned', False)
+        is_pinned = bool(raw_pinned) if isinstance(raw_pinned, (bool, int)) else False
         return Project(
             id=model.id,
             name=model.name,
@@ -175,6 +177,7 @@ class ProjectRepository(IProjectRepository):
             description=model.description,
             system_prompt=model.system_prompt,
             default_agent_id=model.default_agent_id,
+            is_pinned=is_pinned,
             created_at=model.created_at,
             updated_at=model.updated_at,
             deleted_at=model.deleted_at,

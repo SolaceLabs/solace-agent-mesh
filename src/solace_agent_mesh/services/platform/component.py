@@ -6,14 +6,20 @@ Hosts the FastAPI REST API server for platform configuration management.
 import logging
 import threading
 import json
+import os
+from importlib.resources import files as pkg_files
 from typing import Any, Dict
 
 import uvicorn
+from openfeature import api as openfeature_api
 from solace_ai_connector.common.message import Message as SolaceMessage
 
 from solace_agent_mesh.common.middleware import MiddlewareRegistry
 from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
+from solace_agent_mesh.common.features.checker import FeatureChecker
+from solace_agent_mesh.common.features.provider import SamFeatureProvider
+from solace_agent_mesh.common.features.registry import FeatureRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.common import a2a
 from solace_agent_mesh.common.constants import (
@@ -110,6 +116,7 @@ class PlatformServiceComponent(SamComponentBase):
         # Note: self.max_message_size_bytes is already set by SamComponentBase
 
         try:
+            self._component_id = "platform_service"
             # Retrieve Platform Service specific configuration
             self.database_url = self.get_config("database_url")
             self.fastapi_host = self.get_config("fastapi_host", "127.0.0.1")
@@ -183,6 +190,9 @@ class PlatformServiceComponent(SamComponentBase):
 
         self.direct_publisher = None
 
+        # Internal app for model config bootstrap listener
+        self._bootstrap_listener_app = None
+
         log.info("%s Running database migrations...", self.log_identifier)
         self._run_database_migrations()
         log.info("%s Database migrations completed", self.log_identifier)
@@ -229,7 +239,96 @@ class PlatformServiceComponent(SamComponentBase):
         # Schedule gateway health checks to remove expired gateways from registry
         self._schedule_gateway_health_check()
 
+        # Start bootstrap listener for model config requests (only if feature enabled)
+
+        if os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true":
+            self._start_bootstrap_listener()
+
         log.info("%s Late initialization complete", self.log_identifier)
+
+    def _start_bootstrap_listener(self):
+        """
+        Start an internal SAC flow to listen for model config bootstrap requests.
+
+        Subscribes to BOOTSTRAP_SUBSCRIBE_TOPIC and uses
+        BootstrapRequestListenerComponent to handle requests from agents'
+        DynamicModelProvider instances.
+        """
+        from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_bootstrap_subscribe_topic
+        from .components.dynamic_model_provider_listener import BootstrapRequestListenerComponent
+
+        log.info("%s Starting model config bootstrap listener...", self.log_identifier)
+
+        try:
+            main_app = self.get_app()
+            if not main_app or not main_app.connector:
+                log.error(
+                    "%s Cannot start bootstrap listener: app or connector not available.",
+                    self.log_identifier,
+                )
+                return
+
+            main_broker_config = main_app.app_info.get("broker", {})
+            if not main_broker_config:
+                log.error(
+                    "%s Cannot start bootstrap listener: broker config not found.",
+                    self.log_identifier,
+                )
+                return
+
+            subscribe_topic = get_bootstrap_subscribe_topic(self.namespace)
+
+            broker_input_cfg = {
+                "component_module": "broker_input",
+                "component_name": "platform_bootstrap_broker_input",
+                "broker_queue_name": f"{self.namespace}q/platform/model_config_bootstrap",
+                "create_queue_on_start": True,
+                "component_config": {
+                    **main_broker_config,
+                    "broker_subscriptions": [{"topic": subscribe_topic}],
+                },
+            }
+
+            receiver_cfg = {
+                "component_class": BootstrapRequestListenerComponent,
+                "component_name": "platform_bootstrap_listener",
+                "component_config": {"platform_component_ref": self},
+            }
+
+            flow_config = {
+                "name": "platform_model_bootstrap_flow",
+                "components": [broker_input_cfg, receiver_cfg],
+            }
+
+            self._bootstrap_listener_app = main_app.connector.create_internal_app(
+                app_name="platform_model_bootstrap_app",
+                flows=[flow_config],
+            )
+            self._bootstrap_listener_app.run()
+
+            log.info(
+                "%s Model config bootstrap listener started (topic: %s)",
+                self.log_identifier,
+                subscribe_topic,
+            )
+
+        except Exception as e:
+            log.error(
+                "%s Failed to start bootstrap listener: %s",
+                self.log_identifier,
+                e,
+                exc_info=True,
+            )
+            if self._bootstrap_listener_app:
+                try:
+                    self._bootstrap_listener_app.cleanup()
+                except Exception as cleanup_err:
+                    log.error(
+                        "%s Error during bootstrap listener cleanup after init failure: %s",
+                        self.log_identifier,
+                        cleanup_err,
+                    )
+            self._bootstrap_listener_app = None
 
     def _start_fastapi_server(self):
         """
@@ -257,7 +356,6 @@ class PlatformServiceComponent(SamComponentBase):
             # Import FastAPI app and setup function
             from .api.main import app as fastapi_app_instance
             from .api.main import setup_dependencies
-
             self.fastapi_app = fastapi_app_instance
 
             setup_dependencies(self)
@@ -265,6 +363,37 @@ class PlatformServiceComponent(SamComponentBase):
             # Register startup event for background tasks
             @self.fastapi_app.on_event("startup")
             async def start_background_tasks():
+                # Seed model configurations (community responsibility, after migrations)
+                # Only seed if the model_config_ui feature flag is enabled
+                import os
+                if os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true":
+                    try:
+                        from solace_agent_mesh.services.platform.services import seed_model_configurations
+                        from .api import dependencies
+
+                        log.info("%s Seeding model configurations...", self.log_identifier)
+                        db_session = dependencies.PlatformSessionLocal()
+                        try:
+                            models_config = self.connector_models
+                            seed_model_configurations(db_session, models_config)
+                            db_session.commit()
+                            log.info("%s Model configurations seeded successfully", self.log_identifier)
+                        except Exception:
+                            db_session.rollback()
+                            raise
+                        finally:
+                            db_session.close()
+                    except Exception as e:
+                        log.error(
+                            "%s Failed to seed model configurations: %s",
+                            self.log_identifier,
+                            e,
+                            exc_info=True
+                        )
+                else:
+                    log.info("%s Model configurations seeding skipped (feature flag disabled)", self.log_identifier)
+
+                # Start enterprise background tasks
                 try:
                     from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
 
@@ -612,6 +741,14 @@ class PlatformServiceComponent(SamComponentBase):
             except Exception as e:
                 log.warning("%s Error clearing gateway registry: %s", self.log_identifier, e)
 
+        # Stop bootstrap listener
+        if self._bootstrap_listener_app:
+            try:
+                self._bootstrap_listener_app.cleanup()
+                log.info("%s Bootstrap listener stopped", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error stopping bootstrap listener: %s", self.log_identifier, e)
+
         # Signal uvicorn to shutdown
         if self.uvicorn_server:
             self.uvicorn_server.should_exit = True
@@ -664,6 +801,20 @@ class PlatformServiceComponent(SamComponentBase):
         Return the ConfigResolver instance.
         """
         return self.config_resolver
+
+    @property
+    def connector_models(self) -> dict:
+        """Get models from shared_config if they exist."""
+        try:
+            if hasattr(self, 'connector') and self.connector and hasattr(self.connector, 'config'):
+                shared_config = self.connector.config.get("shared_config", [])
+                # shared_config is a list, find the models dict
+                for item in shared_config:
+                    if isinstance(item, dict) and "models" in item:
+                        return item
+        except Exception:
+            pass
+        return {}
 
     def get_session_manager(self) -> _StubSessionManager:
         """

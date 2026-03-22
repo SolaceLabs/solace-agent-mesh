@@ -30,9 +30,12 @@ def upgrade() -> None:
     if bind.dialect.name == 'sqlite':
         # SQLite doesn't support ALTER COLUMN, so we need to recreate tables
         _upgrade_sqlite(current_time_ms)
+    elif bind.dialect.name == 'mysql':
+        # MySQL requires existing_type for ALTER COLUMN
+        _upgrade_mysql(current_time_ms)
     else:
-        # PostgreSQL, MySQL, and other databases support ALTER COLUMN
-        _upgrade_standard_sql(current_time_ms)
+        # PostgreSQL upgrade (original working code)
+        _upgrade_postgresql(current_time_ms)
 
 
 def _upgrade_sqlite(current_time_ms: int) -> None:
@@ -101,41 +104,25 @@ def _upgrade_sqlite(current_time_ms: int) -> None:
     _create_updated_indexes()
 
 
-def _upgrade_standard_sql(current_time_ms: int) -> None:
-    """Handle PostgreSQL/MySQL upgrade using ALTER COLUMN (standard SQL approach)."""
-
-    bind = op.get_bind()
+def _upgrade_postgresql(current_time_ms: int) -> None:
+    """Handle PostgreSQL upgrade (original working code - UNTOUCHED)."""
 
     # For sessions table
     op.add_column("sessions", sa.Column("created_time", sa.BigInteger(), nullable=True))
     op.add_column("sessions", sa.Column("updated_time", sa.BigInteger(), nullable=True))
 
-    # Convert timestamps using database-appropriate functions
-    if bind.dialect.name == 'postgresql':
-        op.execute("""
-            UPDATE sessions
-            SET created_time = CAST(EXTRACT(EPOCH FROM created_at) * 1000 AS BIGINT)
-            WHERE created_at IS NOT NULL
-        """)
+    # Convert timestamps using PostgreSQL functions
+    op.execute("""
+        UPDATE sessions
+        SET created_time = CAST(EXTRACT(EPOCH FROM created_at) * 1000 AS BIGINT)
+        WHERE created_at IS NOT NULL
+    """)
 
-        op.execute("""
-            UPDATE sessions
-            SET updated_time = CAST(EXTRACT(EPOCH FROM updated_at) * 1000 AS BIGINT)
-            WHERE updated_at IS NOT NULL
-        """)
-    else:
-        # MySQL and other databases use UNIX_TIMESTAMP
-        op.execute("""
-            UPDATE sessions
-            SET created_time = CAST(UNIX_TIMESTAMP(created_at) * 1000 AS UNSIGNED)
-            WHERE created_at IS NOT NULL
-        """)
-
-        op.execute("""
-            UPDATE sessions
-            SET updated_time = CAST(UNIX_TIMESTAMP(updated_at) * 1000 AS UNSIGNED)
-            WHERE updated_at IS NOT NULL
-        """)
+    op.execute("""
+        UPDATE sessions
+        SET updated_time = CAST(EXTRACT(EPOCH FROM updated_at) * 1000 AS BIGINT)
+        WHERE updated_at IS NOT NULL
+    """)
 
     # Set current epoch ms for null values
     op.execute(f"""
@@ -161,19 +148,11 @@ def _upgrade_standard_sql(current_time_ms: int) -> None:
     # For chat_messages table
     op.add_column("chat_messages", sa.Column("created_time", sa.BigInteger(), nullable=True))
 
-    if bind.dialect.name == 'postgresql':
-        op.execute("""
-            UPDATE chat_messages
-            SET created_time = CAST(EXTRACT(EPOCH FROM created_at) * 1000 AS BIGINT)
-            WHERE created_at IS NOT NULL
-        """)
-    else:
-        # MySQL and other databases use UNIX_TIMESTAMP
-        op.execute("""
-            UPDATE chat_messages
-            SET created_time = CAST(UNIX_TIMESTAMP(created_at) * 1000 AS UNSIGNED)
-            WHERE created_at IS NOT NULL
-        """)
+    op.execute("""
+        UPDATE chat_messages
+        SET created_time = CAST(EXTRACT(EPOCH FROM created_at) * 1000 AS BIGINT)
+        WHERE created_at IS NOT NULL
+    """)
 
     op.execute(f"""
         UPDATE chat_messages
@@ -184,7 +163,71 @@ def _upgrade_standard_sql(current_time_ms: int) -> None:
     op.alter_column("chat_messages", "created_time", nullable=False)
     op.drop_column("chat_messages", "created_at")
 
-    # Add indexes - this will be called after either upgrade path
+    # Add indexes
+    _create_updated_indexes()
+
+
+def _upgrade_mysql(current_time_ms: int) -> None:
+    """Handle MySQL upgrade with required existing_type parameters."""
+
+    # For sessions table
+    op.add_column("sessions", sa.Column("created_time", sa.BigInteger(), nullable=True))
+    op.add_column("sessions", sa.Column("updated_time", sa.BigInteger(), nullable=True))
+
+    # Convert timestamps using MySQL UNIX_TIMESTAMP
+    op.execute("""
+        UPDATE sessions
+        SET created_time = CAST(UNIX_TIMESTAMP(created_at) * 1000 AS UNSIGNED)
+        WHERE created_at IS NOT NULL
+    """)
+
+    op.execute("""
+        UPDATE sessions
+        SET updated_time = CAST(UNIX_TIMESTAMP(updated_at) * 1000 AS UNSIGNED)
+        WHERE updated_at IS NOT NULL
+    """)
+
+    # Set current epoch ms for null values
+    op.execute(f"""
+        UPDATE sessions
+        SET created_time = {current_time_ms}
+        WHERE created_time IS NULL
+    """)
+
+    op.execute(f"""
+        UPDATE sessions
+        SET updated_time = {current_time_ms}
+        WHERE updated_time IS NULL
+    """)
+
+    # Make new columns NOT NULL - MySQL requires existing_type
+    op.alter_column("sessions", "created_time", existing_type=sa.BigInteger(), nullable=False)
+    op.alter_column("sessions", "updated_time", existing_type=sa.BigInteger(), nullable=False)
+
+    # Drop old columns
+    op.drop_column("sessions", "created_at")
+    op.drop_column("sessions", "updated_at")
+
+    # For chat_messages table
+    op.add_column("chat_messages", sa.Column("created_time", sa.BigInteger(), nullable=True))
+
+    op.execute("""
+        UPDATE chat_messages
+        SET created_time = CAST(UNIX_TIMESTAMP(created_at) * 1000 AS UNSIGNED)
+        WHERE created_at IS NOT NULL
+    """)
+
+    op.execute(f"""
+        UPDATE chat_messages
+        SET created_time = {current_time_ms}
+        WHERE created_time IS NULL
+    """)
+
+    # Make new column NOT NULL - MySQL requires existing_type
+    op.alter_column("chat_messages", "created_time", existing_type=sa.BigInteger(), nullable=False)
+    op.drop_column("chat_messages", "created_at")
+
+    # Add indexes
     _create_updated_indexes()
 
 

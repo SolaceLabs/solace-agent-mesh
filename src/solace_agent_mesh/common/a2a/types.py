@@ -54,6 +54,7 @@ class ArtifactInfo(BaseModel):
     version_count: Optional[int] = None
     source: Optional[str] = None  # Optional: Source of the artifact (e.g., "project")
     tags: Optional[List[str]] = None  # Optional: Tags for categorization (e.g., ["__working"])
+    source_project_id: Optional[str] = None  # Optional: ID of the project this artifact came from
 
     model_config = ConfigDict(populate_by_name=True)
 

@@ -40,7 +40,7 @@ export const advancedInitSteps: Step[] = [
   {
     id: "broker-setup",
     title: "Broker Setup",
-    description: "Configure your Solace PubSub+ broker connection",
+    description: "Configure your Solace broker connection",
     component: BrokerSetup,
   },
   {

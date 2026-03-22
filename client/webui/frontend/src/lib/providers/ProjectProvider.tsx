@@ -37,7 +37,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Derive projects and error from React Query
     const projects = useMemo(() => {
         if (!projectsEnabled || !projectsData) return [];
-        return [...projectsData.projects].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+        return [...projectsData.projects].sort((a, b) => {
+            // Pinned projects first
+            if (a.isPinned !== b.isPinned) {
+                return a.isPinned ? -1 : 1;
+            }
+            return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        });
     }, [projectsData, projectsEnabled]);
 
     const error = queryError ? (queryError instanceof Error ? queryError.message : "Could not load projects.") : null;
@@ -74,7 +80,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
 
     const addFilesToProject = useCallback(
-        async (projectId: string, formData: FormData): Promise<void> => {
+        async (projectId: string, formData: FormData): Promise<{ sseLocation: string | null }> => {
             if (!projectsEnabled) {
                 throw new Error("Projects feature is disabled");
             }
@@ -85,7 +91,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const fileMetadata = fileMetadataStr ? JSON.parse(fileMetadataStr) : undefined;
 
             try {
-                await addFilesMutation.mutateAsync({ projectId, files, fileMetadata });
+                return await addFilesMutation.mutateAsync({ projectId, files, fileMetadata });
             } catch (error: unknown) {
                 // Handle 413 (Payload Too Large) errors specifically
                 const errorMessage = error instanceof Error ? error.message : String(error);
@@ -107,12 +113,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
 
     const removeFileFromProject = useCallback(
-        async (projectId: string, filename: string): Promise<void> => {
+        async (projectId: string, filename: string): Promise<{ sseLocation: string | null }> => {
             if (!projectsEnabled) {
                 throw new Error("Projects feature is disabled");
             }
 
-            await removeFileMutation.mutateAsync({ projectId, filename });
+            return await removeFileMutation.mutateAsync({ projectId, filename });
         },
         [projectsEnabled, removeFileMutation]
     );

@@ -49,7 +49,7 @@ def _error_exit(message: str):
 def _ensure_eval_backend_config_exists():
     """Checks for eval_backend.yaml and creates it from a template if missing."""
     project_root = Path.cwd()
-    configs_dir = project_root / "configs"
+    configs_dir = project_root / ".configs"
     eval_backend_config_path = configs_dir / "eval_backend.yaml"
 
     if eval_backend_config_path.exists():
@@ -59,10 +59,33 @@ def _ensure_eval_backend_config_exists():
         f"'{eval_backend_config_path.relative_to(project_root)}' not found. Creating it..."
     )
 
-    if not (configs_dir / "shared_config.yaml").exists():
-        _error_exit(
-            "Error: 'configs/shared_config.yaml' not found. Please run 'sam init' first."
-        )
+    # Create configs directory if it doesn't exist
+    if not configs_dir.exists():
+        click.echo(f"Creating '{configs_dir.relative_to(project_root)}' directory...")
+        configs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy shared_config.yaml from examples if it doesn't exist
+    shared_config_path = configs_dir / "shared_config.yaml"
+    if not shared_config_path.exists():
+        example_shared_config = project_root / "examples" / "shared_config.yaml"
+        if example_shared_config.exists():
+            click.echo(
+                f"Copying 'examples/shared_config.yaml' to '{shared_config_path.relative_to(project_root)}'..."
+            )
+            try:
+                shutil.copy2(example_shared_config, shared_config_path)
+                click.echo(
+                    click.style(
+                        f"Successfully created '{shared_config_path.relative_to(project_root)}'.",
+                        fg="green",
+                    )
+                )
+            except Exception as e:
+                _error_exit(f"Failed to copy shared_config.yaml: {e}")
+        else:
+            _error_exit(
+                "Error: 'examples/shared_config.yaml' not found. Please run 'sam init' first or ensure the examples directory exists."
+            )
 
     try:
         # This is a simplified way to get the template content.
@@ -486,7 +509,21 @@ class ModelEvaluator:
         subscriber.start()
 
         log.info("Waiting for subscriber to be ready...")
-        subscription_ready_event.wait()
+        if not subscription_ready_event.wait(timeout=30):
+            subscriber.stop()
+            subscriber.join(timeout=5)
+            raise RuntimeError(
+                "Subscriber failed to connect within 30 seconds. "
+                "Check broker credentials (SOLACE_BROKER_URL, SOLACE_BROKER_USERNAME, "
+                "SOLACE_BROKER_PASSWORD, SOLACE_BROKER_VPN)"
+            )
+
+        if not subscriber.is_alive():
+            raise RuntimeError(
+                "Subscriber thread died during startup. "
+                "Check broker credentials and logs above for connection errors."
+            )
+
         log.info("Subscriber is ready.")
 
         return subscriber

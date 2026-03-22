@@ -7,6 +7,7 @@ interface FileIconProps {
     mimeType?: string;
     size?: number;
     className?: string;
+    variant?: "default" | "compact";
 }
 
 const getFileExtension = (filename: string): string => {
@@ -14,7 +15,12 @@ const getFileExtension = (filename: string): string => {
     return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
 };
 
-const getFileStyles = (type: string) => {
+/**
+ * Returns hardcoded color classes for file type badges.
+ * - File type colors are semantic identifiers (HTML orange #e34c26, PDF red #d32f2f)
+ *   with industry-wide recognition that aids user recognition across applications
+ */
+export const getFileStyles = (type: string) => {
     switch (type) {
         case "html":
             return "bg-[#e34c26]";
@@ -26,48 +32,54 @@ const getFileStyles = (type: string) => {
             return "bg-[#6c757d]";
         case "text":
             return "bg-[#5c6bc0]";
+        case "pdf":
+            return "bg-[#d32f2f]";
+        case "word":
+            return "bg-[#2b579a]";
+        case "powerpoint":
+            return "bg-[#d24726]";
         default:
-            return "bg-gray-500";
+            return "bg-[#6b7280]";
     }
 };
 
-const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactElement | null => {
-    const iconProps = { className: "text-secondary-foreground/60" };
+export const getFileTypeIcon = (mimeType?: string, filename?: string, iconProps: { className?: string; size?: number } = { className: "text-(--secondary-text-w50)" }): React.ReactElement | null => {
+    const props = { className: iconProps.className ?? "text-(--secondary-text-w50)", size: iconProps.size };
 
     if (mimeType) {
         // Image files
         if (mimeType.startsWith("image/")) {
-            return <FileImage {...iconProps} />;
+            return <FileImage {...props} />;
         }
         // Video files
         if (mimeType.startsWith("video/")) {
-            return <FileVideo {...iconProps} />;
+            return <FileVideo {...props} />;
         }
         // Audio files
         if (mimeType.startsWith("audio/")) {
-            return <FileAudio {...iconProps} />;
+            return <FileAudio {...props} />;
         }
         // PDF files
         if (mimeType === "application/pdf") {
-            return <FileText {...iconProps} />;
+            return <FileText {...props} />;
         }
         // Archive files
         if (mimeType === "application/zip" || mimeType === "application/x-zip-compressed" || mimeType === "application/x-rar-compressed" || mimeType === "application/x-tar" || mimeType === "application/gzip") {
-            return <Archive {...iconProps} />;
+            return <Archive {...props} />;
         }
         // Office documents
         if (mimeType.includes("word") || mimeType.includes("document")) {
-            return <FileText {...iconProps} />;
+            return <FileText {...props} />;
         }
         if (mimeType.includes("excel") || mimeType.includes("spreadsheet")) {
-            return <FileSpreadsheet {...iconProps} />;
+            return <FileSpreadsheet {...props} />;
         }
         if (mimeType.includes("powerpoint") || mimeType.includes("presentation")) {
-            return <Presentation {...iconProps} />;
+            return <Presentation {...props} />;
         }
         // Executable files
         if (mimeType === "application/x-executable" || mimeType === "application/x-msdownload") {
-            return <Settings {...iconProps} />;
+            return <Settings {...props} />;
         }
     }
 
@@ -83,7 +95,7 @@ const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactEleme
         case "webp":
         case "svg":
         case "ico":
-            return <FileImage {...iconProps} />;
+            return <FileImage {...props} />;
         // Videos
         case "mp4":
         case "avi":
@@ -92,7 +104,7 @@ const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactEleme
         case "flv":
         case "webm":
         case "mkv":
-            return <FileVideo {...iconProps} />;
+            return <FileVideo {...props} />;
         // Audio
         case "mp3":
         case "wav":
@@ -100,26 +112,26 @@ const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactEleme
         case "aac":
         case "ogg":
         case "m4a":
-            return <FileAudio {...iconProps} />;
+            return <FileAudio {...props} />;
         // Documents
         case "pdf":
         case "doc":
         case "docx":
-            return <FileText {...iconProps} />;
+            return <FileText {...props} />;
         case "xls":
         case "xlsx":
         case "csv":
-            return <FileSpreadsheet {...iconProps} />;
+            return <FileSpreadsheet {...props} />;
         case "ppt":
         case "pptx":
-            return <Presentation {...iconProps} />;
+            return <Presentation {...props} />;
         // Archives
         case "zip":
         case "rar":
         case "7z":
         case "tar":
         case "gz":
-            return <Archive {...iconProps} />;
+            return <Archive {...props} />;
         // Executables
         case "exe":
         case "msi":
@@ -127,22 +139,45 @@ const getFileTypeIcon = (mimeType?: string, filename?: string): React.ReactEleme
         case "pkg":
         case "deb":
         case "rpm":
-            return <Settings {...iconProps} />;
+            return <Settings {...props} />;
         // Fonts
         case "ttf":
         case "otf":
         case "woff":
         case "woff2":
-            return <Type {...iconProps} />;
+            return <Type {...props} />;
+        // Code/Text files
         case "htm":
         case "html":
-            return <FileCode {...iconProps} />;
+        case "js":
+        case "jsx":
+        case "ts":
+        case "tsx":
+        case "py":
+        case "java":
+        case "cpp":
+        case "c":
+        case "h":
+        case "css":
+        case "scss":
+        case "sass":
+        case "json":
+        case "xml":
+        case "yaml":
+        case "yml":
+            return <FileCode {...props} />;
+        // Markdown and text files
+        case "md":
+        case "markdown":
+        case "txt":
+        case "text":
+            return <FileText {...props} />;
         default:
             return null;
     }
 };
 
-const getFileTypeColor = (mimeType?: string, filename?: string): string => {
+export const getFileTypeColor = (mimeType?: string, filename?: string): string => {
     if (mimeType) {
         if (mimeType.startsWith("text/html") || mimeType === "application/xhtml+xml") {
             return getFileStyles("html");
@@ -153,11 +188,12 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
         if (mimeType === "application/yaml" || mimeType === "text/yaml" || mimeType === "application/x-yaml" || mimeType === "text/x-yaml") {
             return getFileStyles("yaml");
         }
-        if (mimeType.startsWith("text/")) {
-            return getFileStyles("text");
-        }
+        // Check markdown before generic text/* to avoid unreachable code
         if (mimeType.startsWith("text/markdown") || mimeType === "application/markdown") {
             return getFileStyles("markdown");
+        }
+        if (mimeType.startsWith("text/")) {
+            return getFileStyles("text");
         }
     }
 
@@ -177,39 +213,58 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
             return getFileStyles("markdown");
         case "txt":
             return getFileStyles("text");
+        case "pdf":
+            return getFileStyles("pdf");
+        case "doc":
+        case "docx":
+            return getFileStyles("word");
+        case "ppt":
+        case "pptx":
+            return getFileStyles("powerpoint");
         default:
             return getFileStyles("default");
     }
 };
 
-export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, className }) => {
-    // Validate required props
+export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, className, variant = "default" }) => {
     if (!filename || typeof filename !== "string") {
-        console.warn("FileIcon: filename is required and must be a string");
         return null;
     }
 
     const extension = getFileExtension(filename);
+    const displayExtension = extension.length > 4 ? extension.substring(0, 4) : extension;
     const typeColor = getFileTypeColor(mimeType, filename);
     const fileIcon = getFileTypeIcon(mimeType, filename);
+
+    if (variant === "compact") {
+        const compactIcon = getFileTypeIcon(mimeType, filename, { className: "h-4 w-4 text-(--secondary-text-w50)" });
+        return (
+            <div className={cn("relative flex-shrink-0", className)}>
+                <div className="relative h-[42px] w-[38px] border bg-(--secondary-w10)">
+                    <div className="absolute top-[2px] right-[2px] bottom-[18px] left-[2px] flex items-center justify-center">{compactIcon ?? <File className="h-4 w-4 text-(--secondary-text-w50)" />}</div>
+                    <div className={cn("absolute right-0 bottom-0 left-0 z-[4] py-[2px] text-center text-[10px] font-bold text-(--darkSurface-text) select-none", typeColor)}>{displayExtension}</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={cn("relative flex-shrink-0", className)}>
             {/* Main document icon with square corners */}
-            <div className="bg-muted/50 relative h-[75px] w-[60px] border">
+            <div className="relative h-[75px] w-[60px] border bg-(--secondary-w10)">
                 {/* Icon */}
                 <div className="absolute top-[4px] right-[4px] bottom-[24px] left-[4px] overflow-hidden font-mono text-[3.5px] leading-[1.4]">
                     {fileIcon ? (
                         <div className="flex h-full items-center justify-center">{fileIcon}</div>
                     ) : (
-                        <div className="text-secondary-foreground flex h-full text-[8px] select-none">
-                            <div className="flex h-full w-full items-center justify-center">{<File className="text-secondary-foreground/60" />}</div>
+                        <div className="flex h-full text-[8px] text-(--secondary-text-wMain) select-none">
+                            <div className="flex h-full w-full items-center justify-center">{<File className="text-(--secondary-text-w50)" />}</div>
                         </div>
                     )}
                 </div>
 
                 {/* File type badge */}
-                <div className={cn("absolute right-[4px] bottom-[4px] z-[4] px-[4px] py-[2px] text-[10px] font-bold text-[var(--color-primary-text-w10)] select-none", typeColor)}>{extension.length > 4 ? extension.substring(0, 4) : extension}</div>
+                <div className={cn("absolute right-[4px] bottom-[4px] z-[4] px-[4px] py-[2px] text-[10px] font-bold text-(--darkSurface-text) select-none", typeColor)}>{displayExtension}</div>
             </div>
         </div>
     );

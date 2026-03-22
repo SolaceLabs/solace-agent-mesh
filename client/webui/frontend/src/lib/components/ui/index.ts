@@ -8,7 +8,7 @@ export { SearchInput } from "./search-input";
 export { Label } from "./label";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent } from "./card";
-export { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./form";
+export { Form, FormControl, FormField, FormItem, FormLabel, FormInputLabel } from "./form";
 export { Spinner } from "./spinner";
 export * from "./dialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
@@ -23,6 +23,7 @@ export { Sidebar, SidebarHeader, SidebarContent, SidebarProvider } from "./sideb
 
 // Interactive Components
 export { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./accordion";
+export { AccordionCard } from "./accordion-card";
 export { Menu, type MenuAction, type MenuProps } from "./menu";
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
 export { PopoverManual } from "./popoverManual";
@@ -41,7 +42,8 @@ export { ChatMessageList } from "./chat/chat-message-list";
 export { CHAT_STYLES } from "./chat/chatStyles";
 export { default as MessageLoading } from "./chat/message-loading";
 export { Badge } from "./badge";
-export { ExperimentalBadge } from "./experimental-badge";
+export { LifecycleBadge } from "./lifecycleBadge";
+export { NavItem, type NavItemProps } from "./navItem";
 
 // Toast Components
 export { ToastContainer } from "./toast-container";

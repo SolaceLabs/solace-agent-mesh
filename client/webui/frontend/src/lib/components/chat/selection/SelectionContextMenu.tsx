@@ -70,7 +70,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ isOp
                 top: `${position.y}px`,
             }}
         >
-            <div className="bg-background w-auto max-w-[160px] rounded-md border p-1 shadow-lg">
+            <div className="w-auto max-w-[160px] rounded-md border bg-(--background-w10) p-1 shadow-lg">
                 <Button variant="ghost" className="h-auto w-full justify-start gap-1.5 px-2 py-1.5 text-xs font-normal" onClick={handleAskFollowup}>
                     <MessageSquarePlus className="h-3.5 w-3.5 flex-shrink-0" />
                     <span className="truncate">Ask Followup</span>

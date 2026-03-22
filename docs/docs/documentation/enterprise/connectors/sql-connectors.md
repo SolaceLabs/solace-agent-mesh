@@ -13,13 +13,17 @@ SQL connectors establish persistent connection pools to your database servers. A
 
 The connector supports common relational database systems and handles the specifics of each database type automatically, including appropriate SQL dialect, connection protocols, and driver configurations.
 
+The SQL connector functionality is powered by the [sam-sql-database-tool](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-sql-database-tool) plugin, which contains additional technical details about the underlying implementation.
+
 ## Supported Databases
 
-Agent Mesh Enterprise supports three database types for SQL connectors:
+Agent Mesh Enterprise supports the following database types for SQL connectors:
 
 - MySQL
 - PostgreSQL
 - MariaDB
+- Microsoft SQL Server (MSSQL)
+- Oracle
 
 Each database type uses the same configuration interface but requires connection parameters appropriate for that database system.
 
@@ -37,7 +41,13 @@ You need a database username and password with appropriate permissions for the o
 
 ### Network Connectivity
 
-Verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your database server on the appropriate port. Default ports are 3306 for MySQL and MariaDB, and 5432 for PostgreSQL.
+Verify that network firewalls and security groups allow traffic from Agent Mesh Enterprise to your database server on the appropriate port. Default ports are:
+
+- MySQL: `3306`
+- MariaDB: `3306`
+- PostgreSQL: `5432`
+- MSSQL: `1433`
+- Oracle: `1521`
 
 ### Database Name
 
@@ -59,7 +69,7 @@ The connector name must be unique across all connectors in your deployment, rega
 
 **Database Type**
 
-Select the database system you are connecting to from the dropdown menu. The available options are MySQL, PostgreSQL, and MariaDB. This selection determines the appropriate driver and connection string format that Agent Mesh Enterprise uses.
+Select the database system you are connecting to from the dropdown menu. The available options are MySQL, PostgreSQL, MariaDB, Microsoft SQL Server, and Oracle. This selection determines the appropriate driver and connection string format that Agent Mesh Enterprise uses.
 
 If you select the wrong database type, connection tests will fail with errors about incompatible protocols or unsupported features.
 
@@ -75,26 +85,51 @@ The port number where your database accepts connections. Default ports are:
 - MySQL: `3306`
 - PostgreSQL: `5432`
 - MariaDB: `3306`
+- MSSQL: `1433`
+- Oracle: `1521`
 
 If your database administrator configured a custom port for security reasons or to avoid conflicts, enter that value instead of the default.
 
 **Database Name**
 
-The specific database within the database server that agents should access. This is the database name, not the server hostname. In PostgreSQL, this is the database name, not the schema name within a database. Agents will access the default schema (typically `public`) within the specified database.
+The specific database within the database server that agents should access. This is the database name, not the server hostname. In PostgreSQL, this is the database name, not the schema name within a database. Agents access the default schema (typically `public` for PostgreSQL or `dbo` for SQL Server) within the specified database.
 
-For example, if your PostgreSQL server contains databases named `production`, `staging`, and `development`, you would enter the specific one agents should use, such as `production`.
+For example, if your database server contains databases named `production`, `staging`, and `development`, enter the specific one agents should use, such as `production`.
 
 **Username**
 
 The database username that agents use to authenticate. This account determines what data agents can access and what operations they can perform through the database permission system.
 
-You should create a dedicated database user for agent access rather than using administrative accounts or accounts shared with other applications. This allows you to control permissions precisely and audit agent database activity.
+Create a dedicated user account in your database for agent access rather than using administrative accounts or accounts shared with other applications. This approach allows you to control permissions precisely and audit agent database activity.
 
 **Password**
 
-The password for the database username. Agent Mesh Enterprise stores this credential securely in its configuration and uses it to establish database connections.
+The password for the database username. Agent Mesh Enterprise stores this credential in its configuration and uses it to establish database connections. You should follow password security best practices, such as using strong passwords and rotating them periodically.
 
-The password is encrypted at rest and transmitted securely to the database server. However, you should still follow password security best practices, such as using strong passwords and rotating them periodically.
+**Encryption (TLS)** *(MSSQL Only)*
+
+Controls TLS encryption for data in transit between the connector and SQL Server. The default is **Enabled**.
+
+| Setting | Behavior |
+|---------|----------|
+| **Enabled** (default) | Encrypts data in transit using TLS. |
+| **Disabled** | No TLS encryption. |
+| **Strict** | Enforces TLS encryption and always validates the server certificate. The `Trust Server Certificate` setting is ignored when strict mode is active. |
+
+**Trust Server Certificate** *(MSSQL only)*
+
+Controls whether the connector validates the SQL Server's TLS certificate (expiry, trust chain, and server name match). This field appears only when **Encryption (TLS)** is set to **Enabled**.
+
+| Setting | Behavior |
+|---------|----------|
+| **Disabled** (default) | Validates the server certificate. The connection fails if the certificate is expired, self-signed, or signed by an untrusted CA. |
+| **Enabled** | Skips certificate validation. Use for dev/test environments or when using self-signed certificates. |
+
+**Service Name** *(Oracle only)*
+
+The Oracle service name that identifies the target database on the Oracle listener. The service name is not the same as the Database Name field used by other connector types; Oracle identifies databases by service name rather than a simple database name.
+
+Oracle connections use thin mode, which connects directly to the database without requiring Oracle Client libraries to be installed on the host.
 
 ### Connection Pooling
 
@@ -128,6 +163,29 @@ GRANT CONNECT ON DATABASE your_database TO agent_readonly;
 GRANT USAGE ON SCHEMA public TO agent_readonly;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO agent_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO agent_readonly;
+```
+
+**Microsoft SQL Server:**
+
+```sql
+CREATE LOGIN agent_readonly WITH PASSWORD = 'secure_password';
+USE your_database;
+CREATE USER agent_readonly FOR LOGIN agent_readonly;
+GRANT SELECT ON SCHEMA::dbo TO agent_readonly;
+```
+
+**Oracle:**
+
+```sql
+CREATE USER agent_readonly IDENTIFIED BY secure_password;
+GRANT CREATE SESSION TO agent_readonly;
+GRANT SELECT ANY TABLE TO agent_readonly;
+```
+
+For tighter access control, grant `SELECT` on individual tables rather than `SELECT ANY TABLE`:
+
+```sql
+GRANT SELECT ON your_schema.your_table TO agent_readonly;
 ```
 
 ## After Creating the Connector
@@ -172,6 +230,30 @@ This occurs because Supabase's direct connection endpoint uses IPv6 addressing, 
 
 In your Supabase project settings, navigate to Database then Connection Pooling to find the Session Pooler connection string. Use the host and port from this connection string when configuring your SQL connector. The database name, username, and password remain the same as your direct connection credentials.
 
+### Microsoft SQL Server Certificate Errors
+
+When connecting to SQL Server with `Trust Server Certificate` set to **Disabled**, you may see certificate validation errors:
+
+```
+SSL Provider: certificate verify failed: unable to get local issuer certificate
+```
+
+This error occurs because the SQL Server's certificate is not trusted by the Agent Mesh container. To resolve this issue:
+
+1. **Enable Trust Server Certificate**: Set `Trust Server Certificate` to **Enabled** in the connector configuration. This bypasses certificate validation and allows connections to servers with self-signed certificates.
+
+2. **Install the CA certificate**: If you require certificate validation, install the CA certificate that signed your SQL Server's certificate into the Agent Mesh container's trust store. See [Add CA certificates to a container](https://docs.docker.com/engine/network/ca-certs/) for instructions.
+
+**Verifying encryption status:**
+
+To confirm that your SQL Server connection uses TLS encryption, run this query from the SQL Server management console:
+
+```sql
+SELECT encrypt_option FROM sys.dm_exec_connections WHERE session_id = @@SPID;
+```
+
+A result of `TRUE` indicates the connection is encrypted.
+
 ### Query Performance Issues
 
 If agents experience slow query responses:
@@ -179,3 +261,15 @@ If agents experience slow query responses:
 1. Ensure frequently queried columns have appropriate indexes
 2. Optimize database views if you use them for access control
 3. Review query patterns in database logs to identify inefficient queries that agents generate
+
+### MSSQL ODBC Driver Not Found
+
+If you are running Agent Mesh Enterprise from a wheel file and the MSSQL connector fails to connect with an error about a missing or unrecognised ODBC driver, Microsoft ODBC Driver 18 for SQL Server may not be installed on your host system.
+
+To install it, follow the [official Microsoft installation instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) for your operating system.
+
+After installation, restart Agent Mesh Enterprise. The driver should then appear in the ODBC Driver dropdown when you create or edit an MSSQL connector.
+
+:::note
+When running Agent Mesh Enterprise from the Docker image, Microsoft ODBC Driver 18 is already included and no additional installation is required.
+:::

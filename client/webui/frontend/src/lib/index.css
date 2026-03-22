@@ -1,13 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
 /* Custom animation for title generation pulse */
 @keyframes pulse-generating {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.4;
     }
@@ -22,118 +23,12 @@
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --color-card: var(--card);
-    --color-card-foreground: var(--card-foreground);
-    --color-card-background: var(--card-background);
-    --color-popover: var(--popover);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-primary: var(--primary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-secondary: var(--secondary);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-muted: var(--muted);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-placeholder: var(--placeholder);
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-destructive: var(--destructive);
-    --color-border: var(--border);
-    --color-input: var(--input);
-    --color-ring: var(--ring);
-    --color-chart-1: var(--chart-1);
-    --color-chart-2: var(--chart-2);
-    --color-chart-3: var(--chart-3);
-    --color-chart-4: var(--chart-4);
-    --color-chart-5: var(--chart-5);
-    --color-sidebar: var(--sidebar);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-ring: var(--sidebar-ring);
 }
 
 :root {
-    --radius: 0.625rem;
-
-    /* Light theme - referencing Solace palette variables */
-    /* These variables are injected by applyCustomTheme() function */
-    --background: var(--color-background-w10);
-    --foreground: var(--color-primary-text-wMain);
-    --card: var(--color-background-w10);
-    --card-foreground: var(--color-primary-text-wMain);
-    --card-background: var(--color-background-w20);
-    --popover: var(--color-background-w10);
-    --popover-foreground: var(--color-primary-text-wMain);
-    --primary: var(--color-primary-wMain);
-    --primary-foreground: var(--color-primary-text-w10);
-    --secondary: var(--color-secondary-w10);
-    --secondary-foreground: var(--color-secondary-text-wMain);
-    --muted: var(--color-secondary-w10);
-    --muted-foreground: var(--color-secondary-text-wMain);
-    --accent: var(--color-secondary-w10);
-    --accent-foreground: var(--color-secondary-text-wMain);
-    --destructive: var(--color-error-wMain);
-    --border: var(--color-secondary-w40);
-    --input: var(--color-secondary-w40);
-    --ring: var(--color-brand-wMain);
-    --chart-1: var(--color-accent-n0-wMain);
-    --chart-2: var(--color-accent-n2-wMain);
-    --chart-3: var(--color-accent-n3-wMain);
-    --chart-4: var(--color-accent-n6-wMain);
-    --chart-5: var(--color-accent-n5-wMain);
-    --sidebar: var(--color-background-w20);
-    --sidebar-foreground: var(--color-primary-text-wMain);
-    --sidebar-primary: var(--color-primary-wMain);
-    --sidebar-primary-foreground: var(--color-primary-text-w10);
-    --sidebar-accent: var(--color-secondary-w10);
-    --sidebar-accent-foreground: var(--color-secondary-text-wMain);
-    --sidebar-border: var(--color-secondary-w40);
-    --sidebar-ring: var(--color-brand-wMain);
-
-    /* Custom edge hover color for light theme */
-    --edge-hover-color: var(--color-secondary-w70);
-}
-
-.dark {
-    /* Dark theme - referencing Solace palette variables */
-    /* These variables are injected by applyCustomTheme() function */
-    --background: var(--color-background-w100);
-    --foreground: var(--color-primary-text-w10);
-    --card: var(--color-background-wMain);
-    --card-foreground: var(--color-primary-text-w10);
-    --card-background: var(--color-background-w100);
-    --popover: var(--color-background-wMain);
-    --popover-foreground: var(--color-primary-text-w10);
-    --primary: var(--color-primary-w60);
-    --primary-foreground: var(--color-primary-text-wMain);
-    --secondary: var(--color-secondary-w80);
-    --secondary-foreground: var(--color-secondary-text-w50);
-    --muted: var(--color-secondary-w80);
-    --muted-foreground: var(--color-secondary-text-w50);
-    --accent: var(--color-secondary-w80);
-    --accent-foreground: var(--color-secondary-text-w50);
-    --destructive: var(--color-error-w70);
-    --border: var(--color-secondary-w70);
-    --input: var(--color-secondary-w70);
-    --ring: var(--color-brand-w60);
-
-    /* Custom edge hover color for dark theme */
-    --edge-hover-color: var(--color-secondary-w20);
-
-    /* Custom shadow color for dark mode */
-    --shadow-color: var(--color-primary-w90);
-    --tw-shadow-colored: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color);
-}
-
-/* Dark mode shadow override */
-.dark .hover\:shadow-md:hover {
-    --tw-shadow: var(--tw-shadow-colored);
-    box-shadow: var(--tw-shadow);
+    --radius: 0.5rem;
+    /* Semantic theme variables are set by ThemeProvider via inline styles */
+    --tw-shadow-colored: 0 4px 6px -1px var(--primary-w90), 0 2px 4px -2px var(--primary-w90);
 }
 
 /* Shimmer animation for processing nodes */
@@ -147,56 +42,20 @@
     }
 }
 
-.animate-shimmer {
-    /* Use a blue-ish highlight that works on light backgrounds */
-    background: linear-gradient(90deg,
-            transparent 0%,
-            rgba(59, 130, 246, 0.4) 50%,
-            transparent 100%);
-    background-size: 200% 100%;
-    animation: shimmer 1.75s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-.dark .animate-shimmer {
-    /* Use white highlight for dark mode */
-    background: linear-gradient(90deg,
-            transparent 0%,
-            rgba(255, 255, 255, 0.35) 50%,
-            transparent 100%);
-    background-size: 200% 100%;
-}
-
 /* Pulsing halo glow effect for processing nodes */
 @keyframes halo-pulse {
     0% {
-        box-shadow: 0 0 4px 1px rgba(59, 130, 246, 0.3);
+        box-shadow: 0 0 4px 1px color-mix(in srgb, var(--primary-w60), transparent 70%);
         transform: scale(1);
     }
 
     50% {
-        box-shadow: 0 0 12px 4px rgba(59, 130, 246, 0.6);
+        box-shadow: 0 0 12px 4px color-mix(in srgb, var(--primary-w60), transparent 40%);
         transform: scale(1.03);
     }
 
     100% {
-        box-shadow: 0 0 4px 1px rgba(59, 130, 246, 0.3);
-        transform: scale(1);
-    }
-}
-
-@keyframes halo-pulse-dark {
-    0% {
-        box-shadow: 0 0 4px 1px rgba(96, 165, 250, 0.2);
-        transform: scale(1);
-    }
-
-    50% {
-        box-shadow: 0 0 12px 4px rgba(96, 165, 250, 0.5);
-        transform: scale(1.03);
-    }
-
-    100% {
-        box-shadow: 0 0 4px 1px rgba(96, 165, 250, 0.2);
+        box-shadow: 0 0 4px 1px color-mix(in srgb, var(--primary-w60), transparent 70%);
         transform: scale(1);
     }
 }
@@ -205,17 +64,42 @@
     animation: halo-pulse 2s ease-in-out infinite;
 }
 
-.dark .processing-halo {
-    animation: halo-pulse-dark 2s ease-in-out infinite;
+.scrollbar-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.scrollbar-subtle:hover {
+    scrollbar-color: var(--secondary-w70) transparent;
+}
+
+.card-surface {
+    border: 1px solid var(--secondary-w20);
+    box-shadow: 0px 1px 4px 0px var(--stateLayer-w10);
+}
+
+.card-surface-hover:hover {
+    box-shadow: 0px 4px 12px 0px var(--stateLayer-w10);
+}
+
+.overlay-backdrop {
+    background-color: rgb(0 0 0 / 0.5);
 }
 
 @layer base {
     * {
-        @apply border-border focus-visible:outline-ring focus-visible:border-0 focus-visible:ring-0 focus-visible:outline-1;
+        border-color: var(--secondary-w40);
+    }
+
+    *:focus-visible {
+        outline: 1px solid var(--brand-wMain);
+        border-color: transparent;
+        box-shadow: none;
     }
 
     body {
-        @apply bg-background text-foreground;
+        background-color: var(--background-w10);
+        color: var(--primary-text-wMain);
         font-family: "Rubik", sans-serif;
         font-size: 14px;
     }
@@ -225,7 +109,7 @@
     /* Firefox */
     * {
         scrollbar-width: thin;
-        scrollbar-color: var(--color-primary-w20) var(--color-background-w20);
+        scrollbar-color: var(--primary-w20) var(--background-w10);
     }
 
     .fade-both-mask {
@@ -239,7 +123,7 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to top, rgba(247, 248, 249, 0), var(--color-background-w20, #F7F8F9));
+        background: linear-gradient(to top, transparent, var(--background-w10));
         pointer-events: none;
         z-index: 10;
     }
@@ -251,55 +135,32 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to bottom, rgba(247, 248, 249, 0), var(--color-background-w20, #F7F8F9));
+        background: linear-gradient(to bottom, transparent, var(--background-w10));
         pointer-events: none;
         z-index: 10;
-    }
-
-    .dark .fade-both-mask::before {
-        background: linear-gradient(to top, rgba(2, 27, 47, 0), var(--color-background-w100, #021B2F));
-    }
-
-    .dark .fade-both-mask::after {
-        background: linear-gradient(to bottom, rgba(2, 27, 47, 0), var(--color-background-w100, #021B2F));
-    }
-
-    .dark * {
-        scrollbar-color: var(--color-primary-wMain) var(--color-background-w100);
     }
 
     /* Webkit browsers (Chrome, Safari, Edge) */
     *::-webkit-scrollbar {
         width: 8px;
-        /* equivalent to w-2 */
     }
 
     *::-webkit-scrollbar-track {
-        background-color: var(--color-background-w20);
-    }
-
-    .dark *::-webkit-scrollbar-track {
-        background-color: var(--color-background-w100);
+        background-color: var(--background-w10);
     }
 
     *::-webkit-scrollbar-thumb {
-        background-color: var(--color-primary-w20);
+        background-color: var(--primary-w20);
         border-radius: 9999px;
-        /* rounded-full */
-        border: 2px solid var(--color-primary-w20);
-    }
-
-    .dark *::-webkit-scrollbar-thumb {
-        background-color: var(--color-primary-wMain);
-        border-color: var(--color-primary-wMain);
+        border: 2px solid var(--primary-w20);
     }
 }
 
 /* Mention chip styles */
 .mention-chip {
     display: inline-block;
-    background-color: rgb(219, 234, 254);
-    color: rgb(30, 64, 175);
+    background-color: var(--primary-w10);
+    color: var(--primary-w100);
     border-radius: 3px;
     padding: 1px 4px;
     margin: 0 1px;
@@ -307,18 +168,13 @@
     user-select: all;
 }
 
-.dark .mention-chip {
-    background-color: rgb(30, 58, 138);
-    color: rgb(191, 219, 254);
-}
-
 /* Context quote badge styles (for follow-up questions) */
 .context-quote-badge {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background-color: hsl(var(--muted) / 0.5);
-    border: 1px solid hsl(var(--border));
+    background-color: color-mix(in srgb, var(--secondary-w10), transparent 50%);
+    border: 1px solid var(--secondary-w40);
     border-radius: 0.375rem;
     padding: 0.5rem 0.75rem;
     margin-bottom: 0.75rem;
@@ -331,13 +187,25 @@
     flex-shrink: 0;
     width: 1rem;
     height: 1rem;
-    color: hsl(var(--muted-foreground));
+    color: var(--secondary-text-wMain);
 }
 
 .context-quote-text {
     font-style: italic;
-    color: hsl(var(--muted-foreground));
+    color: var(--secondary-text-wMain);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.citation-highlight {
+    background-color: color-mix(in srgb, var(--accent-n6-wMain), transparent 80%);
+    padding: 0.125rem 0;
+    border-radius: 0.125rem;
+}
+
+/* Citation highlight for text-based content (markdown, HTML, etc.) - needs different dark mode styling */
+mark.citation-highlight {
+    background-color: color-mix(in srgb, var(--accent-n6-wMain), transparent 40%);
+    color: inherit;
 }

@@ -1,4 +1,4 @@
-.PHONY: help check-uv dev-setup test-setup test test-all test-unit test-integration clean ui-test ui-build ui-lint install-playwright
+.PHONY: help check-uv dev-setup test-setup test test-all test-eval test-eval-local test-eval-workflow test-eval-remote test-unit test-integration test-migrations clean ui-test ui-build ui-lint install-playwright
 
 # Check if uv is installed
 check-uv:
@@ -14,10 +14,15 @@ help:
 	@echo "  make install-playwright Install Playwright browsers"
 	@echo ""
 	@echo "Backend Tests:"
-	@echo "  make test              Run all tests (excluding stress/long_soak)"
-	@echo "  make test-all          Run all tests including stress tests"
-	@echo "  make test-unit         Run unit tests only"
-	@echo "  make test-integration  Run integration tests only"
+	@echo "  make test                Run all tests (excluding stress/long_soak)"
+	@echo "  make test-all            Run all tests including stress and evaluation tests"
+	@echo "  make test-eval           Run local evaluation tests (default)"
+	@echo "  make test-eval-local     Run local evaluation tests"
+	@echo "  make test-eval-workflow  Run workflow evaluation tests"
+	@echo "  make test-eval-remote    Run remote evaluation tests"
+	@echo "  make test-unit           Run unit tests only"
+	@echo "  make test-integration    Run integration tests only"
+	@echo "  make test-migrations     Run database migration tests (SQLite, MySQL, PostgreSQL)"
 	@echo ""
 	@echo "Frontend Tests:"
 	@echo "  make ui-test           Run frontend linting and build"
@@ -50,6 +55,21 @@ test-setup: check-uv
 	uv run playwright install
 	@echo "Test environment setup complete!"
 
+# Setup eval environment
+# Note: Uses wheel build instead of editable install because hatchling's editable mode
+# doesn't support force-include for cli/, evaluation/, etc. directories outside src/
+eval-setup: check-uv
+	@echo "Setting up evaluation test environment..."
+	UV_VENV_CLEAR=1 uv venv --python 3.12
+	@echo "Building wheel directly (skipping UI builds and sdist for speed)..."
+	SAM_SKIP_UI_BUILD=true uv build --wheel
+	@echo "Installing Solace Agent Mesh from wheel..."
+	uv pip install "$$(ls dist/solace_agent_mesh-*.whl | head -1)" --reinstall
+	@echo "Installing sam-rest-gateway plugin for local evaluations..."
+	uv pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"
+	@echo "Installing Playwright browsers..."
+	.venv/bin/playwright install
+
 # Install Playwright browsers only
 install-playwright: check-uv
 	@echo "Installing Playwright browsers..."
@@ -65,6 +85,59 @@ test-all:
 	@echo "Running all tests..."
 	uv run pytest
 
+# Helper target to validate required environment variables
+check-eval-env:
+	@echo "Validating required environment variables..."
+	@test -n "$(SOLACE_BROKER_URL)" || (echo "ERROR: SOLACE_BROKER_URL not set. Export it before running make" && exit 1)
+	@test -n "$(SOLACE_BROKER_USERNAME)" || (echo "ERROR: SOLACE_BROKER_USERNAME not set. Export it before running make" && exit 1)
+	@test -n "$(SOLACE_BROKER_PASSWORD)" || (echo "ERROR: SOLACE_BROKER_PASSWORD not set. Export it before running make" && exit 1)
+	@test -n "$(SOLACE_BROKER_VPN)" || (echo "ERROR: SOLACE_BROKER_VPN not set. Export it before running make" && exit 1)
+	@test -n "$(LLM_SERVICE_ENDPOINT)" || (echo "ERROR: LLM_SERVICE_ENDPOINT not set. Export it before running make" && exit 1)
+	@test -n "$(LLM_SERVICE_API_KEY)" || (echo "ERROR: LLM_SERVICE_API_KEY not set. Export it before running make" && exit 1)
+	@echo "✓ All required environment variables are set"
+
+
+check-remote-eval-env:
+	@echo "Validating required environment variables..."
+	@test -n "$(EVAL_REMOTE_URL)" || (echo "ERROR: EVAL_REMOTE_URL not set. Export it before running make" && exit 1)
+	@test -n "$(EVAL_NAMESPACE)" || (echo "ERROR: EVAL_NAMESPACE not set. Export it before running make" && exit 1)
+	@test -n "$(EVAL_AUTH_TOKEN)" || (echo "ERROR: EVAL_AUTH_TOKEN not set. Export it before running make" && exit 1)
+	@echo "✓ All required remote environment variables are set"
+
+# Define env vars to pass through to eval commands
+EVAL_ENV_VARS = SOLACE_BROKER_URL="$(SOLACE_BROKER_URL)" \
+	SOLACE_BROKER_USERNAME="$(SOLACE_BROKER_USERNAME)" \
+	SOLACE_BROKER_PASSWORD="$(SOLACE_BROKER_PASSWORD)" \
+	SOLACE_BROKER_VPN="$(SOLACE_BROKER_VPN)" \
+	LLM_SERVICE_ENDPOINT="$(LLM_SERVICE_ENDPOINT)" \
+	LLM_SERVICE_API_KEY="$(LLM_SERVICE_API_KEY)"
+
+
+# Define env vars to pass through to eval commands
+REMOTE_EVAL_ENV_VARS = EVAL_REMOTE_URL="$(EVAL_REMOTE_URL)" \
+	EVAL_NAMESPACE="$(EVAL_NAMESPACE)" \
+	EVAL_AUTH_TOKEN="$(EVAL_AUTH_TOKEN)"
+
+# Run evaluation tests (default: local)
+test-eval: test-eval-local
+
+# Run local evaluation tests
+test-eval-local: eval-setup check-eval-env
+	@echo "Running local evaluation tests..."
+	@echo ""
+	$(EVAL_ENV_VARS) .venv/bin/sam eval tests/evaluation/local_example.json -v
+
+# Run workflow evaluation tests
+test-eval-workflow: eval-setup check-eval-env
+	@echo "Running workflow evaluation tests..."
+	@echo ""
+	$(EVAL_ENV_VARS) .venv/bin/sam eval tests/evaluation/workflow_eval.json
+
+# Run remote evaluation tests
+test-eval-remote: eval-setup check-eval-env check-remote-eval-env
+	@echo "Running remote evaluation tests..."
+	@echo ""
+	$(EVAL_ENV_VARS) $(REMOTE_EVAL_ENV_VARS) .venv/bin/sam eval tests/evaluation/remote_example.json -v
 
 # Run unit tests only
 test-unit:
@@ -75,6 +148,16 @@ test-unit:
 test-integration:
 	@echo "Running integration tests..."
 	uv run pytest tests/integration -v
+
+# Run database migration tests (auto-installs deps, auto-manages containers)
+test-migrations: check-uv
+	@echo "Installing migration test dependencies..."
+	@uv pip install pytest testcontainers[postgres] testcontainers[mysql] pymysql psycopg2-binary alembic 2>/dev/null || true
+	@echo ""
+	@echo "Running migration tests (containers start automatically)..."
+	@echo "Testing: SQLite, MySQL, PostgreSQL"
+	@echo ""
+	PYTHONPATH=. uv run pytest tests/integration/migrations/ -v -x
 
 # Frontend linting (mirrors ui-ci.yml)
 ui-lint:

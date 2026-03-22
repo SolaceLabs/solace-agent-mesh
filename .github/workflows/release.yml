@@ -50,7 +50,10 @@ permissions:
   checks: write
   contents: write
   packages: write
-  pull-requests: read
+  pull-requests: write # sca-scan-and-guard requires write to comment on PRs
+  actions: read # required by sca-scan-and-guard reusable workflow
+  issues: write # required by sca-scan-and-guard for PR/issue comments
+  statuses: write # required by sca-scan-and-guard to update commit status
 
 jobs:
   # Prepare release metadata (commit SHA, version, image tags)
@@ -63,6 +66,24 @@ jobs:
       current_version: ${{ steps.get-version.outputs.current_version }}
       prisma_image_tag: ${{ steps.construct-image-tag.outputs.prisma_image_tag }}
     steps:
+      - name: Validate actor for security check bypass
+        if: ${{ fromJSON(github.event.inputs.skip_security_checks) }}
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            if (data.permission !== 'admin') {
+              core.setFailed(
+                `@${context.actor} does not have admin permissions. ` +
+                `Only repository admins may set skip_security_checks=true.`
+              );
+            }
+            core.info(`✅ @${context.actor} is a repository admin — security check bypass approved.`);
+
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
@@ -96,7 +117,7 @@ jobs:
           # Install uv and hatch to get version
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.cargo/bin:$PATH"
-          uv tool install hatch
+          uv tool install --with virtualenv==20.26.6 hatch
           CURRENT_VERSION=$(hatch version)
           echo "Current version: $CURRENT_VERSION"
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
@@ -231,27 +252,38 @@ jobs:
             exit 1
           fi
 
+  # Run FOSSA scan to gate the release (runs in parallel with security-checks)
+  # Uses commit SHA because the version tag does not exist yet at this point in the workflow;
+  # it is only created by hatch-release-post in the release job downstream.
+  fossa_scan:
+    name: FOSSA Scan
+    needs: prepare-release-metadata
+    if: ${{ !fromJSON(github.event.inputs.skip_security_checks) }}
+    uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
+    with:
+      git_ref: ${{ needs.prepare-release-metadata.outputs.commit_sha }}
+      use_vault: false
+      config_file: ".github/workflow-config.json"
+    secrets:
+      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+
   # Run security checks via reusable workflow (conditionally)
   security-checks:
     needs: prepare-release-metadata
     if: ${{ !fromJSON(github.event.inputs.skip_security_checks) }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
-      whitesource_project_name: "solace-agent-mesh"
-      whitesource_product_name: "solaceai"
       prisma_check: true
       sonarqube_hotspot_check: true
-      fossa_check: true
+      fossa_check: false
     secrets:
       PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ needs.prepare-release-metadata.outputs.prisma_image_tag }}
       PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
       PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
-      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
       SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
       SONARQUBE_PROJECT_MAIN_BRANCH: "main"
       SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
       SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
-      WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
       MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
@@ -259,14 +291,15 @@ jobs:
   # Release to PyPI using Trusted Publishing
   release:
     name: Release to PyPI
-    # We need always() here because when security-checks or verify-rc is skipped,
+    # We need always() here because when security-checks, fossa_scan, or verify-rc is skipped,
     # GitHub Actions would by default skip ALL dependent jobs. The always() forces evaluation of our
     # condition, allowing the release to proceed when checks were either successful OR skipped.
     # This enables emergency releases when checks need to be bypassed.
-    needs: [prepare-release-metadata, verify-rc, security-checks]
+    needs: [prepare-release-metadata, verify-rc, fossa_scan, security-checks]
     if: |
-      always() && 
+      always() &&
       (needs.verify-rc.result == 'success' || needs.verify-rc.result == 'skipped') &&
+      (needs.fossa_scan.result == 'success' || needs.fossa_scan.result == 'skipped') &&
       (needs.security-checks.result == 'success' || needs.security-checks.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -315,6 +348,22 @@ jobs:
           new_version: ${{ steps.prep.outputs.new_version }}
           current_version: ${{ steps.prep.outputs.current_version }}
           skip_bump: ${{ steps.prep.outputs.skip_bump }}
+
+  # Upload FOSSA results tagged with the released semantic version.
+  # Runs after hatch-release-post has pushed the git tag, so git_ref resolves correctly.
+  # This is not a gate — it runs unconditionally after a successful release to ensure
+  # every published version is traceable in the FOSSA dashboard.
+  fossa_scan_version_upload:
+    name: FOSSA Version Upload
+    needs: release
+    if: always() && needs.release.result == 'success'
+    uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
+    with:
+      git_ref: ${{ needs.release.outputs.new_version }}
+      use_vault: false
+      config_file: ".github/workflow-config.json"
+    secrets:
+      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
 
   build_and_push_docker:
     name: Build and Push to DockerHub

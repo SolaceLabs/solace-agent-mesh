@@ -79,7 +79,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
     return (
         <div className="relative w-full">
             <div className="relative">
-                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-(--secondary-text-wMain)" />
                 <Input type="text" placeholder={placeholder} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pr-9 pl-9" />
                 {searchQuery && (
                     <Button variant="ghost" size="sm" className="absolute top-1/2 right-1 h-7 w-7 -translate-y-1/2 p-0" onClick={handleClear}>
@@ -89,23 +89,23 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
             </div>
 
             {showResults && (
-                <div className="bg-popover absolute z-50 mt-2 w-full rounded-md border p-2 shadow-md">
+                <div className="absolute z-50 mt-2 w-full rounded-md border bg-(--background-w10) p-2 shadow-md">
                     {isSearching ? (
-                        <div className="text-muted-foreground p-4 text-center text-sm">Searching...</div>
+                        <div className="p-4 text-center text-sm text-(--secondary-text-wMain)">Searching...</div>
                     ) : searchResults.length > 0 ? (
                         <div className="max-h-[300px] overflow-y-auto">
                             {searchResults.map(session => (
-                                <button key={session.id} onClick={() => handleSessionClick(session.id)} className="hover:bg-accent hover:text-accent-foreground w-full rounded-sm px-3 py-2 text-left text-sm">
+                                <button key={session.id} onClick={() => handleSessionClick(session.id)} className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-(--secondary-w40) hover:text-(--secondary-text-wMain)">
                                     <div className="mb-1 flex items-center justify-between gap-2">
                                         <div className="flex-1 truncate font-medium">{session.name || "Untitled Session"}</div>
                                         {session.projectName && <ProjectBadge text={session.projectName} />}
                                     </div>
-                                    <div className="text-muted-foreground text-xs">{new Date(session.updatedTime).toLocaleDateString()}</div>
+                                    <div className="text-xs text-(--secondary-text-wMain)">{new Date(session.updatedTime).toLocaleDateString()}</div>
                                 </button>
                             ))}
                         </div>
                     ) : (
-                        <div className="text-muted-foreground p-4 text-center text-sm">No results found</div>
+                        <div className="p-4 text-center text-sm text-(--secondary-text-wMain)">No results found</div>
                     )}
                 </div>
             )}

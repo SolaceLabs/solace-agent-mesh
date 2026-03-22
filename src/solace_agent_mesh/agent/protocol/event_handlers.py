@@ -337,6 +337,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
 
         # Extract and validate call depth
         call_depth = message.get_user_properties().get("callDepth", 0)
+        try:
+            call_depth = int(call_depth)
+        except (TypeError, ValueError):
+            log.warning(
+                "%s Invalid callDepth value '%s'; defaulting to 0.",
+                component.log_identifier,
+                call_depth,
+            )
+            call_depth = 0
         max_call_depth = component.get_config("max_call_depth", 10)
         if call_depth > max_call_depth:
             error_msg = (
@@ -737,17 +746,103 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 app_name=agent_name, user_id=user_id, session_id=effective_session_id
             )
             if adk_session_for_run is None:
-                adk_session_for_run = await component.session_service.create_session(
-                    app_name=agent_name,
-                    user_id=user_id,
-                    session_id=effective_session_id,
-                )
-                log.info(
-                    "%s Created new ADK session '%s' for task '%s'.",
-                    component.log_identifier,
-                    effective_session_id,
-                    logical_task_id,
-                )
+                # Check if this is a forked session that needs history cloned
+                fork_source_session_id = task_metadata.get("fork_source_session_id")
+                fork_source_user_id = task_metadata.get("fork_source_user_id")
+                
+                if fork_source_session_id and fork_source_user_id:
+                    # Try to clone the source session's conversation history
+                    log.info(
+                        "%s Forked session detected - cloning ADK session from '%s' (user '%s') to '%s' (user '%s').",
+                        component.log_identifier,
+                        fork_source_session_id, fork_source_user_id,
+                        effective_session_id, user_id,
+                    )
+                    try:
+                        from ...agent.adk.services import clone_adk_session
+                        cloned_session = await clone_adk_session(
+                            session_service=component.session_service,
+                            app_name=agent_name,
+                            source_user_id=fork_source_user_id,
+                            source_session_id=fork_source_session_id,
+                            target_user_id=user_id,
+                            target_session_id=effective_session_id,
+                            log_identifier=f"{component.log_identifier}[Fork:{logical_task_id}]",
+                        )
+                        if cloned_session:
+                            adk_session_for_run = cloned_session
+                            log.info(
+                                "%s Successfully cloned ADK session for forked session '%s'.",
+                                component.log_identifier,
+                                effective_session_id,
+                            )
+                        else:
+                            try:
+                                adk_session_for_run = await component.session_service.create_session(
+                                    app_name=agent_name,
+                                    user_id=user_id,
+                                    session_id=effective_session_id,
+                                )
+                            except Exception:
+                                adk_session_for_run = await component.session_service.get_session(
+                                    app_name=agent_name,
+                                    user_id=user_id,
+                                    session_id=effective_session_id,
+                                )
+                            log.warning(
+                                "%s Fork clone returned None - created empty session '%s'.",
+                                component.log_identifier,
+                                effective_session_id,
+                            )
+                    except Exception as clone_err:
+                        log.warning(
+                            "%s Fork clone error: %s - cleaning up and creating empty session '%s'.",
+                            component.log_identifier, clone_err, effective_session_id,
+                        )
+                        # Clean up partially-cloned session before creating a fresh one
+                        try:
+                            await component.session_service.delete_session(
+                                app_name=agent_name,
+                                user_id=user_id,
+                                session_id=effective_session_id,
+                            )
+                        except Exception:
+                            pass  # Session may not exist yet
+                        # Create fresh session; handle race with concurrent first-message
+                        try:
+                            adk_session_for_run = await component.session_service.create_session(
+                                app_name=agent_name,
+                                user_id=user_id,
+                                session_id=effective_session_id,
+                            )
+                        except Exception:
+                            # Another concurrent message may have already created it
+                            adk_session_for_run = await component.session_service.get_session(
+                                app_name=agent_name,
+                                user_id=user_id,
+                                session_id=effective_session_id,
+                            )
+                else:
+                    # Normal new session (not a fork)
+                    try:
+                        adk_session_for_run = await component.session_service.create_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
+                    except Exception:
+                        # Another concurrent message may have already created it
+                        adk_session_for_run = await component.session_service.get_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
+                    log.info(
+                        "%s Created new ADK session '%s' for task '%s'.",
+                        component.log_identifier,
+                        effective_session_id,
+                        logical_task_id,
+                    )
 
             else:
                 log.info(
@@ -1073,17 +1168,17 @@ async def handle_a2a_request(component, message: SolaceMessage):
         log.error(
             "%s Bad Request error handling A2A request: %s", component.log_identifier, e
         )
-        
+
         # Use centralized error handler
         error_message, is_context_limit = get_error_message(e)
-        
+
         if is_context_limit:
             log.error(
                 "%s Context limit exceeded for task %s",
                 component.log_identifier,
                 logical_task_id,
             )
-        
+
         error_response = a2a.create_invalid_request_error_response(
             message=error_message,
             request_id=jsonrpc_request_id,
@@ -1219,16 +1314,6 @@ def handle_agent_card_message(component, message: SolaceMessage):
             message.call_acknowledgements()
             return
 
-        # Filter out gateway cards
-        if is_gateway_card(agent_card):
-            log.debug(
-                "%s Ignoring gateway card '%s'",
-                component.log_identifier,
-                agent_name,
-            )
-            message.call_acknowledgements()
-            return
-
         agent_discovery = component.get_config("agent_discovery", {})
         if agent_discovery.get("enabled", False) is False:
             message.call_acknowledgements()
@@ -1250,7 +1335,6 @@ def handle_agent_card_message(component, message: SolaceMessage):
                     break
 
         if is_allowed:
-
             # Also store in peer_agents for backward compatibility
             component.peer_agents[agent_name] = agent_card
 
@@ -1382,7 +1466,6 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 status_event
                             )
                             if data_parts:
-
                                 peer_agent_name = (
                                     status_event.metadata.get(
                                         "agent_name", "UnknownPeer"
@@ -1540,15 +1623,23 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                                 sub_task_id,
                                             )
                                     filtered_data_parts.append(data_part)
-                                
+
                                 # Store the deep research report flag in correlation data for later use
                                 if has_deep_research_report:
-                                    main_logical_task_id_for_flag = original_task_context.get("logical_task_id")
+                                    main_logical_task_id_for_flag = (
+                                        original_task_context.get("logical_task_id")
+                                    )
                                     with component.active_tasks_lock:
-                                        task_context_for_flag = component.active_tasks.get(main_logical_task_id_for_flag)
+                                        task_context_for_flag = (
+                                            component.active_tasks.get(
+                                                main_logical_task_id_for_flag
+                                            )
+                                        )
                                         if task_context_for_flag:
                                             # Store flag in task context to suppress text in final response
-                                            task_context_for_flag.set_flag("peer_sent_deep_research_report", True)
+                                            task_context_for_flag.set_flag(
+                                                "peer_sent_deep_research_report", True
+                                            )
                                             log.info(
                                                 "%s Set peer_sent_deep_research_report flag for task %s",
                                                 component.log_identifier,
@@ -1564,9 +1655,11 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             sub_task_id,
                                         )
 
-                                        forwarded_message = a2a.create_agent_parts_message(
-                                            parts=[data_part],
-                                            metadata=event_metadata,
+                                        forwarded_message = (
+                                            a2a.create_agent_parts_message(
+                                                parts=[data_part],
+                                                metadata=event_metadata,
+                                            )
                                         )
 
                                         forwarded_event = a2a.create_status_update(
@@ -1912,7 +2005,9 @@ async def handle_a2a_response(component, message: SolaceMessage):
 
             # Check if a deep research report was sent by the peer agent
             # If so, suppress the verbose text but keep artifact info to use
-            peer_sent_deep_research = task_context.get_flag("peer_sent_deep_research_report", False)
+            peer_sent_deep_research = task_context.get_flag(
+                "peer_sent_deep_research_report", False
+            )
             if peer_sent_deep_research:
                 # Clear the flag after using it
                 task_context.set_flag("peer_sent_deep_research_report", False)

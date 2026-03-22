@@ -32,6 +32,20 @@ def run_migrations(db_service, component):
     Raises:
         RuntimeError: If migration fails
     """
+    from solace_agent_mesh.shared.database.sqlite_version_check import check_sqlite_version
+
+    try:
+        # Verify SQLite version before running migrations
+        # Extract database URL from the engine
+        database_url = str(db_service.db_engine.url)
+        check_sqlite_version(database_url, "ADK")
+    except Exception as e:
+        log.error(
+            "%s SQLite version check failed: %s",
+            component.log_identifier,
+            e
+        )
+        raise
 
     try:
         # Get paths to alembic directory and config

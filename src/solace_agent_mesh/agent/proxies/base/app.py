@@ -64,10 +64,13 @@ class BaseProxyApp(App, ABC):
 
         # Programmatically define the component
         component_class = self._get_component_class()
+        component_name = f"{app_info.get('name', 'proxy')}_component"
         component_definition = {
-            "name": f"{app_info.get('name', 'proxy')}_component",
+            "name": component_name,
             "component_class": component_class,
-            "component_config": {},  # Component will get config from app_config
+            "component_config": {
+                "component_name": component_name,
+            },
             "subscriptions": generated_subs,
         }
         app_info["components"] = [component_definition]

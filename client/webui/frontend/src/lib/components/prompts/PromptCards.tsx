@@ -55,7 +55,9 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
 
     const filteredPrompts = useMemo(() => {
         const filtered = prompts.filter(prompt => {
-            const matchesSearch = prompt.name?.toLowerCase().includes(searchQuery.toLowerCase()) || prompt.description?.toLowerCase().includes(searchQuery.toLowerCase()) || prompt.command?.toLowerCase().includes(searchQuery.toLowerCase());
+            const description = prompt.productionPrompt?.description || prompt.description;
+            const command = prompt.productionPrompt?.command || prompt.command;
+            const matchesSearch = prompt.name?.toLowerCase().includes(searchQuery.toLowerCase()) || description?.toLowerCase().includes(searchQuery.toLowerCase()) || command?.toLowerCase().includes(searchQuery.toLowerCase());
 
             const matchesCategory = selectedCategories.length === 0 || (prompt.category && selectedCategories.includes(prompt.category));
 
@@ -145,7 +147,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                         <Button onClick={() => setShowCategoryDropdown(!showCategoryDropdown)} variant="outline" testid="promptTags">
                                             <Filter size={16} />
                                             Tags
-                                            {selectedCategories.length > 0 && <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">{selectedCategories.length}</span>}
+                                            {selectedCategories.length > 0 && <span className="rounded-full bg-(--primary-wMain) px-2 py-0.5 text-xs text-(--primary-text-w10)">{selectedCategories.length}</span>}
                                         </Button>
 
                                         {showCategoryDropdown && (
@@ -154,13 +156,13 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                                 <div className="fixed inset-0 z-10" onClick={() => setShowCategoryDropdown(false)} />
 
                                                 {/* Dropdown */}
-                                                <div className="bg-background absolute top-full left-0 z-20 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border shadow-lg">
+                                                <div className="absolute top-full left-0 z-20 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border bg-(--background-w10) shadow-lg">
                                                     {selectedCategories.length > 0 && (
                                                         <div className="border-b">
                                                             <button
                                                                 data-testid="clearFiltersButton"
                                                                 onClick={clearCategories}
-                                                                className="text-muted-foreground hover:text-foreground hover:bg-muted flex min-h-[24px] w-full cursor-pointer items-center gap-1 px-3 py-2 text-left text-xs transition-colors"
+                                                                className="flex min-h-[24px] w-full cursor-pointer items-center gap-1 px-3 py-2 text-left text-xs text-(--secondary-text-wMain) transition-colors hover:bg-(--secondary-w10) hover:text-(--primary-text-wMain)"
                                                             >
                                                                 <X size={14} />
                                                                 {selectedCategories.length === 1 ? "Clear Filter" : "Clear Filters"}
@@ -169,7 +171,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                                     )}
                                                     <div className="p-1">
                                                         {categories.map(category => (
-                                                            <label key={category} className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded px-2 py-1.5">
+                                                            <label key={category} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-(--secondary-w10)">
                                                                 <input data-testid={`category-checkbox-${category}`} type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} className="rounded" />
                                                                 <span className="text-sm">{category}</span>
                                                             </label>

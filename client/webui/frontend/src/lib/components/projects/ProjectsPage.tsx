@@ -12,8 +12,8 @@ import { useProjectContext } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
 import { Button, Header } from "@/lib/components";
 import { downloadBlob, getErrorMessage } from "@/lib/utils";
-import { useChatContext, useIsProjectSharingEnabled } from "@/lib/hooks";
-import { useExportProject, useImportProject, useFetchProjectsOnMount } from "@/lib/api/projects/hooks";
+import { useChatContext, useIsProjectSharingEnabled, useStartIndexing } from "@/lib/hooks";
+import { useExportProject, useImportProject, useFetchProjectsOnMount, useTogglePinProject } from "@/lib/api/projects/hooks";
 
 export const ProjectsPage: React.FC = () => {
     useFetchProjectsOnMount();
@@ -24,8 +24,10 @@ export const ProjectsPage: React.FC = () => {
     const { projects, isLoading, createProject, activeProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
     const isSharingEnabled = useIsProjectSharingEnabled();
+    const startIndexing = useStartIndexing();
     const exportProjectMutation = useExportProject();
     const importProjectMutation = useImportProject();
+    const togglePinMutation = useTogglePinProject();
 
     // state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -145,6 +147,10 @@ export const ProjectsPage: React.FC = () => {
                 addNotification(warningMessage, "info");
             }
 
+            if (result.sseLocation) {
+                startIndexing(result.sseLocation, result.projectId, "import");
+            }
+
             // Navigate to the newly imported project
             navigate(`/projects/${result.projectId}`);
             addNotification(`Project imported with ${result.artifactsImported} artifacts`, "success");
@@ -157,6 +163,16 @@ export const ProjectsPage: React.FC = () => {
     const handleShareClick = (project: Project) => {
         setProjectToShare(project);
         setIsShareDialogOpen(true);
+    };
+
+    const handleTogglePin = async (project: Project) => {
+        if (togglePinMutation.isPending) return;
+        try {
+            await togglePinMutation.mutateAsync(project.id);
+        } catch (error) {
+            console.error("Failed to toggle pin status:", error);
+            displayError({ title: "Failed to Update Favorite", error: "An error occurred while updating the favorite status." });
+        }
     };
 
     const handleShareDialogClose = () => {
@@ -198,6 +214,8 @@ export const ProjectsPage: React.FC = () => {
                         onExport={handleExport}
                         isLoading={isLoading}
                         onShare={isSharingEnabled ? handleShareClick : undefined}
+                        onTogglePin={handleTogglePin}
+                        isPinToggling={togglePinMutation.isPending}
                     />
                 )}
             </div>

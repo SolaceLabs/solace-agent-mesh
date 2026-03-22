@@ -1,7 +1,7 @@
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import { type ReactNode, type PointerEvent, type MouseEvent, forwardRef, useImperativeHandle, useRef, useState, useCallback, useEffect } from "react";
 
 interface PanZoomCanvasProps {
-    children: React.ReactNode;
+    children: ReactNode;
     initialScale?: number;
     minScale?: number;
     maxScale?: number;
@@ -37,7 +37,7 @@ interface GestureState {
     distance: number;
 }
 
-const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(({ children, initialScale = 1, minScale = 0.1, maxScale = 4, onTransformChange, onUserInteraction, sidePanelWidth = 0 }, ref) => {
+const PanZoomCanvas = forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(({ children, initialScale = 1, minScale = 0.1, maxScale = 4, onTransformChange, onUserInteraction, sidePanelWidth = 0 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [transform, setTransform] = useState({
         scale: initialScale,
@@ -56,7 +56,7 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(({ 
     const clampScale = useCallback((scale: number) => Math.min(Math.max(scale, minScale), maxScale), [minScale, maxScale]);
 
     // Expose methods via ref
-    React.useImperativeHandle(ref, () => ({
+    useImperativeHandle(ref, () => ({
         resetTransform: () => {
             setTransform({ scale: initialScale, x: 0, y: 0 });
         },
@@ -217,7 +217,7 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(({ 
 
     // Handle pointer down
     const handlePointerDown = useCallback(
-        (e: React.PointerEvent) => {
+        (e: PointerEvent) => {
             // Capture the pointer for tracking
             (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
@@ -239,7 +239,7 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(({ 
 
     // Handle pointer move
     const handlePointerMove = useCallback(
-        (e: React.PointerEvent) => {
+        (e: PointerEvent) => {
             if (!pointersRef.current.has(e.pointerId)) return;
 
             // Update pointer position
@@ -303,7 +303,7 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(({ 
     );
 
     // Handle pointer up/cancel
-    const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    const handlePointerUp = useCallback((e: PointerEvent) => {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
         pointersRef.current.delete(e.pointerId);
 
@@ -402,7 +402,7 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(({ 
 
     // Handle double-click to zoom in at click location
     const handleDoubleClick = useCallback(
-        (e: React.MouseEvent) => {
+        (e: MouseEvent) => {
             // Prevent text selection on double-click
             e.preventDefault();
 

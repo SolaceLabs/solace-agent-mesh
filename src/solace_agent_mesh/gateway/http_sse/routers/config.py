@@ -16,7 +16,9 @@ from ...constants import (
     DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_PROJECT_SIZE_BYTES,
+    DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
 )
+from ..services.document_conversion_service import get_document_conversion_service
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -31,7 +33,6 @@ def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[st
     Extract validation limits from Pydantic models to expose to frontend.
     This ensures frontend and backend validation limits stay in sync.
     """
-    # Extract limits from CreateProjectRequest model
     create_fields = CreateProjectRequest.model_fields
 
     max_per_file_upload_size_bytes = (
@@ -58,6 +59,7 @@ def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[st
         "projectNameMax": create_fields["name"].metadata[1].max_length if create_fields["name"].metadata else 255,
         "projectDescriptionMax": create_fields["description"].metadata[0].max_length if create_fields["description"].metadata else 1000,
         "projectInstructionsMax": create_fields["system_prompt"].metadata[0].max_length if create_fields["system_prompt"].metadata else 4000,
+        "projectFileDescriptionMax": DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
         "maxPerFileUploadSizeBytes": max_per_file_upload_size_bytes,
         "maxBatchUploadSizeBytes": max_batch_upload_size_bytes,
         "maxZipUploadSizeBytes": max_zip_upload_size_bytes,
@@ -184,6 +186,46 @@ def _determine_mentions_enabled(
         return False
     
     log.debug("%s Mentions enabled: identity_service configured and explicitly enabled", log_prefix)
+    return True
+
+
+def _determine_binary_artifact_preview_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if binary artifact preview (DOCX, PPTX, XLSX to PDF conversion) should be enabled.
+    
+    Logic:
+    1. Check if explicitly enabled in frontend_feature_enablement.binaryArtifactPreview
+    2. Check if LibreOffice is available on the system
+    
+    Returns:
+        bool: True if binary artifact preview should be enabled
+    """
+    # Check explicit feature flag - defaults to False (LibreOffice not installed by default)
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    explicitly_enabled = feature_flags.get("binaryArtifactPreview", False)
+    
+    if not explicitly_enabled:
+        log.debug("%s Binary artifact preview disabled: not enabled in config (set binaryArtifactPreview: true to enable)", log_prefix)
+        return False
+    
+    # Check if LibreOffice is available
+    try:
+        conversion_service = get_document_conversion_service()
+        if not conversion_service.is_available:
+            log.warning(
+                "%s Binary artifact preview enabled in config but LibreOffice not available. "
+                "Build with INSTALL_LIBREOFFICE=true to enable this feature.",
+                log_prefix
+            )
+            return False
+    except Exception as e:
+        log.debug("%s Binary artifact preview disabled: error checking LibreOffice: %s", log_prefix, e)
+        return False
+    
+    log.debug("%s Binary artifact preview enabled: LibreOffice available and feature enabled", log_prefix)
     return True
 
 
@@ -372,6 +414,14 @@ async def get_app_config(
             log.debug("%s Auto title generation feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Auto title generation feature flag is disabled.", log_prefix)
+        
+        # Determine if binary artifact preview (DOCX, PPTX, XLSX to PDF) should be enabled
+        binary_artifact_preview_enabled = _determine_binary_artifact_preview_enabled(component, log_prefix)
+        feature_enablement["binaryArtifactPreview"] = binary_artifact_preview_enabled
+        if binary_artifact_preview_enabled:
+            log.debug("%s Binary artifact preview feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Binary artifact preview feature flag is disabled.", log_prefix)
         
         # Check tool configuration status
         tool_config_status = {}

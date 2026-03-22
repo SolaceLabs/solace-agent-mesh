@@ -99,6 +99,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
 
     const handleSave = async () => {
         if (isEditing && editingGroup) {
+            // Update current version in-place
             const success = await updateTemplate(editingGroup.id, false);
             if (success) {
                 allowNavigation(() => {
@@ -122,18 +123,17 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
     };
 
     const handleSaveNewVersion = async () => {
-        if (!isEditing || !editingGroup) return;
-
-        // Create new version and make it active
-        const success = await updateTemplate(editingGroup.id, true);
-        if (success) {
-            // Clear unsaved state and close without check
-            allowNavigation(() => {
-                handleClose(true);
-                if (onSuccess) {
-                    onSuccess(editingGroup.id);
-                }
-            });
+        if (isEditing && editingGroup) {
+            // Create a new version
+            const success = await updateTemplate(editingGroup.id, true);
+            if (success) {
+                allowNavigation(() => {
+                    handleClose(true);
+                    if (onSuccess) {
+                        onSuccess(editingGroup.id);
+                    }
+                });
+            }
         }
     };
 
@@ -224,17 +224,17 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                         {/* Template Name */}
                                         <div className="space-y-2">
                                             <Label htmlFor="template-name">
-                                                Name <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                Name <span className="text-(--primary-wMain)">*</span>
                                             </Label>
                                             <Input
                                                 id="template-name"
                                                 placeholder="e.g., Code Review Template"
                                                 value={config.name || ""}
                                                 onChange={e => updateConfig({ name: e.target.value })}
-                                                className={`placeholder:text-muted-foreground/50 ${validationErrors.name ? "border-red-500" : ""}`}
+                                                className={`placeholder:text-(--secondary-text-w50) ${validationErrors.name ? "border-(--error-w100)" : ""}`}
                                             />
                                             {validationErrors.name && (
-                                                <p className="flex items-center gap-1 text-sm text-red-600">
+                                                <p className="flex items-center gap-1 text-sm text-(--error-wMain)">
                                                     <AlertCircle className="h-3 w-3" />
                                                     {validationErrors.name}
                                                 </p>
@@ -249,7 +249,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                                 placeholder="e.g., Reviews code for best practices and potential issues"
                                                 value={config.description || ""}
                                                 onChange={e => updateConfig({ description: e.target.value })}
-                                                className="placeholder:text-muted-foreground/50"
+                                                className="placeholder:text-(--secondary-text-w50)"
                                             />
                                         </div>
 
@@ -275,19 +275,19 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                         {/* Chat Shortcut */}
                                         <div className="space-y-2">
                                             <Label htmlFor="template-command">
-                                                Chat Shortcut <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                Chat Shortcut <span className="text-(--primary-wMain)">*</span>
                                             </Label>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-muted-foreground text-sm">/</span>
+                                                <span className="text-sm text-(--secondary-text-wMain)">/</span>
                                                 <Input
                                                     id="template-command"
                                                     placeholder="e.g., code-review"
                                                     value={config.command || ""}
                                                     onChange={e => updateConfig({ command: e.target.value })}
-                                                    className={`placeholder:text-muted-foreground/50 ${validationErrors.command ? "border-red-500" : ""}`}
+                                                    className={`placeholder:text-(--secondary-text-w50) ${validationErrors.command ? "border-(--error-w100)" : ""}`}
                                                 />
                                             </div>
-                                            <p className="text-muted-foreground text-xs">Quick access shortcut for chat (letters, numbers, hyphens, underscores only)</p>
+                                            <p className="text-xs text-(--secondary-text-wMain)">Quick access shortcut for chat (letters, numbers, hyphens, underscores only)</p>
                                         </div>
                                     </div>
                                 </div>
@@ -295,7 +295,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                 {/* Content Section */}
                                 <div>
                                     <CardTitle className="mb-4 text-base">
-                                        Content<span className="text-[var(--color-primary-wMain)]">*</span>
+                                        Content<span className="text-(--primary-wMain)">*</span>
                                     </CardTitle>
                                     <div className="space-y-2">
                                         <HighlightedTextarea
@@ -305,10 +305,10 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                             value={config.promptText || ""}
                                             onChange={e => updateConfig({ promptText: e.target.value })}
                                             rows={12}
-                                            className={`placeholder:text-muted-foreground/50 ${validationErrors.promptText ? "border-red-500" : ""}`}
+                                            className={`placeholder:text-(--secondary-text-w50) ${validationErrors.promptText ? "border-(--error-w100)" : ""}`}
                                         />
                                         {validationErrors.promptText && (
-                                            <p className="flex items-center gap-1 text-sm text-red-600">
+                                            <p className="flex items-center gap-1 text-sm text-(--error-wMain)">
                                                 <AlertCircle className="h-3 w-3" />
                                                 {validationErrors.promptText}
                                             </p>
@@ -316,14 +316,14 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
 
                                         {/* Variables info - always shown */}
                                         <div className="space-y-2">
-                                            <p className="text-muted-foreground text-sm">
+                                            <p className="text-sm text-(--secondary-text-wMain)">
                                                 Variables are placeholder values that make your prompt flexible and reusable. You will be asked to fill in these variable values whenever you use this prompt. Use {`{{Variable Name}}`} for placeholders.
                                                 {config.detected_variables && config.detected_variables.length > 0 && " Your prompt has the following variables:"}
                                             </p>
                                             {config.detected_variables && config.detected_variables.length > 0 && (
                                                 <div className="flex flex-wrap gap-2">
                                                     {config.detected_variables.map((variable, index) => (
-                                                        <span key={index} className="bg-primary/10 text-primary rounded px-2 py-1 font-mono text-xs">
+                                                        <span key={index} className="rounded bg-(--info-w10) px-2 py-1 font-mono text-xs text-(--info-wMain)">
                                                             {`{{${variable}}}`}
                                                         </span>
                                                     ))}

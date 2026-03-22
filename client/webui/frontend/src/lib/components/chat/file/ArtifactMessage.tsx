@@ -6,7 +6,7 @@ import { Spinner } from "@/lib/components/ui/spinner";
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment, MessageFE } from "@/lib/types";
-import { downloadFile, getErrorMessage, parseArtifactUri } from "@/lib/utils";
+import { downloadFile, getErrorMessage, getSourceProjectName, parseArtifactUri } from "@/lib/utils";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 
 import { MessageBanner } from "../../common";
@@ -369,7 +369,7 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
 
     if (isLoading) {
         expandedContent = (
-            <div className="bg-muted flex h-25 items-center justify-center">
+            <div className="flex h-25 items-center justify-center bg-(--secondary-w10)">
                 <Spinner />
             </div>
         );
@@ -500,6 +500,7 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
             isDeleted={isDeleted}
             version={version}
             source={artifactInAll?.source}
+            sourceProjectName={getSourceProjectName(artifactInAll, activeProject)}
         />
     );
 }

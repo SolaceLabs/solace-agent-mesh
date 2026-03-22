@@ -484,6 +484,28 @@ class DeepResearchReportData(BaseModel):
     sources_count: int = Field(default=0, description="Number of sources analyzed.")
 
 
+class CompactionNotificationData(BaseModel):
+    """
+    Data model for a compaction notification signal.
+    Sent when conversation history has been automatically summarized
+    due to context limit being exceeded. The frontend renders this
+    as a collapsible card with the summary text.
+    """
+
+    type: Literal["compaction_notification"] = Field(
+        "compaction_notification",
+        description="The constant type for this data part.",
+    )
+    summary: str = Field(
+        ...,
+        description="The summary text of compacted conversation turns.",
+    )
+    is_background: bool = Field(
+        False,
+        description="True if background/agent-to-agent task, False if interactive.",
+    )
+
+
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
@@ -503,4 +525,5 @@ SignalData = Union[
     DeepResearchProgressData,
     RAGInfoUpdateData,
     DeepResearchReportData,
+    CompactionNotificationData,
 ]

@@ -20,6 +20,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from solace_ai_connector.common.log import log
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 from ..dependencies import (
     get_project_service,
@@ -32,6 +33,7 @@ from ..services.project_service import ProjectService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 from ....common.a2a.types import ArtifactInfo
+from ....common.utils.mime_helpers import resolve_mime_type
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -44,6 +46,7 @@ from .dto.requests.project_requests import (
     GetProjectsRequest,
     DeleteProjectRequest,
 )
+from ..repository.models.project_model import ProjectModel
 from .dto.responses.project_responses import (
     ProjectResponse,
     ProjectListResponse,
@@ -100,20 +103,15 @@ def check_project_indexing_enabled(
 ) -> bool:
     """
     Dependency to check if project indexing feature is enabled.
-    Raises HTTPException if project indexing is disabled.
+    Reads from frontend_feature_enablement.projectIndexing.
     """
-
-    # Check explicit project_indexing config
-    project_indexing_config = component.get_config("project_indexing", {})
-    if isinstance(project_indexing_config, dict):
-        indexing_explicitly_enabled = project_indexing_config.get("enabled", False)
-        if not indexing_explicitly_enabled:
-            log.info("Project indexing is explicitly disabled in config")
-            return False
-        else:
-            log.info("Project indexing is explicitly enabled in config")
-            return True
-    return False
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    indexing_enabled = feature_flags.get("projectIndexing", False)
+    if not indexing_enabled:
+        log.debug("Project indexing is disabled in frontend_feature_enablement")
+        return False
+    log.debug("Project indexing is enabled in frontend_feature_enablement")
+    return True
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
@@ -179,6 +177,7 @@ async def create_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
+            is_pinned=getattr(project, 'is_pinned', False) or False,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -237,6 +236,7 @@ async def get_user_projects(
                     system_prompt=p.system_prompt,
                     default_agent_id=p.default_agent_id,
                     artifact_count=count,
+                    is_pinned=p.is_pinned,
                     created_at=p.created_at,
                     updated_at=p.updated_at,
                 )
@@ -254,6 +254,7 @@ async def get_user_projects(
                     description=p.description,
                     system_prompt=p.system_prompt,
                     default_agent_id=p.default_agent_id,
+                    is_pinned=p.is_pinned,
                     created_at=p.created_at,
                     updated_at=p.updated_at,
                 )
@@ -320,6 +321,7 @@ async def get_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
+            is_pinned=getattr(project, 'is_pinned', False) or False,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -440,12 +442,13 @@ async def add_project_artifacts(
 
         # Classify files by type (using MIME type)
         for file in files:
-            if project_service._should_convert_file(file.content_type, file.filename):
+            mime_type = resolve_mime_type(file.filename, file.content_type)
+            if project_service._should_convert_file(mime_type, file.filename):
                 # Find version from results
                 file_result = next((r for r in results if r.get('data_filename') == file.filename), None)
                 if file_result:
-                    needs_conversion.append((file.filename, file_result['data_version'], file.content_type))
-            elif project_service._is_text_file(file.content_type, file.filename):
+                    needs_conversion.append((file.filename, file_result['data_version'], mime_type))
+            elif project_service._is_text_file(mime_type, file.filename):
                 file_result = next((r for r in results if r.get('data_filename') == file.filename), None)
                 if file_result:
                     is_text_based.append((file.filename, file_result['data_version']))
@@ -808,6 +811,7 @@ async def update_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
+            is_pinned=getattr(project, 'is_pinned', False) or False,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -890,6 +894,72 @@ async def delete_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete project"
+        )
+
+
+@router.patch("/projects/{project_id}/pin", response_model=ProjectResponse)
+async def toggle_pin_project(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Toggle the pin (star) status of a project for the authenticated user.
+    Only the project owner can pin/unpin a project.
+    """
+    user_id = user.get("id")
+    log.info("User %s toggling pin for project %s", user_id, project_id)
+
+    try:
+        project = db.query(ProjectModel).filter(
+            ProjectModel.id == project_id,
+            ProjectModel.user_id == user_id,
+            ProjectModel.deleted_at.is_(None),
+        ).first()
+
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found."
+            )
+
+        # Toggle pin status
+        current_pinned = getattr(project, 'is_pinned', False) or False
+        project.is_pinned = not current_pinned
+        project.updated_at = now_epoch_ms()
+
+        db.commit()
+        db.refresh(project)
+
+        log.info(
+            "Project %s pin status toggled to %s by user %s",
+            project_id,
+            project.is_pinned,
+            user_id,
+        )
+
+        return ProjectResponse(
+            id=project.id,
+            name=project.name,
+            user_id=project.user_id,
+            description=project.description,
+            system_prompt=project.system_prompt,
+            default_agent_id=project.default_agent_id,
+            is_pinned=project.is_pinned,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+        )
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        log.error("Error toggling pin for project %s for user %s: %s", project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to toggle pin status"
         )
 
 
