@@ -30,7 +30,7 @@ import { useChatContext } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent } from "@/lib/utils";
-import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
+import { hasWorkingTag, SHOW_WORKING_ARTIFACTS_STORAGE_KEY } from "@/lib/constants";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
 import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
@@ -753,11 +753,8 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
     { value: "size", label: "Size" },
 ];
 
-const SHOW_INTERNAL_ARTIFACTS_KEY = "sam_show_internal_artifacts";
-
-/** Returns true if the artifact has the working/internal tag and should be hidden by default. */
 function isInternalArtifact(artifact: ArtifactWithSession): boolean {
-    return artifact.tags?.some(t => t.toLowerCase() === ARTIFACT_TAG_WORKING.toLowerCase()) ?? false;
+    return hasWorkingTag(artifact.tags);
 }
 
 export function ArtifactsPage() {
@@ -772,7 +769,7 @@ export function ArtifactsPage() {
     const [deleteConfirmArtifact, setDeleteConfirmArtifact] = useState<ArtifactWithSession | null>(null);
     const [showInternalArtifacts, setShowInternalArtifacts] = useState<boolean>(() => {
         try {
-            return localStorage.getItem(SHOW_INTERNAL_ARTIFACTS_KEY) === "true";
+            return localStorage.getItem(SHOW_WORKING_ARTIFACTS_STORAGE_KEY) === "true";
         } catch {
             return false;
         }
@@ -782,7 +779,7 @@ export function ArtifactsPage() {
         setShowInternalArtifacts(prev => {
             const next = !prev;
             try {
-                localStorage.setItem(SHOW_INTERNAL_ARTIFACTS_KEY, String(next));
+                localStorage.setItem(SHOW_WORKING_ARTIFACTS_STORAGE_KEY, String(next));
             } catch {
                 // ignore
             }

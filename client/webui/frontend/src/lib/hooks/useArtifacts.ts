@@ -3,9 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { api } from "@/lib/api";
 import type { ArtifactInfo } from "@/lib/types";
 import { useProjectContext } from "../providers/ProjectProvider";
-import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
-
-const STORAGE_KEY = "sam_show_working_artifacts";
+import { hasWorkingTag, SHOW_WORKING_ARTIFACTS_STORAGE_KEY } from "@/lib/constants";
 
 interface UseArtifactsReturn {
     artifacts: ArtifactInfo[];
@@ -19,17 +17,6 @@ interface UseArtifactsReturn {
     workingArtifactCount: number;
 }
 
-/**
- * Checks if an artifact has the working system tag (case-insensitive).
- * Working artifacts are hidden from users by default.
- *
- * @param tags The tags array of the artifact.
- * @returns True if the artifact has the working system tag.
- */
-const hasWorkingTag = (tags: string[] | undefined): boolean => {
-    return tags?.some(t => t.toLowerCase() === ARTIFACT_TAG_WORKING.toLowerCase()) ?? false;
-};
-
 export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
     const { activeProject } = useProjectContext();
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
@@ -37,7 +24,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
     const [error, setError] = useState<string | null>(null);
     const [showWorkingArtifacts, setShowWorkingArtifacts] = useState<boolean>(() => {
         try {
-            return localStorage.getItem(STORAGE_KEY) === "true";
+            return localStorage.getItem(SHOW_WORKING_ARTIFACTS_STORAGE_KEY) === "true";
         } catch {
             return false;
         }
@@ -87,7 +74,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         setShowWorkingArtifacts(prev => {
             const newValue = !prev;
             try {
-                localStorage.setItem(STORAGE_KEY, String(newValue));
+                localStorage.setItem(SHOW_WORKING_ARTIFACTS_STORAGE_KEY, String(newValue));
             } catch {
                 // Ignore localStorage errors
             }

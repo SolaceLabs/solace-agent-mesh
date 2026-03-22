@@ -271,8 +271,7 @@ async def process_artifact_blocks_callback(
                                 log_identifier,
                             )
                         # Extract tags from params (comma-separated string to list)
-                        tags_str = event.params.get("tags", "")
-                        tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else None
+                        tags = _parse_tags_param(event.params.get("tags")) or None
                         if a2a_context:
                             status_text = f"Receiving artifact `{filename}`..."
                             if description:
