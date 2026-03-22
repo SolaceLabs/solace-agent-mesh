@@ -1,19 +1,20 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { FolderOpen, BookOpenText, Bot, User, LogOut, Files } from "lucide-react";
+import { FolderOpen, BookOpenText, Bot, User, LogOut, Files, Calendar } from "lucide-react";
 import type { NavItemConfig } from "@/lib/types/fe";
 
 interface UseNavigationItemsProps {
     projectsEnabled: boolean;
     promptLibraryEnabled: boolean;
     artifactsPageEnabled: boolean;
+    schedulerEnabled: boolean;
     logoutEnabled: boolean;
     isAuthenticated: boolean;
     onUserAccountClick: () => void;
     onLogoutClick: () => void;
 }
 
-export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
+export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, schedulerEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
     const location = useLocation();
 
     const items = useMemo((): NavItemConfig[] => {
@@ -51,6 +52,17 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
+                tooltip: "Experimental Feature",
+            });
+        }
+
+        if (schedulerEnabled) {
+            assetsChildren.push({
+                id: "schedules",
+                label: "Schedules",
+                icon: Calendar,
+                route: "/schedules",
+                routeMatch: "/schedules",
                 tooltip: "Experimental Feature",
             });
         }
@@ -94,7 +106,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
         }
 
         return navItems;
-    }, [projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick]);
+    }, [projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, schedulerEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick]);
 
     const activeItemId = useMemo((): string => {
         const path = location.pathname;
@@ -102,6 +114,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/artifacts")) return "artifacts";
+        if (path.startsWith("/schedules")) return "schedules";
         if (path.startsWith("/agents")) return "agents";
         return "chats";
     }, [location.pathname]);

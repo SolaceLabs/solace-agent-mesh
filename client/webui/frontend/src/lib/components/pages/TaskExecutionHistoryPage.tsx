@@ -14,6 +14,7 @@ import { useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api/client";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { getRenderType } from "@/lib/components/chat/preview/previewUtils";
+import { MarkdownHTMLConverter } from "@/lib/components/common/MarkdownHTMLConverter";
 
 interface TaskExecutionHistoryPageProps {
     task: ScheduledTask;
@@ -134,23 +135,25 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         const summary = execution.resultSummary;
         if (!summary) return <p className="text-muted-foreground">No response available</p>;
 
-        // For RUN_BASED sessions, show agentResponse
+        // For RUN_BASED sessions, show agentResponse with full markdown formatting
         if (summary.agentResponse) {
             return (
-                <div className="space-y-2">
-                    <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{summary.agentResponse}</div>
+                <div className="bg-muted/30 rounded p-3 text-sm">
+                    <MarkdownHTMLConverter>{summary.agentResponse}</MarkdownHTMLConverter>
                 </div>
             );
         }
 
-        // For PERSISTENT sessions, show message history
+        // For PERSISTENT sessions, show message history with full markdown formatting
         if (summary.messages && Array.isArray(summary.messages) && summary.messages.length > 0) {
             return (
                 <div className="space-y-3">
                     {summary.messages.map((msg: { role: string; text: string }, idx: number) => (
                         <div key={idx} className="space-y-1">
                             <div className="text-muted-foreground text-xs font-medium capitalize">{msg.role || "Unknown"}</div>
-                            <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{msg.text || "No content"}</div>
+                            <div className="bg-muted/30 rounded p-3 text-sm">
+                                <MarkdownHTMLConverter>{msg.text || "No content"}</MarkdownHTMLConverter>
+                            </div>
                         </div>
                     ))}
                 </div>

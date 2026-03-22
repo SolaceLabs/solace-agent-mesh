@@ -13,6 +13,7 @@ import { TaskTemplateBuilder } from "@/lib/components/scheduled-tasks/TaskTempla
 import { GenerateTaskDialog } from "@/lib/components/scheduled-tasks/GenerateTaskDialog";
 import { TaskCards } from "@/lib/components/scheduled-tasks/TaskCards";
 import { Header, EmptyState } from "@/lib/components";
+import { LifecycleBadge } from "@/lib/components/ui";
 
 export function ScheduledTasksPage() {
     const { isLoading, error, fetchTasks, enableTask, disableTask, deleteTask } = useScheduledTasks();
@@ -129,7 +130,11 @@ export function ScheduledTasksPage() {
     return (
         <div className="flex h-full w-full flex-col">
             <Header
-                title="Scheduled Tasks"
+                title={
+                    <>
+                        Scheduled Tasks <LifecycleBadge>EXPERIMENTAL</LifecycleBadge>
+                    </>
+                }
                 buttons={[
                     <Button data-testid="refreshTasks" disabled={isLoading} variant="ghost" tooltip="Refresh Tasks" onClick={loadTasks}>
                         <RefreshCw className="size-4" />
