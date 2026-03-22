@@ -9,7 +9,16 @@ import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type SettingsSection = "general" | "speech" | "about";
+type SettingsSection = "general" | "speech" | "about" | string;
+
+export interface ExtraSettingsTab {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    content: React.ReactNode;
+    /** "top" = above the divider (default), "bottom" = below divider, above About */
+    position?: "top" | "bottom";
+}
 
 interface SidebarItemProps {
     icon: React.ReactNode;
@@ -31,9 +40,10 @@ interface SettingsDialogProps {
     iconOnly?: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    extraTabs?: ExtraSettingsTab[];
 }
 
-export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange }) => {
+export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange, extraTabs = [] }) => {
     const { configFeatureEnablement } = useConfigContext();
     const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
@@ -56,8 +66,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                 return <GeneralSettings />;
             case "speech":
                 return <SpeechSettingsPanel />;
-            default:
-                return <GeneralSettings />;
+            default: {
+                const extra = extraTabs.find((t) => t.id === activeSection);
+                return extra ? extra.content : <GeneralSettings />;
+            }
         }
     };
 
@@ -70,7 +82,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
             case "speech":
                 return "Speech";
             default:
-                return "Settings";
+                return extraTabs.find((t) => t.id === activeSection)?.label ?? "Settings";
         }
     };
 
@@ -116,12 +128,18 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             <div className="flex-1 space-y-1 overflow-y-auto">
                                 <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
                                 {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
+                                {extraTabs.filter((t) => t.position !== "bottom").map((t) => (
+                                    <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => setActiveSection(t.id)} />
+                                ))}
                             </div>
                             {/* Bottom items, static */}
                             <div className="space-y-1 pb-2">
                                 {/* Divider */}
                                 <div className="mt-4 border-t pb-2" />
-                                {/* About entry */}
+                                {extraTabs.filter((t) => t.position === "bottom").map((t) => (
+                                    <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => setActiveSection(t.id)} />
+                                ))}
+                                {/* About entry — always last */}
                                 <SidebarItem icon={<Info className="size-4" />} label="About" active={activeSection === "about"} onClick={() => setActiveSection("about")} />
                             </div>
                         </nav>
