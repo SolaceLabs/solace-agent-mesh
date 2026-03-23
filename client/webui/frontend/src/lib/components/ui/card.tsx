@@ -1,13 +1,35 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { clickableNodeProps } from "@/lib/components/utils/nodeInteraction";
 
 interface CardProps extends React.ComponentProps<"div"> {
     noPadding?: boolean;
+    selectable?: boolean;
+    isSelected?: boolean;
 }
 
-function Card({ className, noPadding, ...props }: CardProps) {
-    return <div data-slot="card" className={cn("card-surface flex flex-col gap-5 rounded-lg bg-(--background-w10) text-(--primary-text-wMain)", !noPadding && "py-6", className)} {...props} />;
+function Card({ className, noPadding, selectable, isSelected, onClick, ...props }: CardProps) {
+    const { onClick: selectableOnClick, onKeyDown, role, tabIndex } = selectable ? clickableNodeProps(onClick as (() => void) | undefined) : ({} as ReturnType<typeof clickableNodeProps>);
+
+    return (
+        <div
+            data-slot="card"
+            className={cn(
+                "card-surface flex flex-col gap-5 rounded-lg bg-(--background-w10) text-(--primary-text-wMain)",
+                !noPadding && "py-6",
+                selectable && "card-surface-hover cursor-pointer transition-all outline-none hover:bg-(--primary-w10) focus-visible:border-(--brand-wMain)",
+                isSelected && "border-(--brand-wMain)",
+                className
+            )}
+            onClick={selectable ? selectableOnClick : onClick}
+            onKeyDown={onKeyDown}
+            role={role}
+            tabIndex={tabIndex}
+            aria-pressed={selectable ? (isSelected ?? false) : undefined}
+            {...props}
+        />
+    );
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {

@@ -73,13 +73,17 @@
     scrollbar-color: var(--secondary-w70) transparent;
 }
 
-.card-surface {
-    border: 1px solid var(--secondary-w20);
+@utility card-surface {
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--secondary-w20);
     box-shadow: 0px 1px 4px 0px var(--stateLayer-w10);
 }
 
-.card-surface-hover:hover {
-    box-shadow: 0px 4px 12px 0px var(--stateLayer-w10);
+@utility card-surface-hover {
+    &:hover {
+        box-shadow: 0px 4px 12px 0px var(--stateLayer-w10);
+    }
 }
 
 .overlay-backdrop {
