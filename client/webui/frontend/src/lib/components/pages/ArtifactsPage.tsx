@@ -29,7 +29,7 @@ import {
 import { useChatContext } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
-import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent } from "@/lib/utils";
+import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent, createSemaphore } from "@/lib/utils";
 import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
@@ -46,10 +46,20 @@ import type { ArtifactWithSession } from "@/lib/api/artifacts";
 // LRU Cache for document content with max size to prevent memory leaks
 const documentContentCache = createLruCache<string>(50);
 
+// LRU Cache for text preview snippets — avoids re-fetching full text files just for tile previews
+const textPreviewCache = createLruCache<string>(200);
+
 // Generate cache key for document content
 function getDocumentCacheKey(sessionId: string, filename: string): string {
     return `${sessionId}:${filename}`;
 }
+
+/**
+ * Concurrency limiter for preview fetches.
+ * Browsers typically allow ~6 concurrent connections per origin.
+ * We cap at 4 to leave headroom for user-initiated requests (navigation, downloads, etc.).
+ */
+const { release: releaseFetchSlot, acquireOrAbort: acquireFetchSlotOrAbort } = createSemaphore(4);
 
 // Helper to check if artifact is a project artifact
 // Note: Backend uses "project-{id}" format, but we also check "project:{id}" for backward compatibility
@@ -118,9 +128,16 @@ interface ArtifactGridCardProps {
 }
 
 const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected, binaryArtifactPreviewEnabled }: ArtifactGridCardProps) {
-    const [contentPreview, setContentPreview] = useState<string | null>(null);
+    const [contentPreview, setContentPreview] = useState<string | null>(() => {
+        // Initialise from cache synchronously so cached tiles never flash a spinner
+        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+        return textPreviewCache.get(cacheKey) ?? null;
+    });
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-    const [documentContent, setDocumentContent] = useState<string | null>(null);
+    const [documentContent, setDocumentContent] = useState<string | null>(() => {
+        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+        return documentContentCache.get(cacheKey) ?? null;
+    });
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
     const [documentThumbnailFailed, setDocumentThumbnailFailed] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -136,20 +153,24 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
     // Only enable document thumbnail if: it's a PDF (always works) OR it's an Office doc and conversion is enabled
     const canAttemptDocumentThumbnail = isDocumentThumbnailSupported && (isPdfFile || binaryArtifactPreviewEnabled);
 
-    // Use IntersectionObserver to defer heavy thumbnail loading until card is visible
+    // Determine whether this card needs a network fetch for its preview
+    const needsPreviewFetch = isImageType(artifact.mime_type) || canAttemptDocumentThumbnail || supportsTextPreview(artifact.mime_type);
+
+    // Use IntersectionObserver to defer ALL preview loading until card is near the viewport.
+    // This prevents hundreds of simultaneous fetches when the page first loads with many artifacts.
     useEffect(() => {
         const el = cardRef.current;
         if (!el) return;
 
-        // Images and text previews are cheap; only gate document thumbnails behind visibility
-        if (!canAttemptDocumentThumbnail) {
+        // If this card type doesn't need a fetch at all, mark visible immediately
+        if (!needsPreviewFetch) {
             setIsVisible(true);
             return;
         }
 
-        // If already cached, no need to wait for visibility
+        // If content is already cached, no need to wait for visibility
         const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-        if (documentContentCache.get(cacheKey)) {
+        if (documentContentCache.get(cacheKey) || textPreviewCache.get(cacheKey)) {
             setIsVisible(true);
             return;
         }
@@ -161,21 +182,24 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                     observer.disconnect();
                 }
             },
-            { rootMargin: "100px" }
+            { rootMargin: "200px" }
         );
         observer.observe(el);
         return () => observer.disconnect();
-    }, [canAttemptDocumentThumbnail, artifact.sessionId, artifact.filename]);
+    }, [needsPreviewFetch, artifact.sessionId, artifact.filename]);
 
-    // Load content preview for text files, image thumbnail, or document thumbnail
+    // Load content preview for text files, image thumbnail, or document thumbnail.
+    // Gated behind isVisible (IntersectionObserver) AND a concurrency semaphore to
+    // avoid overwhelming the browser's connection pool.
     useEffect(() => {
-        // Defer document thumbnail loading until card is visible
-        if (!isVisible && canAttemptDocumentThumbnail) return;
+        // Defer ALL preview loading until card is visible
+        if (!isVisible) return;
 
         // Track if component is still mounted
         let isMounted = true;
         const abortController = new AbortController();
         let imageBlobUrl: string | null = null;
+        let slotAcquired = false;
 
         const loadPreview = async () => {
             // Get the correct API URL for this artifact (handles both session and project artifacts)
@@ -183,6 +207,8 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
 
             if (isImageType(artifact.mime_type)) {
                 // For images, fetch via authenticated API client and create a blob URL.
+                slotAcquired = await acquireFetchSlotOrAbort(abortController.signal);
+                if (!slotAcquired) return;
                 try {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
@@ -195,6 +221,11 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 } catch (error) {
                     if (!abortController.signal.aborted) {
                         console.error("Error loading image preview:", error);
+                    }
+                } finally {
+                    if (slotAcquired) {
+                        releaseFetchSlot();
+                        slotAcquired = false;
                     }
                 }
             } else if (canAttemptDocumentThumbnail) {
@@ -209,13 +240,26 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 }
 
                 if (isMounted) setIsLoadingPreview(true);
+
+                slotAcquired = await acquireFetchSlotOrAbort(abortController.signal);
+                if (!slotAcquired) return;
+
+                // Wrap only the network calls so the slot is released before local FileReader work
+                let blob: Blob;
                 try {
-                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
+                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
 
-                    const blob = await response.blob();
+                    blob = await response.blob();
                     if (abortController.signal.aborted) return;
+                } finally {
+                    if (slotAcquired) {
+                        releaseFetchSlot();
+                        slotAcquired = false;
+                    }
+                }
 
+                try {
                     // Note: FileReader.readAsDataURL cannot be cancelled - it will complete in the background.
                     // The isMounted/abortController checks after this prevent state updates on unmounted components.
                     const base64data = await new Promise<string>((resolve, reject) => {
@@ -249,10 +293,21 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                     }
                 }
             } else if (supportsTextPreview(artifact.mime_type)) {
-                // For text files, fetch a preview of the content
+                // For text files — check cache first, then fetch a preview snippet
+                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+                const cachedPreview = textPreviewCache.get(cacheKey);
+
+                if (cachedPreview) {
+                    if (isMounted) setContentPreview(cachedPreview);
+                    return;
+                }
+
                 if (isMounted) setIsLoadingPreview(true);
+
+                slotAcquired = await acquireFetchSlotOrAbort(abortController.signal);
+                if (!slotAcquired) return;
                 try {
-                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
+                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
 
                     const text = await response.text();
@@ -269,6 +324,9 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                         })
                         .join("\n");
 
+                    // Cache the text snippet so subsequent renders are instant
+                    textPreviewCache.set(cacheKey, preview);
+
                     if (isMounted) {
                         setContentPreview(preview);
                         setIsLoadingPreview(false);
@@ -277,6 +335,11 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                     if (!abortController.signal.aborted) {
                         console.error("Error loading text preview:", error);
                         if (isMounted) setIsLoadingPreview(false);
+                    }
+                } finally {
+                    if (slotAcquired) {
+                        releaseFetchSlot();
+                        slotAcquired = false;
                     }
                 }
             }
@@ -287,6 +350,11 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
         return () => {
             isMounted = false;
             abortController.abort();
+            // Release the concurrency slot if the component unmounts while waiting in the queue
+            if (slotAcquired) {
+                releaseFetchSlot();
+                slotAcquired = false;
+            }
             // Revoke any blob URL created for image preview to free memory
             if (imageBlobUrl) {
                 URL.revokeObjectURL(imageBlobUrl);

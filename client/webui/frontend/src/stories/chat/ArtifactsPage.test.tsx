@@ -42,18 +42,24 @@ vi.mock("react-pdf", () => ({
     pdfjs: { GlobalWorkerOptions: { workerSrc: "" } },
 }));
 
-// Polyfill IntersectionObserver for jsdom (used by ArtifactsPage for lazy loading)
-const mockIntersectionObserver = vi.fn().mockImplementation(callback => ({
-    observe: vi.fn().mockImplementation(element => {
-        callback([{ isIntersecting: true, target: element }]);
-    }),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-}));
+// Polyfill IntersectionObserver for jsdom (used by ArtifactsPage for lazy loading).
+// Must be a real constructor (class) so that `new IntersectionObserver(...)` works.
+class MockIntersectionObserver {
+    observe: ReturnType<typeof vi.fn>;
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+
+    constructor(callback: IntersectionObserverCallback) {
+        // Capture callback in observe so it immediately reports elements as intersecting
+        this.observe = vi.fn().mockImplementation((element: Element) => {
+            callback([{ isIntersecting: true, target: element }] as IntersectionObserverEntry[], this as unknown as IntersectionObserver);
+        });
+    }
+}
 Object.defineProperty(window, "IntersectionObserver", {
     writable: true,
     configurable: true,
-    value: mockIntersectionObserver,
+    value: MockIntersectionObserver,
 });
 
 // Mock global fetch to intercept all HTTP calls
