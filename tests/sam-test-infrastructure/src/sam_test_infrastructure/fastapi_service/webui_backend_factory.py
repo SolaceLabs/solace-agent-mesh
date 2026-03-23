@@ -1,20 +1,16 @@
 import logging
 import tempfile
 import uuid
-from importlib.resources import files as pkg_files
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
-from openfeature import api as openfeature_api
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from solace_agent_mesh.common.features.checker import FeatureChecker
-from solace_agent_mesh.common.features.provider import SamFeatureProvider
-from solace_agent_mesh.common.features.registry import FeatureRegistry
+from solace_agent_mesh.common.features import core as feature_flags
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from solace_agent_mesh.gateway.http_sse.dependencies import get_session_business_service
@@ -211,15 +207,15 @@ class WebUIBackendFactory:
         # Create a real SessionService and attach it to the mock component
         mock_component.session_service = SessionService(component=mock_component)
 
-        # Initialise the OpenFeature provider so feature-flag evaluations work in tests
-        _registry = FeatureRegistry()
-        _features_yaml = features_yaml_path or str(
-            pkg_files("solace_agent_mesh.common.features").joinpath("features.yaml")
-        )
-        _registry.load_from_yaml(_features_yaml)
-        feature_checker = FeatureChecker(registry=_registry)
-        mock_component.feature_checker = feature_checker
-        openfeature_api.set_provider(SamFeatureProvider(feature_checker))
+        # Initialise the OpenFeature provider so feature-flag evaluations work in tests.
+        # Uses core._initialize_for_testing so both the OpenFeature provider and the
+        # core._checker registry point at the same YAML, preventing production flags
+        # from being loaded when the router calls feature_flags.get_registry().
+        if features_yaml_path:
+            feature_flags._initialize_for_testing(features_yaml_path)
+        else:
+            feature_flags._reset_for_testing()
+            feature_flags.initialize()
 
         # Create a completely independent FastAPI app instance instead of using the global singleton
         self.app = FastAPI(

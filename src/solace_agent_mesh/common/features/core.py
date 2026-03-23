@@ -137,3 +137,21 @@ def _reset_for_testing() -> None:
         _checker = None
         _initialized = False
     openfeature_api.clear_providers()
+
+
+def _initialize_for_testing(path: str) -> None:
+    """Reset and initialize from a custom YAML path, for test use only.
+
+    Used by test infrastructure that needs to substitute a test-only
+    ``features.yaml`` instead of the bundled community one.
+    """
+    global _checker, _initialized
+    with _lock:
+        _checker = None
+        _initialized = False
+    openfeature_api.clear_providers()
+    registry = FeatureRegistry()
+    registry.load_from_yaml(path)
+    _checker = FeatureChecker(registry=registry)
+    openfeature_api.set_provider(SamFeatureProvider(_checker))
+    _initialized = True
