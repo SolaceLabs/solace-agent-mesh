@@ -5,12 +5,13 @@ import { Plus } from "lucide-react";
 
 import type { ModelConfig } from "@/lib/api/models";
 import { PageSection, PageLabel } from "../common/PageCommon";
-import { PasswordInput, FormField, TextInput } from "../common/FormComponents";
-import { getProviderConfig, AUTH_FIELDS, COMMON_MODEL_PARAMS, type AuthType, type ProviderField, type SupportedModel, type ModelProvider } from "./modelProviderUtils";
+import { PasswordInput, FormField, TextInput, SelectField } from "../common/FormComponents";
+import { getProviderConfig, AUTH_FIELDS, COMMON_MODEL_PARAMS, REDACTED_CREDENTIAL_PLACEHOLDER, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type SupportedModel, type ModelProvider } from "./modelProviderUtils";
 import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { DropDown } from "../common/DropDown";
 import { KeyValuePairList } from "../common/KeyValuePairList";
+import { DEFAULT_MODEL_ALIASES } from "./common";
 
 interface FormData {
     alias: string;
@@ -48,13 +49,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         reValidateMode: "onChange",
         defaultValues: {
             customParams: [],
+            cache_strategy: "5m",
         },
     });
 
     const [providerConfig, setProviderConfig] = useState<ReturnType<typeof getProviderConfig> | null>(null);
     const [dynamicModels, setDynamicModels] = useState<SupportedModel[]>([]);
     const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
+    const [isLoadingModels, setIsLoadingModels] = useState(false);
     const hasInitializedFromModelRef = useRef(false);
+    const lastFetchedProviderRef = useRef<string | null>(null);
+    const lastFetchedApiKeyRef = useRef<string | null>(null);
 
     const {
         register,
@@ -77,6 +82,37 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
 
+    // Determine if we have sufficient provider and auth config to enable model dropdown
+    // For editing: just need provider + auth type (cached models already available)
+    // For creating: need provider + auth type + credentials filled in (must fetch models dynamically)
+    const isProviderConfigured = !!selectedProvider && !!selectedAuthType;
+
+    const isAuthCredentialsConfigured = (() => {
+        if (!selectedAuthType) return false;
+        if (selectedAuthType === "none") return true;
+        if (selectedAuthType === "apikey") return !!apiKey && apiKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+        if (selectedAuthType === "oauth2") {
+            const clientId = getValues("clientId");
+            const clientSecret = getValues("clientSecret");
+            const tokenUrl = getValues("tokenUrl");
+            return !!clientId && clientId !== REDACTED_CREDENTIAL_PLACEHOLDER && !!clientSecret && clientSecret !== REDACTED_CREDENTIAL_PLACEHOLDER && !!tokenUrl;
+        }
+        if (selectedAuthType === "aws_iam") {
+            const accessKey = getValues("awsAccessKeyId");
+            const secretKey = getValues("awsSecretAccessKey");
+            return !!accessKey && accessKey !== REDACTED_CREDENTIAL_PLACEHOLDER && !!secretKey && secretKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+        }
+        if (selectedAuthType === "gcp_service_account") {
+            const json = getValues("gcpServiceAccountJson");
+            return !!json && json !== REDACTED_CREDENTIAL_PLACEHOLDER;
+        }
+        return false;
+    })();
+
+    // For editing: enable if provider and auth type are set (cached models available)
+    // For creating: also need credentials to be filled in (to fetch models)
+    const isModelDropdownEnabled = isProviderConfigured && (!isNew || isAuthCredentialsConfigured);
+
     useEffect(() => {
         onDirtyStateChange(isDirty);
     }, [isDirty, onDirtyStateChange]);
@@ -91,6 +127,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             const config = getProviderConfig(selectedProvider);
             setProviderConfig(config);
             setDynamicModels([]); // Reset dynamic models when provider changes
+            lastFetchedProviderRef.current = null; // Clear fetch tracking
+            lastFetchedApiKeyRef.current = null;
 
             // Skip resetting fields on initial model load; only reset when user manually changes provider
             if (hasInitializedFromModelRef.current && !isNew && modelToEdit && modelToEdit.provider === selectedProvider) {
@@ -130,6 +168,16 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider, isNew, modelToEdit]);
 
+    // Clear dynamic models when auth type or API key changes
+    // This prevents showing stale models from previous credentials (avoids flicker)
+    useEffect(() => {
+        if (selectedProvider) {
+            setDynamicModels([]);
+            lastFetchedProviderRef.current = null; // Clear fetch tracking
+            lastFetchedApiKeyRef.current = null;
+        }
+    }, [selectedAuthType, apiKey, selectedProvider]);
+
     // Fetch models when dropdown opens
     // For editing: use cached models from database (via modelsByProvider)
     // For creating: fetch from provider API using credentials from form
@@ -143,7 +191,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         }
 
         // For creating new models, fetch from provider using form credentials
+        // Only fetch if provider or API key has changed since last fetch
         if (isNew) {
+            const currentApiKey = apiKey || "";
+            const needsRefetch = lastFetchedProviderRef.current !== selectedProvider || lastFetchedApiKeyRef.current !== currentApiKey;
+
+            if (!needsRefetch) {
+                // Already fetched for this provider/key combo, don't fetch again
+                return;
+            }
+
+            setIsLoadingModels(true);
             const authType = selectedAuthType || "apikey";
 
             // Collect provider-specific model params from form
@@ -171,9 +229,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                     modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
                 });
                 setDynamicModels(models);
+                // Track what we just fetched
+                lastFetchedProviderRef.current = selectedProvider;
+                lastFetchedApiKeyRef.current = currentApiKey;
             } catch (error) {
                 console.error("Error fetching models:", error);
                 setDynamicModels([]);
+                // Track the failed fetch to avoid retrying immediately
+                lastFetchedProviderRef.current = selectedProvider;
+                lastFetchedApiKeyRef.current = currentApiKey;
+            } finally {
+                setIsLoadingModels(false);
             }
         }
     }, [selectedProvider, isNew, apiBase, apiKey, selectedAuthType, modelsByProvider, getValues, providerConfig]);
@@ -190,7 +256,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             // Strip provider prefix from model name for editing
             // e.g., "openai/bedrock-claude-4-5-haiku" → "bedrock-claude-4-5-haiku"
             let modelName = modelToEdit.modelName;
-            if (modelToEdit.provider === "openai_compatible" && modelName?.startsWith("openai/")) {
+            if (modelToEdit.provider === "custom" && modelName?.startsWith("openai/")) {
                 modelName = modelName.substring(7);
             }
 
@@ -198,6 +264,16 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setValue("apiBase", modelToEdit.apiBase || "");
             setValue("authType", modelToEdit.authType || "apikey");
             setValue("description", modelToEdit.description || "");
+
+            // Populate auth credential fields from authConfig
+            // For password fields that are redacted by the server, populate with REDACTED_CREDENTIAL_PLACEHOLDER
+            if (modelToEdit.authConfig) {
+                Object.entries(AUTH_CONFIG_TO_FORM_FIELD_MAP).forEach(([configKey, fieldName]) => {
+                    const value = modelToEdit.authConfig[configKey];
+                    // If the value is empty/falsy (redacted by server), use placeholder
+                    setValue(fieldName, value ? String(value) : REDACTED_CREDENTIAL_PLACEHOLDER);
+                });
+            }
 
             // Populate provider-specific fields and custom params from modelParams
             if (modelToEdit.modelParams) {
@@ -214,14 +290,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
                 // Populate common model params
                 knownParamNames.add("temperature");
-                knownParamNames.add("maxTokens");
                 knownParamNames.add("max_tokens");
+                knownParamNames.add("cache_strategy");
 
                 if ("temperature" in modelToEdit.modelParams) {
                     setValue("temperature", String(modelToEdit.modelParams.temperature));
                 }
                 if ("max_tokens" in modelToEdit.modelParams) {
                     setValue("maxTokens", String(modelToEdit.modelParams.max_tokens));
+                }
+                if ("cache_strategy" in modelToEdit.modelParams) {
+                    setValue("cache_strategy", String(modelToEdit.modelParams.cache_strategy));
                 }
 
                 // Extract custom parameters (anything not in known params)
@@ -282,6 +361,16 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             );
         }
 
+        // Select fields use SelectField component
+        if (field.type === "select") {
+            const selectOptions = (field.options || []).map(opt => ({
+                value: opt.value,
+                label: opt.label,
+            }));
+
+            return <SelectField key={field.name} name={field.name} label={field.label} control={control} options={selectOptions} error={errors[field.name] as { message?: string }} required={isRequiredField} />;
+        }
+
         // Text and number fields use TextInput component
         return (
             <TextInput
@@ -319,21 +408,20 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             <div>
                 <form id="model-form" className="w-full max-w-[1200px]" onSubmit={handleSubmit(onFormSubmit)}>
                     <PageSection className="gap-6">
-                        {/* Display Name / Alias - Always Visible */}
-                        <FormField
-                            label="Display Name"
-                            required
-                            error={errors.alias as { message?: string }}
-                            helpText="Provide a short, descriptive name for this model for others in your organization to reference. Example: 'Analysis'."
-                            statusIndicator={!isNew && modelToEdit?.alias.toLowerCase() === "general" ? <div className="text-xs text-orange-600">Cannot be changed</div> : undefined}
-                        >
-                            <Input
-                                {...register("alias", { required: "Display name is required" })}
-                                aria-invalid={!!errors.alias}
-                                disabled={!isNew && modelToEdit?.alias.toLowerCase() === "general"}
-                                title={!isNew && modelToEdit?.alias.toLowerCase() === "general" ? "The General model's name cannot be changed" : ""}
-                            />
-                        </FormField>
+                        {(() => {
+                            const isDefaultModel = !isNew && modelToEdit ? DEFAULT_MODEL_ALIASES.includes(modelToEdit.alias.toLowerCase()) : false;
+                            return (
+                                <FormField
+                                    label="Display Name"
+                                    required
+                                    error={errors.alias as { message?: string }}
+                                    helpText="Provide a short, descriptive name for this model for others in your organization to reference. Example: 'Analysis'."
+                                    statusIndicator={isDefaultModel ? <div className="text-xs text-orange-600">Cannot be changed</div> : undefined}
+                                >
+                                    <Input {...register("alias", { required: "Display name is required" })} aria-invalid={!!errors.alias} disabled={isDefaultModel} title={isDefaultModel ? "This model's name cannot be changed" : ""} />
+                                </FormField>
+                            );
+                        })()}
 
                         {/* Description - Always Visible */}
                         <FormField label="Description" required error={errors.description as { message?: string }} helpText="Describe types of tasks this model is suitable or not suitable for.">
@@ -401,7 +489,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 {selectedAuthType && AUTH_FIELDS[selectedAuthType as AuthType] && <>{AUTH_FIELDS[selectedAuthType as AuthType].map((field: ProviderField) => renderField(field))}</>}
 
                                 {/* Model Name - Shown after authentication is configured */}
-                                <FormField label="Model Name" required error={errors.modelName as { message?: string }}>
+                                <FormField label="Model Name" required error={errors.modelName as { message?: string }} helpText={!isModelDropdownEnabled ? "Configure provider and authentication to select a model" : undefined}>
                                     <Controller
                                         name="modelName"
                                         control={control}
@@ -410,16 +498,27 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                             // Use dynamic models if available, otherwise use cached models from modelsByProvider
                                             const cachedModels = modelsByProvider[selectedProvider] || [];
                                             const modelItems = dynamicModels.length > 0 ? dynamicModels : cachedModels;
+
+                                            let displayItems = modelItems.map((model: { id: string; label: string }) => ({
+                                                id: model.id,
+                                                label: model.id,
+                                            }));
+
+                                            // Always include the selected model in the list, even if it's not in the fetched models
+                                            // This ensures the selected model shows up when we clear the list to force a refetch
+                                            if (field.value && !displayItems.find(item => item.id === field.value)) {
+                                                displayItems = [{ id: field.value, label: field.value }, ...displayItems];
+                                            }
+
                                             return (
                                                 <DropDown
                                                     value={field.value}
                                                     onValueChange={field.onChange}
-                                                    items={modelItems.map((model: { id: string; label: string }) => ({
-                                                        id: model.id,
-                                                        label: model.id, // Display model ID in input field
-                                                    }))}
-                                                    placeholder="Select a model..."
+                                                    items={displayItems}
+                                                    placeholder="Type or select a model..."
+                                                    disabled={!isModelDropdownEnabled}
                                                     invalid={!!errors.modelName}
+                                                    isLoading={isLoadingModels}
                                                     onOpen={handleModelDropdownOpen}
                                                 />
                                             );

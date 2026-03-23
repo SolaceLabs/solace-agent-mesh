@@ -17,7 +17,7 @@ export const ProviderSelect = ({ value, onValueChange, providers, placeholder, d
         id: provider.id,
         label: provider.label,
         icon: provider.id === "custom" ? undefined : <ModelProviderIcon provider={provider.id} size="xs" />,
-        subtext: provider.id === "custom" ? "Set up a custom configuration for any provider available through LiteLLM" : undefined,
+        subtext: provider.id === "custom" ? "Configure a provider that implements the OpenAI-compatible API protocol (including LiteLLM-compatible endpoints)" : undefined,
         section: provider.id === "custom" ? "advanced" : "default",
     }));
 

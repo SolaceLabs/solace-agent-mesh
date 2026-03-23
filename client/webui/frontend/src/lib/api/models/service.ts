@@ -94,12 +94,12 @@ export async function fetchSupportedModelsByProvider(
 }
 
 /**
- * Fetch models from an OpenAI-compatible endpoint via the backend.
+ * Fetch models from a custom endpoint via the backend.
  * Used for new model creation with user-provided credentials.
  * Credentials are sent to the backend which queries the provider directly.
  */
 export async function fetchModelsFromCustomEndpoint(apiBase: string, authType: string, apiKey?: string, clientId?: string, clientSecret?: string, tokenUrl?: string): Promise<Array<{ id: string; label: string }>> {
-    return fetchSupportedModelsByProvider("openai_compatible", undefined, {
+    return fetchSupportedModelsByProvider("custom", undefined, {
         apiBase,
         authType,
         apiKey,

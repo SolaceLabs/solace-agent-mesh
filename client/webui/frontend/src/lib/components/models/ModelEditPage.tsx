@@ -6,7 +6,7 @@ import { Header } from "@/lib/components/header";
 
 import { Footer, PageContentWrapper, EmptyState } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
-import { getProviderConfig, getAllProviders } from "./modelProviderUtils";
+import { getProviderConfig, getAllProviders, REDACTED_CREDENTIAL_FIELDS, REDACTED_CREDENTIAL_PLACEHOLDER } from "./modelProviderUtils";
 import { fetchModelByAlias, fetchSupportedModelsByProvider, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
 import type { ModelProvider } from "./modelProviderUtils";
 import type { ModelConfig } from "@/lib/api/models/types";
@@ -116,6 +116,15 @@ export const ModelEditPage = () => {
         setErrorMessage(null);
 
         try {
+            // Strip out REDACTED_CREDENTIAL_PLACEHOLDER from credential fields
+            // These placeholders are shown during edit to indicate redacted server-stored credentials
+            // Converting to empty string prevents overwriting the server-side credential
+            REDACTED_CREDENTIAL_FIELDS.forEach(field => {
+                if (data[field] === REDACTED_CREDENTIAL_PLACEHOLDER) {
+                    data[field] = "";
+                }
+            });
+
             const providerConfig = getProviderConfig(data.provider);
 
             // Collect model_params from provider-specific fields
@@ -133,6 +142,9 @@ export const ModelEditPage = () => {
             }
             if (data.maxTokens != null && data.maxTokens !== "") {
                 modelParams.max_tokens = Number(data.maxTokens);
+            }
+            if (data.cache_strategy != null && data.cache_strategy !== "") {
+                modelParams.cache_strategy = data.cache_strategy;
             }
 
             // Add custom parameters
@@ -192,7 +204,7 @@ export const ModelEditPage = () => {
 
             // Format model name with provider prefix if needed
             let modelName = data.modelName;
-            if (!modelName.includes("/") && data.provider === "openai_compatible") {
+            if (!modelName.includes("/") && data.provider === "custom") {
                 modelName = `openai/${modelName}`;
             }
 

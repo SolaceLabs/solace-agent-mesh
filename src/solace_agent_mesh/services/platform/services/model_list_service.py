@@ -41,8 +41,8 @@ class ModelListService:
         Supports all provider types with appropriate authentication headers.
 
         Args:
-            provider: Provider type (e.g., 'openai', 'anthropic', 'openai_compatible')
-            api_base: API base URL (required for openai_compatible, optional for others)
+            provider: Provider type (e.g., 'openai', 'anthropic', 'custom')
+            api_base: API base URL (required for custom, optional for others)
             auth_type: Authentication type ('apikey', 'oauth2', 'none', 'aws_iam', 'gcp_service_account')
             auth_config: Authentication configuration dict with provider-specific credentials
             model_params: Provider-specific parameters (e.g., aws_region, vertex_project, api_version)
@@ -149,7 +149,7 @@ class ModelListService:
 
         # Build endpoint URL and prepare query params based on provider
         query_params = {}
-        if provider == ModelProviders.OPENAI or provider == ModelProviders.OPENAI_COMPATIBLE:
+        if provider == ModelProviders.OPENAI or provider == ModelProviders.OPENAI_COMPATIBLE or provider == ModelProviders.CUSTOM:
             endpoint = f"{api_base}/models"
         elif provider == ModelProviders.ANTHROPIC:
             endpoint = f"{api_base}/v1/models"
@@ -173,7 +173,7 @@ class ModelListService:
                 response.raise_for_status()
 
                 # Parse response based on provider format
-                if provider == ModelProviders.OPENAI or provider == ModelProviders.OPENAI_COMPATIBLE:
+                if provider == ModelProviders.OPENAI or provider == ModelProviders.OPENAI_COMPATIBLE or provider == ModelProviders.CUSTOM:
                     data = response.json()
                     return [model["id"] for model in data.get("data", [])]
 

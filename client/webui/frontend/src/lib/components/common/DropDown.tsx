@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 
 import { Input } from "@/lib/components/ui";
 
@@ -19,11 +19,12 @@ interface DropDownProps {
     placeholder?: string;
     disabled?: boolean;
     invalid?: boolean;
+    isLoading?: boolean;
     renderItem?: (item: DropDownItem) => ReactNode;
     onOpen?: () => void;
 }
 
-export const DropDown = ({ value, onValueChange, items, placeholder = "Select an option...", disabled, invalid, renderItem, onOpen }: DropDownProps) => {
+export const DropDown = ({ value, onValueChange, items, placeholder = "Select an option...", disabled, invalid, isLoading, renderItem, onOpen }: DropDownProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchText, setSearchText] = useState("");
     const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -38,8 +39,14 @@ export const DropDown = ({ value, onValueChange, items, placeholder = "Select an
     // Filter items based on search text
     const filteredItems = searchText ? items.filter(item => item.label.toLowerCase().includes(searchText.toLowerCase()) || item.id.toLowerCase().includes(searchText.toLowerCase())) : items;
 
+    // If user typed something that doesn't match any items, add it as a custom option
+    let itemsToDisplay = filteredItems;
+    if (searchText && filteredItems.length === 0) {
+        itemsToDisplay = [{ id: searchText, label: searchText }];
+    }
+
     // Group items by section
-    const groupedItems = filteredItems.reduce(
+    const groupedItems = itemsToDisplay.reduce(
         (acc, item) => {
             const section = item.section || "default";
             if (!acc[section]) {
@@ -84,6 +91,13 @@ export const DropDown = ({ value, onValueChange, items, placeholder = "Select an
         }
     }, [isOpen, onOpen]);
 
+    // Keep focus on input while dropdown is open (e.g., after models load)
+    useEffect(() => {
+        if (isOpen && inputRef.current && document.activeElement !== inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isOpen, items]);
+
     // Handle keyboard navigation
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (!isOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -123,6 +137,10 @@ export const DropDown = ({ value, onValueChange, items, placeholder = "Select an
         setSearchText(searchValue);
         setHighlightedIndex(0);
         setIsOpen(true);
+        // If user clears the search text completely, clear the selection
+        if (searchValue === "") {
+            onValueChange("");
+        }
     };
 
     const handleItemSelect = (itemId: string) => {
@@ -154,14 +172,18 @@ export const DropDown = ({ value, onValueChange, items, placeholder = "Select an
                 onKeyDown={handleKeyDown}
                 onMouseDown={handleMouseDown}
                 onFocus={handleFocus}
-                disabled={disabled}
+                disabled={disabled || isLoading}
                 aria-invalid={invalid}
                 className={`w-full bg-(--background-w10) pr-10 ${invalid ? "border-(--error-w100)" : ""}`}
                 autoComplete="off"
             />
-            <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+            {isLoading ? (
+                <Loader2 className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform animate-spin" />
+            ) : (
+                <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+            )}
 
-            {isOpen && (
+            {isOpen && (flatItems.length > 0 || searchText) && (
                 <div ref={dropdownRef} className={`border-input absolute right-0 left-0 z-50 rounded-md border bg-(--background-w10) shadow-md ${openAbove ? "bottom-full mb-1" : "top-full mt-1"}`}>
                     <div className="max-h-60 overflow-y-auto bg-(--background-w10)">
                         {flatItems.length > 0 ? (
@@ -228,9 +250,9 @@ export const DropDown = ({ value, onValueChange, items, placeholder = "Select an
                                     </div>
                                 )}
                             </>
-                        ) : (
+                        ) : searchText ? (
                             <div className="text-muted-foreground py-1.5 pr-8 pl-2 text-sm">No items found</div>
-                        )}
+                        ) : null}
                     </div>
                 </div>
             )}

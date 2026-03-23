@@ -9,7 +9,7 @@ import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from
 import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelProviderIcon } from "./ModelProviderIcon";
-import { PROVIDER_DISPLAY_NAMES, getDisplayModelName, getDisplayAliasName } from "./common";
+import { PROVIDER_DISPLAY_NAMES, getDisplayModelName, getDisplayAliasName, DEFAULT_MODEL_ALIASES } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
 const MODELS_HEADER = "Your Models Are Now Accessible to Your Team";
@@ -159,7 +159,7 @@ export const ModelsView: React.FC = () => {
                                                 <Button title={model.alias} variant="link" className="p-0" onClick={() => handleSelectModel(model)}>
                                                     {getDisplayAliasName(model.alias, model.createdBy)}
                                                 </Button>
-                                                {model.alias === "general" && <Badge>Default</Badge>}
+                                                {DEFAULT_MODEL_ALIASES.includes(model.alias) && <Badge>Default</Badge>}
                                             </TableCell>
                                             <TableCell>{getDisplayModelName(model.modelName)}</TableCell>
                                             <TableCell>{PROVIDER_DISPLAY_NAMES[model.provider] || model.provider}</TableCell>
