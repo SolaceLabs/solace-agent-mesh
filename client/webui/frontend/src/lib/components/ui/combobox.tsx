@@ -25,7 +25,7 @@ interface ComboBoxProps {
     noItemsFoundText?: string;
 }
 
-export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an option...", disabled, invalid, isLoading, renderItem, onOpen, allowCustomValue = true, noItemsFoundText = "No items found" }: ComboBoxProps) => {
+export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an option...", disabled, invalid, isLoading, renderItem, onOpen, allowCustomValue = false, noItemsFoundText = "No items found" }: ComboBoxProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchText, setSearchText] = useState("");
     const [highlightedIndex, setHighlightedIndex] = useState(0);
