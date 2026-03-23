@@ -178,11 +178,7 @@ class TestBootstrapRequestListenerGetModelConfig:
         comp = self._make_component()
 
         mock_db = Mock()
-
-        def db_generator():
-            yield mock_db
-
-        mock_get_db.return_value = db_generator()
+        mock_get_db.return_value = mock_db
 
         expected_config = {"model": "gpt-4"}
         mock_service = Mock()
@@ -208,15 +204,7 @@ class TestBootstrapRequestListenerGetModelConfig:
         """Exception from service propagates up."""
         comp = self._make_component()
 
-        mock_db = Mock()
-
-        def db_generator():
-            try:
-                yield mock_db
-            except Exception:
-                raise
-
-        mock_get_db.return_value = db_generator()
+        mock_get_db.return_value = Mock()
         mock_service = Mock()
         mock_service.get_by_alias_or_id.side_effect = RuntimeError("DB fail")
         mock_get_service.return_value = mock_service
