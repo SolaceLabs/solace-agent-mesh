@@ -646,6 +646,7 @@ class EvaluationRunner:
 
     def run_evaluation(self, config_path: str):
         """Main entry point for the evaluation process."""
+        load_dotenv()
         start_time = time.time()
 
         try:
@@ -963,6 +964,7 @@ class EvaluationRunner:
 
 def main(config_path: str, verbose: bool = False):
     """Main entry point for the evaluation script."""
+    load_dotenv() 
     if verbose:
         logging.basicConfig(level=logging.INFO)
         log.info("Verbose logging enabled.")
