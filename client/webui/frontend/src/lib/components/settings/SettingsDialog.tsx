@@ -61,12 +61,15 @@ export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenC
     const ttsEnabled = configFeatureEnablement?.textToSpeech ?? true;
     const speechEnabled = sttEnabled || ttsEnabled;
 
-    const { topTabs, bottomTabs } = useMemo(() => ({
-        topTabs: extraTabs.filter((t) => t.position !== "bottom"),
-        bottomTabs: extraTabs.filter((t) => t.position === "bottom"),
-    }), [extraTabs]);
+    const { topTabs, bottomTabs } = useMemo(
+        () => ({
+            topTabs: extraTabs.filter(t => t.position !== "bottom"),
+            bottomTabs: extraTabs.filter(t => t.position === "bottom"),
+        }),
+        [extraTabs]
+    );
 
-    const activeExtraTab = useMemo(() => extraTabs.find((t) => t.id === activeSection), [extraTabs, activeSection]);
+    const activeExtraTab = useMemo(() => extraTabs.find(t => t.id === activeSection), [extraTabs, activeSection]);
 
     const renderContent = () => {
         if (activeExtraTab) return activeExtraTab.content;
@@ -136,7 +139,7 @@ export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenC
                             <div className="flex-1 space-y-1 overflow-y-auto">
                                 <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
                                 {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
-                                {topTabs.map((t) => (
+                                {topTabs.map(t => (
                                     <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => setActiveSection(t.id)} />
                                 ))}
                             </div>
@@ -144,7 +147,7 @@ export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenC
                             <div className="space-y-1 pb-2">
                                 {/* Divider */}
                                 <div className="mt-4 border-t pb-2" />
-                                {bottomTabs.map((t) => (
+                                {bottomTabs.map(t => (
                                     <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => setActiveSection(t.id)} />
                                 ))}
                                 {/* About entry — always last */}
