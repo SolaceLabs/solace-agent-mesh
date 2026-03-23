@@ -1216,16 +1216,60 @@ async def get_session_context_usage(
         resolved_default_model = component_model or DEFAULT_MODEL
 
         if not adk_session or not adk_session.events:
+            # No ADK session found — fall through to use gateway task tables
+            # for token usage data (works for all agents regardless of session backend).
+            effective_model = model or resolved_default_model
+            has_compaction = False
+            prompt_tokens = 0
+            completion_tokens = 0
+            cached_tokens = 0
+            total_events = 0
+
+            from ..repository.models import ChatTaskModel, TaskModel
+            from sqlalchemy import desc
+
+            chat_task_count = (
+                db.query(ChatTaskModel)
+                .filter(ChatTaskModel.session_id == session_id, ChatTaskModel.user_id == user_id)
+                .count()
+            )
+            total_tasks = chat_task_count
+            total_messages = chat_task_count * 2
+
+            completed_tasks = (
+                db.query(TaskModel)
+                .filter(
+                    TaskModel.session_id == session_id,
+                    TaskModel.user_id == user_id,
+                    TaskModel.total_input_tokens.isnot(None),
+                )
+                .order_by(desc(TaskModel.start_time))
+                .all()
+            )
+
+            if completed_tasks:
+                latest = completed_tasks[0]
+                prompt_tokens = latest.total_input_tokens
+                completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
+                cached_tokens = latest.total_cached_input_tokens or 0
+
+            current_tokens = prompt_tokens + completion_tokens
+            max_input_tokens = _get_model_context_limit(effective_model) if current_tokens > 0 else DEFAULT_CONTEXT_LIMIT
+            usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 and current_tokens > 0 else 0.0
+
             return ContextUsageResponse(
                 sessionId=session_id,
-                currentContextTokens=0,
-                promptTokens=0,
-                completionTokens=0,
-                maxInputTokens=DEFAULT_CONTEXT_LIMIT,
-                usagePercentage=0.0,
-                model=model or resolved_default_model,
-                totalEvents=0,
-                hasCompaction=False,
+                currentContextTokens=current_tokens,
+                promptTokens=prompt_tokens,
+                completionTokens=completion_tokens,
+                cachedTokens=cached_tokens,
+                maxInputTokens=max_input_tokens,
+                usagePercentage=usage_pct,
+                model=effective_model,
+                totalEvents=total_events,
+                totalMessages=total_messages,
+                totalTasks=total_tasks,
+                hasCompaction=has_compaction,
             )
 
         effective_model = model or resolved_default_model
