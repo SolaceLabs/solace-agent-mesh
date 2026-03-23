@@ -4,7 +4,7 @@ import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
-
+from sqlalchemy import cast, or_, String
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 
 log = logging.getLogger(__name__)
@@ -44,3 +44,19 @@ class ModelConfigurationRepository:
         return db.query(ModelConfiguration).filter(
             ModelConfiguration.alias == alias
         ).first()
+
+    def get_by_alias_or_id(self, db: Session, alias: str) -> Optional[ModelConfiguration]:
+        """
+        Retrieve a model configuration by alias (case-sensitive exact match) or ID.
+
+        Args:
+            db: SQLAlchemy database session
+            alias: Model alias or ID to look up
+
+        Returns:
+            ModelConfiguration ORM model if found, None otherwise
+        """
+        return db.query(ModelConfiguration).filter(
+            or_(ModelConfiguration.alias == alias, cast(ModelConfiguration.id, String) == alias)
+        ).first()
+    

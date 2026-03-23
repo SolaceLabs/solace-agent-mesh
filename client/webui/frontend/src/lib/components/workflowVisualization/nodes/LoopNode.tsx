@@ -1,4 +1,5 @@
 import type { FC, ReactNode, MouseEvent } from "react";
+import { clickableNodeProps } from "@/lib/components/utils";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
@@ -43,14 +44,11 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
     if (isCollapsed || !hasChildren) {
         return (
             <div
+                {...clickableNodeProps(() => onClick?.(node))}
                 className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
                     width: `${node.width}px`,
                     height: `${node.height}px`,
-                }}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
                 }}
             >
                 <div className="flex items-center gap-2">
@@ -93,13 +91,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
             </div>
 
             {/* Solid Header Box - straddles the dotted container border */}
-            <div
-                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
-            >
+            <div className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`} {...clickableNodeProps(() => onClick?.(node))}>
                 {/* Header row */}
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">

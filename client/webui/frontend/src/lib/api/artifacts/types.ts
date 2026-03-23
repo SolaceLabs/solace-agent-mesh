@@ -15,6 +15,7 @@ export interface BulkArtifactsResponse {
         projectId: string | null;
         projectName: string | null;
         source: string | null;
+        tags: string[] | null;
     }>;
     totalCount: number;
 }

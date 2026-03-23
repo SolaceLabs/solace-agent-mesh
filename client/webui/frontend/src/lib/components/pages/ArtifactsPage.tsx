@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useContext, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, EyeOff, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import {
     Button,
     Input,
@@ -30,6 +30,7 @@ import { useChatContext } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent } from "@/lib/utils";
+import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
 import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
@@ -38,6 +39,7 @@ import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
 import { Header } from "@/lib/components/header/Header";
+import { LifecycleBadge } from "@/lib/components/ui";
 import type { FileAttachment } from "@/lib/types";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
 
@@ -751,6 +753,12 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
     { value: "size", label: "Size" },
 ];
 
+const SHOW_INTERNAL_ARTIFACTS_KEY = "sam_show_internal_artifacts";
+
+function isInternalArtifact(artifact: ArtifactWithSession): boolean {
+    return artifact.tags?.some(t => t.toLowerCase() === ARTIFACT_TAG_WORKING.toLowerCase()) ?? false;
+}
+
 export function ArtifactsPage() {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
@@ -761,6 +769,25 @@ export function ArtifactsPage() {
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
     const [previewArtifact, setPreviewArtifact] = useState<ArtifactWithSession | null>(null);
     const [deleteConfirmArtifact, setDeleteConfirmArtifact] = useState<ArtifactWithSession | null>(null);
+    const [showInternalArtifacts, setShowInternalArtifacts] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem(SHOW_INTERNAL_ARTIFACTS_KEY) === "true";
+        } catch {
+            return false;
+        }
+    });
+
+    const toggleShowInternalArtifacts = useCallback(() => {
+        setShowInternalArtifacts(prev => {
+            const next = !prev;
+            try {
+                localStorage.setItem(SHOW_INTERNAL_ARTIFACTS_KEY, String(next));
+            } catch {
+                // ignore
+            }
+            return next;
+        });
+    }, []);
 
     // Get feature flags from config context
     const config = useContext(ConfigContext);
@@ -796,12 +823,20 @@ export function ArtifactsPage() {
         return sortedNames;
     }, [artifacts]);
 
-    // Filter and sort artifacts by project, search query, and sort options
+    // Count internal artifacts (those with working tag) for display in toggle
+    const internalArtifactCount = useMemo(() => {
+        return artifacts.filter(isInternalArtifact).length;
+    }, [artifacts]);
+
+    // Filter and sort artifacts by project, search query, internal toggle, and sort options
     const filteredArtifacts = useMemo(() => {
-        // Single-pass filter combining project and search criteria to avoid intermediate arrays
+        // Single-pass filter combining project, internal, and search criteria to avoid intermediate arrays
         const trimmedQuery = searchQuery.trim().toLowerCase();
 
         const filtered = artifacts.filter(artifact => {
+            // Internal artifact filter — hide by default unless toggle is on
+            if (!showInternalArtifacts && isInternalArtifact(artifact)) return false;
+
             // Project filter
             if (selectedProject !== "all") {
                 if (selectedProject === "(No Project)") {
@@ -859,7 +894,7 @@ export function ArtifactsPage() {
         });
 
         return filtered;
-    }, [artifacts, selectedProject, searchQuery, sortBy, sortDirection]);
+    }, [artifacts, selectedProject, searchQuery, sortBy, sortDirection, showInternalArtifacts]);
 
     // Toggle sort direction or change sort field
     const handleSortChange = useCallback(
@@ -972,7 +1007,13 @@ export function ArtifactsPage() {
     return (
         <div className="flex h-full flex-col">
             {/* Page Header - using shared Header component for consistent styling */}
-            <Header title="Artifacts" />
+            <Header
+                title={
+                    <>
+                        Artifacts <LifecycleBadge>EXPERIMENTAL</LifecycleBadge>
+                    </>
+                }
+            />
 
             {/* Content area with optional preview panel */}
             <div className="flex min-h-0 flex-1">
@@ -1032,8 +1073,23 @@ export function ArtifactsPage() {
                             {!isLoading && artifacts.length > 0 && (
                                 <span className="text-sm text-(--secondary-text-wMain)">
                                     {filteredArtifacts.length} artifact{filteredArtifacts.length !== 1 ? "s" : ""}
-                                    {(searchQuery || selectedProject !== "all") && filteredArtifacts.length !== artifacts.length && ` (of ${artifacts.length})`}
+                                    {(searchQuery || selectedProject !== "all" || !showInternalArtifacts) && filteredArtifacts.length !== artifacts.length && ` (of ${artifacts.length})`}
                                 </span>
+                            )}
+
+                            {/* Internal artifacts toggle — only show when there are internal artifacts */}
+                            {!isLoading && internalArtifactCount > 0 && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant={showInternalArtifacts ? "secondary" : "ghost"} size="sm" onClick={toggleShowInternalArtifacts} className="flex items-center gap-1.5">
+                                            {showInternalArtifacts ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            {showInternalArtifacts ? "Hide Internal" : `Show Internal (${internalArtifactCount})`}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {showInternalArtifacts ? "Hide internal/working files generated by agents" : `Show ${internalArtifactCount} internal/working file${internalArtifactCount !== 1 ? "s" : ""} generated by agents`}
+                                    </TooltipContent>
+                                </Tooltip>
                             )}
                         </div>
 
