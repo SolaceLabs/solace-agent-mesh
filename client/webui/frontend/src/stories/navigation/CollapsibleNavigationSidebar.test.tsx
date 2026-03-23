@@ -30,7 +30,7 @@ describe("CollapsibleNavigationSidebar", () => {
         expect(toggleButton).toBeInTheDocument();
         await user.click(toggleButton);
 
-        expect(sidebar).toHaveClass("w-16");
+        expect(sidebar).toHaveClass("w-20");
     });
 
     test("expands when the toggle button is clicked", async () => {
@@ -39,7 +39,7 @@ describe("CollapsibleNavigationSidebar", () => {
         render(<Story />);
 
         const sidebar = document.querySelector(".navigation-sidebar")!;
-        expect(sidebar).toHaveClass("w-16");
+        expect(sidebar).toHaveClass("w-20");
 
         const toggleButton = getToggleButton();
         expect(toggleButton).toBeInTheDocument();
