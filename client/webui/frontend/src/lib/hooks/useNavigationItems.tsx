@@ -19,6 +19,15 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
     const items = useMemo((): NavItemConfig[] => {
         const navItems: NavItemConfig[] = [];
 
+        navItems.push({
+            id: "agents",
+            label: "Agent Mesh",
+            icon: Bot,
+            route: "/agents",
+            routeMatch: "/agents",
+            position: "top",
+        });
+
         if (projectsEnabled) {
             navItems.push({
                 id: "projects",
@@ -65,15 +74,6 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 position: "top",
             });
         }
-
-        navItems.push({
-            id: "agents",
-            label: "Agents",
-            icon: Bot,
-            route: "/agents",
-            routeMatch: "/agents",
-            position: "top",
-        });
 
         navItems.push({
             id: "userAccount",
