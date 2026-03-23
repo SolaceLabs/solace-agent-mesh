@@ -50,10 +50,9 @@ def _make_component(model_config=None, model_provider=None, lazy=False, extra_at
         "model": model_config,
         "model_provider": model_provider,
     }
-    env = {"SAM_FEATURE_MODEL_CONFIG_UI": "true"} if lazy else {}
-    with patch.dict(os.environ, env, clear=False):
-        if not lazy:
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+    with patch("openfeature.api.get_client") as mock_get_client:
+        mock_client = mock_get_client.return_value
+        mock_client.get_boolean_value.return_value = lazy
         with patch.object(
             SamComponentBase,
             "get_config",

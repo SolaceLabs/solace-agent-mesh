@@ -241,7 +241,7 @@ class PlatformServiceComponent(SamComponentBase):
 
         # Start bootstrap listener for model config requests (only if feature enabled)
 
-        if os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true":
+        if openfeature_api.get_client().get_boolean_value("model_config_ui", False):
             self._start_bootstrap_listener()
 
         log.info("%s Late initialization complete", self.log_identifier)
@@ -365,8 +365,7 @@ class PlatformServiceComponent(SamComponentBase):
             async def start_background_tasks():
                 # Seed model configurations (community responsibility, after migrations)
                 # Only seed if the model_config_ui feature flag is enabled
-                import os
-                if os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true":
+                if openfeature_api.get_client().get_boolean_value("model_config_ui", False):
                     try:
                         from solace_agent_mesh.services.platform.services import seed_model_configurations
                         from .api import dependencies

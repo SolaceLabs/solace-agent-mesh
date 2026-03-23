@@ -16,6 +16,7 @@ patch_adk()
 
 from typing import Any, Dict, List, Optional, Union, Literal
 from pydantic import Field, ValidationError, model_validator
+from openfeature import api as openfeature_api
 from ...common.app_base import SamAppBase
 
 from ...common.a2a import (
@@ -498,11 +499,12 @@ class SamAgentAppConfig(SamConfigBase):
     def _validate_model_requirement(self) -> "SamAgentAppConfig":
         if self.agent_type == "workflow":
             return self
-        if self.model is None and not (os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"):
+        model_config_ui_enabled = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
+        if self.model is None and not model_config_ui_enabled:
             raise ValueError(
                 "Missing required field: 'model'. Provide a model config"
             )
-        if (os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true") and (not self.model_provider and not self.model):
+        if model_config_ui_enabled and (not self.model_provider and not self.model):
             raise ValueError(
                 "Invalid configuration: 'model_provider' or 'model' must be provided."
             )
