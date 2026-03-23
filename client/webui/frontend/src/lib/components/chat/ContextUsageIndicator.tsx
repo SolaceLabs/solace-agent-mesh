@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { RefreshCw, Sparkles, Loader2, ArrowUp, ArrowDown } from "lucide-react";
+import { RefreshCw, Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare, ListChecks } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, Progress } from "@/lib/components/ui";
 import { getSessionContextUsage, compactSession } from "@/lib/api/sessions";
@@ -49,7 +49,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const [compactSuccess, setCompactSuccess] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const compactingRef = useRef(false);
-    const { selectedAgentName } = useChatContext();
+    const { selectedAgentName, isResponding } = useChatContext();
 
     const fetchUsage = useCallback(async () => {
         if (!sessionId) return;
@@ -57,20 +57,65 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         try {
             const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
             setUsage(data);
+            return data;
         } catch (err) {
             if (process.env.NODE_ENV === "development") {
                 console.warn("ContextUsageIndicator: failed to fetch usage", err);
             }
+            // On error, reset usage so we don't show stale data from a previous agent
+            setUsage(null);
+            return null;
         } finally {
             setIsLoading(false);
         }
     }, [sessionId, selectedAgentName]);
 
+    // Reset usage immediately when agent changes so stale data isn't shown
+    useEffect(() => {
+        setUsage(null);
+    }, [selectedAgentName]);
+
     // Fetch on mount and whenever a new message arrives (messageCount changes).
-    // No polling needed — token counts only change when messages are sent/received.
     useEffect(() => {
         fetchUsage();
     }, [fetchUsage, messageCount]);
+
+    // When the AI finishes responding (isResponding: true → false), poll until
+    // the backend reflects the new task's token usage.  The TaskLoggerService
+    // writes total_input_tokens asynchronously after the task completes, so the
+    // first fetch may still return stale data.  We retry up to 4 times with
+    // increasing delays (500ms, 1s, 2s, 4s) and stop as soon as totalTasks
+    // increases (meaning the new task's data is available).
+    const prevRespondingRef = useRef(false);
+    const prevTaskCountRef = useRef(0);
+    useEffect(() => {
+        if (usage) prevTaskCountRef.current = usage.totalTasks;
+    }, [usage]);
+
+    useEffect(() => {
+        if (prevRespondingRef.current && !isResponding) {
+            const expectedTasks = prevTaskCountRef.current + 1;
+            let attempt = 0;
+            let cancelled = false;
+
+            const poll = async () => {
+                if (cancelled || attempt >= 4) return;
+                const delay = 500 * Math.pow(2, attempt); // 500, 1000, 2000, 4000
+                attempt++;
+                await new Promise(r => setTimeout(r, delay));
+                if (cancelled) return;
+                const data = await fetchUsage();
+                if (!cancelled && data && data.totalTasks < expectedTasks && attempt < 4) {
+                    poll(); // data not yet available, retry
+                }
+            };
+            poll();
+            return () => {
+                cancelled = true;
+            };
+        }
+        prevRespondingRef.current = isResponding;
+    }, [isResponding, fetchUsage]);
 
     // Click outside to collapse
     useEffect(() => {
@@ -155,15 +200,19 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                 <span className="font-mono font-semibold">{formatModelName(usage.model)}</span>
                             </div>
                             <div className="flex items-center justify-between border-t pt-2">
-                                <span className="text-muted-foreground">Events</span>
-                                <span className="font-mono">{usage.totalEvents}</span>
+                                <span className="text-muted-foreground flex items-center gap-1">
+                                    <MessageSquare className="h-3 w-3" />
+                                    Messages
+                                </span>
+                                <span className="font-mono">{usage.totalMessages}</span>
                             </div>
-                            {usage.hasCompaction && (
-                                <div className="text-muted-foreground flex items-center gap-1">
-                                    <CompressionIcon className="h-3 w-3" />
-                                    <span>Previously compacted</span>
-                                </div>
-                            )}
+                            <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground flex items-center gap-1">
+                                    <ListChecks className="h-3 w-3" />
+                                    Tasks
+                                </span>
+                                <span className="font-mono">{usage.totalTasks}</span>
+                            </div>
                         </div>
 
                         {shouldShowCompressButton && (
@@ -174,12 +223,12 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                     {isCompacting ? (
                                         <>
                                             <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                            Compacting...
+                                            Summarizing...
                                         </>
                                     ) : (
                                         <>
                                             <Sparkles className="mr-2 h-3 w-3" />
-                                            Compact Conversation
+                                            Summarize Conversation
                                         </>
                                     )}
                                 </Button>
