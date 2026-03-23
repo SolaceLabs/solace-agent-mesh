@@ -248,8 +248,7 @@ class TestModelConfigurationAPI:
         with mock_flags(model_config_ui=False):
             client = TestClient(app)
             response = client.get("/api/v1/platform/models")
-
-        assert response.status_code == 501
-        data = response.json()
-        assert "detail" in data
-        assert "not enabled" in data["detail"].lower()
+            assert response.status_code == 501
+            data = response.json()
+            assert "detail" in data
+            assert "not enabled" in data["detail"].lower()
