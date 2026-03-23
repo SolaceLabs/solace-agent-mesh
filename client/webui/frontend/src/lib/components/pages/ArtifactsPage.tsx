@@ -29,7 +29,7 @@ import {
 import { useChatContext } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
-import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent, createSemaphore } from "@/lib/utils";
+import { formatTimestamp, cn, getArtifactUrl, getArtifactContent, createSemaphore, createPersistentCache } from "@/lib/utils";
 import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
@@ -43,11 +43,25 @@ import { LifecycleBadge } from "@/lib/components/ui";
 import type { FileAttachment } from "@/lib/types";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
 
-// LRU Cache for document content with max size to prevent memory leaks
-const documentContentCache = createLruCache<string>(50);
+// Persistent cache for document thumbnails (base64 PDF/DOCX data).
+// Survives page refreshes via IndexedDB with an in-memory LRU fast path.
+const documentContentCache = createPersistentCache<string>({
+    dbName: "sam-artifact-previews",
+    storeName: "document-thumbnails",
+    maxEntries: 100,
+    memoryMaxEntries: 50,
+    ttlMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+});
 
-// LRU Cache for text preview snippets — avoids re-fetching full text files just for tile previews
-const textPreviewCache = createLruCache<string>(200);
+// Persistent cache for text preview snippets (~500 chars each).
+// Survives page refreshes via IndexedDB with an in-memory LRU fast path.
+const textPreviewCache = createPersistentCache<string>({
+    dbName: "sam-artifact-previews",
+    storeName: "text-snippets",
+    maxEntries: 500,
+    memoryMaxEntries: 200,
+    ttlMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+});
 
 // Generate cache key for document content
 function getDocumentCacheKey(sessionId: string, filename: string): string {
@@ -136,14 +150,14 @@ interface ArtifactGridCardProps {
 
 const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected, binaryArtifactPreviewEnabled }: ArtifactGridCardProps) {
     const [contentPreview, setContentPreview] = useState<string | null>(() => {
-        // Initialise from cache synchronously so cached tiles never flash a spinner
+        // Initialise from in-memory LRU synchronously so cached tiles never flash a spinner
         const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-        return textPreviewCache.get(cacheKey) ?? null;
+        return textPreviewCache.getSync(cacheKey) ?? null;
     });
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
     const [documentContent, setDocumentContent] = useState<string | null>(() => {
         const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-        return documentContentCache.get(cacheKey) ?? null;
+        return documentContentCache.getSync(cacheKey) ?? null;
     });
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
     const [documentThumbnailFailed, setDocumentThumbnailFailed] = useState(false);
@@ -177,7 +191,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
 
         // If content is already cached, no need to wait for visibility
         const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-        if (documentContentCache.get(cacheKey) || textPreviewCache.get(cacheKey)) {
+        if (documentContentCache.getSync(cacheKey) || textPreviewCache.getSync(cacheKey)) {
             setIsVisible(true);
             return;
         }
@@ -237,10 +251,10 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
             } else if (canAttemptDocumentThumbnail) {
                 // For PDF, DOCX, PPTX, etc. - check cache first, then fetch content for thumbnail
                 const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-                const cachedContent = documentContentCache.get(cacheKey);
+                const cachedContent = await documentContentCache.get(cacheKey);
 
                 if (cachedContent) {
-                    // Use cached content
+                    // Use cached content (from memory or IndexedDB)
                     if (isMounted) setDocumentContent(cachedContent);
                     return;
                 }
@@ -295,7 +309,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
             } else if (supportsTextPreview(artifact.mime_type)) {
                 // For text files — check cache first, then fetch a preview snippet
                 const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-                const cachedPreview = textPreviewCache.get(cacheKey);
+                const cachedPreview = await textPreviewCache.get(cacheKey);
 
                 if (cachedPreview) {
                     if (isMounted) setContentPreview(cachedPreview);
