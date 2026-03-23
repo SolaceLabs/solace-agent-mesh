@@ -259,8 +259,7 @@ export const WithResearchInProgress: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByText("Exploring sources");
-        await canvas.findByText("latest advances in large language models 2024");
+        await canvas.findByText(/Searching for relevant sources/i);
     },
 };
 
