@@ -44,20 +44,28 @@ export function createSemaphore(maxConcurrency: number) {
         }
 
         return new Promise<boolean>(resolve => {
+            let settled = false;
+
             const onAbort = () => {
+                if (settled) return;
+                settled = true;
                 const idx = queue.indexOf(grantSlot);
                 if (idx !== -1) {
                     queue.splice(idx, 1);
-                    resolve(false);
                 } else {
                     // Slot was already transferred to us — give it back
                     release();
-                    resolve(false);
                 }
+                resolve(false);
             };
 
             const grantSlot = () => {
                 signal.removeEventListener("abort", onAbort);
+                if (settled) {
+                    release();
+                    return;
+                }
+                settled = true;
                 if (signal.aborted) {
                     release();
                     resolve(false);

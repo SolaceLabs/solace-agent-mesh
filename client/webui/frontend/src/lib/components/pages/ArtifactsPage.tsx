@@ -199,7 +199,17 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
         let isMounted = true;
         const abortController = new AbortController();
         let imageBlobUrl: string | null = null;
-        let slotAcquired = false;
+
+        /** Acquire a semaphore slot, run `fn`, and release the slot when done. */
+        async function fetchWithSlot<T>(signal: AbortSignal, fn: () => Promise<T>): Promise<T | undefined> {
+            const acquired = await acquireFetchSlotOrAbort(signal);
+            if (!acquired) return undefined;
+            try {
+                return await fn();
+            } finally {
+                releaseFetchSlot();
+            }
+        }
 
         const loadPreview = async () => {
             // Get the correct API URL for this artifact (handles both session and project artifacts)
@@ -207,9 +217,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
 
             if (isImageType(artifact.mime_type)) {
                 // For images, fetch via authenticated API client and create a blob URL.
-                slotAcquired = await acquireFetchSlotOrAbort(abortController.signal);
-                if (!slotAcquired) return;
-                try {
+                await fetchWithSlot(abortController.signal, async () => {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
                     if (response.ok) {
@@ -218,16 +226,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                         imageBlobUrl = URL.createObjectURL(blob);
                         if (isMounted) setImagePreviewUrl(imageBlobUrl);
                     }
-                } catch (error) {
-                    if (!abortController.signal.aborted) {
-                        console.error("Error loading image preview:", error);
-                    }
-                } finally {
-                    if (slotAcquired) {
-                        releaseFetchSlot();
-                        slotAcquired = false;
-                    }
-                }
+                });
             } else if (canAttemptDocumentThumbnail) {
                 // For PDF, DOCX, PPTX, etc. - check cache first, then fetch content for thumbnail
                 const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
@@ -241,23 +240,17 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
 
                 if (isMounted) setIsLoadingPreview(true);
 
-                slotAcquired = await acquireFetchSlotOrAbort(abortController.signal);
-                if (!slotAcquired) return;
-
                 // Wrap only the network calls so the slot is released before local FileReader work
-                let blob: Blob;
-                try {
+                const blob = await fetchWithSlot(abortController.signal, async () => {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
-                    if (abortController.signal.aborted) return;
+                    if (abortController.signal.aborted) return undefined;
 
-                    blob = await response.blob();
-                    if (abortController.signal.aborted) return;
-                } finally {
-                    if (slotAcquired) {
-                        releaseFetchSlot();
-                        slotAcquired = false;
-                    }
-                }
+                    const b = await response.blob();
+                    if (abortController.signal.aborted) return undefined;
+                    return b;
+                });
+
+                if (!blob) return;
 
                 try {
                     // Note: FileReader.readAsDataURL cannot be cancelled - it will complete in the background.
@@ -304,9 +297,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
 
                 if (isMounted) setIsLoadingPreview(true);
 
-                slotAcquired = await acquireFetchSlotOrAbort(abortController.signal);
-                if (!slotAcquired) return;
-                try {
+                await fetchWithSlot(abortController.signal, async () => {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
 
@@ -331,30 +322,20 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                         setContentPreview(preview);
                         setIsLoadingPreview(false);
                     }
-                } catch (error) {
-                    if (!abortController.signal.aborted) {
-                        console.error("Error loading text preview:", error);
-                        if (isMounted) setIsLoadingPreview(false);
-                    }
-                } finally {
-                    if (slotAcquired) {
-                        releaseFetchSlot();
-                        slotAcquired = false;
-                    }
-                }
+                });
             }
         };
 
-        loadPreview();
+        loadPreview().catch(error => {
+            if (!abortController.signal.aborted) {
+                console.error("Error loading preview:", error);
+                if (isMounted) setIsLoadingPreview(false);
+            }
+        });
 
         return () => {
             isMounted = false;
             abortController.abort();
-            // Release the concurrency slot if the component unmounts while waiting in the queue
-            if (slotAcquired) {
-                releaseFetchSlot();
-                slotAcquired = false;
-            }
             // Revoke any blob URL created for image preview to free memory
             if (imageBlobUrl) {
                 URL.revokeObjectURL(imageBlobUrl);
