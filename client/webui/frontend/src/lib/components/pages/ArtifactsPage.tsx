@@ -93,6 +93,13 @@ function getFileExtension(filename: string): string {
 }
 
 /**
+ * Maximum bytes to request from the backend for text tile previews.
+ * The backend's `max_bytes` query parameter truncates the response server-side,
+ * so even a 5 MB CSV only transfers ~2 KB over the wire.
+ */
+const TEXT_PREVIEW_MAX_BYTES = 2048;
+
+/**
  * Check if a MIME type supports text preview
  */
 function supportsTextPreview(mimeType: string): boolean {
@@ -298,7 +305,11 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 if (isMounted) setIsLoadingPreview(true);
 
                 await fetchWithSlot(abortController.signal, async () => {
-                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
+                    // Append max_bytes to request only the first ~2 KB from the backend.
+                    // This avoids downloading multi-MB files just for an 8-line tile snippet.
+                    const separator = artifactApiUrl.includes("?") ? "&" : "?";
+                    const previewUrl = `${artifactApiUrl}${separator}max_bytes=${TEXT_PREVIEW_MAX_BYTES}`;
+                    const response = await api.webui.get(previewUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
 
                     const text = await response.text();
