@@ -22,7 +22,7 @@ const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "it
 const sessionTextStyles = cva(["block", "truncate", "text-sm", "transition-opacity", "duration-300"], {
     variants: {
         active: {
-            true: "text-(--darkSurface-text)",
+            true: "font-bold text-(--darkSurface-text)",
             false: "text-(--darkSurface-textMuted)",
         },
         animation: {

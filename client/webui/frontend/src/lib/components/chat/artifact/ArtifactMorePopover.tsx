@@ -14,13 +14,7 @@ interface ArtifactMorePopoverProps {
     workingArtifactCount?: number;
 }
 
-export function ArtifactMorePopover({
-    children,
-    hideDeleteAll = false,
-    showWorkingArtifacts = false,
-    onToggleWorkingArtifacts,
-    workingArtifactCount = 0,
-}: ArtifactMorePopoverProps) {
+export function ArtifactMorePopover({ children, hideDeleteAll = false, showWorkingArtifacts = false, onToggleWorkingArtifacts, workingArtifactCount = 0 }: ArtifactMorePopoverProps) {
     const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
 
     const menuActions: MenuAction[] = [];
@@ -30,9 +24,7 @@ export function ArtifactMorePopover({
         const countLabel = workingArtifactCount > 0 ? ` (${workingArtifactCount})` : "";
         menuActions.push({
             id: "toggleWorking",
-            label: showWorkingArtifacts
-                ? `Hide Working Files${countLabel}`
-                : `Show Working Files${countLabel}`,
+            label: showWorkingArtifacts ? `Hide Working Files${countLabel}` : `Show Working Files${countLabel}`,
             onClick: onToggleWorkingArtifacts,
             icon: showWorkingArtifacts ? <EyeOff /> : <Eye />,
             iconPosition: "left",

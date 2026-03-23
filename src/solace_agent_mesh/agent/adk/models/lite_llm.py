@@ -1036,7 +1036,7 @@ class LiteLlm(BaseLlm):
                 self._status,
             )
             raise BadRequestError(
-                "Error: This component's LLM model has not been configured yet.", None, None
+                "Unable to access the LLM model. This component's LLM model has not been configured yet.", None, None
             )
 
         if not llm_request.contents or llm_request.contents[-1].role not in [

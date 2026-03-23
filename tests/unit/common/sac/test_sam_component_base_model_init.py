@@ -55,10 +55,9 @@ class TestSamComponentBaseModelInit(unittest.TestCase):
             "model": model_config,
             "model_provider": model_provider,
         }
-        env = {"SAM_FEATURE_MODEL_CONFIG_UI": "true"} if lazy else {}
-        with patch.dict(os.environ, env, clear=False):
-            if not lazy:
-                os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = lazy
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -176,13 +175,15 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
         }
 
     def test_lazy_mode_enabled_when_env_true(self):
-        """_lazy_model_mode should be True when SAM_FEATURE_MODEL_CONFIG_UI=true."""
+        """_lazy_model_mode should be True when MODEL_CONFIG_UI=true."""
         config_map = {
             "namespace": "test/namespace",
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "true"}):
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = True
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -200,8 +201,9 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -219,8 +221,9 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": ["provider-a", "provider-b"],
         }
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -238,8 +241,9 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": [],
         }
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -257,8 +261,9 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with patch.object(
                 SamComponentBase,
                 "get_config",

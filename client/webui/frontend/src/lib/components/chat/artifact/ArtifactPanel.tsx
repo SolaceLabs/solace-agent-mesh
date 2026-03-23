@@ -67,13 +67,7 @@ export function ArtifactPanel() {
                         </Button>
                     </SortPopover>
                 )}
-                <ArtifactMorePopover
-                    key="more-popover"
-                    hideDeleteAll={!hasDeletableArtifacts}
-                    showWorkingArtifacts={showWorkingArtifacts}
-                    onToggleWorkingArtifacts={toggleShowWorkingArtifacts}
-                    workingArtifactCount={workingArtifactCount}
-                >
+                <ArtifactMorePopover key="more-popover" hideDeleteAll={!hasDeletableArtifacts} showWorkingArtifacts={showWorkingArtifacts} onToggleWorkingArtifacts={toggleShowWorkingArtifacts} workingArtifactCount={workingArtifactCount}>
                     <Button variant="ghost" tooltip="More">
                         <Ellipsis className="h-5 w-5" />
                     </Button>
@@ -101,9 +95,7 @@ export function ArtifactPanel() {
                                                 <FileText className="mx-auto mb-4 h-12 w-12" />
                                                 <div className="text-lg font-medium">Files</div>
                                                 {!showWorkingArtifacts && workingArtifactCount > 0 ? (
-                                                    <div className="mt-2 text-sm">
-                                                        {workingFilesLabel(workingArtifactCount)} hidden
-                                                    </div>
+                                                    <div className="mt-2 text-sm">{workingFilesLabel(workingArtifactCount)} hidden</div>
                                                 ) : (
                                                     <>
                                                         <div className="mt-2 text-sm">No files available</div>
@@ -120,11 +112,7 @@ export function ArtifactPanel() {
                         </div>
                         {/* Hidden working files indicator */}
                         {!showWorkingArtifacts && workingArtifactCount > 0 && sortedArtifacts.length > 0 && (
-                            <Button
-                                variant="ghost"
-                                onClick={toggleShowWorkingArtifacts}
-                                className="text-muted-foreground hover:text-foreground h-auto w-full rounded-none border-t px-3 py-2 text-xs"
-                            >
+                            <Button variant="ghost" onClick={toggleShowWorkingArtifacts} className="text-muted-foreground hover:text-foreground h-auto w-full rounded-none border-t px-3 py-2 text-xs">
                                 <EyeOff className="h-3 w-3" />
                                 <span>{workingFilesLabel(workingArtifactCount)} hidden</span>
                             </Button>
