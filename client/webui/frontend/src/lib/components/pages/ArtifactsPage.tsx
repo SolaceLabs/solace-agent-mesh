@@ -307,7 +307,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
     };
 
     return (
-        <Card noPadding isSelected={isSelected} onSelect={handleCardClick} className="group relative flex h-55 w-[320px] shrink-0 flex-col gap-0 overflow-hidden">
+        <Card noPadding isCardSelected={isSelected} onCardSelect={handleCardClick} className="group relative flex h-55 w-[320px] shrink-0 flex-col gap-0 overflow-hidden">
             {/* Header with filename, project badge, and menu */}
             <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">

@@ -9,7 +9,7 @@ interface GridCardProps extends ComponentProps<typeof Card> {
 
 export const GridCard = ({ children, className, isSelected, onClick, ...props }: GridCardProps) => {
     return (
-        <Card noPadding onSelect={onClick} isSelected={isSelected} className={cn("flex h-50 w-95 shrink-0 py-4", className)} {...props}>
+        <Card noPadding onCardSelect={onClick} isCardSelected={isSelected} className={cn("flex h-50 w-95 shrink-0 py-4", className)} {...props}>
             {children}
         </Card>
     );

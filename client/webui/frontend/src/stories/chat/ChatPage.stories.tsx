@@ -281,7 +281,7 @@ export const WithResearchComplete: Story = {
                                 status_text: "Research complete",
                                 progress_percentage: 100,
                                 current_iteration: 5,
-                                sources_found: 2,
+                                sources_found: 8,
                             },
                         },
                         {
