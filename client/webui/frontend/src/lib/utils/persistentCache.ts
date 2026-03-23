@@ -201,7 +201,7 @@ export function createPersistentCache<T>(options: PersistentCacheOptions): Persi
                 // Check TTL
                 if (isExpired(entry)) {
                     // Delete expired entry in background
-                    idbOperation(db, storeName, "readwrite", store => store.delete(key)).catch(() => {});
+                    idbOperation(db, storeName, "readwrite", store => store.delete(key)).catch(err => console.warn("[PersistentCache] Failed to delete expired entry:", err));
                     return undefined;
                 }
 
@@ -210,7 +210,7 @@ export function createPersistentCache<T>(options: PersistentCacheOptions): Persi
 
                 // Update accessedAt in background (don't await)
                 const updated: CacheEntry<T> = { ...entry, accessedAt: Date.now() };
-                idbOperation(db, storeName, "readwrite", store => store.put(updated)).catch(() => {});
+                idbOperation(db, storeName, "readwrite", store => store.put(updated)).catch(err => console.warn("[PersistentCache] Failed to update accessedAt:", err));
 
                 return entry.value;
             } catch {
@@ -237,7 +237,7 @@ export function createPersistentCache<T>(options: PersistentCacheOptions): Persi
                 await idbOperation(db, storeName, "readwrite", store => store.put(entry));
 
                 // Evict old entries in background
-                evictIfNeeded(db).catch(() => {});
+                evictIfNeeded(db).catch(err => console.warn("[PersistentCache] Background eviction failed:", err));
             } catch (err) {
                 console.warn("[PersistentCache] Write error:", err);
             }

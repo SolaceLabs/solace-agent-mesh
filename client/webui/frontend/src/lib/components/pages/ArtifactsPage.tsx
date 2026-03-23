@@ -46,7 +46,7 @@ import type { ArtifactWithSession } from "@/lib/api/artifacts";
 // Persistent cache for document thumbnails (base64 PDF/DOCX data).
 // Survives page refreshes via IndexedDB with an in-memory LRU fast path.
 const documentContentCache = createPersistentCache<string>({
-    dbName: "sam-artifact-previews",
+    dbName: "sam-document-thumbnails",
     storeName: "document-thumbnails",
     maxEntries: 100,
     memoryMaxEntries: 50,
@@ -56,7 +56,7 @@ const documentContentCache = createPersistentCache<string>({
 // Persistent cache for text preview snippets (~500 chars each).
 // Survives page refreshes via IndexedDB with an in-memory LRU fast path.
 const textPreviewCache = createPersistentCache<string>({
-    dbName: "sam-artifact-previews",
+    dbName: "sam-text-snippets",
     storeName: "text-snippets",
     maxEntries: 500,
     memoryMaxEntries: 200,
@@ -341,7 +341,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                         .join("\n");
 
                     // Cache the text snippet so subsequent renders are instant
-                    textPreviewCache.set(cacheKey, preview);
+                    textPreviewCache.set(cacheKey, preview).catch(err => console.warn("[ArtifactsPage] Failed to cache text preview:", err));
 
                     if (isMounted) {
                         setContentPreview(preview);

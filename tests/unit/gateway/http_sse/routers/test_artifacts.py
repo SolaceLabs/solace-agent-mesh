@@ -1907,3 +1907,200 @@ class TestGetSpecificArtifactVersion:
             assert "not found" in exc_info.value.detail.lower()
 
 
+class TestGetLatestArtifactMaxBytes:
+    """Tests for the max_bytes truncation logic in get_latest_artifact."""
+
+    def _make_artifact_part(self, data: bytes, mime_type: str = "application/octet-stream"):
+        """Create a mock artifact part with inline_data."""
+        part = MagicMock()
+        part.inline_data.data = data
+        part.inline_data.mime_type = mime_type
+        return part
+
+    def _make_component(self, enable_embed_resolution=True):
+        """Create a mock component."""
+        component = MagicMock()
+        component.get_config.return_value = "TestApp"
+        component.enable_embed_resolution = enable_embed_resolution
+        component.gateway_id = "test-gateway"
+        component.gateway_max_artifact_resolve_size_bytes = 1048576
+        component.gateway_recursive_embed_depth = 5
+        return component
+
+    def _make_artifact_service(self, artifact_part):
+        """Create a mock artifact service whose load_artifact returns the given part."""
+        service = MagicMock(spec=BaseArtifactService)
+        service.load_artifact = AsyncMock(return_value=artifact_part)
+        return service
+
+    async def _read_response(self, response):
+        """Read all bytes from a StreamingResponse."""
+        chunks = []
+        async for chunk in response.body_iterator:
+            if isinstance(chunk, str):
+                chunks.append(chunk.encode("utf-8"))
+            else:
+                chunks.append(chunk)
+        return b"".join(chunks)
+
+    @pytest.mark.asyncio
+    async def test_no_truncation_when_max_bytes_not_provided(self):
+        """When max_bytes is None the full content is returned with no truncation headers."""
+        content = b"A" * 100
+        part = self._make_artifact_part(content, "application/octet-stream")
+        component = self._make_component(enable_embed_resolution=False)
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
+            return_value=("user1", "session1", "session"),
+        ):
+            response = await get_latest_artifact(
+                session_id="session1",
+                filename="file.bin",
+                project_id=None,
+                max_bytes=None,
+                artifact_service=self._make_artifact_service(part),
+                user_id="user1",
+                validate_session=MagicMock(return_value=True),
+                component=component,
+                project_service=None,
+                user_config={"tool:artifact:load": True},
+            )
+
+        body = await self._read_response(response)
+        assert body == content
+        assert "X-Truncated" not in response.headers
+        assert "X-Original-Size" not in response.headers
+
+    @pytest.mark.asyncio
+    async def test_truncation_when_content_exceeds_max_bytes(self):
+        """When content exceeds max_bytes it is truncated and headers are set."""
+        content = b"B" * 100
+        part = self._make_artifact_part(content, "application/octet-stream")
+        component = self._make_component(enable_embed_resolution=False)
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
+            return_value=("user1", "session1", "session"),
+        ):
+            response = await get_latest_artifact(
+                session_id="session1",
+                filename="file.bin",
+                project_id=None,
+                max_bytes=50,
+                artifact_service=self._make_artifact_service(part),
+                user_id="user1",
+                validate_session=MagicMock(return_value=True),
+                component=component,
+                project_service=None,
+                user_config={"tool:artifact:load": True},
+            )
+
+        body = await self._read_response(response)
+        assert len(body) == 50
+        assert body == content[:50]
+        assert response.headers["X-Truncated"] == "true"
+        assert response.headers["X-Original-Size"] == "100"
+
+    @pytest.mark.asyncio
+    async def test_no_truncation_when_content_within_max_bytes(self):
+        """When content fits within max_bytes it is returned in full with no truncation headers."""
+        content = b"C" * 50
+        part = self._make_artifact_part(content, "application/octet-stream")
+        component = self._make_component(enable_embed_resolution=False)
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
+            return_value=("user1", "session1", "session"),
+        ):
+            response = await get_latest_artifact(
+                session_id="session1",
+                filename="file.bin",
+                project_id=None,
+                max_bytes=100,
+                artifact_service=self._make_artifact_service(part),
+                user_id="user1",
+                validate_session=MagicMock(return_value=True),
+                component=component,
+                project_service=None,
+                user_config={"tool:artifact:load": True},
+            )
+
+        body = await self._read_response(response)
+        assert body == content
+        assert "X-Truncated" not in response.headers
+        assert "X-Original-Size" not in response.headers
+
+    @pytest.mark.asyncio
+    async def test_embed_resolution_skipped_when_truncated(self):
+        """When truncated, resolve_embeds_recursively_in_string must NOT be called."""
+        content = b"D" * 100
+        part = self._make_artifact_part(content, "text/plain")
+        component = self._make_component(enable_embed_resolution=True)
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
+            return_value=("user1", "session1", "session"),
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts.resolve_embeds_recursively_in_string",
+            new_callable=AsyncMock,
+        ) as mock_resolve:
+            response = await get_latest_artifact(
+                session_id="session1",
+                filename="file.txt",
+                project_id=None,
+                max_bytes=50,
+                artifact_service=self._make_artifact_service(part),
+                user_id="user1",
+                validate_session=MagicMock(return_value=True),
+                component=component,
+                project_service=None,
+                user_config={"tool:artifact:load": True},
+            )
+
+        body = await self._read_response(response)
+        assert len(body) == 50
+        assert response.headers["X-Truncated"] == "true"
+        mock_resolve.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_embed_resolution_runs_when_not_truncated(self):
+        """When not truncated for text content with embed resolution enabled, resolver is called."""
+        content = b"hello world"
+        part = self._make_artifact_part(content, "text/plain")
+        component = self._make_component(enable_embed_resolution=True)
+
+        async def passthrough_resolve(text, **kwargs):
+            return text
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
+            return_value=("user1", "session1", "session"),
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts.resolve_embeds_recursively_in_string",
+            new_callable=AsyncMock,
+            side_effect=passthrough_resolve,
+        ) as mock_resolve, patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts.resolve_template_blocks_in_string",
+            new_callable=AsyncMock,
+            side_effect=lambda text, **kwargs: text,
+        ):
+            response = await get_latest_artifact(
+                session_id="session1",
+                filename="file.txt",
+                project_id=None,
+                max_bytes=None,
+                artifact_service=self._make_artifact_service(part),
+                user_id="user1",
+                validate_session=MagicMock(return_value=True),
+                component=component,
+                project_service=None,
+                user_config={"tool:artifact:load": True},
+            )
+
+        body = await self._read_response(response)
+        assert body == content
+        assert "X-Truncated" not in response.headers
+        mock_resolve.assert_called_once()
+
+

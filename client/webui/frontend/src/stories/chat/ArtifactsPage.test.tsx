@@ -530,7 +530,18 @@ describe("ArtifactsPage", () => {
         await waitForArtifactsLoaded(container);
         const cards = container.querySelectorAll('[role="button"]');
         expect(cards.length).toBeGreaterThan(0);
-        fireEvent.keyDown(cards[0], { key: "Enter" });
+
+        // Before keypress, no preview panel should be open
+        expect(container.innerHTML).not.toContain("Download");
+
+        await act(async () => {
+            fireEvent.keyDown(cards[0], { key: "Enter" });
+        });
+
+        // After Enter, the preview panel should open showing the artifact filename
+        await waitFor(() => {
+            expect(container.querySelector('[class*="border-l"]')).not.toBeNull();
+        });
     });
 
     it("handles Space key on artifact card", async () => {
@@ -539,7 +550,15 @@ describe("ArtifactsPage", () => {
         await waitForArtifactsLoaded(container);
         const cards = container.querySelectorAll('[role="button"]');
         expect(cards.length).toBeGreaterThan(0);
-        fireEvent.keyDown(cards[0], { key: " " });
+
+        await act(async () => {
+            fireEvent.keyDown(cards[0], { key: " " });
+        });
+
+        // After Space, the preview panel should open showing the artifact filename
+        await waitFor(() => {
+            expect(container.querySelector('[class*="border-l"]')).not.toBeNull();
+        });
     });
 
     // -----------------------------------------------------------------------
@@ -572,7 +591,7 @@ describe("ArtifactsPage", () => {
     // supportsTextPreview coverage (covers lines 99-107)
     // -----------------------------------------------------------------------
 
-    it("renders text preview for YAML artifacts", async () => {
+    it("renders text preview content for YAML artifacts", async () => {
         mockArtifactsList = [
             makeTextArtifact({
                 filename: "config.yaml",
@@ -582,13 +601,13 @@ describe("ArtifactsPage", () => {
             }),
         ];
         const { container } = renderWithProviders();
-        await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        });
-        expect(container.innerHTML).toContain("config.yaml");
+        await waitFor(() => expect(container.innerHTML).toContain("config.yaml"), { timeout: 2000 });
+        // Verify actual preview content from MOCK_TEXT_CONTENT is rendered
+        // innerHTML preserves literal quotes in text nodes (not &quot;)
+        await waitFor(() => expect(container.innerHTML).toContain('"key"'), { timeout: 2000 });
     });
 
-    it("renders text preview for XML artifacts", async () => {
+    it("renders text preview content for XML artifacts", async () => {
         mockArtifactsList = [
             makeTextArtifact({
                 filename: "data.xml",
@@ -598,13 +617,11 @@ describe("ArtifactsPage", () => {
             }),
         ];
         const { container } = renderWithProviders();
-        await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        });
-        expect(container.innerHTML).toContain("data.xml");
+        await waitFor(() => expect(container.innerHTML).toContain("data.xml"), { timeout: 2000 });
+        await waitFor(() => expect(container.innerHTML).toContain('"key"'), { timeout: 2000 });
     });
 
-    it("renders text preview for JavaScript artifacts", async () => {
+    it("renders text preview content for JavaScript artifacts", async () => {
         mockArtifactsList = [
             makeTextArtifact({
                 filename: "app.js",
@@ -614,13 +631,11 @@ describe("ArtifactsPage", () => {
             }),
         ];
         const { container } = renderWithProviders();
-        await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        });
-        expect(container.innerHTML).toContain("app.js");
+        await waitFor(() => expect(container.innerHTML).toContain("app.js"), { timeout: 2000 });
+        await waitFor(() => expect(container.innerHTML).toContain('"key"'), { timeout: 2000 });
     });
 
-    it("renders text preview for TypeScript artifacts", async () => {
+    it("renders text preview content for TypeScript artifacts", async () => {
         mockArtifactsList = [
             makeTextArtifact({
                 filename: "index.ts",
@@ -630,9 +645,7 @@ describe("ArtifactsPage", () => {
             }),
         ];
         const { container } = renderWithProviders();
-        await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        });
-        expect(container.innerHTML).toContain("index.ts");
+        await waitFor(() => expect(container.innerHTML).toContain("index.ts"), { timeout: 2000 });
+        await waitFor(() => expect(container.innerHTML).toContain('"key"'), { timeout: 2000 });
     });
 });
