@@ -25,9 +25,10 @@ class TestModelFieldOptional:
     """Test that 'model' is now optional under the right conditions."""
 
     def test_model_required_when_feature_flag_off(self):
-        """Without SAM_FEATURE_MODEL_CONFIG_UI, model is required."""
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        """Without MODEL_CONFIG_UI, model is required."""
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with pytest.raises(ValidationError, match="model"):
                 SamAgentAppConfig.model_validate(
                     _minimal_config(model=None)
@@ -35,23 +36,28 @@ class TestModelFieldOptional:
 
     def test_model_provided_when_feature_flag_off(self):
         """With model provided and no feature flag, config is valid."""
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             config = SamAgentAppConfig.model_validate(_minimal_config())
             assert config.model == "test-model"
 
     def test_model_none_allowed_with_model_provider_and_feature_flag(self):
-        """With SAM_FEATURE_MODEL_CONFIG_UI=true and model_provider set, model can be None."""
-        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "true"}):
+        """With MODEL_CONFIG_UI=true and model_provider set, model can be None."""
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = True
             config = SamAgentAppConfig.model_validate(
-                _minimal_config(model=None, model_provider=["some-provider"])
+            _minimal_config(model=None, model_provider=["some-provider"])
             )
             assert config.model is None
             assert config.model_provider == ["some-provider"]
 
     def test_model_and_provider_both_none_raises_with_feature_flag(self):
         """With feature flag but neither model nor model_provider, validation fails."""
-        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "true"}):
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = True
             with pytest.raises(ValidationError, match="model_provider.*model"):
                 SamAgentAppConfig.model_validate(
                     _minimal_config(model=None, model_provider=None)
@@ -59,7 +65,9 @@ class TestModelFieldOptional:
 
     def test_model_provided_with_feature_flag(self):
         """With feature flag and model provided (no provider), config is valid."""
-        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "true"}):
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = True
             config = SamAgentAppConfig.model_validate(_minimal_config())
             assert config.model == "test-model"
 
@@ -74,7 +82,9 @@ class TestModelProviderField:
 
     def test_model_provider_accepts_list(self):
         """model_provider should accept a list of strings."""
-        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "true"}):
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = True
             config = SamAgentAppConfig.model_validate(
                 _minimal_config(model_provider=["provider-a", "provider-b"])
             )
