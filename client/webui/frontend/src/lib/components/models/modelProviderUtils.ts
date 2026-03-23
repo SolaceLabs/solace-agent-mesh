@@ -56,7 +56,6 @@ const AZURE_OPENAI_FIELDS: ProviderField[] = [
         label: "API Version",
         type: "text",
         required: true,
-        placeholder: "2024-10-21",
         storageTarget: "model_params",
     },
 ];
@@ -67,7 +66,6 @@ const VERTEX_AI_FIELDS: ProviderField[] = [
         label: "GCP Project ID",
         type: "text",
         required: true,
-        placeholder: "my-gcp-project",
         storageTarget: "model_params",
     },
     {
@@ -75,7 +73,6 @@ const VERTEX_AI_FIELDS: ProviderField[] = [
         label: "GCP Region",
         type: "text",
         required: true,
-        placeholder: "us-central1",
         storageTarget: "model_params",
     },
 ];
@@ -101,7 +98,6 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "API Key",
             type: "password",
             required: true,
-            helpText: "Leave unchanged to keep current value when editing.",
             storageTarget: "auth",
         },
     ],
@@ -125,7 +121,6 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "Client Secret",
             type: "password",
             required: true,
-            helpText: "Leave unchanged to keep current value when editing.",
             storageTarget: "auth",
         },
         {
@@ -158,7 +153,6 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "AWS Secret Access Key",
             type: "password",
             required: true,
-            helpText: "Leave unchanged to keep current value when editing.",
             storageTarget: "auth",
         },
         {
@@ -166,7 +160,6 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "AWS Session Token",
             type: "password",
             required: false,
-            helpText: "Optional. Required for temporary credentials (STS). Leave unchanged to keep current value when editing.",
             storageTarget: "auth",
         },
     ],
@@ -176,7 +169,7 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "Service Account JSON",
             type: "textarea",
             required: true,
-            helpText: "Paste the full JSON key file contents. Leave unchanged to keep current value when editing.",
+            helpText: "Paste the full JSON key file contents",
             storageTarget: "auth",
         },
     ],
