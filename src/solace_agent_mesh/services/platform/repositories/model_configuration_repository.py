@@ -6,6 +6,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, or_, String
 from solace_agent_mesh.services.platform.models import ModelConfiguration
+from solace_agent_mesh.shared.database.database_exceptions import handle_database_errors
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class ModelConfigurationRepository:
             ModelConfiguration.alias == alias
         ).first()
 
+    @handle_database_errors("ModelConfiguration")
     def create(self, db: Session, model: ModelConfiguration) -> ModelConfiguration:
         """
         Create a new model configuration.
@@ -60,6 +62,7 @@ class ModelConfigurationRepository:
         db.flush()
         return model
 
+    @handle_database_errors("ModelConfiguration")
     def update(self, db: Session, model: ModelConfiguration) -> ModelConfiguration:
         """
         Update an existing model configuration.

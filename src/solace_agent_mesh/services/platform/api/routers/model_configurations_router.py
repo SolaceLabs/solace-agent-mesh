@@ -88,6 +88,15 @@ async def list_models(
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[ModelConfigurationResponse]]:
+    """
+    Retrieve all model configurations.
+
+    Sensitive information (API keys, OAuth client secrets) is excluded from the response.
+    Only the authentication type (apikey, oauth2, or none) is returned.
+
+    Returns:
+        DataResponse with list of model configurations with safe data
+    """
     configurations = service.list_all(db)
     return create_data_response(configurations)
 
@@ -103,8 +112,24 @@ async def get_model(
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
+    """
+    Retrieve a model configuration by alias.
+
+    The alias lookup is case-sensitive. Sensitive information (API keys, OAuth
+    client secrets) is excluded from the response.
+
+    Args:
+        alias: The model alias to look up
+
+    Returns:
+        DataResponse with model configuration data
+
+    Raises:
+        HTTPException: 404 if configuration not found
+    """
     config = service.get_by_alias(db, alias)
     return create_data_response(config)
+
 
 @router.post(
     "/models",
