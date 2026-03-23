@@ -19,8 +19,8 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from solace_ai_connector.common.log import log
-from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 from ..dependencies import (
     get_project_service,
@@ -309,7 +309,7 @@ async def get_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
-            is_pinned=getattr(project, 'is_pinned', False) or False,
+            is_pinned=project.is_pinned,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -889,36 +889,25 @@ async def delete_project(
 async def toggle_pin_project(
     project_id: str,
     user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
-    Toggle the pin (star) status of a project for the authenticated user.
-    Only the project owner can pin/unpin a project.
+    Toggle the per-user pin (star) status of a project for the authenticated user.
+    Any user with view access (owner or shared collaborator) can pin/unpin independently.
+    The service layer owns the commit/rollback for this operation.
     """
     user_id = user.get("id")
     log.info("User %s toggling pin for project %s", user_id, project_id)
 
     try:
-        project = db.query(ProjectModel).filter(
-            ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id,
-            ProjectModel.deleted_at.is_(None),
-        ).first()
-
+        project = project_service.toggle_pin(db=db, project_id=project_id, user_id=user_id)
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found."
             )
-
-        # Toggle pin status
-        current_pinned = getattr(project, 'is_pinned', False) or False
-        project.is_pinned = not current_pinned
-        project.updated_at = now_epoch_ms()
-
-        db.commit()
-        db.refresh(project)
 
         log.info(
             "Project %s pin status toggled to %s by user %s",
@@ -940,15 +929,20 @@ async def toggle_pin_project(
         )
 
     except HTTPException:
-        db.rollback()
         raise
-    except Exception as e:
-        db.rollback()
+    except SQLAlchemyError as e:
+        # Service already rolled back; just surface a clean HTTP error
         log.error("Error toggling pin for project %s for user %s: %s", project_id, user_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to toggle pin status"
-        )
+        ) from e
+    except Exception as e:
+        log.error("Unexpected error toggling pin for project %s for user %s: %s", project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to toggle pin status"
+        ) from e
 
 
 @router.get("/projects/{project_id}/export")

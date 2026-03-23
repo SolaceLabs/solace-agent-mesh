@@ -23,6 +23,7 @@ export { Sidebar, SidebarHeader, SidebarContent, SidebarProvider } from "./sideb
 
 // Interactive Components
 export { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./accordion";
+export { AccordionCard } from "./accordion-card";
 export { Menu, type MenuAction, type MenuProps } from "./menu";
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
 export { PopoverManual } from "./popoverManual";

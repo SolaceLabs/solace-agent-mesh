@@ -10,6 +10,7 @@ import os
 from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
+from sqlalchemy.exc import SQLAlchemyError
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_counts_batch,
@@ -116,6 +117,32 @@ class ProjectService:
         """Create project repository for the given database session."""
         from ..repository.project_repository import ProjectRepository
         return ProjectRepository(db)
+
+    def toggle_pin(self, db, project_id: str, user_id: str) -> Optional[Project]:
+        """
+        Toggle the per-user pin for a project.
+
+        Returns the updated Project entity with refreshed pin state,
+        or None if the project is not found or the user lacks access.
+        """
+        repo = self._get_repositories(db)
+
+        # Check existence first, then access (two separate checks)
+        if repo.get_by_id(project_id) is None:
+            return None
+        if not self._has_view_access(db, project_id, user_id):
+            # Return None so caller cannot distinguish "not found" from "no access"
+            return None
+
+        try:
+            repo.toggle_user_pin(project_id=project_id, user_id=user_id)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            raise
+
+        # Re-fetch with per-user pin state
+        return repo.get_by_id_for_user(project_id, user_id)
 
     def is_persistence_enabled(self) -> bool:
         """Checks if the service is configured with a persistent backend."""
@@ -413,9 +440,9 @@ class ProjectService:
         if not self._has_view_access(db, project_id, user_id):
             return None
 
-        # Convert to domain entity
+        # Convert to domain entity with per-user pin state
         project_repository = self._get_repositories(db)
-        return project_repository._model_to_entity(project_model)
+        return project_repository.get_by_id_for_user(project_id, user_id)
 
     def get_user_projects(self, db, user_email: str) -> List[Project]:
         """
@@ -437,9 +464,10 @@ class ProjectService:
             resource_type=ResourceType.PROJECT
         )
 
-        # Get all accessible projects (owned + shared)
+        # Get all accessible projects (owned + shared) with per-user pin state
         project_repository = self._get_repositories(db)
-        return project_repository.get_accessible_projects(user_email, shared_project_ids)
+        pinned_project_ids = project_repository.get_pinned_project_ids_for_user(user_email)
+        return project_repository.get_accessible_projects(user_email, shared_project_ids, pinned_project_ids)
 
     async def get_user_projects_with_counts(self, db, user_email: str) -> List[tuple[Project, int]]:
         """
@@ -942,6 +970,8 @@ class ProjectService:
 
         if updated_project:
             self.logger.info(f"Successfully updated project {project_id}")
+            # Re-fetch with pin state via repository (skip access check — already verified above)
+            return project_repository.get_by_id_for_user(project_id, user_id)
 
         return updated_project
 

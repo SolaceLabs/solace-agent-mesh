@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { Bot } from "lucide-react";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
+import { clickableNodeProps } from "@/lib/components/utils";
 
 /**
  * Agent node - Rectangle with robot icon, agent name, and "Agent" badge
@@ -16,10 +17,7 @@ const AgentNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) 
                 width: `${node.width}px`,
                 height: `${node.height}px`,
             }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
+            {...clickableNodeProps(() => onClick?.(node))}
         >
             <div className="flex items-center gap-2 overflow-hidden">
                 <Bot className="h-5 w-5 flex-shrink-0 text-(--brand-wMain)" />

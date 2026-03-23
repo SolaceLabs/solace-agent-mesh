@@ -485,6 +485,9 @@ class ArtifactWithContext(BaseModel):
     # Source field for origin badges (upload, generated, project)
     source: Optional[str] = None
     
+    # Tags for categorization (e.g., ["__working"] to mark as internal)
+    tags: Optional[list[str]] = None
+    
     model_config = {"populate_by_name": True}
 
 
@@ -583,6 +586,7 @@ async def list_all_artifacts(
                         project_id=project_id,
                         project_name=project_name,
                         source=_determine_source(artifact.filename, session_id),
+                        tags=artifact.tags,
                     ))
                 return result
             except Exception as e:

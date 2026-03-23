@@ -9,7 +9,7 @@ import os
 import re
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from litellm import acompletion
+from google.adk.models import BaseLlm
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -123,21 +123,11 @@ REMEMBER:
 - Set ready_to_save to true when template is complete
 """
     
-    def __init__(self, db: Optional[Session] = None, model_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm: BaseLlm, db: Optional[Session] = None):
         """Initialize the assistant with model configuration from component config."""
         self.system_prompt = self.SYSTEM_PROMPT
         self.db = db
-        
-        # Get LLM configuration from provided config
-        if not model_config or not isinstance(model_config, dict):
-            raise ValueError("model_config is required and must be a dictionary")
-        
-        if not model_config.get("model"):
-            raise ValueError("model_config must contain 'model' key")
-        
-        self.model = model_config.get("model")
-        self.api_base = model_config.get("api_base")
-        self.api_key = model_config.get("api_key", "dummy")
+        self.llm = llm
     
     def _get_existing_commands(self, user_id: str) -> List[str]:
         """Get list of existing command shortcuts to avoid conflicts."""
@@ -226,22 +216,39 @@ REMEMBER:
         
         # Call LLM with JSON mode
         try:
-            completion_args = {
-                "model": self.model,
-                "messages": messages,
-                "response_format": {"type": "json_object"},
-                "temperature": 0.1,  # Low temperature for consistency
-            }
-            
-            if self.api_base:
-                completion_args["api_base"] = self.api_base
-            if self.api_key:
-                completion_args["api_key"] = self.api_key
-            
-            response = await acompletion(**completion_args)
-            
-            # Parse response
-            content = response.choices[0].message.content
+            from google.genai import types
+            from google.adk.models.llm_request import LlmRequest
+
+            # Build system instruction from messages
+            system_text = ""
+            user_parts = []
+            for msg in messages:
+                if msg["role"] == "system":
+                    system_text += msg["content"] + "\n"
+                else:
+                    user_parts.append(
+                        types.Content(
+                            role="user" if msg["role"] == "user" else "model",
+                            parts=[types.Part.from_text(text=msg["content"])],
+                        )
+                    )
+
+            llm_request = LlmRequest(
+                contents=user_parts,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_text.strip() if system_text else None,
+                    temperature=0.1,
+                    response_schema={"type": "json_object"},
+                ),
+            )
+
+            content = None
+            async for llm_response in self.llm.generate_content_async(llm_request):
+                if llm_response.content and llm_response.content.parts:
+                    for part in llm_response.content.parts:
+                        if part.text:
+                            content = part.text
+                            break
             logger.info(f"LLM Response: {content}")
             
             try:
