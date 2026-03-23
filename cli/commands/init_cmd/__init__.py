@@ -3,6 +3,66 @@ from pathlib import Path
 import click
 
 
+# ---------------------------------------------------------------------------
+# Module-level __getattr__ for lazy loading
+#
+# Names like DEFAULT_INIT_VALUES, broker_setup_step, create_env_file, etc.
+# are NOT imported at module load time (that would pull in google.adk, litellm,
+# markitdown — ~70 s on Windows).  Instead, they are resolved on first access
+# via __getattr__.  This keeps ``sam init --help`` fast while still allowing:
+#
+#   from cli.commands.init_cmd import DEFAULT_INIT_VALUES   # tests
+#   mocker.patch("cli.commands.init_cmd.broker_setup_step") # tests
+# ---------------------------------------------------------------------------
+
+def _load_all():
+    """Import all step modules and populate module globals (called once on first access)."""
+    import sys
+
+    mod = sys.modules[__name__]
+    # Use __dict__ directly to avoid triggering __getattr__ recursion
+    if mod.__dict__.get("_lazy_loaded", False):
+        return
+
+    from .broker_step import broker_setup_step  # noqa: F401
+    from .directory_step import create_project_directories  # noqa: F401
+    from .env_step import ENV_DEFAULTS, create_env_file  # noqa: F401
+    from .orchestrator_step import ORCHESTRATOR_DEFAULTS, create_orchestrator_config  # noqa: F401
+    from .platform_service_step import PLATFORM_SERVICE_DEFAULTS, create_platform_service_config  # noqa: F401
+    from .project_files_step import create_project_files  # noqa: F401
+    from .web_init_step import perform_web_init  # noqa: F401
+    from .webui_gateway_step import WEBUI_GATEWAY_DEFAULTS, create_webui_gateway_config  # noqa: F401
+    from ...utils import ask_yes_no_question  # noqa: F401
+
+    # Bind all names to the module so subsequent access is direct
+    mod.broker_setup_step = broker_setup_step
+    mod.create_project_directories = create_project_directories
+    mod.ENV_DEFAULTS = ENV_DEFAULTS
+    mod.create_env_file = create_env_file
+    mod.ORCHESTRATOR_DEFAULTS = ORCHESTRATOR_DEFAULTS
+    mod.create_orchestrator_config = create_orchestrator_config
+    mod.PLATFORM_SERVICE_DEFAULTS = PLATFORM_SERVICE_DEFAULTS
+    mod.create_platform_service_config = create_platform_service_config
+    mod.create_project_files = create_project_files
+    mod.perform_web_init = perform_web_init
+    mod.WEBUI_GATEWAY_DEFAULTS = WEBUI_GATEWAY_DEFAULTS
+    mod.create_webui_gateway_config = create_webui_gateway_config
+    mod.ask_yes_no_question = ask_yes_no_question
+    mod.DEFAULT_INIT_VALUES = _build_defaults()
+    mod._lazy_loaded = True
+
+
+def __getattr__(name):
+    """Lazy module attribute access — triggers full import on first access."""
+    _load_all()
+    # Look up in __dict__ directly to avoid re-entering __getattr__
+    import sys
+    try:
+        return sys.modules[__name__].__dict__[name]
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def _build_defaults():
     """Build DEFAULT_INIT_VALUES lazily — only called when init actually runs."""
     from .broker_step import broker_setup_step  # noqa: F401
@@ -78,18 +138,21 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
     Orchestrates the initialization of a new Solace application project
     by running a sequence of steps.
     """
-    # Lazy imports — only load heavy modules when init actually runs
-    from ...utils import ask_yes_no_question
-    from .broker_step import broker_setup_step
-    from .directory_step import create_project_directories
-    from .env_step import create_env_file
-    from .orchestrator_step import create_orchestrator_config
-    from .platform_service_step import create_platform_service_config
-    from .project_files_step import create_project_files
-    from .web_init_step import perform_web_init
-    from .webui_gateway_step import create_webui_gateway_config
+    # Trigger lazy loading of all step modules (idempotent if already loaded)
+    _load_all()
 
-    DEFAULT_INIT_VALUES = _build_defaults()
+    import sys
+    mod = sys.modules[__name__]
+    ask_yes_no_question = mod.ask_yes_no_question
+    broker_setup_step = mod.broker_setup_step
+    create_project_directories = mod.create_project_directories
+    create_env_file = mod.create_env_file
+    create_orchestrator_config = mod.create_orchestrator_config
+    create_platform_service_config = mod.create_platform_service_config
+    create_project_files = mod.create_project_files
+    perform_web_init = mod.perform_web_init
+    create_webui_gateway_config = mod.create_webui_gateway_config
+    DEFAULT_INIT_VALUES = mod.DEFAULT_INIT_VALUES
 
     click.echo(click.style("Initializing Solace Application Project...", bold=True, fg="blue"))
     options = {k: v for k, v in cli_options.items() if v is not None}
