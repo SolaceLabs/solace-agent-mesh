@@ -12,6 +12,8 @@ export interface ContextUsage {
     usagePercentage: number;
     model: string;
     totalEvents: number;
+    totalMessages: number;
+    totalTasks: number;
     hasCompaction: boolean;
 }
 

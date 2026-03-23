@@ -1072,6 +1072,8 @@ class ContextUsageResponse(BaseModel):
     usage_percentage: float = Field(alias="usagePercentage")
     model: str
     total_events: int = Field(alias="totalEvents")
+    total_messages: int = Field(default=0, alias="totalMessages")
+    total_tasks: int = Field(default=0, alias="totalTasks")
     has_compaction: bool = Field(alias="hasCompaction")
 
     model_config = {"populate_by_name": True}
@@ -1245,6 +1247,7 @@ async def get_session_context_usage(
                 has_compaction = True
             else:
                 if event.content:
+                    role = getattr(event.content, "role", None)
                     try:
                         tokens = _calculate_content_tokens(event.content, model=effective_model)
                     except Exception as e:
@@ -1254,29 +1257,72 @@ async def get_session_context_usage(
                         else:
                             log.debug("Failed to calculate tokens for event in session %s: %s", session_id, e)
                         tokens = 0
-                    role = getattr(event.content, "role", None)
                     if role == "user":
                         prompt_tokens += tokens
                     else:
                         completion_tokens += tokens
 
-        current_tokens = prompt_tokens + completion_tokens
+        # Count messages and tasks from the gateway's chat_tasks table, which
+        # stores one record per user-turn (user message + agent response pair).
+        # This is more accurate than counting ADK events, which include tool
+        # call/result events that inflate the count.
+        from ..repository.models import ChatTaskModel
+        chat_task_count = (
+            db.query(ChatTaskModel)
+            .filter(ChatTaskModel.session_id == session_id, ChatTaskModel.user_id == user_id)
+            .count()
+        )
+        total_tasks = chat_task_count
+        total_messages = chat_task_count * 2  # each chat_task = user msg + agent response
+
+        # The ADK event-based token count only covers user/model message content.
+        # The actual context window also includes system prompt, tool definitions,
+        # and peer agent descriptions which are injected at LLM call time.
+        # Use the latest COMPLETED task's total_input_tokens (from LLM response
+        # metadata) as a more accurate measure of the current context window size.
+        from ..repository.models import TaskModel
+        from sqlalchemy import desc
+
+        # Get all completed tasks for this session to compute cumulative output tokens.
+        completed_tasks = (
+            db.query(TaskModel)
+            .filter(
+                TaskModel.session_id == session_id,
+                TaskModel.user_id == user_id,
+                TaskModel.total_input_tokens.isnot(None),
+            )
+            .order_by(desc(TaskModel.start_time))
+            .all()
+        )
+
+        if completed_tasks:
+            latest = completed_tasks[0]
+            # prompt_tokens = latest task's input (current context window size)
+            prompt_tokens = latest.total_input_tokens
+            # completion_tokens = cumulative output across ALL completed tasks
+            completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
+            cached_tokens = latest.total_cached_input_tokens or 0
+            current_tokens = prompt_tokens + completion_tokens
+        else:
+            # No completed tasks yet — fall back to ADK event-based counting
+            current_tokens = prompt_tokens + completion_tokens
+            cached_tokens = 0
+
         max_input_tokens = _get_model_context_limit(effective_model)
         usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 else 0.0
 
-        # Note: cached_tokens requires LLM response metadata (prompt caching stats)
-        # which isn't available from ADK session events alone. Will be populated
-        # when UsageTrackingService integration is added.
         return ContextUsageResponse(
             sessionId=session_id,
             currentContextTokens=current_tokens,
             promptTokens=prompt_tokens,
             completionTokens=completion_tokens,
-            cachedTokens=0,
+            cachedTokens=cached_tokens,
             maxInputTokens=max_input_tokens,
             usagePercentage=usage_pct,
             model=effective_model,
             totalEvents=len(adk_session.events),
+            totalMessages=total_messages,
+            totalTasks=total_tasks,
             hasCompaction=has_compaction,
         )
 
