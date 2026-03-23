@@ -1,10 +1,11 @@
 """Unit tests for SamComponentBase model initialization (lazy loading)."""
 
-import os
 import unittest
 from typing import Any
 from unittest.mock import patch, MagicMock
 
+from sam_test_infrastructure.feature_flags import mock_flags
+from solace_agent_mesh.common.features import core as feature_flags
 from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 
@@ -38,6 +39,7 @@ class TestSamComponentBaseModelInit(unittest.TestCase):
     """Test _initialize_model and get_lite_llm_model."""
 
     def setUp(self):
+        feature_flags.initialize()
         self.test_info = {
             "component_name": "test_component",
             "component_module": "test_module",
@@ -55,9 +57,7 @@ class TestSamComponentBaseModelInit(unittest.TestCase):
             "model": model_config,
             "model_provider": model_provider,
         }
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = lazy
+        with mock_flags(model_config_ui=lazy):
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -80,6 +80,7 @@ class TestSamComponentBaseModelInit(unittest.TestCase):
     def tearDown(self):
         if hasattr(self, "_config_patcher"):
             self._config_patcher.stop()
+        feature_flags._reset_for_testing()
 
     def test_initialize_model_with_string_config(self):
         """String model config should create a LiteLlm instance."""
@@ -165,6 +166,7 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
     """Test the _lazy_model_mode flag."""
 
     def setUp(self):
+        feature_flags.initialize()
         self.test_info = {
             "component_name": "test_component",
             "component_module": "test_module",
@@ -174,6 +176,20 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             },
         }
 
+    def tearDown(self):
+        feature_flags._reset_for_testing()
+
+    def _make_component_with_config(self, config_map, lazy=False):
+        with mock_flags(model_config_ui=lazy):
+            with patch.object(
+                SamComponentBase,
+                "get_config",
+                side_effect=lambda key, *args: config_map.get(
+                    key, args[0] if args else None
+                ),
+            ):
+                return ConcreteSamComponent(self.test_info)
+
     def test_lazy_mode_enabled_when_env_true(self):
         """_lazy_model_mode should be True when MODEL_CONFIG_UI=true."""
         config_map = {
@@ -181,37 +197,17 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = True
-            with patch.object(
-                SamComponentBase,
-                "get_config",
-                side_effect=lambda key, *args: config_map.get(
-                    key, args[0] if args else None
-                ),
-            ):
-                component = ConcreteSamComponent(self.test_info)
+        component = self._make_component_with_config(config_map, lazy=True)
         assert component._lazy_model_mode is True
 
     def test_lazy_mode_disabled_by_default(self):
-        """_lazy_model_mode should be False when env var is not set."""
+        """_lazy_model_mode should be False when flag is not enabled."""
         config_map = {
             "namespace": "test/namespace",
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = False
-            with patch.object(
-                SamComponentBase,
-                "get_config",
-                side_effect=lambda key, *args: config_map.get(
-                    key, args[0] if args else None
-                ),
-            ):
-                component = ConcreteSamComponent(self.test_info)
+        component = self._make_component_with_config(config_map, lazy=False)
         assert component._lazy_model_mode is False
 
     def test_model_provider_extracted_from_list(self):
@@ -221,17 +217,7 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": ["provider-a", "provider-b"],
         }
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = False
-            with patch.object(
-                SamComponentBase,
-                "get_config",
-                side_effect=lambda key, *args: config_map.get(
-                    key, args[0] if args else None
-                ),
-            ):
-                component = ConcreteSamComponent(self.test_info)
+        component = self._make_component_with_config(config_map)
         assert component.model_provider == "provider-a"
 
     def test_model_provider_none_when_empty_list(self):
@@ -241,17 +227,7 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": [],
         }
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = False
-            with patch.object(
-                SamComponentBase,
-                "get_config",
-                side_effect=lambda key, *args: config_map.get(
-                    key, args[0] if args else None
-                ),
-            ):
-                component = ConcreteSamComponent(self.test_info)
+        component = self._make_component_with_config(config_map)
         assert component.model_provider is None
 
     def test_model_provider_none_when_not_configured(self):
@@ -261,15 +237,5 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = False
-            with patch.object(
-                SamComponentBase,
-                "get_config",
-                side_effect=lambda key, *args: config_map.get(
-                    key, args[0] if args else None
-                ),
-            ):
-                component = ConcreteSamComponent(self.test_info)
+        component = self._make_component_with_config(config_map)
         assert component.model_provider is None

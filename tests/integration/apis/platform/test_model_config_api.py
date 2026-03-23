@@ -9,12 +9,12 @@ Tests the HTTP layer behavior for model configuration endpoints including:
 """
 
 import logging
-import os
 import uuid
 import pytest
-from unittest.mock import patch
 from sqlalchemy.orm import Session
 
+from sam_test_infrastructure.feature_flags import mock_flags
+from solace_agent_mesh.common.features import core as feature_flags
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
@@ -24,9 +24,8 @@ log = logging.getLogger(__name__)
 @pytest.fixture
 def enable_model_config_feature_flag():
     """Enable the model_config_ui feature flag for testing."""
-    with patch("openfeature.api.get_client") as mock_get_client:
-        mock_client = mock_get_client.return_value
-        mock_client.get_boolean_value.return_value = True
+    feature_flags.initialize()
+    with mock_flags(model_config_ui=True):
         yield
 
 
@@ -243,21 +242,14 @@ class TestModelConfigurationAPI:
         """Test that endpoints return 501 when model_config_ui feature flag is disabled."""
         from fastapi.testclient import TestClient
 
+        feature_flags.initialize()
         app = platform_api_client_factory.app
 
-        # Ensure the feature flag is disabled
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = False
+        with mock_flags(model_config_ui=False):
             client = TestClient(app)
-
-            # Act: Try to get models with feature flag disabled
             response = client.get("/api/v1/platform/models")
 
-            # Assert: Status code is 501
-            assert response.status_code == 501
-
-            # Assert: Response contains error detail
-            data = response.json()
-            assert "detail" in data
-            assert "not enabled" in data["detail"].lower()
+        assert response.status_code == 501
+        data = response.json()
+        assert "detail" in data
+        assert "not enabled" in data["detail"].lower()

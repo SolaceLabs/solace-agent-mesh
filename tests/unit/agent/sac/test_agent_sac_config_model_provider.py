@@ -1,11 +1,18 @@
 """Unit tests for SamAgentAppConfig model and model_provider validation."""
 
-import os
 import pytest
-from unittest.mock import patch
 from pydantic import ValidationError
 
+from sam_test_infrastructure.feature_flags import mock_flags
+from solace_agent_mesh.common.features import core as feature_flags
 from src.solace_agent_mesh.agent.sac.app import SamAgentAppConfig
+
+
+@pytest.fixture(autouse=True)
+def _feature_flags():
+    feature_flags.initialize()
+    yield
+    feature_flags._reset_for_testing()
 
 
 def _minimal_config(**overrides):
@@ -26,38 +33,28 @@ class TestModelFieldOptional:
 
     def test_model_required_when_feature_flag_off(self):
         """Without MODEL_CONFIG_UI, model is required."""
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = False
+        with mock_flags(model_config_ui=False):
             with pytest.raises(ValidationError, match="model"):
-                SamAgentAppConfig.model_validate(
-                    _minimal_config(model=None)
-                )
+                SamAgentAppConfig.model_validate(_minimal_config(model=None))
 
     def test_model_provided_when_feature_flag_off(self):
         """With model provided and no feature flag, config is valid."""
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = False
+        with mock_flags(model_config_ui=False):
             config = SamAgentAppConfig.model_validate(_minimal_config())
             assert config.model == "test-model"
 
     def test_model_none_allowed_with_model_provider_and_feature_flag(self):
         """With MODEL_CONFIG_UI=true and model_provider set, model can be None."""
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = True
+        with mock_flags(model_config_ui=True):
             config = SamAgentAppConfig.model_validate(
-            _minimal_config(model=None, model_provider=["some-provider"])
+                _minimal_config(model=None, model_provider=["some-provider"])
             )
             assert config.model is None
             assert config.model_provider == ["some-provider"]
 
     def test_model_and_provider_both_none_raises_with_feature_flag(self):
         """With feature flag but neither model nor model_provider, validation fails."""
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = True
+        with mock_flags(model_config_ui=True):
             with pytest.raises(ValidationError, match="model_provider.*model"):
                 SamAgentAppConfig.model_validate(
                     _minimal_config(model=None, model_provider=None)
@@ -65,9 +62,7 @@ class TestModelFieldOptional:
 
     def test_model_provided_with_feature_flag(self):
         """With feature flag and model provided (no provider), config is valid."""
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = True
+        with mock_flags(model_config_ui=True):
             config = SamAgentAppConfig.model_validate(_minimal_config())
             assert config.model == "test-model"
 
@@ -82,9 +77,7 @@ class TestModelProviderField:
 
     def test_model_provider_accepts_list(self):
         """model_provider should accept a list of strings."""
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = True
+        with mock_flags(model_config_ui=True):
             config = SamAgentAppConfig.model_validate(
                 _minimal_config(model_provider=["provider-a", "provider-b"])
             )
