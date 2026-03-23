@@ -10,7 +10,9 @@ import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type SettingsSection = "general" | "speech" | "about" | string;
+type BuiltInSection = "general" | "speech" | "about";
+// NOSONAR typescript:S4335
+type SettingsSection = BuiltInSection | (string & {});
 
 export interface ExtraSettingsTab {
     id: string;

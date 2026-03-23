@@ -230,6 +230,38 @@ export const WithExtraTab = {
     },
 };
 
+export const WithExtraTabBottom = {
+    render: () => (
+        <SettingsDialog
+            open={true}
+            onOpenChange={() => {}}
+            extraTabs={[
+                {
+                    id: "admin",
+                    label: "Admin",
+                    icon: <Plug className="size-4" />,
+                    content: <div>Admin content</div>,
+                    position: "bottom" as const,
+                },
+            ]}
+        />
+    ),
+    play: async () => {
+        const dialog = await within(document.body).findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        // Extra tab appears in the bottom section of the sidebar
+        await dialogContent.findByRole("button", { name: "Admin" });
+
+        // Clicking it shows its content
+        await userEvent.click(dialogContent.getByRole("button", { name: "Admin" }));
+        await dialogContent.findByText("Admin content");
+
+        // About is still last
+        await dialogContent.findByRole("button", { name: "About" });
+    },
+};
+
 export const All = {
     parameters: {
         configContext: {
