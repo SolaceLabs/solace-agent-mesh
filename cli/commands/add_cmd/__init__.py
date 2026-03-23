@@ -1,10 +1,3 @@
-"""
-``sam add`` subcommand group.
-
-Subcommands (``agent``, ``gateway``, ``proxy``) are loaded lazily to avoid
-pulling in heavyweight dependencies at CLI startup.
-"""
-
 import click
 
 from ...lazy_group import LazyGroup

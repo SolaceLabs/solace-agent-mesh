@@ -15,11 +15,6 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 from cli import __version__
 from cli.lazy_group import LazyGroup
 
-# ---------------------------------------------------------------------------
-# Lazy command registry
-#
-# Each entry maps a CLI command name to its import path and short help text.
-# ---------------------------------------------------------------------------
 _COMMANDS = {
     "init":   ("cli.commands.init_cmd:init",    "Initialize a new Solace application project."),
     "run":    ("cli.commands.run_cmd:run",       "Run the Solace application with specified or discovered YAML configuration files."),
