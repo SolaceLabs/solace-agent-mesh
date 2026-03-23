@@ -3,11 +3,17 @@
 Unit tests for the SamAgentAppConfig class
 """
 
-import pytest
-from pydantic import ValidationError
 from unittest.mock import MagicMock, patch
 
-from src.solace_agent_mesh.agent.sac.app import SamAgentAppConfig, AgentIdentityConfig, ArtifactServiceConfig, SamAgentApp
+import pytest
+from pydantic import ValidationError
+
+from src.solace_agent_mesh.agent.sac.app import (
+    AgentIdentityConfig,
+    ArtifactServiceConfig,
+    SamAgentApp,
+    SamAgentAppConfig,
+)
 
 class TestArtifactServiceConfig:
     """Test cases for the ArtifactServiceConfig class."""
