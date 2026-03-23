@@ -155,3 +155,4 @@ def _initialize_for_testing(path: str) -> None:
     _checker = FeatureChecker(registry=registry)
     openfeature_api.set_provider(SamFeatureProvider(_checker))
     _initialized = True
+
