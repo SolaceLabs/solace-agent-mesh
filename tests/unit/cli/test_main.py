@@ -8,6 +8,7 @@ Tests the main CLI entry point including:
 - Help text display
 - Main function entry point
 """
+import click
 from click.testing import CliRunner
 
 from cli.main import cli, main
@@ -105,58 +106,56 @@ class TestVersionOption:
 
 
 class TestCommandRegistration:
-    """Tests for command registration"""
+    """Tests for command registration (via LazyGroup.list_commands)"""
+
+    def _registered_commands(self):
+        """Get all registered command names, including lazy commands."""
+        ctx = click.Context(cli)
+        return cli.list_commands(ctx)
 
     def test_init_command_registered(self):
         """Test that init command is registered"""
-        assert 'init' in cli.commands
-        assert cli.commands['init'] is not None
+        assert 'init' in self._registered_commands()
 
     def test_run_command_registered(self):
         """Test that run command is registered"""
-        assert 'run' in cli.commands
-        assert cli.commands['run'] is not None
+        assert 'run' in self._registered_commands()
 
     def test_add_command_registered(self):
         """Test that add command is registered"""
-        assert 'add' in cli.commands
-        assert cli.commands['add'] is not None
+        assert 'add' in self._registered_commands()
 
     def test_plugin_command_registered(self):
         """Test that plugin command is registered"""
-        assert 'plugin' in cli.commands
-        assert cli.commands['plugin'] is not None
+        assert 'plugin' in self._registered_commands()
 
     def test_eval_cmd_command_registered(self):
         """Test that eval_cmd command is registered"""
-        assert 'eval' in cli.commands
-        assert cli.commands['eval'] is not None
+        assert 'eval' in self._registered_commands()
 
     def test_docs_command_registered(self):
         """Test that docs command is registered"""
-        assert 'docs' in cli.commands
-        assert cli.commands['docs'] is not None
+        assert 'docs' in self._registered_commands()
 
     def test_tools_command_registered(self):
         """Test that tools command is registered"""
-        assert 'tools' in cli.commands
-        assert cli.commands['tools'] is not None
+        assert 'tools' in self._registered_commands()
 
     def test_task_command_registered(self):
         """Test that task command is registered"""
-        assert 'task' in cli.commands
-        assert cli.commands['task'] is not None
+        assert 'task' in self._registered_commands()
 
     def test_all_expected_commands_registered(self):
         """Test that all expected commands are registered"""
         expected_commands = ['add', 'docs', 'eval', 'init', 'plugin', 'run', 'task', 'tools']
+        registered = self._registered_commands()
         for cmd in expected_commands:
-            assert cmd in cli.commands, f"Command '{cmd}' not registered"
+            assert cmd in registered, f"Command '{cmd}' not registered"
 
     def test_command_count(self):
         """Test that the expected number of commands are registered"""
         # Should have exactly 8 commands
-        assert len(cli.commands) == 8
+        assert len(self._registered_commands()) == 8
 
 
 class TestHelpText:
