@@ -217,12 +217,14 @@ export const WithExtraTab = {
         const dialog = await within(document.body).findByRole("dialog");
         const dialogContent = within(dialog);
 
-        // Extra tab appears in the sidebar
+        // General content shown by default
         await dialogContent.findByRole("button", { name: "Integrations" });
+        await expect(dialogContent.getByRole("heading", { name: "General" })).toBeInTheDocument();
 
-        // Clicking it shows its content
+        // Clicking extra tab updates header and content
         await userEvent.click(dialogContent.getByRole("button", { name: "Integrations" }));
         await dialogContent.findByText("Integrations content");
+        await expect(dialogContent.getByRole("heading", { name: "Integrations" })).toBeInTheDocument();
 
         // Built-in tabs still present
         await dialogContent.findByRole("button", { name: "General" });
@@ -250,12 +252,14 @@ export const WithExtraTabBottom = {
         const dialog = await within(document.body).findByRole("dialog");
         const dialogContent = within(dialog);
 
-        // Extra tab appears in the bottom section of the sidebar
-        await dialogContent.findByRole("button", { name: "Admin" });
+        // General is shown by default
+        await expect(dialogContent.getByRole("heading", { name: "General" })).toBeInTheDocument();
 
-        // Clicking it shows its content
+        // Admin tab present, clicking it updates header and content
+        await dialogContent.findByRole("button", { name: "Admin" });
         await userEvent.click(dialogContent.getByRole("button", { name: "Admin" }));
         await dialogContent.findByText("Admin content");
+        await expect(dialogContent.getByRole("heading", { name: "Admin" })).toBeInTheDocument();
 
         // About is still last
         await dialogContent.findByRole("button", { name: "About" });
