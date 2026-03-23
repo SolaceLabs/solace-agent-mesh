@@ -213,7 +213,8 @@ export function createPersistentCache<T>(options: PersistentCacheOptions): Persi
                 idbOperation(db, storeName, "readwrite", store => store.put(updated)).catch(err => console.warn("[PersistentCache] Failed to update accessedAt:", err));
 
                 return entry.value;
-            } catch {
+            } catch (err) {
+                console.warn("[PersistentCache] Read error:", err);
                 return undefined;
             }
         },
@@ -252,7 +253,8 @@ export function createPersistentCache<T>(options: PersistentCacheOptions): Persi
             try {
                 await idbOperation(db, storeName, "readwrite", store => store.delete(key));
                 return true;
-            } catch {
+            } catch (err) {
+                console.warn("[PersistentCache] Delete error:", err);
                 return hadMemory;
             }
         },

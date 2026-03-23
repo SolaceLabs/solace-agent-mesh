@@ -52,19 +52,11 @@ describe("createPersistentCache", () => {
             expect(cache.getSync("k")).toBe("val");
         });
 
-        it("returns undefined after TTL expires", async () => {
-            const cache = makeCache<string>({ ttlMs: 1000 });
-            await cache.set("k", "val");
-
-            vi.advanceTimersByTime(1001);
-            // getSync reads from memory map which doesn't check TTL —
-            // but async get does (via isExpired on the CacheEntry).
-            // In memory-only mode (no IndexedDB), get() checks memory first
-            // and memory map doesn't store createdAt, so the value persists.
-            // The TTL check only applies to IndexedDB entries.
-            // In memory-only mode, getSync still returns the value.
-            expect(cache.getSync("k")).toBe("val");
-        });
+        // NOTE: TTL expiry after deadline is only enforced on the IndexedDB path
+        // (via isExpired on CacheEntry). The in-memory Map does not store
+        // createdAt, so memory-only mode cannot expire entries. TTL expiry
+        // tests require IndexedDB (e.g. via fake-indexeddb) and are not
+        // covered in this memory-fallback suite.
     });
 
     describe("LRU eviction", () => {
@@ -171,4 +163,19 @@ describe("createPersistentCache", () => {
             }
         });
     });
+
+    // ---------------------------------------------------------------------------
+    // IndexedDB persistence tests
+    // ---------------------------------------------------------------------------
+    // The tests above only exercise the in-memory fallback because jsdom does not
+    // provide IndexedDB. As a result, IDB persistence, IDB-to-memory promotion,
+    // TTL expiry/deletion, and IDB LRU eviction have zero coverage.
+    //
+    // TODO: Install `fake-indexeddb` as a dev dependency and add tests that:
+    //   1. Verify set() persists to IDB and get() promotes back to memory.
+    //   2. Verify TTL-expired entries return undefined from async get() and are deleted from IDB.
+    //   3. Verify LRU eviction removes oldest-accessed entries from IDB when maxEntries is exceeded.
+    //   4. Verify delete() removes entries from both memory and IDB.
+    //   5. Verify clear() empties both memory and IDB.
+    // ---------------------------------------------------------------------------
 });

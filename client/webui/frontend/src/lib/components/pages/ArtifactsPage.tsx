@@ -63,9 +63,9 @@ const textPreviewCache = createPersistentCache<string>({
     ttlMs: 7 * 24 * 60 * 60 * 1000, // 7 days
 });
 
-// Generate cache key for document content
-function getDocumentCacheKey(sessionId: string, filename: string): string {
-    return `${sessionId}:${filename}`;
+// Generate cache key for document content, including lastModified to bust stale entries
+function getDocumentCacheKey(sessionId: string, filename: string, lastModified?: string | null): string {
+    return `${sessionId}:${filename}:${lastModified ?? ""}`;
 }
 
 /**
@@ -151,12 +151,12 @@ interface ArtifactGridCardProps {
 const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected, binaryArtifactPreviewEnabled }: ArtifactGridCardProps) {
     const [contentPreview, setContentPreview] = useState<string | null>(() => {
         // Initialise from in-memory LRU synchronously so cached tiles never flash a spinner
-        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
         return textPreviewCache.getSync(cacheKey) ?? null;
     });
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
     const [documentContent, setDocumentContent] = useState<string | null>(() => {
-        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
         return documentContentCache.getSync(cacheKey) ?? null;
     });
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -190,7 +190,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
         }
 
         // If content is already cached, no need to wait for visibility
-        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
         if (documentContentCache.getSync(cacheKey) || textPreviewCache.getSync(cacheKey)) {
             setIsVisible(true);
             return;
@@ -207,7 +207,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
         );
         observer.observe(el);
         return () => observer.disconnect();
-    }, [needsPreviewFetch, artifact.sessionId, artifact.filename]);
+    }, [needsPreviewFetch, artifact.sessionId, artifact.filename, artifact.last_modified]);
 
     // Load content preview for text files, image thumbnail, or document thumbnail.
     // Gated behind isVisible (IntersectionObserver) AND a concurrency semaphore to
@@ -241,16 +241,17 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 await fetchWithSlot(abortController.signal, async () => {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
-                    if (response.ok) {
-                        const blob = await response.blob();
-                        if (abortController.signal.aborted) return;
-                        imageBlobUrl = URL.createObjectURL(blob);
-                        if (isMounted) setImagePreviewUrl(imageBlobUrl);
+                    if (!response.ok) {
+                        throw new Error(`Image fetch failed with status ${response.status}`);
                     }
+                    const blob = await response.blob();
+                    if (abortController.signal.aborted) return;
+                    imageBlobUrl = URL.createObjectURL(blob);
+                    if (isMounted) setImagePreviewUrl(imageBlobUrl);
                 });
             } else if (canAttemptDocumentThumbnail) {
                 // For PDF, DOCX, PPTX, etc. - check cache first, then fetch content for thumbnail
-                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
                 const cachedContent = await documentContentCache.get(cacheKey);
 
                 if (cachedContent) {
@@ -271,7 +272,10 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                     return b;
                 });
 
-                if (!blob) return;
+                if (!blob) {
+                    if (isMounted) setIsLoadingPreview(false);
+                    return;
+                }
 
                 try {
                     // Note: FileReader.readAsDataURL cannot be cancelled - it will complete in the background.
@@ -308,7 +312,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 }
             } else if (supportsTextPreview(artifact.mime_type)) {
                 // For text files — check cache first, then fetch a preview snippet
-                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
+                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
                 const cachedPreview = await textPreviewCache.get(cacheKey);
 
                 if (cachedPreview) {
@@ -366,7 +370,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 URL.revokeObjectURL(imageBlobUrl);
             }
         };
-    }, [artifact.sessionId, artifact.filename, artifact.mime_type, canAttemptDocumentThumbnail, isVisible]);
+    }, [artifact.sessionId, artifact.filename, artifact.last_modified, artifact.mime_type, canAttemptDocumentThumbnail, isVisible]);
 
     // Handle document thumbnail error - fall back to icon
     const handleDocumentThumbnailError = useCallback(() => {

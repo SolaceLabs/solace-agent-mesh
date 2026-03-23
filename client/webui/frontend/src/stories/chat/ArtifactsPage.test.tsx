@@ -358,6 +358,7 @@ describe("ArtifactsPage", () => {
         });
         const fetchCalls = mockFetch.mock.calls.map(c => String(c[0]));
         expect(fetchCalls.some(url => url.includes("data.json"))).toBe(true);
+        expect(fetchCalls.some(url => url.includes("data.json") && url.includes("max_bytes=2048"))).toBe(true);
         expect(container.innerHTML).toContain("data.json");
     });
 
@@ -369,6 +370,7 @@ describe("ArtifactsPage", () => {
         });
         const fetchCalls = mockFetch.mock.calls.map(c => String(c[0]));
         expect(fetchCalls.some(url => url.includes("report.csv"))).toBe(true);
+        expect(fetchCalls.some(url => url.includes("report.csv") && url.includes("max_bytes=2048"))).toBe(true);
         expect(container.innerHTML).toContain("report.csv");
     });
 

@@ -2103,4 +2103,39 @@ class TestGetLatestArtifactMaxBytes:
         assert "X-Truncated" not in response.headers
         mock_resolve.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_truncation_preserves_valid_utf8_for_multibyte_text(self):
+        """Truncating mid-character (emoji/CJK) must produce valid UTF-8 with length <= max_bytes."""
+        # U+1F600 (😀) is 4 bytes in UTF-8: \xf0\x9f\x98\x80
+        # 3 emojis = 12 bytes. Truncating at 5 bytes would split the 2nd emoji.
+        content = "😀😀😀".encode("utf-8")  # 12 bytes
+        part = self._make_artifact_part(content, "text/plain")
+        component = self._make_component(enable_embed_resolution=False)
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
+            return_value=("user1", "session1", "session"),
+        ):
+            response = await get_latest_artifact(
+                session_id="session1",
+                filename="emoji.txt",
+                project_id=None,
+                max_bytes=5,
+                artifact_service=self._make_artifact_service(part),
+                user_id="user1",
+                validate_session=MagicMock(return_value=True),
+                component=component,
+                project_service=None,
+                user_config={"tool:artifact:load": True},
+            )
+
+        body = await self._read_response(response)
+        # The truncated bytes must be valid UTF-8
+        decoded = body.decode("utf-8")  # Should not raise
+        # Only the first complete emoji should survive (4 bytes); the partial 2nd is dropped
+        assert decoded == "😀"
+        assert len(body) <= 5
+        assert response.headers["X-Truncated"] == "true"
+        assert response.headers["X-Original-Size"] == "12"
+
 

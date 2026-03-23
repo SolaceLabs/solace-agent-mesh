@@ -987,6 +987,9 @@ async def get_latest_artifact(
         # without downloading multi-megabyte files.
         if max_bytes is not None and original_size > max_bytes:
             data_bytes = data_bytes[:max_bytes]
+            # Ensure we don't split a multi-byte UTF-8 character (e.g. emoji/CJK)
+            if is_text_based_mime_type(mime_type):
+                data_bytes = data_bytes.decode("utf-8", "ignore").encode("utf-8")
             truncated = True
             log.info(
                 "%s Truncating artifact from %d to %d bytes for preview.",
