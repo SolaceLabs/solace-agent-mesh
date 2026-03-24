@@ -215,12 +215,27 @@ class TestGetModelContextLimit:
                 assert result == DEFAULT_CONTEXT_LIMIT
 
 
+def _make_mock_db():
+    """Create a mock DB session that handles SQLAlchemy query chains for
+    ChatTaskModel and TaskModel queries used by the context-usage endpoint."""
+    db = MagicMock()
+    # Default: no chat_tasks, no completed tasks
+    query_mock = MagicMock()
+    query_mock.filter.return_value = query_mock
+    query_mock.order_by.return_value = query_mock
+    query_mock.count.return_value = 0
+    query_mock.all.return_value = []
+    query_mock.first.return_value = None
+    db.query.return_value = query_mock
+    return db
+
+
 class TestGetSessionContextUsage:
     """Tests for the get_session_context_usage endpoint."""
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        return _make_mock_db()
 
     @pytest.fixture
     def mock_session_service(self):
@@ -232,9 +247,15 @@ class TestGetSessionContextUsage:
         svc.get_session = AsyncMock()
         return svc
 
+    @pytest.fixture
+    def mock_component(self):
+        comp = MagicMock()
+        comp.model_config = None
+        return comp
+
     @pytest.mark.asyncio
     async def test_returns_zeros_for_empty_session(
-        self, mock_db, mock_session_service, mock_adk_session_service
+        self, mock_db, mock_session_service, mock_adk_session_service, mock_component
     ):
         mock_session = MagicMock()
         mock_session.agent_id = "test-agent"
@@ -243,7 +264,7 @@ class TestGetSessionContextUsage:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
-            return_value=MagicMock(),
+            return_value=mock_component,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.sessions import (
                 get_session_context_usage,
@@ -257,6 +278,7 @@ class TestGetSessionContextUsage:
                 user={"id": "user-1"},
                 session_service=mock_session_service,
                 adk_session_service=mock_adk_session_service,
+                component=mock_component,
             )
 
             assert result.current_context_tokens == 0
@@ -327,7 +349,7 @@ class TestGetSessionContextUsage:
 
     @pytest.mark.asyncio
     async def test_calculates_tokens_with_events(
-        self, mock_db, mock_session_service, mock_adk_session_service
+        self, mock_db, mock_session_service, mock_adk_session_service, mock_component
     ):
         mock_session = MagicMock()
         mock_session.agent_id = "test-agent"
@@ -351,7 +373,7 @@ class TestGetSessionContextUsage:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
-            return_value=MagicMock(),
+            return_value=mock_component,
         ), patch(
             "solace_agent_mesh.gateway.http_sse.routers.sessions._get_adk_imports",
             return_value=(lambda content, model: 100, None, None),
@@ -374,17 +396,20 @@ class TestGetSessionContextUsage:
                 user={"id": "user-1"},
                 session_service=mock_session_service,
                 adk_session_service=mock_adk_session_service,
+                component=mock_component,
             )
 
+            # No completed tasks in mock DB, so falls back to ADK event-based counting
+            # currentContextTokens = prompt_tokens only (not prompt + completion)
             assert result.prompt_tokens == 100
             assert result.completion_tokens == 100
-            assert result.current_context_tokens == 200
+            assert result.current_context_tokens == 100
             assert result.total_events == 2
 
 
     @pytest.mark.asyncio
     async def test_compaction_events_excluded_from_token_counts(
-        self, mock_db, mock_session_service, mock_adk_session_service
+        self, mock_db, mock_session_service, mock_adk_session_service, mock_component
     ):
         """Compaction events set has_compaction=True but are excluded from token counts."""
         mock_session = MagicMock()
@@ -417,7 +442,7 @@ class TestGetSessionContextUsage:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
-            return_value=MagicMock(),
+            return_value=mock_component,
         ), patch(
             "solace_agent_mesh.gateway.http_sse.routers.sessions._get_adk_imports",
             return_value=(lambda content, model: 100, None, None),
@@ -440,18 +465,21 @@ class TestGetSessionContextUsage:
                 user={"id": "user-1"},
                 session_service=mock_session_service,
                 adk_session_service=mock_adk_session_service,
+                component=mock_component,
             )
 
             assert result.has_compaction is True
             # Only user_event (100) + model_event (100); compaction_event excluded
+            # No completed tasks in mock DB → falls back to ADK event-based counting
+            # currentContextTokens = prompt_tokens only
             assert result.prompt_tokens == 100
             assert result.completion_tokens == 100
-            assert result.current_context_tokens == 200
+            assert result.current_context_tokens == 100
             assert result.total_events == 3
 
     @pytest.mark.asyncio
     async def test_returns_zeros_when_adk_session_service_is_none(
-        self, mock_db, mock_session_service
+        self, mock_db, mock_session_service, mock_component
     ):
         """When ADK is not configured (adk_session_service=None), return zero tokens."""
         mock_session = MagicMock()
@@ -460,7 +488,7 @@ class TestGetSessionContextUsage:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
-            return_value=MagicMock(),
+            return_value=mock_component,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.sessions import (
                 get_session_context_usage,
@@ -474,6 +502,7 @@ class TestGetSessionContextUsage:
                 user={"id": "user-1"},
                 session_service=mock_session_service,
                 adk_session_service=None,
+                component=mock_component,
             )
 
             assert result.current_context_tokens == 0
@@ -797,7 +826,7 @@ class TestContextUsageModelResolution:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        return _make_mock_db()
 
     @pytest.fixture
     def mock_session_service(self):
