@@ -1253,7 +1253,11 @@ async def get_session_context_usage(
                 completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
                 cached_tokens = latest.total_cached_input_tokens or 0
 
-            current_tokens = prompt_tokens + completion_tokens
+            # currentContextTokens = prompt_tokens only (the current context window
+            # size as reported by the LLM).  completion_tokens is cumulative output
+            # across all tasks and is shown separately — it should NOT be added to
+            # the context window size or it will exceed maxInputTokens.
+            current_tokens = prompt_tokens
             max_input_tokens = _get_model_context_limit(effective_model) if current_tokens > 0 else DEFAULT_CONTEXT_LIMIT
             usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 and current_tokens > 0 else 0.0
 
@@ -1346,12 +1350,14 @@ async def get_session_context_usage(
             # completion_tokens = cumulative output across ALL completed tasks
             completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
             cached_tokens = latest.total_cached_input_tokens or 0
-            current_tokens = prompt_tokens + completion_tokens
         else:
-            # No completed tasks yet — fall back to ADK event-based counting
-            current_tokens = prompt_tokens + completion_tokens
+            # No completed tasks yet — keep ADK event-based token counts
             cached_tokens = 0
 
+        # currentContextTokens = prompt_tokens only (the current context window
+        # size).  completion_tokens is cumulative output shown separately — it
+        # should NOT be added to the context window or it will exceed maxInputTokens.
+        current_tokens = prompt_tokens
         max_input_tokens = _get_model_context_limit(effective_model)
         usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 else 0.0
 
