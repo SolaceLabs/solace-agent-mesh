@@ -231,8 +231,8 @@ async def list_supported_models_by_provider(
     # Mode 2: Creating - use credentials from request
     # Validate that either model_alias or auth_type is provided
     if not request.auth_type:
-        raise ValidationErrorBuilder(
-            message="Either model_alias (for editing) or auth_type with credentials (for creating) is required"
+        raise ValidationErrorBuilder().message(
+            "Either model_alias (for editing) or auth_type with credentials (for creating) is required"
         ).entity_type("SupportedModelsRequest").entity_identifier(request.provider).build()
 
     # Delegate auth validation and config building to service
