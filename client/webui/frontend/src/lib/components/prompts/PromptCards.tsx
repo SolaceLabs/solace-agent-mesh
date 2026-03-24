@@ -69,8 +69,8 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                 return a.isPinned ? -1 : 1;
             }
             // Within each group, sort alphabetically by name
-            const nameA = (a.name || "").toLowerCase();
-            const nameB = (b.name || "").toLowerCase();
+            const nameA = (a.name ?? "").toLowerCase();
+            const nameB = (b.name ?? "").toLowerCase();
             return nameA.localeCompare(nameB);
         });
     }, [prompts, searchQuery, selectedCategories]);
@@ -132,10 +132,56 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
         return buttons;
     }, [aiAssistedEnabled, onAIAssisted, onManualCreate]);
 
+    let promptListContent: React.ReactNode;
+    if (filteredPrompts.length === 0 && searchQuery) {
+        promptListContent = (
+            <EmptyState
+                title="No Prompts Match Your Filter"
+                subtitle="Try adjusting your filter terms."
+                variant="notFound"
+                buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]}
+            />
+        );
+    } else if (isLibraryEmpty) {
+        promptListContent = <EmptyState title="No Prompts Found" subtitle="Create prompts to support reusable text structures for chat interactions." variant="noImage" buttons={createButtons} />;
+    } else {
+        promptListContent = (
+            <div className="flex-1 overflow-y-auto">
+                <div className="flex flex-wrap gap-6">
+                    <CreatePromptCard onManualCreate={onManualCreate} onAIAssisted={onAIAssisted} />
+                    {filteredPrompts.map(prompt => (
+                        <div
+                            key={prompt.id}
+                            ref={el => {
+                                if (el) {
+                                    promptRefs.current.set(prompt.id, el);
+                                } else {
+                                    promptRefs.current.delete(prompt.id);
+                                }
+                            }}
+                        >
+                            <PromptCard
+                                prompt={prompt}
+                                isSelected={selectedPrompt?.id === prompt.id}
+                                onPromptClick={() => handlePromptClick(prompt)}
+                                onEdit={onEdit}
+                                onDelete={onDelete}
+                                onViewVersions={onViewVersions}
+                                onUseInChat={onUseInChat}
+                                onTogglePin={onTogglePin}
+                                onExport={onExport}
+                            />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="absolute inset-0 h-full w-full">
             <ResizablePanelGroup id="promptCardsPanelGroup" direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100} id="promptCardsMainPanel">
+                <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={100} id="promptCardsMainPanel">
                     <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                         {!isLibraryEmpty && (
                             <div className="mb-4 flex items-center gap-2">
@@ -192,54 +238,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                             </div>
                         )}
 
-                        {filteredPrompts.length === 0 && searchQuery ? (
-                            <EmptyState
-                                title="No Prompts Match Your Filter"
-                                subtitle="Try adjusting your filter terms."
-                                variant="notFound"
-                                buttons={[
-                                    {
-                                        text: "Clear Filter",
-                                        variant: "default",
-                                        onClick: () => setSearchQuery(""),
-                                    },
-                                ]}
-                            />
-                        ) : isLibraryEmpty ? (
-                            <EmptyState title="No Prompts Found" subtitle="Create prompts to support reusable text structures for chat interactions." variant="noImage" buttons={createButtons} />
-                        ) : (
-                            <div className="flex-1 overflow-y-auto">
-                                <div className="flex flex-wrap gap-6">
-                                    <CreatePromptCard onManualCreate={onManualCreate} onAIAssisted={onAIAssisted} />
-
-                                    {/* Existing Prompt Cards */}
-                                    {filteredPrompts.map(prompt => (
-                                        <div
-                                            key={prompt.id}
-                                            ref={el => {
-                                                if (el) {
-                                                    promptRefs.current.set(prompt.id, el);
-                                                } else {
-                                                    promptRefs.current.delete(prompt.id);
-                                                }
-                                            }}
-                                        >
-                                            <PromptCard
-                                                prompt={prompt}
-                                                isSelected={selectedPrompt?.id === prompt.id}
-                                                onPromptClick={() => handlePromptClick(prompt)}
-                                                onEdit={onEdit}
-                                                onDelete={onDelete}
-                                                onViewVersions={onViewVersions}
-                                                onUseInChat={onUseInChat}
-                                                onTogglePin={onTogglePin}
-                                                onExport={onExport}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        {promptListContent}
                     </div>
                 </ResizablePanel>
 
