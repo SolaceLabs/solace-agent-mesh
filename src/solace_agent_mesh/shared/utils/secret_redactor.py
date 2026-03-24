@@ -34,6 +34,8 @@ AUTH_SECRET_FIELDS = {
     "bearer": {"token"},
     "apikey": {"api_key"},
     "basic": {"password"},
+    "aws_iam": {"aws_secret_access_key", "aws_session_token"},
+    "gcp_service_account": {"service_account_json"},    
 }
 
 

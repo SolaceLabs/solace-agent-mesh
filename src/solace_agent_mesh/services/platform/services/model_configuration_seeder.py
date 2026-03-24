@@ -35,7 +35,7 @@ def _infer_provider(api_base: str, model_name: str = "") -> str:
         model_name: Model name for provider detection
 
     Returns:
-        Provider type string (e.g., 'openai', 'openai_compatible', 'custom')
+        Provider type string (e.g., 'openai', 'anthropic', 'custom')
     """
     # Phase 1: Check api_base for well-known provider domains
     if api_base:
@@ -63,14 +63,14 @@ def _infer_provider(api_base: str, model_name: str = "") -> str:
 
         # Phase 2: Check for OpenAI-style endpoint paths
         if "/v1/" in path:
-            return "openai_compatible"
+            return "custom"
 
     # Phase 3: Check model name routing prefixes
     if model_name:
         model_lower = model_name.lower()
 
         if model_lower.startswith("openai/"):
-            return "openai_compatible"
+            return "custom"
         elif "gemini" in model_lower:
             return "google_ai_studio"
         elif model_lower.startswith("claude"):
@@ -109,7 +109,7 @@ def _get_default_api_base(provider: str) -> Optional[str]:
         return "https://us-central1-aiplatform.googleapis.com/v1"
 
     # Providers that require explicit configuration (region-specific, custom, etc.)
-    # bedrock, azure_openai, openai_compatible, custom
+    # bedrock, azure_openai, custom
     return None
 
 

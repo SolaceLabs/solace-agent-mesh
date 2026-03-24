@@ -32,6 +32,9 @@ interface ProjectPreview {
 
 // Default max ZIP upload size (100MB) - fallback if not configured
 const DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
+// Zip bomb protection: cap on number of entries and total uncompressed size
+export const MAX_ZIP_FILE_COUNT = 1000;
+export const MAX_ZIP_UNCOMPRESSED_BYTES = 500 * 1024 * 1024; // 500MB
 
 export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const { validationLimits } = useConfigContext();
@@ -75,6 +78,12 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
             // Use JSZip to read and parse the ZIP file
             const zip = await JSZip.loadAsync(file);
 
+            // Zip bomb protection: check entry count before processing
+            if (Object.keys(zip.files).length > MAX_ZIP_FILE_COUNT) {
+                setError(`ZIP file contains too many entries (max ${MAX_ZIP_FILE_COUNT})`);
+                return false;
+            }
+
             // Check for project.json
             if (!zip.files["project.json"]) {
                 setError("Invalid project export: missing project.json");
@@ -111,6 +120,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
             // Get artifact sizes and check for oversized files
             const artifacts: ArtifactPreviewInfo[] = [];
             const oversizedArtifacts: ArtifactPreviewInfo[] = [];
+            let totalUncompressedSize = 0;
 
             for (const artifactPath of artifactFiles) {
                 const zipEntry = zip.files[artifactPath];
@@ -127,6 +137,13 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                     } catch {
                         size = 0;
                     }
+                }
+
+                // Zip bomb protection: check cumulative uncompressed size
+                totalUncompressedSize += size;
+                if (totalUncompressedSize > MAX_ZIP_UNCOMPRESSED_BYTES) {
+                    setError(`ZIP file uncompressed content exceeds ${MAX_ZIP_UNCOMPRESSED_BYTES / (1024 * 1024)}MB limit`);
+                    return false;
                 }
 
                 const isOversized = maxPerFileUploadSizeBytes ? size > maxPerFileUploadSizeBytes : false;

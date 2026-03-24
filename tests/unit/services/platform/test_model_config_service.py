@@ -145,15 +145,28 @@ class TestGetByAlias:
         assert hasattr(result, "alias")
         assert result.alias == "my-model"
 
-    def test_not_found_returns_none(self):
-        """Returns None when alias not found, regardless of raw flag."""
+    def test_not_found_raises_entity_not_found(self):
+        """Raises EntityNotFoundError when alias not found."""
+        from solace_agent_mesh.shared.exceptions.exceptions import EntityNotFoundError
+
         service = ModelConfigService()
         service.repository = Mock()
         service.repository.get_by_alias.return_value = None
         mock_db = Mock()
 
-        assert service.get_by_alias(mock_db, "nonexistent", raw=True) is None
-        assert service.get_by_alias(mock_db, "nonexistent", raw=False) is None
+        raised = False
+        try:
+            service.get_by_alias(mock_db, "nonexistent", raw=True)
+        except EntityNotFoundError:
+            raised = True
+        assert raised, "Expected EntityNotFoundError for raw=True"
+
+        raised = False
+        try:
+            service.get_by_alias(mock_db, "nonexistent", raw=False)
+        except EntityNotFoundError:
+            raised = True
+        assert raised, "Expected EntityNotFoundError for raw=False"
 
 
 class TestGetByAliasOrId:
