@@ -422,10 +422,11 @@ async def get_app_config(
         _model_config = component.get_config("model", {})
         _model_provider_config = component.get_config("model_provider", [])
         _llm_model = None
-        if isinstance(_model_config, dict):
-            _llm_model = _model_config.get("model")
-        elif isinstance(_model_provider_config, list) and len(_model_provider_config) > 0:
+        if isinstance(_model_provider_config, list) and len(_model_provider_config) > 0:
             _llm_model = _model_provider_config[0]
+        elif isinstance(_model_config, dict):
+            _llm_model = _model_config.get("model")
+
         feature_enablement["llm_model_configured"] = bool(_llm_model)
 
         # Determine if binary artifact preview (DOCX, PPTX, XLSX to PDF) should be enabled

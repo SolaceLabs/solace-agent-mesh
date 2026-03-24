@@ -47,7 +47,7 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled } = useConfigContext();
+    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled, configUseAuthorization } = useConfigContext();
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
@@ -2959,6 +2959,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         backgroundTasks,
         backgroundNotifications,
         isTaskRunningInBackground,
+
+        hasModelConfigWrite: !configUseAuthorization,
     };
 
     // Handlers for the running task warning dialog

@@ -56,12 +56,12 @@ export function ChatPage() {
         closeSessionDeleteModal,
         confirmSessionDelete,
         currentTaskId,
+        hasModelConfigWrite,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
-    const [isTitleWarningDismissed, setIsTitleWarningDismissed] = useState(false);
-    const showTitleWarning = autoTitleGenerationEnabled && !llmModelConfigured && !isTitleWarningDismissed;
+    const showTitleWarning = autoTitleGenerationEnabled && !llmModelConfigured;
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -286,15 +286,15 @@ export function ChatPage() {
                 <div className={cn("transition-all duration-300", isSessionSidePanelCollapsed ? "ml-0" : "ml-100")}>
                     <MessageBanner
                         variant="warning"
-                        dismissible
-                        onDismiss={() => setIsTitleWarningDismissed(true)}
+                        dismissible={false}
+                        style={{ alignItems: "center" }}
                         message={
                             <div className="flex w-full items-center justify-between gap-3">
                                 <span>
                                     &quot;Auto Title Generation&quot; requires an LLM model to work. No model has been configured for your organization. Contact your administrator for
                                     assistance.
                                 </span>
-                                {modelConfigUiEnabled && (
+                                {hasModelConfigWrite && modelConfigUiEnabled && (
                                     <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/agents?tab=models")}>
                                         Add Model
                                     </Button>
