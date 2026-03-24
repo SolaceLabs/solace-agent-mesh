@@ -7,7 +7,7 @@ interface CardProps extends React.ComponentProps<"div"> {
 }
 
 function Card({ className, noPadding, ...props }: CardProps) {
-    return <div data-slot="card" className={cn("flex flex-col gap-5 rounded-lg border bg-(--background-w10) text-(--primary-text-wMain) shadow-[0_4px_6px_-1px_rgba(0,0,0,0.15)]", !noPadding && "py-6", className)} {...props} />;
+    return <div data-slot="card" className={cn("card-surface flex flex-col gap-5 rounded-lg bg-(--background-w10) text-(--primary-text-wMain)", !noPadding && "py-6", className)} {...props} />;
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {

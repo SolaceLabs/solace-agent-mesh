@@ -14,3 +14,5 @@ export * from "./sourceUrlHelpers";
 export * from "./mentionUtils";
 export * from "./agentUtils";
 export * from "./lruCache";
+export * from "./semaphore";
+export * from "./persistentCache";

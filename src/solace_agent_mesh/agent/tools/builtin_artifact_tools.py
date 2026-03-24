@@ -55,6 +55,7 @@ async def _internal_create_artifact(
     description: Optional[str] = None,
     metadata_json: Optional[str] = None,
     schema_max_keys: Optional[int] = None,
+    tags: Optional[List[str]] = None,
 ) -> ToolResult:
     """
     Internal helper to create an artifact with its first chunk of content and metadata.
@@ -71,7 +72,7 @@ async def _internal_create_artifact(
         description (str, optional): A description for the artifact.
         metadata_json (str, optional): A JSON string of additional metadata.
         schema_max_keys (int, optional): Max keys for schema inference.
-
+        tags (List[str], optional): Tags for categorization (e.g., ["__working"]).
 
     Returns:
         A ToolResult indicating the result of the save operation.
@@ -174,6 +175,7 @@ async def _internal_create_artifact(
             metadata_dict=final_metadata,
             timestamp=timestamp_for_artifact,
             schema_max_keys=max_keys_to_use,
+            tags=tags,
             tool_context=tool_context,
             suppress_visualization_signal=True,  # Fenced blocks handle their own visualization signals
         )

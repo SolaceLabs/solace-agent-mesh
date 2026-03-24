@@ -485,6 +485,9 @@ class ArtifactWithContext(BaseModel):
     # Source field for origin badges (upload, generated, project)
     source: Optional[str] = None
     
+    # Tags for categorization (e.g., ["__working"] to mark as internal)
+    tags: Optional[list[str]] = None
+    
     model_config = {"populate_by_name": True}
 
 
@@ -583,6 +586,7 @@ async def list_all_artifacts(
                         project_id=project_id,
                         project_name=project_name,
                         source=_determine_source(artifact.filename, session_id),
+                        tags=artifact.tags,
                     ))
                 return result
             except Exception as e:
@@ -903,6 +907,17 @@ async def get_latest_artifact(
     ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     project_id: Optional[str] = Query(None, description="Project ID for project context"),
+    max_bytes: Optional[int] = Query(
+        None,
+        ge=1,
+        le=1048576,
+        description=(
+            "If provided, truncate the response body to at most this many bytes. "
+            "Useful for generating tile previews without downloading the full artifact. "
+            "When truncation is applied, embed resolution is skipped and the response "
+            "includes an X-Truncated: true header."
+        ),
+    ),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
@@ -913,6 +928,11 @@ async def get_latest_artifact(
     """
     Retrieves the content of the latest version of the specified artifact
     associated with the specified context (session or project).
+
+    When ``max_bytes`` is supplied the response is truncated to that size.
+    This is intended for lightweight tile previews on the artifacts page so
+    the frontend does not need to download multi-megabyte files just to show
+    an 8-line snippet.  Embed / template resolution is skipped in this mode.
     """
     log_prefix = (
         f"[ArtifactRouter:GetLatest:{filename}] User={user_id}, Session={session_id} -"
@@ -953,14 +973,32 @@ async def get_latest_artifact(
 
         data_bytes = artifact_part.inline_data.data
         mime_type = artifact_part.inline_data.mime_type or "application/octet-stream"
+        original_size = len(data_bytes)
+        truncated = False
         log.info(
             "%s Artifact loaded successfully (%d bytes, %s).",
             log_prefix,
-            len(data_bytes),
+            original_size,
             mime_type,
         )
 
-        if is_text_based_mime_type(mime_type) and component.enable_embed_resolution:
+        # When max_bytes is requested, truncate early and skip embed resolution.
+        # This is used by the artifacts page to generate lightweight tile previews
+        # without downloading multi-megabyte files.
+        if max_bytes is not None and original_size > max_bytes:
+            data_bytes = data_bytes[:max_bytes]
+            # Ensure we don't split a multi-byte UTF-8 character (e.g. emoji/CJK)
+            if is_text_based_mime_type(mime_type):
+                data_bytes = data_bytes.decode("utf-8", "ignore").encode("utf-8")
+            truncated = True
+            log.info(
+                "%s Truncating artifact from %d to %d bytes for preview.",
+                log_prefix,
+                original_size,
+                max_bytes,
+            )
+
+        if not truncated and is_text_based_mime_type(mime_type) and component.enable_embed_resolution:
             log.info(
                 "%s Artifact is text-based. Attempting recursive embed resolution.",
                 log_prefix,
@@ -1031,12 +1069,16 @@ async def get_latest_artifact(
             )
 
         filename_encoded = quote(filename)
+        response_headers = {
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
+        }
+        if truncated:
+            response_headers["X-Truncated"] = "true"
+            response_headers["X-Original-Size"] = str(original_size)
         return StreamingResponse(
             io.BytesIO(data_bytes),
             media_type=mime_type,
-            headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
-            },
+            headers=response_headers,
         )
 
     except FileNotFoundError:

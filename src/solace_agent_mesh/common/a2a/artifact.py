@@ -20,6 +20,7 @@ from a2a.types import (
     TextPart,
 )
 from .. import a2a
+from ..constants import ARTIFACT_TAG_USER_UPLOADED
 from ..utils.mime_helpers import resolve_mime_type
 
 if TYPE_CHECKING:
@@ -169,6 +170,7 @@ async def prepare_file_part_for_publishing(
                     mime_type=mime_type,
                     metadata_dict=metadata_to_save,
                     timestamp=datetime.now(timezone.utc),
+                    tags=[ARTIFACT_TAG_USER_UPLOADED],
                 )
 
                 if save_result["status"] == "success":
