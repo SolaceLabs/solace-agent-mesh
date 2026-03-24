@@ -41,7 +41,7 @@ class TestShouldLogEvent:
     
     def test_should_log_event_default(self, service):
         """Test default behavior logs all events."""
-        result = service._should_log_event("some/topic", Mock())
+        result = service._should_log_event(Mock())
         assert result is True
     
     def test_should_not_log_status_when_disabled(self):
@@ -65,7 +65,7 @@ class TestShouldLogEvent:
         service = TaskLoggerService(None, {"log_artifact_events": False})
         mock_event = Mock(spec=TaskArtifactUpdateEvent)
         
-        result = service._should_log_event("some/topic", mock_event)
+        result = service._should_log_event(mock_event)
         assert result is False
     
     def test_should_log_artifact_when_enabled(self):
@@ -75,7 +75,7 @@ class TestShouldLogEvent:
         service = TaskLoggerService(None, {"log_artifact_events": True})
         mock_event = Mock(spec=TaskArtifactUpdateEvent)
         
-        result = service._should_log_event("some/topic", mock_event)
+        result = service._should_log_event(mock_event)
         assert result is True
 
 
@@ -310,7 +310,7 @@ class TestInferEventDetails:
             mock_a2a.get_message_from_send_request.return_value = None
             
             direction, task_id, user_id, session_id = service._infer_event_details(
-                "some/topic", mock_request, {"userId": "user-456"}
+                mock_request, {"userId": "user-456"}
             )
             
             assert direction == "request"
@@ -326,7 +326,7 @@ class TestInferEventDetails:
         mock_task.id = "task-789"
         
         direction, task_id, user_id, session_id = service._infer_event_details(
-            "some/topic", mock_task, {"userId": "user-123"}
+            mock_task, {"userId": "user-123"}
         )
         
         assert direction == "response"
@@ -342,7 +342,7 @@ class TestInferEventDetails:
         mock_event.task_id = "task-status-123"
         
         direction, task_id, user_id, session_id = service._infer_event_details(
-            "some/topic", mock_event, {}
+            mock_event, {}
         )
         
         assert direction == "status"
@@ -357,7 +357,7 @@ class TestInferEventDetails:
         mock_error.data = {"taskId": "task-error-123"}
         
         direction, task_id, user_id, session_id = service._infer_event_details(
-            "some/topic", mock_error, {}
+            mock_error, {}
         )
         
         assert direction == "error"
@@ -384,7 +384,7 @@ class TestInferEventDetails:
             }
             
             direction, task_id, user_id, session_id = service._infer_event_details(
-                "some/topic", mock_request, user_props
+                mock_request, user_props
             )
             
             assert user_id == "user-from-config"
@@ -402,7 +402,7 @@ class TestInferEventDetails:
             mock_a2a.get_message_from_send_request.return_value = None
             
             direction, task_id, user_id, session_id = service._infer_event_details(
-                "some/topic", mock_request, None
+                mock_request, None
             )
             
             assert direction == "request"
@@ -446,7 +446,7 @@ class TestParseA2AEvent:
             }
         }
         
-        result = service._parse_a2a_event("some/topic", payload)
+        result = service._parse_a2a_event(payload)
         
         from a2a.types import A2ARequest
         assert isinstance(result, A2ARequest)
@@ -455,7 +455,7 @@ class TestParseA2AEvent:
         """Test that invalid payloads return None."""
         payload = {"invalid": "data"}
         
-        result = service._parse_a2a_event("some/topic", payload)
+        result = service._parse_a2a_event(payload)
         
         assert result is None
     
@@ -463,7 +463,7 @@ class TestParseA2AEvent:
         """Test that malformed payloads return None."""
         payload = {"method": "invalid", "params": "not_a_dict"}
         
-        result = service._parse_a2a_event("some/topic", payload)
+        result = service._parse_a2a_event(payload)
         
         assert result is None
 
